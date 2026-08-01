@@ -18,6 +18,7 @@ import {
   type KeyBinding,
   type ViewUpdate
 } from "@codemirror/view";
+import { completionStatus } from "@codemirror/autocomplete";
 import { forceLinting, setDiagnostics } from "@codemirror/lint";
 import { dispatchCommand } from "../commands/commands";
 import {
@@ -28,7 +29,7 @@ import {
 import type { KeyChord } from "../keyboard/shortcutTypes";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import { isConditionalGroupElement, isFoldTargetExpanded, isStatementExpanded } from "../model/groups";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { defaultNumericParameterStep, getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
 import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
@@ -38,7 +39,7 @@ import type { ElementId, EvaluationResult } from "../types/geometry";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
-import { dslAutocompleteExtension } from "./cmAutocomplete";
+import { dslAutocompleteExtension, isElementParameterRetryContext, type DslAutocompleteOptions } from "./cmAutocomplete";
 import {
   captureSourceEditorViewport,
   cursorAtSnapshotLocation,
@@ -109,7 +110,7 @@ import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
-import { resolveTypedValueStep } from "../dsl/dslTypedValueStep";
+import { resolveTypedValueStep, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
 import { splitDslComment, splitDslTerms } from "../dsl/dslTokens";
 import type { ScalarType } from "../scalars/types";
 import {
@@ -197,8 +198,37 @@ export class SourceEditorController implements SourceEditorHandle {
   private typedSemanticMetadataFresh = false;
   private staleDiagnosticBaseline: PositionedDiagnostic[] = [];
   /** At most two newest compiled-document revisions are retained; older results can never become current. */
-  private pendingEvaluations = new Map<number, { evaluation: EvaluationResult; evaluationRequestRevision: number }>();
-  private appliedEvaluation: { evaluation: EvaluationResult; compiledDocumentRevision: number; evaluationRequestRevision: number } | null = null;
+  private pendingEvaluations = new Map<number, { evaluation: EvaluationResult; evaluationRequestRevision: number; evaluationIsCurrent: boolean }>();
+  private appliedEvaluation: {
+    evaluation: EvaluationResult;
+    compiledDocumentRevision: number;
+    evaluationRequestRevision: number;
+    /** The publisher's own evaluationStateIsCurrentFor result, carried
+     * through unchanged - never re-derived here (see setEvaluation). Element-
+     * property completion's evaluationIsCurrent getter reads this directly. */
+    evaluationIsCurrent: boolean;
+  } | null = null;
+  /** Bridges the autocompleteOptions() object used both to construct the
+   * CodeMirror extension and to probe retry eligibility from
+   * tryApplyPendingEvaluation, without importing any CodeMirror type here. */
+  private autocompleteOptions = (): DslAutocompleteOptions => ({
+    elements: () => this.store.getState().elements,
+    statementRanges: () => this.statementRanges,
+    printLayouts: () => this.store.getState().printLayouts,
+    printLayoutRanges: () => this.printLayoutRanges,
+    isComposing: () => this.protocol.composing,
+    computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables,
+    computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
+    forGroupGeneratedRows: () => this.appliedEvaluation?.evaluation.forGroupGeneratedRows,
+    effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
+    evaluationErrors: () => this.appliedEvaluation?.evaluation.errors,
+    evaluationIsCurrent: () => this.appliedEvaluation?.evaluationIsCurrent ?? false,
+    bindingAnalysis: () => this.store.getState().doc.bindingAnalysis,
+    typedDeclarationRanges: () => this.typedDeclarationRanges,
+    scopeBodyRanges: () => this.scopeBodyRanges,
+    statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId,
+    majorVersion: () => this.store.getState().doc.majorVersion ?? undefined
+  });
   private decorationIndex: EvaluationDecorationIndex = emptyDecorationIndex();
   private pendingDecorationRefresh = false;
   private pendingSelectionSync = false;
@@ -211,6 +241,14 @@ export class SourceEditorController implements SourceEditorHandle {
   private activeValueStepGesture: SourceEditorValueStepGesture | null = null;
   /** Set by the DOM observer, then consumed by the registry keymap's command dispatch. */
   private pendingKeyboardValueStep: SourceEditorValueStepGesture | null = null;
+  /** A controller-authored typed initializer edit may repeat before a new compile rebuilds semantic spans. */
+  private repeatingTypedInitializerStep: {
+    bindingId: BindingId;
+    span: { from: number; to: number };
+    declaredType: ScalarType | null;
+    options: TypedValueStepOptions;
+  } | null = null;
+  private applyingTypedInitializerStep = false;
   private destroyed = false;
   private view: EditorView;
 
@@ -241,22 +279,7 @@ export class SourceEditorController implements SourceEditorHandle {
           highlightActiveLine(),
           highlightActiveLineGutter(),
           dslCmLanguageExtension,
-          dslAutocompleteExtension({
-            elements: () => this.store.getState().elements,
-            statementRanges: () => this.statementRanges,
-            printLayouts: () => this.store.getState().printLayouts,
-            printLayoutRanges: () => this.printLayoutRanges,
-            isComposing: () => this.protocol.composing,
-            computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables,
-            computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
-            forGroupGeneratedRows: () => this.appliedEvaluation?.evaluation.forGroupGeneratedRows,
-            effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
-            evaluationErrors: () => this.appliedEvaluation?.evaluation.errors,
-            bindingAnalysis: () => this.store.getState().doc.bindingAnalysis,
-            typedDeclarationRanges: () => this.typedDeclarationRanges,
-            scopeBodyRanges: () => this.scopeBodyRanges,
-            statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId
-          }),
+          dslAutocompleteExtension(this.autocompleteOptions()),
           sourceEditorSelectionExtension,
           sourceEditorPatchHighlightExtension,
           codeFolding({
@@ -438,18 +461,52 @@ export class SourceEditorController implements SourceEditorHandle {
    */
   hasPendingText = () => !this.view.state.doc.eq(this.committedDoc);
 
+  /**
+   * Whether `candidate` should replace `applied` (or a queued pending entry
+   * of the same shape) for a single compiledDocumentRevision. A strictly
+   * higher evaluationRequestRevision always supersedes - the existing,
+   * preserved semantics for a genuinely newer (or out-of-order/stale)
+   * response. At the *same* revision+request, only a pending -> current
+   * upgrade counts as new information: parity mode's
+   * deferScalarReferenceEvaluation path (useEvaluationEngine.ts) republishes
+   * the "evaluating" placeholder and the later resolved shadow-reference
+   * result under the identical (compiledDocumentRevision,
+   * evaluationRequestRevision) pair - unlike Rust-first mode's
+   * stale-asyncEvaluation republication, which carries an older revision
+   * that the earlier `compiledDocumentRevision < current` check already
+   * rejects, so it never collides this way. Any other same-revision+request
+   * publication (current -> pending, or current -> current) is a true
+   * duplicate and must not re-apply - this is what keeps
+   * retryElementParameterCompletionIfNewlyCurrent from ever looping.
+   */
+  private supersedesApplied(
+    candidate: { evaluationRequestRevision: number; evaluationIsCurrent: boolean },
+    applied: { evaluationRequestRevision: number; evaluationIsCurrent: boolean } | undefined
+  ): boolean {
+    if (!applied) return true;
+    if (candidate.evaluationRequestRevision !== applied.evaluationRequestRevision) {
+      return candidate.evaluationRequestRevision > applied.evaluationRequestRevision;
+    }
+    return candidate.evaluationIsCurrent && !applied.evaluationIsCurrent;
+  }
+
   /** Results are keyed by the compiled document revision captured at request start.
    * Keep at most the two newest future revisions; lower revisions are permanently stale. */
   setEvaluation = (publication: SourceEvaluationPublication) => {
     const current = this.store.getState().compiledDocumentRevision;
     if (publication.compiledDocumentRevision < current) return;
+    const candidate = {
+      evaluationRequestRevision: publication.evaluationRequestRevision,
+      evaluationIsCurrent: publication.evaluationIsCurrent ?? true
+    };
     if (this.appliedEvaluation?.compiledDocumentRevision === publication.compiledDocumentRevision &&
-      this.appliedEvaluation.evaluationRequestRevision >= publication.evaluationRequestRevision) return;
+      !this.supersedesApplied(candidate, this.appliedEvaluation)) return;
     const pending = this.pendingEvaluations.get(publication.compiledDocumentRevision);
-    if (pending && pending.evaluationRequestRevision >= publication.evaluationRequestRevision) return;
+    if (pending && !this.supersedesApplied(candidate, pending)) return;
     this.pendingEvaluations.set(publication.compiledDocumentRevision, {
       evaluation: publication.evaluation,
-      evaluationRequestRevision: publication.evaluationRequestRevision
+      evaluationRequestRevision: candidate.evaluationRequestRevision,
+      evaluationIsCurrent: candidate.evaluationIsCurrent
     });
     for (const revision of [...this.pendingEvaluations.keys()].sort((left, right) => left - right)) {
       if (revision < current || this.pendingEvaluations.size > 2) this.pendingEvaluations.delete(revision);
@@ -784,6 +841,19 @@ export class SourceEditorController implements SourceEditorHandle {
    * every lookup is an existing O(1) map already rebuilt on compile.
    */
   private stepTypedSourceValue(direction: DslValueStepDirection, main: { from: number; to: number }): boolean {
+    const repeating = this.repeatingTypedInitializerStep;
+    if (repeating && this.activeValueStepGesture) {
+      if (main.from >= repeating.span.from && main.to <= repeating.span.to) {
+        return this.stepTypedDeclarationInitializer(
+          repeating.bindingId,
+          repeating.span,
+          repeating.declaredType,
+          { start: main.from, end: main.to },
+          direction,
+          repeating.options
+        );
+      }
+    }
     if (!this.typedSemanticMetadataFresh) return false;
     const doc = this.store.getState().doc;
     const selection = { start: main.from, end: main.to };
@@ -793,7 +863,7 @@ export class SourceEditorController implements SourceEditorHandle {
       const span = this.typedDeclarationFieldRanges.get(bindingId)?.initializer;
       if (span && main.from >= span.from && main.from <= span.to) {
         const declaredType = doc.bindingAnalysis?.catalog.bindingsById.get(bindingId)?.declaredType ?? null;
-        return this.stepTypedSpan(span, declaredType, selection, direction);
+        return this.stepTypedDeclarationInitializer(bindingId, span, declaredType, selection, direction, { numericStep: defaultNumericParameterStep });
       }
       return false;
     }
@@ -813,16 +883,44 @@ export class SourceEditorController implements SourceEditorHandle {
     return false;
   }
 
-  /** Resolves and commits one typed boolean/choice literal step for a span already
+  /** Preserves only a controller-authored declaration initializer target across held-key repeats. */
+  private stepTypedDeclarationInitializer(
+    bindingId: BindingId,
+    span: { from: number; to: number },
+    declaredType: ScalarType | null,
+    selection: { start: number; end: number },
+    direction: DslValueStepDirection,
+    options: TypedValueStepOptions
+  ): boolean {
+    const lengthBefore = this.view.state.doc.length;
+    this.applyingTypedInitializerStep = true;
+    try {
+      const handled = this.stepTypedSpan(span, declaredType, selection, direction, options);
+      if (handled && this.activeValueStepGesture) {
+        this.repeatingTypedInitializerStep = {
+          bindingId,
+          span: { from: span.from, to: span.to + this.view.state.doc.length - lengthBefore },
+          declaredType,
+          options
+        };
+      }
+      return handled;
+    } finally {
+      this.applyingTypedInitializerStep = false;
+    }
+  }
+
+  /** Resolves and commits one typed literal step for a span already
    * proven position-valid and semantically fresh by the caller. */
   private stepTypedSpan(
     span: { from: number; to: number },
     declaredType: ScalarType | null,
     selection: { start: number; end: number },
-    direction: DslValueStepDirection
+    direction: DslValueStepDirection,
+    options?: TypedValueStepOptions
   ): boolean {
     const value = this.view.state.doc.sliceString(span.from, span.to);
-    const change = resolveTypedValueStep(value, declaredType, span, selection, direction);
+    const change = resolveTypedValueStep(value, declaredType, span, selection, direction, options);
     if (!change) {
       if (this.activeValueStepGesture) this.flush("command");
       return false;
@@ -953,11 +1051,13 @@ export class SourceEditorController implements SourceEditorHandle {
     if (!pending) return;
     if (!this.sourceIsApplied()) return;
     if (this.appliedEvaluation?.compiledDocumentRevision === state.compiledDocumentRevision &&
-      this.appliedEvaluation.evaluationRequestRevision >= pending.evaluationRequestRevision) return;
+      !this.supersedesApplied(pending, this.appliedEvaluation)) return;
+    const wasCurrent = this.appliedEvaluation?.evaluationIsCurrent ?? false;
     this.appliedEvaluation = {
       evaluation: pending.evaluation,
       compiledDocumentRevision: state.compiledDocumentRevision,
-      evaluationRequestRevision: pending.evaluationRequestRevision
+      evaluationRequestRevision: pending.evaluationRequestRevision,
+      evaluationIsCurrent: pending.evaluationIsCurrent
     };
     this.pendingEvaluations.delete(state.compiledDocumentRevision);
     this.options.onEvaluationPresentationChange?.({ isLastGood: this.isShowingLastGoodEvaluation() });
@@ -968,6 +1068,26 @@ export class SourceEditorController implements SourceEditorHandle {
     // evaluation arriving during an edit cannot project committed diagnostics
     // onto shifted text.
     this.refreshDiagnosticsNow();
+    this.retryElementParameterCompletionIfNewlyCurrent(wasCurrent, pending.evaluationIsCurrent);
+  }
+
+  /**
+   * Element-property completion reports no candidates while evaluation is
+   * not current (see cmAutocomplete.ts's elementParameter branch), so a
+   * popup withheld purely for that reason never reopens on its own once
+   * evaluation catches up - the user would have to retype. This fires
+   * exactly once per pending -> current transition, and only when nothing
+   * else is already showing (never interrupts an open, unrelated popup) and
+   * the cursor is still at an elementParameter position whose candidates
+   * (computed from the now-current evaluation) are non-empty - otherwise
+   * there is nothing worth reopening, and this must not loop or duplicate.
+   */
+  private retryElementParameterCompletionIfNewlyCurrent(wasCurrent: boolean, isCurrent: boolean) {
+    if (wasCurrent || !isCurrent) return;
+    if (this.protocol.composing || this.view.compositionStarted) return;
+    if (completionStatus(this.view.state) !== null) return;
+    if (!isElementParameterRetryContext(this.autocompleteOptions(), this.view)) return;
+    this.view.dispatch({ annotations: Transaction.userEvent.of("input.type") });
   }
 
   private currentPickCandidates() {
@@ -1238,6 +1358,7 @@ export class SourceEditorController implements SourceEditorHandle {
     if (this.destroyed) return "clean";
     this.activeValueStepGesture = null;
     this.pendingKeyboardValueStep = null;
+    this.repeatingTypedInitializerStep = null;
     if (!this.hasPendingText()) {
       this.store.getState().setSourceEditorPreviewText(null);
       return "clean";
@@ -1371,6 +1492,7 @@ export class SourceEditorController implements SourceEditorHandle {
       // metadata currency immediately; only a fresh compile (refreshStatementRanges)
       // proves doc.bindingAnalysis/doc.setStatements describe this exact buffer again.
       this.typedSemanticMetadataFresh = false;
+      if (!this.applyingTypedInitializerStep) this.repeatingTypedInitializerStep = null;
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
       this.printLayoutRanges = mapPrintLayoutRangeIndex(this.printLayoutRanges, update.changes);
       this.typedDeclarationRanges = mapTypedDeclarationRangeIndex(this.typedDeclarationRanges, update.changes);

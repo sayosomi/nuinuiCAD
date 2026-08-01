@@ -24,6 +24,7 @@ describe("completedCommandLineSteps", () => {
       editingReturnPickState: null,
       insertionAnchor: { kind: "documentEnd" },
       insertionTarget: { insertionIndex: 0 },
+      sourceInsertionLine: null,
       insertionIndex: 0,
       startedAtRevision: 1,
       nameSuggestion: "分点",

@@ -1,4 +1,6 @@
 import { isElementDslStatement, parseDsl } from "./dslParser";
+import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
+import { UNCLOSED_CALL_CODE } from "./dslCallParser";
 import type { DslSpan, DslStatement } from "./dslTypes";
 import { physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "./dslStatementProjection";
 import type { SourceSnapshot } from "./logicalStatementSourceMap";
@@ -9,6 +11,8 @@ export type DslLabeledValueSpan = DslSpan & {
   source: "payload" | "attr";
   /** Parser semantic key. Some legacy DSL spellings are normalized by the parser. */
   key: string;
+  /** Set only when this span is empty - see `DslAttribute.rawValueSpan`. */
+  rawValueSpan?: DslSpan;
 };
 
 const spanKey = (span: DslSpan) => `${span.start}:${span.end}`;
@@ -27,7 +31,8 @@ const candidateSpans = (statement: DslStatement): DslLabeledValueSpan[] => [
     start: attr.valueStart,
     end: attr.valueEnd,
     source: "attr",
-    key: attr.key
+    key: attr.key,
+    ...(attr.rawValueSpan ? { rawValueSpan: attr.rawValueSpan } : {})
   })),
   ...Object.entries(statement.payloadSpans).map(([key, span]) => ({ ...span, source: "payload" as const, key }))
 ];
@@ -58,7 +63,19 @@ export const dslLineElementStatement = (lineText: string): DslStatement | null =
   const { statements, diagnostics } = opensBlock ? parseDsl(`${lineText}\n}`) : probe;
   const statement = statements.find((candidate) => candidate.line === 1);
   if (!statement || !isElementDslStatement(statement)) return null;
-  if (diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.line === 1)) return null;
+  // A bare "value missing" diagnostic (an attribute deleted down to empty,
+  // mid-edit) doesn't mean this parse's spans are unreliable - the statement
+  // is still structurally sound, only content is missing. An "unclosed call"
+  // diagnostic (mid-edit, e.g. a string/template hole not yet closed) is the
+  // same kind of carve-out - the already-typed argument spans built so far
+  // are still trustworthy, only the call's closing token is missing. Any
+  // other error still rejects the whole line's spans, same as before.
+  if (diagnostics.some((diagnostic) =>
+    diagnostic.severity === "error" &&
+    diagnostic.line === 1 &&
+    diagnostic.code !== MISSING_ATTRIBUTE_VALUE_CODE &&
+    diagnostic.code !== UNCLOSED_CALL_CODE
+  )) return null;
   return statement;
 };
 

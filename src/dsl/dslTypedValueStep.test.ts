@@ -22,8 +22,34 @@ describe("resolveTypedValueStep", () => {
     expect(resolveTypedValueStep("center", type, span, collapsedAt(12), -1)).toMatchObject({ insert: "left" });
   });
 
-  it("is a no-op for number, string, and null declared types", () => {
-    expect(resolveTypedValueStep("true", { kind: "number" }, span, collapsedAt(12), 1)).toBeNull();
+  it("steps the selected numeric literal with the default one-unit step", () => {
+    const numericSpan = { from: 10, to: 17 };
+    expect(resolveTypedValueStep("12.3456", { kind: "number" }, numericSpan, collapsedAt(13), 1, { numericStep: 1 })).toMatchObject({
+      from: 10,
+      to: 17,
+      insert: "13.3456",
+      selection: { start: 10, end: 17 }
+    });
+    expect(resolveTypedValueStep("12.3456", { kind: "number" }, numericSpan, collapsedAt(13), -1, { numericStep: 1 })).toMatchObject({
+      insert: "11.3456"
+    });
+  });
+
+  it("keeps a numeric initializer's fixed decimal places in both directions", () => {
+    const cases = [
+      { literal: "12.3400", span: { from: 10, to: 17 }, caret: 13, forward: "13.3400", backward: "11.3400" },
+      { literal: "1.00", span: { from: 10, to: 14 }, caret: 11, forward: "2.00", backward: "0.00" }
+    ];
+    for (const { literal, span: numericSpan, caret, forward, backward } of cases) {
+      expect(resolveTypedValueStep(literal, { kind: "number" }, numericSpan, collapsedAt(caret), 1, { numericStep: 1 }))
+        .toMatchObject({ insert: forward });
+      expect(resolveTypedValueStep(literal, { kind: "number" }, numericSpan, collapsedAt(caret), -1, { numericStep: 1 }))
+        .toMatchObject({ insert: backward });
+    }
+  });
+
+  it("is a no-op for numeric references, string, and null declared types", () => {
+    expect(resolveTypedValueStep("@length", { kind: "number" }, { from: 10, to: 17 }, collapsedAt(12), 1)).toBeNull();
     expect(resolveTypedValueStep("true", { kind: "string" }, span, collapsedAt(12), 1)).toBeNull();
     expect(resolveTypedValueStep("true", null, span, collapsedAt(12), 1)).toBeNull();
   });

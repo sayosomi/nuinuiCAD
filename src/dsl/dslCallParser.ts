@@ -102,6 +102,7 @@ const attrsFromArgs = (args: readonly ScannedArg[]): DslAttribute[] =>
     keyStart: arg.keySpan.start,
     valueStart: arg.valueSpan.start,
     valueEnd: arg.valueSpan.end,
+    ...(arg.rawValueSpan ? { rawValueSpan: arg.rawValueSpan } : {}),
   }] : []);
 
 const diagnostic = (diagnostics: DslCallDiagnostic[], message: string, span: DslSpan, code?: string) =>
@@ -115,6 +116,15 @@ export const commonExclusiveGroups: readonly (readonly [string, string])[] = [
   ["state", "visible"],
   ["state", "enabled"],
 ];
+
+/** A call whose `(` never finds its matching `)` (mid-edit, e.g. an unterminated
+ * string swallowing the rest of the line). The statement returned alongside this
+ * code is a best-effort/degraded one - its call span runs to end of text - kept
+ * only so single-line probe parses (dslLineElementStatement) can still resolve
+ * already-typed argument spans for completion. Full-document compilation is
+ * unaffected: every compile gate rejects on `severity: "error"` regardless of
+ * this code, the same as any other diagnostic here. */
+export const UNCLOSED_CALL_CODE = "unclosed-call";
 
 const isCallConstruction = (source: string, start: number) => {
   const match = source.slice(start).match(identifier);
@@ -329,8 +339,16 @@ export const parseDslCallStatement = (
   }
   const close = matchingClose(logicalText, open);
   if (close < 0) {
-    diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: open, end: open + 1 });
-    return { statement: null, diagnostics };
+    diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: open, end: open + 1 }, UNCLOSED_CALL_CODE);
+    // Degraded statement, mirroring the container branch above: the call span
+    // runs to end of text so already-typed argument spans (e.g. a `text:`
+    // value mid-template-hole) are still resolvable for completion, even
+    // though this line can never compile (severity is still "error").
+    const statement = callStatement(
+      logicalText, category, keywordSpan, name, construction, constructionSpan,
+      { start: open + 1, end: logicalText.length }, false, diagnostics
+    );
+    return { statement, diagnostics };
   }
   const tail = trimSpan(logicalText, close + 1, logicalText.length);
   const inlineBlock = tail.start < tail.end && logicalText.slice(tail.start, tail.end) === "{";

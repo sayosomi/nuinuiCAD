@@ -135,7 +135,17 @@ const argumentContextAt = (
   const isArgumentDraft =
     !previousTokenCharacter ||
     (!"+-*/=:([,".includes(previousTokenCharacter) && !/\s/.test(previousTokenCharacter));
-  if (args.some((arg) => pos >= arg.valueSpan.start && pos <= arg.valueSpan.end) && !isArgumentDraft) return null;
+  // An empty value's trimmed valueSpan always collapses toward the far edge
+  // of its raw gap (see trimSpan in dslArgScanner.ts), which can land past
+  // `pos` once the gap is wider than one separating space - e.g. right after
+  // deleting a value that had its own leading+trailing space. Fall back to
+  // the untrimmed rawValueSpan (set only for empty values) so the cursor is
+  // still recognized as sitting inside that argument's own value, not at a
+  // fresh attribute-key slot.
+  if (args.some((arg) => {
+    const span = arg.valueSpan.start === arg.valueSpan.end && arg.rawValueSpan ? arg.rawValueSpan : arg.valueSpan;
+    return pos >= span.start && pos <= span.end;
+  }) && !isArgumentDraft) return null;
   if (spec.args.some((arg) => arg.positional) && !args.some((arg) => arg.key === null)) return null;
   // `for (i ` is still the positional-variable entry flow. The argument
   // scanner cannot split `i fr` until `fr:` is complete, so only surface a

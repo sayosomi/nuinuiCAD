@@ -31,7 +31,8 @@ import {
   type ReferenceSuggestion
 } from "../model/referenceSuggestions";
 import { numericVariableReferenceOptionsForPosition } from "../geometry/variableReferenceOptions";
-import { elementParameterReferenceOptionsForPosition } from "../geometry/elementParameterReferenceOptions";
+import { elementParameterCandidateState } from "../geometry/elementParameterReferenceOptions";
+import { commandLineTypedBindingSuggestions } from "../commands/commandLineTypedBindingSuggestions";
 import {
   filteredNumericVariableSuggestions,
   numericVariableSuggestionMatch,
@@ -61,11 +62,22 @@ import {
 type CommandLineBarProps = {
   commandContext?: CommandContext;
   evaluation?: EvaluationResult;
+  /** Caller's own evaluationStateIsCurrentFor result - never re-derived
+   * here. Rust evaluation is asynchronous, so `evaluation` can already be
+   * stale (or still "evaluating") relative to the live document; element-
+   * property candidates must report pending, not a confirmed empty/candidate
+   * result, while this is false. Defaults to `true` so existing callers/tests
+   * that don't model evaluation freshness keep their prior behavior; the
+   * production AppLayout caller always supplies it explicitly. */
+  evaluationIsCurrent?: boolean;
 };
 
-export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarProps) => {
+export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent = true }: CommandLineBarProps) => {
   const session = useCadUiStore((state) => state.commandLineSession);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
+  const sourceText = useCadDocumentStore((state) => state.sourceText);
+  const docText = useCadDocumentStore((state) => state.docText);
+  const doc = useCadDocumentStore((state) => state.doc);
   const elements = useCadDocumentStore((state) => state.elements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
@@ -137,17 +149,28 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const numberVariableOptions = useMemo(() => {
     if (!session || step?.kind !== "number") return [];
     const placement = creationPlacementForTarget(elements, session.insertionTarget, evaluationLimitIndex);
-    return numericVariableReferenceOptionsForPosition({
+    const legacyOptions = numericVariableReferenceOptionsForPosition({
       referenceElements: placement.referenceElements,
       parentGroupId: placement.parentGroupId,
       computedVariables: evaluation?.computedVariables
     });
-  }, [session, step, elements, evaluationLimitIndex, evaluation]);
+    const typedOptions = commandLineTypedBindingSuggestions({
+      session,
+      sourceText,
+      docText,
+      statementMap: doc.statementMap,
+      bindingAnalysis: doc.bindingAnalysis,
+      elements
+    });
+    const byExpression = new Map(legacyOptions.map((option) => [option.expression, option]));
+    for (const option of typedOptions) byExpression.set(option.expression, option);
+    return [...byExpression.values()];
+  }, [session, step, elements, evaluationLimitIndex, evaluation, sourceText, docText, doc]);
   const numberSuggestionMatch = step?.kind === "number" && !isCommandLineInputComposing()
     ? numericVariableSuggestionMatch(inputValue, numberSuggestionSelection.start, numberSuggestionSelection.end)
     : null;
   const visibleNumberVariableSuggestions = numberSuggestionMatch
-    ? filteredNumericVariableSuggestions(numberVariableOptions, numberSuggestionMatch.query)
+    ? filteredNumericVariableSuggestions(numberVariableOptions, numberSuggestionMatch.query, null)
     : [];
   const elementParamMatch = step?.kind === "number" && !isCommandLineInputComposing() && !numberSuggestionMatch
     ? elementParameterSuggestionMatch(inputValue, numberSuggestionSelection.start, numberSuggestionSelection.end)
@@ -160,9 +183,16 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
   const elementParamPlacement = session && step?.kind === "number"
     ? creationPlacementForTarget(elements, session.insertionTarget, evaluationLimitIndex)
     : null;
-  const elementParamOptions = !elementParamPlacement || !elementParamMatch
-    ? []
-    : elementParameterReferenceOptionsForPosition({
+  // Rust evaluation is asynchronous (useEvaluationEngine.ts): while
+  // evaluationIsCurrent is false, `evaluation` can be stale or still in
+  // flight, so element-property candidates report pending (never a
+  // synchronous re-evaluation, and never a confirmed empty/candidate result)
+  // - see elementParameterCandidateState. A normal re-render once the caller
+  // starts passing evaluationIsCurrent={true} recomputes this from the same
+  // (now current) props/input value, without requiring another keystroke.
+  const elementParamCandidateState = !elementParamPlacement || !elementParamMatch
+    ? null
+    : elementParameterCandidateState({
         referenceElements: elementParamPlacement.referenceElements,
         elementToken: elementParamMatch.elementToken,
         currentElement: { parentGroupId: elementParamPlacement.parentGroupId },
@@ -172,7 +202,10 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
           effectiveEnabledElementIds: evaluation?.effectiveEnabledElementIds,
           errors: evaluation?.errors ?? []
         }
-      });
+      }, evaluationIsCurrent);
+  const elementParamOptions = elementParamCandidateState?.status === "ready"
+    ? elementParamCandidateState.options
+    : [];
   const visibleElementParamSuggestions = elementParamMatch
     ? filteredElementParameterSuggestions(elementParamOptions, elementParamMatch.query)
     : [];
@@ -194,6 +227,18 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
     acceptedNumberSuggestion.inputValue === inputValue
       ? acceptedNumberSuggestion
       : null;
+  // Task 51: closes a step-advance hazard. When the classifier matched an
+  // in-progress `Element.` (or `@Element.`) token but the popover isn't
+  // open - either evaluation hasn't caught up yet (pending) or the element
+  // token simply doesn't resolve to anything - Enter must not fall through
+  // to submitCommandLineInput with that broken, unresolved expression still
+  // in the field. Never applies to the typed-binding (`numberSuggestionMatch`)
+  // arm: those candidates are always synchronously resolved, so there is no
+  // pending state to guard against there. Excludes acceptedNumberForCurrentInput:
+  // once a suggestion has already been accepted for this exact input value,
+  // the popover is deliberately dismissed (not blocked) so the established
+  // "second Enter confirms" flow below still submits.
+  const numberSuggestionBlocking = step?.kind === "number" && !!elementParamMatch && !numberSuggestionsOpen && !acceptedNumberForCurrentInput;
   const selectedNumberSuggestionIndex = activeSuggestionOptions.length === 0
     ? 0
     : Math.min(numberSuggestionActiveIndex, activeSuggestionOptions.length - 1);
@@ -364,6 +409,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
       onSubmit={(event) => {
         event.preventDefault();
         if (referenceInputComposing || isCommandLineInputComposing()) return;
+        if (numberSuggestionBlocking) return;
         if (submitReferenceInput()) return;
         clearPendingSuggestionState();
         submitCommandLineInput(inputValue, commandContext);
@@ -593,6 +639,7 @@ export const CommandLineBar = ({ commandContext, evaluation }: CommandLineBarPro
                     activeIndex={selectedNumberSuggestionIndex}
                     onHover={setNumberSuggestionActiveIndex}
                     onApply={applyNumberVariableSuggestion}
+                    anchorRef={inputRef}
                   />
                 ) : null}
               </div>

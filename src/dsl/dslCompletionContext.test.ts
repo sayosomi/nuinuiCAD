@@ -30,6 +30,53 @@ describe("dslCompletionContextAt", () => {
     // valid values continue through the parser-derived branches below.
   });
 
+  it("classifies a zero-length choice value as its own choice context, not a fallen-through attribute-key or -state", () => {
+    // Real repro (Task 51 manual E2E rerun): select an existing choice value
+    // and delete it, landing the cursor right where the deleted text used to
+    // start - inside the raw whitespace gap left behind, not at its far
+    // edge. dslArgScanner's trimSpan always collapses an empty valueSpan
+    // toward the gap's far edge (the next key, or the closing paren), which
+    // sits past the cursor whenever the gap is wider than the one mandatory
+    // separating space - exactly what happens here, since "right" itself
+    // had its own leading and trailing space.
+    const before = "line Off = offset(sources: [AB] distance: 3 side: right closed: false)";
+    const deleteStart = before.indexOf("right");
+    const deleteEnd = deleteStart + "right".length;
+    const after = before.slice(0, deleteStart) + before.slice(deleteEnd);
+    expect(after).toBe("line Off = offset(sources: [AB] distance: 3 side:  closed: false)");
+    const gapStart = after.indexOf("side:") + "side:".length;
+    const gapEnd = after.indexOf("closed:");
+    expect(gapEnd - gapStart).toBe(2);
+
+    // Every position inside the raw gap - its very first character (right
+    // after the colon), the real-deletion cursor position (one char in),
+    // and its far edge - must resolve to the same choice context, insert-only
+    // at that exact cursor (no phantom prefix to replace, per referenceCompletionSpan).
+    for (const pos of [gapStart, deleteStart, gapEnd]) {
+      const context = dslCompletionContextAt(after, pos);
+      expect(context).toMatchObject({
+        kind: "parameter",
+        from: pos,
+        to: pos,
+        parameter: { key: "side", definition: { kind: "choice", choiceOptions: ["right", "left"] } }
+      });
+    }
+
+    // A second, independent choice attribute on a different element type -
+    // this fix must not be `side`-specific.
+    const varBefore = "var Width = expression(value: 5 scope: global visible: true)";
+    const varDeleteStart = varBefore.indexOf("global");
+    const varDeleteEnd = varDeleteStart + "global".length;
+    const varAfter = varBefore.slice(0, varDeleteStart) + varBefore.slice(varDeleteEnd);
+    const varContext = dslCompletionContextAt(varAfter, varDeleteStart);
+    expect(varContext).toMatchObject({
+      kind: "parameter",
+      from: varDeleteStart,
+      to: varDeleteStart,
+      parameter: { key: "scope", definition: { kind: "choice", choiceOptions: ["global", "group"] } }
+    });
+  });
+
   it("preserves short-var value completion after the equals sign", () => {
     const line = "var Copy = @Wi";
     expect(dslCompletionContextAt(line, at(line, "@Wi"))).toMatchObject({
@@ -261,6 +308,54 @@ describe("dslCompletionContextAt", () => {
       expect(context).toMatchObject({
         kind: "elementParameter",
         elementToken: "直線AB"
+      });
+    });
+
+    describe("nui 3 sigil form @Element.property (Task 51)", () => {
+      it("narrows @直線AB. to elementParameter with elementToken excluding the sigil (fixes the pre-migration @AB. leak)", () => {
+        const line = "point P = offset(from: A dx: @直線AB.st)";
+        const context = dslCompletionContextAt(line, at(line, "@直線AB.st"));
+        expect(context).toMatchObject({
+          kind: "elementParameter",
+          from: line.indexOf(".st") + 1,
+          to: at(line, "@直線AB.st"),
+          elementToken: "直線AB",
+          sigil: true
+        });
+      });
+
+      it("narrows an empty query right after the dot", () => {
+        const line = "point P = offset(from: A dx: @直線AB.)";
+        const context = dslCompletionContextAt(line, at(line, "@直線AB."));
+        expect(context).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: true });
+      });
+
+      it("still narrows the bare (pre-migration) form with sigil: false", () => {
+        const line = "point P = offset(from: A dx: 直線AB.st)";
+        const context = dslCompletionContextAt(line, at(line, "直線AB.st"));
+        expect(context).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: false });
+      });
+
+      it("offers the sigil form's elementParameter narrowing inside vars=[...] too", () => {
+        const line = "point P = coordinate(x: 0 y: 0 vars: [Width: @直線AB.length])";
+        const context = dslCompletionContextAt(line, at(line, "@直線AB.length"));
+        expect(context).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: true });
+      });
+
+      it("suppresses the bare form's elementParameter narrowing when majorVersion is 3 (checklist item 7)", () => {
+        const line = "point P = offset(from: A dx: 直線AB.st)";
+        expect(dslCompletionContextAt(line, at(line, "直線AB.st"), 3)).toBeNull();
+      });
+
+      it("keeps offering the bare form when majorVersion is omitted or 2", () => {
+        const line = "point P = offset(from: A dx: 直線AB.st)";
+        expect(dslCompletionContextAt(line, at(line, "直線AB.st"))).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: false });
+        expect(dslCompletionContextAt(line, at(line, "直線AB.st"), 2)).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: false });
+      });
+
+      it("still offers the sigil form's elementParameter narrowing when majorVersion is 3", () => {
+        const line = "point P = offset(from: A dx: @直線AB.st)";
+        expect(dslCompletionContextAt(line, at(line, "@直線AB.st"), 3)).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: true });
       });
     });
   });

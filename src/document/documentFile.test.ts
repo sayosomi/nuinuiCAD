@@ -14,7 +14,7 @@ import {
 } from "./documentFile";
 
 const tauriCoreMock = vi.hoisted(() => ({ invoke: vi.fn() }));
-const dialogMock = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn() }));
+const dialogMock = vi.hoisted(() => ({ confirm: vi.fn(), open: vi.fn(), save: vi.fn() }));
 const LEGACY_APP_ID = "nuinuiCAD";
 const LEGACY_SCHEMA_VERSION = 5;
 
@@ -35,12 +35,13 @@ describe("document file lifecycle", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     setTauriRuntime();
     tauriCoreMock.invoke.mockReset();
+    dialogMock.confirm.mockReset();
     dialogMock.open.mockReset();
     dialogMock.save.mockReset();
+    dialogMock.confirm.mockResolvedValue(true);
   });
 
   it("creates a new starter document and clears file state after confirming discard", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     useCadDocumentStore.getState().markDocumentSaved("/tmp/edited.nui", useCadDocumentStore.getState().sourceText);
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
 
@@ -55,12 +56,52 @@ describe("document file lifecycle", () => {
     expect(initialCadUiState().selectedElementIds).toBeDefined();
   });
 
+  it.each([
+    ["新規作成", newDocument],
+    [".nui を開く", openDocument],
+    ["旧形式を import", importLegacyDocument]
+  ] as const)("uses the dialog wrapper instead of injected window.confirm for dirty Tauri %s", async (_, operation) => {
+    const injectedConfirm = vi.fn(() => Promise.reject(new Error("dialog.confirm not allowed. Command not found")));
+    const originalConfirm = window.confirm;
+    Object.defineProperty(window, "confirm", { configurable: true, value: injectedConfirm });
+    dialogMock.confirm.mockResolvedValue(false);
+    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
+    const before = useCadDocumentStore.getState().sourceText;
+
+    try {
+      await operation();
+    } finally {
+      Object.defineProperty(window, "confirm", { configurable: true, value: originalConfirm });
+    }
+
+    expect(dialogMock.confirm).toHaveBeenCalledWith(expect.stringContaining("未保存の変更を破棄して"), {
+      title: "nuinuiCAD",
+      kind: "warning",
+      okLabel: "破棄して続ける",
+      cancelLabel: "キャンセル"
+    });
+    expect(injectedConfirm).not.toHaveBeenCalled();
+    expect(dialogMock.open).not.toHaveBeenCalled();
+    expect(tauriCoreMock.invoke).not.toHaveBeenCalled();
+    expect(useCadDocumentStore.getState().sourceText).toBe(before);
+  });
+
+  it("keeps the browser native confirmation fallback for dirty new documents", async () => {
+    clearTauriRuntime();
+    const nativeConfirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
+
+    await newDocument();
+
+    expect(nativeConfirm).toHaveBeenCalledWith("未保存の変更を破棄して新規ドキュメントを作成しますか？");
+    expect(dialogMock.confirm).not.toHaveBeenCalled();
+  });
+
   it("opens .nui text verbatim and resets file history", async () => {
     const content = "\uFEFFnui 2\r\n# keep this\r\npoint A = coordinate(x: 0 y: 0)\r\n";
     dialogMock.open.mockResolvedValue("/tmp/loaded.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
-    vi.spyOn(window, "confirm").mockReturnValue(true);
 
     await openDocument();
 
@@ -77,7 +118,6 @@ describe("document file lifecycle", () => {
     const content = "nui 3\nvar Global = 12\npoint A = coordinate(x: 0 y: 0 visible: false)\n";
     dialogMock.open.mockResolvedValue("/tmp/nui3-legacy.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
 
     await openDocument();
 
@@ -102,7 +142,6 @@ describe("document file lifecycle", () => {
     ].join("\n");
     dialogMock.open.mockResolvedValue("/tmp/typed.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
 
     await openDocument();
     const opened = useCadDocumentStore.getState();
@@ -129,7 +168,6 @@ describe("document file lifecycle", () => {
     ].join("\n");
     dialogMock.open.mockResolvedValue("/tmp/escaped-template.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
 
     await openDocument();
     expect(useCadDocumentStore.getState().sourceText).toBe(content);

@@ -187,6 +187,17 @@ export const compilePropertyBindings = ({
       }
 
       if (!referenceNode) {
+        // Task 51: surface the tokenizer's own geometry-property-in-typed-
+        // expression diagnostic verbatim when that is why parsing failed,
+        // rather than the generic "single @binding reference only" message -
+        // this property's value can never be a geometry property (it is
+        // text/choice/boolean-typed), so telling the user exactly which
+        // spelling is unavailable here is more actionable.
+        const tokenizeError = parsed.diagnostics[0];
+        if (tokenizeError?.code === "geometry-property-in-typed-expression") {
+          diagnostics.push(diagnosticAt(spans, statement, tokenizeError.span, tokenizeError.code, tokenizeError.message));
+          continue;
+        }
         diagnostics.push(diagnosticAt(
           spans,
           statement,

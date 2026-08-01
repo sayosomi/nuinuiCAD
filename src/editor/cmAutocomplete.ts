@@ -5,12 +5,12 @@ import {
   moveCompletionSelection,
   startCompletion,
   type Completion,
-  type CompletionContext,
+  CompletionContext,
   type CompletionSource
 } from "@codemirror/autocomplete";
 import { Prec, type Extension, type Text } from "@codemirror/state";
-import { keymap, type Command } from "@codemirror/view";
-import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, dslVarsAttributeParameterKey } from "../dsl/dslCompletionContext";
+import { keymap, type Command, type EditorView } from "@codemirror/view";
+import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, dslVarsAttributeParameterKey, type DslCompletionContext } from "../dsl/dslCompletionContext";
 import { dslStatementElementType } from "../dsl/dslCompletionMetadata";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
@@ -44,6 +44,10 @@ import {
   type ScalarCompletionCandidate
 } from "../scalars/typedValueCandidates";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "../scalars/setCompletionCandidates";
+import { mergeSetTargetCandidates, recoverLiveSetTargetCandidates, type SetTargetCompletionCandidate } from "../scalars/setTargetRecoveryCandidates";
+import { visibleTypedBindingsAtLivePosition } from "../scalars/liveTypedBindingVisibility";
+import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
+import { cmDeleteCompletionRetry } from "./cmDeleteCompletionRetry";
 
 export type DslAutocompleteDocumentInput = {
   source: string;
@@ -53,7 +57,7 @@ export type DslAutocompleteDocumentInput = {
   doc: Text;
 };
 
-type DslAutocompleteOptions = {
+export type DslAutocompleteOptions = {
   elements: () => readonly CadElement[];
   statementRanges: () => StatementRangeIndex;
   printLayouts: () => readonly PrintLayout[];
@@ -89,8 +93,26 @@ type DslAutocompleteOptions = {
    * scalar value / template hole's BindingReferenceSite (Task 39) - never
    * for any other purpose already covered by statementRanges/computedGeometry. */
   statementInfoByElementId: () => ReadonlyMap<ElementId, StatementInfo> | undefined;
+  /** Whether the evaluation backing computedGeometry/effectiveEnabledElementIds/
+   * evaluationErrors above is current for the live document right now (the
+   * caller's own evaluationStateIsCurrentFor check - see
+   * elementParameterCandidateState in elementParameterReferenceOptions.ts).
+   * Rust evaluation is asynchronous, so those fields can be stale (or from a
+   * still-in-flight request) even when they otherwise look populated;
+   * `elementParameter` completion must report no candidates - never a
+   * synchronous re-evaluation - while this is false. Defaults to true so
+   * existing callers/tests that don't model evaluation freshness keep their
+   * prior behavior. */
+  evaluationIsCurrent?: () => boolean;
   /** Defaults to deriving everything from the CompletionContext's own editor state. */
   documentInput?: (context: CompletionContext) => DslAutocompleteDocumentInput | null;
+  /** Task 51: the live document's own `nui <major>` version. Omitted (or 2),
+   * a bare `Element.property` numeric-attribute reference keeps narrowing to
+   * `elementParameter` exactly as before this migration; an explicit `3`
+   * suppresses it, since that spelling is a compile error in nui 3
+   * (dslPropertyReferenceSyntax.ts) and offering it as a completion target
+   * would guide the user toward text that fails on commit. */
+  majorVersion?: () => 2 | 3;
 };
 
 /** A logical-projection pairing kept alongside the document input so the
@@ -193,7 +215,7 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
 /** Task 40: maps `SetTargetCandidate` to CM's `Completion` shape. Unlike
  * asScalarCompletions's reference branch, a `set` target is a bare
  * identifier - `apply` is the plain name, never `@`-prefixed. */
-const asSetTargetCompletions = (candidates: readonly SetTargetCandidate[]): Completion[] =>
+const asSetTargetCompletions = (candidates: readonly Pick<SetTargetCandidate, "name">[]): Completion[] =>
   candidates.map((candidate) => ({ label: candidate.name, apply: candidate.name, type: "variable" }));
 
 /** Resolves the BindingReferenceSite for the CadElement at the cursor's own
@@ -235,17 +257,306 @@ const setCompletionSiteDeps = (
   cursorPosition
 });
 
+/**
+ * Task 51 completion-only recovery: the last-good catalog remains the source
+ * of normal candidates, while the current tolerant parse supplies poisoned
+ * `let` declarations and any newly typed lexical scopes. The committed
+ * candidate is mapped through its live declaration position before merging;
+ * this lets one lexical winner be selected across stale and live metadata
+ * without inventing a BindingId or changing runtime reference resolution.
+ */
+const mergedSetTargetCandidates = (
+  options: DslAutocompleteOptions,
+  input: DslAutocompleteDocumentInput,
+  cursorPosition: number,
+  bindingAnalysis: BindingAnalysis | undefined
+) => {
+  const recovery = recoverLiveSetTargetCandidates({ source: input.source, cursorPosition });
+  const committed: SetTargetCompletionCandidate[] = [];
+  if (bindingAnalysis) {
+    const deps = setCompletionSiteDeps(options, bindingAnalysis, cursorPosition);
+    for (const candidate of setTargetCandidates(deps)) {
+      const livePosition = deps.livePositionOf(candidate.bindingId);
+      if (livePosition === undefined) continue;
+      const location = recovery.declarationLocationAtPosition(livePosition);
+      if (!location || location.name !== candidate.name) continue;
+      committed.push({
+        name: candidate.name,
+        type: candidate.type,
+        declarationPosition: location.declarationPosition,
+        scopeKey: location.scopeKey,
+        source: "committed"
+      });
+    }
+  }
+  return mergeSetTargetCandidates(committed, recovery);
+};
+
+/**
+ * Completes a newly inserted declaration/element before it has a compiled
+ * owner identity. Candidate bindings must have both catalog identities and
+ * mapped live declaration offsets, so this preserves the normal fail-closed
+ * freshness contract without importing CodeMirror types into scalar logic.
+ */
+const liveTypedBindingsAtCompletionCursor = (
+  options: DslAutocompleteOptions,
+  bindingAnalysis: BindingAnalysis,
+  cursorPosition: number
+) => visibleTypedBindingsAtLivePosition({
+  catalog: bindingAnalysis.catalog,
+  containingScopeId: deepestContainingScopeId(
+    options.scopeBodyRanges(),
+    cursorPosition,
+    bindingAnalysis.catalog.scopeIndex.rootScopeId
+  ),
+  cursorOffset: cursorPosition,
+  offsetForBinding: (bindingId) => options.typedDeclarationRanges().get(bindingId)?.from
+}, () => true);
+
+type TypedReferenceCompletionContext = Extract<DslCompletionContext, {
+  kind: "typedInitializer" | "propertyScalarValue" | "templateHole";
+}>;
+
+/** Keeps source lookup and composition-end eligibility on the identical
+ * freshness/type-filtered candidate calculation. This stays in the editor:
+ * scalar helpers receive only catalog, scope, and offset data. */
+const typedReferenceCompletions = (
+  options: DslAutocompleteOptions,
+  input: DslAutocompleteDocumentInput,
+  context: CompletionContext,
+  completionContext: TypedReferenceCompletionContext
+): Completion[] => {
+  if (completionContext.kind === "typedInitializer") {
+    const bindingAnalysis = options.bindingAnalysis();
+    const bindingId = bindingAnalysis ? typedDeclarationBindingIdAtCursor(options.typedDeclarationRanges(), context.pos) : null;
+    const binding = bindingAnalysis && bindingId ? bindingAnalysis.catalog.bindingsById.get(bindingId) : undefined;
+    return bindingAnalysis && bindingId && !binding
+      ? []
+      : bindingAnalysis && binding
+      ? asScalarCompletions(scalarExpressionCandidates(completionContext.positionContext, {
+        catalog: bindingAnalysis.catalog,
+        entriesById: bindingAnalysis.entriesById,
+        site: { scopeId: binding.effectiveScopeId, statementIndex: binding.statementIndex },
+        includeOperators: true
+      }))
+      : bindingAnalysis
+        ? asScalarCompletions(scalarExpressionCandidates(completionContext.positionContext, {
+          catalog: bindingAnalysis.catalog,
+          entriesById: bindingAnalysis.entriesById,
+          liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos),
+          includeOperators: true
+        }))
+      : [];
+  }
+
+  const bindingAnalysis = options.bindingAnalysis();
+  const elementId = statementElementIdsByLiveLine(input.doc, options.statementRanges()).get(input.cursorLineNumber);
+  const site = bindingAnalysis ? elementBindingSite(elementId, options.statementInfoByElementId(), bindingAnalysis) : null;
+  if (completionContext.kind === "propertyScalarValue") {
+    const propertyContext = completionContext.propertyContext;
+    if (propertyContext.kind === "booleanLiteral") {
+      return scalarLiteralCandidates({ kind: "boolean" }).map((candidate) => ({ label: candidate.label, type: "enum" }));
+    }
+    const capability = propertyContext.capability;
+    return bindingAnalysis
+      ? asScalarCompletions(typedBindingReferenceCandidates({
+        catalog: bindingAnalysis.catalog,
+        entriesById: bindingAnalysis.entriesById,
+        ...(site ? { site } : { liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos) }),
+        accepts: (type) => type !== null && isAssignableToPropertyCapability(type, capability)
+      }).map((candidate): ScalarCompletionCandidate => ({ kind: "reference", name: candidate.name, bindingId: candidate.bindingId })))
+      : [];
+  }
+
+  return bindingAnalysis
+    ? asScalarCompletions(templateHoleScalarCandidates(input.lineText, completionContext.contentSpan, input.localPos, {
+      catalog: bindingAnalysis.catalog,
+      entriesById: bindingAnalysis.entriesById,
+      ...(site ? { site } : { liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos) }),
+      includeOperators: true
+    }))
+    : [];
+};
+
+/**
+ * Task 51: typed `const`/`let` number-kind bindings, offered as `@name`
+ * candidates alongside the legacy top-level/local `@variable` candidates in
+ * a plain numeric attribute (`x:`, `length:`, `dx:`, ...) - the same
+ * position `numericBindingCompiler.ts` already resolves a compiled
+ * `@typedBindingName` occurrence against at evaluation time, but which had
+ * no completion source of its own before this. Reuses the exact site/
+ * live-visibility resolution `typedReferenceCompletions` above already
+ * established for propertyScalarValue/templateHole, so scope visibility
+ * agrees with those contexts and with the compiler.
+ *
+ * Unlike asScalarCompletions's own bare-name label (paired with
+ * `disablesCompletionFiltering`/`filter: false` at every other typed-
+ * reference call site), the label here is `@`-prefixed to match
+ * asVariableCompletions's legacy candidates exactly - the two lists are
+ * merged into one array in the "number"-kind branch below and must share
+ * one label convention so CM's own `validFor`-based filtering (not
+ * `filter: false`) narrows both consistently as the query lengthens.
+ */
+const typedNumberBindingCompletions = (
+  options: DslAutocompleteOptions,
+  input: DslAutocompleteDocumentInput,
+  context: CompletionContext
+): Completion[] => {
+  const bindingAnalysis = options.bindingAnalysis();
+  if (!bindingAnalysis) return [];
+  const elementId = statementElementIdsByLiveLine(input.doc, options.statementRanges()).get(input.cursorLineNumber);
+  const site = elementBindingSite(elementId, options.statementInfoByElementId(), bindingAnalysis);
+  return typedBindingReferenceCandidates({
+    catalog: bindingAnalysis.catalog,
+    entriesById: bindingAnalysis.entriesById,
+    ...(site ? { site } : { liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos) }),
+    accepts: (type) => type?.kind === "number"
+  }).map((candidate): Completion => ({ label: `@${candidate.name}`, apply: `@${candidate.name}`, type: "variable" }));
+};
+
+/** CodeMirror's stock filtering compares the raw `@name` token to labels
+ * such as `name`, so it removes every option at the bare `@` trigger. Keep
+ * filtering off for that token, but retain a narrow, case-insensitive prefix
+ * match once the author has started the name. */
+const filteredTypedReferenceCompletions = (
+  completions: readonly Completion[],
+  input: DslAutocompleteDocumentInput,
+  completionContext: TypedReferenceCompletionContext
+): Completion[] => {
+  const token = input.lineText.slice(completionContext.from, completionContext.to);
+  if (!token.startsWith("@")) return [...completions];
+  const query = token.slice(1).toLocaleLowerCase();
+  return query.length === 0
+    ? [...completions]
+    : completions.filter((completion) => completion.label.toLocaleLowerCase().startsWith(query));
+};
+
+const typedReferenceToken = (input: DslAutocompleteDocumentInput, completionContext: DslCompletionContext): string | null =>
+  completionContext && (
+    completionContext.kind === "typedInitializer" ||
+    completionContext.kind === "propertyScalarValue" ||
+    completionContext.kind === "templateHole"
+  )
+    ? input.lineText.slice(completionContext.from, completionContext.to)
+    : null;
+
+/**
+ * Task 51: the `@`-marker implicit-trigger token for *any* reference-shaped
+ * completion context, including a *sigilled* `elementParameter` - which
+ * typedReferenceToken above cannot cover, since its span excludes the
+ * `Element.` prefix (and any leading `@`) by design (asElementParameterCompletions
+ * only ever applies the member token). Reads `tokenStart` (the whole token's
+ * start, sigil included) instead, so a v3 `@AB.` implicitly triggers exactly
+ * like `@name` already does, closing the pre-Task-51 asymmetry where typing
+ * `@` silently opened typed-binding completion but typing `@` before an
+ * element name never did.
+ *
+ * A *bare* (non-sigilled) elementParameter match returns null here on
+ * purpose: that spelling has no `@` to wait for, so its historical
+ * behavior - implicitly triggering as soon as the dot is typed, gated only
+ * by evaluation freshness below, never by this marker check - is preserved
+ * unchanged for v2 documents (and any not-yet-migrated v3 source).
+ */
+const referenceMarkerToken = (input: DslAutocompleteDocumentInput, completionContext: DslCompletionContext): string | null => {
+  if (completionContext?.kind === "elementParameter") {
+    return completionContext.sigil ? input.lineText.slice(completionContext.tokenStart, completionContext.to) : null;
+  }
+  return typedReferenceToken(input, completionContext);
+};
+
+const completionDocumentInput = (options: DslAutocompleteOptions, context: CompletionContext) => options.documentInput
+  ? { input: options.documentInput(context), projection: null }
+  : defaultDocumentInput(context);
+
+const isTypedReferenceRetryContext = (options: DslAutocompleteOptions, view: Parameters<Command>[0]) => {
+  const context = new CompletionContext(view.state, view.state.selection.main.head, false, view);
+  const { input } = completionDocumentInput(options, context);
+  if (!input) return false;
+  const completionContext = dslCompletionContextAt(input.lineText, input.localPos, options.majorVersion?.());
+  if (!completionContext || (
+    completionContext.kind !== "typedInitializer" &&
+    completionContext.kind !== "propertyScalarValue" &&
+    completionContext.kind !== "templateHole"
+  )) return false;
+  if (!typedReferenceToken(input, completionContext)?.startsWith("@")) return false;
+  return filteredTypedReferenceCompletions(
+    typedReferenceCompletions(options, input, context, completionContext),
+    input,
+    completionContext
+  ).length > 0;
+};
+
+/**
+ * Whether the cursor is currently at an `ElementName.` position whose
+ * candidates (computed from the *current* evaluation the caller already
+ * confirmed is fresh) are non-empty. Used only by cmEvaluationFreshnessRetry
+ * right after evaluation transitions from not-current to current, to decide
+ * whether re-querying completion would actually surface something - never
+ * called while evaluation is still not current (that decision belongs to
+ * the caller, exactly like isTypedReferenceRetryContext above never
+ * re-derives IME composition state itself).
+ */
+export const isElementParameterRetryContext = (options: DslAutocompleteOptions, view: Parameters<Command>[0]) => {
+  const context = new CompletionContext(view.state, view.state.selection.main.head, false, view);
+  const { input } = completionDocumentInput(options, context);
+  if (!input) return false;
+  const completionContext = dslCompletionContextAt(input.lineText, input.localPos, options.majorVersion?.());
+  if (!completionContext || completionContext.kind !== "elementParameter") return false;
+  if (!completionContext.elementToken.trim()) return false;
+  return dslElementParameterCompletionOptions({
+    source: input.source,
+    cursorLine: input.cursorLineNumber,
+    statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
+    elements: options.elements(),
+    elementToken: completionContext.elementToken,
+    computedGeometry: options.computedGeometry() ?? new Map(),
+    computedVariables: options.computedVariables(),
+    effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
+    errors: options.evaluationErrors() ?? []
+  }).length > 0;
+};
+
+/**
+ * Task 51 rerun: whether the production completion source itself would
+ * offer at least one candidate, non-explicitly, at `pos` right now. Used by
+ * cmDeleteCompletionRetry.ts to decide whether a delete-shaped transaction
+ * that left completion inactive is worth re-querying for - deliberately
+ * context-kind-agnostic (setTarget, choice, typed binding, element
+ * property, template hole all resolve through this exact same
+ * createDslCompletionSource call), unlike isTypedReferenceRetryContext/
+ * isElementParameterRetryContext above, which each narrow to one specific
+ * kind for their own, more targeted retry mechanisms. The completion source
+ * itself never actually returns a Promise (no async work happens inside
+ * it), so this stays a thin async wrapper only to keep the call uniform for
+ * its one caller.
+ */
+export const hasImplicitCompletionCandidatesAt = async (
+  options: DslAutocompleteOptions,
+  view: EditorView,
+  pos: number
+): Promise<boolean> => {
+  const context = new CompletionContext(view.state, pos, false, view);
+  const result = await createDslCompletionSource(options)(context);
+  return result !== null && result.options.length > 0;
+};
+
 export const createDslCompletionSource = (options: DslAutocompleteOptions): CompletionSource => (context) => {
   if (options.isComposing() || context.view?.compositionStarted) return null;
-  const { input, projection } = options.documentInput
-    ? { input: options.documentInput(context), projection: null }
-    : defaultDocumentInput(context);
+  const { input, projection } = completionDocumentInput(options, context);
   if (!input) return null;
-  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
+  const completionContext = dslCompletionContextAt(input.lineText, input.localPos, options.majorVersion?.());
   if (!completionContext) return null;
+  const referenceToken = referenceMarkerToken(input, completionContext);
+  // Ordinary typing at an empty typed expression (or, since Task 51, an
+  // empty numeric-attribute reference token) must stay quiet. Explicit
+  // completion still exposes literal/operator candidates there, while the
+  // reference marker is the sole implicit trigger for both typed binding and
+  // element-property options - uniformly now, since both share one sigil.
+  if (!context.explicit && referenceToken !== null && !referenceToken.startsWith("@")) return null;
 
   let completions: Completion[];
   let preservesSharedReferenceRanking = false;
+  let disablesCompletionFiltering = false;
   if (completionContext.kind === "keyword") {
     completions = completionContext.options.map((label) => ({ label, type: "keyword" }));
   } else if (completionContext.kind === "construction") {
@@ -255,78 +566,63 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     completions = argumentCompletionCandidates(completionContext.spec, completionContext.usedArgumentNames)
       .map((candidate) => ({ ...candidate, type: "property" }));
   } else if (completionContext.kind === "elementParameter") {
-    completions = asElementParameterCompletions(dslElementParameterCompletionOptions({
-      source: input.source,
-      cursorLine: input.cursorLineNumber,
-      statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
-      elements: options.elements(),
-      elementToken: completionContext.elementToken,
-      computedGeometry: options.computedGeometry() ?? new Map(),
-      computedVariables: options.computedVariables(),
-      effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
-      errors: options.evaluationErrors() ?? []
-    }));
+    // Rust evaluation is asynchronous (useEvaluationEngine.ts): while it
+    // hasn't caught up with the live document, computedGeometry/
+    // effectiveEnabledElementIds can be stale or still in flight. Report no
+    // candidates rather than guessing from stale data or re-evaluating
+    // synchronously here - see elementParameterCandidateState. The
+    // cmEvaluationFreshnessRetry extension re-queries once evaluation
+    // becomes current, without requiring another keystroke.
+    completions = (options.evaluationIsCurrent?.() ?? true)
+      ? asElementParameterCompletions(dslElementParameterCompletionOptions({
+        source: input.source,
+        cursorLine: input.cursorLineNumber,
+        statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
+        elements: options.elements(),
+        elementToken: completionContext.elementToken,
+        computedGeometry: options.computedGeometry() ?? new Map(),
+        computedVariables: options.computedVariables(),
+        effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
+        errors: options.evaluationErrors() ?? []
+      }))
+      : [];
   } else if (completionContext.kind === "typedInitializer") {
-    // Tier B: the precomputed catalog is only trusted when the live
-    // declaration range still maps to a real binding in it (fail-closed
-    // otherwise - see statementRangeIndex.ts's TypedDeclarationRangeIndex
-    // doc comment). Tier A already guaranteed the live statement is still a
-    // typedDeclaration (dslCompletionContextAt re-parses it fresh every call).
-    const bindingAnalysis = options.bindingAnalysis();
-    const bindingId = bindingAnalysis ? typedDeclarationBindingIdAtCursor(options.typedDeclarationRanges(), context.pos) : null;
-    const binding = bindingAnalysis && bindingId ? bindingAnalysis.catalog.bindingsById.get(bindingId) : undefined;
-    completions = bindingAnalysis && binding
-      ? asScalarCompletions(scalarExpressionCandidates(completionContext.positionContext, {
-        catalog: bindingAnalysis.catalog,
-        entriesById: bindingAnalysis.entriesById,
-        site: { scopeId: binding.effectiveScopeId, statementIndex: binding.statementIndex },
-        includeOperators: true
-      }))
-      : [];
+    disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
+    completions = filteredTypedReferenceCompletions(
+      typedReferenceCompletions(options, input, context, completionContext), input, completionContext
+    );
   } else if (completionContext.kind === "propertyScalarValue") {
-    const bindingAnalysis = options.bindingAnalysis();
-    const elementId = statementElementIdsByLiveLine(input.doc, options.statementRanges()).get(input.cursorLineNumber);
-    const site = bindingAnalysis ? elementBindingSite(elementId, options.statementInfoByElementId(), bindingAnalysis) : null;
-    const propertyContext = completionContext.propertyContext;
-    if (propertyContext.kind === "booleanLiteral") {
-      completions = scalarLiteralCandidates({ kind: "boolean" }).map((candidate) => ({ label: candidate.label, type: "enum" }));
-    } else if (bindingAnalysis && site) {
-      const capability = propertyContext.capability;
-      completions = asScalarCompletions(typedBindingReferenceCandidates({
-        catalog: bindingAnalysis.catalog,
-        entriesById: bindingAnalysis.entriesById,
-        site,
-        accepts: (type) => type !== null && isAssignableToPropertyCapability(type, capability)
-      }).map((candidate): ScalarCompletionCandidate => ({ kind: "reference", name: candidate.name, bindingId: candidate.bindingId })));
-    } else {
-      completions = [];
-    }
+    disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
+    completions = filteredTypedReferenceCompletions(
+      typedReferenceCompletions(options, input, context, completionContext), input, completionContext
+    );
   } else if (completionContext.kind === "templateHole") {
-    const bindingAnalysis = options.bindingAnalysis();
-    const elementId = statementElementIdsByLiveLine(input.doc, options.statementRanges()).get(input.cursorLineNumber);
-    const site = bindingAnalysis ? elementBindingSite(elementId, options.statementInfoByElementId(), bindingAnalysis) : null;
-    completions = bindingAnalysis && site
-      ? asScalarCompletions(templateHoleScalarCandidates(input.lineText, completionContext.contentSpan, input.localPos, {
-        catalog: bindingAnalysis.catalog,
-        entriesById: bindingAnalysis.entriesById,
-        site,
-        includeOperators: true
-      }))
-      : [];
+    disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
+    completions = filteredTypedReferenceCompletions(
+      typedReferenceCompletions(options, input, context, completionContext), input, completionContext
+    );
   } else if (completionContext.kind === "setTarget") {
     const bindingAnalysis = options.bindingAnalysis();
-    completions = bindingAnalysis
-      ? asSetTargetCompletions(setTargetCandidates(setCompletionSiteDeps(options, bindingAnalysis, context.pos)))
-      : [];
+    completions = asSetTargetCompletions(mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis));
   } else if (completionContext.kind === "setRhs") {
     const bindingAnalysis = options.bindingAnalysis();
     const deps = bindingAnalysis ? setCompletionSiteDeps(options, bindingAnalysis, context.pos) : null;
-    const target = deps ? setTargetCandidates(deps).find((candidate) => candidate.name === completionContext.targetName) : undefined;
+    const target = mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis)
+      .find((candidate) => candidate.name === completionContext.targetName);
     completions = deps && target
       ? asScalarCompletions(setRhsScalarCandidates(input.lineText, completionContext.expressionSpan, input.localPos, target.type, deps))
       : [];
   } else if (completionContext.parameter.definition.kind === "choice") {
-    completions = (completionContext.parameter.definition.choiceOptions ?? []).map((label) => ({ label, type: "enum" }));
+    // `sortText` only breaks ties among equally-scored matches (CodeMirror's
+    // default compareCompletions falls back to alphabetical-by-label
+    // otherwise, e.g. "left" before "right"), so declared order wins
+    // whenever nothing has been typed yet without disturbing real
+    // fuzzy-match ranking once the user starts narrowing.
+    completions = (completionContext.parameter.definition.choiceOptions ?? []).map((label, index) => ({
+      label,
+      type: "enum",
+      sortText: String(index).padStart(4, "0")
+    }));
   } else if (completionContext.parameter.key === dslVarsAttributeParameterKey) {
     const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());
     completions = asVariableCompletions(dslLocalVariableCompletionOptions({
@@ -394,7 +690,10 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       elements,
       computedVariables: options.computedVariables()
     });
-    completions = asVariableCompletions([...localOptions, ...topLevelOptions]);
+    completions = [
+      ...typedNumberBindingCompletions(options, input, context),
+      ...asVariableCompletions([...localOptions, ...topLevelOptions])
+    ];
   } else {
     const query = input.lineText.slice(completionContext.from, input.localPos);
     if (!query.trim()) return null;
@@ -452,7 +751,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     from,
     to,
     options: completions,
-    ...(preservesSharedReferenceRanking
+    ...(preservesSharedReferenceRanking || disablesCompletionFiltering
       ? { filter: false as const }
       : { validFor: /^[^\s#]*$/ })
   };
@@ -481,6 +780,14 @@ export const dslAutocompleteExtension = (options: DslAutocompleteOptions): Exten
     // cycles) its current candidate; when no popup is open it returns false
     // and preserves Source Editor value-span/snippet navigation.
     autocompletion({ override: [createDslCompletionSource(options)], defaultKeymap: false }),
+    cmCompositionCompletionRetry({
+      isComposing: options.isComposing,
+      isRetryContext: (view) => isTypedReferenceRetryContext(options, view)
+    }),
+    cmDeleteCompletionRetry({
+      isComposing: options.isComposing,
+      hasImplicitCandidatesAt: (view, pos) => hasImplicitCompletionCandidatesAt(options, view, pos)
+    }),
     Prec.highest(keymap.of([
       // Avoid Ctrl-Space (input-source switching) and Option character keys:
       // both are unreliable on macOS Japanese keyboard layouts.

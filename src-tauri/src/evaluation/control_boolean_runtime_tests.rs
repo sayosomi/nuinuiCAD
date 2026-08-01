@@ -250,6 +250,39 @@ fn show_generated_bound_true_is_reflected_without_affecting_rows() {
 }
 
 #[test]
+fn show_generated_bound_false_keeps_generated_geometry_but_removes_it_from_the_draw_mask() {
+    let template = json!({
+        "id": "copy", "name": "copy", "type": "freePoint", "visible": true, "enabled": true,
+        "parentGroupId": "loop", "x": 10, "y": 0
+    });
+    let result = evaluate_document_input(input(
+        vec![for_group("loop", 2.0, true), template],
+        Some(program(vec![boolean_statement(
+            "binding:show",
+            boolean_literal(false),
+        )])),
+        Some(json!([control_boolean_binding_entry(
+            "loop",
+            "showGenerated",
+            "binding:show"
+        )])),
+        None,
+    ));
+
+    assert!(result.errors.is_empty());
+    assert_eq!(result.for_group_generated_rows.len(), 2);
+    assert!(result
+        .computed_geometry
+        .iter()
+        .any(|geometry| geometry["elementId"] == json!("copy@loop:0")));
+    assert!(!result
+        .effective_visible_element_ids
+        .iter()
+        .any(|id| id == "copy@loop:0"));
+    assert!(result.for_group_effective_show_generated_ids.is_empty());
+}
+
+#[test]
 fn show_generated_bound_to_a_wrong_runtime_type_fails_closed_to_hidden() {
     // The payload's own `expectedType: boolean` passes decode-time
     // validation (it matches showGenerated's canonical type), but the

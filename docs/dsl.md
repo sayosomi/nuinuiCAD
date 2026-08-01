@@ -33,7 +33,7 @@ line AB = segment(
 )
 ```
 
-1行のcallも入力できますが、通常の保存・コマンド更新では1引数1行の縦型形式になります。`var 名前 = 式` は数値専用の式変数の短形式で、offsetのdx/dyや長さ・角度など、要素のconstruction引数に使う数値パラメータはこの`var`で用意します(下記の型付き変数`const`/`let`はこの用途にはまだ接続されていません)。
+1行のcallも入力できますが、通常の保存・コマンド更新では1引数1行の縦型形式になります。`var 名前 = 式` は数値専用の式変数の短形式で、offsetのdx/dyや長さ・角度など、要素のconstruction引数に使う数値パラメータはこの`var`で用意します。下記の型付き変数`const`/`let`の`number`値も、`@名前`の形でこれら数値引数の式の中に混ぜて使えます。
 
 ## 要素
 
@@ -98,7 +98,23 @@ var 肩幅 = pointDistance(from: A to: B)
 
 - `const` は再代入不可。`let` だけが `set 名前 = 式` の対象になれます。
 - `set` の効果はその行より後だけに及びます。
-- 現時点では、型付きの`number`はopt-inのproperty binding(下記)・text template・他の型付き初期化式の中でだけ使えます。座標(`x`/`y`/`dx`/`dy`)や長さ・角度など、要素constructionの数値引数には**まだ接続されていません**。既存の点・線の位置や寸法をパラメータ化するときは、引き続き `var` を使ってください。
+- 型付きの`number`は、opt-inのproperty binding(下記)・text template・他の型付き初期化式の中に加えて、座標(`x`/`y`/`dx`/`dy`)や長さ・角度など、要素constructionの数値引数の式の中でも`@名前`として使えます。ただし逆方向(typedの`const`/`let`初期化式や`set`の右辺から要素のgeometry・propertyを読むこと)はできません。要素のgeometryは`@Element.property`という別の参照表記(下記)で読み、numeric式の中でのみ使えます。
+
+### 要素プロパティ参照 `@Element.property`
+
+要素の測定値(長さ・角度など)は、numeric式の中で`@要素名.property`という形で参照します。`@`の後に`.`が続くかどうかだけで、typed binding参照(`@名前`)と要素プロパティ参照(`@要素名.property`)を区別します——`.`が無ければbinding、`.`が現れた時点でプロパティです。binding名と要素名が同じでも、この`.`の有無だけで解決します。
+
+```text
+nui 3
+const 余白: number = 5
+line AB = segment(start: A end: B)
+point C = coordinate(
+  x: @余白 + @AB.length
+  y: 0
+)
+```
+
+`.`を挟まない旧来の裸表記(`AB.length`)は`nui 3`では診断エラーになります。`@AB.length`と書き直してください。typed初期化式(`const`/`let`/`set`の右辺)の中でこの表記を使うと、専用の診断で拒否されます——geometryの読み出しはnumeric式の中でのみ可能です。
 
 ### レキシカルスコープとshadow
 

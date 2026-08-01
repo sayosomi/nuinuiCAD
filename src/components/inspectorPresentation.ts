@@ -70,13 +70,21 @@ const displayInspectorNumericValue = (
   value: NumericValue,
   elementNameById: ReadonlyMap<ElementId, string>,
 ) =>
+  // The element-id class excludes `.` and `@` (Task 51: an internal IR
+  // element-property reference never carries `@`, and never spans past a
+  // nested dot - see the identical fix in dslExpressionFormat.ts). The
+  // Inspector always shows the nui 3 sigil form for a property reference,
+  // matching the Source Editor's surface syntax (typed bindings such as
+  // `@length` already display correctly since they are stored by name, not
+  // by id, inside a legacy numeric expression - this replace never touches
+  // them because they have no `.`).
   numericValueExpression(value).replace(
-    /([^\s()+*/<>!=&|]+)\.([^\s()+*/<>!=&|]+)\b/g,
+    /([^\s()+*/<>!=&|,@.]+)\.([^\s()+*/<>!=&|,@]+)/g,
     (match, elementId: ElementId, property: string) => {
       if (Number.isFinite(Number(match))) return match;
       return elementNameById.has(elementId)
-        ? `${resolvedElementName(elementId, elementNameById)}.${property}`
-        : `${unresolvedReferenceLabel}.${property}`;
+        ? `@${resolvedElementName(elementId, elementNameById)}.${property}`
+        : `@${unresolvedReferenceLabel}.${property}`;
     },
   );
 

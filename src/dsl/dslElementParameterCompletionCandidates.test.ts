@@ -178,6 +178,28 @@ describe("dslElementParameterCompletionOptions", () => {
     expect(options).toEqual([]);
   });
 
+  it("returns no candidates while evaluation has no footprint for AB (caller's responsibility to treat as pending, not fall back)", () => {
+    // dslElementParameterCompletionOptions never itself infers "pending" from
+    // an empty/missing evaluation, and never runs a synchronous TS-reference
+    // evaluation as a substitute - that would risk disagreeing with Rust for
+    // typed conditional groups/property bindings/forGroup-generated elements.
+    // The caller (cmAutocomplete.ts) is responsible for checking
+    // evaluationIsCurrent and not calling this at all until Rust catches up -
+    // see elementParameterCandidateState in elementParameterReferenceOptions.ts.
+    const { elements, ids } = identities(baseSource);
+    const options = dslElementParameterCompletionOptions({
+      source: baseSource,
+      cursorLine: 5,
+      statementElementIds: ids,
+      elements,
+      elementToken: "AB",
+      computedGeometry: new Map(),
+      effectiveEnabledElementIds: new Set(),
+      errors: []
+    });
+    expect(options).toEqual([]);
+  });
+
   it("resolves namespace-qualified and Japanese element names", () => {
     const source = [
       "nui 2",

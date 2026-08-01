@@ -447,20 +447,20 @@ Source Editor 左端の灰色 activity marker は要素の表示/評価状態を
 
 | # | シナリオ | 結果(Rust-first) | 結果(parity) | 気づいた点 |
 |---|---|---|---|---|
-| 1 | typed declaration(4型) | 未実施 | 未実施 | |
-| 2 | レキシカルスコープ/shadow(正常系) | 未実施 | 未実施 | |
-| 3 | self-init/forward-reference診断 | 未実施 | 未実施 | |
-| 4 | 補完(completion) | 未実施 | 未実施 | |
-| 5 | text template | 未実施 | 未実施 | |
-| 6 | set/branch(if)/loop(forGroup) | 未実施 | 未実施 | |
-| 7 | runtime diagnostics + source navigation | 未実施 | 未実施 | |
-| 8 | Inspector(宣言+runtime+既存literal regression) | 未実施 | 未実施 | |
-| 9 | Alt step | 未実施 | 未実施 | |
-| 10 | rename | 未実施 | 未実施 | |
-| 11 | activity UI | 未実施 | 未実施 | |
-| 12 | nui 3 save→close→reopen | 未実施 | 未実施 | |
-| 13 | print/print preview | 未実施 | 未実施 | |
-| 14 | 1000要素文書の体感 | 未実施 | 未実施 | |
+| 1 | typed declaration(4型) | pass | pass | |
+| 2 | レキシカルスコープ/shadow(正常系) | pass | pass | |
+| 3 | self-init/forward-reference診断 | pass | pass | |
+| 4 | 補完(completion) | pass | pass | |
+| 5 | text template | pass | pass | |
+| 6 | set/branch(if)/loop(forGroup) | pass | pass | |
+| 7 | runtime diagnostics + source navigation | pass | pass | |
+| 8 | Inspector(宣言+runtime+既存literal regression) | pass | pass | |
+| 9 | Alt step | pass | pass | |
+| 10 | rename | pass | pass | |
+| 11 | activity UI | pass | pass | |
+| 12 | nui 3 save→close→reopen | pass | pass | |
+| 13 | print/print preview | pass | pass | |
+| 14 | 1000要素文書の体感 | pass | pass | |
 
 各セルは `pass` / `fail` / (ユーザー承認済みの理由付き)`N/A` のいずれかを
 ユーザーが記入する。fail行はTask 51の完了条件(全項目pass)を満たすまで、

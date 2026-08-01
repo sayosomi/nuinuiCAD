@@ -6,6 +6,6 @@ const side: choice(right, left) = left
 point A = coordinate(x: 0 y: 0)
 point B = coordinate(x: @length y: 0)
 line AB = segment(start: A end: B)
-point C = coordinate(x: @length + AB.length y: 0)
+point C = coordinate(x: @length + @AB.length y: 0)
 text Label = label(text: "\{draft\} {@label} {@length}\n" anchor: A size: 3)
 text Bare = label(text: @label anchor: (0, -8) size: 3)

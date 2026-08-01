@@ -240,8 +240,17 @@ export const evaluateElements = (
     linearMutationResolver!.advanceTo({ kind: "beforeStatement", sourceOrder: statement.statementIndex });
   };
 
-  const pushGeneratedVisibilityState = (generatedElement: CadElement, templateElement: CadElement) => {
-    if (effectiveVisibleIds.has(templateElement.id)) {
+  const pushGeneratedVisibilityState = (
+    generatedElement: CadElement,
+    templateElement: CadElement,
+    showGenerated: boolean,
+    forGroupElement: CadElement
+  ) => {
+    if (
+      showGenerated &&
+      effectiveVisibleIds.has(forGroupElement.id) &&
+      effectiveVisibleIds.has(templateElement.id)
+    ) {
       effectiveVisibleIds.add(generatedElement.id);
     }
     if (baseEffectiveEnabledIds.has(templateElement.id)) {
@@ -471,7 +480,7 @@ export const evaluateElements = (
           if (row) forGroupGeneratedRows.push(row);
           runtimeElements.push(generatedElement);
           runtimeElementsById.set(generatedElement.id, generatedElement);
-          pushGeneratedVisibilityState(generatedElement, templateElement);
+          pushGeneratedVisibilityState(generatedElement, templateElement, effectiveShowGenerated, element);
           evaluateRuntimeElement(generatedElement, templateElement);
           return "completed";
         });
@@ -498,7 +507,9 @@ export const evaluateElements = (
           );
           runtimeElements.push(generatedElement);
           runtimeElementsById.set(generatedElement.id, generatedElement);
-          if (templateElement) pushGeneratedVisibilityState(generatedElement, templateElement);
+          if (templateElement) {
+            pushGeneratedVisibilityState(generatedElement, templateElement, effectiveShowGenerated, element);
+          }
           evaluateRuntimeElement(generatedElement, templateElement);
         }
       }

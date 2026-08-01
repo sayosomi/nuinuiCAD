@@ -8,12 +8,34 @@ export type ScannedArg = {
   keySpan: DslSpan | null;
   value: string;
   valueSpan: DslSpan;
+  /**
+   * The untrimmed `colon+1 .. nextKeyStart` gap, set only when `valueSpan`
+   * is empty (an empty value's `valueSpan` always collapses to the far edge
+   * of this gap via trimSpan below, which is past the cursor whenever the
+   * gap has more than the one mandatory separating space - see
+   * dslCallCompletionContext.ts and dslCompletionContext.ts, the only
+   * consumers). A positional argument can never be "present but empty" (see
+   * the `positionalSpan.start !== positionalSpan.end` guard below), so it
+   * never carries this field.
+   */
+  rawValueSpan?: DslSpan;
 };
 
 export type DslArgScanError = {
   message: string;
   span: DslSpan;
+  code?: string;
 };
+
+/**
+ * A well-formed but currently-empty argument value (mid-edit, e.g. right
+ * after deleting a choice/text/boolean literal). Unlike other scan errors,
+ * this one doesn't mean the statement's structure/spans are unreliable - see
+ * dslLineElementStatement in dslValueSpans.ts, which keeps serving spans for
+ * a line whose only error carries this code so completion can still resolve
+ * the attribute being edited.
+ */
+export const MISSING_ATTRIBUTE_VALUE_CODE = "missing-attribute-value";
 
 type NamedArgBoundary = {
   key: string;
@@ -117,12 +139,15 @@ export const scanCallArgs = (
 
   for (const [index, boundary] of boundaries.entries()) {
     const nextStart = boundaries[index + 1]?.keySpan.start ?? callSpan.end;
-    const valueSpan = trimSpan(logicalText, { start: boundary.colon + 1, end: nextStart });
+    const rawSpan = { start: boundary.colon + 1, end: nextStart };
+    const valueSpan = trimSpan(logicalText, rawSpan);
+    const isEmpty = valueSpan.start === valueSpan.end;
     args.push({
       key: boundary.key,
       keySpan: boundary.keySpan,
       value: logicalText.slice(valueSpan.start, valueSpan.end),
       valueSpan,
+      ...(isEmpty ? { rawValueSpan: rawSpan } : {}),
     });
 
     if (boundary.missingSpaceAfterColon) {
@@ -131,10 +156,11 @@ export const scanCallArgs = (
         span: { start: boundary.colon, end: boundary.colon + 1 },
       });
     }
-    if (valueSpan.start === valueSpan.end) {
+    if (isEmpty) {
       errors.push({
         message: `引数「${boundary.key}」の値がありません。`,
         span: valueSpan,
+        code: MISSING_ATTRIBUTE_VALUE_CODE,
       });
     }
   }

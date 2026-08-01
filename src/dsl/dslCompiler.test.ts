@@ -3,6 +3,7 @@ import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { compileDslToElements } from "./dslCompiler";
 import { compileDslDocument } from "./dslDocument";
 import { serializeElementsToDsl } from "./dslSerializer";
+import { UNCLOSED_CALL_CODE } from "./dslCallParser";
 
 describe("DSL compiler", () => {
   it("creates basic drafting elements from short DSL syntax", () => {
@@ -403,6 +404,44 @@ describe("DSL compiler", () => {
       activeVisibilityProfileId: result.activeVisibilityProfileId,
       printLayouts: result.printLayouts
     })).toContain("group 前身頃縫い代");
+  });
+});
+
+// A mid-edit, genuinely unterminated call (no closing quote, no closing paren)
+// must never be silently evaluated as geometry, even though dslCallParser now
+// returns a non-null "degraded" statement for this shape so single-line probe
+// parses (completion) can still resolve already-typed argument spans. This
+// pins the severity-based compile gate itself, not just the parser's own
+// diagnostic - see dslCallParser.ts's UNCLOSED_CALL_CODE and
+// dslValueSpans.ts's dslLineElementStatement carve-out.
+describe("DSL compiler: unterminated call statement safety", () => {
+  const source = 'text T = label(text: "{@';
+
+  it("compileDslToElements reports UNCLOSED_CALL_CODE and produces no elements", () => {
+    const result = compileDslToElements(source, { elements: [] });
+
+    expect(result.elements).toEqual([]);
+    expect(result.changedCount).toBe(0);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ severity: "error", code: UNCLOSED_CALL_CODE })
+    );
+  });
+
+  it("compileDslToElements does not overwrite existing elements with garbage from the degraded statement", () => {
+    const existing = compileDslToElements("point A = coordinate(x: 0 y: 0)", { elements: [] }).elements;
+    const result = compileDslToElements(source, { elements: existing });
+
+    expect(result.elements).toBe(existing);
+    expect(result.changedCount).toBe(0);
+  });
+
+  it("compileDslDocument keeps document null for the same unterminated call", () => {
+    const compiled = compileDslDocument(source);
+
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toContainEqual(
+      expect.objectContaining({ severity: "error", code: UNCLOSED_CALL_CODE })
+    );
   });
 });
 

@@ -31,6 +31,7 @@ pub(crate) fn numeric_value(
         message,
     })?;
     Parser::new(
+        expression,
         tokens,
         state,
         element,
@@ -143,9 +144,21 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
         }
 
         if ch == '@' {
+            // Task 51: stops at `.` exactly like the TS tokenizer's own
+            // localVariable pattern (numericExpressionParser.ts) - under the
+            // IR design an `@token` in this normalized, sigil-resolved
+            // expression string is never legitimately followed by a dot (an
+            // `@Element.property` occurrence has its sigil stripped before
+            // reaching either engine). Without this, `@id.length` would
+            // silently tokenize as `LocalVariable("id.length")` here while
+            // TS stops at the dot, diverging on any malformed input that
+            // reaches this far.
             let start = index + 1;
             index = start;
-            while index < chars.len() && !is_expression_delimiter(chars[index]) {
+            while index < chars.len()
+                && !is_expression_delimiter(chars[index])
+                && chars[index] != '.'
+            {
                 index += 1;
             }
             tokens.push(Token::LocalVariable(chars[start..index].iter().collect()));
@@ -351,6 +364,7 @@ fn parameter_value<'a>(element: &'a Value, key: &str) -> Option<&'a Value> {
 }
 
 struct Parser<'a> {
+    expression: &'a str,
     tokens: Vec<Token>,
     index: usize,
     state: &'a EvaluationState,
@@ -361,6 +375,7 @@ struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn new(
+        expression: &'a str,
         tokens: Vec<Token>,
         state: &'a EvaluationState,
         element: &'a Value,
@@ -368,6 +383,7 @@ impl<'a> Parser<'a> {
         local_variable_names: &'a HashMap<String, String>,
     ) -> Self {
         Self {
+            expression,
             tokens,
             index: 0,
             state,
@@ -716,7 +732,7 @@ impl<'a> Parser<'a> {
 
     fn simple_error(&self, message: &str) -> NumericEvalError {
         NumericEvalError {
-            dependency_id: message.to_owned(),
+            dependency_id: self.expression.to_owned(),
             dependency_name: None,
             message: message.to_owned(),
         }

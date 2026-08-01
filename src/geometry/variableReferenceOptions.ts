@@ -13,7 +13,7 @@ export type NumericVariableReferenceOption = {
   displayExpression: string;
   label: string;
   detail: string;
-  source: "local" | "global" | "group";
+  source: "local" | "global" | "group" | "typed";
   elementId?: ElementId;
   variableId?: string;
 };

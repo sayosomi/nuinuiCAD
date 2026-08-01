@@ -28,6 +28,8 @@ mod for_group;
 mod for_group_mutation_runtime;
 mod groups;
 mod image_evaluator;
+#[cfg(test)]
+mod incomplete_numeric_expression_tests;
 mod intersection_point_evaluator;
 #[cfg(test)]
 mod intersection_point_tests;
@@ -893,6 +895,7 @@ fn evaluate_document_input_with_scalar_program(
                         start,
                         count as usize,
                         step,
+                        effective_show_generated,
                         &mut state,
                     )
                     .expect("validated forGroup scheduler must not mutate an iteration binding");
@@ -916,7 +919,10 @@ fn evaluate_document_input_with_scalar_program(
                     let Some(generated_id) = element_id(&generated_element) else {
                         continue;
                     };
-                    if effective_visible_element_ids.contains(&template_id) {
+                    if effective_show_generated
+                        && effective_visible_element_ids.contains(&id)
+                        && effective_visible_element_ids.contains(&template_id)
+                    {
                         effective_visible_element_ids.push(generated_id.clone());
                     }
                     state

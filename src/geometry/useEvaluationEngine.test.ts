@@ -61,6 +61,16 @@ const scalarProgram: ScalarProgram = {
   }]
 };
 
+const copySource = (angleDeg: string) => [
+  "nui 3",
+  "point A = coordinate(x: 0 y: 0)",
+  "point B = coordinate(x: 10 y: 0)",
+  "line AB = segment(start: A end: B)",
+  "for Loop (i from: 0 count: 2 step: 1 showGenerated: true) {",
+  `  line Copy = copy(startPoint: A endPoint: B scale: 1 angleDeg: ${angleDeg} mirrorX: false baseLines: [AB])`,
+  "}"
+].join("\n");
+
 const unsupportedElement = {
   id: "unsupported",
   name: "未対応",
@@ -90,6 +100,41 @@ afterEach(() => {
 });
 
 describe("useEvaluationEngine", () => {
+  it("does not warn while a valid numeric expression is temporarily incomplete", async () => {
+    setTauriRuntime();
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "parity");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const valid = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), copySource("90"));
+    const incomplete = compileCanonicalText(valid, copySource("90 +"));
+    const completed = compileCanonicalText(incomplete, copySource("90 + 10"));
+    expect(valid.status).toBe("valid");
+    expect(incomplete.status).toBe("valid");
+    expect(completed.status).toBe("valid");
+
+    const payloads = [
+      evaluateElementsReferencePayload(valid.doc.document.elements),
+      evaluateElementsReferencePayload(incomplete.doc.document.elements),
+      evaluateElementsReferencePayload(completed.doc.document.elements)
+    ];
+    invokeMock.mockImplementation(() => Promise.resolve(payloads.shift()!));
+
+    const { result, rerender } = renderHook(
+      ({ source, revision }: { source: typeof valid; revision: number }) =>
+        useEvaluationEngine(source.doc.document.elements, {}, revision),
+      { initialProps: { source: valid, revision: 1 } }
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    rerender({ source: incomplete, revision: 2 });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    rerender({ source: completed, revision: 3 });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    expect(invokeMock).toHaveBeenCalledTimes(3);
+    expect(result.current.evaluation.errors).toHaveLength(0);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("returns the reference evaluation in browser mode", () => {
     const { result } = renderHook(() =>
       useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 41)

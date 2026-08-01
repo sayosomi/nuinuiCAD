@@ -73,6 +73,8 @@ export type DslAttribute = {
   valueStart: number;
   valueEnd: number;
   physicalSpan?: DslPhysicalSpan;
+  /** Set only when `value` is empty - see `ScannedArg.rawValueSpan` (dslArgScanner.ts). */
+  rawValueSpan?: DslSpan;
 };
 
 export type DslEnclosing = {

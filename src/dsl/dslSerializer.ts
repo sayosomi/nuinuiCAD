@@ -76,7 +76,7 @@ export const documentDslRefs = (
     });
   };
   const numeric = (value: NumericValue, source: CadElement) =>
-    formatNumericValueForDsl(value, elements, source.numericVariables ?? [], source, nameContext);
+    formatNumericValueForDsl(value, elements, source.numericVariables ?? [], source, nameContext, majorVersion);
   return {
     token,
     anchor: (value, source) => {

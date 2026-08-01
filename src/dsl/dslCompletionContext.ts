@@ -10,8 +10,7 @@ import {
 } from "./dslValueSpans";
 import { splitDslComment, splitDslTerms } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
-import { dslVariableTokenEndingAt } from "./dslVariableToken";
-import { dslElementParameterTokenEndingAt } from "./dslElementParameterToken";
+import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
 import { coordinateComponent, recordField, recordRemainder, recordSpans, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
 import {
   placeCoordinateAttrKeys,
@@ -32,7 +31,7 @@ export type DslCompletionContext =
   | { kind: "construction"; from: number; to: number; category: DslConstructionCategory }
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
-  | { kind: "elementParameter"; from: number; to: number; elementToken: string }
+  | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean }
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
   | { kind: "propertyScalarValue"; from: number; to: number; propertyContext: PropertyScalarValueCompletionContext }
   | { kind: "templateHole"; from: number; to: number; contentSpan: DslSpan }
@@ -41,21 +40,42 @@ export type DslCompletionContext =
   | null;
 
 /**
- * Shared fallback for every `@`-token boundary check below: only attempted
- * when the `@variable` check already returned null, so `@variable` detection
- * and its span are completely unchanged. The two token shapes are mutually
- * exclusive by construction (the `@` grammar's query excludes `.`, so
- * `@name.` never matches `dslVariableTokenEndingAt`; this grammar requires no
- * leading `@`), so at most one of the two ever fires for a given cursor
- * position.
+ * Task 51: the single classifier call for every numeric-attribute completion
+ * site below. `@name` narrows to `parameter` (typed binding / legacy
+ * variable candidates); `@Element.property` or bare `Element.property`
+ * narrows to `elementParameter` (element property candidates). These are two
+ * arms of one token shape (split purely on the presence of `.`), not two
+ * independently-matching grammars - see expressionReferenceToken.ts.
+ *
+ * `majorVersion` is optional and only ever narrows further: omitted (or 2),
+ * a bare `Element.property` still narrows to `elementParameter` exactly as
+ * it always has (existing v2 documents, and every caller that does not yet
+ * thread a document version, keep today's behavior unchanged). Only an
+ * explicit `3` suppresses it - the nui 3 bare spelling is a compile error
+ * (dslPropertyReferenceSyntax.ts), so offering it as a completion target
+ * would guide the user toward text that fails on commit.
  */
-const elementParameterCompletionContext = (
+const numberFieldCompletionContext = (
   code: string,
   pos: number,
-  boundaryStart: number
+  boundaryStart: number,
+  parameter: DslCompletionParameter,
+  majorVersion?: 2 | 3
 ): DslCompletionContext => {
-  const token = dslElementParameterTokenEndingAt(code, pos, boundaryStart);
-  return token ? { kind: "elementParameter", from: token.from, to: token.to, elementToken: token.elementToken } : null;
+  const match = expressionReferenceTokenEndingAt(code, pos, { boundaryStart });
+  if (!match) return null;
+  if (match.kind === "binding") {
+    return { kind: "parameter", from: match.from, to: match.to, parameter };
+  }
+  if (majorVersion === 3 && !match.sigil) return null;
+  return {
+    kind: "elementParameter",
+    from: match.from,
+    to: match.to,
+    elementToken: match.elementToken,
+    tokenStart: match.tokenStart,
+    sigil: match.sigil
+  };
 };
 
 /** Local-variable-list marker: cmAutocomplete.ts routes to the vars=[...] record
@@ -82,24 +102,18 @@ const dslCoordinateLiteralCompletionContext = (
   code: string,
   pos: number,
   span: DslLabeledValueSpan,
-  parameter: DslCompletionParameter
+  parameter: DslCompletionParameter,
+  majorVersion?: 2 | 3
 ): DslCompletionContext | undefined => {
   const xSpan = coordinateComponent(code, span, "x");
   const ySpan = coordinateComponent(code, span, "y");
   const subSpan = [xSpan, ySpan].find((candidate) => candidate && pos >= candidate.start && pos <= candidate.end);
   if (!subSpan) return undefined;
-  const token = dslVariableTokenEndingAt(code, pos, subSpan.start);
-  if (!token) return elementParameterCompletionContext(code, pos, subSpan.start);
-  return {
-    kind: "parameter",
-    from: token.from,
-    to: token.to,
-    parameter: {
-      source: parameter.source,
-      key: parameter.key,
-      definition: { key: parameter.definition.key, label: parameter.definition.label, kind: "number" }
-    }
-  };
+  return numberFieldCompletionContext(code, pos, subSpan.start, {
+    source: parameter.source,
+    key: parameter.key,
+    definition: { key: parameter.definition.key, label: parameter.definition.label, kind: "number" }
+  }, majorVersion);
 };
 
 /**
@@ -109,25 +123,18 @@ const dslCoordinateLiteralCompletionContext = (
  * cmAutocomplete.ts can route to the local-variable candidate source instead of
  * the top-level @variable source.
  */
-const dslVarsFieldCompletionContext = (code: string, pos: number, span: DslLabeledValueSpan): DslCompletionContext => {
+const dslVarsFieldCompletionContext = (code: string, pos: number, span: DslLabeledValueSpan, majorVersion?: 2 | 3): DslCompletionContext => {
   const records = recordSpans(code, span);
   if (!records) return null;
   const record = records.find((item) => pos >= item.start && pos <= item.end);
   if (!record) return null;
   const expressionSpan = recordRemainder(code, record, 1);
   if (!expressionSpan || pos < expressionSpan.start || pos > expressionSpan.end) return null;
-  const token = dslVariableTokenEndingAt(code, pos, expressionSpan.start);
-  if (!token) return elementParameterCompletionContext(code, pos, expressionSpan.start);
-  return {
-    kind: "parameter",
-    from: token.from,
-    to: token.to,
-    parameter: {
-      source: "attr",
-      key: dslVarsAttributeParameterKey,
-      definition: { key: dslVarsAttributeParameterKey, label: "変数", kind: "number" }
-    }
-  };
+  return numberFieldCompletionContext(code, pos, expressionSpan.start, {
+    source: "attr",
+    key: dslVarsAttributeParameterKey,
+    definition: { key: dslVarsAttributeParameterKey, label: "変数", kind: "number" }
+  }, majorVersion);
 };
 
 /**
@@ -137,7 +144,12 @@ const dslVarsFieldCompletionContext = (code: string, pos: number, span: DslLabel
  * reference, not a numeric expression; field 4 (id) is a bare identifier —
  * neither ever offers @variable completion.
  */
-const dslIntermediatesFieldCompletionContext = (code: string, pos: number, span: DslLabeledValueSpan): DslCompletionContext => {
+const dslIntermediatesFieldCompletionContext = (
+  code: string,
+  pos: number,
+  span: DslLabeledValueSpan,
+  majorVersion?: 2 | 3
+): DslCompletionContext => {
   const records = recordSpans(code, span);
   if (!records) return null;
   const record = records.find((item) => pos >= item.start && pos <= item.end);
@@ -145,18 +157,11 @@ const dslIntermediatesFieldCompletionContext = (code: string, pos: number, span:
   for (const fieldIndex of [1, 2, 3] as const) {
     const fieldSpan = recordField(code, record, fieldIndex);
     if (!fieldSpan || pos < fieldSpan.start || pos > fieldSpan.end) continue;
-    const token = dslVariableTokenEndingAt(code, pos, fieldSpan.start);
-    if (!token) return elementParameterCompletionContext(code, pos, fieldSpan.start);
-    return {
-      kind: "parameter",
-      from: token.from,
-      to: token.to,
-      parameter: {
-        source: "attr",
-        key: dslIntermediatesAttributeParameterKey,
-        definition: { key: dslIntermediatesAttributeParameterKey, label: "中間点", kind: "number" }
-      }
-    };
+    return numberFieldCompletionContext(code, pos, fieldSpan.start, {
+      source: "attr",
+      key: dslIntermediatesAttributeParameterKey,
+      definition: { key: dslIntermediatesAttributeParameterKey, label: "中間点", kind: "number" }
+    }, majorVersion);
   }
   return null;
 };
@@ -172,7 +177,7 @@ const dslIntermediatesFieldCompletionContext = (code: string, pos: number, span:
  * machinery, which cannot exist for these non-CadElement kinds. Only
  * @variable completion inside already-typed attribute VALUES is added.
  */
-const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: string): DslCompletionContext => {
+const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: string, majorVersion?: 2 | 3): DslCompletionContext => {
   const statement = dslLinePrintLayoutStatement(lineText);
   if (!statement) return null;
 
@@ -180,15 +185,11 @@ const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: 
     const span = dslLinePrintLayoutValueSpans(lineText)
       .find((item) => item.source === "payload" && item.key === "expression" && pos >= item.start && pos <= item.end);
     if (!span) return null;
-    const token = dslVariableTokenEndingAt(code, pos, span.start);
-    return token
-      ? {
-        kind: "parameter",
-        from: token.from,
-        to: token.to,
-        parameter: { source: "printLayoutBlock", key: "expression", definition: { key: "expression", label: "式", kind: "number" } }
-      }
-      : elementParameterCompletionContext(code, pos, span.start);
+    return numberFieldCompletionContext(code, pos, span.start, {
+      source: "printLayoutBlock",
+      key: "expression",
+      definition: { key: "expression", label: "式", kind: "number" }
+    }, majorVersion);
   }
 
   const numericKeys = statement.kind === "place" ? placeNumericAttrKeys : printLayoutNumericAttrKeys;
@@ -197,15 +198,11 @@ const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: 
   if (!span || span.source !== "attr") return null;
 
   if (numericKeys.includes(span.key)) {
-    const token = dslVariableTokenEndingAt(code, pos, span.start);
-    return token
-      ? {
-        kind: "parameter",
-        from: token.from,
-        to: token.to,
-        parameter: { source: "printLayoutBlock", key: span.key, definition: { key: span.key, label: span.key, kind: "number" } }
-      }
-      : elementParameterCompletionContext(code, pos, span.start);
+    return numberFieldCompletionContext(code, pos, span.start, {
+      source: "printLayoutBlock",
+      key: span.key,
+      definition: { key: span.key, label: span.key, kind: "number" }
+    }, majorVersion);
   }
   if (coordinateKeys.includes(span.key)) {
     const parameter: DslCompletionParameter = {
@@ -216,7 +213,7 @@ const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: 
     // at=/canvas= are always coordinate pairs (dslCompiler.ts rejects any other
     // form with a diagnostic), so unlike element "reference"-kind fields there
     // is no non-coordinate fallback to offer — undefined collapses to null.
-    return dslCoordinateLiteralCompletionContext(code, pos, span, parameter) ?? null;
+    return dslCoordinateLiteralCompletionContext(code, pos, span, parameter, majorVersion) ?? null;
   }
   return null;
 };
@@ -273,6 +270,10 @@ const referenceCompletionSpan = (
   span: DslLabeledValueSpan,
   kind: DslCompletionParameter["definition"]["kind"]
 ) => {
+  // An empty value has no already-typed prefix to replace - `span.start` is
+  // only the trimmed (possibly collapsed-past-`pos`) span's edge here, not a
+  // real prefix boundary. Insert at the cursor instead.
+  if (span.start === span.end) return { from: pos, to: pos };
   if (kind !== "lineReferenceList" || code[span.start] !== "[" || code[span.end - 1] !== "]") {
     return { from: span.start, to: pos };
   }
@@ -291,8 +292,13 @@ const referenceCompletionSpan = (
  * no opinion on which, it just scans the string it's given. Erroring
  * statements deliberately receive at most line-head keyword completion; no
  * partial DSL parser exists alongside the document parser.
+ *
+ * `majorVersion` is optional (Task 51): omitted, a bare `Element.property`
+ * numeric-attribute reference still narrows to `elementParameter` exactly as
+ * before this migration - only an explicit `3` suppresses it, since that
+ * spelling is a compile error in nui 3. See numberFieldCompletionContext.
  */
-export const dslCompletionContextAt = (lineText: string, pos: number): DslCompletionContext => {
+export const dslCompletionContextAt = (lineText: string, pos: number, majorVersion?: 2 | 3): DslCompletionContext => {
   const { code, comment } = splitDslComment(lineText);
   if (comment && pos >= code.length) return null;
   const head = lineHeadContext(code, pos);
@@ -321,15 +327,22 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
 
   const statement = dslLineElementStatement(lineText);
   const elementType = statement ? dslStatementElementType(statement) : null;
-  if (!statement || !elementType) return dslPrintLayoutCompletionContextAt(code, pos, lineText);
+  if (!statement || !elementType) return dslPrintLayoutCompletionContextAt(code, pos, lineText, majorVersion);
   const metadata = dslCompletionMetadataForType(elementType);
-  const span = dslLineLabeledValueSpans(lineText).find((item) => pos >= item.start && pos <= item.end);
+  // Same rawValueSpan fallback as dslCallCompletionContextAt's own
+  // containment check (dslCallCompletionContext.ts): an empty value's
+  // trimmed span can collapse past `pos`, so a zero-length span is matched
+  // via its untrimmed raw gap instead.
+  const span = dslLineLabeledValueSpans(lineText).find((item) => {
+    const bounds = item.start === item.end && item.rawValueSpan ? item.rawValueSpan : item;
+    return pos >= bounds.start && pos <= bounds.end;
+  });
   if (span) {
     if (span.source === "attr" && span.key === dslVarsAttributeParameterKey) {
-      return dslVarsFieldCompletionContext(code, pos, span);
+      return dslVarsFieldCompletionContext(code, pos, span, majorVersion);
     }
     if (span.source === "attr" && span.key === dslIntermediatesAttributeParameterKey) {
-      return dslIntermediatesFieldCompletionContext(code, pos, span);
+      return dslIntermediatesFieldCompletionContext(code, pos, span, majorVersion);
     }
     const parameters = metadata.parameters.filter((parameter) =>
       parameter.source === span.source && parameter.key === span.key ||
@@ -343,14 +356,14 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
     if (parameters.length !== 1) return null;
     const parameter = parameters[0];
     if (parameter.definition.kind === "number") {
-      const token = dslVariableTokenEndingAt(code, pos, span.start);
-      return token
-        ? { kind: "parameter", from: token.from, to: token.to, parameter }
-        : elementParameterCompletionContext(code, pos, span.start);
+      return numberFieldCompletionContext(code, pos, span.start, parameter, majorVersion);
     }
     if (parameter.definition.kind === "reference") {
-      const coordinateContext = dslCoordinateLiteralCompletionContext(code, pos, span, parameter);
-      return coordinateContext !== undefined ? coordinateContext : { kind: "parameter", from: span.start, to: pos, parameter };
+      const coordinateContext = dslCoordinateLiteralCompletionContext(code, pos, span, parameter, majorVersion);
+      if (coordinateContext !== undefined) return coordinateContext;
+      // See referenceCompletionSpan's matching comment: an empty value has
+      // no typed prefix at `span.start` to replace.
+      return { kind: "parameter", from: span.start === span.end ? pos : span.start, to: pos, parameter };
     }
     const scalarContext = scalarPropertyOrHoleCompletionContext(code, pos, span, parameter);
     if (scalarContext) return scalarContext;

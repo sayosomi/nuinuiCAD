@@ -76,7 +76,7 @@ describe("dependencies", () => {
       "point B = coordinate(x: @length y: 0)",
       "line AB = segment(start: A end: B id: AB)",
       'text Label = label(text: "\\{draft\\} {@label} {@length}" anchor: none size: 3)',
-      'text Geometry = label(text: "length={AB.length}" anchor: none size: 3)'
+      'text Geometry = label(text: "length={@AB.length}" anchor: none size: 3)'
     ].join("\n"), {
       assignedStatementIds: new Map([
         [1, "test:length"],

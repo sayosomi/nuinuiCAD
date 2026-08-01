@@ -54,6 +54,34 @@ describe("dslCallCompletionContextAt", () => {
     expect(candidates.map((candidate) => candidate.label)).not.toEqual(expect.arrayContaining(["id", "varIds", "parent", "branch"]));
   });
 
+  it("does not offer attribute-key completion when the cursor sits inside an emptied value's raw gap", () => {
+    // Matches a real edit: select an existing choice value and delete it,
+    // landing the cursor right where the deleted text used to start - not at
+    // the far edge of the resulting whitespace gap. dslArgScanner's
+    // trimSpan always collapses an empty valueSpan toward the far edge of
+    // its raw gap (never toward the cursor), so a test that only probes the
+    // far edge would not reproduce the real regression.
+    const before = "line Off = offset(sources: [AB] side: right closed: false)";
+    const deleteStart = before.indexOf("right");
+    const deleteEnd = deleteStart + "right".length;
+    const after = before.slice(0, deleteStart) + before.slice(deleteEnd);
+    expect(after).toBe("line Off = offset(sources: [AB] side:  closed: false)");
+
+    // The real-deletion cursor position, one char into the raw gap.
+    expect(dslCallCompletionContextAt(after, deleteStart)).toBeNull();
+    // The very first character of the raw gap (right after the colon).
+    const colonEnd = after.indexOf("side:") + "side:".length;
+    expect(dslCallCompletionContextAt(after, colonEnd)).toBeNull();
+
+    // A second, independent choice attribute on a different construction -
+    // this fix must not be `side`-specific.
+    const varBefore = "var Width = expression(value: 5 scope: global visible: true)";
+    const varDeleteStart = varBefore.indexOf("global");
+    const varDeleteEnd = varDeleteStart + "global".length;
+    const varAfter = varBefore.slice(0, varDeleteStart) + varBefore.slice(varDeleteEnd);
+    expect(dslCallCompletionContextAt(varAfter, varDeleteStart)).toBeNull();
+  });
+
   it("removes the other member of an exclusive argument group", () => {
     const spec = constructionFor("point", "between")!;
     const afterDistance = argumentCompletionCandidates(spec, new Set(["start", "end", "distance"]));

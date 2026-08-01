@@ -1,5 +1,5 @@
 import { completionStatus, currentCompletions, selectedCompletionIndex, startCompletion } from "@codemirror/autocomplete";
-import { ChangeSet, EditorSelection, EditorState } from "@codemirror/state";
+import { ChangeSet, EditorSelection, EditorState, Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -609,6 +609,450 @@ describe("createDslCompletionSource", () => {
       });
       expect(await Promise.resolve(completionSource({ state, pos, explicit: true } as never))).toBeNull();
     });
+
+    it("shows a real, visible completion tooltip from natural (non-explicit) typing through a live EditorView, and keeps narrowing it", async () => {
+      // Regression coverage for a real Tauri report: typing `.` after an
+      // element name must surface ElementName.property candidates through
+      // the actual dslAutocompleteExtension/EditorView wiring - not just
+      // through a direct createDslCompletionSource({ explicit: true }) call,
+      // which every other test in this describe block uses and which can't
+      // tell an implicit-typing gate bug apart from a working completion
+      // source (see the `64f473c` `@`-marker gate that only ever applies to
+      // typedInitializer/propertyScalarValue/templateHole contexts, never to
+      // this elementParameter one - characterized here by actually typing).
+      const source = buildSource("");
+      const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const pos = source.indexOf("直線AB.") + "直線AB.".length;
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const abId = elements.find((element) => element.type === "line")!.id;
+      const computedGeometry = new Map([[abId, {
+        kind: "line" as const,
+        elementId: abId,
+        name: "直線AB",
+        startPointId: null,
+        endPointId: null,
+        start: { kind: "point" as const, elementId: "a", name: "a", x: 0, y: 0 },
+        end: { kind: "point" as const, elementId: "b", name: "b", x: 10, y: 0 },
+        length: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 0,
+        startTangentAngleDeg: 0,
+        endTangentAngleDeg: 0
+      }]]);
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: source,
+          selection: EditorSelection.cursor(pos),
+          extensions: [
+            dslAutocompleteExtension({
+              elements: () => elements,
+              statementRanges: () => statementRanges,
+              printLayouts: () => printLayouts,
+              printLayoutRanges: () => printLayoutRanges,
+              isComposing: () => false,
+              computedVariables: () => undefined,
+              computedGeometry: () => computedGeometry,
+              effectiveEnabledElementIds: () => new Set([abId]),
+              evaluationErrors: () => [],
+              bindingAnalysis: () => undefined,
+              typedDeclarationRanges: () => new Map(),
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => undefined
+            })
+          ]
+        }),
+        parent
+      });
+
+      expect(completionStatus(view.state)).toBeNull();
+      // A real typed keystroke: a docChanged transaction tagged exactly the
+      // way CodeMirror's own DOM input handling tags it, at the live cursor
+      // position - not an explicit startCompletion() call.
+      view.dispatch({
+        changes: { from: pos, insert: "l" },
+        selection: { anchor: pos + 1 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => view.state.doc.toString().slice(pos, pos + 1), { timeout: 1000, interval: 20 }).toBe("l");
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toContain("length");
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+
+      view.dispatch({
+        changes: { from: pos + 1, insert: "e" },
+        selection: { anchor: pos + 2 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => view.state.doc.toString().slice(pos, pos + 2), { timeout: 1000, interval: 20 }).toBe("le");
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toContain("length");
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+
+      view.destroy();
+      parent.remove();
+    });
+
+    it("Task 51 checklist: @ offers the typed binding, @Element. offers the property, both narrow and apply correctly in one live session", async () => {
+      // The exact acceptance scenario from the Task 51 migration: a plain
+      // numeric attribute must offer BOTH a typed const/let binding (@length)
+      // and an element-property reference (@AB.length) - through the real
+      // dslAutocompleteExtension wiring, in one EditorView session, with the
+      // same name ("length") shared by the binding and the property so a
+      // regression that conflates the two would be caught here.
+      const source = [
+        "nui 3",
+        "const length: number = 12.3456",
+        "point A = coordinate(x: 0 y: 0)",
+        "point B = coordinate(x: 10 y: 0)",
+        "line AB = segment(start: A end: B)",
+        "point C = coordinate(x: 0 y: 0)"
+      ].join("\n");
+      const compiled = compileDslDocument(source, { assignedStatementIds: new Map([[1, "test:length"]]) });
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(compiled.document).not.toBeNull();
+      const doc = EditorState.create({ doc: source }).doc;
+      const elements = compiled.document!.elements;
+      const statementRanges = createStatementRangeIndex(doc, compiled.statementMap!);
+      const abId = elements.find((element) => element.type === "line")!.id;
+      const computedGeometry = new Map([[abId, {
+        kind: "line" as const,
+        elementId: abId,
+        name: "AB",
+        startPointId: null,
+        endPointId: null,
+        start: { kind: "point" as const, elementId: "a", name: "A", x: 0, y: 0 },
+        end: { kind: "point" as const, elementId: "b", name: "B", x: 10, y: 0 },
+        length: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 0,
+        startTangentAngleDeg: 0,
+        endTangentAngleDeg: 0
+      }]]);
+      const parent = document.createElement("div");
+      document.body.append(parent);
+
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: source,
+          extensions: [
+            dslAutocompleteExtension({
+              elements: () => elements,
+              statementRanges: () => statementRanges,
+              printLayouts: () => [],
+              printLayoutRanges: () => new Map(),
+              isComposing: () => false,
+              computedVariables: () => undefined,
+              computedGeometry: () => computedGeometry,
+              effectiveEnabledElementIds: () => new Set([abId]),
+              evaluationErrors: () => [],
+              bindingAnalysis: () => compiled.bindingAnalysis,
+              typedDeclarationRanges: () => createTypedDeclarationRangeIndex(doc, compiled.statementMap!),
+              scopeBodyRanges: () => createScopeBodyRangeIndex(doc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex),
+              statementInfoByElementId: () => compiled.statementMap!.byElementId,
+              majorVersion: () => 3
+            })
+          ]
+        }),
+        parent
+      });
+
+      // Step 1-3: "@" on point C's x: field offers the typed binding
+      // "length", "@l" narrows to it, applying inserts "@length".
+      const xInsertPos = source.indexOf("point C") + "point C = coordinate(x: ".length;
+      view.dispatch({
+        changes: { from: xInsertPos, insert: "@" },
+        selection: { anchor: xInsertPos + 1 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toContain("@length");
+
+      view.dispatch({
+        changes: { from: xInsertPos + 1, insert: "l" },
+        selection: { anchor: xInsertPos + 2 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      const narrowedBindingLabels = currentCompletions(view.state).map((option) => option.label);
+      expect(narrowedBindingLabels).toContain("@length");
+      expect(narrowedBindingLabels.every((label) => label.toLowerCase().includes("l"))).toBe(true);
+
+      startCompletion(view);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      const bindingOption = currentCompletions(view.state).find((option) => option.label === "@length")!;
+      view.dispatch({
+        changes: { from: xInsertPos, to: xInsertPos + 2, insert: typeof bindingOption.apply === "string" ? bindingOption.apply : "@length" }
+      });
+      expect(view.state.doc.toString().slice(xInsertPos, xInsertPos + "@length".length)).toBe("@length");
+
+      // Step 4-6: "@AB." on point C's y: field offers the element property
+      // "length", "@AB.l" narrows to it, applying inserts "@AB.length".
+      const yInsertPos = view.state.doc.toString().indexOf("y: ", xInsertPos) + "y: ".length;
+      view.dispatch({
+        changes: { from: yInsertPos, insert: "@AB." },
+        selection: { anchor: yInsertPos + 4 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toContain("length");
+
+      view.dispatch({
+        changes: { from: yInsertPos + 4, insert: "l" },
+        selection: { anchor: yInsertPos + 5 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toContain("length");
+
+      startCompletion(view);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      const propertyOption = currentCompletions(view.state).find((option) => option.label === "length")!;
+      view.dispatch({
+        changes: { from: yInsertPos + 4, to: yInsertPos + 5, insert: typeof propertyOption.apply === "string" ? propertyOption.apply : "length" }
+      });
+      expect(view.state.doc.toString().slice(yInsertPos, yInsertPos + "@AB.length".length)).toBe("@AB.length");
+
+      view.destroy();
+      parent.remove();
+    });
+
+    it("Task 51 checklist item 7: bare Element. offers no candidates in a nui 3 document", async () => {
+      const source = [
+        "nui 3",
+        "point A = coordinate(x: 0 y: 0)",
+        "point B = coordinate(x: 10 y: 0)",
+        "line AB = segment(start: A end: B)",
+        "point C = coordinate(x: 0 y: 0)"
+      ].join("\n");
+      const compiled = compileDslDocument(source);
+      expect(compiled.document).not.toBeNull();
+      const doc = EditorState.create({ doc: source }).doc;
+      const elements = compiled.document!.elements;
+      const statementRanges = createStatementRangeIndex(doc, compiled.statementMap!);
+      const abId = elements.find((element) => element.type === "line")!.id;
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const xInsertPos = source.indexOf("point C") + "point C = coordinate(x: ".length;
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: source,
+          extensions: [
+            dslAutocompleteExtension({
+              elements: () => elements,
+              statementRanges: () => statementRanges,
+              printLayouts: () => [],
+              printLayoutRanges: () => new Map(),
+              isComposing: () => false,
+              computedVariables: () => undefined,
+              computedGeometry: () => new Map(),
+              effectiveEnabledElementIds: () => new Set([abId]),
+              evaluationErrors: () => [],
+              bindingAnalysis: () => undefined,
+              typedDeclarationRanges: () => new Map(),
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => compiled.statementMap!.byElementId,
+              majorVersion: () => 3
+            })
+          ]
+        }),
+        parent
+      });
+
+      for (const char of "AB.") {
+        const pos = view.state.selection.main.head === 0 ? xInsertPos : view.state.selection.main.head;
+        view.dispatch({
+          changes: { from: pos, insert: char },
+          selection: { anchor: pos + 1 },
+          annotations: Transaction.userEvent.of("input.type")
+        });
+      }
+      // Confirm the completion pipeline settles to no result - unlike the
+      // majorVersion-omitted/2 case, which opens (see the elementParameter
+      // describe block above). completionStatus briefly reports "pending"
+      // while the async completion source resolves, so poll rather than
+      // sampling once.
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBeNull();
+
+      view.destroy();
+      parent.remove();
+    });
+  });
+});
+
+describe("choice value completion at a zero-length value (Task 51 manual E2E rerun)", () => {
+  it("offers only the choice's own candidates, in declared order, right after a real delete lands the cursor mid-gap, and narrows/applies correctly", async () => {
+    // Real repro: an `offset` line's `side: right` value is selected and
+    // deleted (not typed character-by-character down to empty), which is
+    // exactly the shape that exposed the bug - the resulting whitespace gap
+    // between "side:" and "closed:" is wider than one separating space, and
+    // a real EditorView delete transaction leaves the cursor right where the
+    // deleted text used to start: inside that gap, not at its far edge
+    // (where dslArgScanner's trimSpan collapses the empty valueSpan to).
+    const source = [
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
+      "line Off = offset(sources: [AB] distance: 3 side: right closed: false)"
+    ].join("\n");
+    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const abId = elements.find((element) => element.type === "line" && element.name === "AB")!.id;
+    const parent = document.createElement("div");
+    document.body.append(parent);
+
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: source,
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => elements,
+            statementRanges: () => statementRanges,
+            printLayouts: () => printLayouts,
+            printLayoutRanges: () => printLayoutRanges,
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => new Map(),
+            effectiveEnabledElementIds: () => new Set([abId]),
+            evaluationErrors: () => [],
+            bindingAnalysis: () => undefined,
+            typedDeclarationRanges: () => new Map(),
+            scopeBodyRanges: () => [],
+            statementInfoByElementId: () => undefined
+          })
+        ]
+      }),
+      parent
+    });
+
+    const rightStart = source.indexOf("right");
+    const rightEnd = rightStart + "right".length;
+    view.dispatch({
+      changes: { from: rightStart, to: rightEnd },
+      selection: { anchor: rightStart },
+      annotations: Transaction.userEvent.of("delete.selection")
+    });
+    // The delete transaction itself lands the cursor exactly where "right"
+    // used to start - inside the two-space gap left behind, one character
+    // past the gap's own start (right after the colon). This is the cursor
+    // position the real regression depends on.
+    expect(view.state.doc.toString().slice(rightStart - 6, rightStart + 8)).toBe("side:  closed:");
+    expect(view.state.selection.main.head).toBe(rightStart);
+
+    startCompletion(view);
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    const emptyLabels = currentCompletions(view.state).map((option) => option.label);
+    expect(emptyLabels).toEqual(["right", "left"]);
+    for (const generic of ["color", "enable", "state", "steps", "vars", "visible"]) {
+      expect(emptyLabels).not.toContain(generic);
+    }
+
+    // Typing "r" narrows to "right" only.
+    view.dispatch({
+      changes: { from: rightStart, insert: "r" },
+      selection: { anchor: rightStart + 1 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["right"]);
+
+    // Clear back to empty, then typing "l" narrows to "left" only.
+    view.dispatch({
+      changes: { from: rightStart, to: rightStart + 1 },
+      selection: { anchor: rightStart },
+      annotations: Transaction.userEvent.of("delete.selection")
+    });
+    startCompletion(view);
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    view.dispatch({
+      changes: { from: rightStart, insert: "l" },
+      selection: { anchor: rightStart + 1 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["left"]);
+
+    const leftOption = currentCompletions(view.state).find((option) => option.label === "left")!;
+    view.dispatch({
+      changes: { from: rightStart, to: rightStart + 1, insert: typeof leftOption.apply === "string" ? leftOption.apply : "left" }
+    });
+    const applied = view.state.doc.toString();
+    expect(applied).toBe(
+      "nui 3\n" +
+      "point A = coordinate(x: 0 y: 0)\n" +
+      "point B = coordinate(x: 10 y: 0)\n" +
+      "line AB = segment(start: A end: B)\n" +
+      "line Off = offset(sources: [AB] distance: 3 side: left closed: false)"
+    );
+    expect(parseDsl(applied).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it("does not regress @length / @AB.length numeric-attribute completion (kept alongside the choice fix as a boundary check)", async () => {
+    const source = [
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
+      "point C = coordinate(x: 0 y: 0)"
+    ].join("\n");
+    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const abId = elements.find((element) => element.type === "line" && element.name === "AB")!.id;
+    const computedGeometry = new Map([[abId, {
+      kind: "line" as const,
+      elementId: abId,
+      name: "AB",
+      startPointId: null,
+      endPointId: null,
+      start: { kind: "point" as const, elementId: "a", name: "A", x: 0, y: 0 },
+      end: { kind: "point" as const, elementId: "b", name: "B", x: 10, y: 0 },
+      length: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 0,
+      startTangentAngleDeg: 0,
+      endTangentAngleDeg: 0
+    }]]);
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const xInsertPos = source.indexOf("point C") + "point C = coordinate(x: ".length;
+
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: source,
+        selection: EditorSelection.cursor(xInsertPos),
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => elements,
+            statementRanges: () => statementRanges,
+            printLayouts: () => printLayouts,
+            printLayoutRanges: () => printLayoutRanges,
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => computedGeometry,
+            effectiveEnabledElementIds: () => new Set([abId]),
+            evaluationErrors: () => [],
+            bindingAnalysis: () => undefined,
+            typedDeclarationRanges: () => new Map(),
+            scopeBodyRanges: () => [],
+            statementInfoByElementId: () => undefined
+          })
+        ]
+      }),
+      parent
+    });
+
+    view.dispatch({
+      changes: { from: xInsertPos, insert: "@AB." },
+      selection: { anchor: xInsertPos + 4 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).toContain("length");
+
+    view.destroy();
+    parent.remove();
   });
 });
 
@@ -639,6 +1083,41 @@ describe("typed value completion (Task 39)", () => {
     evaluationErrors: () => undefined
   });
 
+  const insertThroughContentDom = (
+    view: EditorView,
+    data: string,
+    inputType: "insertText" | "insertCompositionText" = "insertText",
+    isComposing = false
+  ) => {
+    const line = view.contentDOM.querySelector(".cm-line:last-child")!;
+    const textNode = line.firstChild!;
+    const selection = document.getSelection()!;
+    const range = document.createRange();
+    range.setStart(textNode, textNode.textContent!.length);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    view.contentDOM.focus();
+    fireEvent(view.contentDOM, new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      data,
+      inputType,
+      isComposing
+    }));
+    textNode.textContent += data;
+    range.setStart(textNode, textNode.textContent!.length);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    fireEvent(view.contentDOM, new InputEvent("input", {
+      bubbles: true,
+      data,
+      inputType,
+      isComposing
+    }));
+  };
+
   describe("typed declaration initializer", () => {
     it("offers boolean literal and unary ! candidates at a clean operand start", async () => {
       // Committed/compiled from a complete, valid initializer; the actual
@@ -666,6 +1145,7 @@ describe("typed value completion (Task 39)", () => {
       const labels = result!.options.map((option) => option.label);
       expect(labels).toEqual(expect.arrayContaining(["true", "false"]));
       expect(result!.options.every((option) => option.type === "enum" || option.type === "keyword")).toBe(true);
+      expect(await Promise.resolve(completionSource({ state, pos, explicit: false } as never))).toBeNull();
     });
 
     it("offers @name reference candidates filtered to the declared type", async () => {
@@ -694,6 +1174,284 @@ describe("typed value completion (Task 39)", () => {
       expect(options.some((option) => option.label === "flagA" && option.apply === "@flagA")).toBe(true);
       expect(options.some((option) => option.label === "numA")).toBe(false);
       expect(options.every((option) => option.type === "variable")).toBe(true);
+    });
+
+    it("automatically opens completion after a Shift+2 DOM input inserts @ in a brand-new number declaration", async () => {
+      const committedSource = [
+        "nui 3",
+        "const length: number = 12.3456",
+        "const label: string = \"front\"",
+        "const printed: boolean = true",
+        "const side: choice(right, left) = left"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const committedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+      const insertion = "\nconst x: number =";
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        committedRanges,
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+      let activeTransitions = 0;
+      let acceptedTextInputTransactions = 0;
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: dirtySource,
+          selection: EditorSelection.cursor(dirtySource.length),
+          extensions: [
+            dslAutocompleteExtension({
+              ...baseOptions(),
+              bindingAnalysis: () => compiled.bindingAnalysis,
+              typedDeclarationRanges: () => ranges,
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => compiled.statementMap!.byElementId
+            }),
+            EditorView.updateListener.of((update) => {
+              if (completionStatus(update.startState) !== "active" && completionStatus(update.state) === "active") {
+                activeTransitions += 1;
+              }
+              for (const transaction of update.transactions) {
+                if (transaction.isUserEvent("input.type") && transaction.docChanged) acceptedTextInputTransactions += 1;
+              }
+            })
+          ]
+        }),
+        parent
+      });
+
+      expect(completionStatus(view.state)).toBeNull();
+      expect(view.state.doc.toString()).toBe(dirtySource);
+      insertThroughContentDom(view, " ");
+      await expect.poll(() => view.state.doc.toString().endsWith("= "), { timeout: 1000, interval: 20 }).toBe(true);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBeNull();
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).toBeNull();
+      fireEvent.keyDown(view.contentDOM, { key: "@", code: "Digit2", shiftKey: true });
+      insertThroughContentDom(view, "@");
+      await expect.poll(() => view.state.doc.toString().endsWith("@"), { timeout: 1000, interval: 20 }).toBe(true);
+      expect(acceptedTextInputTransactions).toBe(2);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+
+      const labels = currentCompletions(view.state).map((option) => option.label);
+      expect(labels).toContain("length");
+      expect(labels).not.toContain("label");
+      expect(labels).not.toContain("printed");
+      expect(labels).not.toContain("side");
+      expect(labels.filter((label) => label === "length")).toHaveLength(1);
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+      expect(activeTransitions).toBe(1);
+      insertThroughContentDom(view, "l");
+      await expect.poll(() => view.state.doc.toString().endsWith("@l"), { timeout: 1000, interval: 20 }).toBe(true);
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["length"]);
+      expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+      insertThroughContentDom(view, "e");
+      await expect.poll(() => view.state.doc.toString().endsWith("@le"), { timeout: 1000, interval: 20 }).toBe(true);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["length"]);
+      expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+      view.destroy();
+      parent.remove();
+    });
+
+    it("waits for a composed @ to finalize, then performs one non-explicit retry", async () => {
+      const committedSource = [
+        "nui 3",
+        "const length: number = 12.3456",
+        "const label: string = \"front\"",
+        "const printed: boolean = true",
+        "const side: choice(right, left) = left"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertion = "\nconst x: number =";
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+      let activeTransitions = 0;
+      let automaticRetryTransactions = 0;
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: dirtySource,
+          selection: EditorSelection.cursor(dirtySource.length),
+          extensions: [
+            dslAutocompleteExtension({
+              ...baseOptions(),
+              bindingAnalysis: () => compiled.bindingAnalysis,
+              typedDeclarationRanges: () => ranges,
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => compiled.statementMap!.byElementId
+            }),
+            EditorView.updateListener.of((update) => {
+              if (completionStatus(update.startState) !== "active" && completionStatus(update.state) === "active") {
+                activeTransitions += 1;
+              }
+              for (const transaction of update.transactions) {
+                if (transaction.annotation(Transaction.userEvent) === "input.type" && !transaction.docChanged) {
+                  automaticRetryTransactions += 1;
+                }
+              }
+            })
+          ]
+        }),
+        parent
+      });
+      insertThroughContentDom(view, " ");
+      await expect.poll(() => view.state.doc.toString().endsWith("= "), { timeout: 1000, interval: 20 }).toBe(true);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBeNull();
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).toBeNull();
+
+      fireEvent.keyDown(view.contentDOM, { key: "@", code: "Digit2", shiftKey: true, isComposing: true });
+      fireEvent.compositionStart(view.contentDOM);
+      insertThroughContentDom(view, "@", "insertCompositionText", true);
+      await expect.poll(() => view.state.doc.toString().endsWith("@"), { timeout: 1000, interval: 20 }).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(completionStatus(view.state)).toBeNull();
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).toBeNull();
+
+      fireEvent.compositionEnd(view.contentDOM, { data: "@" });
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["length"]);
+      expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+      expect(activeTransitions).toBe(1);
+      expect(automaticRetryTransactions).toBe(1);
+      insertThroughContentDom(view, "l");
+      await expect.poll(() => view.state.doc.toString().endsWith("@l"), { timeout: 1000, interval: 20 }).toBe(true);
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["length"]);
+      expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+      insertThroughContentDom(view, "e");
+      await expect.poll(() => view.state.doc.toString().endsWith("@le"), { timeout: 1000, interval: 20 }).toBe(true);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(currentCompletions(view.state).map((option) => option.label)).toEqual(["length"]);
+      expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+      view.destroy();
+      parent.remove();
+    });
+
+    it("does not retry a finalized composition when stale metadata has no typed binding candidates", async () => {
+      const committedSource = ["nui 3", "const length: number = 12.3456"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertion = "\nconst x: number = ";
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+      let automaticRetryTransactions = 0;
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: dirtySource,
+          selection: EditorSelection.cursor(dirtySource.length),
+          extensions: [
+            dslAutocompleteExtension({
+              ...baseOptions(),
+              // The range is live, but the catalog cannot resolve its binding
+              // id. This is the fail-closed stale-metadata shape.
+              bindingAnalysis: () => compiledTyped([
+                "nui 3",
+                "point A = coordinate(x: 0 y: 0)",
+                "const unrelated: number = 1"
+              ].join("\n")).bindingAnalysis,
+              typedDeclarationRanges: () => ranges,
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => undefined
+            }),
+            EditorView.updateListener.of((update) => {
+              for (const transaction of update.transactions) {
+                if (transaction.annotation(Transaction.userEvent) === "input.type" && !transaction.docChanged) {
+                  automaticRetryTransactions += 1;
+                }
+              }
+            })
+          ]
+        }),
+        parent
+      });
+      const line = view.contentDOM.querySelector(".cm-line:last-child")!;
+      const textNode = line.firstChild!;
+      const selection = document.getSelection()!;
+      const range = document.createRange();
+      range.setStart(textNode, textNode.textContent!.length);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      view.contentDOM.focus();
+
+      fireEvent.compositionStart(view.contentDOM);
+      fireEvent(view.contentDOM, new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        data: "@",
+        inputType: "insertCompositionText",
+        isComposing: true
+      }));
+      textNode.textContent += "@";
+      range.setStart(textNode, textNode.textContent!.length);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      fireEvent(view.contentDOM, new InputEvent("input", {
+        bubbles: true,
+        data: "@",
+        inputType: "insertCompositionText",
+        isComposing: true
+      }));
+      await expect.poll(() => view.state.doc.toString().endsWith("@"), { timeout: 1000, interval: 20 }).toBe(true);
+      fireEvent.compositionEnd(view.contentDOM, { data: "@" });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(completionStatus(view.state)).toBeNull();
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).toBeNull();
+      expect(automaticRetryTransactions).toBe(0);
+      view.destroy();
+      parent.remove();
+    });
+
+    it("deduplicates a shadowed name for a new declaration using mapped live offsets", async () => {
+      const committedSource = [
+        "nui 3",
+        "const length: number = 1",
+        "if Scope (true) {",
+        "const length: number = 2",
+        "}"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertionPos = committedDoc.line(5).from;
+      const insertion = "const x: number = @\n";
+      const dirtySource = committedSource.slice(0, insertionPos) + insertion + committedSource.slice(insertionPos);
+      const changes = ChangeSet.of({ from: insertionPos, insert: insertion }, committedSource.length);
+      const ranges = mapTypedDeclarationRangeIndex(createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!), changes);
+      const scopeBodyRanges = mapScopeBodyRangeIndex(
+        createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex),
+        changes
+      );
+      const state = EditorState.create({ doc: dirtySource });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => ranges,
+        scopeBodyRanges: () => scopeBodyRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = insertionPos + "const x: number = @".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result?.options.map((option) => option.label).filter((label) => label === "length")).toHaveLength(1);
     });
 
     it("offers boolean operators right after a completed reference operand", async () => {
@@ -788,6 +1546,28 @@ describe("typed value completion (Task 39)", () => {
       });
       const pos = source.length;
       const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result?.options ?? []).toEqual([]);
+    });
+
+    it("fails closed for a brand-new declaration when no mapped live binding matches stale metadata", async () => {
+      const committedSource = ["nui 3", "const length: number = 1"].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertion = "\nconst x: number = @";
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const state = EditorState.create({ doc: dirtySource });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiledTyped(["nui 3", "const unrelated: number = 1"].join("\n")).bindingAnalysis,
+        typedDeclarationRanges: () => ranges,
+        scopeBodyRanges: () => [],
+        statementInfoByElementId: () => undefined
+      });
+      const result = await Promise.resolve(completionSource({ state, pos: dirtySource.length, explicit: true } as never));
       expect(result?.options ?? []).toEqual([]);
     });
   });
@@ -892,6 +1672,127 @@ describe("typed value completion (Task 39)", () => {
       expect(labels).toContain("greeting");
       expect(labels).toContain("count");
       expect(labels).not.toContain("flag");
+    });
+
+    it("offers typed candidates in a template hole on a brand-new element", async () => {
+      const committedSource = [
+        "nui 3",
+        "const greeting: string = \"hi\"",
+        "const count: number = 1",
+        "const flag: boolean = true",
+        "const side: choice(right, left) = left"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertion = '\ntext T = label(text: "{@" anchor: none size: 3)';
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const state = EditorState.create({ doc: dirtySource });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        elements: () => compiled.document!.elements,
+        statementRanges: () => createStatementRangeIndex(state.doc, compiled.statementMap!),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => ranges,
+        scopeBodyRanges: () => [],
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = dirtySource.indexOf("{@") + 2;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      const labels = result?.options.map((option) => option.label) ?? [];
+      expect(labels).toEqual(expect.arrayContaining(["greeting", "count"]));
+      expect(labels).not.toContain("flag");
+      expect(labels).not.toContain("side");
+    });
+
+    it("Task 51 manual-E2E rerun: natural '{' then '@' through a live EditorView with no closing quote/paren still opens the popup with only string/number candidates", async () => {
+      // Regression for the actual Tauri repro (51-manual-e2e-checklist.md
+      // Scenario 4 step 4): every other template-hole test above keeps the
+      // *outer string quote* closed (`"{@"`) so only the hole itself is
+      // in-progress. Here neither the string nor the call `(...)` is ever
+      // closed - exactly what natural typing at the end of the buffer looks
+      // like before dslCallParser.ts's UNCLOSED_CALL_CODE fix,
+      // parseDslCallStatement discarded the whole statement
+      // (`statement: null`) once its closing `)` search failed, so
+      // dslCompletionContextAt never reached the templateHole branch at all
+      // and no popup opened - through the real dslAutocompleteExtension/
+      // EditorView wiring, not a direct completionSource call.
+      const committedSource = [
+        "nui 3",
+        "const label: string = \"hi\"",
+        "const length: number = 1",
+        "const printed: boolean = true",
+        "const side: choice(right, left) = left"
+      ].join("\n");
+      const compiled = compiledTyped(committedSource);
+      const committedDoc = EditorState.create({ doc: committedSource }).doc;
+      const insertion = '\ntext T = label(text: "';
+      const dirtySource = committedSource + insertion;
+      const ranges = mapTypedDeclarationRangeIndex(
+        createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+        ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length)
+      );
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: dirtySource,
+          selection: EditorSelection.cursor(dirtySource.length),
+          extensions: [
+            dslAutocompleteExtension({
+              ...baseOptions(),
+              elements: () => compiled.document!.elements,
+              statementRanges: () => createStatementRangeIndex(EditorState.create({ doc: dirtySource }).doc, compiled.statementMap!),
+              bindingAnalysis: () => compiled.bindingAnalysis,
+              typedDeclarationRanges: () => ranges,
+              scopeBodyRanges: () => [],
+              statementInfoByElementId: () => compiled.statementMap!.byElementId
+            })
+          ]
+        }),
+        parent
+      });
+
+      expect(completionStatus(view.state)).toBeNull();
+
+      // Two real typed keystrokes, "{" then "@" - never a closing quote or
+      // paren, matching the exact end-of-buffer natural-input repro.
+      const openBrace = dirtySource.length;
+      view.dispatch({
+        changes: { from: openBrace, insert: "{" },
+        selection: { anchor: openBrace + 1 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+      view.dispatch({
+        changes: { from: openBrace + 1, insert: "@" },
+        selection: { anchor: openBrace + 2 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
+
+      await expect.poll(() => view.state.doc.toString().slice(openBrace, openBrace + 2), { timeout: 1000, interval: 20 }).toBe("{@");
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
+      const labels = currentCompletions(view.state).map((option) => option.label);
+      expect(labels).toContain("label");
+      expect(labels).toContain("length");
+      expect(labels).not.toContain("printed");
+      expect(labels).not.toContain("side");
+
+      startCompletion(view);
+      await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+      const option = currentCompletions(view.state).find((candidate) => candidate.label === "length")!;
+      // apply ("@length") already carries the "@" the user typed, replacing
+      // the whole "@" token rather than being appended after it.
+      view.dispatch({
+        changes: { from: openBrace + 1, to: openBrace + 2, insert: typeof option.apply === "string" ? option.apply : "@length" }
+      });
+      expect(view.state.doc.toString().slice(openBrace, openBrace + "{@length".length)).toBe("{@length");
+
+      view.destroy();
+      parent.remove();
     });
   });
 });
@@ -1229,5 +2130,524 @@ describe("set target/rhs completion (Task 40)", () => {
       const result = await Promise.resolve(completionSourceFor(compiled, ranges)({ state, pos, explicit: true } as never));
       expect(result?.options ?? []).toEqual([]);
     });
+  });
+});
+
+describe("set target completion via natural typing (Task 51 manual E2E rerun)", () => {
+  it("opens from a real Space keystroke that first closes the keyword popup via the Space keymap, then re-triggers from the actual space insertion", async () => {
+    // Regression coverage for a real manual E2E report: typing "set " (0
+    // characters typed after the space) inside a nested if/else scope never
+    // opened the target-name popup. Every existing "set target/rhs
+    // completion (Task 40)" test above calls createDslCompletionSource
+    // directly with explicit: true, which can't distinguish an
+    // implicit-typing gate bug from a working completion source (same class
+    // of gap as the `64f473c` elementParameter regression documented above
+    // at "shows a real, visible completion tooltip..."). Space adds one more
+    // wrinkle beyond that precedent: it is the one character here
+    // intercepted by dslAutocompleteExtension's own Prec.highest "Space"
+    // keymap (dismissCompletionForSpace) before any character is inserted,
+    // so a test that skips straight to dispatching the post-insertion
+    // transaction would never actually exercise that keymap path. This test
+    // drives the real two-step sequence instead: a genuine DOM keydown for
+    // Space (running the actual keymap command, which closes the open
+    // keyword popup and returns false), then the separate input.type
+    // transaction that stands in for the browser's own character insertion.
+    const committedSource = [
+      "nui 3",
+      "let flag: boolean = true",
+      "let total: number = 0",
+      "let show: boolean = false",
+      "const limit: number = 10",
+      "if Branch (@flag) {",
+      "} else {",
+      "",
+      "}"
+    ].join("\n");
+    const statements = parseDsl(committedSource).statements;
+    const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+    const compiled = compileDslDocument(committedSource, { assignedStatementIds });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+
+    const committedDoc = EditorState.create({ doc: committedSource }).doc;
+    let liveTypedDeclarationRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+    let liveScopeBodyRanges = compiled.bindingAnalysis
+      ? createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
+      : [];
+
+    const insertPos = committedDoc.line(8).from; // the blank line inside the else block
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: committedSource,
+        selection: EditorSelection.cursor(insertPos),
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => [],
+            statementRanges: () => new Map(),
+            printLayouts: () => [],
+            printLayoutRanges: () => new Map(),
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => undefined,
+            effectiveEnabledElementIds: () => undefined,
+            evaluationErrors: () => undefined,
+            bindingAnalysis: () => compiled.bindingAnalysis,
+            typedDeclarationRanges: () => liveTypedDeclarationRanges,
+            scopeBodyRanges: () => liveScopeBodyRanges,
+            statementInfoByElementId: () => undefined
+          }),
+          // Mirrors sourceEditorController.ts's own handleViewUpdate: every
+          // doc-changing transaction incrementally maps the live Tier B
+          // indices forward, never rebuilding them from a fresh compile.
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return;
+            liveTypedDeclarationRanges = mapTypedDeclarationRangeIndex(liveTypedDeclarationRanges, update.changes);
+            liveScopeBodyRanges = mapScopeBodyRangeIndex(liveScopeBodyRanges, update.changes);
+          })
+        ]
+      }),
+      parent
+    });
+
+    // Natural typing: "set" first - no custom keymap intercepts ordinary
+    // letters, so a direct input.type dispatch is faithful here (matching
+    // the existing elementParameter regression test's own convention).
+    view.dispatch({
+      changes: { from: insertPos, insert: "set" },
+      selection: { anchor: insertPos + 3 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).toContain("set");
+
+    // The real Space keystroke: a genuine DOM KeyboardEvent, so
+    // dslAutocompleteExtension's own Prec.highest "Space" keymap command
+    // (dismissCompletionForSpace) actually runs and closes the keyword
+    // popup - not a hand-built transaction that bypasses the keymap layer.
+    const notPrevented = fireEvent.keyDown(view.contentDOM, { key: " ", code: "Space" });
+    expect(notPrevented).toBe(true); // the command returned false: it never consumes Space itself.
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBeNull();
+
+    // The keymap command deliberately left Space unconsumed so "CodeMirror/
+    // the browser" can insert it - jsdom has no native contentEditable
+    // insertion pipeline to fall through to here, so the actual space
+    // character is dispatched next as its own separate input.type
+    // transaction, exactly mirroring what CodeMirror's real DOM
+    // input-observer would produce once a real browser inserts it.
+    view.dispatch({
+      changes: { from: insertPos + 3, insert: " " },
+      selection: { anchor: insertPos + 4 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+
+    // No further input: the setTarget popup must reopen on its own.
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(parent.querySelectorAll(".cm-tooltip-autocomplete").length).toBe(1);
+    const labels = currentCompletions(view.state).map((option) => option.label);
+    expect(labels).toEqual(expect.arrayContaining(["flag", "total", "show"]));
+    expect(labels).not.toContain("limit");
+    expect(currentCompletions(view.state).every((option) => option.apply === option.label)).toBe(true);
+
+    // Narrows correctly as more of the target name is typed.
+    const afterSpacePos = insertPos + 4;
+    view.dispatch({
+      changes: { from: afterSpacePos, insert: "t" },
+      selection: { anchor: afterSpacePos + 1 },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(
+      () => (completionStatus(view.state) === "active" ? currentCompletions(view.state).map((option) => option.label).join(",") : null),
+      { timeout: 1000, interval: 20 }
+    ).toBe("total");
+
+    view.destroy();
+    parent.remove();
+  });
+});
+
+describe("set target completion after a real delete transaction (Task 51 manual E2E rerun)", () => {
+  // The actual manual repro was never character-by-character typing into a
+  // blank line: an existing "set total = 99" line was duplicated, then the
+  // duplicate's "total = 99" was selected and deleted, landing the cursor at
+  // "set |" via a delete transaction - never an input.type one. CodeMirror's
+  // own autocomplete update-type classification (getUpdateType,
+  // node_modules/@codemirror/autocomplete/dist/index.js) only ever sets its
+  // Activate bit for an "input.type"-tagged transaction (or, when a result is
+  // already open, narrows/survives a "delete.backward" one) - a plain delete
+  // landing on a previously-inactive completion state never schedules a new
+  // query on its own. This file already encodes that exact limitation for a
+  // different context: the "choice value completion at a zero-length value"
+  // test above deletes "right" down to empty and then has to call
+  // startCompletion(view) explicitly - CM does not reopen it by itself.
+  const buildDeleteRepro = () => {
+    const committedSource = [
+      "nui 3",
+      "let flag: boolean = true",
+      "let total: number = 0",
+      "let show: boolean = false",
+      "const limit: number = 10",
+      "if Branch (@flag) {",
+      "} else {",
+      "  set total = 99",
+      "  set total = 99",
+      "}"
+    ].join("\n");
+    const statements = parseDsl(committedSource).statements;
+    const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+    const compiled = compileDslDocument(committedSource, { assignedStatementIds });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+
+    const committedDoc = EditorState.create({ doc: committedSource }).doc;
+    let liveTypedDeclarationRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+    let liveScopeBodyRanges = compiled.bindingAnalysis
+      ? createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
+      : [];
+
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: committedSource,
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => [],
+            statementRanges: () => new Map(),
+            printLayouts: () => [],
+            printLayoutRanges: () => new Map(),
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => undefined,
+            effectiveEnabledElementIds: () => undefined,
+            evaluationErrors: () => undefined,
+            bindingAnalysis: () => compiled.bindingAnalysis,
+            typedDeclarationRanges: () => liveTypedDeclarationRanges,
+            scopeBodyRanges: () => liveScopeBodyRanges,
+            statementInfoByElementId: () => undefined
+          }),
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return;
+            liveTypedDeclarationRanges = mapTypedDeclarationRangeIndex(liveTypedDeclarationRanges, update.changes);
+            liveScopeBodyRanges = mapScopeBodyRangeIndex(liveScopeBodyRanges, update.changes);
+          })
+        ]
+      }),
+      parent
+    });
+
+    // The second "set total = 99" is the stand-in for the duplicated line;
+    // deleting its own "total = 99" leaves "  set " with the cursor right
+    // after the trailing space, matching the real repro's "set |" state.
+    const secondSetLine = committedSource.lastIndexOf("set total = 99");
+    const deleteFrom = secondSetLine + "set ".length;
+    const deleteTo = secondSetLine + "set total = 99".length;
+    view.dispatch({
+      changes: { from: deleteFrom, to: deleteTo },
+      selection: { anchor: deleteFrom },
+      annotations: Transaction.userEvent.of("delete.selection")
+    });
+    expect(view.state.doc.toString().slice(secondSetLine, secondSetLine + 4)).toBe("set ");
+    expect(view.state.selection.main.head).toBe(deleteFrom);
+
+    return { view, parent };
+  };
+
+  it("opens automatically after the delete, with no further input and no explicit invocation", async () => {
+    const { view, parent } = buildDeleteRepro();
+
+    // No startCompletion(view) call here on purpose: the real repro never
+    // pressed Ctrl-Space, and the popup must appear on its own.
+    await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
+    const labels = currentCompletions(view.state).map((option) => option.label);
+    expect(labels).toEqual(expect.arrayContaining(["flag", "total", "show"]));
+    expect(labels).not.toContain("limit");
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it("sanity check: explicit startCompletion still resolves the correct candidates right after the same delete", async () => {
+    // Isolates which layer is actually broken: if this passes while the test
+    // above fails, the candidate/context computation is fine and only the
+    // automatic (non-explicit) trigger needs a fix - mirrors how the
+    // existing zero-length choice-value delete test above already relies on
+    // an explicit startCompletion(view) call after its own delete.
+    const { view, parent } = buildDeleteRepro();
+
+    startCompletion(view);
+    await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
+    const labels = currentCompletions(view.state).map((option) => option.label);
+    expect(labels).toEqual(expect.arrayContaining(["flag", "total", "show"]));
+    expect(labels).not.toContain("limit");
+
+    view.destroy();
+    parent.remove();
+  });
+});
+
+describe("set target recovery from the current dirty source (Task 51)", () => {
+  const normalCommittedSource = [
+    "nui 3",
+    "let flag: boolean = true",
+    "let total: number = 0",
+    "let show: boolean = false"
+  ].join("\n");
+
+  const completionOptions = (committedSource: string, dirtySource: string) => {
+    const compiled = compileDslDocument(committedSource, {
+      assignedStatementIds: new Map(parseDsl(committedSource).statements.map((_, index) => [index, `stable-${index}`]))
+    });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    const committedDoc = EditorState.create({ doc: committedSource }).doc;
+    const dirtyDoc = EditorState.create({ doc: dirtySource }).doc;
+    const changes = ChangeSet.of({ from: committedSource.length, insert: dirtySource.slice(committedSource.length) }, committedSource.length);
+    const typedDeclarationRanges = mapTypedDeclarationRangeIndex(
+      createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+      changes
+    );
+    const scopeBodyRanges = compiled.bindingAnalysis
+      ? mapScopeBodyRangeIndex(
+        createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex),
+        changes
+      )
+      : [];
+    const source = createDslCompletionSource({
+      elements: () => compiled.document!.elements,
+      statementRanges: () => new Map(),
+      printLayouts: () => compiled.document!.printLayouts,
+      printLayoutRanges: () => new Map(),
+      isComposing: () => false,
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => [],
+      bindingAnalysis: () => compiled.bindingAnalysis,
+      typedDeclarationRanges: () => typedDeclarationRanges,
+      scopeBodyRanges: () => scopeBodyRanges,
+      statementInfoByElementId: () => compiled.statementMap!.byElementId
+    });
+    return { source, state: EditorState.create({ doc: dirtyDoc }), compiled };
+  };
+
+  const rhsCompletionOptions = (committedType: "number" | "string", liveType: "number" | "string") => {
+    const committedSource = [
+      "nui 3",
+      `let total: ${committedType} = ${committedType === "string" ? '"old"' : "0"}`,
+      "let num: number = 1",
+      "let text: string = \"text\""
+    ].join("\n");
+    const dirtyPrefix = committedSource.replace(`let total: ${committedType}`, `let total: ${liveType}`);
+    const dirtySource = `${dirtyPrefix}\nset total = @`;
+    const compiled = compileDslDocument(committedSource, {
+      assignedStatementIds: new Map(parseDsl(committedSource).statements.map((_, index) => [index, `stable-${index}`]))
+    });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    const committedDoc = EditorState.create({ doc: committedSource }).doc;
+    const typeStart = committedSource.indexOf(`let total: ${committedType}`) + "let total: ".length;
+    const changes = ChangeSet.of([
+      { from: typeStart, to: typeStart + committedType.length, insert: liveType },
+      { from: committedSource.length, insert: "\nset total = @" }
+    ], committedSource.length);
+    const typedDeclarationRanges = mapTypedDeclarationRangeIndex(
+      createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+      changes
+    );
+    const scopeBodyRanges = compiled.bindingAnalysis
+      ? mapScopeBodyRangeIndex(
+        createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex),
+        changes
+      )
+      : [];
+    const source = createDslCompletionSource({
+      elements: () => compiled.document!.elements,
+      statementRanges: () => new Map(),
+      printLayouts: () => compiled.document!.printLayouts,
+      printLayoutRanges: () => new Map(),
+      isComposing: () => false,
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => [],
+      bindingAnalysis: () => compiled.bindingAnalysis,
+      typedDeclarationRanges: () => typedDeclarationRanges,
+      scopeBodyRanges: () => scopeBodyRanges,
+      statementInfoByElementId: () => compiled.statementMap!.byElementId
+    });
+    return { source, state: EditorState.create({ doc: dirtySource }), pos: dirtySource.length };
+  };
+
+  it("keeps Task 40 recovery for an already-committed poisoned let and normal valid lets", async () => {
+    const committedSource = ["nui 3", "let broken: number = @broken"].join("\n");
+    const dirtySource = `${committedSource}\nset b`;
+    const { source, state } = completionOptions(committedSource, dirtySource);
+    const result = await Promise.resolve(source({ state, pos: dirtySource.length, explicit: true } as never));
+    expect(result?.options.map((option) => option.label)).toContain("broken");
+
+    const normalDirtySource = `${normalCommittedSource}\nset b`;
+    const normal = completionOptions(normalCommittedSource, normalDirtySource);
+    const normalResult = await Promise.resolve(normal.source({ state: normal.state, pos: normalDirtySource.length, explicit: true } as never));
+    expect(normalResult?.options.map((option) => option.label)).toEqual(expect.arrayContaining(["flag", "total", "show"]));
+  });
+
+  it.each([
+    ["number", "string", "text", "num"],
+    ["string", "number", "num", "text"]
+  ] as const)("uses the reconciled live %s target type for %s RHS completion", async (committedType, liveType, expected, excluded) => {
+    const { source, state, pos } = rhsCompletionOptions(committedType, liveType);
+    const result = await Promise.resolve(source({ state, pos, explicit: true } as never));
+    expect(result?.options.map((option) => option.label)).toContain(expected);
+    expect(result?.options.map((option) => option.label)).not.toContain(excluded);
+  });
+
+  it("recovers a newly typed poisoned let during a real input.type burst and keeps it target-only", async () => {
+    const dirtySource = `${normalCommittedSource}\nlet broken: number = @broken\nset b`;
+    const compiled = compileDslDocument(normalCommittedSource, {
+      assignedStatementIds: new Map(parseDsl(normalCommittedSource).statements.map((_, index) => [index, `stable-${index}`]))
+    });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    const committedDoc = EditorState.create({ doc: normalCommittedSource }).doc;
+    let typedDeclarationRanges: TypedDeclarationRangeIndex = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+    let scopeBodyRanges: ScopeBodyRangeIndex = compiled.bindingAnalysis
+      ? createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
+      : [];
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: normalCommittedSource,
+        selection: { anchor: normalCommittedSource.length },
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => compiled.document!.elements,
+            statementRanges: () => new Map(),
+            printLayouts: () => compiled.document!.printLayouts,
+            printLayoutRanges: () => new Map(),
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => undefined,
+            effectiveEnabledElementIds: () => undefined,
+            evaluationErrors: () => [],
+            bindingAnalysis: () => compiled.bindingAnalysis,
+            typedDeclarationRanges: () => typedDeclarationRanges,
+            scopeBodyRanges: () => scopeBodyRanges,
+            statementInfoByElementId: () => compiled.statementMap!.byElementId
+          }),
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return;
+            typedDeclarationRanges = mapTypedDeclarationRangeIndex(typedDeclarationRanges, update.changes);
+            scopeBodyRanges = mapScopeBodyRangeIndex(scopeBodyRanges, update.changes);
+          })
+        ]
+      }),
+      parent
+    });
+
+    view.dispatch({
+      changes: { from: normalCommittedSource.length, insert: dirtySource.slice(normalCommittedSource.length) },
+      selection: { anchor: dirtySource.length },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+    const broken = currentCompletions(view.state).find((option) => option.label === "broken");
+    expect(broken?.apply).toBe("broken");
+    const normalTargetSource = `${normalCommittedSource}\nset `;
+    const normalTarget = completionOptions(normalCommittedSource, normalTargetSource);
+    const normalTargetResult = await Promise.resolve(normalTarget.source({
+      state: normalTarget.state,
+      pos: normalTargetSource.length,
+      explicit: true
+    } as never));
+    expect(normalTargetResult?.options.map((option) => option.label)).toEqual(expect.arrayContaining(["flag", "total", "show"]));
+
+    const targetStart = dirtySource.lastIndexOf("set b") + "set ".length;
+    view.dispatch({
+      changes: { from: targetStart, to: targetStart + 1, insert: typeof broken?.apply === "string" ? broken.apply : "broken" },
+      selection: { anchor: targetStart + "broken".length }
+    });
+    expect(view.state.doc.toString()).toContain("set broken");
+
+    const rhsSource = `${normalCommittedSource}\nlet broken: number = @broken\nset total = @br`;
+    const rhs = completionOptions(normalCommittedSource, rhsSource);
+    const rhsResult = await Promise.resolve(rhs.source({ state: rhs.state, pos: rhsSource.length, explicit: true } as never));
+    expect(rhsResult?.options.map((option) => option.label)).not.toContain("broken");
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it("uses a newly typed lexical scope in a real EditorView and drops it outside that scope", async () => {
+    const dirtySource = [
+      normalCommittedSource,
+      "if Branch (@flag) {",
+      "  let broken: number = @broken",
+      "  set b",
+      "}",
+      "set t"
+    ].join("\n");
+    const compiled = compileDslDocument(normalCommittedSource, {
+      assignedStatementIds: new Map(parseDsl(normalCommittedSource).statements.map((_, index) => [index, `stable-${index}`]))
+    });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    const committedDoc = EditorState.create({ doc: normalCommittedSource }).doc;
+    let typedDeclarationRanges: TypedDeclarationRangeIndex = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+    let scopeBodyRanges: ScopeBodyRangeIndex = compiled.bindingAnalysis
+      ? createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
+      : [];
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const insideSet = dirtySource.indexOf("  set b") + "  set b".length;
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: normalCommittedSource,
+        selection: { anchor: normalCommittedSource.length },
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => compiled.document!.elements,
+            statementRanges: () => new Map(),
+            printLayouts: () => compiled.document!.printLayouts,
+            printLayoutRanges: () => new Map(),
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => undefined,
+            effectiveEnabledElementIds: () => undefined,
+            evaluationErrors: () => [],
+            bindingAnalysis: () => compiled.bindingAnalysis,
+            typedDeclarationRanges: () => typedDeclarationRanges,
+            scopeBodyRanges: () => scopeBodyRanges,
+            statementInfoByElementId: () => compiled.statementMap!.byElementId
+          }),
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return;
+            typedDeclarationRanges = mapTypedDeclarationRangeIndex(typedDeclarationRanges, update.changes);
+            scopeBodyRanges = mapScopeBodyRangeIndex(scopeBodyRanges, update.changes);
+          })
+        ]
+      }),
+      parent
+    });
+    view.dispatch({
+      changes: { from: normalCommittedSource.length, insert: dirtySource.slice(normalCommittedSource.length) },
+      selection: { anchor: insideSet },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).toContain("broken");
+
+    view.dispatch({ selection: { anchor: dirtySource.length } });
+    startCompletion(view);
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).not.toContain("broken");
+
+    view.destroy();
+    parent.remove();
   });
 });

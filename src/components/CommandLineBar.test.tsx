@@ -792,6 +792,281 @@ describe("CommandLineBar", () => {
     expect(listbox).not.toHaveTextContent("@Height");
   });
 
+  it("autocompletes typed number bindings in a free point x field without advancing the step", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: number = 12.3456",
+      "const label: string = \"front\"",
+      "const printed: boolean = true",
+      "const side: choice(right, left) = left",
+      "const broken: number = @missing",
+      "point Existing = coordinate(x: 0 y: 0)"
+    ].join("\n"), "test");
+    const documentState = useCadDocumentStore.getState();
+    renderBar();
+    act(() => {
+      startCommandLineCreation("freePoint", {
+        currentSourceCursor: () => ({
+          sourceRevision: documentState.sourceRevision,
+          line: 7,
+          lineCount: 7,
+          elementId: null
+        })
+      });
+    });
+    const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    const popup = screen.getByRole("listbox", { name: "変数候補" });
+    expect(popup).toHaveTextContent("length");
+    expect(popup).not.toHaveTextContent("label");
+    expect(popup).not.toHaveTextContent("printed");
+    expect(popup).not.toHaveTextContent("side");
+    expect(popup).not.toHaveTextContent("broken");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    // Downward placement (default jsdom zero-rect input, plenty of space below):
+    // top must be a definite pixel value and bottom must be explicitly set to
+    // "auto" inline (not merely absent), otherwise the stale base-class
+    // `top: calc(100% - 2px)` rule can fight an unset inline top/bottom and
+    // collapse the popover's rendered height. Read the inline style directly
+    // (not toHaveStyle's computed style) since jsdom resolves an absent
+    // property to the same CSS-initial "auto" as an explicit one.
+    expect((popup as HTMLElement).style.top).toMatch(/^\d+(\.\d+)?px$/);
+    expect((popup as HTMLElement).style.bottom).toBe("auto");
+
+    fireEvent.change(input, { target: { value: "@l" } });
+    input.setSelectionRange(2, 2);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
+    fireEvent.change(input, { target: { value: "@le" } });
+    input.setSelectionRange(3, 3);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
+
+    fireEvent.click(screen.getByRole("option", { name: /length/ }));
+    expect(input).toHaveValue("@length");
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("x");
+  });
+
+  it("keeps a long typed-binding list inside the viewport and follows keyboard selection", () => {
+    const bindingCount = 14;
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      ...Array.from({ length: bindingCount }, (_, index) =>
+        `const length${String(index + 1).padStart(2, "0")}: number = ${index + 1}`
+      ),
+      "point Existing = coordinate(x: 0 y: 0)"
+    ].join("\n"), "test");
+    const documentState = useCadDocumentStore.getState();
+    renderBar();
+    act(() => {
+      startCommandLineCreation("freePoint", {
+        currentSourceCursor: () => ({
+          sourceRevision: documentState.sourceRevision,
+          line: bindingCount + 2,
+          lineCount: bindingCount + 2,
+          elementId: null
+        })
+      });
+    });
+    const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
+    vi.stubGlobal("innerHeight", 240);
+    vi.stubGlobal("innerWidth", 320);
+    vi.spyOn(input, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 180, 240, 24));
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    const scrolledOptions: HTMLElement[] = [];
+    const scrollIntoView = vi.fn(function (this: HTMLElement) {
+      scrolledOptions.push(this);
+    });
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    try {
+      fireEvent.change(input, { target: { value: "@" } });
+      input.setSelectionRange(1, 1);
+      fireEvent.select(input);
+
+      const popup = screen.getByRole("listbox", { name: "変数候補" });
+      expect(popup).toHaveStyle({ maxHeight: "172px", overflowY: "auto" });
+      // Upward placement (spaceAbove > spaceBelow from the mocked rect below):
+      // bottom must be a definite pixel value and top must be explicitly set
+      // to "auto" inline (not merely absent). Regression guard: previously
+      // top was left unset here, so the stale base-class
+      // `top: calc(100% - 2px)` rule fought this inline `bottom` and
+      // collapsed the popover to a near-zero-height sliver rendered
+      // off-screen — invisible even though the DOM node existed. Read the
+      // inline style directly (not toHaveStyle's computed style) since jsdom
+      // resolves an absent property to the same CSS-initial "auto" as an
+      // explicit one, which would hide this exact regression.
+      expect((popup as HTMLElement).style.top).toBe("auto");
+      expect((popup as HTMLElement).style.bottom).toMatch(/^\d+(\.\d+)?px$/);
+      expect(screen.getAllByRole("option")).toHaveLength(bindingCount);
+      expect(screen.getByRole("option", { name: /length14/ })).toBeInTheDocument();
+
+      for (let index = 1; index < bindingCount; index += 1) {
+        fireEvent.keyDown(input, { key: "ArrowDown" });
+      }
+      const finalOption = screen.getByRole("option", { name: /length14/ });
+      expect(finalOption).toHaveAttribute("aria-selected", "true");
+      expect(scrollIntoView).toHaveBeenCalled();
+      expect(scrolledOptions).toContain(finalOption);
+
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(input).toHaveValue("@length14");
+      expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+      expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("x");
+    } finally {
+      if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+      else delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
+  it("fails closed for stale typed-binding metadata in a free point x field", () => {
+    const validSource = [
+      "nui 3",
+      "const length: number = 12.3456",
+      "point Existing = coordinate(x: 0 y: 0)"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(validSource, "test");
+    useCadDocumentStore.getState().commitText(`${validSource}\nconst broken: number =`, "test");
+    const documentState = useCadDocumentStore.getState();
+    expect(documentState.docText).not.toBe(documentState.sourceText);
+    renderBar();
+    act(() => {
+      startCommandLineCreation("freePoint", {
+        currentSourceCursor: () => ({
+          sourceRevision: documentState.sourceRevision,
+          line: 3,
+          lineCount: 4,
+          elementId: null
+        })
+      });
+    });
+    const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+  });
+
+  it("does not offer a typed number binding declared after the pending source insertion", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: number = 12.3456",
+      "point Existing = coordinate(x: 0 y: 0)",
+      "const later: number = 99"
+    ].join("\n"), "test");
+    const documentState = useCadDocumentStore.getState();
+    renderBar();
+    act(() => {
+      startCommandLineCreation("freePoint", {
+        currentSourceCursor: () => ({
+          sourceRevision: documentState.sourceRevision,
+          line: 3,
+          lineCount: 4,
+          elementId: null
+        })
+      });
+    });
+    const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    const popup = screen.getByRole("listbox", { name: "変数候補" });
+    expect(popup).toHaveTextContent("length");
+    expect(popup).not.toHaveTextContent("later");
+  });
+
+  it("uses an after-element anchor's full block end as the typed binding insertion boundary", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: number = 12.3456",
+      "group G {",
+      "  point Inside = coordinate(x: 0 y: 0)",
+      "}",
+      "const later: number = 99"
+    ].join("\n"), "test");
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+    renderBar();
+    act(() => { startCommandLineCreation("freePoint", { currentCursorElementId: () => group.id }); });
+    const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    const popup = screen.getByRole("listbox", { name: "変数候補" });
+    expect(popup).toHaveTextContent("length");
+    expect(popup).not.toHaveTextContent("later");
+  });
+
+  it("uses the pending insertion scope when a typed binding shadows an outer numeric binding", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: number = 1",
+      "group G {",
+      "  const length: string = \"inner\"",
+      "  point Existing = coordinate(x: 0 y: 0)",
+      "}",
+      "point Outside = coordinate(x: 10 y: 0)"
+    ].join("\n"), "test");
+    const documentState = useCadDocumentStore.getState();
+    renderBar();
+    act(() => {
+      startCommandLineCreation("freePoint", {
+        currentSourceCursor: () => ({
+          sourceRevision: documentState.sourceRevision,
+          line: 5,
+          lineCount: 7,
+          elementId: null
+        })
+      });
+    });
+    const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    // The nearest same-name binding is string, so the outer number binding
+    // must not leak through this group's pending insertion site.
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+  });
+
+  it("uses the else-branch insertion target for typed binding visibility", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: string = \"outer\"",
+      "if Decision (true) {",
+      "  const length: string = \"then\"",
+      "} else {",
+      "  const length: number = 2",
+      "  point Existing = coordinate(x: 0 y: 0)",
+      "}"
+    ].join("\n"), "test");
+    const documentState = useCadDocumentStore.getState();
+    renderBar();
+    act(() => {
+      startCommandLineCreation("freePoint", {
+        currentSourceCursor: () => ({
+          sourceRevision: documentState.sourceRevision,
+          line: 7,
+          lineCount: 8,
+          elementId: null
+        })
+      });
+    });
+    const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
+  });
+
   it("replaces only the @token range on selection, leaving surrounding text untouched", () => {
     useCadDocumentStore.getState().commitText(["nui 2", "var Width = 10"].join("\n"), "test");
     renderBar();
@@ -955,18 +1230,73 @@ describe("CommandLineBar", () => {
     expect(input).toHaveValue("10 + 直線AB.length");
   });
 
-  it("excludes a disabled/uncomputed element's parameters (evaluation swap)", () => {
+  it("reports pending (no popup, no TS re-evaluation) while evaluation is not current, then shows candidates once it is - without retyping", async () => {
+    // Regression coverage: Tauri's Rust-first evaluation is asynchronous
+    // (useEvaluationEngine.ts), so a freshly compiled element like `直線AB`
+    // can be present in the document well before the evaluation prop's
+    // computedGeometry/effectiveEnabledElementIds catch up with it. This
+    // must surface as an explicit "pending" state - never a synchronous
+    // TS re-evaluation (which could disagree with Rust for typed
+    // conditional groups/property bindings/forGroup-generated elements) and
+    // never a confirmed "no candidates" result. `@` typed-binding completion
+    // has no such gap (it only depends on synchronous compile-time
+    // bindingAnalysis), so it must keep working throughout.
+    const evaluateElementsModule = await import("../geometry/evaluate");
+    const evaluateElementsSpy = vi.spyOn(evaluateElementsModule, "evaluateElements");
     useCadDocumentStore.getState().commitText(
       ["nui 2", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 10 y: 0)", "line 直線AB = segment(start: A end: B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
 
-    const { rerender } = renderBar({ evaluation: {
+    const { rerender } = renderBar({
+      evaluation: {
+        computedVariables: new Map(),
+        errors: [],
+        warnings: [],
+        computedGeometry: new Map(),
+        effectiveEnabledElementIds: new Set()
+      } as never,
+      evaluationIsCurrent: false
+    });
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "直線AB." } });
+    input.setSelectionRange(6, 6);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+    expect(evaluateElementsSpy).not.toHaveBeenCalled();
+
+    rerender(<CommandLineBar evaluation={{
       computedVariables: new Map(),
       errors: [],
       warnings: [],
-      computedGeometry: new Map(),
+      computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
+      effectiveEnabledElementIds: new Set([abId])
+    } as never} evaluationIsCurrent={true} />);
+    // No further typing - the input value is still exactly what it was.
+    expect(input).toHaveValue("直線AB.");
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
+    expect(evaluateElementsSpy).not.toHaveBeenCalled();
+    evaluateElementsSpy.mockRestore();
+  });
+
+  it("still excludes a genuinely disabled element when evaluation is current", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 2", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 10 y: 0)", "line 直線AB = segment(start: A end: B)"].join("\n"),
+      "test"
+    );
+    const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
+
+    // computedGeometry has a real entry for AB (evaluation did run and
+    // reach it) but effectiveEnabledElementIds excludes it - a completed,
+    // deliberate exclusion, current and correct as-is (evaluationIsCurrent
+    // defaults to true here).
+    renderBar({ evaluation: {
+      computedVariables: new Map(),
+      errors: [],
+      warnings: [],
+      computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
       effectiveEnabledElementIds: new Set()
     } as never });
     act(() => { startCommandLineCreation("variable"); });
@@ -975,16 +1305,117 @@ describe("CommandLineBar", () => {
     input.setSelectionRange(6, 6);
     fireEvent.select(input);
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+  });
 
-    rerender(<CommandLineBar evaluation={{
+  it("Task 51: Enter does not advance the step while element-property candidates are pending (evaluation not current)", async () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 2", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 10 y: 0)", "line 直線AB = segment(start: A end: B)"].join("\n"),
+      "test"
+    );
+    renderBar({
+      evaluation: {
+        computedVariables: new Map(),
+        errors: [],
+        warnings: [],
+        computedGeometry: new Map(),
+        effectiveEnabledElementIds: new Set()
+      } as never,
+      evaluationIsCurrent: false
+    });
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "直線AB." } });
+    input.setSelectionRange(6, 6);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    fireEvent.submit(input.closest("form")!);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(input).toHaveValue("直線AB.");
+  });
+
+  it("Task 51: Enter does not advance the step for an unresolvable element token", () => {
+    useCadDocumentStore.getState().commitText(
+      ["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"),
+      "test"
+    );
+    renderBar({
+      evaluation: {
+        computedVariables: new Map(),
+        errors: [],
+        warnings: [],
+        computedGeometry: new Map(),
+        effectiveEnabledElementIds: new Set()
+      } as never
+    });
+    act(() => { startCommandLineCreation("variable"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "存在しない要素.length" } });
+    input.setSelectionRange("存在しない要素.length".length, "存在しない要素.length".length);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    fireEvent.submit(input.closest("form")!);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(input).toHaveValue("存在しない要素.length");
+  });
+
+  it("completes both @typed-binding and ElementName.property references in a free point x field, in the same session", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "const length: number = 12.3456",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)"
+    ].join("\n"), "test");
+    const documentState = useCadDocumentStore.getState();
+    const abId = documentState.elements.find((element) => element.name === "AB")!.id;
+    const evaluation = {
       computedVariables: new Map(),
       errors: [],
       warnings: [],
       computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
       effectiveEnabledElementIds: new Set([abId])
-    } as never} />);
-    fireEvent.change(input, { target: { value: "直線AB." } });
-    input.setSelectionRange(6, 6);
+    } as never;
+
+    renderBar({ evaluation });
+    act(() => {
+      startCommandLineCreation("freePoint", {
+        currentSourceCursor: () => ({
+          sourceRevision: documentState.sourceRevision,
+          line: 5,
+          lineCount: 5,
+          elementId: abId
+        })
+      });
+    });
+    const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "AB" } });
+    input.setSelectionRange(2, 2);
+    fireEvent.select(input);
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+
+    fireEvent.change(input, { target: { value: "AB." } });
+    input.setSelectionRange(3, 3);
+    fireEvent.select(input);
+    const dotPopup = screen.getByRole("listbox", { name: "変数候補" });
+    expect(dotPopup).toHaveTextContent("length");
+
+    fireEvent.change(input, { target: { value: "AB.l" } });
+    input.setSelectionRange(4, 4);
+    fireEvent.select(input);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
+
+    fireEvent.click(screen.getByRole("option", { name: /length/ }));
+    expect(input).toHaveValue("AB.length");
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("x");
+
+    fireEvent.change(input, { target: { value: "@" } });
+    input.setSelectionRange(1, 1);
     fireEvent.select(input);
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
   });

@@ -33,6 +33,18 @@ fn property_key(value: &str) -> &str {
     }
 }
 
+/// Maps each `.`-separated segment of a property path through `property_key`
+/// individually (Task 51: the `@` branch's delimiter scan does not stop at
+/// `.`, so an `@AB.startPoint.x` occurrence carries its full path here,
+/// unlike the bare-form scanner below which only ever sees one segment at a
+/// time).
+fn property_path_key(path: &str) -> String {
+    path.split('.')
+        .map(property_key)
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
 fn element_id_or_name(value: &str, state: &EvaluationState) -> String {
     if state.computed_geometry.contains_key(value) || state.elements_by_id.contains_key(value) {
         return value.to_owned();
@@ -53,18 +65,26 @@ fn is_expression_delimiter(ch: char) -> bool {
         )
 }
 
+/// Task 51 Rule R(1): `@Self.localVarName` resolves to the current element's
+/// own numeric variable only when exactly one variable shares that name -
+/// mirrors the TS side's `localVariableNameCounts > 1` skip
+/// (numericExpressions.ts). An ambiguous or absent match falls through to
+/// Rule R(2) (element-property resolution) rather than guessing.
 fn local_variable_id_for_display_name(display_name: &str, element: &Value) -> Option<String> {
     let (element_name_part, variable_name) = display_name.split_once('.')?;
     if element_name_part != element_name(element) {
         return None;
     }
-    element
+    let mut matches = element
         .get("numericVariables")
         .and_then(Value::as_array)?
         .iter()
-        .find(|variable| variable.get("name").and_then(Value::as_str) == Some(variable_name))
-        .and_then(|variable| variable.get("id").and_then(Value::as_str))
-        .map(str::to_owned)
+        .filter(|variable| variable.get("name").and_then(Value::as_str) == Some(variable_name));
+    let only = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    only.get("id").and_then(Value::as_str).map(str::to_owned)
 }
 
 pub(crate) fn normalize_text_expression(
@@ -79,14 +99,29 @@ pub(crate) fn normalize_text_expression(
     while index < chars.len() {
         let ch = chars[index];
         if ch == '@' {
-            output.push('@');
             index += 1;
             let start = index;
             while index < chars.len() && !is_expression_delimiter(chars[index]) {
                 index += 1;
             }
             let name = chars[start..index].iter().collect::<String>();
-            output.push_str(&local_variable_id_for_display_name(&name, element).unwrap_or(name));
+            // Task 51 Rule R: R(1) (the current element's own unique local
+            // variable) wins first; otherwise, if the name contains a `.`,
+            // it is an `@Element.property` reference (Rule R(2)) and the
+            // sigil is dropped, lowering to the exact same sigil-free IR the
+            // bare form below produces. A plain `@variable` with no dot
+            // keeps its sigil unchanged.
+            if let Some(variable_id) = local_variable_id_for_display_name(&name, element) {
+                output.push('@');
+                output.push_str(&variable_id);
+            } else if let Some((head, tail)) = name.split_once('.') {
+                output.push_str(&element_id_or_name(head, state));
+                output.push('.');
+                output.push_str(&property_path_key(tail));
+            } else {
+                output.push('@');
+                output.push_str(&name);
+            }
             continue;
         }
 

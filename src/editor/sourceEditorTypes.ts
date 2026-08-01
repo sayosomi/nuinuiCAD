@@ -12,6 +12,16 @@ export type SourceEvaluationPublication = {
   compiledDocumentRevision: number;
   /** Monotonic ID assigned when the engine started this request, not a source revision. */
   evaluationRequestRevision: number;
+  /** Result of the engine's own evaluationStateIsCurrentFor at publish time -
+   * never re-derived here. Rust evaluation is asynchronous, so `evaluation`
+   * can already be stale (or still "evaluating") relative to the live
+   * document even when compiledDocumentRevision matches; element-property
+   * completion must treat a not-current evaluation as pending, never as a
+   * confirmed empty/candidate result. Defaults to `true` when omitted, so
+   * existing callers/tests that don't model evaluation freshness keep their
+   * prior (always-current) behavior; the production AppLayout publisher
+   * always supplies it explicitly. */
+  evaluationIsCurrent?: boolean;
 };
 
 /** Store-to-editor notification. CM implementation types must not cross this boundary. */

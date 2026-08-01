@@ -69,6 +69,32 @@ describe("formatNumericValueForDsl", () => {
     expect(roundTrip("p10.x + 1")).toBe("p10.x + 1");
   });
 
+  it("emits the nui 3 sigil for a measurement property reference when majorVersion is 3 (Task 51)", () => {
+    expect(
+      formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements, [], undefined, undefined, 3)
+    ).toBe("@AB.length + 20");
+  });
+
+  it("emits the nui 2 bare form for a measurement property reference when majorVersion is 2", () => {
+    expect(
+      formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements, [], undefined, undefined, 2)
+    ).toBe("AB.length + 20");
+  });
+
+  it("correctly locates the element head for a multi-segment property path (fixes a pre-Task-51 greedy-match bug)", () => {
+    expect(
+      formatNumericValueForDsl({ kind: "expression", expression: "l1.startPoint.x" }, elements, [], undefined, undefined, 2)
+    ).toBe("AB.startPoint.x");
+    expect(
+      formatNumericValueForDsl({ kind: "expression", expression: "l1.startPoint.x" }, elements, [], undefined, undefined, 3)
+    ).toBe("@AB.startPoint.x");
+  });
+
+  it("round-trips the nui 3 sigil form through normalize", () => {
+    const asV3 = formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements, [], undefined, undefined, 3);
+    expect(normalizeNumericExpressionInput(asV3, elements)).toBe("l1.length + 20");
+  });
+
   it("keeps unresolvable ids as raw tokens without throwing", () => {
     expect(formatNumericValueForDsl({ kind: "expression", expression: "@variable-missing + 5" }, elements)).toBe("@variable-missing + 5");
     expect(formatNumericValueForDsl({ kind: "expression", expression: "missing-id.length" }, elements)).toBe("missing-id.length");
