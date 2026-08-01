@@ -35,6 +35,19 @@ describe("resolveTypedValueStep", () => {
     });
   });
 
+  it("keeps a numeric initializer's fixed decimal places in both directions", () => {
+    const cases = [
+      { literal: "12.3400", span: { from: 10, to: 17 }, caret: 13, forward: "13.3400", backward: "11.3400" },
+      { literal: "1.00", span: { from: 10, to: 14 }, caret: 11, forward: "2.00", backward: "0.00" }
+    ];
+    for (const { literal, span: numericSpan, caret, forward, backward } of cases) {
+      expect(resolveTypedValueStep(literal, { kind: "number" }, numericSpan, collapsedAt(caret), 1, { numericStep: 1 }))
+        .toMatchObject({ insert: forward });
+      expect(resolveTypedValueStep(literal, { kind: "number" }, numericSpan, collapsedAt(caret), -1, { numericStep: 1 }))
+        .toMatchObject({ insert: backward });
+    }
+  });
+
   it("is a no-op for numeric references, string, and null declared types", () => {
     expect(resolveTypedValueStep("@length", { kind: "number" }, { from: 10, to: 17 }, collapsedAt(12), 1)).toBeNull();
     expect(resolveTypedValueStep("true", { kind: "string" }, span, collapsedAt(12), 1)).toBeNull();

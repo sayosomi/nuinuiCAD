@@ -15,6 +15,16 @@ export type TypedValueStepOptions = {
   numericStep?: number;
 };
 
+/** Keeps a typed initializer's authored decimal precision without affecting property-step normalization. */
+const withTypedLiteralDecimalScale = (literal: string, stepped: string) => {
+  const fraction = literal.match(/\.(\d+)$/)?.[1];
+  if (!fraction) return stepped;
+  const decimal = stepped.indexOf(".");
+  if (decimal < 0) return `${stepped}.${"0".repeat(fraction.length)}`;
+  const currentScale = stepped.length - decimal - 1;
+  return currentScale >= fraction.length ? stepped : `${stepped}${"0".repeat(fraction.length - currentScale)}`;
+};
+
 /**
  * Resolves a typed value edit for a declaration initializer or `set` RHS
  * literal. Pure: the caller has already sliced
@@ -46,7 +56,8 @@ export const resolveTypedValueStep = (
     const from = span.from + literal.start;
     const to = span.from + literal.end;
     const literalValue = value.slice(literal.start, literal.end);
-    const insert = stepDslNumericLiteral(literalValue, numericStep, direction);
+    const normalized = stepDslNumericLiteral(literalValue, numericStep, direction);
+    const insert = normalized === null ? null : withTypedLiteralDecimalScale(literalValue, normalized);
     if (insert === null || insert === literalValue) return null;
     return {
       from,
