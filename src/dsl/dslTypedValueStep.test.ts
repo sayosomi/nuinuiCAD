@@ -48,6 +48,30 @@ describe("resolveTypedValueStep", () => {
     }
   });
 
+  it("clamps an in-range number at configured bounds", () => {
+    const numericSpan = { from: 10, to: 13 };
+    expect(resolveTypedValueStep("199", { kind: "number" }, numericSpan, collapsedAt(11), 1, {
+      numericStep: 5,
+      numericMin: 0,
+      numericMax: 200
+    })).toMatchObject({ insert: "200" });
+    expect(resolveTypedValueStep("1", { kind: "number" }, { from: 10, to: 11 }, collapsedAt(10), -1, {
+      numericStep: 5,
+      numericMin: 0,
+      numericMax: 200
+    })).toMatchObject({ insert: "0" });
+  });
+
+  it("only returns an initially out-of-range number toward its nearest bound", () => {
+    const options = { numericStep: 5, numericMin: 0, numericMax: 200 };
+    expect(resolveTypedValueStep("250", { kind: "number" }, { from: 10, to: 13 }, collapsedAt(11), -1, options))
+      .toMatchObject({ insert: "200" });
+    expect(resolveTypedValueStep("250", { kind: "number" }, { from: 10, to: 13 }, collapsedAt(11), 1, options)).toBeNull();
+    expect(resolveTypedValueStep("-20", { kind: "number" }, { from: 10, to: 13 }, collapsedAt(11), 1, options))
+      .toMatchObject({ insert: "0" });
+    expect(resolveTypedValueStep("-20", { kind: "number" }, { from: 10, to: 13 }, collapsedAt(11), -1, options)).toBeNull();
+  });
+
   it("is a no-op for numeric references, string, and null declared types", () => {
     expect(resolveTypedValueStep("@length", { kind: "number" }, { from: 10, to: 17 }, collapsedAt(12), 1)).toBeNull();
     expect(resolveTypedValueStep("true", { kind: "string" }, span, collapsedAt(12), 1)).toBeNull();

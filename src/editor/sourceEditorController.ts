@@ -29,7 +29,7 @@ import {
 import type { KeyChord } from "../keyboard/shortcutTypes";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import { isConditionalGroupElement, isFoldTargetExpanded, isStatementExpanded } from "../model/groups";
-import { defaultNumericParameterStep, getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
 import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
@@ -110,7 +110,7 @@ import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
-import { resolveTypedValueStep, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
+import { resolveTypedValueStep, typedNumericStepOptions, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
 import { splitDslComment, splitDslTerms } from "../dsl/dslTokens";
 import type { ScalarType } from "../scalars/types";
 import {
@@ -862,8 +862,17 @@ export class SourceEditorController implements SourceEditorHandle {
     if (bindingId) {
       const span = this.typedDeclarationFieldRanges.get(bindingId)?.initializer;
       if (span && main.from >= span.from && main.from <= span.to) {
-        const declaredType = doc.bindingAnalysis?.catalog.bindingsById.get(bindingId)?.declaredType ?? null;
-        return this.stepTypedDeclarationInitializer(bindingId, span, declaredType, selection, direction, { numericStep: defaultNumericParameterStep });
+        const binding = doc.bindingAnalysis?.catalog.bindingsById.get(bindingId);
+        const statement = binding ? doc.statements[binding.statementIndex] : null;
+        const numericTypeOptions = statement?.kind === "typedDeclaration" ? statement.numericTypeOptions : undefined;
+        return this.stepTypedDeclarationInitializer(
+          bindingId,
+          span,
+          binding?.declaredType ?? null,
+          selection,
+          direction,
+          typedNumericStepOptions(numericTypeOptions)
+        );
       }
       return false;
     }
