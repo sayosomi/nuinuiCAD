@@ -17,4 +17,4 @@ for Loop (i from: 0 count: 2 step: 1 showGenerated: @show) {
   text T = label(text: "{@total}" anchor: none size: 3)
   line Copy = copy(startPoint: A endPoint: B scale: 1 angleDeg: 90 mirrorX: @flag baseLines: [AB])
 }
-text Final = label(text: "{@total}" anchor: none size: 3)
+text Final1 = label(text: "{@total}" anchor: none size: 3)
