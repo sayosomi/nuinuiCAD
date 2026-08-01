@@ -1,5 +1,6 @@
+import { findNumericExpressionLiteralSpanAt } from "../geometry/numericExpressionLiteralSpan";
 import type { ScalarType } from "../scalars/types";
-import { choiceAfterStep, type DslValueStepDirection } from "./dslValueStep";
+import { choiceAfterStep, stepDslNumericLiteral, type DslValueStepDirection } from "./dslValueStep";
 import type { DslSpan } from "./dslTypes";
 
 export type TypedValueEdit = {
@@ -9,26 +10,52 @@ export type TypedValueEdit = {
   selection: DslSpan;
 };
 
+export type TypedValueStepOptions = {
+  /** Provided only by typed declaration initializers; set RHS numeric stepping remains out of scope. */
+  numericStep?: number;
+};
+
 /**
- * Resolves a boolean-toggle or choice-cycle edit for a typed declaration
- * initializer or `set` RHS literal. Pure: the caller has already sliced
+ * Resolves a typed value edit for a declaration initializer or `set` RHS
+ * literal. Pure: the caller has already sliced
  * `value` from a tracked physical span and resolved `declaredType` from
  * BindingAnalysis - this never re-parses source or re-resolves a name.
  *
- * Mirrors resolveDslValueStep's own boolean/choice tail (dslValueStep.ts)
- * generalized from ParameterDefinition to ScalarType, and reuses the same
- * choiceAfterStep wrap-around formula rather than re-deriving it. Numeric
- * and string typed values are out of scope (see plan.md/Task 44 fixed spec)
- * and always return null here.
+ * Mirrors resolveDslValueStep's numeric/boolean/choice behavior
+ * (dslValueStep.ts), generalized from ParameterDefinition to ScalarType.
+ * Typed-number step policy is supplied by the declaration caller, so a future
+ * declaration-level configuration has one local call site to replace. Strings
+ * remain out of scope.
  */
 export const resolveTypedValueStep = (
   value: string,
   declaredType: ScalarType | null,
   span: { from: number; to: number },
   selection: { start: number; end: number },
-  direction: DslValueStepDirection
+  direction: DslValueStepDirection,
+  { numericStep }: TypedValueStepOptions = {}
 ): TypedValueEdit | null => {
-  if (!declaredType || (declaredType.kind !== "boolean" && declaredType.kind !== "choice")) return null;
+  if (!declaredType) return null;
+  if (declaredType.kind === "number") {
+    if (numericStep === undefined) return null;
+    const literal = findNumericExpressionLiteralSpanAt(value, {
+      start: selection.start - span.from,
+      end: selection.end - span.from
+    });
+    if (!literal) return null;
+    const from = span.from + literal.start;
+    const to = span.from + literal.end;
+    const literalValue = value.slice(literal.start, literal.end);
+    const insert = stepDslNumericLiteral(literalValue, numericStep, direction);
+    if (insert === null || insert === literalValue) return null;
+    return {
+      from,
+      to,
+      insert,
+      selection: { start: from, end: from + insert.length }
+    };
+  }
+  if (declaredType.kind !== "boolean" && declaredType.kind !== "choice") return null;
   if (selection.start !== selection.end && (selection.start !== span.from || selection.end !== span.to)) return null;
 
   const insert = declaredType.kind === "boolean"

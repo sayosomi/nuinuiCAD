@@ -98,6 +98,22 @@ describe("SourceEditor typed value step (Task 44)", () => {
     parent.remove();
   });
 
+  it("steps a numeric declaration initializer by the default one-unit step", () => {
+    const source = ["nui 3", "const length: number = 12.3456"].join("\n");
+    const { controller, parent, view } = openEditor(source);
+
+    selectToken(view, "12.3456");
+    pressStep(view, 1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("length: number = 13.3456");
+    expect(selectedText(view)).toBe("13.3456");
+
+    pressStep(view, -1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("length: number = 12.3456");
+    expect(selectedText(view)).toBe("12.3456");
+    controller.destroy();
+    parent.remove();
+  });
+
   it("steps a `set` statement's boolean/choice RHS via the target binding's resolved declared type", () => {
     const booleanSource = ["nui 3", "let flag: boolean = true", "set flag = true"].join("\n");
     const { controller: booleanController, parent: booleanParent, view: booleanView } = openEditor(booleanSource);

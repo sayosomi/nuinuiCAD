@@ -22,8 +22,21 @@ describe("resolveTypedValueStep", () => {
     expect(resolveTypedValueStep("center", type, span, collapsedAt(12), -1)).toMatchObject({ insert: "left" });
   });
 
-  it("is a no-op for number, string, and null declared types", () => {
-    expect(resolveTypedValueStep("true", { kind: "number" }, span, collapsedAt(12), 1)).toBeNull();
+  it("steps the selected numeric literal with the default one-unit step", () => {
+    const numericSpan = { from: 10, to: 17 };
+    expect(resolveTypedValueStep("12.3456", { kind: "number" }, numericSpan, collapsedAt(13), 1, { numericStep: 1 })).toMatchObject({
+      from: 10,
+      to: 17,
+      insert: "13.3456",
+      selection: { start: 10, end: 17 }
+    });
+    expect(resolveTypedValueStep("12.3456", { kind: "number" }, numericSpan, collapsedAt(13), -1, { numericStep: 1 })).toMatchObject({
+      insert: "11.3456"
+    });
+  });
+
+  it("is a no-op for numeric references, string, and null declared types", () => {
+    expect(resolveTypedValueStep("@length", { kind: "number" }, { from: 10, to: 17 }, collapsedAt(12), 1)).toBeNull();
     expect(resolveTypedValueStep("true", { kind: "string" }, span, collapsedAt(12), 1)).toBeNull();
     expect(resolveTypedValueStep("true", null, span, collapsedAt(12), 1)).toBeNull();
   });

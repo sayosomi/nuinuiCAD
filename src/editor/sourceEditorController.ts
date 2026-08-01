@@ -29,7 +29,7 @@ import {
 import type { KeyChord } from "../keyboard/shortcutTypes";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import { isConditionalGroupElement, isFoldTargetExpanded, isStatementExpanded } from "../model/groups";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { defaultNumericParameterStep, getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { parameterPickCommandId } from "../commands/parameterPickCommand";
 import { pickCandidates } from "../model/pickCandidates";
 import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
@@ -110,7 +110,7 @@ import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
-import { resolveTypedValueStep } from "../dsl/dslTypedValueStep";
+import { resolveTypedValueStep, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
 import { splitDslComment, splitDslTerms } from "../dsl/dslTokens";
 import type { ScalarType } from "../scalars/types";
 import {
@@ -842,7 +842,7 @@ export class SourceEditorController implements SourceEditorHandle {
       const span = this.typedDeclarationFieldRanges.get(bindingId)?.initializer;
       if (span && main.from >= span.from && main.from <= span.to) {
         const declaredType = doc.bindingAnalysis?.catalog.bindingsById.get(bindingId)?.declaredType ?? null;
-        return this.stepTypedSpan(span, declaredType, selection, direction);
+        return this.stepTypedSpan(span, declaredType, selection, direction, { numericStep: defaultNumericParameterStep });
       }
       return false;
     }
@@ -862,16 +862,17 @@ export class SourceEditorController implements SourceEditorHandle {
     return false;
   }
 
-  /** Resolves and commits one typed boolean/choice literal step for a span already
+  /** Resolves and commits one typed literal step for a span already
    * proven position-valid and semantically fresh by the caller. */
   private stepTypedSpan(
     span: { from: number; to: number },
     declaredType: ScalarType | null,
     selection: { start: number; end: number },
-    direction: DslValueStepDirection
+    direction: DslValueStepDirection,
+    options?: TypedValueStepOptions
   ): boolean {
     const value = this.view.state.doc.sliceString(span.from, span.to);
-    const change = resolveTypedValueStep(value, declaredType, span, selection, direction);
+    const change = resolveTypedValueStep(value, declaredType, span, selection, direction, options);
     if (!change) {
       if (this.activeValueStepGesture) this.flush("command");
       return false;
