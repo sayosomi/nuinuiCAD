@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
 import { loadPaletteTemplateSettings } from "../palette/paletteSettingsStorage";
@@ -68,14 +68,32 @@ const flushSourceEditForFileOperation = () => {
   return false;
 };
 
-export const confirmDiscardUnsavedChanges = (actionLabel: string) => {
+export const confirmDiscardUnsavedChanges = async (actionLabel: string) => {
   if (!flushSourceEditForFileOperation()) return false;
   if (!useCadDocumentStore.getState().dirtySinceSave) return true;
-  return window.confirm(`未保存の変更を破棄して${actionLabel}ますか？`);
+
+  const message = `未保存の変更を破棄して${actionLabel}ますか？`;
+  if (isTauriRuntime()) {
+    try {
+      return await confirm(message, {
+        title: "nuinuiCAD",
+        kind: "warning",
+        okLabel: "破棄して続ける",
+        cancelLabel: "キャンセル"
+      });
+    } catch (error: unknown) {
+      console.error("Failed to confirm discarding unsaved changes.", error);
+      useCadUiStore.getState().setCommandErrorMessage(
+        "未保存の変更を破棄する確認を表示できませんでした。操作を中止しました。"
+      );
+      return false;
+    }
+  }
+  return window.confirm(message);
 };
 
 export const newDocument = async () => {
-  if (!confirmDiscardUnsavedChanges("新規ドキュメントを作成し")) return;
+  if (!await confirmDiscardUnsavedChanges("新規ドキュメントを作成し")) return;
 
   const initialDocument = initialCadDocumentState();
   const palette = await loadPaletteTemplateSettings()
@@ -131,7 +149,7 @@ export const saveDocument = async () => {
 
 export const openDocument = async () => {
   assertTauriFileRuntime();
-  if (!confirmDiscardUnsavedChanges("開き")) return;
+  if (!await confirmDiscardUnsavedChanges("開き")) return;
 
   const path = selectedPath(await openNuiDocumentDialog());
   if (!path) return;
@@ -152,7 +170,7 @@ export const openDocument = async () => {
 
 export const importLegacyDocument = async () => {
   assertTauriFileRuntime();
-  if (!confirmDiscardUnsavedChanges("旧形式ドキュメントをインポートし")) return;
+  if (!await confirmDiscardUnsavedChanges("旧形式ドキュメントをインポートし")) return;
 
   const path = selectedPath(await openLegacyDocumentDialog());
   if (!path) return;
