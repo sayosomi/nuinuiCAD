@@ -31,6 +31,7 @@ pub(crate) fn numeric_value(
         message,
     })?;
     Parser::new(
+        expression,
         tokens,
         state,
         element,
@@ -363,6 +364,7 @@ fn parameter_value<'a>(element: &'a Value, key: &str) -> Option<&'a Value> {
 }
 
 struct Parser<'a> {
+    expression: &'a str,
     tokens: Vec<Token>,
     index: usize,
     state: &'a EvaluationState,
@@ -373,6 +375,7 @@ struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn new(
+        expression: &'a str,
         tokens: Vec<Token>,
         state: &'a EvaluationState,
         element: &'a Value,
@@ -380,6 +383,7 @@ impl<'a> Parser<'a> {
         local_variable_names: &'a HashMap<String, String>,
     ) -> Self {
         Self {
+            expression,
             tokens,
             index: 0,
             state,
@@ -728,7 +732,7 @@ impl<'a> Parser<'a> {
 
     fn simple_error(&self, message: &str) -> NumericEvalError {
         NumericEvalError {
-            dependency_id: message.to_owned(),
+            dependency_id: self.expression.to_owned(),
             dependency_name: None,
             message: message.to_owned(),
         }

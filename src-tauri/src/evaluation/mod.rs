@@ -28,6 +28,8 @@ mod for_group;
 mod for_group_mutation_runtime;
 mod groups;
 mod image_evaluator;
+#[cfg(test)]
+mod incomplete_numeric_expression_tests;
 mod intersection_point_evaluator;
 #[cfg(test)]
 mod intersection_point_tests;
