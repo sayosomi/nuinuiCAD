@@ -1836,6 +1836,23 @@ describe("dslAutocompleteExtension candidate navigation", () => {
     expect(selectedCompletionIndex(view.state)).toBe(0);
   };
 
+  it("opens explicitly with Mod+Shift+Space", async () => {
+    const { parent, view } = createView(() => false);
+
+    // In the Vitest browser harness Mod maps to Ctrl; CodeMirror maps the same
+    // binding to Command on macOS, where the desktop app is supported.
+    expect(fireEvent.keyDown(view.contentDOM, {
+      key: " ",
+      code: "Space",
+      ctrlKey: true,
+      shiftKey: true
+    })).toBe(false);
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+
+    view.destroy();
+    parent.remove();
+  });
+
   it("uses arrows to move completion and Tab to accept", async () => {
     const { parent, view } = createView(() => false);
     await openCompletion(view);
@@ -1860,6 +1877,7 @@ describe("dslAutocompleteExtension candidate navigation", () => {
     for (const event of [
       { key: "Tab" },
       { key: " ", code: "Space" },
+      { key: " ", code: "Space", ctrlKey: true, shiftKey: true },
       { key: "Enter" }
     ]) {
       expect(fireEvent.keyDown(view.contentDOM, event)).toBe(true);
