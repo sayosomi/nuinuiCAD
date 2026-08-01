@@ -2370,3 +2370,266 @@ describe("set target completion after a real delete transaction (Task 51 manual 
     parent.remove();
   });
 });
+
+describe("set target recovery from the current dirty source (Task 51)", () => {
+  const normalCommittedSource = [
+    "nui 3",
+    "let flag: boolean = true",
+    "let total: number = 0",
+    "let show: boolean = false"
+  ].join("\n");
+
+  const completionOptions = (committedSource: string, dirtySource: string) => {
+    const compiled = compileDslDocument(committedSource, {
+      assignedStatementIds: new Map(parseDsl(committedSource).statements.map((_, index) => [index, `stable-${index}`]))
+    });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    const committedDoc = EditorState.create({ doc: committedSource }).doc;
+    const dirtyDoc = EditorState.create({ doc: dirtySource }).doc;
+    const changes = ChangeSet.of({ from: committedSource.length, insert: dirtySource.slice(committedSource.length) }, committedSource.length);
+    const typedDeclarationRanges = mapTypedDeclarationRangeIndex(
+      createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+      changes
+    );
+    const scopeBodyRanges = compiled.bindingAnalysis
+      ? mapScopeBodyRangeIndex(
+        createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex),
+        changes
+      )
+      : [];
+    const source = createDslCompletionSource({
+      elements: () => compiled.document!.elements,
+      statementRanges: () => new Map(),
+      printLayouts: () => compiled.document!.printLayouts,
+      printLayoutRanges: () => new Map(),
+      isComposing: () => false,
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => [],
+      bindingAnalysis: () => compiled.bindingAnalysis,
+      typedDeclarationRanges: () => typedDeclarationRanges,
+      scopeBodyRanges: () => scopeBodyRanges,
+      statementInfoByElementId: () => compiled.statementMap!.byElementId
+    });
+    return { source, state: EditorState.create({ doc: dirtyDoc }), compiled };
+  };
+
+  const rhsCompletionOptions = (committedType: "number" | "string", liveType: "number" | "string") => {
+    const committedSource = [
+      "nui 3",
+      `let total: ${committedType} = ${committedType === "string" ? '"old"' : "0"}`,
+      "let num: number = 1",
+      "let text: string = \"text\""
+    ].join("\n");
+    const dirtyPrefix = committedSource.replace(`let total: ${committedType}`, `let total: ${liveType}`);
+    const dirtySource = `${dirtyPrefix}\nset total = @`;
+    const compiled = compileDslDocument(committedSource, {
+      assignedStatementIds: new Map(parseDsl(committedSource).statements.map((_, index) => [index, `stable-${index}`]))
+    });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    const committedDoc = EditorState.create({ doc: committedSource }).doc;
+    const typeStart = committedSource.indexOf(`let total: ${committedType}`) + "let total: ".length;
+    const changes = ChangeSet.of([
+      { from: typeStart, to: typeStart + committedType.length, insert: liveType },
+      { from: committedSource.length, insert: "\nset total = @" }
+    ], committedSource.length);
+    const typedDeclarationRanges = mapTypedDeclarationRangeIndex(
+      createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
+      changes
+    );
+    const scopeBodyRanges = compiled.bindingAnalysis
+      ? mapScopeBodyRangeIndex(
+        createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex),
+        changes
+      )
+      : [];
+    const source = createDslCompletionSource({
+      elements: () => compiled.document!.elements,
+      statementRanges: () => new Map(),
+      printLayouts: () => compiled.document!.printLayouts,
+      printLayoutRanges: () => new Map(),
+      isComposing: () => false,
+      computedVariables: () => undefined,
+      computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => [],
+      bindingAnalysis: () => compiled.bindingAnalysis,
+      typedDeclarationRanges: () => typedDeclarationRanges,
+      scopeBodyRanges: () => scopeBodyRanges,
+      statementInfoByElementId: () => compiled.statementMap!.byElementId
+    });
+    return { source, state: EditorState.create({ doc: dirtySource }), pos: dirtySource.length };
+  };
+
+  it("keeps Task 40 recovery for an already-committed poisoned let and normal valid lets", async () => {
+    const committedSource = ["nui 3", "let broken: number = @broken"].join("\n");
+    const dirtySource = `${committedSource}\nset b`;
+    const { source, state } = completionOptions(committedSource, dirtySource);
+    const result = await Promise.resolve(source({ state, pos: dirtySource.length, explicit: true } as never));
+    expect(result?.options.map((option) => option.label)).toContain("broken");
+
+    const normalDirtySource = `${normalCommittedSource}\nset b`;
+    const normal = completionOptions(normalCommittedSource, normalDirtySource);
+    const normalResult = await Promise.resolve(normal.source({ state: normal.state, pos: normalDirtySource.length, explicit: true } as never));
+    expect(normalResult?.options.map((option) => option.label)).toEqual(expect.arrayContaining(["flag", "total", "show"]));
+  });
+
+  it.each([
+    ["number", "string", "text", "num"],
+    ["string", "number", "num", "text"]
+  ] as const)("uses the reconciled live %s target type for %s RHS completion", async (committedType, liveType, expected, excluded) => {
+    const { source, state, pos } = rhsCompletionOptions(committedType, liveType);
+    const result = await Promise.resolve(source({ state, pos, explicit: true } as never));
+    expect(result?.options.map((option) => option.label)).toContain(expected);
+    expect(result?.options.map((option) => option.label)).not.toContain(excluded);
+  });
+
+  it("recovers a newly typed poisoned let during a real input.type burst and keeps it target-only", async () => {
+    const dirtySource = `${normalCommittedSource}\nlet broken: number = @broken\nset b`;
+    const compiled = compileDslDocument(normalCommittedSource, {
+      assignedStatementIds: new Map(parseDsl(normalCommittedSource).statements.map((_, index) => [index, `stable-${index}`]))
+    });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    const committedDoc = EditorState.create({ doc: normalCommittedSource }).doc;
+    let typedDeclarationRanges: TypedDeclarationRangeIndex = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+    let scopeBodyRanges: ScopeBodyRangeIndex = compiled.bindingAnalysis
+      ? createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
+      : [];
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: normalCommittedSource,
+        selection: { anchor: normalCommittedSource.length },
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => compiled.document!.elements,
+            statementRanges: () => new Map(),
+            printLayouts: () => compiled.document!.printLayouts,
+            printLayoutRanges: () => new Map(),
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => undefined,
+            effectiveEnabledElementIds: () => undefined,
+            evaluationErrors: () => [],
+            bindingAnalysis: () => compiled.bindingAnalysis,
+            typedDeclarationRanges: () => typedDeclarationRanges,
+            scopeBodyRanges: () => scopeBodyRanges,
+            statementInfoByElementId: () => compiled.statementMap!.byElementId
+          }),
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return;
+            typedDeclarationRanges = mapTypedDeclarationRangeIndex(typedDeclarationRanges, update.changes);
+            scopeBodyRanges = mapScopeBodyRangeIndex(scopeBodyRanges, update.changes);
+          })
+        ]
+      }),
+      parent
+    });
+
+    view.dispatch({
+      changes: { from: normalCommittedSource.length, insert: dirtySource.slice(normalCommittedSource.length) },
+      selection: { anchor: dirtySource.length },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(parent.querySelectorAll(".cm-tooltip-autocomplete")).toHaveLength(1);
+    const broken = currentCompletions(view.state).find((option) => option.label === "broken");
+    expect(broken?.apply).toBe("broken");
+    const normalTargetSource = `${normalCommittedSource}\nset `;
+    const normalTarget = completionOptions(normalCommittedSource, normalTargetSource);
+    const normalTargetResult = await Promise.resolve(normalTarget.source({
+      state: normalTarget.state,
+      pos: normalTargetSource.length,
+      explicit: true
+    } as never));
+    expect(normalTargetResult?.options.map((option) => option.label)).toEqual(expect.arrayContaining(["flag", "total", "show"]));
+
+    const targetStart = dirtySource.lastIndexOf("set b") + "set ".length;
+    view.dispatch({
+      changes: { from: targetStart, to: targetStart + 1, insert: typeof broken?.apply === "string" ? broken.apply : "broken" },
+      selection: { anchor: targetStart + "broken".length }
+    });
+    expect(view.state.doc.toString()).toContain("set broken");
+
+    const rhsSource = `${normalCommittedSource}\nlet broken: number = @broken\nset total = @br`;
+    const rhs = completionOptions(normalCommittedSource, rhsSource);
+    const rhsResult = await Promise.resolve(rhs.source({ state: rhs.state, pos: rhsSource.length, explicit: true } as never));
+    expect(rhsResult?.options.map((option) => option.label)).not.toContain("broken");
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it("uses a newly typed lexical scope in a real EditorView and drops it outside that scope", async () => {
+    const dirtySource = [
+      normalCommittedSource,
+      "if Branch (@flag) {",
+      "  let broken: number = @broken",
+      "  set b",
+      "}",
+      "set t"
+    ].join("\n");
+    const compiled = compileDslDocument(normalCommittedSource, {
+      assignedStatementIds: new Map(parseDsl(normalCommittedSource).statements.map((_, index) => [index, `stable-${index}`]))
+    });
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    const committedDoc = EditorState.create({ doc: normalCommittedSource }).doc;
+    let typedDeclarationRanges: TypedDeclarationRangeIndex = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+    let scopeBodyRanges: ScopeBodyRangeIndex = compiled.bindingAnalysis
+      ? createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
+      : [];
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const insideSet = dirtySource.indexOf("  set b") + "  set b".length;
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: normalCommittedSource,
+        selection: { anchor: normalCommittedSource.length },
+        extensions: [
+          dslAutocompleteExtension({
+            elements: () => compiled.document!.elements,
+            statementRanges: () => new Map(),
+            printLayouts: () => compiled.document!.printLayouts,
+            printLayoutRanges: () => new Map(),
+            isComposing: () => false,
+            computedVariables: () => undefined,
+            computedGeometry: () => undefined,
+            effectiveEnabledElementIds: () => undefined,
+            evaluationErrors: () => [],
+            bindingAnalysis: () => compiled.bindingAnalysis,
+            typedDeclarationRanges: () => typedDeclarationRanges,
+            scopeBodyRanges: () => scopeBodyRanges,
+            statementInfoByElementId: () => compiled.statementMap!.byElementId
+          }),
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) return;
+            typedDeclarationRanges = mapTypedDeclarationRangeIndex(typedDeclarationRanges, update.changes);
+            scopeBodyRanges = mapScopeBodyRangeIndex(scopeBodyRanges, update.changes);
+          })
+        ]
+      }),
+      parent
+    });
+    view.dispatch({
+      changes: { from: normalCommittedSource.length, insert: dirtySource.slice(normalCommittedSource.length) },
+      selection: { anchor: insideSet },
+      annotations: Transaction.userEvent.of("input.type")
+    });
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).toContain("broken");
+
+    view.dispatch({ selection: { anchor: dirtySource.length } });
+    startCompletion(view);
+    await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
+    expect(currentCompletions(view.state).map((option) => option.label)).not.toContain("broken");
+
+    view.destroy();
+    parent.remove();
+  });
+});

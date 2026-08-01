@@ -44,6 +44,7 @@ import {
   type ScalarCompletionCandidate
 } from "../scalars/typedValueCandidates";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "../scalars/setCompletionCandidates";
+import { mergeSetTargetCandidates, recoverLiveSetTargetCandidates, type SetTargetCompletionCandidate } from "../scalars/setTargetRecoveryCandidates";
 import { visibleTypedBindingsAtLivePosition } from "../scalars/liveTypedBindingVisibility";
 import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
 import { cmDeleteCompletionRetry } from "./cmDeleteCompletionRetry";
@@ -214,7 +215,7 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
 /** Task 40: maps `SetTargetCandidate` to CM's `Completion` shape. Unlike
  * asScalarCompletions's reference branch, a `set` target is a bare
  * identifier - `apply` is the plain name, never `@`-prefixed. */
-const asSetTargetCompletions = (candidates: readonly SetTargetCandidate[]): Completion[] =>
+const asSetTargetCompletions = (candidates: readonly Pick<SetTargetCandidate, "name">[]): Completion[] =>
   candidates.map((candidate) => ({ label: candidate.name, apply: candidate.name, type: "variable" }));
 
 /** Resolves the BindingReferenceSite for the CadElement at the cursor's own
@@ -255,6 +256,41 @@ const setCompletionSiteDeps = (
   livePositionOf: (bindingId) => options.typedDeclarationRanges().get(bindingId)?.from,
   cursorPosition
 });
+
+/**
+ * Task 51 completion-only recovery: the last-good catalog remains the source
+ * of normal candidates, while the current tolerant parse supplies poisoned
+ * `let` declarations and any newly typed lexical scopes. The committed
+ * candidate is mapped through its live declaration position before merging;
+ * this lets one lexical winner be selected across stale and live metadata
+ * without inventing a BindingId or changing runtime reference resolution.
+ */
+const mergedSetTargetCandidates = (
+  options: DslAutocompleteOptions,
+  input: DslAutocompleteDocumentInput,
+  cursorPosition: number,
+  bindingAnalysis: BindingAnalysis | undefined
+) => {
+  const recovery = recoverLiveSetTargetCandidates({ source: input.source, cursorPosition });
+  const committed: SetTargetCompletionCandidate[] = [];
+  if (bindingAnalysis) {
+    const deps = setCompletionSiteDeps(options, bindingAnalysis, cursorPosition);
+    for (const candidate of setTargetCandidates(deps)) {
+      const livePosition = deps.livePositionOf(candidate.bindingId);
+      if (livePosition === undefined) continue;
+      const location = recovery.declarationLocationAtPosition(livePosition);
+      if (!location || location.name !== candidate.name) continue;
+      committed.push({
+        name: candidate.name,
+        type: candidate.type,
+        declarationPosition: location.declarationPosition,
+        scopeKey: location.scopeKey,
+        source: "committed"
+      });
+    }
+  }
+  return mergeSetTargetCandidates(committed, recovery);
+};
 
 /**
  * Completes a newly inserted declaration/element before it has a compiled
@@ -567,13 +603,12 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     );
   } else if (completionContext.kind === "setTarget") {
     const bindingAnalysis = options.bindingAnalysis();
-    completions = bindingAnalysis
-      ? asSetTargetCompletions(setTargetCandidates(setCompletionSiteDeps(options, bindingAnalysis, context.pos)))
-      : [];
+    completions = asSetTargetCompletions(mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis));
   } else if (completionContext.kind === "setRhs") {
     const bindingAnalysis = options.bindingAnalysis();
     const deps = bindingAnalysis ? setCompletionSiteDeps(options, bindingAnalysis, context.pos) : null;
-    const target = deps ? setTargetCandidates(deps).find((candidate) => candidate.name === completionContext.targetName) : undefined;
+    const target = mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis)
+      .find((candidate) => candidate.name === completionContext.targetName);
     completions = deps && target
       ? asScalarCompletions(setRhsScalarCandidates(input.lineText, completionContext.expressionSpan, input.localPos, target.type, deps))
       : [];
