@@ -10,6 +10,7 @@ import {
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
+import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
   const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
@@ -54,6 +55,10 @@ const optionsFor = (compiled: LastGoodDslDocument): EvaluateElementsOptions => {
       },
       compiled.document.elements
     ),
+    numericBindingEntries: buildNumericBindingRuntimeEntries(
+      { numericBindings: compiled.numericBindings ?? new Map(), elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex },
+      compiled.document.elements
+    ),
     ...(textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId } : {})
   };
 };
@@ -65,6 +70,35 @@ const elementId = (compiled: LastGoodDslDocument, name: string): string => {
 };
 
 describe("Task 31 linear mutation production wiring", () => {
+  it("evaluates an earlier geometry property in a number set RHS", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
+      "let x: number = 0",
+      "set x = @AB.length",
+      "point C = coordinate(x: @x y: 0)"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const bindingId = compiled.bindingVersions!.versions[0].bindingId;
+    expect(result.computedScalarBindings?.get(bindingId)).toMatchObject({ status: "ok", value: { value: 10 } });
+  });
+
+  it("does not let a delayed read make a later geometry property valid in a set RHS", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "let x: number = 0",
+      "set x = @Later.length",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line Later = segment(start: A end: B)",
+      "point C = coordinate(x: @x y: 0)"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const bindingId = compiled.bindingVersions!.versions[0].bindingId;
+    expect(result.computedScalarBindings?.get(bindingId)).toMatchObject({ status: "error", issueCode: "evaluation-geometry-property-unavailable" });
+  });
   it("keeps hidden generated metadata and mutation carry while removing generated clones from the draw mask", () => {
     const compiled = compileCanonical([
       "nui 3",

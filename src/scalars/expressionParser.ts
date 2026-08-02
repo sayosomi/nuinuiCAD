@@ -171,6 +171,11 @@ class Parser {
       return { kind: "reference", span: token.span, nameSpan: token.nameSpan, name: token.name };
     }
 
+    if (token.kind === "geometryProperty") {
+      this.consume();
+      return { kind: "geometryProperty", span: token.span, elementNameSpan: token.elementNameSpan, propertySpan: token.propertySpan, elementName: token.elementName, property: token.property };
+    }
+
     if (token.kind === "leftParen") {
       this.enterNesting(token.span);
       this.consume();

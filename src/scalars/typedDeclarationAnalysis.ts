@@ -15,6 +15,7 @@ import type { ReconciledCadContainerInput } from "./legacyContainerIndex";
 import type { ScalarProgramPositionMap } from "./scalarProgram";
 import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 
 export type { DiagnosticSpanContext };
 
@@ -250,6 +251,8 @@ export const analyzeTypedDeclarations = ({
   const bindingAnalysis = analyzeBindings({ catalog, initializerReferences });
 
   const typedInitializerByBindingId = new Map<BindingId, TypedScalarExpression>();
+  const sourceOrderByElementId = new Map<string, number>();
+  for (const [statementIndex, elementId] of reconciledContainers.elementIdByStatementIndex) sourceOrderByElementId.set(elementId, statementIndex);
   for (const binding of catalog.bindings) {
     if (binding.kind !== "typed") continue;
     const parsed = parsedByBindingId.get(binding.id);
@@ -258,14 +261,18 @@ export const analyzeTypedDeclarations = ({
       expectedType: binding.declaredType,
       references: resolvedByBindingId.get(binding.id) ?? []
     });
-    typedInitializerByBindingId.set(binding.id, checked.typed);
     const statement = statements[binding.statementIndex] as Extract<DslStatement, { kind: "typedDeclaration" }>;
+    const geometryResolution = resolveTypedGeometryProperties(checked.typed, reconciledContainers.elements, sourceOrderByElementId);
+    typedInitializerByBindingId.set(binding.id, geometryResolution.expression);
     diagnostics.push(...checked.diagnostics.map((diagnostic) =>
       compileDiagnostic(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message, {
         expectedType: diagnostic.expectedType,
         actualType: diagnostic.actualType,
         bindingId: binding.id
       })
+    ));
+    diagnostics.push(...geometryResolution.issues.map((issue) =>
+      compileDiagnostic(spans, statement, issue.span, "geometry-property-invalid", issue.message, { bindingId: binding.id })
     ));
   }
   return {

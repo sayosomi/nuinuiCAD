@@ -134,6 +134,33 @@ describe("dslCompletionContextAt", () => {
     });
   });
 
+  describe("typed number geometry-property narrowing", () => {
+    it("narrows @Element. to its property segment in a number initializer", () => {
+      const line = "const length: number = @AB.le";
+      const context = dslCompletionContextAt(line, at(line, "@AB.le"));
+      expect(context).toMatchObject({
+        kind: "elementParameter",
+        from: line.indexOf(".le") + 1,
+        to: line.length,
+        elementToken: "AB",
+        sigil: true
+      });
+    });
+
+    it("does not treat @ alone or non-number initializers as geometry properties", () => {
+      expect(dslCompletionContextAt("const length: number = @", "const length: number = @".length)).toMatchObject({ kind: "typedInitializer" });
+      expect(dslCompletionContextAt("const label: string = @AB.", "const label: string = @AB.".length)).toBeNull();
+    });
+
+    it("retains an unfinished geometry-property token for set RHS type resolution", () => {
+      const line = "set length = @AB.";
+      expect(dslCompletionContextAt(line, line.length)).toMatchObject({
+        kind: "setRhs",
+        geometryProperty: { elementToken: "AB", from: line.length, to: line.length }
+      });
+    });
+  });
+
   describe("reference-kind coordinate literal x/y sub-spans", () => {
     it("narrows to just the @token inside a coordinate literal's y component", () => {
       const line = "line L = segment(start: A end: (10, @Wi))";

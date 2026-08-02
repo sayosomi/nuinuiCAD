@@ -11,6 +11,7 @@ import { buildConditionalGroupConditionsByElementId, buildControlBooleanRuntimeE
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../src/scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../src/scalars/forGroupMutationControl";
 import { buildPropertyBindingRuntimeEntries, type PropertyBindingRuntimeEntry } from "../src/geometry/propertyBindingRuntime";
+import { buildNumericBindingRuntimeEntries, type NumericBindingRuntimeEntry } from "../src/geometry/numericBindingRuntime";
 import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "../src/geometry/textTemplateRuntime";
 import { runtimeScalarDiagnostics } from "../src/scalars/runtimeScalarDiagnostics";
 import type { TypedScalarExpression } from "../src/scalars/typedExpressionAst";
@@ -31,6 +32,7 @@ export type EvaluationFixture = {
   propertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
   controlBooleanEntries?: readonly PropertyBindingRuntimeEntry[];
   textPropertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
+  numericBindingEntries?: readonly NumericBindingRuntimeEntry[];
   compiled?: TextCompileResult;
 };
 
@@ -71,6 +73,12 @@ export const fixtureFromSource = (source: string): EvaluationFixture => {
         doc.document.elements
       )
     : undefined;
+  const numericBindingEntries = doc.scalarProgram && doc.numericBindings
+    ? buildNumericBindingRuntimeEntries(
+        { numericBindings: doc.numericBindings, elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex },
+        doc.document.elements
+      )
+    : undefined;
   return {
     elements: doc.document.elements,
     evaluationLimitIndex: doc.document.evaluationLimitIndex,
@@ -83,6 +91,7 @@ export const fixtureFromSource = (source: string): EvaluationFixture => {
     ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
     ...(textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId } : {}),
     ...(textPropertyBindingEntries?.length ? { textPropertyBindingEntries } : {}),
+    ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
     compiled
   };
 };
@@ -115,7 +124,8 @@ export const optionsFor = (fixture: EvaluationFixture): EvaluateElementsOptions 
       ) }
     : {}),
   ...(fixture.textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId: fixture.textTemplateEntriesByElementId } : {}),
-  ...(fixture.textPropertyBindingEntries?.length ? { textPropertyBindingEntries: fixture.textPropertyBindingEntries } : {})
+  ...(fixture.textPropertyBindingEntries?.length ? { textPropertyBindingEntries: fixture.textPropertyBindingEntries } : {}),
+  ...(fixture.numericBindingEntries?.length ? { numericBindingEntries: fixture.numericBindingEntries } : {})
 });
 
 export const evaluateWithRustFixture = (

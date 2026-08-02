@@ -987,9 +987,11 @@ export const compileDslDocument = (
   const setStatementCompilation = stableStatementIdByIndex && versionValidation.majorVersion === 3 && hasSetStatements
     ? compileSetStatements({
         statements: parsed.statements,
-        stableStatementIdByIndex,
-        bindingAnalysis: scalarAnalysis?.bindingAnalysis,
-        spans
+      stableStatementIdByIndex,
+      bindingAnalysis: scalarAnalysis?.bindingAnalysis,
+      elements: compiled.elements,
+      elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+      spans
       })
     : undefined;
   // Task 30 only consumes products of the compiler/analysis passes above.
@@ -1017,7 +1019,8 @@ export const compileDslDocument = (
     propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,
     numericBindings: numericBindingCompilation?.sourcesByOccurrenceKey,
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
-    setStatements: setStatementCompilation?.setsByStatementIndex
+    setStatements: setStatementCompilation?.setsByStatementIndex,
+    scalarProgram
   });
   const finalDiagnostics = [
     ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),

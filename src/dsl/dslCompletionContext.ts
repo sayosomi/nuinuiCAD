@@ -24,6 +24,7 @@ import { numericTypeOptionCompletionContextAt } from "./dslNumericTypeOptionsCom
 import { propertyScalarValueCompletionContext, type PropertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
 import { templateHoleContentSpanAt } from "./dslTemplateHoleCompletionContext";
 import { setCompletionContextAt } from "./dslSetCompletionContext";
+import type { TypedGeometryPropertyCompletionContext } from "./dslTypedGeometryPropertyCompletionContext";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { DslSpan } from "./dslTypes";
 import type { ScalarType } from "../scalars/types";
@@ -40,7 +41,7 @@ export type DslCompletionContext =
   | { kind: "propertyScalarValue"; from: number; to: number; propertyContext: PropertyScalarValueCompletionContext }
   | { kind: "templateHole"; from: number; to: number; contentSpan: DslSpan }
   | { kind: "setTarget"; from: number; to: number }
-  | { kind: "setRhs"; from: number; to: number; expressionSpan: DslSpan; targetName: string }
+  | { kind: "setRhs"; from: number; to: number; expressionSpan: DslSpan; targetName: string; geometryProperty?: TypedGeometryPropertyCompletionContext }
   | null;
 
 /**
@@ -319,6 +320,16 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
 
   const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
   if (typedDeclarationContext) {
+    if (typedDeclarationContext.geometryProperty) {
+      return {
+        kind: "elementParameter",
+        from: typedDeclarationContext.geometryProperty.from,
+        to: typedDeclarationContext.geometryProperty.to,
+        elementToken: typedDeclarationContext.geometryProperty.elementToken,
+        tokenStart: typedDeclarationContext.geometryProperty.tokenStart,
+        sigil: true
+      };
+    }
     return {
       kind: "typedInitializer",
       from: typedDeclarationContext.positionContext.from,
@@ -332,7 +343,14 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
   if (setContext) {
     return setContext.kind === "target"
       ? { kind: "setTarget", from: setContext.from, to: setContext.to }
-      : { kind: "setRhs", from: setContext.from, to: setContext.to, expressionSpan: setContext.expressionSpan, targetName: setContext.targetName };
+      : {
+        kind: "setRhs",
+        from: setContext.from,
+        to: setContext.to,
+        expressionSpan: setContext.expressionSpan,
+        targetName: setContext.targetName,
+        ...(setContext.geometryProperty ? { geometryProperty: setContext.geometryProperty } : {})
+      };
   }
 
   const statement = dslLineElementStatement(lineText);

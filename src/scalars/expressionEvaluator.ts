@@ -29,6 +29,9 @@ export interface ScalarEvaluationEnvironment {
    */
   lookupBinding(bindingId: BindingId): ScalarEvaluation;
 
+  /** Document-bound property reads are already resolved to stable IDs. */
+  lookupGeometryProperty?: (reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>) => ScalarEvaluation;
+
   /**
    * Reserved for later document-context wiring (Tasks 20/27/31). Unused by
    * this module's own evaluation switch, since the typed-expression grammar
@@ -117,6 +120,21 @@ const evaluateReference = (node: TypedScalarReferenceNode, environment: ScalarEv
 
   if (!scalarTypesEqual(type, result.type) || !scalarValueMatchesType(result.type, result.value)) {
     return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch", bindingId: node.bindingId };
+  }
+  return result;
+};
+
+const evaluateGeometryProperty = (
+  node: Extract<TypedScalarExpression, { kind: "geometryProperty" }>,
+  environment: ScalarEvaluationEnvironment
+): ScalarEvaluation => {
+  if (!node.elementId || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
+    return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
+  const result = environment.lookupGeometryProperty(node);
+  if (result.status === "error") return result;
+  if (result.type.kind !== "number" || result.value.kind !== "number") {
+    return { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
   return result;
 };
@@ -243,6 +261,8 @@ export const evaluateTypedExpression = (
     }
     case "reference":
       return evaluateReference(node, environment);
+    case "geometryProperty":
+      return evaluateGeometryProperty(node, environment);
     case "unary":
       return evaluateUnary(node, environment);
     case "binary":

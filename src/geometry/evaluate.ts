@@ -192,10 +192,10 @@ export const evaluateElements = (
     throw new Error("evaluateElements: binding mutation requires the compiled statementInfoByElementId mapping");
   }
   const linearMutationResolver = linearMutationEnabled
-    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, computedVariables)
+    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, computedVariables, { computedGeometry, elementsById })
     : undefined;
   const declarationResolver = !linearMutationResolver && options.scalarProgram
-    ? createDocumentScalarBindingResolver(options.scalarProgram, computedVariables)
+    ? createDocumentScalarBindingResolver(options.scalarProgram, computedVariables, { computedGeometry, elementsById })
     : undefined;
   const scalarBindingResolver = linearMutationResolver ?? declarationResolver;
   const propertyBindingEntriesByElementId = options.propertyBindingEntries

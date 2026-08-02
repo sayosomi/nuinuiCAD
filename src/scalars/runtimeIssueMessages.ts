@@ -16,7 +16,8 @@ const RUNTIME_ISSUE_MESSAGES: Readonly<Record<string, string>> = {
   "evaluation-divide-by-zero": "0での除算が発生しました。",
   "evaluation-non-finite-result": "計算結果が数値として不正です。",
   "evaluation-static-type-null": "型を確定できませんでした。",
-  "evaluation-numeric-adapter-failure": "数値の評価に失敗しました。"
+  "evaluation-numeric-adapter-failure": "数値の評価に失敗しました。",
+  "evaluation-geometry-property-unavailable": "要素プロパティはこの位置では評価できません。参照先が前方にあり、有効で、正常に評価済みか確認してください。"
 };
 
 export const runtimeIssueMessage = (issueCode: string): string => RUNTIME_ISSUE_MESSAGES[issueCode] ?? "実行時エラーが発生しました。";

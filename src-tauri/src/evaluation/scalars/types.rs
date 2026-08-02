@@ -128,6 +128,16 @@ pub(crate) enum TypedScalarExpression {
         binding_id: Option<BindingId>,
         r#type: Option<ScalarType>,
     },
+    GeometryProperty {
+        span: ScalarSpan,
+        element_name_span: ScalarSpan,
+        property_span: ScalarSpan,
+        element_name: String,
+        element_id: String,
+        property: String,
+        target_source_order: usize,
+        r#type: ScalarType,
+    },
     Unary {
         span: ScalarSpan,
         operator: ScalarUnaryOperator,
@@ -210,6 +220,7 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
         | TypedScalarExpression::StringLiteral { .. }
         | TypedScalarExpression::BooleanLiteral { .. }
         | TypedScalarExpression::ChoiceLiteral { .. }
-        | TypedScalarExpression::Reference { .. } => Vec::new(),
+        | TypedScalarExpression::Reference { .. }
+        | TypedScalarExpression::GeometryProperty { .. } => Vec::new(),
     }
 }

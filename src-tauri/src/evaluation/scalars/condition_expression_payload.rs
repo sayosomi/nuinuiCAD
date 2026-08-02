@@ -53,6 +53,7 @@ fn root_type(expression: &TypedScalarExpression) -> Option<ScalarType> {
         TypedScalarExpression::BooleanLiteral { r#type, .. } => Some(r#type.clone()),
         TypedScalarExpression::ChoiceLiteral { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Reference { r#type, .. } => r#type.clone(),
+        TypedScalarExpression::GeometryProperty { r#type, .. } => Some(r#type.clone()),
         TypedScalarExpression::Unary { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Binary { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Group { r#type, .. } => r#type.clone(),

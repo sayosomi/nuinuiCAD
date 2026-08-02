@@ -60,6 +60,19 @@ export interface TypedScalarReferenceNode {
   readonly type: ScalarType | null;
 }
 
+/** Resolved at compile time. `elementId` is never re-resolved by a runtime. */
+export interface TypedScalarGeometryPropertyReferenceNode {
+  readonly kind: "geometryProperty";
+  readonly span: ScalarSpan;
+  readonly elementNameSpan: ScalarSpan;
+  readonly propertySpan: ScalarSpan;
+  readonly elementName: string;
+  readonly elementId: string | null;
+  readonly property: string;
+  readonly targetSourceOrder: number | null;
+  readonly type: Extract<ScalarType, { kind: "number" }>;
+}
+
 export interface TypedScalarUnaryExpressionNode {
   readonly kind: "unary";
   readonly span: ScalarSpan;
@@ -91,6 +104,7 @@ export type TypedScalarExpression =
   | TypedScalarBooleanLiteralNode
   | TypedScalarChoiceLiteralNode
   | TypedScalarReferenceNode
+  | TypedScalarGeometryPropertyReferenceNode
   | TypedScalarUnaryExpressionNode
   | TypedScalarBinaryExpressionNode
   | TypedScalarGroupExpressionNode;

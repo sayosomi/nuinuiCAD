@@ -32,6 +32,7 @@ export type ScalarExpressionToken =
   | { readonly kind: "rightParen"; readonly span: ScalarSpan }
   | { readonly kind: "operator"; readonly value: ScalarExpressionOperatorSymbol; readonly span: ScalarSpan }
   | { readonly kind: "reference"; readonly name: string; readonly nameSpan: ScalarSpan; readonly span: ScalarSpan }
+  | { readonly kind: "geometryProperty"; readonly elementName: string; readonly elementNameSpan: ScalarSpan; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "literal"; readonly literal: ScalarLiteralToken };
 
 export interface ScalarExpressionTokenizeError {
@@ -57,14 +58,6 @@ const ONE_CHAR_OPERATORS = new Set(["+", "-", "*", "/", "<", ">", "!"]);
 // so the two never need to share a definition.
 const REFERENCE_NAME_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*/u;
 
-// Task 51: `@Name.property` (an element-property reference) is legal in the
-// legacy numeric-expression grammar but never in a typed scalar expression -
-// this evaluator is deliberately geometry-free in both engines (see
-// expressionEvaluator.ts and Rust scalars/expression_evaluator.rs). Matches
-// the same property-path run the legacy tokenizer accepts
-// (numericExpressionParser.ts's referenceMatch second group), so the
-// diagnostic span covers the whole `@Name.a.b` occurrence a user would need
-// to move to a numeric (legacy) expression instead.
 const PROPERTY_PATH_PATTERN = /^[^\s()+*/<>!=&|]*/;
 
 const isWhitespace = (char: string) => char === " " || char === "\t" || char === "\n" || char === "\r";
@@ -130,14 +123,13 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
       if (source[nameSpan.end] === ".") {
         const propertyMatch = PROPERTY_PATH_PATTERN.exec(source.slice(nameSpan.end + 1, end));
         const propertyPath = propertyMatch?.[0] ?? "";
-        return {
-          tokens,
-          error: {
-            code: "geometry-property-in-typed-expression",
-            span: { start: index, end: nameSpan.end + 1 + propertyPath.length },
-            message: `幾何プロパティ参照「@${match[0]}.${propertyPath}」は numeric(legacy)式でのみ使用できます。型付きのconst/let初期化子やset式の中では使用できません。`
-          }
-        };
+        if (!propertyPath) {
+          return { tokens, error: { code: "unexpected-token", span: { start: index, end: nameSpan.end + 1 }, message: "「.」の後にプロパティ名が必要です。" } };
+        }
+        const propertySpan: ScalarSpan = { start: nameSpan.end + 1, end: nameSpan.end + 1 + propertyPath.length };
+        tokens.push({ kind: "geometryProperty", elementName: match[0], elementNameSpan: nameSpan, property: propertyPath, propertySpan, span: { start: index, end: propertySpan.end } });
+        index = propertySpan.end;
+        continue;
       }
       tokens.push({ kind: "reference", name: match[0], nameSpan, span: { start: index, end: nameSpan.end } });
       index = nameSpan.end;

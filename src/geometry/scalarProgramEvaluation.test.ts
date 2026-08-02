@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
 import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { evaluateElements } from "./evaluate";
+import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 
 const compileCanonical = (source: string) => {
   const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
@@ -11,6 +12,38 @@ const compileCanonical = (source: string) => {
 };
 
 describe("evaluateElements / scalarProgram wiring (Task 20)", () => {
+  it("evaluates an earlier line property in a typed number initializer", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: A end: B)",
+      "const test: number = @AB.length",
+      "point C = coordinate(x: @test y: 0)"
+    ].join("\n"));
+    const bindingId = compiled.scalarProgram!.statements[0].bindingId;
+    const result = evaluateElements(compiled.document!.elements, {
+      scalarProgram: compiled.scalarProgram,
+      numericBindingEntries: buildNumericBindingRuntimeEntries({ numericBindings: compiled.numericBindings!, elementIdByStatementIndex: compiled.statementMap!.elementIdByStatementIndex }, compiled.document!.elements)
+    });
+    expect(result.computedScalarBindings?.get(bindingId)).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+    const pointC = compiled.document!.elements.find((element) => element.name === "C")!;
+    expect(result.computedGeometry.get(pointC.id)).toMatchObject({ kind: "point", x: 10, y: 0 });
+  });
+
+  it("does not allow a lazy binding to read a later element after it has evaluated", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "const x: number = @Later.length",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line Later = segment(start: A end: B)",
+      "point C = coordinate(x: @x y: 0)"
+    ].join("\n"));
+    const bindingId = compiled.scalarProgram!.statements[0].bindingId;
+    const result = evaluateElements(compiled.document!.elements, { scalarProgram: compiled.scalarProgram });
+    expect(result.computedScalarBindings?.get(bindingId)).toMatchObject({ status: "error", issueCode: "evaluation-geometry-property-unavailable" });
+  });
   it("evaluates a nested-scope outer initializer to its final value", () => {
     const compiled = compileCanonical([
       "nui 3",

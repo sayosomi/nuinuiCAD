@@ -48,6 +48,18 @@ use super::types::{
 /// method here would be speculative surface with no product need yet.
 pub(crate) trait ScalarEvaluationEnvironment {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation;
+    fn lookup_geometry_property(
+        &self,
+        _element_id: &str,
+        _property: &str,
+        _target_source_order: usize,
+    ) -> ScalarEvaluation {
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+            binding_id: None,
+        }
+    }
 }
 
 /// One entry in the explicit work stack. `Eval` still needs evaluating;
@@ -175,6 +187,18 @@ fn eval_node<'a>(
             binding_id, r#type, ..
         } => {
             output.push(evaluate_reference(r#type, binding_id, environment));
+        }
+        TypedScalarExpression::GeometryProperty {
+            element_id,
+            property,
+            target_source_order,
+            ..
+        } => {
+            output.push(environment.lookup_geometry_property(
+                element_id,
+                property,
+                *target_source_order,
+            ));
         }
         TypedScalarExpression::Unary {
             operator,

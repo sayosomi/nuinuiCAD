@@ -87,28 +87,24 @@ describe("tokenizeScalarExpression / @name references", () => {
     expect(result.error).toMatchObject({ code: "unexpected-token", span: { start: 0, end: 1 } });
   });
 
-  it("rejects @Name.property with a dedicated phase diagnostic, not a generic lexer error (Task 51)", () => {
+  it("tokenizes @Name.property as a typed geometry property reference", () => {
     const source = "@AB.length";
     const result = tokenizeScalarExpression(source, fullSpan(source));
-    expect(result.tokens).toEqual([]);
-    expect(result.error).toMatchObject({
-      code: "geometry-property-in-typed-expression",
-      span: { start: 0, end: source.length }
-    });
-    expect(result.error?.message).toContain("@AB.length");
+    expect(result.error).toBeNull();
+    expect(result.tokens[0]).toMatchObject({ kind: "geometryProperty", elementName: "AB", property: "length", span: { start: 0, end: source.length } });
   });
 
-  it("covers a multi-segment property path in the diagnostic span", () => {
+  it("tokenizes a multi-segment property path", () => {
     const source = "@AB.startPoint.x";
     const result = tokenizeScalarExpression(source, fullSpan(source));
-    expect(result.error).toMatchObject({ code: "geometry-property-in-typed-expression", span: { start: 0, end: source.length } });
+    expect(result.tokens[0]).toMatchObject({ kind: "geometryProperty", property: "startPoint.x", span: { start: 0, end: source.length } });
   });
 
-  it("still reports a dedicated diagnostic mid-expression", () => {
+  it("continues tokenizing a property reference mid-expression", () => {
     const source = "1 + @AB.length";
     const result = tokenizeScalarExpression(source, fullSpan(source));
-    expect(result.tokens).toHaveLength(2); // "1" literal and "+" operator, accumulated before the error
-    expect(result.error).toMatchObject({ code: "geometry-property-in-typed-expression", span: { start: 4, end: source.length } });
+    expect(result.tokens).toHaveLength(3);
+    expect(result.tokens[2]).toMatchObject({ kind: "geometryProperty", span: { start: 4, end: source.length } });
   });
 });
 

@@ -28,7 +28,8 @@
 // reference to one simply poisons gracefully via the same "unavailable" path
 // as a disabled legacy var, never a crash.
 
-import type { ComputedVariable, ElementId } from "../types/geometry";
+import type { CadElement, ComputedGeometry, ComputedVariable, ElementId } from "../types/geometry";
+import { computedReferencePathValue } from "./numericExpressions";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { BindingReadPosition, BindingVersionGraph } from "../scalars/bindingVersions";
 import {
@@ -92,7 +93,8 @@ export type LinearScalarBindingResolver = {
  */
 export const createDocumentScalarBindingResolver = (
   program: ScalarProgram,
-  computedVariables: ReadonlyMap<ElementId, ComputedVariable>
+  computedVariables: ReadonlyMap<ElementId, ComputedVariable>,
+  geometry?: { computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>; elementsById: ReadonlyMap<ElementId, CadElement> }
 ): ScalarBindingResolver => {
   const resolveExternalBinding = (bindingId: BindingId): ScalarEvaluation => {
     if (!bindingId.startsWith(LEGACY_BINDING_PREFIX)) return externalBindingUnavailable(bindingId);
@@ -100,7 +102,17 @@ export const createDocumentScalarBindingResolver = (
     return computed ? adaptNumericResult({ value: computed.value }, bindingId) : externalBindingUnavailable(bindingId);
   };
 
-  const evaluator = createLazyScalarProgramEvaluator(program, resolveExternalBinding);
+  const evaluator = createLazyScalarProgramEvaluator(program, resolveExternalBinding, geometry
+    ? (reference, sourceOrder) => {
+        if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
+          return { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
+        }
+        const value = computedReferencePathValue(geometry.computedGeometry.get(reference.elementId), reference.property);
+        return typeof value === "number"
+          ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
+          : { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
+      }
+    : undefined);
 
   return {
     resolveBinding: evaluator.resolve,
@@ -111,14 +123,25 @@ export const createDocumentScalarBindingResolver = (
 /** Task 31's live document adapter for a Task 30 graph with linear sets. */
 export const createDocumentLinearScalarBindingResolver = (
   graph: BindingVersionGraph,
-  computedVariables: ReadonlyMap<ElementId, ComputedVariable>
+  computedVariables: ReadonlyMap<ElementId, ComputedVariable>,
+  geometry?: { computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>; elementsById: ReadonlyMap<ElementId, CadElement> }
 ): LinearScalarBindingResolver => {
   const resolveExternalBinding = (bindingId: BindingId): ScalarEvaluation => {
     if (!bindingId.startsWith(LEGACY_BINDING_PREFIX)) return externalBindingUnavailable(bindingId);
     const computed = computedVariables.get(bindingId.slice(LEGACY_BINDING_PREFIX.length));
     return computed ? adaptNumericResult({ value: computed.value }, bindingId) : externalBindingUnavailable(bindingId);
   };
-  const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveExternalBinding);
+  const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveExternalBinding, geometry
+    ? (reference, sourceOrder) => {
+        if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
+          return { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
+        }
+        const value = computedReferencePathValue(geometry.computedGeometry.get(reference.elementId), reference.property);
+        return typeof value === "number"
+          ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
+          : { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
+      }
+    : undefined);
   return {
     advanceTo: evaluator.advanceTo,
     registerConditionalResult: evaluator.registerConditionalResult,

@@ -9,10 +9,15 @@ import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import type { DslSpan } from "./dslTypes";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
+import {
+  typedGeometryPropertyCompletionContextAt,
+  type TypedGeometryPropertyCompletionContext
+} from "./dslTypedGeometryPropertyCompletionContext";
 
 export type TypedDeclarationInitializerCompletionContext = {
   declaredType: ScalarType;
   positionContext: ScalarExpressionCompletionContext;
+  geometryProperty?: TypedGeometryPropertyCompletionContext;
 };
 
 /**
@@ -52,6 +57,21 @@ export const typedDeclarationInitializerCompletionContext = (
   if (!statement || statement.declaredType === null) return null;
   const span = initializerSpanIncludingEmpty(logicalText, statement.payloadSpans.initializer);
   if (!span || pos < span.start || pos > span.end) return null;
+  const geometryProperty = typedGeometryPropertyCompletionContextAt(logicalText, pos, span, statement.declaredType);
+  if (geometryProperty) {
+    return {
+      declaredType: statement.declaredType,
+      geometryProperty,
+      positionContext: {
+        kind: "operand",
+        from: geometryProperty.from,
+        to: geometryProperty.to,
+        referenceOnly: false,
+        literalOnly: false,
+        expectedType: statement.declaredType
+      }
+    };
+  }
   const positionContext = scalarExpressionCompletionContextAt(logicalText, pos, span, statement.declaredType);
   if (!positionContext) return null;
   return { declaredType: statement.declaredType, positionContext };

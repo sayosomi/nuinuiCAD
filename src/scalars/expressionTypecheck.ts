@@ -188,6 +188,19 @@ const checkNode = (
       return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: binding.id, type };
     }
 
+    case "geometryProperty":
+      return {
+        kind: "geometryProperty",
+        span: node.span,
+        elementNameSpan: node.elementNameSpan,
+        propertySpan: node.propertySpan,
+        elementName: node.elementName,
+        elementId: null,
+        property: node.property,
+        targetSourceOrder: null,
+        type: NUMBER_TYPE
+      };
+
     case "unary": {
       const requiredType = node.operator === "!" ? BOOLEAN_TYPE : NUMBER_TYPE;
       const operand = checkNode(node.operand, null, state);
