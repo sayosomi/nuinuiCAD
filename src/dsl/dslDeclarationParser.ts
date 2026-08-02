@@ -137,12 +137,26 @@ const parseName = (source: string, span: DslSpan): { name: string; nameSpan: Dsl
     ? { name: "", nameSpan: null }
     : { name: unquoteDslString(source.slice(span.start, span.end)), nameSpan: span };
 
+const NUMBER_TYPE_NAME = "number";
+export const dslChoiceTypeName = "choice";
+
 const KNOWN_SIMPLE_TYPES: Record<string, ScalarType> = {
   string: { kind: "string" },
   boolean: { kind: "boolean" }
 };
 
-const CHOICE_HEAD = /^choice\s*\(/;
+/**
+ * The type names accepted by the typed-declaration grammar. Source Editor
+ * completion consumes this export instead of maintaining a second list.
+ */
+export const dslTypedDeclarationTypeNames: readonly string[] = [
+  NUMBER_TYPE_NAME,
+  ...Object.keys(KNOWN_SIMPLE_TYPES),
+  dslChoiceTypeName
+];
+
+const NUMBER_HEAD = new RegExp(`^${NUMBER_TYPE_NAME}\\s*\\(`);
+const CHOICE_HEAD = new RegExp(`^${dslChoiceTypeName}\\s*\\(`);
 
 const parseDeclaredType = (
   source: string,
@@ -150,8 +164,8 @@ const parseDeclaredType = (
   diagnostics: DslDeclarationDiagnostic[]
 ): { declaredType: ScalarType | null; choiceOptionSpans: DslSpan[]; numericTypeOptions?: DslNumericTypeOptions } => {
   const text = source.slice(typeSpan.start, typeSpan.end);
-  if (text === "number") return { declaredType: { kind: "number" }, choiceOptionSpans: [] };
-  if (/^number\s*\(/.test(text)) {
+  if (text === NUMBER_TYPE_NAME) return { declaredType: { kind: "number" }, choiceOptionSpans: [] };
+  if (NUMBER_HEAD.test(text)) {
     const parsed = parseDslNumericTypeOptions(source, typeSpan);
     diagnostics.push(...parsed.diagnostics);
     return parsed.options

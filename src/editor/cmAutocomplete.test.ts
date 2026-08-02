@@ -94,6 +94,34 @@ describe("createDslCompletionSource", () => {
     ]);
   });
 
+  it("offers declaration type names for an incomplete type annotation and inserts choice()", async () => {
+    const source = "const x: cho";
+    const state = EditorState.create({ doc: source });
+    const completionSource = createDslCompletionSource({
+      elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
+      isComposing: () => false, computedVariables: () => undefined, computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined, typedDeclarationRanges: () => new Map(), scopeBodyRanges: () => [],
+      statementInfoByElementId: () => undefined,
+    });
+
+    const result = await Promise.resolve(completionSource({ state, pos: source.length, explicit: false } as never));
+    expect(result).toMatchObject({ from: source.indexOf("cho"), to: source.length });
+    expect(result?.options.map((option) => option.label)).toEqual(["number", "string", "boolean", "choice"]);
+    if (!result || result.from === undefined || result.to === undefined) {
+      throw new Error("declaration type completion must include a replacement range");
+    }
+
+    const choice = result?.options.find((option) => option.label === "choice");
+    expect(typeof choice?.apply).toBe("function");
+    const view = new EditorView({ state: EditorState.create({ doc: source, selection: { anchor: source.length } }) });
+    if (typeof choice?.apply !== "function") throw new Error("choice completion must have a custom apply");
+    choice.apply(view, choice, result.from, result.to);
+    expect(view.state.doc.toString()).toBe("const x: choice()");
+    expect(view.state.selection.main.head).toBe("const x: choice(".length);
+    view.destroy();
+  });
+
   it("offers registry construction candidates in an incomplete element header", async () => {
     const source = "point P = co";
     const state = EditorState.create({ doc: source });

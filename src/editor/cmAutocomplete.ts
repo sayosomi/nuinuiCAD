@@ -11,6 +11,7 @@ import {
 import { Prec, type Extension, type Text } from "@codemirror/state";
 import { keymap, type Command, type EditorView } from "@codemirror/view";
 import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, dslVarsAttributeParameterKey, type DslCompletionContext } from "../dsl/dslCompletionContext";
+import { dslChoiceTypeName, dslTypedDeclarationTypeNames } from "../dsl/dslDeclarationParser";
 import { dslStatementElementType } from "../dsl/dslCompletionMetadata";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
@@ -217,6 +218,19 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
  * identifier - `apply` is the plain name, never `@`-prefixed. */
 const asSetTargetCompletions = (candidates: readonly Pick<SetTargetCandidate, "name">[]): Completion[] =>
   candidates.map((candidate) => ({ label: candidate.name, apply: candidate.name, type: "variable" }));
+
+const declaredTypeCompletions = (): Completion[] => dslTypedDeclarationTypeNames.map((label) =>
+  label === dslChoiceTypeName
+    ? {
+      label,
+      type: "type",
+      apply: (view, _completion, from, to) => view.dispatch({
+        changes: { from, to, insert: "choice()" },
+        selection: { anchor: from + "choice(".length }
+      })
+    }
+    : { label, type: "type" }
+);
 
 /** Resolves the BindingReferenceSite for the CadElement at the cursor's own
  * line (property scalar value / template hole contexts): looks the live
@@ -565,6 +579,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   } else if (completionContext.kind === "argument") {
     completions = argumentCompletionCandidates(completionContext.spec, completionContext.usedArgumentNames)
       .map((candidate) => ({ ...candidate, type: "property" }));
+  } else if (completionContext.kind === "declaredType") {
+    completions = declaredTypeCompletions();
   } else if (completionContext.kind === "numericTypeOption") {
     completions = completionContext.options.map((label, index) => ({
       label,
