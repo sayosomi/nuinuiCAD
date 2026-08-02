@@ -19,6 +19,7 @@ import {
   printLayoutNumericAttrKeys
 } from "./dslPrintLayoutAttributes";
 import { typedDeclarationInitializerCompletionContext } from "./dslTypedDeclarationCompletionContext";
+import { declaredTypeCompletionContextAt } from "./dslDeclaredTypeCompletionContext";
 import { numericTypeOptionCompletionContextAt } from "./dslNumericTypeOptionsCompletionContext";
 import { propertyScalarValueCompletionContext, type PropertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
 import { templateHoleContentSpanAt } from "./dslTemplateHoleCompletionContext";
@@ -33,6 +34,7 @@ export type DslCompletionContext =
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
   | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean }
+  | { kind: "declaredType"; from: number; to: number }
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
   | { kind: "numericTypeOption"; from: number; to: number; options: readonly ("step" | "min" | "max")[] }
   | { kind: "propertyScalarValue"; from: number; to: number; propertyContext: PropertyScalarValueCompletionContext }
@@ -311,6 +313,9 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
 
   const numericTypeOptionContext = numericTypeOptionCompletionContextAt(code, pos);
   if (numericTypeOptionContext) return { kind: "numericTypeOption", ...numericTypeOptionContext };
+
+  const declaredTypeContext = declaredTypeCompletionContextAt(code, pos);
+  if (declaredTypeContext) return { kind: "declaredType", ...declaredTypeContext };
 
   const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
   if (typedDeclarationContext) {
