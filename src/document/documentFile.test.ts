@@ -115,7 +115,7 @@ describe("document file lifecycle", () => {
   });
 
   it("opens a nui 3 document with legacy-only syntax verbatim", async () => {
-    const content = "nui 3\nvar Global = 12\npoint A = coordinate(x: 0 y: 0 visible: false)\n";
+    const content = "nui 3\nvar Global = 12\npoint A = coordinate(x: 0, y: 0, visible: false)\n";
     dialogMock.open.mockResolvedValue("/tmp/nui3-legacy.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
 
@@ -164,7 +164,7 @@ describe("document file lifecycle", () => {
   it("preserves escaped literal braces through open, save, and reopen", async () => {
     const content = [
       "nui 3",
-      'text Label = label(text: "\\{draft\\}" anchor: none size: 3)'
+      'text Label = label(text: "\\{draft\\}", anchor: none, size: 3)'
     ].join("\n");
     dialogMock.open.mockResolvedValue("/tmp/escaped-template.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);

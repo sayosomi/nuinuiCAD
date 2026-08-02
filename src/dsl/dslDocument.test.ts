@@ -558,7 +558,7 @@ describe("dslDocument version handling", () => {
     expect(v2.document).not.toBeNull();
     expect(v2.majorVersion).toBe(2);
 
-    const v3 = compileDslDocument("nui 3\npoint A = coordinate(x: 0 y: 0)");
+    const v3 = compileDslDocument("nui 3\npoint A = coordinate(x: 0, y: 0)");
     expect(v3.document).not.toBeNull();
     expect(v3.majorVersion).toBe(3);
   });
@@ -738,9 +738,9 @@ describe("nui 2/3 state syntax wiring", () => {
   it("accepts state: visible/hidden/disabled under a nui 3 document and lowers to ElementActivity", () => {
     const parsed = parseDslDocument([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0 state: hidden)",
-      "point B = coordinate(x: 1 y: 0 state: disabled)",
-      "point C = coordinate(x: 2 y: 0)"
+      "point A = coordinate(x: 0, y: 0, state: hidden)",
+      "point B = coordinate(x: 1, y: 0, state: disabled)",
+      "point C = coordinate(x: 2, y: 0)"
     ].join("\n"));
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(parsed.document!.elements).toMatchObject([
@@ -751,13 +751,13 @@ describe("nui 2/3 state syntax wiring", () => {
   });
 
   it("v3 still accepts legacy visible/enabled flags alone (compatibility input)", () => {
-    const parsed = parseDslDocument("nui 3\npoint A = coordinate(x: 0 y: 0 visible: false)");
+    const parsed = parseDslDocument("nui 3\npoint A = coordinate(x: 0, y: 0, visible: false)");
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(parsed.document!.elements).toMatchObject([{ name: "A", visible: false, enabled: true }]);
   });
 
   it("regenerates canonical v3 output as state: while keeping the document major unchanged", () => {
-    const compiled = compileDslDocument("nui 3\npoint A = coordinate(x: 0 y: 0 state: hidden)");
+    const compiled = compileDslDocument("nui 3\npoint A = coordinate(x: 0, y: 0, state: hidden)");
     expect(compiled.majorVersion).toBe(3);
     const regenerated = serializeDocumentToDsl(compiled.document!, compiled.majorVersion!);
     expect(regenerated).toContain("state: hidden");
@@ -780,7 +780,7 @@ describe("nui 2/3 typed declaration wiring", () => {
     // 型付き宣言のidentityはstatement reconcilerが供給する。直接compilerを
     // 呼ぶこの単体テストでも、その契約を明示して渡す。
     const compiled = compileDslDocument(
-      ["nui 3", "const x: number = 1", "let 表示する: boolean = true", "point A = coordinate(x: 0 y: 0)"].join("\n"),
+      ["nui 3", "const x: number = 1", "let 表示する: boolean = true", "point A = coordinate(x: 0, y: 0)"].join("\n"),
       {
         assignedStatementIds: new Map([
           [1, "test:typed:x"],
@@ -813,7 +813,7 @@ describe("Task 22 property binding wiring", () => {
       [
         "nui 3",
         'const パス: string = "x.png"',
-        'image IMG = image(source: @パス origin: (0, 0) naturalWidthPx: 1 naturalHeightPx: 1 sourceDpi: 300 targetPixelsPerMm: 11.811023622047244 scale: 1 angleDeg: 0 mirrorX: false)'
+        'image IMG = image(source: @パス, origin: (0, 0), naturalWidthPx: 1, naturalHeightPx: 1, sourceDpi: 300, targetPixelsPerMm: 11.811023622047244, scale: 1, angleDeg: 0, mirrorX: false)'
       ].join("\n"),
       { assignedStatementIds: new Map([[1, "test:path"]]) }
     );
@@ -867,7 +867,7 @@ describe("Task 22 property binding wiring", () => {
 describe("Task 26 text template wiring", () => {
   it("stores a compiled template on compiled.textTemplates for a typed string hole", () => {
     const compiled = compileDslDocument(
-      ["nui 3", 'const ラベル: string = "前身頃"', 'text T = label(text: "{@ラベル}を2枚カット" anchor: none size: 3)'].join("\n"),
+      ["nui 3", 'const ラベル: string = "前身頃"', 'text T = label(text: "{@ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
       { assignedStatementIds: new Map([[1, "test:label"]]) }
     );
     expect(compiled.diagnostics).toEqual([]);
@@ -879,7 +879,7 @@ describe("Task 26 text template wiring", () => {
 
   it("still compiles textTemplates for a document with no typed declaration at all, unlike propertyBindings/bindingAnalysis", () => {
     const compiled = compileDslDocument(
-      ["nui 3", 'text T = label(text: "cost \\{5\\} yen" anchor: none size: 3)'].join("\n")
+      ["nui 3", 'text T = label(text: "cost \\{5\\} yen", anchor: none, size: 3)'].join("\n")
     );
     expect(compiled.diagnostics).toEqual([]);
     expect(compiled.document).not.toBeNull();
@@ -894,7 +894,7 @@ describe("Task 26 text template wiring", () => {
 
   it("keeps the last-good document (null) and surfaces interpolation-type-mismatch for a boolean hole", () => {
     const compiled = compileDslDocument(
-      ["nui 3", "let 表示する: boolean = true", 'text T = label(text: "flag {@表示する}" anchor: none size: 3)'].join("\n"),
+      ["nui 3", "let 表示する: boolean = true", 'text T = label(text: "flag {@表示する}", anchor: none, size: 3)'].join("\n"),
       { assignedStatementIds: new Map([[1, "test:flag"]]) }
     );
     expect(compiled.document).toBeNull();
@@ -905,7 +905,7 @@ describe("Task 26 text template wiring", () => {
 
   it("keeps the last-good document (null) and surfaces unterminated-interpolation for an unclosed hole", () => {
     const compiled = compileDslDocument(
-      ["nui 3", 'text T = label(text: "prefix {oops" anchor: none size: 3)'].join("\n")
+      ["nui 3", 'text T = label(text: "prefix {oops", anchor: none, size: 3)'].join("\n")
     );
     expect(compiled.document).toBeNull();
     expect(compiled.diagnostics).toEqual(

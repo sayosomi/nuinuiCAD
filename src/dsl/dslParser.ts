@@ -342,17 +342,18 @@ const parseLine = (
   line: number,
   endLine: number,
   opensOnNextLine: boolean,
-  project: (span: DslSpan) => DslPhysicalSpan | null
+  project: (span: DslSpan) => DslPhysicalSpan | null,
+  requireArgumentCommas: boolean,
 ): ParsedLine => {
   if (logicalText.startsWith(dslStatementKeywords.atStop)) {
-    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine);
+    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine);
   }
   const keyword = logicalText.match(leadingIdentifier)?.[0] ?? "";
   if (callCategoryKeywords.has(keyword)) {
-    return fromCall(parseDslCallStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
+    return fromCall(parseDslCallStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine, project);
   }
   if (settingsKeywords.has(keyword)) {
-    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine);
+    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine);
   }
   if (declarationKeywords.has(keyword)) {
     return fromDeclaration(parseDslTypedDeclarationStatement(logicalText), line, endLine, project);
@@ -366,6 +367,12 @@ const parseLine = (
   return {
     diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]
   };
+};
+
+/** Parse-time grammar choice is determined only by an unambiguous first header. */
+const nui3RequiresArgumentCommas = (logicalStatements: readonly LogicalStatement[]) => {
+  const first = logicalStatements.find((statement) => !statement.structural && statement.logicalText.trim());
+  return first ? /^nui\s+3\s*$/.test(first.logicalText.trim()) : false;
 };
 
 type BlockFrame = {
@@ -492,6 +499,7 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   const statements: DslStatement[] = [];
   const diagnostics: DslDiagnostic[] = [];
   const sourceMap = createLogicalStatementSourceMap(snapshot);
+  const requireArgumentCommas = nui3RequiresArgumentCommas(sourceMap.statements);
   // Built once per parse, from the same loop that already visits every
   // LogicalStatement - never re-scanned per diagnostic. This is the only
   // lookup a later exact-span diagnostic projection needs: statement's own
@@ -528,7 +536,7 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
     const next = sourceMap.statements[index + 1];
     const opensOnNextLine = next?.structural === "open";
     const project = (span: DslSpan) => physicalSpanForLogicalRange(sourceMap, logical, span);
-    const parsed = parseLine(logical.logicalText, logical.range.startLine, logical.range.endLine, opensOnNextLine, project);
+    const parsed = parseLine(logical.logicalText, logical.range.startLine, logical.range.endLine, opensOnNextLine, project, requireArgumentCommas);
     if (parsed.statement) {
       const statement = decorateStatement(parsed.statement, logical, sourceMap);
       if (opensOnNextLine) statement.openBraceLine = next!.range.startLine;

@@ -9,7 +9,7 @@ import {
 
 describe(".nui version boundary", () => {
   it("classifies a leading major directly from raw source before compilation", () => {
-    expect(unsupportedNuiMajorVersion("nui 3\npoint A = coordinate(x: 0 y: 0)")).toBeNull();
+    expect(unsupportedNuiMajorVersion("nui 3\npoint A = coordinate(x: 0, y: 0)")).toBeNull();
     expect(unsupportedNuiMajorVersion("nui 4\npoint A = coordinate(x: 0 y: 0)")).toBe(4);
     expect(unsupportedNuiMajorVersion("nui 0")).toBe(0);
     expect(unsupportedNuiMajorVersion("nui 2\npoint A = coordinate(x: 0 y: 0)")).toBeNull();
@@ -66,7 +66,7 @@ describe(".nui version boundary", () => {
   });
 
   it("is a no-op when the document is already at the target major", () => {
-    expect(buildNuiMajorVersionSplice("nui 3\npoint A = coordinate(x: 0 y: 0)", 3)).toEqual({
+    expect(buildNuiMajorVersionSplice("nui 3\npoint A = coordinate(x: 0, y: 0)", 3)).toEqual({
       status: "already-target"
     });
   });

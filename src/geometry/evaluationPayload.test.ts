@@ -40,9 +40,9 @@ describe("evaluation payload conversion", () => {
     const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
     const compiled = compileCanonicalText(baseline, [
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 3 y: 4)",
-      "var d = pointDistance(point1: A point2: B state: disabled)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 3, y: 4)",
+      "var d = pointDistance(point1: A, point2: B, state: disabled)",
       "const dist: number = @d",
       "const label: string = \"seam\""
     ].join("\n")).doc;

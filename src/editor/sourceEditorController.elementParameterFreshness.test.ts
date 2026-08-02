@@ -352,7 +352,7 @@ describe("SourceEditorController element-property completion freshness", () => {
     const source = [
       "nui 3",
       "const length: number = 12.3456",
-      "point A = coordinate(x: 0 y: 0)"
+      "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const pos = source.length;

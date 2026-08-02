@@ -112,10 +112,10 @@ describe("InspectorPanel mouse-only actions", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
       "const length: number = 12.3456",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: @length y: 0)",
-      "line AB = segment(start: A end: B)",
-      "point C = coordinate(x: @length + @AB.length y: 0)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: @length, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "point C = coordinate(x: @length + @AB.length, y: 0)",
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const elements = state.elements;
@@ -197,7 +197,7 @@ describe("InspectorPanel mouse-only actions", () => {
       "nui 3",
       "const length: number = 12.3456",
       'const label: string = "前身頃"',
-      'text Label = label(text: "\\{draft\\} {@label} {@length}" anchor: none size: 3)'
+      'text Label = label(text: "\\{draft\\} {@label} {@length}", anchor: none, size: 3)'
     ].join("\n"), "test");
     const elements = useCadDocumentStore.getState().elements;
     const label = elements.find((element) => element.name === "Label")!;
@@ -214,7 +214,7 @@ describe("InspectorPanel mouse-only actions", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
       'const label: string = "前身頃"',
-      'text Label = label(text: "\\{draft\\} {@label}\\n" anchor: none size: 3)'
+      'text Label = label(text: "\\{draft\\} {@label}\\n", anchor: none, size: 3)'
     ].join("\n"), "test");
     const elements = useCadDocumentStore.getState().elements;
     const label = elements.find((element) => element.name === "Label")!;
@@ -232,8 +232,8 @@ describe("InspectorPanel mouse-only actions", () => {
       "nui 3",
       "const length: number = 12.3456",
       'const label: string = "前身頃"',
-      "point A = coordinate(x: 0 y: 0)",
-      'text Label = label(text: "\\{draft\\} {@label} {@length}\\n" anchor: A size: 3)',
+      "point A = coordinate(x: 0, y: 0)",
+      'text Label = label(text: "\\{draft\\} {@label} {@length}\\n", anchor: A, size: 3)',
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const textTemplates = buildTextTemplateEntriesByElementId({
@@ -270,8 +270,8 @@ describe("InspectorPanel mouse-only actions", () => {
   it("keeps matching literal text as one row and hides stale runtime text", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      'text Bare = label(text: "前身頃" anchor: A size: 3)',
+      "point A = coordinate(x: 0, y: 0)",
+      'text Bare = label(text: "前身頃", anchor: A, size: 3)',
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const evaluation = evaluateElements(state.elements);

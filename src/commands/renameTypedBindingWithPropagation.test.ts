@@ -62,7 +62,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("patches a typed text-template-hole reference", () => {
-    const source = ["nui 3", "let amount: number = 5", 'text T = label(text: "{@amount}" anchor: none size: 3)'].join("\n");
+    const source = ["nui 3", "let amount: number = 5", 'text T = label(text: "{@amount}", anchor: none, size: 3)'].join("\n");
     seed(source);
     const id = typedBindingId("amount");
 

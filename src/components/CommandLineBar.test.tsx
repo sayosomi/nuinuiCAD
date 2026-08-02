@@ -800,7 +800,7 @@ describe("CommandLineBar", () => {
       "const printed: boolean = true",
       "const side: choice(right, left) = left",
       "const broken: number = @missing",
-      "point Existing = coordinate(x: 0 y: 0)"
+      "point Existing = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
     renderBar();
@@ -861,7 +861,7 @@ describe("CommandLineBar", () => {
       ...Array.from({ length: bindingCount }, (_, index) =>
         `const length${String(index + 1).padStart(2, "0")}: number = ${index + 1}`
       ),
-      "point Existing = coordinate(x: 0 y: 0)"
+      "point Existing = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
     renderBar();
@@ -933,7 +933,7 @@ describe("CommandLineBar", () => {
     const validSource = [
       "nui 3",
       "const length: number = 12.3456",
-      "point Existing = coordinate(x: 0 y: 0)"
+      "point Existing = coordinate(x: 0, y: 0)"
     ].join("\n");
     useCadDocumentStore.getState().commitText(validSource, "test");
     useCadDocumentStore.getState().commitText(`${validSource}\nconst broken: number =`, "test");
@@ -961,7 +961,7 @@ describe("CommandLineBar", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
       "const length: number = 12.3456",
-      "point Existing = coordinate(x: 0 y: 0)",
+      "point Existing = coordinate(x: 0, y: 0)",
       "const later: number = 99"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
@@ -990,7 +990,7 @@ describe("CommandLineBar", () => {
       "nui 3",
       "const length: number = 12.3456",
       "group G {",
-      "  point Inside = coordinate(x: 0 y: 0)",
+      "  point Inside = coordinate(x: 0, y: 0)",
       "}",
       "const later: number = 99"
     ].join("\n"), "test");
@@ -1012,9 +1012,9 @@ describe("CommandLineBar", () => {
       "const length: number = 1",
       "group G {",
       "  const length: string = \"inner\"",
-      "  point Existing = coordinate(x: 0 y: 0)",
+      "  point Existing = coordinate(x: 0, y: 0)",
       "}",
-      "point Outside = coordinate(x: 10 y: 0)"
+      "point Outside = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
     renderBar();
@@ -1045,7 +1045,7 @@ describe("CommandLineBar", () => {
       "  const length: string = \"then\"",
       "} else {",
       "  const length: number = 2",
-      "  point Existing = coordinate(x: 0 y: 0)",
+      "  point Existing = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
@@ -1364,9 +1364,9 @@ describe("CommandLineBar", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
       "const length: number = 12.3456",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
     const abId = documentState.elements.find((element) => element.name === "AB")!.id;

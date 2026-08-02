@@ -35,7 +35,7 @@ export type DslCallParseResult = {
   diagnostics: DslCallDiagnostic[];
 };
 
-export type ParseDslCallOptions = { opensBlock?: boolean };
+export type ParseDslCallOptions = { opensBlock?: boolean; requireArgumentCommas?: boolean };
 
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 const containerCategories = new Set(["group", "if", "for"]);
@@ -231,8 +231,9 @@ const callStatement = (
   callSpan: DslSpan,
   opensBlock: boolean,
   diagnostics: DslCallDiagnostic[],
+  requireArgumentCommas: boolean,
 ) => {
-  const scanned = scanCallArgs(source, callSpan);
+  const scanned = scanCallArgs(source, callSpan, { requireCommas: requireArgumentCommas });
   diagnostics.push(...scanned.errors);
   const payloadSpans: Record<string, DslSpan> = {};
   const spec = validateArgs(category, construction, keywordSpan, constructionSpan, scanned.args, diagnostics, payloadSpans);
@@ -315,7 +316,7 @@ export const parseDslCallStatement = (
     if ((category === "if" || category === "for") && open < 0) diagnostic(diagnostics, `${category} には括弧内の引数が必要です。`, keywordSpan);
     if (open >= 0 && close < 0) diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: open, end: open + 1 });
     const callSpan = { start: open >= 0 ? open + 1 : logicalText.length, end: close >= 0 ? close : logicalText.length };
-    return { statement: callStatement(logicalText, category, keywordSpan, name, "", null, callSpan, opensBlock, diagnostics), diagnostics };
+    return { statement: callStatement(logicalText, category, keywordSpan, name, "", null, callSpan, opensBlock, diagnostics, Boolean(options.requireArgumentCommas)), diagnostics };
   }
 
   if (equals < 0) {
@@ -346,7 +347,7 @@ export const parseDslCallStatement = (
     // though this line can never compile (severity is still "error").
     const statement = callStatement(
       logicalText, category, keywordSpan, name, construction, constructionSpan,
-      { start: open + 1, end: logicalText.length }, false, diagnostics
+      { start: open + 1, end: logicalText.length }, false, diagnostics, Boolean(options.requireArgumentCommas)
     );
     return { statement, diagnostics };
   }
@@ -354,7 +355,7 @@ export const parseDslCallStatement = (
   const inlineBlock = tail.start < tail.end && logicalText.slice(tail.start, tail.end) === "{";
   if (tail.start < tail.end && !inlineBlock) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail);
   if (inlineBlock || options.opensBlock) diagnostic(diagnostics, `category「${category}」の呼び出しはブロックを開けません。`, inlineBlock ? tail : keywordSpan);
-  const statement = callStatement(logicalText, category, keywordSpan, name, construction, constructionSpan, { start: open + 1, end: close }, false, diagnostics);
+  const statement = callStatement(logicalText, category, keywordSpan, name, construction, constructionSpan, { start: open + 1, end: close }, false, diagnostics, Boolean(options.requireArgumentCommas));
   if (category === "use") diagnostic(diagnostics, "use は予約済みですが、まだ実装されていません。", keywordSpan);
   return { statement, diagnostics };
 };

@@ -88,7 +88,7 @@ describe("binding version graph", () => {
     const source = [
       "nui 3",
       "if Choice (true) {",
-      "  for Repeat (i from: 0 count: 2) {",
+      "  for Repeat (i, from: 0, count: 2) {",
       "    let x: number = 1",
       "    set x = 2",
       "  }",
@@ -128,7 +128,7 @@ describe("binding version graph", () => {
     const source = [
       "nui 3",
       "if C (true) {",
-      "  for Loop (i from: 0 count: 2) {",
+      "  for Loop (i, from: 0, count: 2) {",
       "    let x: number = 1",
       "    set x = 2",
       "  }",

@@ -43,18 +43,15 @@ describe("cadDocumentStore upgradeDslMajorVersion", () => {
     );
   });
 
-  it("compiles and evaluates identically under nui 3 for legacy var/activity syntax", () => {
+  it("keeps the source byte-for-byte and reports repairable comma diagnostics under nui 3", () => {
     const source = "nui 2\nvar Global = 12\npoint A = coordinate(x: 0 y: 0 visible: false)";
     useCadDocumentStore.getState().commitText(source, "test");
 
     useCadDocumentStore.getState().upgradeDslMajorVersion(3);
 
     const state = useCadDocumentStore.getState();
-    expect(state.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(state.elements).toMatchObject([
-      { name: "Global", type: "variable" },
-      { name: "A", type: "freePoint", x: 0, y: 0 }
-    ]);
+    expect(state.diagnostics.filter((diagnostic) => diagnostic.code === "missing-argument-comma")).toHaveLength(2);
+    expect(state.sourceText).toBe(source.replace("nui 2", "nui 3"));
   });
 
   it("is a silent no-op with no command error message when already nui 3", () => {
@@ -122,7 +119,7 @@ describe("cadDocumentStore v3 state: serialization", () => {
   });
 
   it("regenerates the changed statement as state: when an activity command runs on a nui 3 document", () => {
-    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0 y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)", "test");
     const elementId = useCadDocumentStore.getState().elements[0].id;
 
     setElementActivity(elementId, "hidden");
@@ -135,7 +132,7 @@ describe("cadDocumentStore v3 state: serialization", () => {
   });
 
   it("leaves a hand-written state: byte-for-byte on open, without normalizing", () => {
-    const source = "nui 3\npoint A = coordinate(x: 0 y: 0 state: hidden)";
+    const source = "nui 3\npoint A = coordinate(x: 0, y: 0, state: hidden)";
     useCadDocumentStore.getState().commitText(source, "test");
 
     const state = useCadDocumentStore.getState();

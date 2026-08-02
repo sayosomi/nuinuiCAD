@@ -21,7 +21,7 @@ const buildCase = (generatedRows: number) => {
     "let total: number = 0",
     `for Loop (i from: 0 count: ${generatedRows} step: 1) {`,
     "  set total = @total + 1",
-    "  point P = coordinate(x: 0 y: 0)",
+    "  point P = coordinate(x: 0, y: 0)",
     "}"
   ].join("\n"));
   if (compiled.status === "fatal") throw new Error("forGroup mutation performance fixture must compile");

@@ -76,7 +76,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("allows a safe rename of a typed text template hole reference, with a span that excludes the leading @", () => {
-    const source = ["nui 3", "let amount: number = 5", 'text T = label(text: "{@amount}" anchor: none size: 3)'].join("\n");
+    const source = ["nui 3", "let amount: number = 5", 'text T = label(text: "{@amount}", anchor: none, size: 3)'].join("\n");
     const compiled = compile(source);
     const analysis = rename(compiled, "amount", "qty");
     expect(analysis.verdict).toBe("ok");

@@ -222,7 +222,7 @@ describe("SourceEditorController Task 43: text template hole click precision", (
   const source = [
     "nui 3",
     'const label: string = "A"',
-    'text T = label(text: "prefix {@label} suffix" anchor: none size: 3)'
+    'text T = label(text: "prefix {@label} suffix", anchor: none, size: 3)'
   ].join("\n");
 
   it("clicking inside the hole selects just the reference, excluding braces", () => {
@@ -385,7 +385,7 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
   });
 
   it("clicking on a template hole's opening brace selects the inner content, not the outer brace-inclusive span or the whole string", () => {
-    const source = ["nui 3", 'const label: string = "A"', 'text T = label(text: "{@label}" anchor: none size: 3)'].join("\n");
+    const source = ["nui 3", 'const label: string = "A"', 'text T = label(text: "{@label}", anchor: none, size: 3)'].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -400,7 +400,7 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
   });
 
   it("falls back to the whole (freshly re-parsed) string, not a stale hole position, once an edit elsewhere in the statement drops the hole index", () => {
-    const source = ["nui 3", 'const label: string = "A"', 'text T = label(text: "prefix {@label} suffix" anchor: none size: 3)'].join("\n");
+    const source = ["nui 3", 'const label: string = "A"', 'text T = label(text: "prefix {@label} suffix", anchor: none, size: 3)'].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -489,7 +489,7 @@ describe("SourceEditorController Task 45: jumpToTemplateHole", () => {
   beforeEach(setUp);
   afterEach(() => vi.restoreAllMocks());
 
-  const source = ["nui 3", 'const label: string = "A"', 'text T = label(text: "prefix {@label} suffix" anchor: none size: 3)'].join("\n");
+  const source = ["nui 3", 'const label: string = "A"', 'text T = label(text: "prefix {@label} suffix", anchor: none, size: 3)'].join("\n");
 
   it("selects exactly the hole's inner (brace-interior) span for the given holeIndex", () => {
     useCadDocumentStore.getState().commitText(source, "test");

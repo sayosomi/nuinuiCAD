@@ -591,6 +591,18 @@ describe("DSL parser duplicate names", () => {
 });
 
 describe("DSL parser compatibility", () => {
+  it("requires top-level commas for nui 3 calls while preserving nui 2 input", () => {
+    const strict = parseDsl(["nui 3", "point C = between(start: A end: B ratio: 0.5)"].join("\n"));
+    expect(strict.diagnostics.filter((item) => item.code === "missing-argument-comma")).toHaveLength(2);
+    const end = strict.diagnostics.find((item) => item.message.includes("end"));
+    expect(end?.physicalSpan?.segments).toEqual([{ from: 33, to: 36 }]);
+
+    const commaDelimited = parseDsl("nui 3\nfor Loop (i, from: 0, count: 3,) {\n}");
+    expect(commaDelimited.diagnostics).toEqual([]);
+    const legacy = parseDsl("nui 2\npoint C = between(start: A end: B ratio: 0.5)");
+    expect(legacy.diagnostics).toEqual([]);
+  });
+
   it("still parses the vertical call drafting syntax", () => {
     const parsed = parseDsl([
       "var bust = 840",

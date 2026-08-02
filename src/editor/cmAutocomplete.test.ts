@@ -750,10 +750,10 @@ describe("createDslCompletionSource", () => {
       const source = [
         "nui 3",
         "const length: number = 12.3456",
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 10 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "point C = coordinate(x: 0 y: 0)"
+        "point A = coordinate(x: 0, y: 0)",
+        "point B = coordinate(x: 10, y: 0)",
+        "line AB = segment(start: A, end: B)",
+        "point C = coordinate(x: 0, y: 0)"
       ].join("\n");
       const compiled = compileDslDocument(source, { assignedStatementIds: new Map([[1, "test:length"]]) });
       expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -867,10 +867,10 @@ describe("createDslCompletionSource", () => {
     it("Task 51 checklist item 7: bare Element. offers no candidates in a nui 3 document", async () => {
       const source = [
         "nui 3",
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 10 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "point C = coordinate(x: 0 y: 0)"
+        "point A = coordinate(x: 0, y: 0)",
+        "point B = coordinate(x: 10, y: 0)",
+        "line AB = segment(start: A, end: B)",
+        "point C = coordinate(x: 0, y: 0)"
       ].join("\n");
       const compiled = compileDslDocument(source);
       expect(compiled.document).not.toBeNull();
@@ -931,17 +931,17 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
   it("offers only the choice's own candidates, in declared order, right after a real delete lands the cursor mid-gap, and narrows/applies correctly", async () => {
     // Real repro: an `offset` line's `side: right` value is selected and
     // deleted (not typed character-by-character down to empty), which is
-    // exactly the shape that exposed the bug - the resulting whitespace gap
-    // between "side:" and "closed:" is wider than one separating space, and
+    // exactly the shape that exposed the bug - the resulting value gap before
+    // the required comma is wider than one separating space, and
     // a real EditorView delete transaction leaves the cursor right where the
     // deleted text used to start: inside that gap, not at its far edge
     // (where dslArgScanner's trimSpan collapses the empty valueSpan to).
     const source = [
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 3 side: right closed: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 3, side: right, closed: false)"
     ].join("\n");
     const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
     const abId = elements.find((element) => element.type === "line" && element.name === "AB")!.id;
@@ -983,7 +983,7 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
     // used to start - inside the two-space gap left behind, one character
     // past the gap's own start (right after the colon). This is the cursor
     // position the real regression depends on.
-    expect(view.state.doc.toString().slice(rightStart - 6, rightStart + 8)).toBe("side:  closed:");
+    expect(view.state.doc.toString().slice(rightStart - 6, rightStart + 9)).toBe("side: , closed:");
     expect(view.state.selection.main.head).toBe(rightStart);
 
     startCompletion(view);
@@ -1026,10 +1026,10 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
     const applied = view.state.doc.toString();
     expect(applied).toBe(
       "nui 3\n" +
-      "point A = coordinate(x: 0 y: 0)\n" +
-      "point B = coordinate(x: 10 y: 0)\n" +
-      "line AB = segment(start: A end: B)\n" +
-      "line Off = offset(sources: [AB] distance: 3 side: left closed: false)"
+      "point A = coordinate(x: 0, y: 0)\n" +
+      "point B = coordinate(x: 10, y: 0)\n" +
+      "line AB = segment(start: A, end: B)\n" +
+      "line Off = offset(sources: [AB], distance: 3, side: left, closed: false)"
     );
     expect(parseDsl(applied).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -1040,10 +1040,10 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
   it("does not regress @length / @AB.length numeric-attribute completion (kept alongside the choice fix as a boundary check)", async () => {
     const source = [
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "point C = coordinate(x: 0 y: 0)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "point C = coordinate(x: 0, y: 0)"
     ].join("\n");
     const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
     const abId = elements.find((element) => element.type === "line" && element.name === "AB")!.id;
@@ -1411,7 +1411,7 @@ describe("typed value completion (Task 39)", () => {
               // id. This is the fail-closed stale-metadata shape.
               bindingAnalysis: () => compiledTyped([
                 "nui 3",
-                "point A = coordinate(x: 0 y: 0)",
+                "point A = coordinate(x: 0, y: 0)",
                 "const unrelated: number = 1"
               ].join("\n")).bindingAnalysis,
               typedDeclarationRanges: () => ranges,
@@ -1586,7 +1586,7 @@ describe("typed value completion (Task 39)", () => {
         // unrelated declaration is deliberately placed at a different
         // statement index (via the leading extra statement) so its own
         // stable id never coincidentally collides with "target"'s.
-        bindingAnalysis: () => compiledTyped(["nui 3", "point A = coordinate(x: 0 y: 0)", "const other: number = 1"].join("\n")).bindingAnalysis,
+        bindingAnalysis: () => compiledTyped(["nui 3", "point A = coordinate(x: 0, y: 0)", "const other: number = 1"].join("\n")).bindingAnalysis,
         typedDeclarationRanges: () => staleRanges,
         scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
@@ -1624,7 +1624,7 @@ describe("typed value completion (Task 39)", () => {
       // Committed/compiled from a fully-resolved reference (an unresolved
       // "@gr" would itself be a compile error); the in-progress "@gr" only
       // exists in a separate dirty live state.
-      const committedSource = ["nui 3", "const greeting: string = \"hi\"", "text T = label(text: @greeting anchor: none size: 3)"].join("\n");
+      const committedSource = ["nui 3", "const greeting: string = \"hi\"", "text T = label(text: @greeting, anchor: none, size: 3)"].join("\n");
       const compiled = compiledTyped(committedSource);
       const dirtySource = committedSource.replace("@greeting", "@gr");
       const state = EditorState.create({ doc: dirtySource });
@@ -1692,7 +1692,7 @@ describe("typed value completion (Task 39)", () => {
         "const greeting: string = \"hi\"",
         "const count: number = 1",
         "const flag: boolean = true",
-        'text T = label(text: "placeholder" anchor: none size: 3)'
+        'text T = label(text: "placeholder", anchor: none, size: 3)'
       ].join("\n");
       const compiled = compiledTyped(committedSource);
       const dirtySource = committedSource.replace('"placeholder"', '"{@"');
@@ -2071,7 +2071,7 @@ describe("set target/rhs completion (Task 40)", () => {
         "nui 3",
         "let outer: number = 1",
         "if C (true) {",
-        "  for Loop (i from: 0 count: 2) {",
+        "  for Loop (i, from: 0, count: 2) {",
         "  }",
         "}",
         "let after: number = 2"

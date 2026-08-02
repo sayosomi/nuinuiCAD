@@ -36,7 +36,7 @@ describe("exactPhysicalSpan", () => {
   });
 
   it("projects an exact sub-span inside a multi-physical-line (continuation) statement", () => {
-    const source = ["nui 3", "point A = coordinate(", "  x: 0", "  y: 20", ")"].join("\n");
+    const source = ["nui 3", "point A = coordinate(", "  x: 0,", "  y: 20", ")"].join("\n");
     const { spans, statements } = spansFor(source);
     const elementStatement = statements.find((item) => item.kind === "element")!;
     expect(elementStatement.endLine).toBeGreaterThan(elementStatement.line);

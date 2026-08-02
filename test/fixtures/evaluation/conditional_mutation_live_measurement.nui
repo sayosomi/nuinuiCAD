@@ -1,7 +1,7 @@
 nui 3
-point P = coordinate(x: 0 y: 0)
-point Q = coordinate(x: 3 y: 4)
-var d = pointDistance(point1: P point2: Q state: hidden)
+point P = coordinate(x: 0, y: 0)
+point Q = coordinate(x: 3, y: 4)
+var d = pointDistance(point1: P, point2: Q, state: hidden)
 let flag: boolean = false
 let result: number = 0
 set flag = @d == 5

@@ -29,6 +29,12 @@ describe("DSL v2 settings parser", () => {
     expect(parse("printLayout A4 ( output: pdf view: 印刷 paper: a4 )", true).statement).toMatchObject({ opensBlock: true });
   });
 
+  it("requires commas for nui 3 settings callers when requested", () => {
+    const strict = parseDslSettingsStatement("view 印刷 (default: true seam: false)", { requireArgumentCommas: true });
+    expect(strict.diagnostics).toContainEqual(expect.objectContaining({ code: "missing-argument-comma", span: { start: 23, end: 27 } }));
+    expect(parseDslSettingsStatement("view 印刷 (default: true, seam: false,)", { requireArgumentCommas: true }).diagnostics).toEqual([]);
+  });
+
   it("keeps version values available without deciding supported versions", () => {
     expect(parse("nui 1").diagnostics).toEqual([]);
     expect(parse("nui 3").statement?.value).toBe("3");

@@ -68,10 +68,10 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     const compiled = compileCanonical([
       "nui 3",
       "const 方向: choice(right, left) = right",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 10, side: @方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "方向");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -84,13 +84,13 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     const compiled = compileCanonical([
       "nui 3",
       "let 延長: boolean = true",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "point C = coordinate(x: 0 y: 10)",
-      "point D = coordinate(x: 10 y: 10)",
-      "line AB = segment(start: A end: B)",
-      "line CD = segment(start: C end: D)",
-      "point X = intersection(line1: AB line2: CD extensions: @延長)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "point C = coordinate(x: 0, y: 10)",
+      "point D = coordinate(x: 10, y: 10)",
+      "line AB = segment(start: A, end: B)",
+      "line CD = segment(start: C, end: D)",
+      "point X = intersection(line1: AB, line2: CD, extensions: @延長)"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "延長");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -116,8 +116,8 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     const compiled = compileCanonical([
       "nui 3",
       "let 表示: boolean = true",
-      "for 繰返し (i from: 0 count: 2 step: 1 showGenerated: @表示) {",
-      "  point P = coordinate(x: 0 y: 0)",
+      "for 繰返し (i, from: 0, count: 2, step: 1, showGenerated: @表示) {",
+      "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "表示");
@@ -130,7 +130,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     const compiled = compileCanonical([
       "nui 3",
       'const ラベル: string = "前身頃"',
-      "text T = label(text: @ラベル anchor: none size: 3)"
+      "text T = label(text: @ラベル, anchor: none, size: 3)"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "ラベル");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -144,7 +144,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
       "nui 3",
       "let flag: boolean = true",
       "if C (@flag) {",
-      "  point P = coordinate(x: 0 y: 0)",
+      "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "flag");
@@ -158,7 +158,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     const compiled = compileCanonical([
       "nui 3",
       'const ラベル: string = "前身頃"',
-      'text T = label(text: "{@ラベル}を2枚カット" anchor: none size: 3)'
+      'text T = label(text: "{@ラベル}を2枚カット", anchor: none, size: 3)'
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "ラベル");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -172,7 +172,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
       "nui 3",
       'const 前: string = "前身頃"',
       'const 後: string = "後身頃"',
-      'text T = label(text: "{@前}と{@後}" anchor: none size: 3)'
+      'text T = label(text: "{@前}と{@後}", anchor: none, size: 3)'
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "後");
     const rows = consumerRowsFor(compiled, bindingId);

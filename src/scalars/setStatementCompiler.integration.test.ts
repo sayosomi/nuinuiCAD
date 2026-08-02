@@ -30,7 +30,7 @@ describe("compiled set statement analysis (integration)", () => {
     const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
     const first = compileCanonicalText(
       baseline,
-      ["nui 3", "let x: number = 1", "set x = 2", "point A = coordinate(x: 0 y: 0)"].join("\n")
+      ["nui 3", "let x: number = 1", "set x = 2", "point A = coordinate(x: 0, y: 0)"].join("\n")
     );
     expect(first.status).not.toBe("fatal");
     const firstSetIndex = first.doc.statements.findIndex((statement) => statement.kind === "set");
@@ -38,7 +38,7 @@ describe("compiled set statement analysis (integration)", () => {
 
     const edited = compileCanonicalText(
       first,
-      ["nui 3", "let x: number = 1", "set x = 2", "point A = coordinate(x: 0 y: 1)"].join("\n")
+      ["nui 3", "let x: number = 1", "set x = 2", "point A = coordinate(x: 0, y: 1)"].join("\n")
     );
     expect(edited.status).not.toBe("fatal");
     const editedSetIndex = edited.doc.statements.findIndex((statement) => statement.kind === "set");

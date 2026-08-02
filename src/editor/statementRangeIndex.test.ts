@@ -302,7 +302,7 @@ describe("scopeBodyRangeIndex (Task 40)", () => {
     "nui 3",
     "let outer: number = 1",
     "if C (true) {",
-    "  for Loop (i from: 0 count: 2) {",
+    "  for Loop (i, from: 0, count: 2) {",
     "  }",
     "  let insideThen: number = 2",
     "}"
@@ -594,7 +594,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
   const source = [
     "nui 3",
     'const ラベル: string = "前身頃"',
-    'text T = label(text: "{@ラベル}を2枚カット" anchor: none size: 3)'
+    'text T = label(text: "{@ラベル}を2枚カット", anchor: none, size: 3)'
   ].join("\n");
 
   it("resolves one hole's outer (brace-inclusive) and inner (content-only) spans independently", () => {
@@ -630,7 +630,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
       "nui 3",
       'const first: string = "A"',
       'const second: string = "B"',
-      'text T = label(text: "{@first}-{@second}" anchor: none size: 3)'
+      'text T = label(text: "{@first}-{@second}", anchor: none, size: 3)'
     ].join("\n");
     const result = compiledWithStableIds(multiHoleSource);
     const doc = Text.of(multiHoleSource.split("\n"));
@@ -682,7 +682,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
   });
 
   it("returns an empty index for a legacy hole with no typed references, since it still carries real outer/inner spans", () => {
-    const legacySource = ["nui 3", 'text T = label(text: "sum {2+3}" anchor: none size: 3)'].join("\n");
+    const legacySource = ["nui 3", 'text T = label(text: "sum {2+3}", anchor: none, size: 3)'].join("\n");
     const result = compiledWithStableIds(legacySource);
     const doc = Text.of(legacySource.split("\n"));
     const occurrenceKey = [...result.textTemplates!.keys()][0]!;

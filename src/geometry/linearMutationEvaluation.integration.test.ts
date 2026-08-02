@@ -73,12 +73,12 @@ describe("Task 31 linear mutation production wiring", () => {
   it("evaluates an earlier geometry property in a number set RHS", () => {
     const compiled = compileCanonical([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
       "let x: number = 0",
       "set x = @AB.length",
-      "point C = coordinate(x: @x y: 0)"
+      "point C = coordinate(x: @x, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const bindingId = compiled.bindingVersions!.versions[0].bindingId;
@@ -90,10 +90,10 @@ describe("Task 31 linear mutation production wiring", () => {
       "nui 3",
       "let x: number = 0",
       "set x = @Later.length",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line Later = segment(start: A end: B)",
-      "point C = coordinate(x: @x y: 0)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Later = segment(start: A, end: B)",
+      "point C = coordinate(x: @x, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const bindingId = compiled.bindingVersions!.versions[0].bindingId;
@@ -110,14 +110,14 @@ describe("Task 31 linear mutation production wiring", () => {
       "} else {",
       "  set total = 99",
       "}",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "for Loop (i from: 0 count: 2 step: 1 showGenerated: @show) {",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "for Loop (i, from: 0, count: 2, step: 1, showGenerated: @show) {",
       "  set total = @total + 1",
-      "  line Copy = copy(startPoint: A endPoint: B scale: 1 angleDeg: 90 mirrorX: false baseLines: [AB])",
+      "  line Copy = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 90, mirrorX: false, baseLines: [AB])",
       "}",
-      'text Final = label(text: "{@total}" anchor: none size: 3)'
+      'text Final = label(text: "{@total}", anchor: none, size: 3)'
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const loopId = elementId(compiled, "Loop");
@@ -145,10 +145,10 @@ describe("Task 31 linear mutation production wiring", () => {
     const compiled = compileCanonical([
       "nui 3",
       "let total: number = 0",
-      "for Loop (i from: 0 count: 3 step: 1) {",
+      "for Loop (i, from: 0, count: 3, step: 1) {",
       "  set total = @total + 1",
       "  @stop",
-      "  point P = coordinate(x: @total y: 0)",
+      "  point P = coordinate(x: @total, y: 0)",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -163,9 +163,9 @@ describe("Task 31 linear mutation production wiring", () => {
     const compiled = compileCanonical([
       "nui 3",
       "let total: number = 0",
-      "for Loop (i from: 0 count: 1 step: 1) {",
+      "for Loop (i, from: 0, count: 1, step: 1) {",
       "  set total = @total + 1",
-      "  point P = coordinate(x: @total y: 0)",
+      "  point P = coordinate(x: @total, y: 0)",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -179,9 +179,9 @@ describe("Task 31 linear mutation production wiring", () => {
     const compiled = compileCanonical([
       "nui 3",
       "let total: number = 0",
-      "for Loop (i from: 0 count: 2 step: 1 state: disabled) {",
+      "for Loop (i, from: 0, count: 2, step: 1, state: disabled) {",
       "  set total = @total + 1",
-      "  point P = coordinate(x: @total y: 0)",
+      "  point P = coordinate(x: @total, y: 0)",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -195,12 +195,12 @@ describe("Task 31 linear mutation production wiring", () => {
     const compiled = compileCanonical([
       "nui 3",
       "let value: number = 0",
-      "for Loop (i from: 0 count: 3 step: 1) {",
+      "for Loop (i, from: 0, count: 3, step: 1) {",
       "  set value = @value + 1",
-      "  point P = coordinate(x: 0 y: 0)",
+      "  point P = coordinate(x: 0, y: 0)",
       "  set value = @value + 10",
       "}",
-      "point After = coordinate(x: 0 y: 0)"
+      "point After = coordinate(x: 0, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const value = compiled.bindingVersions!.versions[0].bindingId;
@@ -214,7 +214,7 @@ describe("Task 31 linear mutation production wiring", () => {
     const linear = compileCanonical([
       "nui 3",
       "let value: number = 1",
-      "point Marker = coordinate(x: 0 y: 0)",
+      "point Marker = coordinate(x: 0, y: 0)",
       "set value = 2"
     ].join("\n"));
     const controlled = compileCanonical([
@@ -227,19 +227,19 @@ describe("Task 31 linear mutation production wiring", () => {
     const loop = compileCanonical([
       "nui 3",
       "let value: number = 0",
-      "for Loop (i from: 0 count: 2 step: 1) {",
+      "for Loop (i, from: 0, count: 2, step: 1) {",
       "  set value = @value + 1",
-      "  point P = coordinate(x: 0 y: 0)",
+      "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
     const loopWithNestedControl = compileCanonical([
       "nui 3",
       "let value: number = 0",
-      "for Loop (i from: 0 count: 2 step: 1) {",
+      "for Loop (i, from: 0, count: 2, step: 1) {",
       "  if C (true) {",
       "    set value = @value + 1",
       "  }",
-      "  point P = coordinate(x: 0 y: 0)",
+      "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
     const loopOptions = optionsFor(loop);
@@ -260,16 +260,16 @@ describe("Task 31 linear mutation production wiring", () => {
     const compiled = compileCanonical([
       "nui 3",
       "let total: number = 0",
-      "for Outer (i from: 0 count: 2 step: 1) {",
+      "for Outer (i, from: 0, count: 2, step: 1) {",
       "  if Branch (@i == 0) {",
       "    let scratch: number = @i + 1",
       "    set total = @total + @scratch",
       "  } else {",
       "    set total = @total + 10",
       "  }",
-      "  for Inner (j from: 0 count: 2 step: 1) {",
+      "  for Inner (j, from: 0, count: 2, step: 1) {",
       "    set total = @total + 1",
-      "    point P = coordinate(x: 0 y: 0)",
+      "    point P = coordinate(x: 0, y: 0)",
       "  }",
       "}"
     ].join("\n"));
@@ -287,13 +287,13 @@ describe("Task 31 linear mutation production wiring", () => {
   it("advances binding slots with source order: A sees old value, B sees set value, and set reads the live legacy measurement", () => {
     const compiled = compileCanonical([
       "nui 3",
-      "point P = coordinate(x: 0 y: 0)",
-      "point Q = coordinate(x: 3 y: 4)",
-      "var d = pointDistance(point1: P point2: Q state: hidden)",
+      "point P = coordinate(x: 0, y: 0)",
+      "point Q = coordinate(x: 3, y: 4)",
+      "var d = pointDistance(point1: P, point2: Q, state: hidden)",
       "let value: number = @d",
-      'text A = label(text: "A={@value}" anchor: none size: 3)',
+      'text A = label(text: "A={@value}", anchor: none, size: 3)',
       "set value = @d + 1",
-      'text B = label(text: "B={@value}" anchor: none size: 3)'
+      'text B = label(text: "B={@value}", anchor: none, size: 3)'
     ].join("\n"));
     const options = optionsFor(compiled);
     const result = evaluateElements(compiled.document.elements, options);
@@ -314,10 +314,10 @@ describe("Task 31 linear mutation production wiring", () => {
     const compiled = compileCanonical([
       "nui 3",
       "let value: number = 1",
-      'text A = label(text: "A={@value}" anchor: none size: 3)',
+      'text A = label(text: "A={@value}", anchor: none, size: 3)',
       "@stop",
       "set value = 2",
-      'text B = label(text: "B={@value}" anchor: none size: 3)'
+      'text B = label(text: "B={@value}", anchor: none, size: 3)'
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const declaration = compiled.bindingVersions!.versions[0];
@@ -336,7 +336,7 @@ describe("Task 31 linear mutation production wiring", () => {
       "set value = 2",
       "@stop",
       "const later: number = 3",
-      'text A = label(text: "A={@value}" anchor: none size: 3)'
+      'text A = label(text: "A={@value}", anchor: none, size: 3)'
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const [declaration, set, later] = compiled.bindingVersions!.versions;
@@ -352,7 +352,7 @@ describe("Task 31 linear mutation production wiring", () => {
       "nui 3",
       "let x: number = 1",
       "let y: number = 2",
-      "point Marker = coordinate(x: 0 y: 0)",
+      "point Marker = coordinate(x: 0, y: 0)",
       "set x = @y",
       "set y = @x"
     ].join("\n"));
@@ -371,15 +371,15 @@ describe("Task 31 linear mutation production wiring", () => {
       "nui 3",
       "let flag: boolean = false",
       "if Before (@flag) {",
-      "  point ThenBefore = coordinate(x: 0 y: 0)",
+      "  point ThenBefore = coordinate(x: 0, y: 0)",
       "} else {",
-      "  point ElseBefore = coordinate(x: 1 y: 0)",
+      "  point ElseBefore = coordinate(x: 1, y: 0)",
       "}",
       "set flag = true",
       "if After (@flag) {",
-      "  point ThenAfter = coordinate(x: 2 y: 0)",
+      "  point ThenAfter = coordinate(x: 2, y: 0)",
       "} else {",
-      "  point ElseAfter = coordinate(x: 3 y: 0)",
+      "  point ElseAfter = coordinate(x: 3, y: 0)",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -393,9 +393,9 @@ describe("Task 31 linear mutation production wiring", () => {
   it("uses the just-advanced slot and live legacy measurement once at the conditional opener", () => {
     const compiled = compileCanonical([
       "nui 3",
-      "point P = coordinate(x: 0 y: 0)",
-      "point Q = coordinate(x: 3 y: 4)",
-      "var d = pointDistance(point1: P point2: Q state: hidden)",
+      "point P = coordinate(x: 0, y: 0)",
+      "point Q = coordinate(x: 3, y: 4)",
+      "var d = pointDistance(point1: P, point2: Q, state: hidden)",
       "let flag: boolean = false",
       "let result: number = 0",
       "set flag = @d == 5",

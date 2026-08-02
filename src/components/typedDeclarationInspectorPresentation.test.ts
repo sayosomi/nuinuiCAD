@@ -94,7 +94,7 @@ describe("typedDeclarationInspectorPresentation", () => {
 
   it("returns null for a non-typed (forGroup iteration) binding kind", () => {
     const compiled = compileCanonical(
-      ["nui 3", "for 繰返し (i from: 0 count: 3 step: 1) {", "  const y: number = 1", "}"].join("\n")
+      ["nui 3", "for 繰返し (i, from: 0, count: 3, step: 1) {", "  const y: number = 1", "}"].join("\n")
     );
     const iterationBinding = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "iteration");
     expect(iterationBinding).toBeTruthy();

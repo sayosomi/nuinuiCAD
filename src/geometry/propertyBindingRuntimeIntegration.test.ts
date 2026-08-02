@@ -53,24 +53,24 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     const bound = compileCanonical([
       "nui 3",
       "const 方向: choice(right, left) = left",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 5 side: @方向 closed: false suppressTrimWarnings: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: @方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const literalLeft = compileCanonical([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 5 side: left closed: false suppressTrimWarnings: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const literalRight = compileCanonical([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 5 side: right closed: false suppressTrimWarnings: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const boundResult = evaluateElements(bound.document.elements, {
@@ -98,14 +98,14 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     // poison fixture.
     const compiled = compileCanonical([
       "nui 3",
-      "point Z1 = coordinate(x: 0 y: 0)",
-      "point Z2 = coordinate(x: 3 y: 4)",
-      "var d = pointDistance(point1: Z1 point2: Z2 state: disabled)",
+      "point Z1 = coordinate(x: 0, y: 0)",
+      "point Z2 = coordinate(x: 3, y: 4)",
+      "var d = pointDistance(point1: Z1, point2: Z2, state: disabled)",
       "let 有効: boolean = @d > 0",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 5 side: right closed: @有効 suppressTrimWarnings: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: right, closed: @有効, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const result = evaluateElements(compiled.document.elements, {
@@ -127,11 +127,11 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
       [
         "nui 3",
         ...(mirrorXArg === "@反転" ? ["let 反転: boolean = true"] : []),
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 10 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "for 繰返し (i from: 0 count: 3 step: 1) {",
-        `  line C = copy(startPoint: A endPoint: B scale: 1 angleDeg: 0 mirrorX: ${mirrorXArg} baseLines: [AB])`,
+        "point A = coordinate(x: 0, y: 0)",
+        "point B = coordinate(x: 10, y: 0)",
+        "line AB = segment(start: A, end: B)",
+        "for 繰返し (i, from: 0, count: 3, step: 1) {",
+        `  line C = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: ${mirrorXArg}, baseLines: [AB])`,
         "}"
       ].join("\n");
 

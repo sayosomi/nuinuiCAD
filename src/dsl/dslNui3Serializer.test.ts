@@ -36,7 +36,7 @@ describe("nui 3 serializer facade", () => {
       'text label = label(text: "literal \\{ and {@note}")',
       "group G (printEnabled: @enabled) {",
       "}",
-      "point A = coordinate(x: 0 y: 0 state: hidden)"
+      "point A = coordinate(x: 0, y: 0, state: hidden)"
     ].join("\n");
     const current = currentFor(source);
 
@@ -64,8 +64,8 @@ describe("nui 3 serializer facade", () => {
       "nui 3",
       "# before target",
       "point A = coordinate(",
-      "  x: 0",
-      "  y: 0",
+      "  x: 0,",
+      "  y: 0,",
       "  state: hidden",
       ")",
       "",
@@ -84,8 +84,8 @@ describe("nui 3 serializer facade", () => {
     expect(patched.slice(patched.indexOf("# before target"))).toContain([
       "# before target",
       "point A = coordinate(",
-      "  x: 0",
-      "  y: 0",
+      "  x: 0,",
+      "  y: 0,",
       "  state: hidden",
       ")",
       "",
@@ -100,8 +100,8 @@ describe("nui 3 serializer facade", () => {
       "group Outer {",
       "  # unchanged before target",
       "  point A = coordinate(",
-      "    x: 0",
-      "    y: 0",
+      "    x: 0,",
+      "    y: 0,",
       "    state: hidden",
       "  )",
       "",
@@ -163,7 +163,7 @@ describe("nui 3 serializer facade", () => {
       "nui 3",
       "group Outer {",
       "  group Inner {",
-      "    point A = coordinate(x: 0 y: 0 state: hidden)",
+      "    point A = coordinate(x: 0, y: 0, state: hidden)",
       "  }",
       "}"
     ].join("\n");
@@ -178,8 +178,8 @@ describe("nui 3 serializer facade", () => {
       "group Outer {",
       "  group Inner {",
       "    point A = coordinate(",
-      "      x: 0",
-      "      y: 0",
+      "      x: 0,",
+      "      y: 0,",
       "      state: hidden",
       "    )",
       "  }",

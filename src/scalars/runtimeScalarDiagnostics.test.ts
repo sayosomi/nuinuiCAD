@@ -60,7 +60,7 @@ describe("runtimeScalarDiagnostics", () => {
   });
 
   it("reports at the exact property value span instead of the declaration when a live property consumer exists", () => {
-    const source = ['nui 3', 'const label: string = "A"', "text T = label(text: @label anchor: none size: 3)"].join("\n");
+    const source = ['nui 3', 'const label: string = "A"', "text T = label(text: @label, anchor: none, size: 3)"].join("\n");
     const compiled = compile(source);
     const bindingId = bindingIdFor(compiled, "label");
     const diagnostics = runtimeScalarDiagnostics(
@@ -82,8 +82,8 @@ describe("runtimeScalarDiagnostics", () => {
     const source = [
       "nui 3",
       'const label: string = "A"',
-      "text T1 = label(text: @label anchor: none size: 3)",
-      "text T2 = label(text: @label anchor: none size: 3)"
+      "text T1 = label(text: @label, anchor: none, size: 3)",
+      "text T2 = label(text: @label, anchor: none, size: 3)"
     ].join("\n");
     const compiled = compile(source);
     const bindingId = bindingIdFor(compiled, "label");
