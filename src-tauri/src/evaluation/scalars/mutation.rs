@@ -7,7 +7,8 @@ use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnv
 use super::mutation_payload::{
     InitialState, ValidatedBindingVersion, ValidatedBindingVersionKind, ValidatedBindingVersions,
 };
-use super::types::{BindingId, ScalarEvaluation, ScalarType};
+use super::types::{BindingId, ScalarEvaluation, ScalarType, ScalarValue};
+use crate::evaluation::numeric_expression::computed_reference_value;
 use crate::evaluation::types::EvaluationState;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -271,6 +272,7 @@ impl<'a> ScalarMutationResolver<'a> {
         let environment = MutationEnvironment {
             resolver: self,
             state,
+            source_order: version.source_order,
         };
         result_for_declared_type(
             evaluate_typed_expression(expression, &environment),
@@ -297,10 +299,41 @@ impl<'a> ScalarMutationResolver<'a> {
 struct MutationEnvironment<'a, 'b> {
     resolver: &'a ScalarMutationResolver<'a>,
     state: &'b EvaluationState,
+    source_order: usize,
 }
 impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         self.resolver.resolve(binding_id, self.state)
+    }
+    fn lookup_geometry_property(
+        &self,
+        element_id: &str,
+        property: &str,
+        target_source_order: usize,
+    ) -> ScalarEvaluation {
+        if target_source_order >= self.source_order {
+            return ScalarEvaluation::Error {
+                r#type: ScalarType::Number,
+                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+                binding_id: None,
+            };
+        }
+        match self
+            .state
+            .computed_geometry
+            .get(element_id)
+            .and_then(|geometry| computed_reference_value(geometry, property))
+        {
+            Some(value) => ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(value),
+            },
+            None => ScalarEvaluation::Error {
+                r#type: ScalarType::Number,
+                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+                binding_id: None,
+            },
+        }
     }
 }
 impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {

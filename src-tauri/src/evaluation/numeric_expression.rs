@@ -227,7 +227,9 @@ fn point_axis_value(value: Option<&Value>, axis: &str) -> Option<f64> {
     value?.get(axis)?.as_f64()
 }
 
-fn computed_reference_value(geometry: &Value, property: &str) -> Option<f64> {
+/// The sole canonical computed-geometry property accessor. Typed scalar
+/// evaluation calls this too; neither evaluator owns a second property map.
+pub(crate) fn computed_reference_value(geometry: &Value, property: &str) -> Option<f64> {
     match geometry.get("kind")?.as_str()? {
         "point" => point_axis_value(Some(geometry), property),
         "line" => match property {

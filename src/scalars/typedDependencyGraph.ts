@@ -11,9 +11,10 @@ import type { CompiledNumericBinding } from "./numericBindingCompiler";
 import type { SetStatementAnalysis } from "./setStatementCompiler";
 import type { TextTemplateAst } from "./textTemplate";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { ScalarProgram } from "./scalarProgram";
 
 export type TypedDependencyReason = "missing" | "invalid" | "late" | "disabled";
-export type TypedDependencyKind = "initializer" | "set-rhs" | "property-binding" | "numeric-expression" | "template-hole";
+export type TypedDependencyKind = "initializer" | "set-rhs" | "geometry-property" | "property-binding" | "numeric-expression" | "template-hole";
 
 export type TypedDependencyEndpoint =
   | { kind: "binding"; id: BindingId; name: string; statementIndex: number; span: DslSpan | null }
@@ -44,6 +45,7 @@ export type TypedDependencyGraphInput = {
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
+  scalarProgram?: ScalarProgram;
 };
 
 const endpointId = (endpoint: TypedDependencyEndpoint) => `${endpoint.kind}:${endpoint.id}`;
@@ -92,6 +94,18 @@ export const referencesIn = (expression: TypedScalarExpression): readonly Extrac
   return result;
 };
 
+export const geometryPropertiesIn = (expression: TypedScalarExpression): readonly Extract<TypedScalarExpression, { kind: "geometryProperty" }>[] => {
+  const result: Extract<TypedScalarExpression, { kind: "geometryProperty" }>[] = [];
+  const visit = (node: TypedScalarExpression): void => {
+    if (node.kind === "geometryProperty") result.push(node);
+    else if (node.kind === "unary") visit(node.operand);
+    else if (node.kind === "binary") { visit(node.left); visit(node.right); }
+    else if (node.kind === "group") visit(node.expression);
+  };
+  visit(expression);
+  return result;
+};
+
 /** Builds once during compilation; query consumers only read its adjacency maps. */
 export const buildTypedDependencyGraph = ({
   elements,
@@ -101,7 +115,8 @@ export const buildTypedDependencyGraph = ({
   propertyBindings,
   numericBindings,
   textTemplates,
-  setStatements
+  setStatements,
+  scalarProgram
 }: TypedDependencyGraphInput): TypedDependencyGraph | undefined => {
   if (!bindingAnalysis) return undefined;
   const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -125,6 +140,13 @@ export const buildTypedDependencyGraph = ({
     const from = bindingEndpoint(bindingAnalysis, binding.id);
     for (const edge of bindingAnalysis.graph.edgesByFromBindingId.get(binding.id) ?? []) {
       add({ kind: "initializer", from, to: bindingEndpoint(bindingAnalysis, edge.toBindingId), span: edge.reference.span, reason: reasonFor(edge.toBindingId) });
+    }
+  }
+  for (const statement of scalarProgram?.statements ?? []) {
+    const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
+    for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
+      if (!reference.elementId || reference.targetSourceOrder === null) continue;
+      add({ kind: "geometry-property", from, to: elementEndpoint(elementsById, reference.elementId, reference.targetSourceOrder), span: reference.span });
     }
   }
   for (const issue of bindingAnalysis.issues) {
@@ -189,6 +211,10 @@ export const buildTypedDependencyGraph = ({
         ? { kind: "version" as const, id: current.id, bindingId: current.bindingId, statementIndex: current.sourceOrder }
         : bindingEndpoint(bindingAnalysis, reference.bindingId);
       add({ kind: "set-rhs", from, to, span: reference.span, reason: reasonFor(reference.bindingId) });
+    }
+    for (const reference of geometryPropertiesIn(set.expression)) {
+      if (!reference.elementId || reference.targetSourceOrder === null) continue;
+      add({ kind: "geometry-property", from, to: elementEndpoint(elementsById, reference.elementId, reference.targetSourceOrder), span: reference.span });
     }
   }
 

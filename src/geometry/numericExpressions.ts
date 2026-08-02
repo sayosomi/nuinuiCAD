@@ -483,7 +483,27 @@ const pointValueFromAnchor = ({
   return point[axis];
 };
 
-const computedReferencePathValue = (geometry: ComputedGeometry | undefined, property: string) => {
+/**
+ * Canonical numeric computed-geometry property vocabulary. Parsing,
+ * validation, and evaluation must agree on this set; typed scalars import
+ * this predicate instead of maintaining their own copy of the property
+ * names.
+ */
+const NUMERIC_COMPUTED_GEOMETRY_PROPERTIES = new Set([
+  "x", "y", "length", "radius", "startAngleDeg", "endAngleDeg", "sweepAngleDeg",
+  "startTangentAngleDeg", "endTangentAngleDeg", "startHandleAngleDeg", "startHandleLength",
+  "endHandleAngleDeg", "endHandleLength", "startPoint.x", "startPoint.y", "endPoint.x",
+  "endPoint.y", "centerPoint.x", "centerPoint.y", "originPoint.x", "originPoint.y",
+  "anchorPoint.x", "anchorPoint.y", "widthMm", "heightMm", "scale", "angleDeg", "fontSize",
+  "naturalWidthPx", "naturalHeightPx", "sourceDpi", "targetPixelsPerMm"
+]);
+
+export const isKnownNumericComputedGeometryProperty = (property: string) =>
+  NUMERIC_COMPUTED_GEOMETRY_PROPERTIES.has(property) || /^intermediatePoints\[\d+\]\.(x|y)$/.test(property);
+
+/** Canonical computed-geometry property accessor shared by numeric and typed scalar evaluation. */
+export const computedReferencePathValue = (geometry: ComputedGeometry | undefined, property: string) => {
+  if (!isKnownNumericComputedGeometryProperty(property)) return undefined;
   if (!geometry) return undefined;
   if (geometry.kind === "point") {
     if (property === "x") return geometry.x;

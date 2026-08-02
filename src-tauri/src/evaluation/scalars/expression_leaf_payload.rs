@@ -319,3 +319,90 @@ pub(crate) fn decode_reference(
         r#type: scalar_type,
     })
 }
+
+pub(crate) fn decode_geometry_property(
+    object: &Map<String, Value>,
+) -> Result<TypedScalarExpression, ScalarPayloadIssue> {
+    reject_unexpected_fields(
+        object,
+        &[
+            "kind",
+            "span",
+            "elementNameSpan",
+            "propertySpan",
+            "elementName",
+            "elementId",
+            "property",
+            "targetSourceOrder",
+            "type",
+        ],
+        "geometryProperty node",
+    )?;
+    let span = decode_span(
+        require_field(object, "span", "geometryProperty node")?,
+        "geometryProperty node span",
+    )?;
+    let element_name_span = decode_span(
+        require_field(object, "elementNameSpan", "geometryProperty node")?,
+        "geometryProperty node elementNameSpan",
+    )?;
+    let property_span = decode_span(
+        require_field(object, "propertySpan", "geometryProperty node")?,
+        "geometryProperty node propertySpan",
+    )?;
+    let element_name = require_field(object, "elementName", "geometryProperty node")?
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "geometryProperty node \"elementName\" must be a non-empty string",
+            )
+        })?
+        .to_owned();
+    let element_id = require_field(object, "elementId", "geometryProperty node")?
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "geometryProperty node \"elementId\" must be a non-empty string",
+            )
+        })?
+        .to_owned();
+    let property = require_field(object, "property", "geometryProperty node")?
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "geometryProperty node \"property\" must be a non-empty string",
+            )
+        })?
+        .to_owned();
+    let target_source_order = require_field(object, "targetSourceOrder", "geometryProperty node")?
+        .as_u64()
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "geometryProperty node \"targetSourceOrder\" must be an integer",
+            )
+        })? as usize;
+    let scalar_type = decode_scalar_type(require_field(object, "type", "geometryProperty node")?)?;
+    if scalar_type != ScalarType::Number {
+        return Err(issue(
+            Code::LiteralTypeMismatch,
+            "geometryProperty node \"type\" must be {\"kind\":\"number\"}",
+        ));
+    }
+    Ok(TypedScalarExpression::GeometryProperty {
+        span,
+        element_name_span,
+        property_span,
+        element_name,
+        element_id,
+        property,
+        target_source_order,
+        r#type: scalar_type,
+    })
+}

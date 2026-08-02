@@ -22,6 +22,7 @@
 // regardless of its BindingAnalysis status.
 
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { CadElement, ElementId } from "../types/geometry";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { Binding, BindingId } from "./bindingCatalog";
@@ -31,6 +32,7 @@ import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { collectReferences, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 
 export const CONST_ASSIGNMENT_CODE = "const-assignment";
 export const INVALID_SET_TARGET_CODE = "invalid-set-target";
@@ -76,6 +78,8 @@ export type CompileSetStatementsInput = {
    * in the document to resolve against).
    */
   bindingAnalysis: BindingAnalysis | undefined;
+  elements?: readonly CadElement[];
+  elementIdByStatementIndex?: ReadonlyMap<number, ElementId>;
   spans: DiagnosticSpanContext;
 };
 
@@ -142,6 +146,8 @@ export const compileSetStatements = ({
   statements,
   stableStatementIdByIndex,
   bindingAnalysis,
+  elements,
+  elementIdByStatementIndex,
   spans
 }: CompileSetStatementsInput): SetStatementCompilation => {
   const setEntries = statements
@@ -326,6 +332,15 @@ export const compileSetStatements = ({
       ));
       continue;
     }
+    const sourceOrderByElementId = new Map<ElementId, number>();
+    for (const [sourceOrder, elementId] of elementIdByStatementIndex ?? []) sourceOrderByElementId.set(elementId, sourceOrder);
+    const geometryResolution = resolveTypedGeometryProperties(checked.typed, elements ?? [], sourceOrderByElementId);
+    if (geometryResolution.issues.length > 0) {
+      diagnostics.push(...geometryResolution.issues.map((issue) =>
+        diagnosticAt(spans, candidate.statement, issue.span, "geometry-property-invalid", issue.message)
+      ));
+      continue;
+    }
 
     const statementId = stableStatementIdByIndex.get(candidate.statementIndex);
     // Proven present by the identity-contract check at the top of this
@@ -343,7 +358,7 @@ export const compileSetStatements = ({
       targetName: candidate.statement.name,
       targetSpan: candidate.targetSpan,
       expressionSpan: candidate.expressionSpan,
-      expression: checked.typed
+      expression: geometryResolution.expression
     });
   }
 

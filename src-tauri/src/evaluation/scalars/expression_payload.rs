@@ -42,8 +42,8 @@
 use serde_json::Value;
 
 use super::expression_leaf_payload::{
-    decode_boolean_literal, decode_choice_literal, decode_number_literal, decode_reference,
-    decode_string_literal,
+    decode_boolean_literal, decode_choice_literal, decode_geometry_property, decode_number_literal,
+    decode_reference, decode_string_literal,
 };
 use super::expression_shape_payload::{
     validate_binary_shape, validate_group_shape, validate_unary_shape,
@@ -160,6 +160,7 @@ fn visit_node<'a>(
         "booleanLiteral" => output.push(decode_boolean_literal(object)?),
         "choiceLiteral" => output.push(decode_choice_literal(object)?),
         "reference" => output.push(decode_reference(object)?),
+        "geometryProperty" => output.push(decode_geometry_property(object)?),
         "unary" => {
             let shape = validate_unary_shape(object)?;
             work.push(WorkItem::BuildUnary {

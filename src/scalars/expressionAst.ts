@@ -71,6 +71,17 @@ export interface ScalarReferenceNode {
   readonly name: string;
 }
 
+/** A nui 3 `@Element.property` reference.  Resolution to a stable element
+ * identity happens with the compiled document, not in the syntax parser. */
+export interface ScalarGeometryPropertyReferenceNode {
+  readonly kind: "geometryProperty";
+  readonly span: ScalarSpan;
+  readonly elementNameSpan: ScalarSpan;
+  readonly propertySpan: ScalarSpan;
+  readonly elementName: string;
+  readonly property: string;
+}
+
 export interface ScalarUnaryExpressionNode {
   readonly kind: "unary";
   readonly span: ScalarSpan;
@@ -99,6 +110,7 @@ export type ScalarExpressionAst =
   | ScalarBooleanLiteralNode
   | ScalarUnresolvedChoiceLiteralNode
   | ScalarReferenceNode
+  | ScalarGeometryPropertyReferenceNode
   | ScalarUnaryExpressionNode
   | ScalarBinaryExpressionNode
   | ScalarGroupExpressionNode;

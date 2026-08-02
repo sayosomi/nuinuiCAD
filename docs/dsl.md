@@ -98,7 +98,7 @@ var 肩幅 = pointDistance(from: A to: B)
 
 - `const` は再代入不可。`let` だけが `set 名前 = 式` の対象になれます。
 - `set` の効果はその行より後だけに及びます。
-- 型付きの`number`は、opt-inのproperty binding(下記)・text template・他の型付き初期化式の中に加えて、座標(`x`/`y`/`dx`/`dy`)や長さ・角度など、要素constructionの数値引数の式の中でも`@名前`として使えます。ただし逆方向(typedの`const`/`let`初期化式や`set`の右辺から要素のgeometry・propertyを読むこと)はできません。要素のgeometryは`@Element.property`という別の参照表記(下記)で読み、numeric式の中でのみ使えます。
+- 型付きの`number`は、opt-inのproperty binding(下記)・text template・他の型付き初期化式の中に加えて、座標(`x`/`y`/`dx`/`dy`)や長さ・角度など、要素constructionの数値引数の式の中でも`@名前`として使えます。`const`/`let`のnumber初期化子とnumber型`let`への`set`右辺では、前方にある要素の`@Element.property`も使えます。
 
 ### 要素プロパティ参照 `@Element.property`
 
@@ -114,7 +114,7 @@ point C = coordinate(
 )
 ```
 
-`.`を挟まない旧来の裸表記(`AB.length`)は`nui 3`では診断エラーになります。`@AB.length`と書き直してください。typed初期化式(`const`/`let`/`set`の右辺)の中でこの表記を使うと、専用の診断で拒否されます——geometryの読み出しはnumeric式の中でのみ可能です。
+`.`を挟まない旧来の裸表記(`AB.length`)は`nui 3`では診断エラーになります。`@AB.length`と書き直してください。typed number式でも同じ表記を使えますが、lazy評価の時点ではなく宣言または`set`行の文書順で判定されるため、後方要素の参照は実行時エラーになります。
 
 ### レキシカルスコープとshadow
 

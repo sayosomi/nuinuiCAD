@@ -16,6 +16,7 @@ import {
   type ForGroupMutationRunOutcome
 } from "./forGroupMutationCore";
 import type { ScalarEvaluation } from "./types";
+import type { TypedScalarGeometryPropertyReferenceNode } from "./typedExpressionAst";
 
 export type BindingVersionRuntimeHistory = {
   versionId: BindingVersionId;
@@ -110,7 +111,8 @@ const conditionalOwners = (graph: BindingVersionGraph): ReadonlyMap<string, read
  */
 export const createIncrementalLinearMutationEvaluator = (
   graph: BindingVersionGraph,
-  resolveExternalBinding: ResolveExternalScalarBinding
+  resolveExternalBinding: ResolveExternalScalarBinding,
+  resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation
 ): IncrementalLinearMutationEvaluator => {
   const currentByBindingId = new Map<BindingId, ScalarEvaluation>();
   const historyByVersionId = new Map<BindingVersionId, BindingVersionRuntimeHistory>();
@@ -180,7 +182,10 @@ export const createIncrementalLinearMutationEvaluator = (
     }
     const evaluation = version.initialState.kind === "poisoned" || (version.kind === "declare" && !version.initializer)
       ? poisoned(version)
-      : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, { lookupBinding: resolveCurrent });
+      : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
+        lookupBinding: resolveCurrent,
+        ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {})
+      });
     currentByBindingId.set(version.bindingId, evaluation);
     if (version.kind === "declare" && version.control.ownerChain.length) {
       const scopeId = version.control.ownerChain.at(-1)!.scopeId;
@@ -214,7 +219,10 @@ export const createIncrementalLinearMutationEvaluator = (
     }
     const evaluation = version.initialState.kind === "poisoned" || (version.kind === "declare" && !version.initializer)
       ? poisoned(version)
-      : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, { lookupBinding: resolveCurrent });
+      : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
+        lookupBinding: resolveCurrent,
+        ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {})
+      });
     const isLoopLocal = version.kind === "declare" && version.control.ownerChain.length > 0;
     if (isLoopLocal) frame.declareLocal(version.bindingId, evaluation);
     else frame.set(version.bindingId, evaluation);

@@ -31,6 +31,7 @@ import type { BindingId } from "./bindingCatalog";
 import { evaluateTypedExpression, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
 import type { ScalarEvaluation } from "./types";
+import type { TypedScalarGeometryPropertyReferenceNode } from "./typedExpressionAst";
 
 /**
  * Resolves a binding that is not itself a statement in this program - a
@@ -68,7 +69,8 @@ const isWithinEvaluationLimit = (program: ScalarProgram, statement: ScalarProgra
  */
 export const createLazyScalarProgramEvaluator = (
   program: ScalarProgram,
-  resolveExternalBinding: ResolveExternalScalarBinding
+  resolveExternalBinding: ResolveExternalScalarBinding,
+  resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation
 ): LazyScalarProgramEvaluator => {
   const statementByBindingId = new Map<BindingId, ScalarProgramStatement>();
   for (const statement of program.statements) {
@@ -99,6 +101,10 @@ export const createLazyScalarProgramEvaluator = (
 
     inProgressBindingIds.add(bindingId);
     try {
+      const environment: ScalarEvaluationEnvironment = {
+        lookupBinding: resolve,
+        ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, statement.sourceOrder) } : {})
+      };
       const evaluation = evaluateTypedExpression(statement.declaration.initializer, environment);
       cache.set(bindingId, evaluation);
       return evaluation;
@@ -106,8 +112,6 @@ export const createLazyScalarProgramEvaluator = (
       inProgressBindingIds.delete(bindingId);
     }
   };
-
-  const environment: ScalarEvaluationEnvironment = { lookupBinding: resolve };
 
   return { resolve };
 };

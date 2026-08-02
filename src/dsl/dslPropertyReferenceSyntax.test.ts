@@ -81,7 +81,7 @@ describe("nui 3 bare element-property reference diagnostic (Task 51)", () => {
     expect(errors).toEqual([]);
   });
 
-  it("rejects a geometry property reference in a const initializer with a dedicated phase diagnostic, not the generic lexer error (Task 51 / D2)", () => {
+  it("accepts a geometry property reference in a const number initializer", () => {
     const source = [
       "nui 3",
       "line AB = segment(start: (0, 0) end: (10, 0))",
@@ -90,12 +90,10 @@ describe("nui 3 bare element-property reference diagnostic (Task 51)", () => {
     const errors = compileDslDocument(source, { assignedStatementIds: new Map([[2, "test:x"]]) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
     );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].code).toBe("geometry-property-in-typed-expression");
-    expect(errors[0].message).not.toContain("unexpected character");
+    expect(errors).toEqual([]);
   });
 
-  it("rejects a geometry property reference in a let initializer the same way", () => {
+  it("accepts a geometry property reference in a let initializer", () => {
     const source = [
       "nui 3",
       "line AB = segment(start: (0, 0) end: (10, 0))",
@@ -104,10 +102,10 @@ describe("nui 3 bare element-property reference diagnostic (Task 51)", () => {
     const errors = compileDslDocument(source, { assignedStatementIds: new Map([[2, "test:x"]]) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
     );
-    expect(errors.some((error) => error.code === "geometry-property-in-typed-expression")).toBe(true);
+    expect(errors).toEqual([]);
   });
 
-  it("rejects a geometry property reference in a set RHS the same way", () => {
+  it("accepts a geometry property reference in a number set RHS", () => {
     const source = [
       "nui 3",
       "line AB = segment(start: (0, 0) end: (10, 0))",
@@ -117,7 +115,27 @@ describe("nui 3 bare element-property reference diagnostic (Task 51)", () => {
     const errors = compileDslDocument(source, {
       assignedStatementIds: new Map([[2, "test:x"], [3, "test:set-x"]])
     }).diagnostics.filter((diagnostic) => diagnostic.severity === "error");
-    expect(errors.some((error) => error.code === "geometry-property-in-typed-expression")).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  it("reports an unknown typed geometry property target at compile time", () => {
+    const source = ["nui 3", "const x: number = @Missing.length"].join("\n");
+    const errors = compileDslDocument(source, { assignedStatementIds: new Map([[1, "test:x"]]) }).diagnostics.filter(
+      (diagnostic) => diagnostic.severity === "error"
+    );
+    expect(errors).toMatchObject([{ code: "geometry-property-invalid" }]);
+  });
+
+  it("reports an unknown typed geometry property at compile time", () => {
+    const source = [
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0)",
+      "const x: number = @A.notAProperty"
+    ].join("\n");
+    const errors = compileDslDocument(source, { assignedStatementIds: new Map([[2, "test:x"]]) }).diagnostics.filter(
+      (diagnostic) => diagnostic.severity === "error"
+    );
+    expect(errors).toMatchObject([{ code: "geometry-property-invalid" }]);
   });
 
   it("does not offer a bare-form diagnostic for a typed initializer (the typed tokenizer's own diagnostic owns it)", () => {
