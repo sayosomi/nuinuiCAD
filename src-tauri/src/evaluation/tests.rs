@@ -73,6 +73,7 @@ fn base_line_elements() -> Vec<Value> {
 #[test]
 fn evaluates_points_lines_variables_and_arcs() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -163,6 +164,7 @@ fn evaluates_points_lines_variables_and_arcs() {
 #[test]
 fn evaluates_variable_element_local_numeric_variables() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -237,6 +239,7 @@ fn evaluates_text_with_anchor_and_numeric_references() {
     })));
 
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -273,6 +276,7 @@ fn evaluates_text_with_the_nui_3_sigil_form_of_a_property_reference() {
     })));
 
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -305,6 +309,7 @@ fn evaluates_text_with_a_multi_segment_sigil_property_path() {
     })));
 
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -348,6 +353,7 @@ fn prefers_the_current_elements_own_unique_local_variable_over_a_sigil_property_
     })));
 
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -387,6 +393,7 @@ fn falls_through_to_the_property_arm_when_the_local_variable_name_is_ambiguous()
     })));
 
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -412,6 +419,7 @@ fn falls_through_to_the_property_arm_when_the_local_variable_name_is_ambiguous()
 #[test]
 fn evaluates_anchorless_text_as_comment_geometry() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -443,6 +451,7 @@ fn evaluates_anchorless_text_as_comment_geometry() {
 #[test]
 fn evaluates_arc_line_with_full_360_degree_sweep() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -490,6 +499,7 @@ fn evaluates_arc_line_with_full_360_degree_sweep() {
 #[test]
 fn evaluates_sqrt_and_pi_numeric_expressions() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -562,6 +572,7 @@ fn evaluates_numeric_reference_paths_for_geometry_parameters_and_variables() {
         })),
     ]);
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -583,6 +594,7 @@ fn evaluates_numeric_reference_paths_for_geometry_parameters_and_variables() {
 #[test]
 fn reports_negative_sqrt_numeric_expressions() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -611,6 +623,7 @@ fn reports_negative_sqrt_numeric_expressions() {
 #[test]
 fn reports_too_late_dependency() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -687,6 +700,7 @@ fn error_for<'a>(result: &'a EvaluationPayload, element_id: &str) -> &'a Depende
 #[test]
 fn keeps_missing_parent_message_when_referenced_id_does_not_exist() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -717,6 +731,7 @@ fn keeps_missing_parent_message_when_referenced_id_does_not_exist() {
 #[test]
 fn keeps_forward_reference_message_when_parent_appears_after_dependent() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -739,6 +754,7 @@ fn keeps_forward_reference_message_when_parent_appears_after_dependent() {
 #[test]
 fn reports_evaluation_failed_message_when_parent_exists_earlier_but_failed() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -774,6 +790,7 @@ fn reports_no_issue_for_a_valid_parent() {
     let mut valid_parent = broken_parent();
     valid_parent["fromPointId"] = json!("a");
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -808,6 +825,7 @@ fn reports_no_issue_for_a_valid_parent() {
 #[test]
 fn targets_only_the_failed_parent_when_one_of_several_parents_is_broken() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -855,6 +873,7 @@ fn targets_only_the_failed_parent_when_one_of_several_parents_is_broken() {
 #[test]
 fn applies_group_visibility_and_enabled_masks() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -898,6 +917,7 @@ fn applies_group_visibility_and_enabled_masks() {
 #[test]
 fn evaluates_only_active_conditional_branch() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1012,6 +1032,7 @@ fn evaluates_conditional_group_comparison_expression() {
     ]);
 
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1075,6 +1096,7 @@ fn evaluates_false_conditional_group_comparison_expression() {
     ]);
 
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1127,6 +1149,7 @@ fn does_not_treat_single_equals_as_equality_in_conditional_expression() {
     ]);
 
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1150,6 +1173,7 @@ fn does_not_treat_single_equals_as_equality_in_conditional_expression() {
 #[test]
 fn reports_references_to_inactive_conditional_branch() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1208,6 +1232,7 @@ fn reports_references_to_inactive_conditional_branch() {
 #[test]
 fn marks_a_conditional_group_invalid_when_its_legacy_condition_cannot_be_evaluated() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1265,6 +1290,7 @@ fn evaluates_division_point_by_distance() {
         "placement": { "kind": "distance", "value": 15 }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1302,6 +1328,7 @@ fn evaluates_division_point_by_ratio() {
         "placement": { "kind": "ratio", "value": 0.5 }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1323,6 +1350,7 @@ fn evaluates_division_point_by_ratio() {
 #[test]
 fn reports_division_point_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1379,6 +1407,7 @@ fn reports_division_point_dependency_that_appears_too_late() {
 #[test]
 fn reports_zero_length_distance_division_point() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1437,6 +1466,7 @@ fn evaluates_division_point_numeric_variables_and_expressions() {
         "placement": { "kind": "ratio", "value": { "kind": "expression", "expression": "@基準 + 0.25" } }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1468,6 +1498,7 @@ fn evaluates_line_division_point_by_distance_from_start() {
         "placement": { "kind": "distance", "value": 25 }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1499,6 +1530,7 @@ fn evaluates_line_division_point_by_ratio_from_end() {
         "placement": { "kind": "ratio", "value": 1.2 }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1535,6 +1567,7 @@ fn evaluates_division_point_with_missing_placement_kind_as_ratio() {
         "placement": { "value": 0.5 }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1567,6 +1600,7 @@ fn evaluates_division_point_with_unrecognized_placement_kind_as_ratio() {
         "placement": { "kind": "nonsense", "value": 0.5 }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1598,6 +1632,7 @@ fn evaluates_line_division_point_with_missing_placement_kind_as_ratio() {
         "placement": { "value": 0.4 }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1629,6 +1664,7 @@ fn evaluates_line_division_point_with_unrecognized_placement_kind_as_ratio() {
         "placement": { "kind": "nonsense", "value": 0.4 }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1650,6 +1686,7 @@ fn evaluates_line_division_point_with_unrecognized_placement_kind_as_ratio() {
 #[test]
 fn evaluates_line_division_point_on_arc_line() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1701,6 +1738,7 @@ fn evaluates_line_division_point_on_arc_line() {
 #[test]
 fn reports_line_division_point_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1747,6 +1785,7 @@ fn reports_line_division_point_dependency_that_appears_too_late() {
 #[test]
 fn reports_zero_length_line_division_point() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1803,6 +1842,7 @@ fn evaluates_line_division_point_numeric_variables_and_expressions() {
         "placement": { "kind": "ratio", "value": { "kind": "expression", "expression": "@基準 + 0.25" } }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1833,6 +1873,7 @@ fn self_referencing_element_property_with_no_local_variable_fails_with_the_forwa
     // this must fail with the same forward-reference message any other
     // too-early dependency gets - never a distinct self-reference message.
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -1872,6 +1913,7 @@ fn self_referencing_element_property_with_an_ambiguous_local_variable_fails_the_
     // sigil-free self-referencing property IR `a.w` rather than being left
     // unconverted - identical failure mode to the no-local-variable case.
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,

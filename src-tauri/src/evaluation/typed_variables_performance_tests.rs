@@ -144,6 +144,7 @@ fn performance_typed_variable_production_evaluation_baseline() {
     let large_elements = standard_elements(1_000);
     let (small_result, small_stats) = measure_wall_time(|| {
         evaluate_document_input(EvaluationInput {
+            path_mutations: None,
             property_bindings: None,
             control_boolean_bindings: None,
             condition_expressions: None,
@@ -158,6 +159,7 @@ fn performance_typed_variable_production_evaluation_baseline() {
     });
     let (large_result, large_stats) = measure_wall_time(|| {
         evaluate_document_input(EvaluationInput {
+            path_mutations: None,
             property_bindings: None,
             control_boolean_bindings: None,
             condition_expressions: None,
@@ -203,6 +205,7 @@ fn performance_typed_variable_for_group_baseline() {
     let large_elements = for_group_elements(1_000);
     let (small_result, small_stats) = measure_wall_time(|| {
         evaluate_document_input(EvaluationInput {
+            path_mutations: None,
             property_bindings: None,
             control_boolean_bindings: None,
             condition_expressions: None,
@@ -217,6 +220,7 @@ fn performance_typed_variable_for_group_baseline() {
     });
     let (large_result, large_stats) = measure_wall_time(|| {
         evaluate_document_input(EvaluationInput {
+            path_mutations: None,
             property_bindings: None,
             control_boolean_bindings: None,
             condition_expressions: None,

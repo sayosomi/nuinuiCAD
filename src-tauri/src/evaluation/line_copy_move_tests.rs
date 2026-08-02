@@ -22,6 +22,7 @@ fn bezier_curve(id: &str, start_id: &str, end_id: &str) -> Value {
 #[test]
 fn copy_line_rejects_a_discontinuous_source_list() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -82,6 +83,7 @@ fn copy_line_rejects_a_discontinuous_source_list() {
 #[test]
 fn copy_line_mirror_reverses_arc_sweep_and_supports_numeric_expression() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -131,6 +133,7 @@ fn copy_line_mirror_reverses_arc_sweep_and_supports_numeric_expression() {
 #[test]
 fn copy_line_and_move_scale_around_end_point() {
     let copy_result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -169,6 +172,7 @@ fn copy_line_and_move_scale_around_end_point() {
     assert_close(copy["length"].as_f64().unwrap(), 10.0);
 
     let move_result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -221,6 +225,7 @@ fn copy_line_and_move_scale_around_end_point() {
 #[test]
 fn symmetric_copy_line_rejects_a_discontinuous_source_list() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -256,6 +261,7 @@ fn symmetric_copy_line_rejects_a_discontinuous_source_list() {
 #[test]
 fn move_updates_existing_geometry_and_downstream_references() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -307,6 +313,7 @@ fn move_updates_existing_geometry_and_downstream_references() {
 #[test]
 fn symmetric_move_reports_axis_and_dependency_errors() {
     let axis_error = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -336,6 +343,7 @@ fn symmetric_move_reports_axis_and_dependency_errors() {
     assert!(axis_error.errors[0].message.contains("同じ点"));
 
     let dependency_error = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,

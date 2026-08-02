@@ -19,6 +19,7 @@ import type { EvaluateElementsOptions } from "../src/geometry/evaluate";
 import type { BindingVersionGraph } from "../src/scalars/bindingVersions";
 import type { ScalarProgram } from "../src/scalars/scalarProgram";
 import type { TextTemplateAst } from "../src/scalars/textTemplate";
+import type { PathMutationProgram } from "../src/geometry/pathMutationProgram";
 
 export type EvaluationFixture = {
   elements: CadElement[];
@@ -33,6 +34,7 @@ export type EvaluationFixture = {
   controlBooleanEntries?: readonly PropertyBindingRuntimeEntry[];
   textPropertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
   numericBindingEntries?: readonly NumericBindingRuntimeEntry[];
+  pathMutationProgram?: PathMutationProgram;
   compiled?: TextCompileResult;
 };
 
@@ -86,6 +88,7 @@ export const fixtureFromSource = (source: string): EvaluationFixture => {
     bindingVersions: doc.bindingVersions,
     statementInfoByElementId: doc.statementMap.byElementId,
     statementIdByStatementIndex: doc.statementMap.statementIdByStatementIndex,
+    ...(doc.pathMutationProgram ? { pathMutationProgram: doc.pathMutationProgram } : {}),
     conditionalGroupConditions: doc.conditionalGroupConditions,
     ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
     ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
@@ -114,6 +117,10 @@ export const optionsFor = (fixture: EvaluationFixture): EvaluateElementsOptions 
     forGroupMutationOwnerByElementId: forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
       fixture.bindingVersions, fixture.elements, fixture.statementInfoByElementId, fixture.statementIdByStatementIndex
     ))
+  } : {}),
+  ...(fixture.pathMutationProgram ? {
+    pathMutationProgram: fixture.pathMutationProgram,
+    statementInfoByElementId: fixture.statementInfoByElementId
   } : {}),
   ...(fixture.propertyBindingEntries?.length ? { propertyBindingEntries: fixture.propertyBindingEntries } : {}),
   ...(fixture.controlBooleanEntries?.length ? { controlBooleanEntries: fixture.controlBooleanEntries } : {}),

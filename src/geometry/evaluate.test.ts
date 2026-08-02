@@ -5659,7 +5659,7 @@ describe("evaluateElements", () => {
     expect(offset.segments[1].end).toMatchObject({ x: 110, y: 100 });
   });
 
-  it("ignores base line direction and connects the nearest endpoints", () => {
+  it("rejects an offset source chain with a reversed line", () => {
     const elements: CadElement[] = [
       {
         id: "a",
@@ -5722,17 +5722,11 @@ describe("evaluateElements", () => {
     const result = evaluateElements(elements);
     const offset = result.computedGeometry.get("offset");
 
-    expect(result.errors).toHaveLength(0);
-    expect(offset).toMatchObject({ kind: "offsetLine", length: 220 });
-    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
-    expect(offset.segments).toHaveLength(2);
-    expect(offset.segments[0].start).toMatchObject({ x: 0, y: -10 });
-    expect(offset.segments[0].end).toMatchObject({ x: 110, y: -10 });
-    expect(offset.segments[1].start).toMatchObject({ x: 110, y: -10 });
-    expect(offset.segments[1].end).toMatchObject({ x: 110, y: 100 });
+    expect(offset).toBeUndefined();
+    expect(result.errors.map((error) => error.message).join(" ")).toContain("reverse");
   });
 
-  it("keeps the first base line direction stable for multi-line offsets", () => {
+  it("rejects an offset source chain whose later curve starts at the wrong endpoint", () => {
     const elements: CadElement[] = [
       {
         id: "a",
@@ -5800,15 +5794,11 @@ describe("evaluateElements", () => {
     const result = evaluateElements(elements);
     const offset = result.computedGeometry.get("offset");
 
-    expect(result.errors).toHaveLength(0);
-    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
-    expect(offset.segments[0].start.x).toBeCloseTo(0);
-    expect(offset.segments[0].start.y).toBeCloseTo(-10);
-    expect(offset.segments[0].end.x).toBeCloseTo(100);
-    expect(offset.segments[0].end.y).toBeCloseTo(-10);
+    expect(offset).toBeUndefined();
+    expect(result.errors.map((error) => error.message).join(" ")).toContain("reverse");
   });
 
-  it("trims a folded line-to-curve offset at the actual segment intersection", () => {
+  it("does not build a folded line-to-curve offset from a discontinuous source chain", () => {
     const elements: CadElement[] = [
       {
         id: "a",
@@ -5876,18 +5866,9 @@ describe("evaluateElements", () => {
     const result = evaluateElements(elements);
     const offset = result.computedGeometry.get("offset");
 
-    expect(result.errors).toHaveLength(0);
+    expect(offset).toBeUndefined();
     expect(result.warnings).toHaveLength(0);
-    expect(offset).toMatchObject({ kind: "offsetLine" });
-    if (offset?.kind !== "offsetLine") throw new Error("Expected an offset line");
-    const lineSegments = offset.segments.filter((segment) => segment.kind === "line");
-    const bezierSegments = offset.segments.filter((segment) => segment.kind === "bezier");
-    expect(lineSegments.length).toBeGreaterThan(0);
-    expect(bezierSegments.length).toBeGreaterThan(0);
-    for (let index = 0; index < offset.segments.length - 1; index += 1) {
-      expect(offset.segments[index].end.x).toBeCloseTo(offset.segments[index + 1].start.x);
-      expect(offset.segments[index].end.y).toBeCloseTo(offset.segments[index + 1].start.y);
-    }
+    expect(result.errors.map((error) => error.message).join(" ")).toContain("reverse");
   });
 
   it("keeps Bezier-derived offset lines as smooth curve segments", () => {

@@ -28,6 +28,9 @@ pub struct EvaluationInput {
     /// `scalar_program`: Rust receives stable IDs, resolved references and
     /// source positions, never source text or names to resolve.
     pub(crate) binding_versions: Option<Value>,
+    /// Resolved `reverse <line>` statements. Kept independent from scalar
+    /// binding mutations because geometry traversal is a separate runtime.
+    pub(crate) path_mutations: Option<Value>,
     /// Task 23's elementId-keyed standard property bindings (re-keyed from
     /// `CompiledDslDocument.propertyBindings` by TS's
     /// `propertyBindingRuntime.ts`). Requires `scalar_program` to also be
