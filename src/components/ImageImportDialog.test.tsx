@@ -56,6 +56,7 @@ describe("ImageImportDialog", () => {
         detectedDpi: 72.009,
         sourceDpi: 72.009,
         targetPixelsPerMm: 72.009 / 25.4,
+        sourceInsertion: null,
         error: null
       }
     });
@@ -91,6 +92,7 @@ describe("ImageImportDialog", () => {
         detectedDpi: null,
         sourceDpi: 300,
         targetPixelsPerMm: 10,
+        sourceInsertion: null,
         error: null
       }
     });

@@ -48,8 +48,8 @@ import {
   syncCommandLineGhostPreview
 } from "./commandLineGhostPreview";
 import { promoteDirectlyReferencedUnnamedElements } from "./commandLineUnnamedPromotion";
-import { commitCommandLineSourceInsertion } from "./commandLineSourceCommit";
-import { sourceInsertionForCommandLineCreation } from "./commandLineSourceInsertion";
+import { commitSourceCreationInsertion } from "./sourceCreationCommit";
+import { sourceInsertionForCreation } from "./sourceCreationInsertion";
 import {
   commandLineDuplicateNameMessage,
   validateCommandLineElementName
@@ -115,7 +115,7 @@ export const startCommandLineCreationForRecipe = (
   const cursorElementId = context?.currentCursorElementId?.() ?? null;
   const sourceCursor = context?.currentSourceCursor?.() ?? null;
   const sourceInsertion = sourceCursor?.sourceRevision === document.sourceRevision && document.doc.statementMap
-    ? sourceInsertionForCommandLineCreation({
+    ? sourceInsertionForCreation({
         cursor: sourceCursor,
         elements: document.elements,
         statementMap: document.doc.statementMap
@@ -406,10 +406,10 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   clearCommandLineGhostPreview();
   const sourceCommit = session.sourceInsertionLine === null
     ? null
-    : commitCommandLineSourceInsertion({
-        element,
+    : commitSourceCreationInsertion({
         elements: promotion.elements,
         insertionIndex: insertionTarget.insertionIndex,
+        insertedElements: [element],
         sourceInsertionLine: session.sourceInsertionLine
       });
   const result = sourceCommit?.result ?? commitDocumentChangeAndSelect({
@@ -437,11 +437,11 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     return false;
   }
 
-  const selectedElementId = sourceCommit?.elementId ?? element.id;
-  if (sourceCommit?.elementId) {
+  const selectedElementId = sourceCommit?.selectedElementId ?? element.id;
+  if (sourceCommit?.selectedElementId) {
     useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, {
       selectedElementId,
-      selectedElementIds: [selectedElementId],
+      selectedElementIds: sourceCommit.insertedElementIds,
       selectionAnchorElementId: selectedElementId
     });
   }

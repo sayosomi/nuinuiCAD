@@ -6,6 +6,7 @@ import {
   setTemplateNumericInput,
   startTemplateInsertion
 } from "../templates/templateInsertionCommands";
+import { useCadUiStore } from "../state/cadUiStore";
 import type { Command, CommandId } from "./commandTypes";
 
 export const templateCommandDefinitions = {
@@ -16,7 +17,8 @@ export const templateCommandDefinitions = {
       if (!context?.groupTemplate) return;
       startTemplateInsertion({
         template: context.groupTemplate,
-        insertionIndex: context.insertionIndex
+        insertionIndex: context.insertionIndex,
+        sourceInsertion: useCadUiStore.getState().templateInsertionSourceInsertion
       });
     }
   },

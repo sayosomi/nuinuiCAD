@@ -1,15 +1,12 @@
-import { createCadElement } from "../model/elementFactory";
-import {
-  applyCreationPlacement,
-  creationPlacementForEvaluationLimit
-} from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
+import { createCadElement } from "../model/elementFactory";
 import { isForGroupElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
+import { addContainer } from "./containerCreation";
 import { focusCanvasAfterCreation } from "./postCreationFocus";
 
 const hasSelectedAncestor = (
@@ -25,34 +22,7 @@ const hasSelectedAncestor = (
   return false;
 };
 
-export const addForGroup = (context?: CommandContext) => {
-  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const placement = creationPlacementForEvaluationLimit(
-    elements,
-    evaluationLimitIndex
-  );
-  const { insertionIndex } = placement;
-  const group = applyCreationPlacement(createCadElement("forGroup", elements), placement);
-
-  commitDocumentChangeAndSelect({
-    elements: [
-      ...elements.slice(0, insertionIndex),
-      group,
-      ...elements.slice(insertionIndex)
-    ],
-    evaluationLimitIndex: adjustEvaluationLimitForInsertion({
-      elements,
-      evaluationLimitIndex,
-      insertionIndex,
-      insertedCount: 1
-    })
-  }, {
-    selectedElementId: group.id,
-    selectedElementIds: [group.id],
-    selectionAnchorElementId: group.id
-  });
-  focusCanvasAfterCreation(context);
-};
+export const addForGroup = (context?: CommandContext) => addContainer("forGroup", context);
 
 export const wrapSelectedElementsInForGroup = (context?: CommandContext) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();

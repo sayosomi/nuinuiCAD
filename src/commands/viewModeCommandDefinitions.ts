@@ -1,6 +1,7 @@
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
+import { resolveSourceCreationInsertion } from "./sourceCreationInsertion";
 
 const canvasZoomAnchor = (context?: CommandContext) => {
   const rect = context?.getCanvasViewportRect?.();
@@ -206,6 +207,7 @@ export const viewModeCommandDefinitions = {
       useCadUiStore.setState({
         showGroupTemplateLibrary: true,
         groupTemplateLibraryMode: "manage",
+        templateInsertionSourceInsertion: null,
         showCommandPalette: false
       });
     }
@@ -217,10 +219,17 @@ export const viewModeCommandDefinitions = {
       order: 46.7,
       keywords: ["template", "insert", "group", "テンプレート", "挿入", "グループ"]
     },
-    run: () => {
+    run: (context) => {
+      const document = useCadDocumentStore.getState();
       useCadUiStore.setState({
         showGroupTemplateLibrary: true,
         groupTemplateLibraryMode: "insert",
+        templateInsertionSourceInsertion: resolveSourceCreationInsertion({
+          cursor: context?.currentSourceCursor?.() ?? null,
+          sourceRevision: document.sourceRevision,
+          elements: document.elements,
+          statementMap: document.doc.statementMap
+        }),
         showCommandPalette: false
       });
     }
@@ -228,7 +237,10 @@ export const viewModeCommandDefinitions = {
   closeGroupTemplateLibrary: {
     id: "closeGroupTemplateLibrary",
     label: "グループテンプレートを閉じる",
-    run: () => useCadUiStore.getState().setShowGroupTemplateLibrary(false)
+    run: () => useCadUiStore.setState({
+      showGroupTemplateLibrary: false,
+      templateInsertionSourceInsertion: null
+    })
   },
   openCommandRibbonSettings: {
     id: "openCommandRibbonSettings",

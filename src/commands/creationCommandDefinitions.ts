@@ -203,8 +203,8 @@ export const creationCommandDefinitions = {
     id: "addImage",
     label: "画像を追加",
     palette: { order: 19.5, keywords: ["image", "picture", "photo", "画像", "下絵", "読込", "追加"] },
-    run: () => {
-      void addImage();
+    run: (context) => {
+      void addImage(context);
     }
   },
   addSplitLine: {

@@ -1,9 +1,5 @@
-import { createCadElement } from "../model/elementFactory";
-import {
-  applyCreationPlacement,
-  creationPlacementForEvaluationLimit
-} from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
+import { createCadElement } from "../model/elementFactory";
 import { isConditionalGroupElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -11,6 +7,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
+import { addContainer } from "./containerCreation";
 import { focusCanvasAfterCreation } from "./postCreationFocus";
 
 const hasSelectedAncestor = (
@@ -28,34 +25,7 @@ const hasSelectedAncestor = (
 
 export const addConditionalGroup = (
   context?: CommandContext
-) => {
-  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const placement = creationPlacementForEvaluationLimit(
-    elements,
-    evaluationLimitIndex
-  );
-  const { insertionIndex } = placement;
-  const group = applyCreationPlacement(createCadElement("conditionalGroup", elements), placement);
-
-  commitDocumentChangeAndSelect({
-    elements: [
-      ...elements.slice(0, insertionIndex),
-      group,
-      ...elements.slice(insertionIndex)
-    ],
-    evaluationLimitIndex: adjustEvaluationLimitForInsertion({
-      elements,
-      evaluationLimitIndex,
-      insertionIndex,
-      insertedCount: 1
-    })
-  }, {
-    selectedElementId: group.id,
-    selectedElementIds: [group.id],
-    selectionAnchorElementId: group.id
-  });
-  focusCanvasAfterCreation(context);
-};
+) => addContainer("conditionalGroup", context);
 
 export const wrapSelectedElementsInConditionalGroup = (
   context?: CommandContext

@@ -10,10 +10,6 @@ import {
   nextElementActivity,
   type ElementActivity
 } from "../model/elementActivity";
-import {
-  applyCreationPlacement,
-  creationPlacementForEvaluationLimit
-} from "../model/elementCreationPlacement";
 import { createCadElement } from "../model/elementFactory";
 import {
   adjustEvaluationLimitForDeletion,
@@ -403,39 +399,6 @@ export const groupSelectedElements = (context?: CommandContext) => {
       elements,
       evaluationLimitIndex,
       insertionIndex: firstIndex,
-      insertedCount: 1
-    })
-  }, {
-    selectedElementId: group.id,
-    selectedElementIds: [group.id],
-    selectionAnchorElementId: group.id
-  });
-  useCadUiStore.getState().setCommandErrorMessage(null);
-  focusCanvasAfterCreation(context);
-};
-
-export const addGroup = (context?: CommandContext) => {
-  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const placement = creationPlacementForEvaluationLimit(
-    elements,
-    evaluationLimitIndex
-  );
-  const { insertionIndex } = placement;
-  const group = applyCreationPlacement(
-    createCadElement("group", elements),
-    placement
-  );
-
-  commitDocumentChangeAndSelect({
-    elements: [
-      ...elements.slice(0, insertionIndex),
-      group,
-      ...elements.slice(insertionIndex)
-    ],
-    evaluationLimitIndex: adjustEvaluationLimitForInsertion({
-      elements,
-      evaluationLimitIndex,
-      insertionIndex,
       insertedCount: 1
     })
   }, {

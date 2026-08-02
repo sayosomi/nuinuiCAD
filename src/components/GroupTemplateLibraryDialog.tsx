@@ -47,6 +47,7 @@ export const GroupTemplateLibraryDialog = () => {
   const groupTemplateLibraryMode = useCadUiStore((state) => state.groupTemplateLibraryMode);
   const elements = useCadDocumentStore((state) => state.elements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
+  const templateInsertionSourceInsertion = useCadUiStore((state) => state.templateInsertionSourceInsertion);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const [library, setLibrary] = useState<GroupTemplateLibrary>({ version: 1, templates: [] });
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -56,10 +57,8 @@ export const GroupTemplateLibraryDialog = () => {
   const [status, setStatus] = useState<string | null>(null);
   const group = selectedGroup(elements, selectedElementId);
   const saveTemplateName = templateName.trim() || (group?.name ? `${group.name} テンプレート` : "");
-  const insertionIndex = creationPlacementForEvaluationLimit(
-    elements,
-    evaluationLimitIndex
-  ).insertionIndex;
+  const insertionIndex = templateInsertionSourceInsertion?.insertionTarget.insertionIndex
+    ?? creationPlacementForEvaluationLimit(elements, evaluationLimitIndex).insertionIndex;
 
   const templateElements = useMemo(
     () => group ? elements.filter((element) => subtreeIdsForElement(elements, group.id).includes(element.id)) : [],

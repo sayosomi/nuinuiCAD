@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
-import { sourceInsertionForCommandLineCreation } from "./commandLineSourceInsertion";
+import { sourceInsertionForCreation } from "./sourceCreationInsertion";
 
 const compiled = (lines: string[]) => {
   const result = compileDslDocument(lines.join("\n"));
@@ -17,11 +17,12 @@ describe("command-line source insertion", () => {
     ]);
     const pointA = result.document!.elements.find((element) => element.name === "A")!;
 
-    expect(sourceInsertionForCommandLineCreation({
+    expect(sourceInsertionForCreation({
       cursor: { sourceRevision: 1, line: 2, lineCount: result.sourceLines.length, elementId: pointA.id },
       elements: result.document!.elements,
       statementMap: result.statementMap!
     })).toEqual({
+      sourceRevision: 1,
       insertionTarget: { insertionIndex: 1 },
       sourceInsertionLine: 3
     });
@@ -38,11 +39,12 @@ describe("command-line source insertion", () => {
     ]);
     const group = result.document!.elements.find((element) => element.name === "G")!;
 
-    expect(sourceInsertionForCommandLineCreation({
+    expect(sourceInsertionForCreation({
       cursor: { sourceRevision: 1, line: 4, lineCount: result.sourceLines.length, elementId: null },
       elements: result.document!.elements,
       statementMap: result.statementMap!
     })).toEqual({
+      sourceRevision: 1,
       insertionTarget: { insertionIndex: 2, parentGroupId: group.id },
       sourceInsertionLine: 4
     });
@@ -57,11 +59,12 @@ describe("command-line source insertion", () => {
       "point B = coordinate(x: 1 y: 1)"
     ]);
 
-    expect(sourceInsertionForCommandLineCreation({
+    expect(sourceInsertionForCreation({
       cursor: { sourceRevision: 1, line: 4, lineCount: result.sourceLines.length, elementId: null },
       elements: result.document!.elements,
       statementMap: result.statementMap!
     })).toEqual({
+      sourceRevision: 1,
       insertionTarget: { insertionIndex: 1 },
       sourceInsertionLine: 4
     });

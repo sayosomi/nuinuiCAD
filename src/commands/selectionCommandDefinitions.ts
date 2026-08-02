@@ -22,7 +22,6 @@ import {
   wrapSelectedElementsInForGroup
 } from "./forGroupCommands";
 import {
-  addGroup,
   extendSelectionByOffset,
   groupSelectedElements,
   indentSelectedElements,
@@ -46,6 +45,7 @@ import {
   toggleGroupExpanded,
   ungroupSelectedGroup
 } from "./selectionCommands";
+import { addContainer } from "./containerCreation";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
 import { formatDslName } from "../dsl/dslTokens";
 
@@ -315,7 +315,7 @@ export const selectionCommandDefinitions = {
     id: "addGroup",
     label: "グループを追加",
     palette: { order: 34.1, keywords: ["group", "folder", "empty", "グループ", "フォルダ", "追加", "空"] },
-    run: (context) => addGroup(context)
+    run: (context) => addContainer("group", context)
   },
   addConditionalGroup: {
     id: "addConditionalGroup",

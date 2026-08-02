@@ -89,15 +89,16 @@ const ImageImportForm = ({
       return;
     }
 
-    commitPendingImageImport({
+    const committed = commitPendingImageImport({
       sourcePath: pendingImageImport.sourcePath,
       displayName: pendingImageImport.displayName,
       naturalWidthPx: pendingImageImport.naturalWidthPx,
       naturalHeightPx: pendingImageImport.naturalHeightPx,
       sourceDpi,
-      targetPixelsPerMm
+      targetPixelsPerMm,
+      sourceInsertion: pendingImageImport.sourceInsertion
     });
-    close();
+    if (committed) close();
   };
 
   const sourceDpi = positiveNumber(sourceDpiInput);
