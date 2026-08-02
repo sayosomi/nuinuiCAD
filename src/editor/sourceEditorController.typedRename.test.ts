@@ -57,6 +57,33 @@ describe("SourceEditorController typed binding rename - selection/cursor preserv
     controller.destroy();
   });
 
+  it("preserves blank lines when a declaration and a final-line reference are renamed together", () => {
+    const sourceWithFinalReference = [
+      "nui 3",
+      "",
+      "const zoom_ratio: number = 2",
+      "const SA: number = 7 * @zoom_ratio"
+    ].join("\n");
+    const expected = [
+      "nui 3",
+      "",
+      "const ZOOM_RATIO: number = 2",
+      "const SA: number = 7 * @ZOOM_RATIO"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(sourceWithFinalReference, "test");
+    const id = typedBindingId("zoom_ratio");
+
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+
+    expect(renameTypedBindingWithPropagation(id, "ZOOM_RATIO")).toBe(true);
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+    expect(internals.view.state.doc.toString()).toBe(expected);
+
+    controller.destroy();
+  });
+
   it("leaves the CM selection completely untouched on a same-scope collision rejection", () => {
     useCadDocumentStore.getState().commitText(["nui 3", "const a: number = 1", "const b: number = 2"].join("\n"), "test");
     const id = typedBindingId("a");
