@@ -593,6 +593,51 @@ describe("SourceEditorController structural shortcuts", () => {
     controller.destroy();
   });
 
+  it("moves a collapsed element as one unit from its visible closing row with Option+Arrow", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 2",
+      "point Before = coordinate(x: 0 y: 0)",
+      "group G {",
+      "  point Child = coordinate(x: 1 y: 1)",
+      "}",
+      "point After = coordinate(x: 2 y: 2)"
+    ].join("\n"), "test");
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+    useCadUiStore.getState().setGroupFold(group.id, { expanded: false });
+    const { controller, content } = buildController();
+    const internals = controller as unknown as ControllerInternals;
+    const closingBrace = internals.view.state.doc.line(5);
+    internals.view.dispatch({ selection: { anchor: closingBrace.from } });
+
+    fireEvent.keyDown(content, { key: "ArrowUp", altKey: true });
+    fireEvent.keyDown(content, { key: "ArrowDown", altKey: true });
+
+    expect(dispatchCommand).toHaveBeenCalledWith("moveSelectedElementUp", {
+      elementId: group.id,
+      moveCursorElementOnly: true
+    });
+    expect(dispatchCommand).toHaveBeenCalledWith("moveSelectedElementDown", {
+      elementId: group.id,
+      moveCursorElementOnly: true
+    });
+    controller.destroy();
+  });
+
+  it("leaves Option+Arrow to CodeMirror when the current row is not folded", () => {
+    useCadDocumentStore.getState().commitText(twoPointSource(), "test");
+    const { controller, content } = buildController();
+    const internals = controller as unknown as ControllerInternals;
+    const secondLine = internals.view.state.doc.line(3);
+    const sourceBefore = internals.view.state.doc.toString();
+    internals.view.dispatch({ selection: { anchor: secondLine.from } });
+
+    fireEvent.keyDown(content, { key: "ArrowUp", altKey: true });
+
+    expect(dispatchedCommandIds()).not.toContain("moveSelectedElementUp");
+    expect(internals.view.state.doc.toString()).not.toBe(sourceBefore);
+    controller.destroy();
+  });
+
   it("routes clean-editor Mod+Z, Mod+Y, and Mod+Shift+Z to document history", () => {
     const { controller, content } = buildController();
 

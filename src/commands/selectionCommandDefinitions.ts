@@ -198,9 +198,11 @@ export const selectionCommandDefinitions = {
     label: "選択要素を上へ",
     palette: { order: 28, keywords: ["move", "up", "上", "並べ替え"] },
     shortcuts: [{ keys: "Mod+ArrowUp / Alt+ArrowUp", label: "選択要素を上へ移動" }],
-    run: () => {
+    run: (context) => {
       const { elements } = useCadDocumentStore.getState();
-      const selectedIds = getSelectedElementIds();
+      const selectedIds = context?.moveCursorElementOnly && context.elementId
+        ? [context.elementId]
+        : getSelectedElementIds();
       const movingIds = selectedIds.flatMap((id) => subtreeIdsForElement(elements, id));
       const indexes = selectedIndexes(elements, movingIds);
       if (indexes.length === 0 || indexes[0] <= 0) return;
@@ -212,9 +214,11 @@ export const selectionCommandDefinitions = {
     label: "選択要素を下へ",
     palette: { order: 29, keywords: ["move", "down", "下", "並べ替え"] },
     shortcuts: [{ keys: "Mod+ArrowDown / Alt+ArrowDown", label: "選択要素を下へ移動" }],
-    run: () => {
+    run: (context) => {
       const { elements } = useCadDocumentStore.getState();
-      const selectedIds = getSelectedElementIds();
+      const selectedIds = context?.moveCursorElementOnly && context.elementId
+        ? [context.elementId]
+        : getSelectedElementIds();
       const movingIds = selectedIds.flatMap((id) => subtreeIdsForElement(elements, id));
       const indexes = selectedIndexes(elements, movingIds);
       const lastIndex = indexes.at(-1) ?? -1;

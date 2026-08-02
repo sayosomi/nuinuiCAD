@@ -192,6 +192,8 @@ export type CommandContext = {
   evaluationLimitIndex?: number;
   evaluation?: EvaluationResult;
   selectionMode?: "replace" | "toggle" | "range";
+  /** Source Editor folded-block move: use elementId alone instead of the current multi-selection. */
+  moveCursorElementOnly?: boolean;
   dx?: number;
   dy?: number;
   angleLocked?: boolean;

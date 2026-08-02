@@ -97,7 +97,12 @@ import {
   type TypedDeclarationFieldRangeIndex,
   type TypedDeclarationRangeIndex
 } from "./statementRangeIndex";
-import { foldProjectionTransaction, foldTargetAtLine, foldTargets } from "./sourceEditorFolding";
+import {
+  collapsedFoldTargetAtLine,
+  foldProjectionTransaction,
+  foldTargetAtLine,
+  foldTargets
+} from "./sourceEditorFolding";
 import { secondarySelectionEffect, sourceEditorSelectionExtension } from "./sourceEditorSelection";
 import { patchHighlightPayloadForChanges, setPatchHighlight, sourceEditorPatchHighlightExtension } from "./sourceEditorPatchHighlight";
 import { createDiagnosticsExtension, diagnosticsForCurrentView, type DiagnosticsExtensionSource } from "./sourceEditorDiagnosticsExtension";
@@ -1479,6 +1484,14 @@ export class SourceEditorController implements SourceEditorHandle {
   private editorShortcutBindings(): KeyBinding[] {
     return [
       {
+        key: "Alt-ArrowUp",
+        run: (view) => this.moveCollapsedFoldedElement(view, "moveSelectedElementUp")
+      },
+      {
+        key: "Alt-ArrowDown",
+        run: (view) => this.moveCollapsedFoldedElement(view, "moveSelectedElementDown")
+      },
+      {
         any: (view, event) =>
           event.shiftKey && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"
             ? deleteLine(view)
@@ -1486,6 +1499,28 @@ export class SourceEditorController implements SourceEditorHandle {
       },
       ...this.editorShortcutKeymap()
     ];
+  }
+
+  /** Lets CodeMirror keep its normal Option line move unless a collapsed element owns the visible row. */
+  private moveCollapsedFoldedElement(
+    view: EditorView,
+    commandId: "moveSelectedElementUp" | "moveSelectedElementDown"
+  ) {
+    if (this.protocol.composing || view.compositionStarted || view.state.selection.ranges.length !== 1) return false;
+    const ui = this.uiStore.getState();
+    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget || ui.activeTemplateInsertion) return false;
+    const lineFrom = view.state.doc.lineAt(view.state.selection.main.head).from;
+    const target = collapsedFoldTargetAtLine(
+      this.statementRanges,
+      this.store.getState().elements,
+      ui.groupFoldById,
+      lineFrom
+    );
+    if (!target) return false;
+    return dispatchCommand(commandId, {
+      elementId: target.elementId,
+      moveCursorElementOnly: true
+    }) !== false;
   }
 
   private handleViewUpdate(update: ViewUpdate) {
