@@ -327,6 +327,15 @@ const setStatementVersionDiagnostics = (
     .map((statement) => requireDslMajorVersionForFeature(majorVersion, 3, statement.line, "set 文"))
     .filter((item): item is DslDiagnostic => item !== null);
 
+const reverseStatementVersionDiagnostics = (
+  statements: DslStatement[],
+  majorVersion: DslMajorVersion
+): DslDiagnostic[] =>
+  statements
+    .filter((statement): statement is Extract<DslStatement, { kind: "reverse" }> => statement.kind === "reverse")
+    .map((statement) => requireDslMajorVersionForFeature(majorVersion, 3, statement.line, "reverse 文"))
+    .filter((item): item is DslDiagnostic => item !== null);
+
 const buildBlockPrintLayouts = ({
   statements,
   layouts,
@@ -469,7 +478,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
   diagnostics.push(
     ...typedDeclarationVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION),
-    ...setStatementVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION)
+    ...setStatementVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION),
+    ...reverseStatementVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION)
   );
   const printLayoutIdsByStatementIndex = new Map<number, string>();
   const visibilitySettings = applyVisibilitySettings({

@@ -115,6 +115,7 @@ export type CommandId =
   | "addSymmetricCopyLine"
   | "addMove"
   | "addSymmetricMove"
+  | "reverseSelectedPath"
   | "addImage"
   | "addNumericVariable"
   | "deleteNumericVariable"

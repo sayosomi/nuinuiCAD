@@ -141,6 +141,7 @@ export type DslStatement =
        * typedDeclaration uses for its own declared name. */
       expression: string;
     })
+  | (DslStatementBase & { kind: "reverse" })
   | (DslStatementBase & { kind: "blockEnd" })
   | (DslStatementBase & { kind: "blockElse" });
 

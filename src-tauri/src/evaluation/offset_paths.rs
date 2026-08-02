@@ -4,10 +4,7 @@ use super::offset_bezier::offset_bezier_segment_groups;
 use super::offset_joins::{
     join_intersection, line_connector, pointed_join_connectors, with_end, with_start,
 };
-use super::offset_source_segments::{
-    connect_source_segment_groups, connector_segment, source_end, source_segments_for_geometry,
-    source_start,
-};
+use super::offset_source_segments::{connect_source_segment_groups, source_segments_for_geometry};
 use super::offset_types::{
     arc_point, computed_point, line_length, normalize_degrees, offset_line_endpoint_measurements,
     segment_end, segment_start, JoinMode, OffsetBuildResult, OffsetPoint, OffsetSegment,
@@ -166,15 +163,9 @@ pub(crate) fn build_offset_line_geometry(
         };
     }
 
-    let mut connected_source_segments =
-        connect_source_segment_groups(&source_segment_groups, closed);
-    if closed {
-        if let Some(connector) = connector_segment(
-            source_end(connected_source_segments.last().unwrap()),
-            source_start(&connected_source_segments[0]),
-        ) {
-            connected_source_segments.push(connector);
-        }
+    let connected_source_segments = connect_source_segment_groups(&source_segment_groups, closed);
+    if connected_source_segments.is_empty() {
+        return OffsetBuildResult { geometry: None, error: Some(format!("{name} の sources は前の線.end から次の線.start へ連続していません。reverse を使うか順序を見直してください。")), warnings: Vec::new() };
     }
 
     let mut raw_segments = Vec::<RawOffsetSegment>::new();

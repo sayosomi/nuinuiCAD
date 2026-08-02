@@ -20,10 +20,7 @@ import { offsetLineEndpointMeasurements } from "./lineMeasurements";
 import type { RawOffsetSegment, SourceSegment } from "./offsetPathTypes";
 import {
   connectSourceSegmentGroups,
-  connectorSegment,
-  sourceEnd,
-  sourceSegmentsForGeometry,
-  sourceStart
+  sourceSegmentsForGeometry
 } from "./offsetSourceSegments";
 
 const offsetLineSegment = (
@@ -122,13 +119,8 @@ export const buildOffsetLineGeometry = ({
   }
 
   const connectedSourceSegments = connectSourceSegmentGroups(sourceSegmentGroups, closed);
-
-  if (closed) {
-    const connector = connectorSegment(
-      sourceEnd(connectedSourceSegments.at(-1)!),
-      sourceStart(connectedSourceSegments[0])
-    );
-    if (connector) connectedSourceSegments.push(connector);
+  if (!connectedSourceSegments) {
+    return { error: `${name} の sources は前の線.end から次の線.start へ連続していません。reverse を使うか順序を見直してください。` };
   }
 
   const rawSegments: RawOffsetSegment[] = [];

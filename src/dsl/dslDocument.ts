@@ -36,6 +36,7 @@ import { buildTypedDependencyGraph, type TypedDependencyGraph } from "../scalars
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
+import { compilePathMutationProgram, type PathMutationProgram } from "../geometry/pathMutationProgram";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
@@ -209,6 +210,7 @@ export type CompiledDslDocument = {
   setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   /** Task 30 evaluation-neutral declaration/set version graph. */
   bindingVersions?: BindingVersionGraph;
+  pathMutationProgram?: PathMutationProgram;
   /** Task 36 static dependency graph for this exact compile attempt. */
   typedDependencyGraph?: TypedDependencyGraph;
   /**
@@ -863,7 +865,8 @@ export const compileDslDocument = (
   // fallback empty source instead of the caller's real reconciliation
   // output.
   const hasSetStatements = parsed.statements.some((statement) => statement.kind === "set");
-  const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements)
+  const hasReverseStatements = parsed.statements.some((statement) => statement.kind === "reverse");
+  const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements || hasReverseStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
   if (stableStatementIdByIndex) {
@@ -994,6 +997,14 @@ export const compileDslDocument = (
       spans
       })
     : undefined;
+  const pathMutationCompilation = stableStatementIdByIndex && versionValidation.majorVersion === 3 && hasReverseStatements
+    ? compilePathMutationProgram({
+        statements: parsed.statements,
+        elements: compiled.elements,
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+        statementIdByStatementIndex: stableStatementIdByIndex
+      })
+    : undefined;
   // Task 30 only consumes products of the compiler/analysis passes above.
   // It intentionally remains available for a recoverable invalid let: the
   // compiled document is still erroneous, but Task 31 needs the poisoned
@@ -1028,7 +1039,8 @@ export const compileDslDocument = (
     ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
     ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : []),
     ...(propertyReferenceSyntaxCompilation ? propertyReferenceSyntaxCompilation.diagnostics : []),
-    ...(setStatementCompilation ? setStatementCompilation.diagnostics : [])
+    ...(setStatementCompilation ? setStatementCompilation.diagnostics : []),
+    ...(pathMutationCompilation ? pathMutationCompilation.diagnostics : [])
   ];
   if (finalDiagnostics.some((item) => item.severity === "error")) {
     return {
@@ -1045,6 +1057,7 @@ export const compileDslDocument = (
       ...(numericBindingCompilation ? { numericBindings: numericBindingCompilation.sourcesByOccurrenceKey } : {}),
       ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
       ...(bindingVersions ? { bindingVersions } : {}),
+      ...(pathMutationCompilation ? { pathMutationProgram: pathMutationCompilation.program } : {}),
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
       ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
     };
@@ -1099,6 +1112,7 @@ export const compileDslDocument = (
     ...(textTemplateCompilation ? { textTemplates: textTemplateCompilation.templatesByOccurrenceKey } : {}),
     ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
     ...(bindingVersions ? { bindingVersions } : {}),
+    ...(pathMutationCompilation ? { pathMutationProgram: pathMutationCompilation.program } : {}),
     ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
     ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
   };

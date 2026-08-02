@@ -3,7 +3,7 @@ import { documentDslRefs, serializedStatementLines } from "./dslSerializer";
 import { serializeTypedDeclaration } from "./dslDeclarationSerializer";
 import { serializeElementStatementBlock } from "./dslSerializeElement";
 import { serializeSetStatement } from "./dslSetSerializer";
-import { DSL_INDENT, splitDslComment } from "./dslTokens";
+import { DSL_INDENT, formatDslName, splitDslComment } from "./dslTokens";
 import type { CompiledDslDocument, StatementInfo } from "./dslDocument";
 import type { DslStatement } from "./dslTypes";
 
@@ -105,6 +105,8 @@ export const serializeNui3Statement = (
       return { status: "serialized", replacementLines: [`${indent}${serializeTypedDeclaration(located.statement)}`] };
     case "set":
       return { status: "serialized", replacementLines: [`${indent}${serializeSetStatement(located.statement)}`] };
+    case "reverse":
+      return { status: "serialized", replacementLines: [`${indent}reverse ${formatDslName(located.statement.name)}`] };
     case "element":
     case "group":
       return serializeElementStatement(compiled, statementIndex, located.statement, indent);

@@ -318,6 +318,9 @@ export const canUseRustEvaluationForElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ) => {
+  // Path mutations have a TS reference implementation while the Rust payload
+  // contract is being introduced. Never silently drop a source `reverse`.
+  if (options.pathMutationProgram?.reversals.length) return false;
   if (options.bindingVersions && hasSetVersions(options.bindingVersions) &&
     !isRustLinearMutationEligible(options.bindingVersions)) return false;
   if (options.bindingVersions?.versions.some((version) => version.control.ownerChain.some((owner) => owner.kind === "conditionalBranch")) &&

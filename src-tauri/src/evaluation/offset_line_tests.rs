@@ -126,7 +126,7 @@ fn evaluates_local_expression_offset() {
 }
 
 #[test]
-fn connects_reversed_base_lines() {
+fn rejects_reversed_base_lines_without_an_explicit_reverse() {
     let elements = vec![
         element(
             json!({ "id": "a", "name": "A", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": 0 }),
@@ -158,15 +158,11 @@ fn connects_reversed_base_lines() {
         binding_versions: None,
     });
 
-    assert!(result.errors.is_empty());
-    let offset = geometry(&result, "offset");
-    assert_close(offset["length"].as_f64().unwrap(), 220.0);
-    assert_close(offset["segments"][0]["end"]["x"].as_f64().unwrap(), 110.0);
-    assert_close(offset["segments"][1]["start"]["x"].as_f64().unwrap(), 110.0);
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
-fn keeps_first_base_line_direction_stable() {
+fn rejects_a_source_chain_that_does_not_follow_the_first_line() {
     let elements = vec![
         element(
             json!({ "id": "a", "name": "A", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": 0 }),
@@ -209,12 +205,7 @@ fn keeps_first_base_line_direction_stable() {
         binding_versions: None,
     });
 
-    assert!(result.errors.is_empty());
-    let offset = geometry(&result, "offset");
-    assert_close(offset["segments"][0]["start"]["x"].as_f64().unwrap(), 0.0);
-    assert_close(offset["segments"][0]["start"]["y"].as_f64().unwrap(), -10.0);
-    assert_close(offset["segments"][0]["end"]["x"].as_f64().unwrap(), 100.0);
-    assert_close(offset["segments"][0]["end"]["y"].as_f64().unwrap(), -10.0);
+    assert!(!result.errors.is_empty());
 }
 
 #[test]

@@ -77,6 +77,19 @@ text label = label(
 )
 ```
 
+### パスの向きを反転する
+
+`reverse 線名` は新しい線を作らず、その文より後で使われる対象パスの向きだけを反転します。`start`/`end`、接線、円弧の sweep、Bezier の制御点順も反転します。
+
+```text
+line AB = segment(start: A end: B)
+line CB = segment(start: C end: B)
+reverse CB
+line seam = offset(sources: [AB, CB] distance: 10 side: right closed: false)
+```
+
+`offset`、`copy`、`mirrorCopy` は sources の順序と向きをそのまま使います。前の線の `end` と次の線の `start` が一致しない場合は結果を作らず、`reverse` または sources の並びを修正する診断を表示します。
+
 `between` と `onLine` の `distance` と `ratio` は排他的です。どちらか一方だけを指定してください。
 
 点と点の距離・角度など、既存点線から数値を求める`var`は次のように書きます。

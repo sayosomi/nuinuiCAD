@@ -19,28 +19,8 @@ fn bezier_curve(id: &str, start_id: &str, end_id: &str) -> Value {
     }))
 }
 
-fn segment_endpoint_matches(segment: &Value, key: &str, x: f64, y: f64) -> bool {
-    let Some(point) = segment.get(key) else {
-        return false;
-    };
-    let Some(actual_x) = point.get("x").and_then(Value::as_f64) else {
-        return false;
-    };
-    let Some(actual_y) = point.get("y").and_then(Value::as_f64) else {
-        return false;
-    };
-    (actual_x - x).abs() < 1e-6 && (actual_y - y).abs() < 1e-6
-}
-
-fn has_segment_endpoint(segments: &[Value], x: f64, y: f64) -> bool {
-    segments.iter().any(|segment| {
-        segment_endpoint_matches(segment, "start", x, y)
-            || segment_endpoint_matches(segment, "end", x, y)
-    })
-}
-
 #[test]
-fn copy_line_transforms_line_arc_bezier_and_offset_line() {
+fn copy_line_rejects_a_discontinuous_source_list() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
         control_boolean_bindings: None,
@@ -96,14 +76,7 @@ fn copy_line_transforms_line_arc_bezier_and_offset_line() {
         binding_versions: None,
     });
 
-    assert!(result.errors.is_empty());
-    let copy = geometry(&result, "copy");
-    assert_eq!(copy["kind"], json!("offsetLine"));
-    let segments = copy["segments"].as_array().unwrap();
-    assert!(segments.len() >= 4);
-    assert!(has_segment_endpoint(segments, 20.0, 10.0));
-    assert!(has_segment_endpoint(segments, 20.0, 110.0));
-    assert!(copy["length"].as_f64().unwrap() > 230.0);
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
@@ -246,7 +219,7 @@ fn copy_line_and_move_scale_around_end_point() {
 }
 
 #[test]
-fn symmetric_copy_line_reflects_base_lines() {
+fn symmetric_copy_line_rejects_a_discontinuous_source_list() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
         control_boolean_bindings: None,
@@ -277,14 +250,7 @@ fn symmetric_copy_line_reflects_base_lines() {
         binding_versions: None,
     });
 
-    assert!(result.errors.is_empty());
-    let copy = geometry(&result, "copy");
-    assert_eq!(copy["segments"].as_array().unwrap().len(), 2);
-    assert_close(copy["segments"][0]["start"]["y"].as_f64().unwrap(), -10.0);
-    assert_close(
-        copy["segments"][1]["control1"]["y"].as_f64().unwrap(),
-        -10.0,
-    );
+    assert!(!result.errors.is_empty());
 }
 
 #[test]
