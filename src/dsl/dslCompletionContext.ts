@@ -19,6 +19,7 @@ import {
   printLayoutNumericAttrKeys
 } from "./dslPrintLayoutAttributes";
 import { typedDeclarationInitializerCompletionContext } from "./dslTypedDeclarationCompletionContext";
+import { numericTypeOptionCompletionContextAt } from "./dslNumericTypeOptionsCompletionContext";
 import { propertyScalarValueCompletionContext, type PropertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
 import { templateHoleContentSpanAt } from "./dslTemplateHoleCompletionContext";
 import { setCompletionContextAt } from "./dslSetCompletionContext";
@@ -33,6 +34,7 @@ export type DslCompletionContext =
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
   | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean }
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
+  | { kind: "numericTypeOption"; from: number; to: number; options: readonly ("step" | "min" | "max")[] }
   | { kind: "propertyScalarValue"; from: number; to: number; propertyContext: PropertyScalarValueCompletionContext }
   | { kind: "templateHole"; from: number; to: number; contentSpan: DslSpan }
   | { kind: "setTarget"; from: number; to: number }
@@ -306,6 +308,9 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
 
   const callContext = dslCallCompletionContextAt(code, pos);
   if (callContext) return callContext;
+
+  const numericTypeOptionContext = numericTypeOptionCompletionContextAt(code, pos);
+  if (numericTypeOptionContext) return { kind: "numericTypeOption", ...numericTypeOptionContext };
 
   const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
   if (typedDeclarationContext) {

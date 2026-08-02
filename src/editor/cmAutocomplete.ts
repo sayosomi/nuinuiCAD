@@ -565,6 +565,13 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   } else if (completionContext.kind === "argument") {
     completions = argumentCompletionCandidates(completionContext.spec, completionContext.usedArgumentNames)
       .map((candidate) => ({ ...candidate, type: "property" }));
+  } else if (completionContext.kind === "numericTypeOption") {
+    completions = completionContext.options.map((label, index) => ({
+      label,
+      apply: `${label}: `,
+      type: "property",
+      sortText: String(index).padStart(4, "0")
+    }));
   } else if (completionContext.kind === "elementParameter") {
     // Rust evaluation is asynchronous (useEvaluationEngine.ts): while it
     // hasn't caught up with the live document, computedGeometry/
