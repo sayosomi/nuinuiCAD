@@ -1,0 +1,8 @@
+nui 3
+point A = coordinate(x: 0 y: 0)
+point B = coordinate(x: 10 y: 0)
+point C = coordinate(x: 10 y: 10)
+line AB = segment(start: A end: B)
+line CB = segment(start: C end: B)
+reverse CB
+line Seam = offset(sources: [AB, CB] distance: 1 side: right closed: false)

@@ -43,7 +43,7 @@ export type ReconcileOptions = {
   /** 段階6の新規ID生成器。省略時は createCadElementId。テストでは決定論的生成器を注入する。 */
   createId?: (type: CadElementType) => ElementId;
   /** typed declaration/set用のopaque identity生成器。 */
-  createStatementId?: (kind: "typedDeclaration" | "set") => StatementIdentity;
+  createStatementId?: (kind: "typedDeclaration" | "set" | "reverse") => StatementIdentity;
 };
 
 export type ReconcileResult = {
@@ -165,9 +165,9 @@ export const reconcileStatements = (
   const createdIds = new Map<number, StatementIdentity>();
 
   const isIdentityStatement = (statement: DslStatement) =>
-    isElementDslStatement(statement) || statement.kind === "typedDeclaration" || statement.kind === "set";
+    isElementDslStatement(statement) || statement.kind === "typedDeclaration" || statement.kind === "set" || statement.kind === "reverse";
   const identityKindOf = (statement: DslStatement) =>
-    statement.kind === "typedDeclaration" || statement.kind === "set" ? statement.kind : statementTypeOf(statement);
+    statement.kind === "typedDeclaration" || statement.kind === "set" || statement.kind === "reverse" ? statement.kind : statementTypeOf(statement);
 
   // 残余(未対応のidentity-bearing文index)。
   const oldResidue = new Set<number>();
@@ -361,7 +361,7 @@ export const reconcileStatements = (
   // ==== 段階6: 新規ID / 消滅 ====
   for (const index of residueList(newResidue)) {
     const statement = newStatements[index];
-    const id = statement.kind === "typedDeclaration" || statement.kind === "set"
+    const id = statement.kind === "typedDeclaration" || statement.kind === "set" || statement.kind === "reverse"
       ? createStatementId(statement.kind)
       : createId(statementTypeOf(statement));
     assignedIds.set(index, id);

@@ -184,6 +184,10 @@ export const evaluateSymmetricCopyLineElement = (
   }
 
   const sourceSegments = connectSourceSegmentGroups(sourceSegmentGroups, false);
+  if (!sourceSegments) {
+    errors.push(geometryError(element, `${element.name} の基準線は指定順・指定方向で連続していません。reverse を使うか順序を見直してください。`));
+    return true;
+  }
   const segments = sourceSegments.flatMap((segment, index) => {
     const transformed = transformedSegment({
       segment,

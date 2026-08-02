@@ -46,6 +46,7 @@ fn simple_bezier() -> Value {
 #[test]
 fn evaluates_single_segment_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -76,6 +77,7 @@ fn evaluates_single_segment_bezier_curve() {
 #[test]
 fn evaluates_multi_segment_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -123,6 +125,7 @@ fn evaluates_multi_segment_bezier_curve() {
 #[test]
 fn evaluates_bezier_curve_from_coordinate_anchors() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -167,6 +170,7 @@ fn evaluates_bezier_curve_from_coordinate_anchors() {
 #[test]
 fn reports_bezier_curve_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -194,6 +198,7 @@ fn reports_bezier_curve_dependency_that_appears_too_late() {
 #[test]
 fn evaluates_bezier_curve_numeric_variables_and_expressions() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -238,6 +243,7 @@ fn evaluates_bezier_curve_numeric_variables_and_expressions() {
 #[test]
 fn evaluates_bezier_curve_numeric_variable_ids_with_hyphens() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -303,6 +309,7 @@ fn evaluates_bezier_curve_numeric_variable_ids_with_hyphens() {
 #[test]
 fn resolves_bezier_derived_points() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -360,6 +367,7 @@ fn resolves_bezier_derived_points() {
 #[test]
 fn allows_supported_point_elements_to_reference_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,

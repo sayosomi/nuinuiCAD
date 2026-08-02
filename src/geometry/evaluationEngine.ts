@@ -318,6 +318,16 @@ export const canUseRustEvaluationForElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
 ) => {
+  if (options.pathMutationProgram?.reversals.length) {
+    if (!options.statementInfoByElementId || elements.some((element) => !options.statementInfoByElementId!.has(element.id))) return false;
+    const elementIdByStatementIndex = new Map(
+      [...options.statementInfoByElementId].map(([elementId, info]) => [info.statementIndex, elementId])
+    );
+    if (options.pathMutationProgram.reversals.some((reversal) =>
+      reversal.conditionalOwnerStatementIndex !== undefined &&
+      !elementIdByStatementIndex.has(reversal.conditionalOwnerStatementIndex)
+    )) return false;
+  }
   if (options.bindingVersions && hasSetVersions(options.bindingVersions) &&
     !isRustLinearMutationEligible(options.bindingVersions)) return false;
   if (options.bindingVersions?.versions.some((version) => version.control.ownerChain.some((owner) => owner.kind === "conditionalBranch")) &&
@@ -384,7 +394,10 @@ export const evaluateElementsWithRust = async (
   options: EvaluateElementsOptions = {}
 ): Promise<EvaluationResult> => {
   const rustEligible = canUseRustEvaluationForElements(elements, options);
-  const input = buildRustEvaluationInput(elements, options, { includeBindingVersions: rustEligible });
+  const input = buildRustEvaluationInput(elements, options, {
+    includeBindingVersions: rustEligible,
+    includePathMutations: rustEligible
+  });
   const payload = await invoke<EvaluationPayload>("evaluate_document", {
     input
   });

@@ -46,6 +46,7 @@ fn input(elements: Vec<Value>, versions: Vec<Value>, cutoff: Option<usize>) -> E
         binding_versions["evaluationLimitSourceOrder"] = json!(cutoff);
     }
     EvaluationInput {
+        path_mutations: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -207,6 +208,7 @@ fn mutation_payload_rejects_inconsistent_ids_types_choices_and_control_owners() 
     malformed.push(control_owner);
     for binding_versions in malformed {
         let error = evaluate_document(EvaluationInput {
+            path_mutations: None,
             binding_versions: Some(binding_versions),
             ..input(vec![], vec![], None)
         })
@@ -267,6 +269,7 @@ fn production_command_runs_for_group_mutation_and_carries_the_final_slot() {
         "parentGroupId":loop_id,"x":0,"y":0
     });
     let result = evaluate_document(EvaluationInput {
+        path_mutations: None,
         elements: vec![for_group(loop_id), template],
         evaluation_limit_index: None,
         scalar_expression_payload: None,
@@ -335,6 +338,7 @@ fn nested_inner_stop_stops_remaining_inner_and_outer_iterations() {
     let mut point = point("point");
     point["parentGroupId"] = json!("inner");
     let result = evaluate_document(EvaluationInput {
+        path_mutations: None,
         elements: vec![for_group("outer"), inner, point],
         evaluation_limit_index: None,
         scalar_expression_payload: None,

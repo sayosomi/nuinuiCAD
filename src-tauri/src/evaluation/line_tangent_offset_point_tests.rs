@@ -61,6 +61,7 @@ fn evaluates_line_tangent_offset_point_on_line() {
         "distance": 10
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -82,6 +83,7 @@ fn evaluates_line_tangent_offset_point_on_line() {
 #[test]
 fn evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -142,6 +144,7 @@ fn evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles() {
 #[test]
 fn evaluates_line_tangent_offset_point_on_arc_line() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -198,6 +201,7 @@ fn evaluates_line_tangent_offset_point_on_arc_line() {
 #[test]
 fn evaluates_line_tangent_offset_point_on_bezier_intermediate_point_tangent() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -280,6 +284,7 @@ fn evaluates_line_tangent_offset_point_on_bezier_intermediate_point_tangent() {
 #[test]
 fn reports_line_tangent_offset_point_base_line_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -340,6 +345,7 @@ fn reports_line_tangent_offset_point_base_point_dependency() {
         "distance": 10
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -380,6 +386,7 @@ fn reports_line_tangent_offset_point_when_base_point_is_not_on_line() {
         "distance": 10
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -422,6 +429,7 @@ fn evaluates_line_tangent_offset_point_numeric_variables_and_expressions() {
         "distance": { "kind": "expression", "expression": "@距離 * 2" }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,

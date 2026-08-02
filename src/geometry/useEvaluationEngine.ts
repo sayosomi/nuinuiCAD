@@ -97,6 +97,7 @@ export const useEvaluationEngine = (
   const conditionalGroupConditionsByElementId = options.conditionalGroupConditionsByElementId;
   const textTemplateEntriesByElementId = options.textTemplateEntriesByElementId;
   const textPropertyBindingEntries = options.textPropertyBindingEntries;
+  const pathMutationProgram = options.pathMutationProgram;
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
@@ -105,6 +106,7 @@ export const useEvaluationEngine = (
         bindingVersions, statementInfoByElementId, statementIdByStatementIndex,
         conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId
       } : {}),
+      ...(pathMutationProgram ? { pathMutationProgram, statementInfoByElementId } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
@@ -116,6 +118,7 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       scalarProgram,
       bindingVersions,
+      pathMutationProgram,
       statementInfoByElementId,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,

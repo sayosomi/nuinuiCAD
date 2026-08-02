@@ -4,6 +4,7 @@ use serde_json::json;
 #[test]
 fn generated_copy_reports_its_incomplete_numeric_expression_as_the_dependency_id() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,

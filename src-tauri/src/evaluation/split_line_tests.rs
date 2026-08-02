@@ -66,6 +66,7 @@ fn split_line(id: &str, base_line_id: &str, point_id: &str) -> Value {
 #[test]
 fn splits_line_and_updates_base_geometry() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -98,6 +99,7 @@ fn splits_line_and_updates_base_geometry() {
 #[test]
 fn rejects_split_point_outside_or_at_endpoint() {
     let outside = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -122,6 +124,7 @@ fn rejects_split_point_outside_or_at_endpoint() {
     assert!(outside.errors[0].message.contains("基準線上"));
 
     let endpoint = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -148,6 +151,7 @@ fn rejects_split_point_outside_or_at_endpoint() {
 #[test]
 fn splits_arc_line() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -193,6 +197,7 @@ fn splits_arc_line() {
 #[test]
 fn splits_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -246,6 +251,7 @@ fn splits_bezier_curve() {
 #[test]
 fn splits_bezier_curve_at_intersection_with_angle_line() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -333,6 +339,7 @@ fn splits_bezier_curve_at_intersection_with_angle_line() {
 #[test]
 fn splits_offset_line() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -376,6 +383,7 @@ fn splits_offset_line() {
 #[test]
 fn reports_base_and_split_point_dependencies() {
     let base_missing = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -391,6 +399,7 @@ fn reports_base_and_split_point_dependencies() {
     assert_eq!(base_missing.errors[0].missing_dependency_id, "line");
 
     let point_missing = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -414,6 +423,7 @@ fn reports_base_and_split_point_dependencies() {
 #[test]
 fn split_line_can_feed_downstream_line_helpers() {
     let result = evaluate_document_input(EvaluationInput {
+        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,

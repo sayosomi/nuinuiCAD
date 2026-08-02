@@ -47,6 +47,43 @@ import {
   ungroupSelectedGroup
 } from "./selectionCommands";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
+import { formatDslName } from "../dsl/dslTokens";
+
+const reverseEligible = () => {
+  const selected = getSelectedElement();
+  if (!selected || getSelectedElementIds().length !== 1) return null;
+  if (![
+    "line", "angleLengthLine", "arcLine", "threePointArcLine", "cornerRadiusArcLine",
+    "bezierCurve", "offsetLine", "splitLine", "copyLine", "symmetricCopyLine"
+  ].includes(selected.type)) return null;
+  const state = useCadDocumentStore.getState();
+  let parentId = selected.parentGroupId;
+  while (parentId) {
+    const parent = state.elements.find((element) => element.id === parentId);
+    if (!parent) break;
+    if (parent.type === "forGroup") return null;
+    parentId = parent.parentGroupId;
+  }
+  return selected;
+};
+
+const insertReverseAfterSelectedPath = () => {
+  const selected = reverseEligible();
+  const state = useCadDocumentStore.getState();
+  if (!selected || state.doc.majorVersion !== 3 || state.docText !== state.sourceText) {
+    useCadUiStore.getState().setCommandErrorMessage("nui 3 の線を1件選択してから実行してください。");
+    return false;
+  }
+  const info = state.doc.statementMap.byElementId.get(selected.id);
+  if (!info) return false;
+  const lines = state.sourceText.split("\n");
+  const sourceLine = lines[info.line - 1] ?? "";
+  const indent = /^\s*/.exec(sourceLine)?.[0] ?? "";
+  lines.splice(info.endLine, 0, `${indent}reverse ${formatDslName(selected.name)}`);
+  state.commitText(lines.join("\n"), "command");
+  useCadUiStore.getState().setCommandErrorMessage(null);
+  return true;
+};
 
 const hasSelection = () => getSelectedElementIds().length > 0;
 
@@ -110,6 +147,12 @@ const selectedConditionalGroupHasElseBranch = () => {
 };
 
 export const selectionCommandDefinitions = {
+  reverseSelectedPath: {
+    id: "reverseSelectedPath",
+    label: "選択中の線を反転",
+    palette: { order: 39, keywords: ["reverse", "flip", "反転", "線", "曲線"], isAvailable: () => Boolean(reverseEligible()) },
+    run: insertReverseAfterSelectedPath
+  },
   selectElement: {
     id: "selectElement",
     label: "要素を選択",

@@ -102,129 +102,20 @@ export const sourceEndTangent = (segment: SourceSegment): Point | null => {
   };
 };
 
-const reverseSourceSegment = (segment: SourceSegment): SourceSegment =>
-  segment.kind === "line"
-    ? { kind: "line", start: segment.end, end: segment.start }
-    : segment.kind === "bezier"
-      ? {
-          kind: "bezier",
-          start: segment.end,
-          control1: segment.control2,
-          control2: segment.control1,
-          end: segment.start
-        }
-      : {
-          ...segment,
-          startAngleDeg: segment.startAngleDeg + segment.sweepAngleDeg,
-          sweepAngleDeg: -segment.sweepAngleDeg
-        };
-
-const reverseSourceSegments = (segments: SourceSegment[]) =>
-  [...segments].reverse().map(reverseSourceSegment);
-
-const TANGENT_CONTINUITY_COST_MM = 0.25;
-
-type OrientedSourceGroup = {
-  segments: SourceSegment[];
-  cost: number;
-  previousOrientation: 0 | 1 | null;
-};
-
-const groupConnectionCost = (previous: SourceSegment[], next: SourceSegment[]) => {
-  const distance = lineLength(sourceEnd(previous.at(-1)!), sourceStart(next[0]));
-  const previousTangent = sourceEndTangent(previous.at(-1)!);
-  const nextTangent = sourceStartTangent(next[0]);
-  if (!previousTangent || !nextTangent) return distance;
-  const dot = Math.max(-1, Math.min(1, previousTangent.x * nextTangent.x + previousTangent.y * nextTangent.y));
-  return distance + (1 - dot) * TANGENT_CONTINUITY_COST_MM;
-};
-
-const orientSourceGroupsForInitialOrientation = (
-  groups: SourceSegment[][],
-  initialOrientation: 0 | 1,
-  closed: boolean
-) => {
-  const candidates = groups.map((group) => [group, reverseSourceSegments(group)] as const);
-  const states: OrientedSourceGroup[][] = [
-    [
-      {
-        segments: candidates[0][0],
-        cost: initialOrientation === 0 ? 0 : Number.POSITIVE_INFINITY,
-        previousOrientation: null
-      },
-      {
-        segments: candidates[0][1],
-        cost: initialOrientation === 1 ? 0 : Number.POSITIVE_INFINITY,
-        previousOrientation: null
-      }
-    ]
-  ];
-
-  for (let index = 1; index < candidates.length; index += 1) {
-    states[index] = candidates[index].map((segments) => {
-      const previousOptions = states[index - 1].map((previous, previousOrientation) => ({
-        previous,
-        previousOrientation: previousOrientation as 0 | 1,
-        cost: previous.cost + groupConnectionCost(previous.segments, segments)
-      }));
-      const best = previousOptions[0].cost <= previousOptions[1].cost
-        ? previousOptions[0]
-        : previousOptions[1];
-      return {
-        segments,
-        cost: best.cost,
-        previousOrientation: best.previousOrientation
-      };
-    });
-  }
-
-  const lastStates = states.at(-1)!;
-  const terminalOptions = lastStates.map((state, orientation) => ({
-    state,
-    orientation: orientation as 0 | 1,
-    cost: closed
-      ? state.cost + groupConnectionCost(state.segments, candidates[0][initialOrientation])
-      : state.cost
-  }));
-  const terminal = terminalOptions[0].cost <= terminalOptions[1].cost
-    ? terminalOptions[0]
-    : terminalOptions[1];
-
-  const orientedGroups: SourceSegment[][] = [];
-  let orientation = terminal.orientation;
-  for (let index = states.length - 1; index >= 0; index -= 1) {
-    orientedGroups[index] = states[index][orientation].segments;
-    const previous = states[index][orientation].previousOrientation;
-    if (previous !== null) {
-      orientation = previous;
-    }
-  }
-
-  return {
-    groups: orientedGroups,
-    cost: terminal.cost
-  };
-};
-
-const orientSourceGroups = (groups: SourceSegment[][], closed: boolean) => {
-  if (groups.length <= 1) return groups;
-
-  const forwardInitial = orientSourceGroupsForInitialOrientation(groups, 0, closed);
-  return forwardInitial.groups;
-};
-
-export const connectSourceSegmentGroups = (groups: SourceSegment[][], closed: boolean) => {
-  const orientedGroups = orientSourceGroups(groups, closed);
+export const connectSourceSegmentGroups = (groups: SourceSegment[][], closed: boolean): SourceSegment[] | null => {
+  // Direction is source-owned. Do not silently reverse a path just because it
+  // makes a nearer join; users express that intention with `reverse Name`.
+  const orientedGroups = groups;
   const connected: SourceSegment[] = [];
 
   for (const group of orientedGroups) {
     if (group.length === 0) continue;
     if (connected.length > 0) {
-      const connector = connectorSegment(sourceEnd(connected.at(-1)!), sourceStart(group[0]));
-      if (connector) connected.push(connector);
+      if (connectorSegment(sourceEnd(connected.at(-1)!), sourceStart(group[0]))) return null;
     }
     connected.push(...group);
   }
 
+  if (closed && connected.length > 1 && connectorSegment(sourceEnd(connected.at(-1)!), sourceStart(connected[0]))) return null;
   return connected;
 };

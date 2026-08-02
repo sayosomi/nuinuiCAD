@@ -73,6 +73,13 @@ fn evaluate_copy_with_transform(
         return;
     }
     let source_segments = connect_source_segment_groups(&source_segment_groups, false);
+    if source_segments.is_empty() {
+        state.errors.push(geometry_error(
+            element,
+            format!("{name} の基準線は指定順・指定方向で連続していません。reverse を使うか順序を見直してください。"),
+        ));
+        return;
+    }
     let include_bezier_control_metadata = element_type(element) == Some("copyLine");
     let Some(geometry) = copied_offset_line_geometry(
         &id,
