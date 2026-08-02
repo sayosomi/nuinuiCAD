@@ -289,10 +289,10 @@ describe("SourceEditor typed value step (Task 44)", () => {
   it("still steps a literal (non-@binding) boolean/choice property attribute via the existing legacy path in a nui 3 document", () => {
     const source = [
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 10 side: right closed: false suppressTrimWarnings: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 10, side: right, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
     const { controller, parent, view } = openEditor(source);
 
@@ -311,10 +311,10 @@ describe("SourceEditor typed value step (Task 44)", () => {
     const source = [
       "nui 3",
       "const 方向: choice(right, left) = right",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 10, side: @方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
     const { controller, parent, view } = openEditor(source);
 

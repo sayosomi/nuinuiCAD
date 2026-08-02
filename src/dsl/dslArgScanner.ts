@@ -8,16 +8,7 @@ export type ScannedArg = {
   keySpan: DslSpan | null;
   value: string;
   valueSpan: DslSpan;
-  /**
-   * The untrimmed `colon+1 .. nextKeyStart` gap, set only when `valueSpan`
-   * is empty (an empty value's `valueSpan` always collapses to the far edge
-   * of this gap via trimSpan below, which is past the cursor whenever the
-   * gap has more than the one mandatory separating space - see
-   * dslCallCompletionContext.ts and dslCompletionContext.ts, the only
-   * consumers). A positional argument can never be "present but empty" (see
-   * the `positionalSpan.start !== positionalSpan.end` guard below), so it
-   * never carries this field.
-   */
+  /** See MISSING_ATTRIBUTE_VALUE_CODE below. */
   rawValueSpan?: DslSpan;
 };
 
@@ -27,15 +18,17 @@ export type DslArgScanError = {
   code?: string;
 };
 
-/**
- * A well-formed but currently-empty argument value (mid-edit, e.g. right
- * after deleting a choice/text/boolean literal). Unlike other scan errors,
- * this one doesn't mean the statement's structure/spans are unreliable - see
- * dslLineElementStatement in dslValueSpans.ts, which keeps serving spans for
- * a line whose only error carries this code so completion can still resolve
- * the attribute being edited.
- */
+/** A well-formed but currently-empty named value while the user is editing. */
 export const MISSING_ATTRIBUTE_VALUE_CODE = "missing-attribute-value";
+/** nui 3 requires this token before every subsequent call argument. */
+export const MISSING_ARGUMENT_COMMA_CODE = "missing-argument-comma";
+/** A comma introduced an empty argument other than an allowed trailing comma. */
+export const EMPTY_ARGUMENT_CODE = "empty-argument";
+
+export type ScanCallArgsOptions = {
+  /** nui 3's strict call grammar. Legacy callers remain whitespace-tolerant. */
+  requireCommas?: boolean;
+};
 
 type NamedArgBoundary = {
   key: string;
@@ -44,10 +37,13 @@ type NamedArgBoundary = {
   missingSpaceAfterColon: boolean;
 };
 
+type ArgumentSegment = {
+  span: DslSpan;
+  /** The top-level comma immediately before this segment, if any. */
+  precedingComma: number | null;
+};
+
 const isWhitespace = (value: string) => /\s/.test(value);
-// Arg keys are frequently user-authored (e.g. view's per-visibility-role args
-// use the role's own name/id as the key), so this matches formatDslName's
-// bare-token character class rather than ASCII identifier rules.
 const isIdentifierStart = isBareDslIdentifierChar;
 const isIdentifierPart = isBareDslIdentifierChar;
 
@@ -65,6 +61,7 @@ const trimSpan = (source: string, span: DslSpan): DslSpan => {
   return { start, end };
 };
 
+/** Finds the old whitespace-led `key:` boundaries only for recovery and diagnostics. */
 const namedArgBoundaries = (source: string, callSpan: DslSpan): NamedArgBoundary[] => {
   const boundaries: NamedArgBoundary[] = [];
   let quote: string | null = null;
@@ -96,9 +93,7 @@ const namedArgBoundaries = (source: string, callSpan: DslSpan): NamedArgBoundary
 
     let keyEnd = index + 1;
     while (keyEnd < callSpan.end && isIdentifierPart(source[keyEnd])) keyEnd += 1;
-    // `::` は修飾参照(`前身頃::交点`)の区切りであり、key境界の`:`とは別物。
-    // 値トークンの先頭が識別子で始まる修飾参照の場合に誤ってkey境界と
-    // 誤認しないよう、直後がもう1つの`:`なら継続してスキップする。
+    // `::` belongs to a qualified reference, not an argument boundary.
     if (source[keyEnd] !== ":" || source[keyEnd + 1] === ":") continue;
 
     const valueStart = keyEnd + 1;
@@ -109,61 +104,127 @@ const namedArgBoundaries = (source: string, callSpan: DslSpan): NamedArgBoundary
       missingSpaceAfterColon: valueStart < callSpan.end && !isWhitespace(source[valueStart]),
     });
   }
-
   return boundaries;
 };
 
+/** Splits only depth-zero commas; commas in strings, arrays, and nested calls stay in values. */
+const argumentSegments = (source: string, callSpan: DslSpan): ArgumentSegment[] => {
+  const segments: ArgumentSegment[] = [];
+  let quote: string | null = null;
+  let depth = 0;
+  let start = callSpan.start;
+  let precedingComma: number | null = null;
+
+  for (let index = callSpan.start; index < callSpan.end; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote && !isEscaped(source, index)) quote = null;
+      continue;
+    }
+    if ((character === '"' || character === "'") && !isEscaped(source, index)) {
+      quote = character;
+    } else if (character === "(" || character === "[") {
+      depth += 1;
+    } else if (character === ")" || character === "]") {
+      depth -= 1;
+    } else if (character === "," && depth === 0) {
+      segments.push({ span: { start, end: index }, precedingComma });
+      start = index + 1;
+      precedingComma = index;
+    }
+  }
+  segments.push({ span: { start, end: callSpan.end }, precedingComma });
+  return segments;
+};
+
+const addNamedArg = (
+  source: string,
+  boundary: NamedArgBoundary,
+  end: number,
+  args: ScannedArg[],
+  errors: DslArgScanError[],
+) => {
+  const rawValueSpan = { start: boundary.colon + 1, end };
+  const valueSpan = trimSpan(source, rawValueSpan);
+  const isEmpty = valueSpan.start === valueSpan.end;
+  args.push({
+    key: boundary.key,
+    keySpan: boundary.keySpan,
+    value: source.slice(valueSpan.start, valueSpan.end),
+    valueSpan,
+    ...(isEmpty ? { rawValueSpan } : {}),
+  });
+  if (boundary.missingSpaceAfterColon) {
+    errors.push({
+      message: `引数「${boundary.key}」の「:」の後には空白が必要です。`,
+      span: { start: boundary.colon, end: boundary.colon + 1 },
+    });
+  }
+  if (isEmpty) {
+    errors.push({
+      message: `引数「${boundary.key}」の値がありません。`,
+      span: valueSpan,
+      code: MISSING_ATTRIBUTE_VALUE_CODE,
+    });
+  }
+};
+
 /**
- * Splits v2 call arguments in a projected logical statement. Parsing the call
- * envelope and validating keys belongs to later parser stages; this function
- * only reports a leading positional argument and depth-zero named arguments.
+ * Splits call arguments on top-level commas. In legacy mode, whitespace-led
+ * `key:` boundaries remain accepted; strict mode reports every such missing
+ * comma while retaining the recovered argument spans for editor features.
  */
 export const scanCallArgs = (
   logicalText: string,
   callSpan: DslSpan,
+  options: ScanCallArgsOptions = {},
 ): { args: ScannedArg[]; errors: DslArgScanError[] } => {
-  const boundaries = namedArgBoundaries(logicalText, callSpan);
   const args: ScannedArg[] = [];
   const errors: DslArgScanError[] = [];
+  const segments = argumentSegments(logicalText, callSpan);
 
-  const firstNamedStart = boundaries[0]?.keySpan.start ?? callSpan.end;
-  const positionalSpan = trimSpan(logicalText, { start: callSpan.start, end: firstNamedStart });
-  if (positionalSpan.start !== positionalSpan.end) {
-    args.push({
-      key: null,
-      keySpan: null,
-      value: logicalText.slice(positionalSpan.start, positionalSpan.end),
-      valueSpan: positionalSpan,
-    });
-  }
+  for (const [segmentIndex, segment] of segments.entries()) {
+    const trimmed = trimSpan(logicalText, segment.span);
+    const isTrailingSegment = segmentIndex === segments.length - 1;
+    if (trimmed.start === trimmed.end) {
+      if (segments.length === 1 && segment.precedingComma === null) continue;
+      // One optional comma may appear directly before the closing paren.
+      if (!(isTrailingSegment && segment.precedingComma !== null)) {
+        const marker = segment.precedingComma ?? trimmed.start;
+        errors.push({
+          message: "空の引数があります。",
+          span: { start: marker, end: Math.min(marker + 1, callSpan.end) },
+          code: EMPTY_ARGUMENT_CODE,
+        });
+      }
+      continue;
+    }
 
-  for (const [index, boundary] of boundaries.entries()) {
-    const nextStart = boundaries[index + 1]?.keySpan.start ?? callSpan.end;
-    const rawSpan = { start: boundary.colon + 1, end: nextStart };
-    const valueSpan = trimSpan(logicalText, rawSpan);
-    const isEmpty = valueSpan.start === valueSpan.end;
-    args.push({
-      key: boundary.key,
-      keySpan: boundary.keySpan,
-      value: logicalText.slice(valueSpan.start, valueSpan.end),
-      valueSpan,
-      ...(isEmpty ? { rawValueSpan: rawSpan } : {}),
-    });
-
-    if (boundary.missingSpaceAfterColon) {
-      errors.push({
-        message: `引数「${boundary.key}」の「:」の後には空白が必要です。`,
-        span: { start: boundary.colon, end: boundary.colon + 1 },
+    // Keep the segment's outer whitespace for an empty value's rawValueSpan.
+    // Completion relies on that span when a delete leaves `key: , next:`.
+    const boundaries = namedArgBoundaries(logicalText, segment.span);
+    const firstNamedStart = boundaries[0]?.keySpan.start ?? trimmed.end;
+    const positionalSpan = trimSpan(logicalText, { start: trimmed.start, end: firstNamedStart });
+    if (positionalSpan.start !== positionalSpan.end) {
+      args.push({
+        key: null,
+        keySpan: null,
+        value: logicalText.slice(positionalSpan.start, positionalSpan.end),
+        valueSpan: positionalSpan,
       });
     }
-    if (isEmpty) {
-      errors.push({
-        message: `引数「${boundary.key}」の値がありません。`,
-        span: valueSpan,
-        code: MISSING_ATTRIBUTE_VALUE_CODE,
-      });
+
+    for (const [boundaryIndex, boundary] of boundaries.entries()) {
+      if (options.requireCommas && (boundaryIndex > 0 || positionalSpan.start !== positionalSpan.end)) {
+        errors.push({
+          message: `引数「${boundary.key}」の前に「,」が必要です。`,
+          span: boundary.keySpan,
+          code: MISSING_ARGUMENT_COMMA_CODE,
+        });
+      }
+      const end = boundaries[boundaryIndex + 1]?.keySpan.start ?? segment.span.end;
+      addNamedArg(logicalText, boundary, end, args, errors);
     }
   }
-
   return { args, errors };
 };

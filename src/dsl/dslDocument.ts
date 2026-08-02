@@ -248,17 +248,23 @@ const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
 
 // ==== パレット ====
 
-export const serializePaletteColorLine = (color: PaletteColor, defaultColorId: string): string => {
+export const serializePaletteColorLine = (
+  color: PaletteColor,
+  defaultColorId: string,
+  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+): string => {
   const args = [
     quoteDslString(color.hex),
     `name: ${quoteDslString(color.name)}`,
     ...(color.id === defaultColorId ? ["default: true"] : [])
   ];
-  return `color ${formatDslName(color.id)} (${args.join(" ")})`;
+  return `color ${formatDslName(color.id)} (${args.join(majorVersion >= 3 ? ", " : " ")})`;
 };
 
-export const serializePaletteLines = (palette: DocumentPalette): string[] =>
-  palette.colors.map((color) => serializePaletteColorLine(color, palette.defaultColorId));
+export const serializePaletteLines = (
+  palette: DocumentPalette,
+  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+): string[] => palette.colors.map((color) => serializePaletteColorLine(color, palette.defaultColorId, majorVersion));
 
 // ==== 印刷レイアウト ====
 
@@ -316,14 +322,15 @@ const printLayoutBlockLines = (
     );
   }
   for (const placement of layout.placements) {
+    const separator = majorVersion >= 3 ? ", " : " ";
     memberLines.push(
-      `${DSL_INDENT}place ${resolveGroupToken(elements, placement.groupId, nameContext)} (at: (${numeric(placement.x, localVars)}, ${numeric(placement.y, localVars)}) angle: ${numeric(placement.angleDeg, localVars)} mirrorX: ${placement.mirrorX})`
+      `${DSL_INDENT}place ${resolveGroupToken(elements, placement.groupId, nameContext)} (at: (${numeric(placement.x, localVars)}, ${numeric(placement.y, localVars)})${separator}angle: ${numeric(placement.angleDeg, localVars)}${separator}mirrorX: ${placement.mirrorX})`
     );
   }
 
   return [
     `printLayout ${formatDslName(displayName)} (`,
-    ...argLines.map((line) => `${DSL_INDENT}${line}`),
+    ...argLines.map((line, index) => `${DSL_INDENT}${line}${majorVersion >= 3 && index < argLines.length - 1 ? "," : ""}`),
     ") {",
     ...memberLines,
     "}"
@@ -434,7 +441,9 @@ const statementRows = (
   return {
     lines: [
       `${indent}${statement.header}`,
-      ...statement.args.map((arg) => `${argIndent}${arg.text}`),
+      ...statement.args.map((arg, index) =>
+        `${argIndent}${arg.text}${statement.argumentSeparator === "comma" && index < statement.args.length - 1 ? "," : ""}`
+      ),
       `${indent}${statement.close}${appendBrace ? " {" : ""}`
     ],
     argKeys: [null, ...statement.args.map((arg) => arg.key), null]
@@ -459,7 +468,12 @@ export const withFallbackParentArgs = (
   const equalsIndex = statement.header.indexOf("=");
   const before = statement.header.slice(0, equalsIndex).trimEnd();
   const value = statement.header.slice(equalsIndex + 1).trim();
-  return { header: `${before} = expression(`, args: [{ key: "value", text: `value: ${value}` }, ...extra], close: ")" };
+  return {
+    header: `${before} = expression(`,
+    args: [{ key: "value", text: `value: ${value}` }, ...extra],
+    close: ")",
+    ...(statement.argumentSeparator ? { argumentSeparator: statement.argumentSeparator } : {}),
+  };
 };
 
 // 要素配列の正準ブロック構造を行レコード列として構築する。全体シリアライズと
@@ -613,8 +627,8 @@ export const serializeDocumentToDsl = (
   const refs = options.preserveElementOrder ? flatRefs(majorVersion) : documentDslRefs(data.elements, majorVersion);
   const sections: string[][] = [
     [`nui ${majorVersion}`, ...(options.headerComment ? [`# ${options.headerComment}`] : [])],
-    serializePaletteLines(data.palette),
-    serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
+    serializePaletteLines(data.palette, majorVersion),
+    serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId, majorVersion),
     serializePrintLayoutSection(data, majorVersion),
     options.preserveElementOrder
       ? serializeFlatElementTree(data.elements, refs, data.evaluationLimitIndex)

@@ -55,10 +55,10 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
   it("reopens a choice value's own candidates after a real delete lands the cursor at a zero-length value, with no explicit invocation", async () => {
     const source = [
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 3 side: right closed: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 3, side: right, closed: false)"
     ].join("\n");
     const { view, parent } = createView(source);
 
@@ -83,7 +83,7 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
   });
 
   it("never opens a popup for a delete that lands on a position with no completion context", async () => {
-    const source = ["nui 3", "point A = coordinate(x: 0 y: 0)"].join("\n");
+    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const { view, parent } = createView(source);
 
     // Deletes the version digit: "nui 3" -> "nui " has no keyword, call,
@@ -136,10 +136,10 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
   it("never retries while IME composition is active", async () => {
     const source = [
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 3 side: right closed: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 3, side: right, closed: false)"
     ].join("\n");
     const { view, parent } = createView(source, () => true);
 
@@ -161,10 +161,10 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
   it("only ever produces one tooltip for one delete transaction (no duplicate/reopen loop)", async () => {
     const source = [
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 3 side: right closed: false)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 3, side: right, closed: false)"
     ].join("\n");
     const { view, parent } = createView(source);
 

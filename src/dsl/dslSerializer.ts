@@ -103,7 +103,9 @@ export const serializedStatementLines = (statement: SerializedStatement, indent:
   statement.close
     ? [
         `${indent}${statement.header}`,
-        ...statement.args.map((arg) => `${indent}${DSL_INDENT}${arg.text}`),
+        ...statement.args.map((arg, index) =>
+          `${indent}${DSL_INDENT}${arg.text}${statement.argumentSeparator === "comma" && index < statement.args.length - 1 ? "," : ""}`
+        ),
         `${indent}${statement.close}`
       ]
     : [`${indent}${statement.header}`];
@@ -129,7 +131,11 @@ export const serializeElementsToDsl = (
 export const serializeRoleLine = (role: VisibilityRole): string =>
   `role ${formatDslName(role.id)} (name: ${quoteDslString(role.name)})`;
 
-export const serializeViewLine = (profile: VisibilityProfile, roles: VisibilityRole[]): string => {
+export const serializeViewLine = (
+  profile: VisibilityProfile,
+  roles: VisibilityRole[],
+  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+): string => {
   const knownRoleIds = new Set(roles.map((role) => role.id));
   const roleArgs = [
     ...roles.map((role) =>
@@ -146,7 +152,7 @@ export const serializeViewLine = (profile: VisibilityProfile, roles: VisibilityR
     `default: ${profile.defaultRoleVisible}`,
     ...roleArgs
   ];
-  return `view ${formatDslName(profile.name || profile.id)} (${args.join(" ")})`;
+  return `view ${formatDslName(profile.name || profile.id)} (${args.join(majorVersion >= 3 ? ", " : " ")})`;
 };
 
 export const serializeActiveViewLine = (activeProfileId: string): string =>
@@ -155,10 +161,11 @@ export const serializeActiveViewLine = (activeProfileId: string): string =>
 export const serializeVisibilitySettingsLines = (
   roles: VisibilityRole[],
   profiles: VisibilityProfile[],
-  activeProfileId: string | undefined
+  activeProfileId: string | undefined,
+  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
 ): string[] => [
   ...roles.map(serializeRoleLine),
-  ...profiles.map((profile) => serializeViewLine(profile, roles)),
+  ...profiles.map((profile) => serializeViewLine(profile, roles, majorVersion)),
   ...(activeProfileId ? [serializeActiveViewLine(activeProfileId)] : [])
 ];
 

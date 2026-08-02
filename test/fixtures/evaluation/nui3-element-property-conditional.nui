@@ -1,14 +1,14 @@
 nui 3
-point A = coordinate(x: 0 y: 0)
-point B = coordinate(x: 30 y: 40)
-line AB = segment(start: A end: B)
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 30, y: 40)
+line AB = segment(start: A, end: B)
 if 十分な長さ (@AB.length > 10) {
-  point Active = coordinate(x: 1 y: 1)
+  point Active = coordinate(x: 1, y: 1)
 } else {
-  point Inactive = coordinate(x: 2 y: 2)
+  point Inactive = coordinate(x: 2, y: 2)
 }
 if 短すぎる (@AB.length > 1000) {
-  point NeverShown = coordinate(x: 3 y: 3)
+  point NeverShown = coordinate(x: 3, y: 3)
 } else {
-  point AlwaysShown = coordinate(x: 4 y: 4)
+  point AlwaysShown = coordinate(x: 4, y: 4)
 }

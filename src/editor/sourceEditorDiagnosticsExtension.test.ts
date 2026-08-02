@@ -64,7 +64,7 @@ describe("currentDiagnosticsWithActions", () => {
   });
 
   it("produces plain (action-less) diagnostics for an unrelated, non-fixable error", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0 y: 0)", "bogus statement here"].join("\n");
+    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "bogus statement here"].join("\n");
     const compiled = compile(source);
     const view = makeView(source);
     const diagnostics = currentDiagnosticsWithActions(view, baseSource(compiled));

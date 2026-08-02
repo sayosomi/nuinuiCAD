@@ -12,23 +12,23 @@ Source Editor の値は直接編集できます。数値・boolean・choiceな�
 - `#` から行末はコメントです。Canvasとコマンドは対象statementだけを変更するため、無関係なコメント、空行、手書きの並びは保持されます。
 - 要素名は引用できます。参照には名前、修飾名 `グループ::要素`、派生点 `線.start` などを使います。
 
-通常の要素は category、任意の名前、construction call で書きます。引数は `key: value` で、コロンの後には空白が必要です。カンマは不要です。
+通常の要素は category、任意の名前、construction call で書きます。引数は `key: value` で、コロンの後には空白が必要です。隣接する引数は改行した場合も含めて `,` で区切ります。最後の引数の末尾カンマは任意ですが、通常の保存・コマンド更新では付けません。
 
 ```text
 nui 3
 
 var bust = 840
 point A = coordinate(
-  x: 0
+  x: 0,
   y: 0
 )
 point B = offset(
-  from: A
-  dx: 0
+  from: A,
+  dx: 0,
   dy: -(@bust / 4)
 )
 line AB = segment(
-  start: A
+  start: A,
   end: B
 )
 ```
@@ -53,26 +53,26 @@ categoryごとに使えるconstructionは次のとおりです。各construction
 
 ```text
 point C = between(
-  start: A
-  end: B
+  start: A,
+  end: B,
   ratio: 0.5
 )
 line shoulder = polar(
-  start: A
-  angle: -12
+  start: A,
+  angle: -12,
   length: 130
 )
 curve armhole = bezier(
-  start: A
-  end: B
-  startAngle: -90
-  startLength: 35
-  endAngle: 180
+  start: A,
+  end: B,
+  startAngle: -90,
+  startLength: 35,
+  endAngle: 180,
   endLength: 45
 )
 text label = label(
-  text: "前身頃"
-  anchor: A
+  text: "前身頃",
+  anchor: A,
   size: 5
 )
 ```
@@ -82,10 +82,10 @@ text label = label(
 `reverse 線名` は新しい線を作らず、その文より後で使われる対象パスの向きだけを反転します。`start`/`end`、接線、円弧の sweep、Bezier の制御点順も反転します。
 
 ```text
-line AB = segment(start: A end: B)
-line CB = segment(start: C end: B)
+line AB = segment(start: A, end: B)
+line CB = segment(start: C, end: B)
 reverse CB
-line seam = offset(sources: [AB, CB] distance: 10 side: right closed: false)
+line seam = offset(sources: [AB, CB], distance: 10, side: right, closed: false)
 ```
 
 `offset`、`copy`、`mirrorCopy` は sources の順序と向きをそのまま使います。前の線の `end` と次の線の `start` が一致しない場合は結果を作らず、`reverse` または sources の並びを修正する診断を表示します。
@@ -120,9 +120,9 @@ var 肩幅 = pointDistance(from: A to: B)
 ```text
 nui 3
 const 余白: number = 5
-line AB = segment(start: A end: B)
+line AB = segment(start: A, end: B)
 point C = coordinate(
-  x: @余白 + @AB.length
+  x: @余白 + @AB.length,
   y: 0
 )
 ```
@@ -159,7 +159,7 @@ if Branch (@flag) {
 } else {
   set total = 99
 }
-for Loop (i from: 0 count: 2 step: 1) {
+for Loop (i, from: 0, count: 2, step: 1) {
   set total = @total + 1
 }
 ```
@@ -189,8 +189,8 @@ nui 3
 const ラベル: string = "前身頃"
 const 個数: number = 2
 text 注記 = label(
-  text: "\{draft\} {@ラベル}を{@個数}枚カット"
-  anchor: none
+  text: "\{draft\} {@ラベル}を{@個数}枚カット",
+  anchor: none,
   size: 3
 )
 ```
@@ -205,11 +205,11 @@ text 注記 = label(
 
 ```text
 point A = coordinate(
-  x: 0
-  y: 0
-  state: hidden
-  color: pattern-black
-  steps: [x: 5]
+  x: 0,
+  y: 0,
+  state: hidden,
+  color: pattern-black,
+  steps: [x: 5],
   vars: [縫い代: 10]
 )
 ```
@@ -246,9 +246,9 @@ nui 3
 const side: choice(right, left) = left
 const enabled: boolean = true
 line Off = offset(
-  sources: [AB]
-  distance: 3
-  side: @side
+  sources: [AB],
+  distance: 3,
+  side: @side,
   closed: @enabled
 )
 ```
@@ -258,9 +258,9 @@ line Off = offset(
 `group`、`if`、`for` はブロックを作ります。インデントは見た目だけで、`{` と `}` が構造を表します。
 
 ```text
-group 前身頃 (printEnabled: true roles: [seam]) {
+group 前身頃 (printEnabled: true, roles: [seam]) {
   point A = coordinate(
-    x: 0
+    x: 0,
     y: 0
   )
 }
@@ -268,19 +268,19 @@ group 前身頃 (printEnabled: true roles: [seam]) {
 let 見返し有: boolean = true
 if 見返し (@見返し有) {
   point C = coordinate(
-    x: 10
+    x: 10,
     y: 10
   )
 } else {
   point D = coordinate(
-    x: 20
+    x: 20,
     y: 20
   )
 }
 
-for 繰返し (i from: 0 count: 3 step: 1) {
+for 繰返し (i, from: 0, count: 3, step: 1) {
   point P = coordinate(
-    x: @i * 10
+  x: @i * 10,
     y: 0
   )
 }
@@ -293,9 +293,9 @@ for 繰返し (i from: 0 count: 3 step: 1) {
 `@stop` は、その行より前の要素だけを評価する区切りです。
 
 ```text
-point A = coordinate(x: 0 y: 0)
+point A = coordinate(x: 0, y: 0)
 @stop
-point B = coordinate(x: 100 y: 0)
+point B = coordinate(x: 100, y: 0)
 ```
 
 ## 文書設定と印刷レイアウト
@@ -303,24 +303,24 @@ point B = coordinate(x: 100 y: 0)
 色、表示role/view、印刷レイアウトは専用statementで設定します。
 
 ```text
-color pattern-black ("#31322f" name: "基本線" default: true)
+color pattern-black ("#31322f", name: "基本線", default: true)
 role seam (name: "縫い代")
-view 印刷 (default: true seam: true)
+view 印刷 (default: true, seam: true)
 activeView 印刷
 
 printLayout A4 (
-  output: pdf
-  view: 印刷
-  paper: a4
-  orientation: portrait
-  columns: 2
-  rows: 2
-  overlap: 10
-  scale: 1
+  output: pdf,
+  view: 印刷,
+  paper: a4,
+  orientation: portrait,
+  columns: 2,
+  rows: 2,
+  overlap: 10,
+  scale: 1,
   canvas: (410, 584)
 ) {
   layoutVar margin = 15
-  place 前身頃 (at: (0, margin) angle: 0 mirrorX: false)
+  place 前身頃 (at: (0, margin), angle: 0, mirrorX: false)
 }
 activePrintLayout A4
 ```
@@ -343,7 +343,7 @@ Source Editorは、文法位置に応じて次の順に補完します。
 名前を省略した要素は有効ですが、名前で直接参照できません。
 
 ```text
-point = coordinate(x: 0 y: 0)
+point = coordinate(x: 0, y: 0)
 ```
 
 コマンドライン作図で参照が必要になると、無名要素は必要な名前へ同じUndo手順内で昇格します。作成後の改名は `renameSelectedElement`（既定shortcut: F2）を使います。
@@ -370,7 +370,7 @@ point A = coordinate(
 
 `visible`は描画だけを、`enabled`は評価だけを制御します(`disabled`相当は`enabled: false`)。`locked`はsource-authoritativeな現在のエディタでは意味を持たず、互換のため読み込み時に警告付きで受理されます。
 
-`nui 2`文書は、Source Editorの診断に出るQuick Fix「nui 3 へアップグレード」で、本文を書き換えずにヘッダーだけ`nui 3`へ変更できます(その後`const`/`let`/`set`/`state:`が使えるようになります)。
+`nui 2`文書は、Source Editorの診断に出るQuick Fix「nui 3 へアップグレード」で、本文を書き換えずにヘッダーだけ`nui 3`へ変更できます。その後は`const`/`let`/`set`/`state:`が使えるようになりますが、呼び出し引数は自動変換されません。旧来のスペース区切りにはカンマ不足の診断が出るため、案内に従って手動でカンマを追加してください。
 
 ### `nui 1` 文書を開く
 

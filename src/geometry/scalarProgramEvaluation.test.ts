@@ -15,11 +15,11 @@ describe("evaluateElements / scalarProgram wiring (Task 20)", () => {
   it("evaluates an earlier line property in a typed number initializer", () => {
     const compiled = compileCanonical([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
       "const test: number = @AB.length",
-      "point C = coordinate(x: @test y: 0)"
+      "point C = coordinate(x: @test, y: 0)"
     ].join("\n"));
     const bindingId = compiled.scalarProgram!.statements[0].bindingId;
     const result = evaluateElements(compiled.document!.elements, {
@@ -35,10 +35,10 @@ describe("evaluateElements / scalarProgram wiring (Task 20)", () => {
     const compiled = compileCanonical([
       "nui 3",
       "const x: number = @Later.length",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line Later = segment(start: A end: B)",
-      "point C = coordinate(x: @x y: 0)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Later = segment(start: A, end: B)",
+      "point C = coordinate(x: @x, y: 0)"
     ].join("\n"));
     const bindingId = compiled.scalarProgram!.statements[0].bindingId;
     const result = evaluateElements(compiled.document!.elements, { scalarProgram: compiled.scalarProgram });
@@ -50,7 +50,7 @@ describe("evaluateElements / scalarProgram wiring (Task 20)", () => {
       "const outer: number = 2",
       "group G {",
       "  const inner: number = @outer + 1",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
 
@@ -71,7 +71,7 @@ describe("evaluateElements / scalarProgram wiring (Task 20)", () => {
   });
 
   it("is absent when no scalarProgram is given", () => {
-    const compiled = compileCanonical(["nui 3", "point A = coordinate(x: 0 y: 0)"].join("\n"));
+    const compiled = compileCanonical(["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n"));
     const result = evaluateElements(compiled.document!.elements, {});
     expect(result.computedScalarBindings).toBeUndefined();
   });
@@ -81,7 +81,7 @@ describe("evaluateElements / scalarProgram wiring (Task 20)", () => {
       "nui 3",
       "const first: number = 1",
       "const second: number = @first + 1",
-      "point A = coordinate(x: 0 y: 0)"
+      "point A = coordinate(x: 0, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document!.elements, {
       scalarProgram: compiled.scalarProgram,
@@ -98,9 +98,9 @@ describe("evaluateElements / scalarProgram wiring (Task 20)", () => {
   it("resolves a legacy var geometry measurement matching the legacy numeric evaluator", () => {
     const compiled = compileCanonical([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 3 y: 4)",
-      "var d = pointDistance(point1: A point2: B state: hidden)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 3, y: 4)",
+      "var d = pointDistance(point1: A, point2: B, state: hidden)",
       "const dist: number = @d"
     ].join("\n"));
 
@@ -119,9 +119,9 @@ describe("evaluateElements / scalarProgram wiring (Task 20)", () => {
   it("poisons a typed const referencing a disabled legacy var, and propagates to a dependent binding", () => {
     const compiled = compileCanonical([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 3 y: 4)",
-      "var d = pointDistance(point1: A point2: B state: disabled)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 3, y: 4)",
+      "var d = pointDistance(point1: A, point2: B, state: disabled)",
       "const dist: number = @d",
       "const distPlusOne: number = @dist + 1"
     ].join("\n"));

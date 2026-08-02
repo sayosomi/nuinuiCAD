@@ -18,7 +18,7 @@ const source = [
   "let flag: boolean = true",
   "group G (printEnabled: @flag) {",
   "}",
-  'text T = label(text: "{@base}" anchor: none size: 3)'
+  'text T = label(text: "{@base}", anchor: none, size: 3)'
 ].join("\n");
 
 const compile = () => {

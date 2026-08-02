@@ -16,7 +16,7 @@ type ControllerInternals = {
 
 const source = [
   "nui 3",
-  "point A = coordinate(x: 0 y: 0)",
+  "point A = coordinate(x: 0, y: 0)",
   "let base: number = 1",
   "const anchor: number = 42"
 ].join("\n");

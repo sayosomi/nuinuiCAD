@@ -17,7 +17,7 @@ describe("compiled scalar program", () => {
       "const outer: number = 2",
       "group G {",
       "  const inner: number = @outer + 1",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
 
@@ -34,11 +34,11 @@ describe("compiled scalar program", () => {
 
   it("inherits a reconciler-owned binding identity across an edit without deriving it from source", () => {
     const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
-    const first = compileCanonicalText(baseline, "nui 3\nconst width: number = 12\npoint A = coordinate(x: 0 y: 0)");
+    const first = compileCanonicalText(baseline, "nui 3\nconst width: number = 12\npoint A = coordinate(x: 0, y: 0)");
     expect(first.status).not.toBe("fatal");
     const bindingId = first.doc.scalarProgram!.statements[0].bindingId;
 
-    const edited = compileCanonicalText(first, "nui 3\nconst width: number = 24\npoint A = coordinate(x: 0 y: 0)");
+    const edited = compileCanonicalText(first, "nui 3\nconst width: number = 24\npoint A = coordinate(x: 0, y: 0)");
     expect(edited.status).not.toBe("fatal");
     expect(edited.doc.scalarProgram!.statements[0].bindingId).toBe(bindingId);
   });
@@ -64,10 +64,10 @@ describe("compiled scalar program", () => {
     const compiled = compileCanonical([
       "nui 3",
       "const before: number = 1",
-      "point A = coordinate(x: 0 y: 0)",
+      "point A = coordinate(x: 0, y: 0)",
       "@stop",
       "const after: number = 2",
-      "point B = coordinate(x: 1 y: 1)"
+      "point B = coordinate(x: 1, y: 1)"
     ].join("\n"));
 
     expect(compiled.document.evaluationLimitIndex).toBe(1);

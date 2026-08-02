@@ -125,11 +125,18 @@ const argumentContextAt = (
   const content = { start: open + 1, end: close };
   if (pos < content.start || pos > content.end || nestedDepthAt(source, content.start, pos) !== 0) return null;
   const { args } = scanCallArgs(source, content);
+  // In `side: , closed: …`, deleting the value leaves the caret inside
+  // `side`'s empty raw value span. This must remain a value-edit context,
+  // not turn into a fresh argument-key slot just because a comma follows it.
+  if (args.some((arg) => {
+    const span = arg.valueSpan.start === arg.valueSpan.end && arg.rawValueSpan ? arg.rawValueSpan : arg.valueSpan;
+    return arg.value === "" && pos >= span.start && pos <= span.end;
+  })) return null;
   const from = tokenStartAt(source, pos, content.start);
   const prefix = source.slice(from, pos);
   if (prefix && (!identifierStart.test(prefix[0]) || ![...prefix].every((character) => identifierPart.test(character)))) return null;
   const previous = from > content.start ? source[from - 1] : "";
-  if (previous && !/\s/.test(previous)) return null;
+  if (previous && !/\s/.test(previous) && previous !== ",") return null;
   const beforePrefix = source.slice(content.start, from).trimEnd();
   const previousTokenCharacter = beforePrefix.at(-1) ?? "";
   const isArgumentDraft =

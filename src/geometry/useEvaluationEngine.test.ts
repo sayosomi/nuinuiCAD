@@ -63,11 +63,11 @@ const scalarProgram: ScalarProgram = {
 
 const copySource = (angleDeg: string) => [
   "nui 3",
-  "point A = coordinate(x: 0 y: 0)",
-  "point B = coordinate(x: 10 y: 0)",
-  "line AB = segment(start: A end: B)",
-  "for Loop (i from: 0 count: 2 step: 1 showGenerated: true) {",
-  `  line Copy = copy(startPoint: A endPoint: B scale: 1 angleDeg: ${angleDeg} mirrorX: false baseLines: [AB])`,
+  "point A = coordinate(x: 0, y: 0)",
+  "point B = coordinate(x: 10, y: 0)",
+  "line AB = segment(start: A, end: B)",
+  "for Loop (i, from: 0, count: 2, step: 1, showGenerated: true) {",
+  `  line Copy = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: ${angleDeg}, mirrorX: false, baseLines: [AB])`,
   "}"
 ].join("\n");
 
@@ -184,9 +184,9 @@ describe("useEvaluationEngine", () => {
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), [
       "nui 3",
       "let total: number = 0",
-      "for Loop (i from: 0 count: 2 step: 1) {",
+      "for Loop (i, from: 0, count: 2, step: 1) {",
       "  set total = @total + 1",
-      "  point P = coordinate(x: @total y: 0)",
+      "  point P = coordinate(x: @total, y: 0)",
       "}"
     ].join("\n"));
     expect(compiled.status).not.toBe("fatal");
@@ -228,16 +228,16 @@ describe("useEvaluationEngine", () => {
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), [
       "nui 3",
       "let total: number = 0",
-      "for Outer (i from: 0 count: 2 step: 1) {",
+      "for Outer (i, from: 0, count: 2, step: 1) {",
       "  if Branch (@i == 0) {",
       "    let scratch: number = @i + 1",
       "    set total = @total + @scratch",
       "  } else {",
       "    set total = @total + 10",
       "  }",
-      "  for Inner (j from: 0 count: 2 step: 1) {",
+      "  for Inner (j, from: 0, count: 2, step: 1) {",
       "    set total = @total + 1",
-      "    point P = coordinate(x: 0 y: 0)",
+      "    point P = coordinate(x: 0, y: 0)",
       "  }",
       "}"
     ].join("\n"));

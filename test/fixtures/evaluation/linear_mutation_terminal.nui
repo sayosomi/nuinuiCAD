@@ -1,13 +1,13 @@
 nui 3
-point A = coordinate(x: 0 y: 0)
-point B = coordinate(x: 3 y: 4)
-var distance = pointDistance(point1: A point2: B state: hidden)
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 3, y: 4)
+var distance = pointDistance(point1: A, point2: B, state: hidden)
 let value: number = @distance
 let mirror: number = 0
 let label: string = "old"
 let flag: boolean = false
 let side: choice(right, left) = right
-point Marker = coordinate(x: 1 y: 1)
+point Marker = coordinate(x: 1, y: 1)
 set value = @value + 1
 set label = "new"
 set flag = true

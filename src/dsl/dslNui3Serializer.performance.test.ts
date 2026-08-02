@@ -19,7 +19,7 @@ const sourceFor = (statementCount: number) => {
     if (lines.length - 1 >= statementCount) break;
     lines.push(`set   value${index} = ${index} + 1`);
     if (lines.length - 1 >= statementCount) break;
-    lines.push(`point P${index} = coordinate(x: ${index} y: 0 state: hidden)`);
+    lines.push(`point P${index} = coordinate(x: ${index}, y: 0, state: hidden)`);
   }
   return lines.join("\n");
 };

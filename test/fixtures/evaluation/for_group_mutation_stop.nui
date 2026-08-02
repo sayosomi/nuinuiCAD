@@ -1,7 +1,7 @@
 nui 3
 let total: number = 0
-for Loop (i from: 0 count: 3 step: 1) {
+for Loop (i, from: 0, count: 3, step: 1) {
   set total = @total + 1
   @stop
-  point P = coordinate(x: @total y: 0)
+  point P = coordinate(x: @total, y: 0)
 }

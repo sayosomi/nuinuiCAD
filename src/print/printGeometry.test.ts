@@ -332,9 +332,9 @@ describe("printGeometry: group.printEnabled binding", () => {
   const boundGroupSource = (groupArgs: string) => [
     "let 印刷: boolean = true",
     `group G (${groupArgs}) {`,
-    "  point A = coordinate(x: 0 y: 0)",
-    "  point B = coordinate(x: 10 y: 0)",
-    "  line AB = segment(start: A end: B)",
+    "  point A = coordinate(x: 0, y: 0)",
+    "  point B = coordinate(x: 10, y: 0)",
+    "  line AB = segment(start: A, end: B)",
     "}"
   ];
 
@@ -372,9 +372,9 @@ describe("printGeometry: group.printEnabled binding", () => {
     const doc = compileCanonical([
       "let 印刷: boolean = false",
       "group G (printEnabled: @印刷) {",
-      "  point A = coordinate(x: 0 y: 0)",
-      "  point B = coordinate(x: 10 y: 0)",
-      "  line AB = segment(start: A end: B)",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
+      "  line AB = segment(start: A, end: B)",
       "}"
     ]);
     const group = groupNamed(doc, "G");
@@ -392,15 +392,15 @@ describe("printGeometry: group.printEnabled binding", () => {
 
   it("excludes the group without crashing or affecting normal evaluation when the bound printEnabled is poisoned", () => {
     const doc = compileCanonical([
-      "point Z1 = coordinate(x: 0 y: 0)",
-      "point Z2 = coordinate(x: 3 y: 4)",
-      "var d = pointDistance(point1: Z1 point2: Z2 state: disabled)",
+      "point Z1 = coordinate(x: 0, y: 0)",
+      "point Z2 = coordinate(x: 3, y: 4)",
+      "var d = pointDistance(point1: Z1, point2: Z2, state: disabled)",
       "const dist: number = @d",
       "const 印刷: boolean = @dist > 0",
       "group G (printEnabled: @印刷) {",
-      "  point A = coordinate(x: 0 y: 0)",
-      "  point B = coordinate(x: 10 y: 0)",
-      "  line AB = segment(start: A end: B)",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
+      "  line AB = segment(start: A, end: B)",
       "}"
     ]);
     const group = groupNamed(doc, "G");
@@ -424,7 +424,7 @@ describe("printGeometry: group.printEnabled binding", () => {
   });
 
   it("keeps printEnabled independent of a hidden group's activity - hidden descendants stay excluded from print regardless", () => {
-    const doc = compileCanonical(boundGroupSource("state: hidden printEnabled: @印刷"));
+    const doc = compileCanonical(boundGroupSource("state: hidden, printEnabled: @印刷"));
     const group = groupNamed(doc, "G");
     const evaluation = evaluateElements(doc.document.elements, { scalarProgram: doc.scalarProgram });
 
@@ -439,7 +439,7 @@ describe("printGeometry: group.printEnabled binding", () => {
   });
 
   it("keeps printEnabled independent of a disabled group's activity - disabled descendants never evaluate, so print stays empty", () => {
-    const doc = compileCanonical(boundGroupSource("state: disabled printEnabled: @印刷"));
+    const doc = compileCanonical(boundGroupSource("state: disabled, printEnabled: @印刷"));
     const group = groupNamed(doc, "G");
     const evaluation = evaluateElements(doc.document.elements, { scalarProgram: doc.scalarProgram });
 

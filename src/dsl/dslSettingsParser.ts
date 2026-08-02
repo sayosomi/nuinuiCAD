@@ -36,7 +36,7 @@ export type DslSettingsParseResult = {
   diagnostics: DslSettingsDiagnostic[];
 };
 
-export type ParseDslSettingsOptions = { opensBlock?: boolean };
+export type ParseDslSettingsOptions = { opensBlock?: boolean; requireArgumentCommas?: boolean };
 
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 const whitespace = /\s/;
@@ -255,7 +255,7 @@ export const parseDslSettingsStatement = (
   if (inlineBlock && keyword !== "printLayout") addDiagnostic(diagnostics, `${keyword}文はブロックを開けません。`, tail);
   if (keyword === "printLayout" && !opensBlock) addDiagnostic(diagnostics, "printLayout にはブロックが必要です。", keywordSpan);
 
-  const scanned = scanCallArgs(logicalText, { start: open + 1, end: close });
+  const scanned = scanCallArgs(logicalText, { start: open + 1, end: close }, { requireCommas: Boolean(options.requireArgumentCommas) });
   diagnostics.push(...scanned.errors);
   if (keyword === "place" && parsedName.nameSpan) {
     scanned.args.unshift({

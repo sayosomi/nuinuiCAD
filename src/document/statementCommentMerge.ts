@@ -9,6 +9,11 @@ const isFullLineComment = (line: LineComment): boolean =>
 const commentOnlyLine = (targetIndent: string, comment: string): string =>
   `${targetIndent}${comment.trim()}`;
 
+const serializedArgumentText = (next: SerializedStatement, index: number): string => {
+  const arg = next.args[index];
+  return `${arg.text}${next.argumentSeparator === "comma" && index < next.args.length - 1 ? "," : ""}`;
+};
+
 const mergeToSingleLine = (
   oldLines: readonly string[],
   comments: readonly LineComment[],
@@ -37,7 +42,7 @@ const mergeFromSingleLineOld = (
   const argIndent = `${indent}${DSL_INDENT}`;
   return [
     `${indent}${next.header}${eol}`,
-    ...next.args.map((arg) => `${argIndent}${arg.text}`),
+    ...next.args.map((_, index) => `${argIndent}${serializedArgumentText(next, index)}`),
     `${indent}${next.close}`,
   ];
 };
@@ -127,10 +132,10 @@ const mergeCallToCall = (
   const nextKeys = new Set(next.args.map((arg) => arg.key));
 
   const lines: string[] = [`${indent}${next.header}${header.eol}`];
-  for (const arg of next.args) {
+  for (const [index, arg] of next.args.entries()) {
     const row = oldArgLineByKey.has(arg.key) ? byKey.get(arg.key) : undefined;
     for (const comment of row?.leadingComments ?? []) lines.push(`${argIndent}${comment.trim()}`);
-    lines.push(`${argIndent}${arg.text}${row?.eol ?? ""}`);
+    lines.push(`${argIndent}${serializedArgumentText(next, index)}${row?.eol ?? ""}`);
   }
   lines.push(...deletedKeyOrphanLines(oldArgLineByKey, nextKeys, byKey, argIndent));
   for (const comment of close.leadingComments) lines.push(`${argIndent}${comment.trim()}`);

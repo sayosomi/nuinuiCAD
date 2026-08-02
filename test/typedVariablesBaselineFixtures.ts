@@ -120,7 +120,7 @@ export const buildLexicalScopeBaselineSource = (scopeCount: number) => {
       lines.push(`  const B${index}: number = ${index}`);
       lines.push(`}`);
     } else {
-      lines.push(`for F${index} (i from: 0 count: 3 step: 1) {`);
+      lines.push(`for F${index} (i, from: 0, count: 3, step: 1) {`);
       lines.push(`  const W${index}: number = ${index}`);
       lines.push(`}`);
     }
@@ -225,12 +225,12 @@ export const buildMixedBindingAnalysisBaselineSource = (bindingBudget: number) =
     const siblingUse = `SiblingUse${index}`;
     const iterationUse = `IterationUse${index}`;
 
-    lines.push(`var ${outside} = expression(value: ${index} id: outside-${index} scope: group)`);
-    lines.push(`var ${global} = expression(value: ${index} id: global-${index} scope: global)`);
+    lines.push(`var ${outside} = expression(value: ${index}, id: outside-${index}, scope: group)`);
+    lines.push(`var ${global} = expression(value: ${index}, id: global-${index}, scope: global)`);
     lines.push(`const ${rootUse}: number = @${outside}`);
     references.push({ ownerName: rootUse, name: outside });
     lines.push(`group Outer${index} {`);
-    lines.push(`  var ${scoped} = expression(value: ${index} id: scoped-${index} scope: group)`);
+    lines.push(`  var ${scoped} = expression(value: ${index}, id: scoped-${index}, scope: group)`);
     lines.push(`  const ${groupUse}: number = @${global}`);
     references.push({ ownerName: groupUse, name: global });
     lines.push(`  const ${groupOutsideUse}: number = @${outside}`);
@@ -243,7 +243,7 @@ export const buildMixedBindingAnalysisBaselineSource = (bindingBudget: number) =
     lines.push(`    const ${siblingUse}: number = @${scoped}`);
     references.push({ ownerName: siblingUse, name: scoped });
     lines.push("  }");
-    lines.push(`  for Loop${index} (${iteration} from: 0 count: 2 step: 1) {`);
+    lines.push(`  for Loop${index} (${iteration}, from: 0, count: 2, step: 1) {`);
     lines.push(`    const ${iterationUse}: number = @${iteration}`);
     references.push({ ownerName: iterationUse, name: iteration });
     lines.push("  }");
@@ -252,8 +252,8 @@ export const buildMixedBindingAnalysisBaselineSource = (bindingBudget: number) =
     if (index % 25 === 0) {
       const duplicate = `Duplicate${index}`;
       const duplicateUse = `DuplicateUse${index}`;
-      lines.push(`var ${duplicate} = expression(value: ${index} id: duplicate-global-${index} scope: global)`);
-      lines.push(`var ${duplicate} = expression(value: ${index} id: duplicate-outside-${index} scope: group)`);
+      lines.push(`var ${duplicate} = expression(value: ${index}, id: duplicate-global-${index}, scope: global)`);
+      lines.push(`var ${duplicate} = expression(value: ${index}, id: duplicate-outside-${index}, scope: group)`);
       lines.push(`const ${duplicateUse}: number = @${duplicate}`);
       references.push({ ownerName: duplicateUse, name: duplicate });
       duplicateReferenceCount += 1;

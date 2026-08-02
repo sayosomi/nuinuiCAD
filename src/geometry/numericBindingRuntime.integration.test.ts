@@ -29,7 +29,7 @@ const point = (compiled: LastGoodDslDocument, name: string) => {
 
 describe("general numeric typed binding runtime", () => {
   it("evaluates a BindingId-compiled typed number in coordinate x", () => {
-    const compiled = compile(["nui 3", "const length: number = 12.3456", "point B = coordinate(x: @length y: 0)"].join("\n"));
+    const compiled = compile(["nui 3", "const length: number = 12.3456", "point B = coordinate(x: @length, y: 0)"].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const geometry = result.computedGeometry.get(point(compiled, "B").id) as { x: number };
     expect(result.errors).toEqual([]);
@@ -40,9 +40,9 @@ describe("general numeric typed binding runtime", () => {
     const compiled = compile([
       "nui 3",
       "let length: number = 2",
-      "point Before = coordinate(x: @length y: 0)",
+      "point Before = coordinate(x: @length, y: 0)",
       "set length = 9",
-      "point After = coordinate(x: @length y: 0)"
+      "point After = coordinate(x: @length, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect((result.computedGeometry.get(point(compiled, "Before").id) as { x: number }).x).toBe(2);
@@ -53,10 +53,10 @@ describe("general numeric typed binding runtime", () => {
     const compiled = compile([
       "nui 3",
       "const offset: number = 2",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 3 y: 4)",
-      "line AB = segment(start: A end: B)",
-      "point C = coordinate(x: @offset + @AB.length y: 0)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 3, y: 4)",
+      "line AB = segment(start: A, end: B)",
+      "point C = coordinate(x: @offset + @AB.length, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(result.errors).toEqual([]);
@@ -65,7 +65,7 @@ describe("general numeric typed binding runtime", () => {
 
   describe("Rule R self-reference fall-through (review fix: no more `continue` on self-name)", () => {
     it("compiles @A.length (no local variable at all) to sigil-free self-referencing IR and fails at evaluation, not normalize", () => {
-      const compiled = compile(["nui 3", "point A = coordinate(x: 0 y: @A.length)"].join("\n"));
+      const compiled = compile(["nui 3", "point A = coordinate(x: 0, y: @A.length)"].join("\n"));
       const a = point(compiled, "A");
       const yValue = a.type === "freePoint" ? a.y : undefined;
       expect(yValue).toEqual({ kind: "expression", expression: `${a.id}.length` });
@@ -82,7 +82,7 @@ describe("general numeric typed binding runtime", () => {
     it("compiles @A.w (two local variables both named w) to sigil-free self-referencing IR and fails at evaluation the same way", () => {
       const compiled = compile([
         "nui 3",
-        "point A = coordinate(x: 0 y: @A.w vars: [w: 1; w: 2])"
+        "point A = coordinate(x: 0, y: @A.w, vars: [w: 1; w: 2])"
       ].join("\n"));
       const a = point(compiled, "A");
       const yValue = a.type === "freePoint" ? a.y : undefined;
@@ -108,7 +108,7 @@ describe("general numeric typed binding runtime", () => {
       // wins when exactly one local variable matches.
       const compiled = compile([
         "nui 3",
-        "point A = coordinate(x: 0 y: 0 vars: [w: 42; doubled: @A.w * 2])"
+        "point A = coordinate(x: 0, y: 0, vars: [w: 42; doubled: @A.w * 2])"
       ].join("\n"));
       const a = point(compiled, "A");
       const doubled = a.type === "freePoint" ? a.numericVariables?.[1] : undefined;

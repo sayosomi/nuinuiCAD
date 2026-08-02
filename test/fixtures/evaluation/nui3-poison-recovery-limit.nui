@@ -6,8 +6,8 @@ let mirror: number = 0
 set value = 1 / 0
 set mirror = @value
 set value = 4
-text Recovered = label(text: "{@value}" anchor: none size: 3)
-text Poisoned = label(text: "{@mirror}" anchor: none size: 3)
+text Recovered = label(text: "{@value}", anchor: none, size: 3)
+text Poisoned = label(text: "{@mirror}", anchor: none, size: 3)
 @stop
 set value = 99
-text AfterStop = label(text: "{@value}" anchor: none size: 3)
+text AfterStop = label(text: "{@value}", anchor: none, size: 3)

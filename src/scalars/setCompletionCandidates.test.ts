@@ -60,7 +60,7 @@ describe("setTargetCandidates", () => {
       "nui 3",
       "let a: number = 1",
       "var legacy = 2",
-      "for Loop (i from: 0 count: 2) {",
+      "for Loop (i, from: 0, count: 2) {",
       "}"
     ].join("\n");
     const { catalog, entriesById } = catalogFor(source);
@@ -113,7 +113,7 @@ describe("setTargetCandidates", () => {
       "nui 3",
       "let outer: number = 1",
       "if C (true) {",
-      "  for Loop (i from: 0 count: 2) {",
+      "  for Loop (i, from: 0, count: 2) {",
       "  }",
       "}"
     ].join("\n");

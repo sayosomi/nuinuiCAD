@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DslSpan } from "./dslTypes";
-import { scanCallArgs } from "./dslArgScanner";
+import { EMPTY_ARGUMENT_CODE, MISSING_ARGUMENT_COMMA_CODE, scanCallArgs } from "./dslArgScanner";
 
 const spanOf = (source: string, text: string, from = 0): DslSpan => {
   const start = source.indexOf(text, from);
@@ -11,6 +11,11 @@ const spanOf = (source: string, text: string, from = 0): DslSpan => {
 const scan = (source: string) => {
   const open = source.indexOf("(");
   return scanCallArgs(source, { start: open + 1, end: source.lastIndexOf(")") });
+};
+
+const strictScan = (source: string) => {
+  const open = source.indexOf("(");
+  return scanCallArgs(source, { start: open + 1, end: source.lastIndexOf(")") }, { requireCommas: true });
 };
 
 describe("scanCallArgs", () => {
@@ -53,6 +58,36 @@ describe("scanCallArgs", () => {
       ["endpoint", "AB.end"],
     ]);
     expect(scan(source).errors).toEqual([]);
+  });
+
+  it("uses top-level commas while retaining commas inside nested values", () => {
+    const source = 'call(at: (0, 0), sources: [AB, CD], value: min(1, 2), text: "a, b",)';
+    const result = strictScan(source);
+
+    expect(result.args.map((arg) => [arg.key, arg.value])).toEqual([
+      ["at", "(0, 0)"],
+      ["sources", "[AB, CD]"],
+      ["value", "min(1, 2)"],
+      ["text", '"a, b"'],
+    ]);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("recovers whitespace-separated arguments in strict mode and points at each missing comma", () => {
+    const source = "call(start: A end: B ratio: 0.5)";
+    const result = strictScan(source);
+
+    expect(result.args.map((arg) => [arg.key, arg.value])).toEqual([["start", "A"], ["end", "B"], ["ratio", "0.5"]]);
+    expect(result.errors).toEqual([
+      expect.objectContaining({ code: MISSING_ARGUMENT_COMMA_CODE, span: spanOf(source, "end") }),
+      expect.objectContaining({ code: MISSING_ARGUMENT_COMMA_CODE, span: spanOf(source, "ratio") }),
+    ]);
+  });
+
+  it("rejects empty comma-delimited arguments but permits exactly one trailing comma", () => {
+    expect(strictScan("call(, x: 1)").errors).toContainEqual(expect.objectContaining({ code: EMPTY_ARGUMENT_CODE }));
+    expect(strictScan("call(x: 1,, y: 2)").errors).toContainEqual(expect.objectContaining({ code: EMPTY_ARGUMENT_CODE }));
+    expect(strictScan("call(x: 1,)").errors).toEqual([]);
   });
 
   it("reports empty values and a missing space after a colon with precise spans", () => {

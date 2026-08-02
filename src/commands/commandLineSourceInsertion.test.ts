@@ -12,8 +12,8 @@ describe("command-line source insertion", () => {
   it("keeps an element-statement cursor after the complete statement", () => {
     const result = compiled([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 1 y: 1)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 1, y: 1)"
     ]);
     const pointA = result.document!.elements.find((element) => element.name === "A")!;
 
@@ -31,10 +31,10 @@ describe("command-line source insertion", () => {
     const result = compiled([
       "nui 3",
       "group G {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "  # keep this comment with the following insertion",
       "}",
-      "point B = coordinate(x: 1 y: 1)"
+      "point B = coordinate(x: 1, y: 1)"
     ]);
     const group = result.document!.elements.find((element) => element.name === "G")!;
 
@@ -51,10 +51,10 @@ describe("command-line source insertion", () => {
   it("places an @stop-line cursor before the evaluation boundary", () => {
     const result = compiled([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
+      "point A = coordinate(x: 0, y: 0)",
       "# create before the stop",
       "@stop",
-      "point B = coordinate(x: 1 y: 1)"
+      "point B = coordinate(x: 1, y: 1)"
     ]);
 
     expect(sourceInsertionForCommandLineCreation({

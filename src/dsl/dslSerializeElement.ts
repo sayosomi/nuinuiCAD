@@ -16,6 +16,8 @@ export type SerializedStatement = {
   header: string;
   args: Array<{ key: string; text: string }>;
   close: ")" | null;
+  /** Omitted for legacy space-separated output. */
+  argumentSeparator?: "comma";
 };
 
 const defaultGroupAnchor = (value: PointAnchor | null | undefined) =>
@@ -183,10 +185,11 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
     ...commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg))),
   ];
   const contents = [...positional, ...args.map((arg) => arg.text)];
+  const usesCommas = refs.majorVersion >= 3;
   const header = spec.category === "group" && contents.length === 0
     ? prefix
-    : `${prefix} (${contents.join(" ")})`;
-  return { header, args: [], close: null };
+    : `${prefix} (${contents.join(usesCommas ? ", " : " ")})`;
+  return { header, args: [], close: null, ...(usesCommas ? { argumentSeparator: "comma" as const } : {}) };
 };
 
 const isShortExpressionVariable = (
@@ -217,6 +220,7 @@ export const serializeElementStatementBlock = (
       header: `var ${refs.name(element)} = ${refs.numeric(element.expression, element)}`,
       args: [],
       close: null,
+      ...(refs.majorVersion >= 3 ? { argumentSeparator: "comma" as const } : {}),
     };
   }
 
@@ -226,6 +230,7 @@ export const serializeElementStatementBlock = (
     header,
     args: [...constructionArgs(element, spec, refs), ...common],
     close: ")",
+    ...(refs.majorVersion >= 3 ? { argumentSeparator: "comma" as const } : {}),
   };
 };
 
@@ -233,5 +238,6 @@ export const serializeElementStatementLogical = (element: CadElement, refs: DslS
   const statement = serializeElementStatementBlock(element, refs);
   if (!statement.close) return statement.header;
   const [first, ...rest] = statement.args;
-  return `${statement.header}${first?.text ?? ""}${rest.length ? ` ${rest.map((arg) => arg.text).join(" ")}` : ""})`;
+  const separator = statement.argumentSeparator === "comma" ? ", " : " ";
+  return `${statement.header}${[first?.text, ...rest.map((arg) => arg.text)].filter(Boolean).join(separator)})`;
 };
