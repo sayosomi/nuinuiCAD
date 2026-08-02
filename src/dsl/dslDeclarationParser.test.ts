@@ -42,6 +42,30 @@ describe("DSL typed declaration parser", () => {
     expect(result.statement).toMatchObject({ name: "x", declaredType: { kind: "number" }, initializer: "12" });
   });
 
+  it("parses number step and bounds metadata", () => {
+    const source = "let 幅: number(max: 200, step: 5, min: 0) = 120";
+    const result = parse(source);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.statement).toMatchObject({
+      declaredType: { kind: "number" },
+      numericTypeOptions: { step: 5, min: 0, max: 200 }
+    });
+  });
+
+  it("reports invalid number step and bounds metadata", () => {
+    for (const source of [
+      "const x: number() = 1",
+      "const x: number(step: 0) = 1",
+      "const x: number(min: 10, max: 0) = 1",
+      "const x: number(step: 1, step: 2) = 1",
+      "const x: number(other: 1) = 1"
+    ]) {
+      const result = parse(source);
+      expect(result.statement?.declaredType).toBeNull();
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-number-type-options")).toBe(true);
+    }
+  });
+
   it("reports a missing name with no colon or equals present", () => {
     const result = parse("const");
     expect(result.statement).toMatchObject({ name: "", nameSpan: null, declaredType: null, initializer: "" });

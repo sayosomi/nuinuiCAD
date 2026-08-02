@@ -11,6 +11,7 @@ import type { DocumentRange, DslPhysicalSpan, LogicalStatement, LogicalStatement
 import type { DslMajorVersion } from "./dslVersion";
 import type { ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
+import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
 
 /** Where a diagnostic's own consumer/declaration span lives, shared verbatim
  * by the Source Editor gutter, the Problems popover, and Inspector jump
@@ -127,6 +128,8 @@ export type DslStatement =
       declaredType: ScalarType | null;
       /** Per-option spans, index-aligned with `declaredType.options` when it is a choice type. */
       choiceOptionSpans: readonly DslSpan[];
+      /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
+      numericTypeOptions?: DslNumericTypeOptions;
       /** Raw, unparsed initializer source text - never evaluated or re-quoted (Task 14 owns that). */
       initializer: string;
     })

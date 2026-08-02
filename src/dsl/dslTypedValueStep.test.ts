@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveTypedValueStep } from "./dslTypedValueStep";
 import type { ScalarType } from "../scalars/types";
+import { findNumericExpressionLiteralSpanAt } from "../geometry/numericExpressionLiteralSpan";
 
 const span = { from: 10, to: 14 };
 const collapsedAt = (pos: number) => ({ start: pos, end: pos });
@@ -45,6 +46,47 @@ describe("resolveTypedValueStep", () => {
         .toMatchObject({ insert: forward });
       expect(resolveTypedValueStep(literal, { kind: "number" }, numericSpan, collapsedAt(caret), -1, { numericStep: 1 }))
         .toMatchObject({ insert: backward });
+    }
+  });
+
+  it("clamps an in-range number at configured bounds", () => {
+    const numericSpan = { from: 10, to: 13 };
+    expect(resolveTypedValueStep("199", { kind: "number" }, numericSpan, collapsedAt(11), 1, {
+      numericStep: 5,
+      numericMin: 0,
+      numericMax: 200
+    })).toMatchObject({ insert: "200" });
+    expect(resolveTypedValueStep("1", { kind: "number" }, { from: 10, to: 11 }, collapsedAt(10), -1, {
+      numericStep: 5,
+      numericMin: 0,
+      numericMax: 200
+    })).toMatchObject({ insert: "0" });
+  });
+
+  it("only returns an initially out-of-range number toward its nearest bound", () => {
+    const options = { numericStep: 5, numericMin: 0, numericMax: 200 };
+    expect(resolveTypedValueStep("250", { kind: "number" }, { from: 10, to: 13 }, collapsedAt(11), -1, options))
+      .toMatchObject({ insert: "200" });
+    expect(resolveTypedValueStep("250", { kind: "number" }, { from: 10, to: 13 }, collapsedAt(11), 1, options)).toBeNull();
+    expect(resolveTypedValueStep("-20", { kind: "number" }, { from: 10, to: 13 }, collapsedAt(11), 1, options))
+      .toMatchObject({ insert: "0" });
+    expect(resolveTypedValueStep("-20", { kind: "number" }, { from: 10, to: 13 }, collapsedAt(11), -1, options)).toBeNull();
+  });
+
+  it("writes exponent-free small and large bounds that remain valid DSL literals", () => {
+    const cases = [
+      { literal: "0.00", direction: 1 as const, options: { numericStep: 1, numericMin: 1e-7 }, expected: "0.0000001" },
+      { literal: "-1.00", direction: 1 as const, options: { numericStep: 1, numericMin: -1e-7 }, expected: "-0.0000001" },
+      { literal: "1.00", direction: -1 as const, options: { numericStep: 1, numericMax: 1e-7 }, expected: "0.0000001" },
+      { literal: "0.00", direction: -1 as const, options: { numericStep: 1, numericMax: -1e-7 }, expected: "-0.0000001" },
+      { literal: "0", direction: 1 as const, options: { numericStep: 1, numericMin: 1e21 }, expected: "1000000000000000000000" },
+      { literal: "0", direction: -1 as const, options: { numericStep: 1, numericMax: -1e21 }, expected: "-1000000000000000000000" }
+    ];
+    for (const { literal, direction, options, expected } of cases) {
+      const result = resolveTypedValueStep(literal, { kind: "number" }, { from: 0, to: literal.length }, collapsedAt(0), direction, options);
+      expect(result?.insert).toBe(expected);
+      expect(result?.insert).not.toMatch(/e/i);
+      expect(findNumericExpressionLiteralSpanAt(result?.insert ?? "", { start: 0, end: 0 })).toEqual({ start: 0, end: expected.length });
     }
   });
 

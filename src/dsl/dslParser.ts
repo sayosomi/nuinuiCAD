@@ -233,6 +233,7 @@ const declarationStatementToDslStatement = (
   bindingKind: decl.bindingKind,
   declaredType: decl.declaredType,
   choiceOptionSpans: decl.choiceOptionSpans,
+  ...(decl.numericTypeOptions ? { numericTypeOptions: decl.numericTypeOptions } : {}),
   initializer: decl.initializer
 });
 

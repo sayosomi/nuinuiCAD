@@ -2,6 +2,7 @@ import type { ScalarType } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
 import type { DslSpan } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
+import { parseDslNumericTypeOptions, type DslNumericTypeOptions } from "./dslNumericTypeOptions";
 
 // Focused parser for the v3-only typed declaration statement:
 //   const NAME: TYPE = INITIALIZER
@@ -29,6 +30,8 @@ export type DslTypedDeclarationStatement = {
   declaredType: ScalarType | null;
   /** Per-option spans, index-aligned with `declaredType.options` when it is a choice type. */
   choiceOptionSpans: readonly DslSpan[];
+  /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
+  numericTypeOptions?: DslNumericTypeOptions;
   /** Raw, unparsed initializer source text - never evaluated or re-quoted. */
   initializer: string;
   payloadSpans: Record<string, DslSpan>;
@@ -135,7 +138,6 @@ const parseName = (source: string, span: DslSpan): { name: string; nameSpan: Dsl
     : { name: unquoteDslString(source.slice(span.start, span.end)), nameSpan: span };
 
 const KNOWN_SIMPLE_TYPES: Record<string, ScalarType> = {
-  number: { kind: "number" },
   string: { kind: "string" },
   boolean: { kind: "boolean" }
 };
@@ -146,8 +148,16 @@ const parseDeclaredType = (
   source: string,
   typeSpan: DslSpan,
   diagnostics: DslDeclarationDiagnostic[]
-): { declaredType: ScalarType | null; choiceOptionSpans: DslSpan[] } => {
+): { declaredType: ScalarType | null; choiceOptionSpans: DslSpan[]; numericTypeOptions?: DslNumericTypeOptions } => {
   const text = source.slice(typeSpan.start, typeSpan.end);
+  if (text === "number") return { declaredType: { kind: "number" }, choiceOptionSpans: [] };
+  if (/^number\s*\(/.test(text)) {
+    const parsed = parseDslNumericTypeOptions(source, typeSpan);
+    diagnostics.push(...parsed.diagnostics);
+    return parsed.options
+      ? { declaredType: { kind: "number" }, choiceOptionSpans: [], numericTypeOptions: parsed.options }
+      : { declaredType: null, choiceOptionSpans: [] };
+  }
   const simple = KNOWN_SIMPLE_TYPES[text];
   if (simple) return { declaredType: simple, choiceOptionSpans: [] };
 
@@ -271,7 +281,7 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
     diagnostics.push({ message: "初期化式には「=」の後に値が必要です。", span: initializerSpan });
   }
 
-  const { declaredType, choiceOptionSpans } =
+  const { declaredType, choiceOptionSpans, numericTypeOptions } =
     typeSpan.start === typeSpan.end
       ? { declaredType: null as ScalarType | null, choiceOptionSpans: [] as DslSpan[] }
       : parseDeclaredType(logicalText, typeSpan, diagnostics);
@@ -289,6 +299,7 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
       keywordSpan,
       declaredType,
       choiceOptionSpans,
+      ...(numericTypeOptions ? { numericTypeOptions } : {}),
       initializer: logicalText.slice(initializerSpan.start, initializerSpan.end),
       payloadSpans,
       args: [],

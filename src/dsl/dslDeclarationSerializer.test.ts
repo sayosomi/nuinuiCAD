@@ -36,6 +36,13 @@ describe("serializeTypedDeclaration", () => {
     expect(serializeTypedDeclaration(declarationOf(source))).toBe("const d: choice(right, left, center) = right");
   });
 
+  it("serializes number type metadata in step, min, max order", () => {
+    const source = "const width: number(max: 200, step: 5, min: 0) = 120";
+    expect(serializeTypedDeclaration(declarationOf(source))).toBe(
+      "const width: number(step: 5, min: 0, max: 200) = 120"
+    );
+  });
+
   it("preserves the initializer's original quote style and escapes byte-for-byte, without canonicalizing them", () => {
     // A single-quoted string with an already-escaped double quote inside: if
     // Task 10 canonicalized the initializer (double-quote + re-escape), this
@@ -55,6 +62,7 @@ describe("serializeTypedDeclaration", () => {
   it("round-trips through reparse without diagnostics for every declared type", () => {
     for (const source of [
       "const a: number = 1 + 2",
+      "const bounded: number(step: 0.5, min: -1, max: 2) = 1",
       'let b: string = "x"',
       "const c: boolean = false",
       "let d: choice(a, b, c) = b"
