@@ -7,6 +7,7 @@ import { sampleElements } from "../sampleData";
 import { useCadDocumentStore } from "./cadDocumentStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import type { CommandLineSession } from "../commands/commandLineSession";
+import type { SourceCreationInsertion } from "../commands/sourceCreationInsertion";
 import type { ActiveTemplateInsertion } from "../templates/templateInsertionMode";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import type { FoldTarget, GroupFoldState } from "../model/groups";
@@ -97,6 +98,7 @@ export type PendingImageImport = {
   detectedDpi: number | null;
   sourceDpi: number;
   targetPixelsPerMm: number;
+  sourceInsertion: SourceCreationInsertion | null;
   error: string | null;
 };
 
@@ -200,6 +202,7 @@ export type CadUiState = CadElementSelection & {
   showVisibilityProfileSettings: boolean;
   showGroupTemplateLibrary: boolean;
   groupTemplateLibraryMode: "manage" | "insert";
+  templateInsertionSourceInsertion: SourceCreationInsertion | null;
   showCommandRibbonSettings: boolean;
   showSelectionColorPicker: boolean;
   renameElementPromptTargetId: ElementId | null;
@@ -396,6 +399,7 @@ export const initialCadUiState = (): Omit<
   showVisibilityProfileSettings: false,
   showGroupTemplateLibrary: false,
   groupTemplateLibraryMode: "manage",
+  templateInsertionSourceInsertion: null,
   showCommandRibbonSettings: false,
   showSelectionColorPicker: false,
   renameElementPromptTargetId: null,
@@ -522,7 +526,10 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   setShowVisibilityProfileSettings: (showVisibilityProfileSettings) =>
     set({ showVisibilityProfileSettings }),
   setShowGroupTemplateLibrary: (showGroupTemplateLibrary) =>
-    set({ showGroupTemplateLibrary }),
+    set({
+      showGroupTemplateLibrary,
+      ...(showGroupTemplateLibrary ? {} : { templateInsertionSourceInsertion: null })
+    }),
   setGroupTemplateLibraryMode: (groupTemplateLibraryMode) =>
     set({ groupTemplateLibraryMode }),
   setShowCommandRibbonSettings: (showCommandRibbonSettings) =>

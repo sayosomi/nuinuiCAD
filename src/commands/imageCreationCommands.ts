@@ -5,7 +5,8 @@ import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { defaultTargetPixelsPerMm, initialImageScale } from "../geometry/imageScale";
 import {
   applyCreationPlacement,
-  creationPlacementForEvaluationLimit
+  creationPlacementForEvaluationLimit,
+  creationPlacementForTarget
 } from "../model/elementCreationPlacement";
 import { createCadElement } from "../model/elementFactory";
 import { makeUniqueElementName } from "../model/elementNames";
@@ -13,8 +14,15 @@ import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
+import type { CommandContext } from "./commandTypes";
 import { focusCanvasAfterCreation } from "./postCreationFocus";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
+import { commitSourceCreationInsertion } from "./sourceCreationCommit";
+import {
+  resolveSourceCreationInsertion,
+  sourceCreationInsertionIsCurrent,
+  type SourceCreationInsertion
+} from "./sourceCreationInsertion";
 
 type ImageMetadata = {
   widthPx: number;
@@ -72,14 +80,13 @@ const loadTauriImageMetadata = async (path: string) => {
   return invoke<ImageMetadata>("read_image_metadata", { path });
 };
 
-const creationContext = () => {
+const creationContext = (sourceInsertion: SourceCreationInsertion | null) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
   return {
     elements,
-    ...creationPlacementForEvaluationLimit(
-      elements,
-      evaluationLimitIndex
-    )
+    ...(sourceInsertion
+      ? creationPlacementForTarget(elements, sourceInsertion.insertionTarget, evaluationLimitIndex)
+      : creationPlacementForEvaluationLimit(elements, evaluationLimitIndex))
   };
 };
 
@@ -87,8 +94,24 @@ const commitCreatedImage = (
   element: CadElement,
   elements: CadElement[],
   insertionIndex: number,
-  evaluationLimitIndex: number | undefined
+  evaluationLimitIndex: number | undefined,
+  sourceInsertion: SourceCreationInsertion | null
 ) => {
+  if (sourceInsertion) {
+    const sourceCommit = commitSourceCreationInsertion({
+      elements,
+      insertionIndex,
+      insertedElements: [element],
+      sourceInsertionLine: sourceInsertion.sourceInsertionLine
+    });
+    if (sourceCommit.result.status !== "applied" || !sourceCommit.selectedElementId) return false;
+    useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, {
+      selectedElementId: sourceCommit.selectedElementId,
+      selectedElementIds: sourceCommit.insertedElementIds,
+      selectionAnchorElementId: sourceCommit.selectedElementId
+    });
+    return true;
+  }
   const placedElement = applyCreationPlacement(
     element,
     creationPlacementForEvaluationLimit(
@@ -114,6 +137,7 @@ const commitCreatedImage = (
     selectionAnchorElementId: placedElement.id
   });
   focusCanvasAfterCreation();
+  return true;
 };
 
 export const commitPendingImageImport = ({
@@ -122,7 +146,8 @@ export const commitPendingImageImport = ({
   naturalWidthPx,
   naturalHeightPx,
   sourceDpi,
-  targetPixelsPerMm
+  targetPixelsPerMm,
+  sourceInsertion
 }: {
   sourcePath: string;
   displayName: string;
@@ -130,13 +155,21 @@ export const commitPendingImageImport = ({
   naturalHeightPx: number;
   sourceDpi: number;
   targetPixelsPerMm: number;
+  sourceInsertion: SourceCreationInsertion | null;
 }) => {
-  const { elements, insertionIndex, referenceElements } = creationContext();
-  const { evaluationLimitIndex } = useCadDocumentStore.getState();
-  const placement = creationPlacementForEvaluationLimit(
-    elements,
-    insertionIndex
-  );
+  const document = useCadDocumentStore.getState();
+  if (sourceInsertion && !sourceCreationInsertionIsCurrent(sourceInsertion, document.sourceRevision)) {
+    useCadUiStore.setState({
+      pendingImageImport: null,
+      imageImportError: "文書が変更されたため、画像の追加を中止しました。もう一度実行してください。"
+    });
+    return false;
+  }
+  const { elements, insertionIndex, referenceElements } = creationContext(sourceInsertion);
+  const { evaluationLimitIndex } = document;
+  const placement = sourceInsertion
+    ? creationPlacementForTarget(elements, sourceInsertion.insertionTarget, evaluationLimitIndex)
+    : creationPlacementForEvaluationLimit(elements, insertionIndex);
   const element = createCadElement("image", elements, { referenceElements });
   if (element.type !== "image") return;
 
@@ -158,7 +191,7 @@ export const commitPendingImageImport = ({
     targetPixelsPerMm,
     scale: initialImageScale(sourceDpi, targetPixelsPerMm)
   };
-  commitCreatedImage(imageElement, elements, insertionIndex, evaluationLimitIndex);
+  return commitCreatedImage(imageElement, elements, insertionIndex, evaluationLimitIndex, sourceInsertion);
 };
 
 const metadataErrorMessage = (error: unknown) =>
@@ -168,7 +201,14 @@ const metadataErrorMessage = (error: unknown) =>
       ? error
       : "画像を読み込めません。";
 
-export const addImage = async () => {
+export const addImage = async (context?: CommandContext) => {
+  const document = useCadDocumentStore.getState();
+  const sourceInsertion = resolveSourceCreationInsertion({
+    cursor: context?.currentSourceCursor?.() ?? null,
+    sourceRevision: document.sourceRevision,
+    elements: document.elements,
+    statementMap: document.doc.statementMap
+  });
   try {
     let metadata: ImageMetadata;
     let sourcePath: string;
@@ -199,6 +239,7 @@ export const addImage = async () => {
         detectedDpi: metadata.dpi && metadata.dpi > 0 ? metadata.dpi : null,
         sourceDpi,
         targetPixelsPerMm: defaultTargetPixelsPerMm(metadata.dpi),
+        sourceInsertion,
         error: null
       },
       imageImportError: null,

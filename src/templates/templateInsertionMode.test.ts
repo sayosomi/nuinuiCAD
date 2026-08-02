@@ -33,6 +33,7 @@ const insertion = (inputValues = defaultTemplateInputValues(template)): ActiveTe
   inputValues,
   currentInputId: "point:p",
   insertionIndex: 0,
+  sourceInsertion: null,
   error: null
 });
 

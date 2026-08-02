@@ -5,16 +5,18 @@ import type { CadElement, ElementId } from "../types/geometry";
 import { insertionAnchorForCommandLineCreation, resolveCommandLineInsertionAnchor } from "./commandLineInsertionAnchor";
 
 /** Plain Source Editor data; no CodeMirror type crosses this boundary. */
-export type CommandLineSourceCursor = {
+export type SourceCreationCursor = {
   sourceRevision: number;
   line: number;
   lineCount: number;
   elementId: ElementId | null;
 };
 
-export type CommandLineSourceInsertion = {
+/** A source-backed insertion point captured before a multi-step creation flow. */
+export type SourceCreationInsertion = {
+  sourceRevision: number;
   insertionTarget: ElementCreationTarget;
-  /** 1-based line before which the new serialized statement is inserted. */
+  /** 1-based line before which the serialized declarations are inserted. */
   sourceInsertionLine: number;
 };
 
@@ -54,23 +56,28 @@ const hasScope = (element: CadElement, scope: Scope) =>
  * "after the complete statement" behavior; all other cursor lines insert
  * immediately before that physical line.
  */
-export const sourceInsertionForCommandLineCreation = ({
+export const sourceInsertionForCreation = ({
   cursor,
   elements,
   statementMap
 }: {
-  cursor: CommandLineSourceCursor;
+  cursor: SourceCreationCursor;
   elements: CadElement[];
   statementMap: StatementMap;
-}): CommandLineSourceInsertion | null => {
+}): SourceCreationInsertion => {
   if (cursor.elementId) {
     const target = resolveCommandLineInsertionAnchor(
       insertionAnchorForCommandLineCreation(cursor.elementId),
       elements
     );
     const info = statementMap.byElementId.get(cursor.elementId);
-    if (!target || !info) return null;
-    return { insertionTarget: target, sourceInsertionLine: info.range.endLine + 1 };
+    if (target && info) {
+      return {
+        sourceRevision: cursor.sourceRevision,
+        insertionTarget: target,
+        sourceInsertionLine: info.range.endLine + 1
+      };
+    }
   }
 
   const versionLine = statementMap.byKey.get("version")?.line ?? 0;
@@ -87,6 +94,7 @@ export const sourceInsertionForCommandLineCreation = ({
     .sort((left, right) => left.info.line - right.info.line)[0];
   if (nextSibling) {
     return {
+      sourceRevision: cursor.sourceRevision,
       insertionTarget: {
         insertionIndex: elements.findIndex((element) => element.id === nextSibling.element.id),
         ...scope
@@ -101,15 +109,41 @@ export const sourceInsertionForCommandLineCreation = ({
       insertionAnchorForCommandLineCreation(previousSibling.id),
       elements
     );
-    if (!target) return null;
-    return { insertionTarget: { ...target, ...scope }, sourceInsertionLine };
+    if (target) {
+      return {
+        sourceRevision: cursor.sourceRevision,
+        insertionTarget: { ...target, ...scope },
+        sourceInsertionLine
+      };
+    }
   }
 
   const parentIndex = scope.parentGroupId
     ? elements.findIndex((element) => element.id === scope.parentGroupId)
     : elements.length;
   return {
+    sourceRevision: cursor.sourceRevision,
     insertionTarget: { insertionIndex: parentIndex < 0 ? elements.length : parentIndex + 1, ...scope },
     sourceInsertionLine
   };
 };
+
+export const resolveSourceCreationInsertion = ({
+  cursor,
+  sourceRevision,
+  elements,
+  statementMap
+}: {
+  cursor: SourceCreationCursor | null;
+  sourceRevision: number;
+  elements: CadElement[];
+  statementMap: StatementMap | null;
+}): SourceCreationInsertion | null => {
+  if (!cursor || cursor.sourceRevision !== sourceRevision || !statementMap) return null;
+  return sourceInsertionForCreation({ cursor, elements, statementMap });
+};
+
+export const sourceCreationInsertionIsCurrent = (
+  insertion: SourceCreationInsertion,
+  sourceRevision: number
+) => insertion.sourceRevision === sourceRevision;

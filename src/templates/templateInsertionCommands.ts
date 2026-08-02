@@ -6,12 +6,15 @@ import {
   type NumericMeasurementKey
 } from "../geometry/numericExpressions";
 import {
-  creationPlacementForEvaluationLimit
+  creationPlacementForEvaluationLimit,
+  creationPlacementForTarget
 } from "../model/elementCreationPlacement";
 import { adjustEvaluationLimitForInsertion } from "../model/evaluationDivider";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { commitDocumentChangeAndSelect } from "../commands/commitDocumentChangeAndSelect";
+import { commitSourceCreationInsertion } from "../commands/sourceCreationCommit";
+import { sourceCreationInsertionIsCurrent, type SourceCreationInsertion } from "../commands/sourceCreationInsertion";
 import type { ElementId, NumericValue, PointAnchor } from "../types/geometry";
 import { instantiateGroupTemplate, type GroupTemplate } from "./groupTemplate";
 import {
@@ -81,15 +84,20 @@ const updateTemplateInsertion = (
   setActiveTemplateInsertion(next);
 };
 
-export const startTemplateInsertion = ({ template, insertionIndex }: {
+export const startTemplateInsertion = ({ template, insertionIndex, sourceInsertion = null }: {
   template: GroupTemplate;
   insertionIndex?: number;
+  sourceInsertion?: SourceCreationInsertion | null;
 }) => {
-  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
-  const placement = creationPlacementForEvaluationLimit(
-    elements,
-    insertionIndex ?? evaluationLimitIndex
-  );
+  const document = useCadDocumentStore.getState();
+  if (sourceInsertion && !sourceCreationInsertionIsCurrent(sourceInsertion, document.sourceRevision)) {
+    useCadUiStore.getState().setCommandErrorMessage("文書が変更されたため、テンプレート挿入を開始できません。もう一度実行してください。");
+    return false;
+  }
+  const { elements, evaluationLimitIndex } = document;
+  const placement = sourceInsertion
+    ? creationPlacementForTarget(elements, sourceInsertion.insertionTarget, evaluationLimitIndex)
+    : creationPlacementForEvaluationLimit(elements, insertionIndex ?? evaluationLimitIndex);
   const inputValues = defaultTemplateInputValues(template);
   const insertion: ActiveTemplateInsertion = {
     template,
@@ -98,14 +106,17 @@ export const startTemplateInsertion = ({ template, insertionIndex }: {
     insertionIndex: placement.insertionIndex,
     parentGroupId: placement.parentGroupId,
     conditionalBranch: placement.conditionalBranch,
+    sourceInsertion,
     error: null
   };
   useCadUiStore.setState({
     showGroupTemplateLibrary: false,
+    templateInsertionSourceInsertion: null,
     activeMeasurementInsertTarget: null,
     activeNumericReferencePickTarget: null
   });
   setActiveTemplateInsertion(insertion);
+  return true;
 };
 
 export const cancelTemplateInsertion = () => {
@@ -268,7 +279,12 @@ export const confirmTemplateInsertion = () => {
     return;
   }
 
-  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
+  const { elements, evaluationLimitIndex, sourceRevision } = useCadDocumentStore.getState();
+  if (insertion.sourceInsertion && !sourceCreationInsertionIsCurrent(insertion.sourceInsertion, sourceRevision)) {
+    cancelTemplateInsertion();
+    useCadUiStore.getState().setCommandErrorMessage("文書が変更されたため、テンプレート挿入を中止しました。もう一度実行してください。");
+    return false;
+  }
   try {
     const change = instantiateGroupTemplate({
       elements,
@@ -278,7 +294,32 @@ export const confirmTemplateInsertion = () => {
       parentGroupId: insertion.parentGroupId,
       conditionalBranch: insertion.conditionalBranch
     });
-    commitDocumentChangeAndSelect({
+    if (insertion.sourceInsertion) {
+      const insertedElements = change.elements.slice(
+        change.insertionIndex,
+        change.insertionIndex + change.insertedCount
+      );
+      const selectedElementOffset = insertedElements.findIndex(
+        (element) => element.id === change.selectedElementId
+      );
+      const sourceCommit = commitSourceCreationInsertion({
+        elements,
+        insertionIndex: change.insertionIndex,
+        insertedElements,
+        sourceInsertionLine: insertion.sourceInsertion.sourceInsertionLine,
+        selectedElementOffset: selectedElementOffset < 0 ? 0 : selectedElementOffset
+      });
+      if (sourceCommit.result.status !== "applied" || !sourceCommit.selectedElementId) {
+        setActiveTemplateInsertion({ ...insertion, error: "現在のDSLテキストにはこの操作を適用できません。" });
+        return false;
+      }
+      useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, {
+        selectedElementId: sourceCommit.selectedElementId,
+        selectedElementIds: sourceCommit.insertedElementIds,
+        selectionAnchorElementId: sourceCommit.selectedElementId
+      });
+    } else {
+      commitDocumentChangeAndSelect({
       elements: change.elements,
       evaluationLimitIndex: adjustEvaluationLimitForInsertion({
         elements,
@@ -286,13 +327,16 @@ export const confirmTemplateInsertion = () => {
         insertionIndex: change.insertionIndex,
         insertedCount: change.insertedCount
       })
-    }, change);
+      }, change);
+    }
     cancelTemplateInsertion();
+    return true;
   } catch (error) {
     setActiveTemplateInsertion({
       ...insertion,
       error: error instanceof Error ? error.message : "テンプレートを挿入できません。"
     });
+    return false;
   }
 };
 

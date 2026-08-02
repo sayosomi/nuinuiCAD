@@ -10,7 +10,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { GroupTemplate } from "../templates/groupTemplate";
 import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
-import type { CommandLineSourceCursor } from "./commandLineSourceInsertion";
+import type { SourceCreationCursor } from "./sourceCreationInsertion";
 
 export type { BezierHandleRole };
 
@@ -174,7 +174,7 @@ export type CommandContext = {
   /** Current element statement under the Source Editor cursor, without exposing CodeMirror state. */
   currentCursorElementId?: () => ElementId | null;
   /** Current physical Source Editor cursor for statement-preserving creation insertion. */
-  currentSourceCursor?: () => CommandLineSourceCursor | null;
+  currentSourceCursor?: () => SourceCreationCursor | null;
   /** Typed binding (declaration/reference/set target/template hole) under the
    * Source Editor cursor, if any - see typedRenameTargetAtCursor.ts. Null
    * whenever the cursor is not on a typed construct at all. */

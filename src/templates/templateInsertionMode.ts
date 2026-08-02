@@ -1,5 +1,6 @@
 import type { GroupTemplate, GroupTemplateInput, TemplateInstantiationInputValues } from "./groupTemplate";
 import type { ConditionalBranch, ElementId, NumericValue, PointAnchor } from "../types/geometry";
+import type { SourceCreationInsertion } from "../commands/sourceCreationInsertion";
 
 export const TEMPLATE_INSERTION_PICK_TARGET_ID = "__template-insertion__";
 export const TEMPLATE_INSERTION_NUMERIC_TARGET_ID = "__template-insertion-numeric__";
@@ -11,6 +12,7 @@ export type ActiveTemplateInsertion = {
   insertionIndex: number;
   parentGroupId?: ElementId;
   conditionalBranch?: ConditionalBranch;
+  sourceInsertion: SourceCreationInsertion | null;
   error: string | null;
 };
 

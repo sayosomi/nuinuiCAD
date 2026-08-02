@@ -69,6 +69,7 @@ describe("PickModeStatus", () => {
         inputValues: { "point:p": "" },
         currentInputId: "point:p",
         insertionIndex: 0,
+        sourceInsertion: null,
         error: null
       },
       activePointPickTarget: {

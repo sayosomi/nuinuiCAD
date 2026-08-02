@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { addImage } from "./imageCreationCommands";
+import { addImage, commitPendingImageImport } from "./imageCreationCommands";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
@@ -115,6 +115,74 @@ describe("imageCreationCommands", () => {
     expect(tauriCoreMock.invoke).not.toHaveBeenCalled();
     expect(useCadStore.getState().pendingImageImport).toBeNull();
     expect(useCadStore.getState().imageImportError).toBeNull();
+  });
+
+  it("captures a Source Editor insertion line and uses it after image configuration", async () => {
+    useCadStore.getState().commitText([
+      "nui 3",
+      "point A = coordinate(x: 0 y: 0)",
+      "# insert image here",
+      "point B = coordinate(x: 10 y: 0)"
+    ].join("\n"), "test");
+    const document = useCadStore.getState();
+    dialogMock.open.mockResolvedValue("/Users/yosomi/Documents/underlay.png");
+    tauriCoreMock.invoke.mockResolvedValue({ widthPx: 5000, heightPx: 5000, dpi: 300 });
+
+    await addImage({
+      currentSourceCursor: () => ({
+        sourceRevision: document.sourceRevision,
+        line: 3,
+        lineCount: 4,
+        elementId: null
+      })
+    });
+    const pending = useCadStore.getState().pendingImageImport!;
+    expect(pending.sourceInsertion).toMatchObject({
+      insertionTarget: { insertionIndex: 1 },
+      sourceInsertionLine: 3
+    });
+
+    expect(commitPendingImageImport({
+      sourcePath: pending.sourcePath,
+      displayName: pending.displayName,
+      naturalWidthPx: pending.naturalWidthPx,
+      naturalHeightPx: pending.naturalHeightPx,
+      sourceDpi: pending.sourceDpi,
+      targetPixelsPerMm: pending.targetPixelsPerMm,
+      sourceInsertion: pending.sourceInsertion
+    })).toBe(true);
+    const next = useCadStore.getState();
+    expect(next.sourceText.indexOf("image underlay.png")).toBeLessThan(next.sourceText.indexOf("# insert image here"));
+    expect(next.elements.map((element) => element.type)).toEqual(["freePoint", "image", "freePoint"]);
+  });
+
+  it("rejects an image import when its captured source revision is stale", async () => {
+    useCadStore.getState().commitText("nui 3\npoint A = coordinate(x: 0 y: 0)", "test");
+    const document = useCadStore.getState();
+    dialogMock.open.mockResolvedValue("/Users/yosomi/Documents/underlay.png");
+    tauriCoreMock.invoke.mockResolvedValue({ widthPx: 5000, heightPx: 5000, dpi: 300 });
+    await addImage({
+      currentSourceCursor: () => ({
+        sourceRevision: document.sourceRevision,
+        line: 3,
+        lineCount: 3,
+        elementId: null
+      })
+    });
+    const pending = useCadStore.getState().pendingImageImport!;
+    useCadStore.getState().commitText("nui 3\npoint A = coordinate(x: 0 y: 0)\n# changed", "test");
+
+    expect(commitPendingImageImport({
+      sourcePath: pending.sourcePath,
+      displayName: pending.displayName,
+      naturalWidthPx: pending.naturalWidthPx,
+      naturalHeightPx: pending.naturalHeightPx,
+      sourceDpi: pending.sourceDpi,
+      targetPixelsPerMm: pending.targetPixelsPerMm,
+      sourceInsertion: pending.sourceInsertion
+    })).toBe(false);
+    expect(useCadStore.getState().pendingImageImport).toBeNull();
+    expect(useCadStore.getState().imageImportError).toContain("文書が変更されたため");
   });
 
   afterEach(() => {
