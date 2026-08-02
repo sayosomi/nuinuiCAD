@@ -10,9 +10,20 @@
 import { parseDslSetStatement } from "./dslSetParser";
 import type { DslSpan } from "./dslTypes";
 import { scalarExpressionCompletionContextAt, scalarOperandWordEndingAt } from "../scalars/scalarExpressionPositionClassifier";
+import {
+  typedGeometryPropertyCompletionContextAt,
+  type TypedGeometryPropertyCompletionContext
+} from "./dslTypedGeometryPropertyCompletionContext";
 
 export type SetTargetCompletionContext = { kind: "target"; from: number; to: number };
-export type SetRhsCompletionContext = { kind: "rhs"; from: number; to: number; expressionSpan: DslSpan; targetName: string };
+export type SetRhsCompletionContext = {
+  kind: "rhs";
+  from: number;
+  to: number;
+  expressionSpan: DslSpan;
+  targetName: string;
+  geometryProperty?: TypedGeometryPropertyCompletionContext;
+};
 export type SetCompletionContext = SetTargetCompletionContext | SetRhsCompletionContext;
 
 /**
@@ -60,6 +71,20 @@ export const setCompletionContextAt = (logicalText: string, pos: number): SetCom
 
   const expressionSpan = expressionSpanIncludingEmpty(logicalText, statement.payloadSpans.expression);
   if (!expressionSpan || pos < expressionSpan.start || pos > expressionSpan.end) return null;
+  // The target's declared type is resolved by cmAutocomplete. Recognize the
+  // shape here with a number placeholder, then let that caller suppress it
+  // for a non-number target.
+  const geometryProperty = typedGeometryPropertyCompletionContextAt(logicalText, pos, expressionSpan, { kind: "number" });
+  if (geometryProperty) {
+    return {
+      kind: "rhs",
+      from: geometryProperty.from,
+      to: geometryProperty.to,
+      expressionSpan,
+      targetName: statement.name,
+      geometryProperty
+    };
+  }
   // rootType null: only from/to are needed here (operand/operator boundary
   // detection never depends on the root type, only the `expectedType` field
   // does - see scalarExpressionCompletionContextAt's own doc comment). The

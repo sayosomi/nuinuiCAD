@@ -18,7 +18,6 @@ import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
 import { dslVariableCompletionOptions } from "../dsl/dslVariableCompletionCandidates";
 import { dslLocalVariableCompletionOptions } from "../dsl/dslLocalVariableCompletionCandidates";
 import { dslEnclosingPrintLayoutLine, dslPrintLayoutVariableCompletionOptions } from "../dsl/dslPrintLayoutVariableCompletionCandidates";
-import { dslElementParameterCompletionOptions } from "../dsl/dslElementParameterCompletionCandidates";
 import { dslLinePrintLayoutStatement } from "../dsl/dslValueSpans";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import {
@@ -30,7 +29,6 @@ import {
   type LogicalStatementSourceMap
 } from "../dsl/logicalStatementSourceMap";
 import { localNumericVariableReferenceOptions, type NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
-import type { ElementParameterReferenceOption } from "../geometry/elementParameterReferenceOptions";
 import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, PrintLayout } from "../types/geometry";
 import type { PrintLayoutRangeIndex, ScopeBodyRangeIndex, StatementRangeIndex, TypedDeclarationRangeIndex } from "./statementRangeIndex";
 import { deepestContainingScopeId, typedDeclarationBindingIdAtCursor } from "./statementRangeIndex";
@@ -49,6 +47,7 @@ import { mergeSetTargetCandidates, recoverLiveSetTargetCandidates, type SetTarge
 import { visibleTypedBindingsAtLivePosition } from "../scalars/liveTypedBindingVisibility";
 import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
 import { cmDeleteCompletionRetry } from "./cmDeleteCompletionRetry";
+import { elementPropertyCompletions } from "./elementPropertyCompletions";
 
 export type DslAutocompleteDocumentInput = {
   source: string;
@@ -184,14 +183,6 @@ const currentLiveElement = (source: string, position: number, elementId: Element
 
 const asVariableCompletions = (options: readonly NumericVariableReferenceOption[]): Completion[] =>
   options.map((option) => ({ label: option.displayExpression, apply: option.expression, detail: option.detail, type: "variable" }));
-
-/** Independent of asVariableCompletions/NumericVariableReferenceOption on
- * purpose: the element-parameter pure layer has its own candidate type and
- * must not depend on the @variable-specific one. `apply`/`from`/`to` only
- * ever cover the member-token span (never the `ElementName.` prefix), so
- * `option.path` alone is the correct insertion text. */
-const asElementParameterCompletions = (options: readonly ElementParameterReferenceOption[]): Completion[] =>
-  options.map((option) => ({ label: option.label, apply: option.path, detail: option.detail, type: "variable" }));
 
 /** Task 39: maps the pure `ScalarCompletionCandidate` union to CM's
  * `Completion` shape - the one place that translates candidate `kind` into a
@@ -475,6 +466,9 @@ const referenceMarkerToken = (input: DslAutocompleteDocumentInput, completionCon
   if (completionContext?.kind === "elementParameter") {
     return completionContext.sigil ? input.lineText.slice(completionContext.tokenStart, completionContext.to) : null;
   }
+  if (completionContext?.kind === "setRhs" && completionContext.geometryProperty) {
+    return input.lineText.slice(completionContext.geometryProperty.tokenStart, completionContext.to);
+  }
   return typedReferenceToken(input, completionContext);
 };
 
@@ -515,18 +509,29 @@ export const isElementParameterRetryContext = (options: DslAutocompleteOptions, 
   const { input } = completionDocumentInput(options, context);
   if (!input) return false;
   const completionContext = dslCompletionContextAt(input.lineText, input.localPos, options.majorVersion?.());
-  if (!completionContext || completionContext.kind !== "elementParameter") return false;
-  if (!completionContext.elementToken.trim()) return false;
-  return dslElementParameterCompletionOptions({
+  if (!completionContext) return false;
+  const elementToken = completionContext.kind === "elementParameter"
+    ? completionContext.elementToken
+    : completionContext.kind === "setRhs" && completionContext.geometryProperty
+      ? (() => {
+          const bindingAnalysis = options.bindingAnalysis();
+          const target = mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis)
+            .find((candidate) => candidate.name === completionContext.targetName);
+          return target?.type.kind === "number" ? completionContext.geometryProperty.elementToken : null;
+        })()
+      : null;
+  if (!elementToken?.trim()) return false;
+  return elementPropertyCompletions({
     source: input.source,
     cursorLine: input.cursorLineNumber,
     statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
     elements: options.elements(),
-    elementToken: completionContext.elementToken,
+    elementToken,
     computedGeometry: options.computedGeometry() ?? new Map(),
     computedVariables: options.computedVariables(),
     effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
-    errors: options.evaluationErrors() ?? []
+    errors: options.evaluationErrors() ?? [],
+    evaluationIsCurrent: true
   }).length > 0;
 };
 
@@ -596,19 +601,18 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     // synchronously here - see elementParameterCandidateState. The
     // cmEvaluationFreshnessRetry extension re-queries once evaluation
     // becomes current, without requiring another keystroke.
-    completions = (options.evaluationIsCurrent?.() ?? true)
-      ? asElementParameterCompletions(dslElementParameterCompletionOptions({
-        source: input.source,
-        cursorLine: input.cursorLineNumber,
-        statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
-        elements: options.elements(),
-        elementToken: completionContext.elementToken,
-        computedGeometry: options.computedGeometry() ?? new Map(),
-        computedVariables: options.computedVariables(),
-        effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
-        errors: options.evaluationErrors() ?? []
-      }))
-      : [];
+    completions = elementPropertyCompletions({
+      source: input.source,
+      cursorLine: input.cursorLineNumber,
+      statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
+      elements: options.elements(),
+      elementToken: completionContext.elementToken,
+      computedGeometry: options.computedGeometry() ?? new Map(),
+      computedVariables: options.computedVariables(),
+      effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
+      errors: options.evaluationErrors() ?? [],
+      evaluationIsCurrent: options.evaluationIsCurrent?.() ?? true
+    });
   } else if (completionContext.kind === "typedInitializer") {
     disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
     completions = filteredTypedReferenceCompletions(
@@ -632,9 +636,24 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     const deps = bindingAnalysis ? setCompletionSiteDeps(options, bindingAnalysis, context.pos) : null;
     const target = mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis)
       .find((candidate) => candidate.name === completionContext.targetName);
-    completions = deps && target
-      ? asScalarCompletions(setRhsScalarCandidates(input.lineText, completionContext.expressionSpan, input.localPos, target.type, deps))
-      : [];
+    completions = completionContext.geometryProperty
+      ? target?.type.kind === "number"
+        ? elementPropertyCompletions({
+          source: input.source,
+          cursorLine: input.cursorLineNumber,
+          statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
+          elements: options.elements(),
+          elementToken: completionContext.geometryProperty.elementToken,
+          computedGeometry: options.computedGeometry() ?? new Map(),
+          computedVariables: options.computedVariables(),
+          effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
+          errors: options.evaluationErrors() ?? [],
+          evaluationIsCurrent: options.evaluationIsCurrent?.() ?? true
+        })
+        : []
+      : deps && target
+        ? asScalarCompletions(setRhsScalarCandidates(input.lineText, completionContext.expressionSpan, input.localPos, target.type, deps))
+        : [];
   } else if (completionContext.parameter.definition.kind === "choice") {
     // `sortText` only breaks ties among equally-scored matches (CodeMirror's
     // default compareCompletions falls back to alphabetical-by-label
