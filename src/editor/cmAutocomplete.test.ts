@@ -75,6 +75,25 @@ describe("createDslCompletionSource", () => {
     expect(result?.options.map((option) => option.label)).toContain("point");
   });
 
+  it("offers unused number type settings with key-and-colon insertion", async () => {
+    const source = "let width: number(step: 5, m";
+    const state = EditorState.create({ doc: source });
+    const completionSource = createDslCompletionSource({
+      elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
+      isComposing: () => false, computedVariables: () => undefined, computedGeometry: () => undefined,
+      effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
+      bindingAnalysis: () => undefined, typedDeclarationRanges: () => new Map(), scopeBodyRanges: () => [],
+      statementInfoByElementId: () => undefined,
+    });
+
+    const result = await Promise.resolve(completionSource({ state, pos: source.length, explicit: true } as never));
+    expect(result).toMatchObject({ from: source.length - 1, to: source.length });
+    expect(result?.options).toEqual([
+      expect.objectContaining({ label: "min", apply: "min: ", type: "property" }),
+      expect.objectContaining({ label: "max", apply: "max: ", type: "property" })
+    ]);
+  });
+
   it("offers registry construction candidates in an incomplete element header", async () => {
     const source = "point P = co";
     const state = EditorState.create({ doc: source });

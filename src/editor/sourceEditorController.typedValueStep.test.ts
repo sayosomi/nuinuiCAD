@@ -147,6 +147,20 @@ describe("SourceEditor typed value step (Task 44)", () => {
     parent.remove();
   });
 
+  it("writes an exponent-free decimal when a small min bound clamps the initializer", () => {
+    const source = ["nui 3", "let floor: number(step: 1, min: 0.0000001) = 0.00"].join("\n");
+    const { controller, parent, view } = openEditor(source);
+    selectToken(view, "0.00", 1);
+
+    pressStep(view, 1);
+
+    const result = useCadDocumentStore.getState().sourceText;
+    expect(result).toContain("= 0.0000001");
+    expect(result).not.toMatch(/1e-7\.00/i);
+    controller.destroy();
+    parent.remove();
+  });
+
   it("keeps a held out-of-range recovery and subsequent valid step as one Undo step", () => {
     const source = ["nui 3", "let capped: number(step: 5, max: 200) = 250"].join("\n");
     const { controller, parent, view } = openEditor(source);
