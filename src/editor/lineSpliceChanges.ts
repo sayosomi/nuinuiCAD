@@ -62,6 +62,12 @@ export const lineSplicesToSourceTextChanges = (
       };
     }
     if (startIndex === 0) return { from: 0, to: text.length, insert: replacement };
+    // A final-line replacement can leave its preceding newline untouched. In
+    // particular, this keeps it disjoint from a replacement of the preceding
+    // line, whose range already includes that newline.
+    if (splice.replacementLines.length > 0) {
+      return { from: starts[startIndex], to: text.length, insert: replacement };
+    }
     return {
       from: starts[startIndex] - 1,
       to: text.length,
