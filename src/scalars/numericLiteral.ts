@@ -1,4 +1,4 @@
-/** Canonical finite numeric literal for the legacy numeric-expression grammar.
+/** Canonical finite numeric literal for the local numeric-expression grammar.
  * Starts from the runtime's shortest round-trip representation, then expands
  * exponent text without parsing or rounding its mantissa. */
 export const numericLiteralForExpression = (value: number): string | null => {

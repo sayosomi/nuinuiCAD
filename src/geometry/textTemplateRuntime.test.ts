@@ -21,9 +21,9 @@ const literalSegment = (cooked: string): TextTemplateSegment => ({
   cooked
 });
 
-const legacyHoleSegment = (raw: string): TextTemplateSegment => ({
+const numericHoleSegment = (raw: string): TextTemplateSegment => ({
   kind: "hole",
-  holeKind: "legacy",
+  holeKind: "numeric",
   span: span(0, raw.length),
   contentSpan: span(0, raw.length),
   cookedInsertOffset: 0,
@@ -79,11 +79,11 @@ describe("toRustTextTemplateSegments", () => {
   it("projects only compiled evaluation data", () => {
     expect(toRustTextTemplateSegments(templateOf([
       literalSegment("hi"),
-      legacyHoleSegment("AB.length"),
+      numericHoleSegment("@AB.length"),
       stringHoleSegment("binding:x")
     ]))).toEqual([
       { kind: "literal", cooked: "hi" },
-      { kind: "hole", holeKind: "legacy", raw: "AB.length" },
+      { kind: "hole", holeKind: "numeric", raw: "@AB.length" },
       expect.objectContaining({ kind: "hole", holeKind: "string" })
     ]);
   });
@@ -94,8 +94,7 @@ describe("buildTextPropertyBindingRuntimeEntries", () => {
     id: "text-1",
     name: "注記",
     type: "text",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     text: "",
     anchor: null,
     fontSize: 3
@@ -126,7 +125,7 @@ describe("buildTextPropertyBindingRuntimeEntries", () => {
   });
 
   it("ignores property bindings on element types outside TEXT_PROPERTY_TARGETS", () => {
-    const nonTextElement: CadElement = { id: "line-1", name: "線", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } };
+    const nonTextElement: CadElement = { id: "line-1", name: "線", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } };
     const binding: ScalarValueSource = {
       kind: "binding",
       bindingId: "binding:x",
@@ -144,23 +143,23 @@ describe("buildTextPropertyBindingRuntimeEntries", () => {
 });
 
 describe("evaluateElementTextTemplate", () => {
-  const currentElement: CadElement = { id: "text-1", name: "注記", type: "text", visible: true, enabled: true, text: "", anchor: null, fontSize: 3 };
+  const currentElement: CadElement = { id: "text-1", name: "注記", type: "text", activity: "visible", text: "", anchor: null, fontSize: 3 };
   const resolveBinding = (values: Record<string, ScalarEvaluation>) => (bindingId: string): ScalarEvaluation => {
     const value = values[bindingId];
     if (!value) throw new Error(`unexpected lookupBinding("${bindingId}")`);
     return value;
   };
 
-  it("evaluates a real legacy hole through the existing numeric-expression pipeline (parity with resolveTextReferences)", () => {
+  it("evaluates a compiled numeric-expression hole through the local numeric evaluator", () => {
     const points: CadElement[] = [
-      { id: "a", name: "点A", type: "freePoint", visible: true, enabled: true, x: 10, y: 20 },
-      { id: "b", name: "点B", type: "offsetPoint", visible: true, enabled: true, fromPointId: "a", dx: 30, dy: 5 },
-      { id: "ab", name: "直線AB", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } }
+      { id: "a", name: "点A", type: "freePoint", activity: "visible", x: 10, y: 20 },
+      { id: "b", name: "点B", type: "offsetPoint", activity: "visible", fromPointId: "a", dx: 30, dy: 5 },
+      { id: "ab", name: "直線AB", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } }
     ];
     const evaluated = evaluateElements(points);
     expect(evaluated.errors).toHaveLength(0);
 
-    const ast = templateOf([literalSegment("前中心 "), legacyHoleSegment("直線AB.length")]);
+    const ast = templateOf([literalSegment("前中心 "), numericHoleSegment("@直線AB.length")]);
     const result = evaluateElementTextTemplate(
       ast,
       {
@@ -174,8 +173,8 @@ describe("evaluateElementTextTemplate", () => {
     expect(result).toEqual({ text: "前中心 30.414" });
   });
 
-  it("fails closed with the same NumericExpressionError shape as resolveTextReferences for a missing legacy dependency", () => {
-    const ast = templateOf([legacyHoleSegment("missing.length")]);
+  it("fails closed for a missing numeric-expression dependency", () => {
+    const ast = templateOf([numericHoleSegment("@missing.length")]);
     const result = evaluateElementTextTemplate(
       ast,
       { computedGeometry: new Map(), elementsById: new Map(), currentElement, elements: [] },

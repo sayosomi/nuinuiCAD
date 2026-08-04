@@ -3,8 +3,6 @@ import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { parseDsl } from "../dsl/dslParser";
 import type { DslDiagnostic } from "../dsl/dslTypes";
-import type { DslMajorVersion } from "../dsl/dslVersion";
-import type { UpgradeDslMajorVersionResult } from "../state/cadDocumentStore";
 import { typedVariableQuickFixes } from "../scalars/typedVariableQuickFixes";
 import { buildTypedVariableLintActions } from "./typedVariableQuickFixActions";
 import {
@@ -27,7 +25,6 @@ export type DiagnosticsExtensionSource = {
   runtimeDiagnostics: () => readonly DslDiagnostic[];
   /** Last-committed diagnostics, already remapped through every dirty-buffer change so far. */
   staleBaseline: () => readonly PositionedDiagnostic[];
-  upgradeDslMajorVersion: (target: DslMajorVersion) => UpgradeDslMajorVersionResult;
 };
 
 const toCmDiagnostic = (diagnostic: PositionedDiagnostic, actions?: Diagnostic["actions"]): Diagnostic => ({
@@ -49,7 +46,7 @@ const toCmDiagnostics = (positioned: readonly PositionedDiagnostic[]): Diagnosti
  * Statements come from a *fresh* `parseDsl(view.state.doc.toString())` here,
  * never from `store.getState().doc.statements` - `state.doc` is the
  * last-*good* compiled document, and every one of the diagnostic codes this
- * module offers a fix for (`typed-syntax-requires-nui3`,
+ * module offers a fix for (`missing-declared-type`,
  * `missing-declared-type`, `invalid-choice-literal`, `scalar-type-mismatch`,
  * `unexpected-token`, `element-state-conflict`) is itself an error-severity
  * diagnostic - `compileDslDocument` nulls `document`/`statementMap` (so the
@@ -64,15 +61,14 @@ const toCmDiagnostics = (positioned: readonly PositionedDiagnostic[]): Diagnosti
  */
 export const currentDiagnosticsWithActions = (
   view: EditorView,
-  source: Pick<DiagnosticsExtensionSource, "committedDiagnostics" | "runtimeDiagnostics" | "isComposing" | "hasPendingText" | "upgradeDslMajorVersion">
+  source: Pick<DiagnosticsExtensionSource, "committedDiagnostics" | "runtimeDiagnostics" | "isComposing" | "hasPendingText">
 ): Diagnostic[] => {
   const diagnostics = source.committedDiagnostics();
   const parsed = parseDsl(view.state.doc.toString());
   const descriptorsByIndex = typedVariableQuickFixes(view.state.doc.toString(), parsed.statements, diagnostics);
   const actionDeps = {
     isComposing: source.isComposing,
-    hasPendingText: source.hasPendingText,
-    upgradeDslMajorVersion: source.upgradeDslMajorVersion
+    hasPendingText: source.hasPendingText
   };
   const results: Diagnostic[] = [];
   diagnostics.forEach((diagnostic, index) => {
@@ -103,7 +99,7 @@ export const currentDiagnosticsWithActions = (
  */
 export const diagnosticsForCurrentView = (
   view: EditorView,
-  source: Pick<DiagnosticsExtensionSource, "committedDiagnostics" | "runtimeDiagnostics" | "isComposing" | "hasPendingText" | "staleBaseline" | "upgradeDslMajorVersion">
+  source: Pick<DiagnosticsExtensionSource, "committedDiagnostics" | "runtimeDiagnostics" | "isComposing" | "hasPendingText" | "staleBaseline">
 ): Diagnostic[] => {
   if (!source.hasPendingText()) return currentDiagnosticsWithActions(view, source);
   const parsed = parseDsl(view.state.doc.toString());

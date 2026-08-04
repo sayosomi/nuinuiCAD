@@ -1,7 +1,6 @@
 import type { CadElement, ComputedText } from "../types/geometry";
 import { getPointAnchorOrError, numericError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
-import { resolveTextReferences } from "./numericExpressions";
 import { evaluateElementTextTemplate } from "./textTemplateRuntime";
 
 export const evaluateTextElement = (
@@ -19,16 +18,13 @@ export const evaluateTextElement = (
     context.localVariables.localVariableValues,
     context.localVariables.localVariableNames,
     context.disabledByGroupId,
-    context.computedVariables,
     context.elements
   );
   if (fontSize === undefined) return true;
 
-  // A compiled TextTemplateAst, when present, is always used in place of the
-  // legacy regex path - never a fallback to resolveTextReferences on
-  // element.text, since a typed string literal's escape processing already
-  // unescaped `\{`/`\}` before storage (see ElementEvaluationContext's
-  // textTemplate doc comment).
+  // Source-authored nui 3 text interpolation is compiled before evaluation.
+  // A raw element without that compiled entry is literal text; it is never
+  // interpreted through the removed document-variable expression lane.
   const text = context.textTemplate
     ? evaluateElementTextTemplate(
         context.textTemplate,
@@ -37,22 +33,12 @@ export const evaluateTextElement = (
           elementsById: context.elementsById,
           localVariables: context.localVariables.localVariableValues,
           localVariableNames: context.localVariables.localVariableNames,
-          computedVariables: context.computedVariables,
           currentElement: element,
           elements: context.elements
         },
         context.resolveScalarBinding!
       )
-    : resolveTextReferences({
-        text: element.text,
-        computedGeometry: context.computedGeometry,
-        elementsById: context.elementsById,
-        localVariables: context.localVariables.localVariableValues,
-        localVariableNames: context.localVariables.localVariableNames,
-        computedVariables: context.computedVariables,
-        currentElement: element,
-        elements: context.elements
-      });
+    : { text: element.text };
   if (text.error) {
     const disabledGroupId = context.disabledByGroupId?.get(text.error.dependencyId);
     const disabledGroupName = disabledGroupId
@@ -81,7 +67,6 @@ export const evaluateTextElement = (
         context.localVariables.localVariableValues,
         context.localVariables.localVariableNames,
         context.disabledByGroupId,
-        context.computedVariables,
         context.elements
       )
     : null;

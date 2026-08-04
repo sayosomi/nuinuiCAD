@@ -5,8 +5,8 @@ import { createLogicalStatementSourceMap } from "../dsl/logicalStatementSourceMa
 import { resolveSourceEditorPickSelection } from "./sourceEditorPickSelection";
 
 const docLines = dslLinesForElements([
-  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-  { id: "b", name: "B", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 10, dy: 20 }
+  { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "b", name: "B", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 10, dy: 20 }
 ]);
 const docSource = docLines.join("\n");
 // resolveParameterValueSpan operates on the logical (row-joined) statement

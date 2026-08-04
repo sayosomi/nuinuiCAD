@@ -138,25 +138,6 @@ describe("buildLexicalScopeIndex", () => {
     expect(scopeB?.openingStatementIndex).toBe(1);
   });
 
-  it("collects legacy var records without resolving or deduplicating them", () => {
-    const statements = parse(["var Legacy = 1", "group A {", "  var Scoped = 2", "}"].join("\n"));
-    const index = buildLexicalScopeIndex(statements, byName);
-    expect(index.legacyVariablesByScope.get(index.rootScopeId)).toEqual([
-      { scopeId: index.rootScopeId, statementIndex: 0, name: "Legacy", nameSpan: statements[0].nameSpan }
-    ]);
-    expect(index.legacyVariablesByScope.get("group:A")).toEqual([
-      { scopeId: "group:A", statementIndex: 2, name: "Scoped", nameSpan: statements[2].nameSpan }
-    ]);
-  });
-
-  it("collects long-form legacy vars so visibility adapters can read scope attrs without source reparsing", () => {
-    const statements = parse(["group A {", "  var Scoped = expression(value: 2 scope: group)", "}"].join("\n"));
-    const index = buildLexicalScopeIndex(statements, byName);
-    expect(index.legacyVariablesByScope.get("group:A")).toEqual([
-      { scopeId: "group:A", statementIndex: 1, name: "Scoped", nameSpan: statements[1].nameSpan }
-    ]);
-  });
-
   it("maps every statement to a scope across 1000 statements", () => {
     const lines: string[] = [];
     for (let i = 0; i < 250; i += 1) {

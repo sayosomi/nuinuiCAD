@@ -15,7 +15,7 @@ describe("SourceEditor element state gutter", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
-    useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 10 y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 10, y: 0)", "test");
     Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
     Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 500 });
     Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 400 });
@@ -39,7 +39,7 @@ describe("SourceEditor element state gutter", () => {
     document.body.appendChild(parent);
     const controller = new SourceEditorController(parent);
     controller.setEvaluation({
-      evaluation: { computedGeometry: new Map(), computedVariables: new Map(), errors: [], warnings: [] },
+      evaluation: { computedGeometry: new Map(), errors: [], warnings: [] },
       compiledDocumentRevision: useCadDocumentStore.getState().compiledDocumentRevision,
       evaluationRequestRevision: 1
     });
@@ -52,8 +52,8 @@ describe("SourceEditor element state gutter", () => {
     fireEvent.mouseDown(marker);
 
     const elements = useCadDocumentStore.getState().elements;
-    expect(elements.find((element) => element.name === "A")).toMatchObject({ visible: true, enabled: true });
-    expect(elements.find((element) => element.name === "B")).toMatchObject({ visible: false, enabled: true });
+    expect(elements.find((element) => element.name === "A")).toMatchObject({ activity: "visible" });
+    expect(elements.find((element) => element.name === "B")).toMatchObject({ activity: "hidden" });
     expect(view.state.selection.main.head).toBe(firstLine.from);
     controller.destroy();
     parent.remove();
@@ -64,7 +64,7 @@ describe("SourceEditor element state gutter", () => {
     document.body.appendChild(parent);
     const controller = new SourceEditorController(parent);
     controller.setEvaluation({
-      evaluation: { computedGeometry: new Map(), computedVariables: new Map(), errors: [], warnings: [] },
+      evaluation: { computedGeometry: new Map(), errors: [], warnings: [] },
       compiledDocumentRevision: useCadDocumentStore.getState().compiledDocumentRevision,
       evaluationRequestRevision: 1
     });
@@ -74,30 +74,30 @@ describe("SourceEditor element state gutter", () => {
     const elementB = () => useCadDocumentStore.getState().elements.find((element) => element.name === "B");
 
     fireEvent.mouseDown(marker());
-    expect(elementB()).toMatchObject({ visible: false, enabled: true });
+    expect(elementB()).toMatchObject({ activity: "hidden" });
 
     fireEvent.mouseDown(marker());
-    expect(elementB()).toMatchObject({ visible: true, enabled: false });
+    expect(elementB()).toMatchObject({ activity: "disabled" });
 
     fireEvent.mouseDown(marker());
-    expect(elementB()).toMatchObject({ visible: true, enabled: true });
+    expect(elementB()).toMatchObject({ activity: "visible" });
 
     expect(useCadDocumentStore.getState().elements.find((element) => element.name === "A"))
-      .toMatchObject({ visible: true, enabled: true });
+      .toMatchObject({ activity: "visible" });
     controller.destroy();
     parent.remove();
   });
 
   it("anchors a state marker on a vertical statement header, never its argument rows", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 }
     ]), "test");
     const parent = document.createElement("div");
     document.body.appendChild(parent);
     const controller = new SourceEditorController(parent);
     controller.setEvaluation({
-      evaluation: { computedGeometry: new Map(), computedVariables: new Map(), errors: [], warnings: [] },
+      evaluation: { computedGeometry: new Map(), errors: [], warnings: [] },
       compiledDocumentRevision: useCadDocumentStore.getState().compiledDocumentRevision,
       evaluationRequestRevision: 1
     });
@@ -112,8 +112,8 @@ describe("SourceEditor element state gutter", () => {
 
   it("uses line treatment for evaluation errors and warnings, while leaving @stop as a source-line boundary", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 }
     ], 1), "test");
     const parent = document.createElement("div");
     document.body.appendChild(parent);
@@ -125,7 +125,6 @@ describe("SourceEditor element state gutter", () => {
     controller.setEvaluation({
       evaluation: {
         computedGeometry: new Map(),
-        computedVariables: new Map(),
         errors: [{ elementId: pointA.id, elementName: pointA.name, missingDependencyId: pointA.id, message: "error" }],
         warnings: [{ elementId: pointB.id, elementName: pointB.name, message: "warning" }]
       },
@@ -146,7 +145,7 @@ describe("SourceEditor element state gutter", () => {
     document.body.appendChild(parent);
     const controller = new SourceEditorController(parent);
     controller.setEvaluation({
-      evaluation: { computedGeometry: new Map(), computedVariables: new Map(), errors: [], warnings: [] },
+      evaluation: { computedGeometry: new Map(), errors: [], warnings: [] },
       compiledDocumentRevision: useCadDocumentStore.getState().compiledDocumentRevision,
       evaluationRequestRevision: 1
     });
@@ -166,16 +165,16 @@ describe("SourceEditor element state gutter", () => {
     view.dispatch({ changes: { from: view.state.doc.length, insert: "\npoint C = coordinate(" } });
     vi.advanceTimersByTime(300);
     expect(useCadDocumentStore.getState().docText).not.toBe(useCadDocumentStore.getState().sourceText);
-    view.dispatch({ changes: { from: view.state.doc.length, insert: "x: 5 y: 5)" } });
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "x: 5, y: 5)" } });
     vi.advanceTimersByTime(300);
     expect(useCadDocumentStore.getState().docText).toBe(useCadDocumentStore.getState().sourceText);
 
     expect(markerFor(lineOfA.from)).not.toBeNull();
     expect(markerFor(lineOfB.from)).not.toBeNull();
 
-    // Repro B (var): a second, independent fatal-then-valid edit must not
+    // Repro B (let): a second, independent fatal-then-valid edit must not
     // compound (or merely coincidentally clear) any staleness left by repro A.
-    view.dispatch({ changes: { from: view.state.doc.length, insert: "\nvar test2 = " } });
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "\nlet test2: number = " } });
     vi.advanceTimersByTime(300);
     expect(useCadDocumentStore.getState().docText).not.toBe(useCadDocumentStore.getState().sourceText);
     view.dispatch({ changes: { from: view.state.doc.length, insert: "1" } });
@@ -192,7 +191,7 @@ describe("SourceEditor element state gutter", () => {
     fireEvent.keyDown(view.contentDOM, stepRight);
     fireEvent.keyUp(view.contentDOM, stepRight);
 
-    expect(useCadDocumentStore.getState().sourceText).toContain("x: 1 ");
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: 1,");
 
     controller.destroy();
     parent.remove();

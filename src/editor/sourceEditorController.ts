@@ -222,7 +222,6 @@ export class SourceEditorController implements SourceEditorHandle {
     printLayouts: () => this.store.getState().printLayouts,
     printLayoutRanges: () => this.printLayoutRanges,
     isComposing: () => this.protocol.composing,
-    computedVariables: () => this.appliedEvaluation?.evaluation.computedVariables,
     computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
     forGroupGeneratedRows: () => this.appliedEvaluation?.evaluation.forGroupGeneratedRows,
     effectiveEnabledElementIds: () => this.appliedEvaluation?.evaluation.effectiveEnabledElementIds,
@@ -1864,8 +1863,7 @@ export class SourceEditorController implements SourceEditorHandle {
       hasPendingText: () => this.hasPendingText(),
       committedDiagnostics: () => [...this.store.getState().diagnostics, ...this.store.getState().bindingIssueDiagnostics],
       runtimeDiagnostics: () => this.runtimeDiagnostics(),
-      staleBaseline: () => this.staleDiagnosticBaseline,
-      upgradeDslMajorVersion: (target) => this.store.getState().upgradeDslMajorVersion(target)
+      staleBaseline: () => this.staleDiagnosticBaseline
     };
   }
 

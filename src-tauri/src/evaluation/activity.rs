@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
-use super::types::{bool_field, element_id, element_type, parent_group_id, ElementId};
+use super::types::{element_id, element_type, parent_group_id, ElementId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ElementActivity {
@@ -28,13 +28,11 @@ impl Default for EffectiveElementActivity {
     }
 }
 
-pub(crate) fn activity_from_legacy_flags(element: &Value) -> ElementActivity {
-    if !bool_field(element, "enabled", true) {
-        ElementActivity::Disabled
-    } else if !bool_field(element, "visible", true) {
-        ElementActivity::Hidden
-    } else {
-        ElementActivity::Visible
+pub(crate) fn activity_from_element(element: &Value) -> ElementActivity {
+    match element.get("activity").and_then(Value::as_str) {
+        Some("hidden") => ElementActivity::Hidden,
+        Some("disabled") => ElementActivity::Disabled,
+        _ => ElementActivity::Visible,
     }
 }
 
@@ -91,7 +89,7 @@ fn resolve_activity(
         .and_then(|parent_id| by_id.get(&parent_id).copied())
         .filter(|parent_index| is_activity_container(&elements[*parent_index]))
         .map(|parent_index| resolve_activity(parent_index, elements, by_id, cache, visiting));
-    let own_activity = activity_from_legacy_flags(element);
+    let own_activity = activity_from_element(element);
     let resolved = match parent_activity {
         Some(parent) if parent.activity == ElementActivity::Disabled => EffectiveElementActivity {
             activity: ElementActivity::Disabled,

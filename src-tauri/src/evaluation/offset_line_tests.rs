@@ -26,8 +26,7 @@ fn base_line_elements() -> Vec<Value> {
             "id": "a",
             "name": "A",
             "type": "freePoint",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "x": 0,
             "y": 0
         })),
@@ -35,8 +34,7 @@ fn base_line_elements() -> Vec<Value> {
             "id": "b",
             "name": "B",
             "type": "freePoint",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "x": 100,
             "y": 0
         })),
@@ -44,8 +42,7 @@ fn base_line_elements() -> Vec<Value> {
             "id": "line",
             "name": "AB",
             "type": "line",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "startPoint": { "mode": "reference", "pointId": "a" },
             "endPoint": { "mode": "reference", "pointId": "b" }
         })),
@@ -57,8 +54,7 @@ fn offset_line(id: &str, base_line_ids: Vec<&str>, offset: Value) -> Value {
         "id": id,
         "name": "オフセット",
         "type": "offsetLine",
-        "visible": true,
-        "enabled": true,
+        "activity": "visible",
         "baseLineIds": base_line_ids,
         "offset": offset,
         "side": "right",
@@ -131,19 +127,19 @@ fn evaluates_local_expression_offset() {
 fn rejects_reversed_base_lines_without_an_explicit_reverse() {
     let elements = vec![
         element(
-            json!({ "id": "a", "name": "A", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": 0 }),
+            json!({ "id": "a", "name": "A", "type": "freePoint", "activity": "visible", "x": 0, "y": 0 }),
         ),
         element(
-            json!({ "id": "b", "name": "B", "type": "freePoint", "visible": true, "enabled": true, "x": 100, "y": 0 }),
+            json!({ "id": "b", "name": "B", "type": "freePoint", "activity": "visible", "x": 100, "y": 0 }),
         ),
         element(
-            json!({ "id": "c", "name": "C", "type": "freePoint", "visible": true, "enabled": true, "x": 100, "y": 100 }),
+            json!({ "id": "c", "name": "C", "type": "freePoint", "activity": "visible", "x": 100, "y": 100 }),
         ),
         element(
-            json!({ "id": "ab", "name": "AB", "type": "line", "visible": true, "enabled": true, "startPoint": { "mode": "reference", "pointId": "a" }, "endPoint": { "mode": "reference", "pointId": "b" } }),
+            json!({ "id": "ab", "name": "AB", "type": "line", "activity": "visible", "startPoint": { "mode": "reference", "pointId": "a" }, "endPoint": { "mode": "reference", "pointId": "b" } }),
         ),
         element(
-            json!({ "id": "cb", "name": "CB", "type": "line", "visible": true, "enabled": true, "startPoint": { "mode": "reference", "pointId": "c" }, "endPoint": { "mode": "reference", "pointId": "b" } }),
+            json!({ "id": "cb", "name": "CB", "type": "line", "activity": "visible", "startPoint": { "mode": "reference", "pointId": "c" }, "endPoint": { "mode": "reference", "pointId": "b" } }),
         ),
         offset_line("offset", vec!["ab", "cb"], json!(10)),
     ];
@@ -168,23 +164,22 @@ fn rejects_reversed_base_lines_without_an_explicit_reverse() {
 fn rejects_a_source_chain_that_does_not_follow_the_first_line() {
     let elements = vec![
         element(
-            json!({ "id": "a", "name": "A", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": 0 }),
+            json!({ "id": "a", "name": "A", "type": "freePoint", "activity": "visible", "x": 0, "y": 0 }),
         ),
         element(
-            json!({ "id": "b", "name": "B", "type": "freePoint", "visible": true, "enabled": true, "x": 100, "y": 0 }),
+            json!({ "id": "b", "name": "B", "type": "freePoint", "activity": "visible", "x": 100, "y": 0 }),
         ),
         element(
-            json!({ "id": "c", "name": "C", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": 100 }),
+            json!({ "id": "c", "name": "C", "type": "freePoint", "activity": "visible", "x": 0, "y": 100 }),
         ),
         element(
-            json!({ "id": "ab", "name": "AB", "type": "line", "visible": true, "enabled": true, "startPoint": { "mode": "reference", "pointId": "a" }, "endPoint": { "mode": "reference", "pointId": "b" } }),
+            json!({ "id": "ab", "name": "AB", "type": "line", "activity": "visible", "startPoint": { "mode": "reference", "pointId": "a" }, "endPoint": { "mode": "reference", "pointId": "b" } }),
         ),
         element(json!({
             "id": "ac",
             "name": "AC",
             "type": "bezierCurve",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "startPoint": { "mode": "reference", "pointId": "a" },
             "startHandleAngleDeg": 270,
             "startHandleLength": 30,
@@ -216,10 +211,10 @@ fn rejects_a_source_chain_that_does_not_follow_the_first_line() {
 fn evaluates_arc_offset_and_radius_error() {
     let elements = vec![
         element(
-            json!({ "id": "a", "name": "A", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": 0 }),
+            json!({ "id": "a", "name": "A", "type": "freePoint", "activity": "visible", "x": 0, "y": 0 }),
         ),
         element(
-            json!({ "id": "arc", "name": "円弧", "type": "arcLine", "visible": true, "enabled": true, "centerPoint": { "mode": "reference", "pointId": "a" }, "radius": 10, "startAngleDeg": 0, "endAngleDeg": 90 }),
+            json!({ "id": "arc", "name": "円弧", "type": "arcLine", "activity": "visible", "centerPoint": { "mode": "reference", "pointId": "a" }, "radius": 10, "startAngleDeg": 0, "endAngleDeg": 90 }),
         ),
         offset_line("offset", vec!["arc"], json!(5)),
     ];
@@ -247,10 +242,10 @@ fn evaluates_arc_offset_and_radius_error() {
 
     let mut failing = vec![
         element(
-            json!({ "id": "a", "name": "A", "type": "freePoint", "visible": true, "enabled": true, "x": 0, "y": 0 }),
+            json!({ "id": "a", "name": "A", "type": "freePoint", "activity": "visible", "x": 0, "y": 0 }),
         ),
         element(
-            json!({ "id": "arc", "name": "円弧", "type": "arcLine", "visible": true, "enabled": true, "centerPoint": { "mode": "reference", "pointId": "a" }, "radius": 10, "startAngleDeg": 90, "endAngleDeg": 0 }),
+            json!({ "id": "arc", "name": "円弧", "type": "arcLine", "activity": "visible", "centerPoint": { "mode": "reference", "pointId": "a" }, "radius": 10, "startAngleDeg": 90, "endAngleDeg": 0 }),
         ),
     ];
     let mut failing_offset = offset_line("offset", vec!["arc"], json!(20));
@@ -279,8 +274,7 @@ fn evaluates_bezier_and_nested_offset() {
             "id": "curve",
             "name": "曲線",
             "type": "bezierCurve",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "startPoint": { "mode": "coordinate", "x": 0, "y": 0 },
             "startHandleAngleDeg": 45,
             "startHandleLength": 80,
@@ -322,8 +316,7 @@ fn reports_bezier_trim_warning() {
             "id": "curve",
             "name": "曲線AC",
             "type": "bezierCurve",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "startPoint": { "mode": "coordinate", "x": 50, "y": 50 },
             "startHandleAngleDeg": 0,
             "startHandleLength": 45,
@@ -360,8 +353,7 @@ fn suppresses_bezier_trim_warning_when_requested() {
             "id": "curve",
             "name": "曲線AC",
             "type": "bezierCurve",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "startPoint": { "mode": "coordinate", "x": 50, "y": 50 },
             "startHandleAngleDeg": 0,
             "startHandleLength": 45,
@@ -434,8 +426,7 @@ fn offset_line_can_feed_line_point_and_intersection_helpers() {
             "id": "mid",
             "name": "中点",
             "type": "lineDivisionPoint",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "endpoint": { "lineId": "offset", "endpointKey": "start" },
             "placement": { "kind": "ratio", "value": 0.5 }
         })),
@@ -443,8 +434,7 @@ fn offset_line_can_feed_line_point_and_intersection_helpers() {
             "id": "cross-line",
             "name": "交差線",
             "type": "line",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "startPoint": { "mode": "coordinate", "x": 50, "y": -10 },
             "endPoint": { "mode": "coordinate", "x": 50, "y": 20 }
         })),
@@ -452,8 +442,7 @@ fn offset_line_can_feed_line_point_and_intersection_helpers() {
             "id": "cross",
             "name": "交点",
             "type": "intersectionPoint",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "line1Id": "offset",
             "line2Id": "cross-line",
             "intersectionIndex": 0,

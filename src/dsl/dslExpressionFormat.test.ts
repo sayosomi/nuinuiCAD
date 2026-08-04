@@ -10,7 +10,6 @@ const buildElements = () => {
     [
       "group G (id: g1) {",
       "}",
-      "var bust = expression(value: 840 id: v1)",
       "point A = coordinate(x: 0 y: 0 id: p1)",
       "point \"前 上\" = coordinate(x: 0 y: 1 id: p10)",
       "point X = coordinate(x: 3 y: 3 id: p2)",
@@ -38,13 +37,14 @@ describe("formatNumericValueForDsl", () => {
     expect(formatNumericValueForDsl(-1.5, elements)).toBe("-1.5");
   });
 
-  it("round-trips variable references", () => {
-    expect(formatNumericValueForDsl({ kind: "expression", expression: "@v1 / 4" }, elements)).toBe("@bust / 4");
-    expect(roundTrip("@v1 / 4")).toBe("@v1 / 4");
+  it("round-trips element-local numeric variable references", () => {
+    const localVariables: NumericVariable[] = [{ id: "v1", name: "bust", value: 840 }];
+    expect(formatNumericValueForDsl({ kind: "expression", expression: "@v1 / 4" }, elements, localVariables)).toBe("@bust / 4");
+    expect(roundTrip("@v1 / 4", localVariables)).toBe("@v1 / 4");
   });
 
   it("round-trips measurement property references with English keys", () => {
-    expect(formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements)).toBe("AB.length + 20");
+    expect(formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements)).toBe("@AB.length + 20");
     expect(roundTrip("l1.length + 20")).toBe("l1.length + 20");
   });
 
@@ -75,16 +75,7 @@ describe("formatNumericValueForDsl", () => {
     ).toBe("@AB.length + 20");
   });
 
-  it("emits the nui 2 bare form for a measurement property reference when majorVersion is 2", () => {
-    expect(
-      formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements, [], undefined, undefined, 2)
-    ).toBe("AB.length + 20");
-  });
-
   it("correctly locates the element head for a multi-segment property path (fixes a pre-Task-51 greedy-match bug)", () => {
-    expect(
-      formatNumericValueForDsl({ kind: "expression", expression: "l1.startPoint.x" }, elements, [], undefined, undefined, 2)
-    ).toBe("AB.startPoint.x");
     expect(
       formatNumericValueForDsl({ kind: "expression", expression: "l1.startPoint.x" }, elements, [], undefined, undefined, 3)
     ).toBe("@AB.startPoint.x");

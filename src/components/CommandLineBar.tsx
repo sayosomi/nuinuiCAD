@@ -30,7 +30,6 @@ import {
   referenceSuggestions,
   type ReferenceSuggestion
 } from "../model/referenceSuggestions";
-import { numericVariableReferenceOptionsForPosition } from "../geometry/variableReferenceOptions";
 import { elementParameterCandidateState } from "../geometry/elementParameterReferenceOptions";
 import { commandLineTypedBindingSuggestions } from "../commands/commandLineTypedBindingSuggestions";
 import {
@@ -148,12 +147,6 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     : null;
   const numberVariableOptions = useMemo(() => {
     if (!session || step?.kind !== "number") return [];
-    const placement = creationPlacementForTarget(elements, session.insertionTarget, evaluationLimitIndex);
-    const legacyOptions = numericVariableReferenceOptionsForPosition({
-      referenceElements: placement.referenceElements,
-      parentGroupId: placement.parentGroupId,
-      computedVariables: evaluation?.computedVariables
-    });
     const typedOptions = commandLineTypedBindingSuggestions({
       session,
       sourceText,
@@ -162,7 +155,7 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
       bindingAnalysis: doc.bindingAnalysis,
       elements
     });
-    const byExpression = new Map(legacyOptions.map((option) => [option.expression, option]));
+    const byExpression = new Map<string, typeof typedOptions[number]>();
     for (const option of typedOptions) byExpression.set(option.expression, option);
     return [...byExpression.values()];
   }, [session, step, elements, evaluationLimitIndex, evaluation, sourceText, docText, doc]);
@@ -198,7 +191,6 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
         currentElement: { parentGroupId: elementParamPlacement.parentGroupId },
         evaluation: {
           computedGeometry: evaluation?.computedGeometry ?? new Map(),
-          computedVariables: evaluation?.computedVariables ?? new Map(),
           effectiveEnabledElementIds: evaluation?.effectiveEnabledElementIds,
           errors: evaluation?.errors ?? []
         }

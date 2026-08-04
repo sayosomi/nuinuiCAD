@@ -85,18 +85,13 @@ mod scalars;
 mod split_line_evaluator;
 #[cfg(test)]
 mod split_line_tests;
-#[cfg(test)]
-mod tests;
 mod text_evaluator;
 mod text_template_runtime;
 #[cfg(test)]
 mod text_template_runtime_tests;
 #[cfg(test)]
 mod three_point_arc_line_tests;
-#[cfg(test)]
-mod typed_variables_performance_tests;
 mod types;
-mod variable_evaluator;
 
 use std::collections::{HashMap, HashSet};
 
@@ -150,7 +145,6 @@ use split_line_evaluator::evaluate_split_line;
 use text_evaluator::{evaluate_text, TextTemplateContext};
 use types::{element_id, element_name, element_type, ElementId, EvaluationState};
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
-use variable_evaluator::evaluate_variable_element;
 
 /// Decodes+validates `input.property_bindings` against the already-decoded
 /// `scalar_program`'s own statement binding ids and `input.elements`' actual
@@ -528,7 +522,6 @@ fn evaluate_element_by_type(
             conditional_group_states.insert(id, active_branch);
         }
         Some("group" | "forGroup") => {}
-        Some("variable") => evaluate_variable_element(&element, &local_variables, state),
         Some("freePoint") => evaluate_free_point(&element, &local_variables, state),
         Some("offsetPoint") => evaluate_offset_point(&element, &local_variables, state),
         Some("polarOffsetPoint") => evaluate_polar_offset_point(&element, &local_variables, state),
@@ -671,8 +664,6 @@ fn evaluate_document_input_with_scalar_program(
         group_states,
         computed_geometry: HashMap::new(),
         computed_geometry_order: Vec::new(),
-        computed_variables: HashMap::new(),
-        computed_variable_order: Vec::new(),
         errors: Vec::new(),
         warnings: Vec::new(),
     };
@@ -1131,11 +1122,6 @@ fn evaluate_document_input_with_scalar_program(
             .computed_geometry_order
             .iter()
             .filter_map(|id| state.computed_geometry.get(id).cloned())
-            .collect(),
-        computed_variables: state
-            .computed_variable_order
-            .iter()
-            .filter_map(|id| state.computed_variables.get(id).cloned())
             .collect(),
         errors: state.errors,
         warnings: state.warnings,

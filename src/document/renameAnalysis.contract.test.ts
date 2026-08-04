@@ -74,7 +74,7 @@ const lineOf = (source: string, needle: string): number => {
 describe("renameAnalysis contract", () => {
   it("includes an unnamed target statement even when no reference text changes", () => {
     const source = dslTextForElements([
-      { id: "p", name: "", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+      { id: "p", name: "", type: "freePoint", activity: "visible", x: 0, y: 0 }
     ]);
     const compiled = complete(source);
     const analysis = analyzeRename({
@@ -85,7 +85,7 @@ describe("renameAnalysis contract", () => {
     });
 
     // The unnamed point's construction call spans every physical line after
-    // "nui 2" (a v2 vertical call, unlike v1's always-one-line statement), and
+    // "nui 3" (a canonical vertical call), and
     // expectedPatchedLines now covers a changed statement's full line range
     // (renameAnalysisCandidate.ts) rather than just a diffed line.
     const statementLineCount = source.split("\n").length - 1;
@@ -98,13 +98,12 @@ describe("renameAnalysis contract", () => {
 
   it("preserves an explicit id and its reference resolution", () => {
     const source = dslFlatTextForElements([
-      { id: "persisted-a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
+      { id: "persisted-a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
       {
         id: "user-1",
         name: "User",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPoint: { mode: "reference", pointId: "persisted-a" },
         dx: 1,
         dy: 0
@@ -125,15 +124,14 @@ describe("renameAnalysis contract", () => {
 
   it("tracks a qualified reference in another scope", () => {
     const source = dslTextForElements([
-      { id: "p1", name: "P", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "g", name: "G", type: "group", visible: true, enabled: true },
-      { id: "p2", name: "P", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "g" },
+      { id: "p1", name: "P", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "g", name: "G", type: "group", activity: "visible" },
+      { id: "p2", name: "P", type: "freePoint", activity: "visible", x: 1, y: 0, parentGroupId: "g" },
       {
         id: "user",
         name: "User",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPoint: { mode: "reference", pointId: "p2" },
         dx: 1,
         dy: 0
@@ -155,15 +153,14 @@ describe("renameAnalysis contract", () => {
 
   it("rejects an element rename that lets an inner scope capture its target reference", () => {
     const source = dslTextForElements([
-      { id: "target", name: "Target", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "g", name: "G", type: "group", visible: true, enabled: true },
-      { id: "newname", name: "NewName", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "g" },
+      { id: "target", name: "Target", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "g", name: "G", type: "group", activity: "visible" },
+      { id: "newname", name: "NewName", type: "freePoint", activity: "visible", x: 1, y: 0, parentGroupId: "g" },
       {
         id: "user",
         name: "User",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPoint: { mode: "reference", pointId: "target" },
         dx: 1,
         dy: 0,
@@ -179,17 +176,16 @@ describe("renameAnalysis contract", () => {
 
   it("rejects a group rename that lets an inner scope capture its descendant reference", () => {
     const source = dslTextForElements([
-      { id: "target", name: "Target", type: "group", visible: true, enabled: true },
-      { id: "child1", name: "Child", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "target" },
-      { id: "consumer", name: "Consumer", type: "group", visible: true, enabled: true },
-      { id: "newname", name: "NewName", type: "group", visible: true, enabled: true, parentGroupId: "consumer" },
-      { id: "child2", name: "Child", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "newname" },
+      { id: "target", name: "Target", type: "group", activity: "visible" },
+      { id: "child1", name: "Child", type: "freePoint", activity: "visible", x: 0, y: 0, parentGroupId: "target" },
+      { id: "consumer", name: "Consumer", type: "group", activity: "visible" },
+      { id: "newname", name: "NewName", type: "group", activity: "visible", parentGroupId: "consumer" },
+      { id: "child2", name: "Child", type: "freePoint", activity: "visible", x: 1, y: 0, parentGroupId: "newname" },
       {
         id: "user",
         name: "User",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPoint: { mode: "reference", pointId: "child1" },
         dx: 1,
         dy: 0,
@@ -205,14 +201,13 @@ describe("renameAnalysis contract", () => {
 
   it("does not count a text-invariant descendant reference as an occurrence", () => {
     const source = dslTextForElements([
-      { id: "g", name: "G", type: "group", visible: true, enabled: true },
-      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
+      { id: "g", name: "G", type: "group", activity: "visible" },
+      { id: "p", name: "P", type: "freePoint", activity: "visible", x: 0, y: 0, parentGroupId: "g" },
       {
         id: "s",
         name: "S",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPoint: { mode: "reference", pointId: "p" },
         dx: 1,
         dy: 0,
@@ -234,10 +229,10 @@ describe("renameAnalysis contract", () => {
 
   it("only includes target-resolving slots from a changed print-layout block", () => {
     const elements: DslDocumentData["elements"] = [
-      { id: "g", name: "G", type: "group", visible: true, enabled: true },
-      { id: "gp", name: "P", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "g" },
-      { id: "x", name: "X", type: "group", visible: true, enabled: true },
-      { id: "xp", name: "P", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "x" }
+      { id: "g", name: "G", type: "group", activity: "visible" },
+      { id: "gp", name: "P", type: "freePoint", activity: "visible", x: 0, y: 0, parentGroupId: "g" },
+      { id: "x", name: "X", type: "group", activity: "visible" },
+      { id: "xp", name: "P", type: "freePoint", activity: "visible", x: 1, y: 0, parentGroupId: "x" }
     ];
     const source = serializeDocumentToDsl({
       ...emptyDocument(),
@@ -261,7 +256,7 @@ describe("renameAnalysis contract", () => {
         ]
       }],
       activePrintLayoutId: "layout"
-    }, 2);
+    }, 3);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "G")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "H" });
@@ -283,27 +278,27 @@ describe("renameAnalysis contract", () => {
   // count, so a single-line header would always fall back to block granularity.
   const printLayoutHeaderLines = [
     "printLayout L (",
-    "  output: pdf",
-    "  paper: a4",
-    "  orientation: portrait",
-    "  columns: 1",
-    "  rows: 1",
-    "  overlap: 0",
-    "  scale: 1",
+    "  output: pdf,",
+    "  paper: a4,",
+    "  orientation: portrait,",
+    "  columns: 1,",
+    "  rows: 1,",
+    "  overlap: 0,",
+    "  scale: 1,",
     "  canvas: (100, 100)",
     ") {"
   ];
 
   it("excludes an unchanged raw-id descendant place when print-layout line mapping is exact", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "group Parent {",
       "  group (id: child) {",
       "  }",
       "}",
       ...printLayoutHeaderLines,
-      "  place Parent (at: (0, 0) angle: 0 mirrorX: false)",
-      "  place child (at: (20, 0) angle: 0 mirrorX: false)",
+      "  place Parent (at: (0, 0), angle: 0, mirrorX: false)",
+      "  place child (at: (20, 0), angle: 0, mirrorX: false)",
       "}"
     ].join("\n");
     const compiled = complete(source);
@@ -320,15 +315,15 @@ describe("renameAnalysis contract", () => {
 
   it("keeps block-granularity occurrences when source-only print-layout lines prevent an exact mapping", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "group Parent {",
       "  group (id: child) {",
       "  }",
       "}",
       ...printLayoutHeaderLines,
-      "  place Parent (at: (0, 0) angle: 0 mirrorX: false)",
+      "  place Parent (at: (0, 0), angle: 0, mirrorX: false)",
       "  # source-only comment prevents a line-for-line plan proof",
-      "  place child (at: (20, 0) angle: 0 mirrorX: false)",
+      "  place child (at: (20, 0), angle: 0, mirrorX: false)",
       "}"
     ].join("\n");
     const compiled = complete(source);
@@ -347,8 +342,8 @@ describe("renameAnalysis contract", () => {
 
   it("exposes reason-specific rejected detail types", () => {
     const source = dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 0 }
     ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "A")!;

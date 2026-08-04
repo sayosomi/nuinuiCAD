@@ -9,8 +9,7 @@ fn point(id: &str, x: f64, y: f64) -> Value {
         "id": id,
         "name": id,
         "type": "freePoint",
-        "visible": true,
-        "enabled": true,
+        "activity": "visible",
         "x": x,
         "y": y
     })
@@ -21,8 +20,7 @@ fn line(id: &str, start_point_id: &str, end_point_id: &str) -> Value {
         "id": id,
         "name": id,
         "type": "line",
-        "visible": true,
-        "enabled": true,
+        "activity": "visible",
         "startPoint": { "mode": "reference", "pointId": start_point_id },
         "endPoint": { "mode": "reference", "pointId": end_point_id }
     })
@@ -44,9 +42,8 @@ fn run_performance_case(name: &str, elements: Vec<Value>) -> EvaluationPayload {
         binding_versions: None,
     });
     eprintln!(
-        "{name}: {} geometry, {} variables, {} errors, {:?}",
+        "{name}: {} geometry, {} errors, {:?}",
         result.computed_geometry.len(),
-        result.computed_variables.len(),
         result.errors.len(),
         started.elapsed()
     );
@@ -92,8 +89,7 @@ fn performance_many_beziers() {
             "id": format!("curve{index}"),
             "name": format!("curve{index}"),
             "type": "bezierCurve",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "startPoint": { "mode": "reference", "pointId": start_id },
             "startHandleAngleDeg": 0,
             "startHandleLength": 20,
@@ -138,8 +134,7 @@ fn performance_many_offset_lines() {
             "id": format!("offset{index}"),
             "name": format!("offset{index}"),
             "type": "offsetLine",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "baseLineIds": [format!("base{index}")],
             "offset": 10,
             "side": "right",
@@ -166,8 +161,7 @@ fn performance_deep_groups() {
             "id": format!("group{index}"),
             "name": format!("group{index}"),
             "type": "group",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "expanded": true
         });
         if let Some(parent_group_id) = parent {
@@ -196,8 +190,7 @@ fn performance_many_dependency_errors() {
             "id": format!("line{index}"),
             "name": format!("line{index}"),
             "type": "line",
-            "visible": true,
-            "enabled": true,
+            "activity": "visible",
             "startPoint": { "mode": "reference", "pointId": format!("missing-start{index}") },
             "endPoint": { "mode": "reference", "pointId": format!("missing-end{index}") }
         }));

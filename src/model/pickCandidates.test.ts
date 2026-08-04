@@ -26,8 +26,7 @@ const elements: CadElement[] = [
     id: "a",
     name: "点A",
     type: "freePoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     x: 0,
     y: 0
   },
@@ -35,8 +34,7 @@ const elements: CadElement[] = [
     id: "line",
     name: "直線",
     type: "line",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     startPoint: { mode: "reference", pointId: "a" },
     endPoint: { mode: "coordinate", x: 10, y: 0 }
   },
@@ -44,8 +42,7 @@ const elements: CadElement[] = [
     id: "curve",
     name: "曲線",
     type: "bezierCurve",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     startPoint: { mode: "reference", pointId: "a" },
     startHandleAngleDeg: 0,
     startHandleLength: 20,
@@ -58,8 +55,7 @@ const elements: CadElement[] = [
     id: "target",
     name: "点T",
     type: "offsetPoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     fromPointId: "a",
     dx: 0,
     dy: 0
@@ -114,7 +110,6 @@ const evaluation: EvaluationResult = {
     ["curve", curve],
     ["target", point("target", 0, 0)]
   ]),
-  computedVariables: new Map(),
   errors: [],
   warnings: []
 };
@@ -123,8 +118,7 @@ const group = (id: string): CadElement => ({
   id,
   name: id,
   type: "group",
-  visible: true,
-  enabled: true
+  activity: "visible"
 });
 
 const virtualCommandLineSession = (type: "line" | "lineDivisionPoint", insertionIndex: number) =>
@@ -138,41 +132,41 @@ describe("pickCandidates", () => {
   it("returns same-forGroup generated point, endpoint, and line instances in explicit iteration order", () => {
     const generatedElements: CadElement[] = [
       {
-        id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true,
+        id: "loop", name: "Loop", type: "forGroup", activity: "visible",
         variableName: "i", start: 0, count: 3, step: 1, showGenerated: true
       },
       {
-        id: "loop-point", name: "Loop point", type: "freePoint", visible: true, enabled: true,
+        id: "loop-point", name: "Loop point", type: "freePoint", activity: "visible",
         parentGroupId: "loop", x: makeNumericExpression("@i * 20"), y: 0
       },
       {
-        id: "loop-line", name: "Loop line", type: "line", visible: true, enabled: true,
+        id: "loop-line", name: "Loop line", type: "line", activity: "visible",
         parentGroupId: "loop", startPoint: { mode: "reference", pointId: "loop-point" },
         endPoint: { mode: "coordinate", x: makeNumericExpression("@i * 20"), y: 10 }
       },
       {
-        id: "other-loop", name: "Other", type: "forGroup", visible: true, enabled: true,
+        id: "other-loop", name: "Other", type: "forGroup", activity: "visible",
         variableName: "j", start: 0, count: 3, step: 1, showGenerated: true
       },
       {
-        id: "other-point", name: "Other point", type: "freePoint", visible: true, enabled: true,
+        id: "other-point", name: "Other point", type: "freePoint", activity: "visible",
         parentGroupId: "other-loop", x: 0, y: 0
       },
       {
-        id: "endpoint-target", name: "Endpoint target", type: "lineDivisionPoint", visible: true, enabled: true,
+        id: "endpoint-target", name: "Endpoint target", type: "lineDivisionPoint", activity: "visible",
         parentGroupId: "loop", endpoint: { lineId: "loop-line", endpointKey: "start" },
         placement: { kind: "ratio", value: 0.5 }
       },
       {
-        id: "point-target", name: "Point target", type: "offsetPoint", visible: true, enabled: true,
+        id: "point-target", name: "Point target", type: "offsetPoint", activity: "visible",
         parentGroupId: "loop", fromPoint: { mode: "reference", pointId: "loop-point" }, dx: 5, dy: 0
       },
       {
-        id: "line-target", name: "Line target", type: "offsetLine", visible: true, enabled: true,
+        id: "line-target", name: "Line target", type: "offsetLine", activity: "visible",
         parentGroupId: "loop", baseLineIds: [], offset: 2, side: "right", closed: false
       },
       {
-        id: "later", name: "Later", type: "freePoint", visible: true, enabled: true,
+        id: "later", name: "Later", type: "freePoint", activity: "visible",
         parentGroupId: "loop", x: 0, y: 0
       }
     ];
@@ -216,7 +210,7 @@ describe("pickCandidates", () => {
   });
 
   it("uses referenceElements as the authoritative source pool and preserves enabled fallback semantics", () => {
-    const hiddenPoint = { ...elements[0], visible: false } as CadElement;
+    const hiddenPoint = { ...elements[0], activity: "hidden" } as CadElement;
     const sourceElements = [hiddenPoint, ...elements.slice(1)];
     const target = {
       activePointPickTarget: {
@@ -249,8 +243,7 @@ describe("pickCandidates", () => {
       id: "unnamed-line",
       name: "",
       type: "line",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "coordinate", x: 0, y: 0 },
       endPoint: { mode: "coordinate", x: 10, y: 0 }
     };
@@ -301,8 +294,7 @@ describe("pickCandidates", () => {
       id: "later-line",
       name: "後の線",
       type: "line",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "coordinate", x: 0, y: 0 },
       endPoint: { mode: "coordinate", x: 10, y: 0 }
     };
@@ -367,7 +359,7 @@ describe("pickCandidates", () => {
     const groupedElements: CadElement[] = [
       group("parent"),
       {
-        id: "first-point", name: "先頭点", type: "freePoint", visible: true, enabled: true,
+        id: "first-point", name: "先頭点", type: "freePoint", activity: "visible",
         parentGroupId: "parent", x: 0, y: 0
       }
     ];
@@ -394,7 +386,7 @@ describe("pickCandidates", () => {
     const groupedElements: CadElement[] = [
       group("parent"),
       {
-        id: "first-line", name: "先頭線", type: "line", visible: true, enabled: true,
+        id: "first-line", name: "先頭線", type: "line", activity: "visible",
         parentGroupId: "parent",
         startPoint: { mode: "coordinate", x: 0, y: 0 },
         endPoint: { mode: "coordinate", x: 10, y: 0 }

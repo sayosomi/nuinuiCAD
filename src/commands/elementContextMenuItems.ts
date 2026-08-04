@@ -1,7 +1,6 @@
 import { type CommandContext, type CommandId } from "./commands";
 import { isForGroupElement, isGroupElement, isGroupExpanded } from "../model/groups";
 import {
-  elementActivityFromLegacyFlags,
   elementTypeSupportsHiddenActivity,
   type ElementActivity
 } from "../model/elementActivity";
@@ -29,7 +28,7 @@ const activityLabels: Record<ElementActivity, string> = {
 };
 
 const offerableActivities = (element: CadElement): ElementActivity[] => {
-  const current = elementActivityFromLegacyFlags(element);
+  const current = element.activity;
   return (["visible", "hidden", "disabled"] as const).filter(
     (activity) =>
       activity !== current &&

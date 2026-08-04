@@ -57,4 +57,16 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(result.computedGeometry.get(label.id)).toMatchObject({ kind: "text", text: "{draft} 前身頃 12.346\n" });
     expect(result.computedGeometry.get(bare.id)).toMatchObject({ kind: "text", text: "前身頃" });
   }, 30000);
+
+  it("gives an element-local numeric variable precedence over a same-named document typed binding (Task 52 B1/B2)", () => {
+    const fixture = readParityFixture(repoRoot, "nui3-element-local-typed-name-collision.nui");
+    const result = evaluationPayloadToResult(evaluateWithRustFixture(repoRoot, fixture));
+    const point = fixture.elements.find((element) => element.name === "P")!;
+    const text = fixture.elements.find((element) => element.name === "T")!;
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(result.errors.filter((error) => error.elementId === point.id || error.elementId === text.id)).toEqual([]);
+    expect(result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 5, y: 0 });
+    expect(result.computedGeometry.get(text.id)).toMatchObject({ kind: "text", text: "幅は42mm" });
+  }, 30000);
 });

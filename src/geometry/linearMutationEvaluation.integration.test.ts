@@ -261,8 +261,8 @@ describe("Task 31 linear mutation production wiring", () => {
       "nui 3",
       "let total: number = 0",
       "for Outer (i, from: 0, count: 2, step: 1) {",
-      "  if Branch (@i == 0) {",
-      "    let scratch: number = @i + 1",
+      "  if Branch (@total == 0) {",
+      "    let scratch: number = 1",
       "    set total = @total + @scratch",
       "  } else {",
       "    set total = @total + 10",
@@ -284,15 +284,15 @@ describe("Task 31 linear mutation production wiring", () => {
     expect(result.computedScalarBindings?.size).toBe(1);
   });
 
-  it("advances binding slots with source order: A sees old value, B sees set value, and set reads the live legacy measurement", () => {
+  it("advances binding slots with source order: A sees old value, B sees set value, and set reads the live measurement", () => {
     const compiled = compileCanonical([
       "nui 3",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 3, y: 4)",
-      "var d = pointDistance(point1: P, point2: Q, state: hidden)",
-      "let value: number = @d",
+      "line D = segment(start: P, end: Q, state: hidden)",
+      "let value: number = @D.length",
       'text A = label(text: "A={@value}", anchor: none, size: 3)',
-      "set value = @d + 1",
+      "set value = @D.length + 1",
       'text B = label(text: "B={@value}", anchor: none, size: 3)'
     ].join("\n"));
     const options = optionsFor(compiled);
@@ -390,17 +390,17 @@ describe("Task 31 linear mutation production wiring", () => {
     expect(result.computedGeometry.has(elementId(compiled, "ElseAfter"))).toBe(false);
   });
 
-  it("uses the just-advanced slot and live legacy measurement once at the conditional opener", () => {
+  it("uses the just-advanced slot and live measurement once at the conditional opener", () => {
     const compiled = compileCanonical([
       "nui 3",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 3, y: 4)",
-      "var d = pointDistance(point1: P, point2: Q, state: hidden)",
+      "line D = segment(start: P, end: Q, state: hidden)",
       "let flag: boolean = false",
       "let result: number = 0",
-      "set flag = @d == 5",
+      "set flag = @D.length == 5",
       "if C (@flag) {",
-      "  set result = @d + 2",
+      "  set result = @D.length + 2",
       "} else {",
       "  set result = 99",
       "}"

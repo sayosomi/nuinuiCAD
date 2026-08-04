@@ -9,7 +9,7 @@ import { resolveInitializerReferences, type BindingResolution } from "../src/sca
 import { parseScalarExpression } from "../src/scalars/expressionParser";
 import { typecheckScalarExpression } from "../src/scalars/expressionTypecheck";
 import { collectReferences } from "../src/scalars/typedDeclarationAnalysis";
-import { BASELINE_SIZES, buildPureNui3BindingAnalysisBaselineSource } from "./typedVariablesBaselineFixtures";
+import { PURE_NUI3_BINDING_SIZES, buildPureNui3BindingSource } from "./pureNui3BindingFixtures";
 
 type Stage = "compiler" | "scope" | "adapter" | "catalog" | "resolver" | "analysis" | "typecheck";
 type ParsedInitializer = {
@@ -21,7 +21,7 @@ type Profile = {
   calls: Record<Stage | "initializerParse" | "resolutionBucket" | "resolutionBucketItems", number>;
 };
 
-const [SMALL_SIZE, LARGE_SIZE] = BASELINE_SIZES;
+const [SMALL_SIZE, LARGE_SIZE] = PURE_NUI3_BINDING_SIZES;
 const runProfile = (globalThis as {
   process?: { env?: Record<string, string | undefined> };
 }).process?.env?.VITE_RUN_BINDING_PROFILE === "1";
@@ -34,7 +34,7 @@ const median = (samples: readonly number[]) => {
 };
 
 const profileFor = (bindingCount: number): Profile => {
-  const { source } = buildPureNui3BindingAnalysisBaselineSource(bindingCount);
+  const { source } = buildPureNui3BindingSource(bindingCount);
   const parsed = parseDsl(source);
   if (parsed.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
     throw new Error("pure nui 3 binding profile fixture must parse without diagnostics");
@@ -75,7 +75,6 @@ const profileFor = (bindingCount: number): Profile => {
     const catalog = time("catalog", () => buildBindingCatalog({
       scopeIndex,
       stableStatementIdByIndex,
-      legacyBindings: adapter.legacyBindings,
       iterationBindings: adapter.iterationBindings,
       containerIndex: adapter.containerIndex
     }));

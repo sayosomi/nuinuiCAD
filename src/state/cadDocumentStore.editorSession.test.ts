@@ -5,12 +5,12 @@ import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
 
 const onePointSource = (x = 0, y = 0) => dslTextForElements([
-  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x, y }
+  { id: "a", name: "A", type: "freePoint", activity: "visible", x, y }
 ]);
 
 const twoPointSource = () => dslTextForElements([
-  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-  { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+  { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
 ]);
 
 describe("cadDocumentStore editor mutation boundary", () => {

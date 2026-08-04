@@ -12,24 +12,24 @@ fn generated_copy_reports_its_incomplete_numeric_expression_as_the_dependency_id
         text_property_bindings: None,
         elements: vec![
             json!({
-                "id": "a", "name": "A", "type": "freePoint", "visible": true, "enabled": true,
+                "id": "a", "name": "A", "type": "freePoint", "activity": "visible",
                 "x": 0, "y": 0
             }),
             json!({
-                "id": "b", "name": "B", "type": "freePoint", "visible": true, "enabled": true,
+                "id": "b", "name": "B", "type": "freePoint", "activity": "visible",
                 "x": 10, "y": 0
             }),
             json!({
-                "id": "ab", "name": "AB", "type": "line", "visible": true, "enabled": true,
+                "id": "ab", "name": "AB", "type": "line", "activity": "visible",
                 "startPoint": { "mode": "reference", "pointId": "a" },
                 "endPoint": { "mode": "reference", "pointId": "b" }
             }),
             json!({
-                "id": "loop", "name": "Loop", "type": "forGroup", "visible": true, "enabled": true,
+                "id": "loop", "name": "Loop", "type": "forGroup", "activity": "visible",
                 "variableName": "i", "start": 0, "count": 2, "step": 1, "showGenerated": true
             }),
             json!({
-                "id": "copy", "name": "Copy", "type": "copyLine", "visible": true, "enabled": true,
+                "id": "copy", "name": "Copy", "type": "copyLine", "activity": "visible",
                 "parentGroupId": "loop",
                 "startPoint": { "mode": "reference", "pointId": "a" },
                 "endPoint": { "mode": "reference", "pointId": "b" },

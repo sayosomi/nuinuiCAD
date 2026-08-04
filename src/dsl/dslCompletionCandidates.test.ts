@@ -30,17 +30,17 @@ const lineOf = (source: string, needle: string): number => {
 describe("dslReferenceCompletionOptions", () => {
   it("uses the live scope and strictly excludes the cursor line and later statements", () => {
     const groupLines = dslLinesForElements([
-      { id: "outer", name: "Outer", type: "group", visible: true, enabled: true },
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "outer" },
-      { id: "ab", name: "AB", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "a" }, parentGroupId: "outer" }
+      { id: "outer", name: "Outer", type: "group", activity: "visible" },
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0, parentGroupId: "outer" },
+      { id: "ab", name: "AB", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "a" }, parentGroupId: "outer" }
     ]);
     // カーソルが編集中の空行(未入力statement)にある状態を再現するため、
     // group閉じ括弧の直前に空行を1つ挿入する。
     groupLines.splice(groupLines.findIndex((line) => line.trim() === "}"), 0, "");
     const laterLines = dslLinesForElements([
-      { id: "later", name: "Later", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+      { id: "later", name: "Later", type: "freePoint", activity: "visible", x: 10, y: 0 }
     ]);
-    const source = ["nui 2", ...groupLines, ...laterLines].join("\n");
+    const source = ["nui 3", ...groupLines, ...laterLines].join("\n");
     const { elements, ids } = identities(source);
     const blankLine = source.split("\n").findIndex((line) => line === "") + 1;
     const pointALine = lineOf(source, "point A");
@@ -68,9 +68,9 @@ describe("dslReferenceCompletionOptions", () => {
 
   it("uses parameter kinds to keep line endpoints and line lists distinct", () => {
     const source = dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "ab", name: "AB", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "a" } },
-      { id: "target", name: "Target", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "ab", name: "AB", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "a" } },
+      { id: "target", name: "Target", type: "freePoint", activity: "visible", x: 1, y: 1 }
     ]);
     const { elements, ids } = identities(source);
     const cursorLine = lineOf(source, "point Target");
@@ -83,12 +83,12 @@ describe("dslReferenceCompletionOptions", () => {
 
   it("does not fall back to compiled scope when a live dirty group has no stable identity", () => {
     const committed = identities(dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 }
     ]));
     const aId = committed.ids.get(2)!;
     const liveLines = dslLinesForElements([
-      { id: "new", name: "New", type: "group", visible: true, enabled: true },
-      { id: "a2", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "new" }
+      { id: "new", name: "New", type: "group", activity: "visible" },
+      { id: "a2", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0, parentGroupId: "new" }
     ]);
     liveLines.splice(liveLines.findIndex((line) => line.trim() === "}"), 0, "");
     const liveSource = liveLines.join("\n");
@@ -106,7 +106,7 @@ describe("dslReferenceCompletionOptions", () => {
 
   it("returns only the stable top eight for a 1000-element document", () => {
     const elements: DslDocumentData["elements"] = Array.from({ length: 1000 }, (_, index) => ({
-      id: `p${index}`, name: `P${index}`, type: "freePoint", visible: true, enabled: true, x: index, y: 0
+      id: `p${index}`, name: `P${index}`, type: "freePoint", activity: "visible", x: index, y: 0
     }));
     const source = dslTextForElements(elements);
     const { elements: compiledElements, ids } = identities(source);
@@ -126,9 +126,9 @@ describe("dslReferenceCompletionOptions", () => {
 
   it("uses evaluator-owned forGroup rows to aggregate runtime instances to one saved token", () => {
     const source = dslTextForElements([
-      { id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true, variableName: "i", start: 0, count: 3, step: 1, showGenerated: true },
-      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
-      { id: "target", name: "Target", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "reference", pointId: "p" }, parentGroupId: "loop" }
+      { id: "loop", name: "Loop", type: "forGroup", activity: "visible", variableName: "i", start: 0, count: 3, step: 1, showGenerated: true },
+      { id: "p", name: "P", type: "freePoint", activity: "visible", x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
+      { id: "target", name: "Target", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "reference", pointId: "p" }, parentGroupId: "loop" }
     ]);
     const { elements, ids } = identities(source);
     const evaluation = evaluateElements(elements);
@@ -149,11 +149,11 @@ describe("dslReferenceCompletionOptions", () => {
 
   it("removes every runtime instance when another line-list token already selects its template", () => {
     const source = dslTextForElements([
-      { id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true, variableName: "i", start: 0, count: 3, step: 1, showGenerated: true },
-      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
-      { id: "l", name: "L", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 10 }, parentGroupId: "loop" },
-      { id: "m", name: "M", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 20 }, parentGroupId: "loop" },
-      { id: "o", name: "O", type: "offsetLine", visible: true, enabled: true, baseLineIds: ["l", "l"], offset: 4, side: "left", closed: false, parentGroupId: "loop" }
+      { id: "loop", name: "Loop", type: "forGroup", activity: "visible", variableName: "i", start: 0, count: 3, step: 1, showGenerated: true },
+      { id: "p", name: "P", type: "freePoint", activity: "visible", x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
+      { id: "l", name: "L", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 10 }, parentGroupId: "loop" },
+      { id: "m", name: "M", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 20 }, parentGroupId: "loop" },
+      { id: "o", name: "O", type: "offsetLine", activity: "visible", baseLineIds: ["l", "l"], offset: 4, side: "left", closed: false, parentGroupId: "loop" }
     ]);
     const { elements, ids } = identities(source);
     const evaluation = evaluateElements(elements);
@@ -183,11 +183,11 @@ describe("dslReferenceCompletionOptions", () => {
 
   it("keeps the currently edited line-list token replaceable while excluding other selections", () => {
     const source = dslTextForElements([
-      { id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true, variableName: "i", start: 0, count: 2, step: 1, showGenerated: true },
-      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
-      { id: "l", name: "L", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 10 }, parentGroupId: "loop" },
-      { id: "m", name: "M", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 20 }, parentGroupId: "loop" },
-      { id: "o", name: "O", type: "offsetLine", visible: true, enabled: true, baseLineIds: ["l", "m"], offset: 4, side: "left", closed: false, parentGroupId: "loop" }
+      { id: "loop", name: "Loop", type: "forGroup", activity: "visible", variableName: "i", start: 0, count: 2, step: 1, showGenerated: true },
+      { id: "p", name: "P", type: "freePoint", activity: "visible", x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
+      { id: "l", name: "L", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 10 }, parentGroupId: "loop" },
+      { id: "m", name: "M", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 20 }, parentGroupId: "loop" },
+      { id: "o", name: "O", type: "offsetLine", activity: "visible", baseLineIds: ["l", "m"], offset: 4, side: "left", closed: false, parentGroupId: "loop" }
     ]);
     const { elements, ids } = identities(source);
     const evaluation = evaluateElements(elements);

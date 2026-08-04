@@ -82,29 +82,29 @@ const bezierCurve = (
 
 const forGroupPickElements = (): CadElement[] => [
   {
-    id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true,
+    id: "loop", name: "Loop", type: "forGroup", activity: "visible",
     variableName: "i", start: 0, count: 3, step: 1, showGenerated: true
   },
   {
-    id: "loop-point", name: "Loop point", type: "freePoint", visible: true, enabled: true,
+    id: "loop-point", name: "Loop point", type: "freePoint", activity: "visible",
     parentGroupId: "loop", x: makeNumericExpression("@i * 40"), y: 0
   },
   {
-    id: "loop-line", name: "Loop line", type: "line", visible: true, enabled: true,
+    id: "loop-line", name: "Loop line", type: "line", activity: "visible",
     parentGroupId: "loop", startPoint: { mode: "reference", pointId: "loop-point" },
     endPoint: { mode: "coordinate", x: makeNumericExpression("@i * 40"), y: 20 }
   },
   {
-    id: "endpoint-target", name: "Endpoint target", type: "lineDivisionPoint", visible: true, enabled: true,
+    id: "endpoint-target", name: "Endpoint target", type: "lineDivisionPoint", activity: "visible",
     parentGroupId: "loop", endpoint: { lineId: "loop-line", endpointKey: "start" },
     placement: { kind: "ratio", value: 0.5 }
   },
   {
-    id: "point-target", name: "Point target", type: "offsetPoint", visible: true, enabled: true,
+    id: "point-target", name: "Point target", type: "offsetPoint", activity: "visible",
     parentGroupId: "loop", fromPoint: { mode: "reference", pointId: "loop-point" }, dx: 5, dy: 0
   },
   {
-    id: "line-target", name: "Line target", type: "offsetLine", visible: true, enabled: true,
+    id: "line-target", name: "Line target", type: "offsetLine", activity: "visible",
     parentGroupId: "loop", baseLineIds: [], offset: 2, side: "right", closed: false
   }
 ];
@@ -294,8 +294,7 @@ describe("DrawingCanvas rendering", () => {
           id: "curve",
           name: "曲線",
           type: "bezierCurve",
-          visible: false,
-          enabled: true,
+          activity: "hidden",
           startPoint: { mode: "coordinate", x: 0, y: 0 },
           startHandleAngleDeg: 45,
           startHandleLength: 80,
@@ -308,8 +307,7 @@ describe("DrawingCanvas rendering", () => {
           id: "offset",
           name: "オフセット",
           type: "offsetLine",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           baseLineIds: ["curve"],
           offset: 10,
           side: "right",
@@ -398,8 +396,7 @@ describe("DrawingCanvas command-line ghost isolation", () => {
           id: "command-line-ghost",
           name: "",
           type: "freePoint",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           x: 100,
           y: 0
         }
@@ -679,7 +676,7 @@ describe("DrawingCanvas point dragging", () => {
     useCadStore.setState({
       elements: [
         ...sampleElements,
-        { id: "target-point", name: "参照先", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+        { id: "target-point", name: "参照先", type: "freePoint", activity: "visible", x: 0, y: 0 }
       ],
       selectedElementId: "target-point",
       selectedElementIds: ["target-point"],
@@ -715,7 +712,7 @@ describe("DrawingCanvas point dragging", () => {
     useCadStore.setState({
       elements: [
         ...sampleElements,
-        { id: "target-point", name: "参照先", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+        { id: "target-point", name: "参照先", type: "freePoint", activity: "visible", x: 0, y: 0 }
       ],
       selectedElementId: "target-point",
       selectedElementIds: ["target-point"],
@@ -748,7 +745,7 @@ describe("DrawingCanvas point dragging", () => {
     useCadStore.setState({
       elements: [
         ...sampleElements,
-        { id: "target-point", name: "参照先", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+        { id: "target-point", name: "参照先", type: "freePoint", activity: "visible", x: 10, y: 0 }
       ],
       selectedElementId: "target-point",
       selectedElementIds: ["target-point"],
@@ -784,8 +781,7 @@ describe("DrawingCanvas point dragging", () => {
       id: "target-point",
       name: "参照先",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       x: 0,
       y: 0
     };
@@ -820,8 +816,7 @@ describe("DrawingCanvas point dragging", () => {
         id: "self-line",
         name: "自己線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 0, y: 0 },
         endPoint: { mode: "coordinate", x: 100, y: 0 }
       }
@@ -863,8 +858,7 @@ describe("DrawingCanvas point dragging", () => {
         id: "self-line",
         name: "自己線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 0, y: 0 },
         endPoint: { mode: "coordinate", x: 100, y: 0 }
       }
@@ -958,8 +952,7 @@ describe("DrawingCanvas point dragging", () => {
           id: "offset-line",
           name: "オフセット線",
           type: "offsetLine",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           numericVariables: [],
           baseLineIds: [],
           offset: 10,
@@ -1031,8 +1024,7 @@ describe("DrawingCanvas point dragging", () => {
           id: "line-ab-copy",
           name: "直線AB重ね",
           type: "line",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           startPoint: { mode: "reference", pointId: "point-a" },
           endPoint: { mode: "reference", pointId: "point-b" }
         },
@@ -1040,8 +1032,7 @@ describe("DrawingCanvas point dragging", () => {
           id: "offset-line",
           name: "オフセット線",
           type: "offsetLine",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           numericVariables: [],
           baseLineIds: [],
           offset: 10,
@@ -1094,8 +1085,7 @@ describe("DrawingCanvas point dragging", () => {
           id: "offset-line",
           name: "オフセット線",
           type: "offsetLine",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           numericVariables: [],
           baseLineIds: [],
           offset: 10,
@@ -1237,8 +1227,7 @@ describe("DrawingCanvas point dragging", () => {
           id: "polar-point",
           name: "角度距離点",
           type: "polarOffsetPoint",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           fromPointId: "point-a",
           angleDeg: 0,
           distance: 30
@@ -1285,8 +1274,7 @@ describe("DrawingCanvas point dragging", () => {
           id: "polar-point",
           name: "角度距離点",
           type: "polarOffsetPoint",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           fromPointId: "point-a",
           angleDeg: 0,
           distance: 30
@@ -1348,7 +1336,7 @@ describe("DrawingCanvas point dragging", () => {
   });
 
   it("finishes a released dirty click only after the matching evaluation arrives", async () => {
-    useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 100 y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 100, y: 0)", "test");
     const beforeRevision = useCadDocumentStore.getState().compiledDocumentRevision;
     const staleEvaluation = referenceEvaluationState(beforeRevision);
     const canvasFocusRef = createRef<HTMLDivElement>();
@@ -1363,7 +1351,7 @@ describe("DrawingCanvas point dragging", () => {
       hasPendingText: () => true,
       isComposing: () => false,
       flush: () => {
-        useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 100 y: 0 color: cut-red)", "editor");
+        useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 100, y: 0, color: cut-red)", "editor");
         return "flushed";
       }
     });
@@ -1456,8 +1444,8 @@ describe("DrawingCanvas point dragging", () => {
 
 describe("DrawingCanvas pending pointer intents", () => {
   // World (0, 0) renders at screen (250, 200) with the 500x400 test viewport.
-  const twoPointText = "nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 100 y: 0)";
-  const twoPointFlushText = `${twoPointText}\npoint C = coordinate(x: 0 y: 60)`;
+  const twoPointText = "nui 3\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 100, y: 0)";
+  const twoPointFlushText = `${twoPointText}\npoint C = coordinate(x: 0, y: 60)`;
 
   let unregisterSession: (() => void) | null = null;
 
@@ -1584,8 +1572,8 @@ describe("DrawingCanvas pending pointer intents", () => {
 
   it("drags the point grabbed at the press position, not the element under the drop position", async () => {
     const { viewport, deliverEvaluationState } = renderPendingCanvas({
-      initialText: "nui 2\npoint P = coordinate(x: 0 y: 0)\npoint Q = coordinate(x: 50 y: 0)",
-      flushText: "nui 2\npoint P = coordinate(x: 0 y: 0)\npoint Q = coordinate(x: 50 y: 0)\npoint R = coordinate(x: 0 y: 60)"
+      initialText: "nui 3\npoint P = coordinate(x: 0, y: 0)\npoint Q = coordinate(x: 50, y: 0)",
+      flushText: "nui 3\npoint P = coordinate(x: 0, y: 0)\npoint Q = coordinate(x: 50, y: 0)\npoint R = coordinate(x: 0, y: 60)"
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 1 });
@@ -1740,7 +1728,7 @@ describe("DrawingCanvas pending pointer intents", () => {
   it("cancels when the pressed target was deleted by the flushed document", async () => {
     const { viewport, deliverEvaluationState } = renderPendingCanvas({
       initialText: twoPointText,
-      flushText: "nui 2\npoint A = coordinate(x: 0 y: 0)"
+      flushText: "nui 3\npoint A = coordinate(x: 0, y: 0)"
     });
     const bId = idByName("B");
 

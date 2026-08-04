@@ -15,7 +15,6 @@ import { dslChoiceTypeName, dslTypedDeclarationTypeNames } from "../dsl/dslDecla
 import { dslStatementElementType } from "../dsl/dslCompletionMetadata";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
-import { dslVariableCompletionOptions } from "../dsl/dslVariableCompletionCandidates";
 import { dslLocalVariableCompletionOptions } from "../dsl/dslLocalVariableCompletionCandidates";
 import { dslEnclosingPrintLayoutLine, dslPrintLayoutVariableCompletionOptions } from "../dsl/dslPrintLayoutVariableCompletionCandidates";
 import { dslLinePrintLayoutStatement } from "../dsl/dslValueSpans";
@@ -28,8 +27,8 @@ import {
   type LogicalStatement,
   type LogicalStatementSourceMap
 } from "../dsl/logicalStatementSourceMap";
-import { localNumericVariableReferenceOptions, type NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
-import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, PrintLayout } from "../types/geometry";
+import { localNumericReferenceOptions, type NumericReferenceOption } from "../geometry/numericReferenceOptions";
+import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationResult, PrintLayout } from "../types/geometry";
 import type { PrintLayoutRangeIndex, ScopeBodyRangeIndex, StatementRangeIndex, TypedDeclarationRangeIndex } from "./statementRangeIndex";
 import { deepestContainingScopeId, typedDeclarationBindingIdAtCursor } from "./statementRangeIndex";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
@@ -63,13 +62,8 @@ export type DslAutocompleteOptions = {
   printLayouts: () => readonly PrintLayout[];
   printLayoutRanges: () => PrintLayoutRangeIndex;
   isComposing: () => boolean;
-  /** Last-applied evaluation's computedVariables, when one exists. Used only as
-   * the Tier B "still cross-references an unedited compiled element" enrichment
-   * in dslVariableCompletionOptions — never as a blanket live-buffer fallback. */
-  computedVariables: () => Map<ElementId, ComputedVariable> | undefined;
   /** Last-applied evaluation's computedGeometry/effectiveEnabledElementIds/errors,
-   * used the same Tier B way as computedVariables above but for
-   * dslElementParameterCompletionOptions's disabled/invalid gating. */
+   * used for dslElementParameterCompletionOptions's disabled/invalid gating. */
   computedGeometry: () => Map<ElementId, ComputedGeometry> | undefined;
   forGroupGeneratedRows?: () => EvaluationResult["forGroupGeneratedRows"] | undefined;
   effectiveEnabledElementIds: () => Set<ElementId> | undefined;
@@ -181,8 +175,8 @@ const currentLiveElement = (source: string, position: number, elementId: Element
   return elements.find((element) => element.id === elementId && element.type === liveType);
 };
 
-const asVariableCompletions = (options: readonly NumericVariableReferenceOption[]): Completion[] =>
-  options.map((option) => ({ label: option.displayExpression, apply: option.expression, detail: option.detail, type: "variable" }));
+const asVariableCompletions = (options: readonly NumericReferenceOption[]): Completion[] =>
+  options.map((option) => ({ label: option.displayExpression, apply: option.expression, detail: option.detail, type: "constant" }));
 
 /** Task 39: maps the pure `ScalarCompletionCandidate` union to CM's
  * `Completion` shape - the one place that translates candidate `kind` into a
@@ -197,7 +191,7 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
       return {
         label: candidate.name,
         apply: `@${candidate.name}`,
-        type: "variable"
+        type: "constant"
       };
     }
     if (candidate.kind === "operator") return { label: candidate.label, type: "keyword" };
@@ -208,7 +202,7 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
  * asScalarCompletions's reference branch, a `set` target is a bare
  * identifier - `apply` is the plain name, never `@`-prefixed. */
 const asSetTargetCompletions = (candidates: readonly Pick<SetTargetCandidate, "name">[]): Completion[] =>
-  candidates.map((candidate) => ({ label: candidate.name, apply: candidate.name, type: "variable" }));
+  candidates.map((candidate) => ({ label: candidate.name, apply: candidate.name, type: "constant" }));
 
 const declaredTypeCompletions = (): Completion[] => dslTypedDeclarationTypeNames.map((label) =>
   label === dslChoiceTypeName
@@ -416,7 +410,7 @@ const typedNumberBindingCompletions = (
     entriesById: bindingAnalysis.entriesById,
     ...(site ? { site } : { liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos) }),
     accepts: (type) => type?.kind === "number"
-  }).map((candidate): Completion => ({ label: `@${candidate.name}`, apply: `@${candidate.name}`, type: "variable" }));
+  }).map((candidate): Completion => ({ label: `@${candidate.name}`, apply: `@${candidate.name}`, type: "constant" }));
 };
 
 /** CodeMirror's stock filtering compares the raw `@name` token to labels
@@ -528,7 +522,6 @@ export const isElementParameterRetryContext = (options: DslAutocompleteOptions, 
     elements: options.elements(),
     elementToken,
     computedGeometry: options.computedGeometry() ?? new Map(),
-    computedVariables: options.computedVariables(),
     effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
     errors: options.evaluationErrors() ?? [],
     evaluationIsCurrent: true
@@ -608,7 +601,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       elements: options.elements(),
       elementToken: completionContext.elementToken,
       computedGeometry: options.computedGeometry() ?? new Map(),
-      computedVariables: options.computedVariables(),
       effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
       errors: options.evaluationErrors() ?? [],
       evaluationIsCurrent: options.evaluationIsCurrent?.() ?? true
@@ -645,7 +637,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
           elements: options.elements(),
           elementToken: completionContext.geometryProperty.elementToken,
           computedGeometry: options.computedGeometry() ?? new Map(),
-          computedVariables: options.computedVariables(),
           effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
           errors: options.evaluationErrors() ?? [],
           evaluationIsCurrent: options.evaluationIsCurrent?.() ?? true
@@ -678,13 +669,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     // local vars= pool hardcoded to [] (verified in dslCompiler.ts) — bypass
     // the generic "number" branch below entirely so its local-vars union never
     // leaks in, and call the plain top-level source unmodified.
-    completions = asVariableCompletions(dslVariableCompletionOptions({
-      source: input.source,
-      cursorLine: input.cursorLineNumber,
-      statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
-      elements: options.elements(),
-      computedVariables: options.computedVariables()
-    }));
+    completions = [];
   } else if (completionContext.parameter.source === "printLayoutBlock") {
     const parsed = parseDslSnapshot({ normalizedSource: input.source, sourceRevision: 0 });
     const block = dslEnclosingPrintLayoutLine(parsed, input.cursorLineNumber);
@@ -700,41 +685,18 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         printLayoutIdsByLiveLine: printLayoutIdsByLiveLine(input.doc, options.printLayoutRanges()),
         printLayouts: options.printLayouts()
       });
-      const topLevelOptions = dslVariableCompletionOptions({
-        source: input.source,
-        // Substituted to the block's own opening line: dslVariableCompletionOptions
-        // resolves the live enclosing GROUP scope for its parentGroupId guard, and
-        // a printLayout block is never itself inside a group's parentGroupId chain
-        // in the elements sense — using the block's own line keeps that guard from
-        // firing while still yielding every top-level var declared before the block.
-        cursorLine: block.line,
-        statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
-        elements: options.elements(),
-        computedVariables: options.computedVariables()
-        // printLayout numeric expressions never pass currentElement to
-        // evaluateNumericValue (verified in src/print/printLayout.ts), so
-        // resolveVariableReference's group-scope branch is never reached —
-        // only `scope: "global"` top-level vars can ever resolve here.
-      }).filter((option) => option.source === "global");
-      completions = asVariableCompletions([...layoutVarOptions, ...topLevelOptions]);
+      completions = asVariableCompletions(layoutVarOptions);
     }
   } else if (completionContext.parameter.definition.kind === "number") {
     const elements = options.elements();
     const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());
     const currentElement = currentLiveElement(input.source, context.pos, statementElementIds.get(input.cursorLineNumber), elements);
     const localOptions = currentElement
-      ? localNumericVariableReferenceOptions({ element: currentElement, localVariableLimit: currentElement.numericVariables?.length ?? 0 })
+      ? localNumericReferenceOptions({ element: currentElement, localVariableLimit: currentElement.numericVariables?.length ?? 0 })
       : [];
-    const topLevelOptions = dslVariableCompletionOptions({
-      source: input.source,
-      cursorLine: input.cursorLineNumber,
-      statementElementIds,
-      elements,
-      computedVariables: options.computedVariables()
-    });
     completions = [
       ...typedNumberBindingCompletions(options, input, context),
-      ...asVariableCompletions([...localOptions, ...topLevelOptions])
+      ...asVariableCompletions(localOptions)
     ];
   } else {
     const query = input.lineText.slice(completionContext.from, input.localPos);
@@ -757,7 +719,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       label: option.displayLabel,
       apply: option.label,
       detail: option.detail,
-      type: "variable"
+      type: "constant"
     }));
   }
   if (completions.length === 0 && !context.explicit) return null;

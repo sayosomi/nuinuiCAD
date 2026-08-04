@@ -162,54 +162,6 @@ pub(crate) fn normalize_text_expression(
     output
 }
 
-fn resolve_text(
-    text: &str,
-    element: &Value,
-    local_variables: &(HashMap<String, f64>, HashMap<String, String>),
-    state: &mut EvaluationState,
-) -> Option<String> {
-    let chars = text.chars().collect::<Vec<_>>();
-    let mut index = 0;
-    let mut output = String::new();
-
-    while index < chars.len() {
-        let ch = chars[index];
-        if ch == '{' {
-            index += 1;
-            let expression_start = index;
-            while index < chars.len() && chars[index] != '}' {
-                index += 1;
-            }
-            if index >= chars.len() {
-                output.push('{');
-                output.push_str(&chars[expression_start..index].iter().collect::<String>());
-                continue;
-            }
-            let expression = chars[expression_start..index]
-                .iter()
-                .collect::<String>()
-                .trim()
-                .to_owned();
-            let expression = normalize_text_expression(&expression, element, state);
-            let value = json!({ "kind": "expression", "expression": expression });
-            output.push_str(&text_number(evaluate_numeric_or_push(
-                &value,
-                state,
-                element,
-                &local_variables.0,
-                &local_variables.1,
-            )?));
-            index += 1;
-            continue;
-        }
-
-        output.push(ch);
-        index += 1;
-    }
-
-    Some(output)
-}
-
 pub(crate) struct TextTemplateContext<'a> {
     pub(crate) lookup_id: &'a ElementId,
     pub(crate) by_element_id: &'a HashMap<ElementId, ValidatedTextTemplate>,
@@ -242,14 +194,12 @@ pub(crate) fn evaluate_text(
             template_context.scalar_binding_resolver,
             state,
         ),
-        None => resolve_text(
+        None => Some(
             element
                 .get("text")
                 .and_then(Value::as_str)
-                .unwrap_or_default(),
-            element,
-            local_variables,
-            state,
+                .unwrap_or_default()
+                .to_owned(),
         ),
     }) else {
         return;

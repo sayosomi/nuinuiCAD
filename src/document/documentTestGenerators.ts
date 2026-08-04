@@ -31,72 +31,72 @@ export type GeneratedDoc = {
 
 export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc => {
   const sections: string[][] = [];
-  sections.push(["nui 2"]);
+  sections.push(["nui 3"]);
   sections.push([
-    'color main ("#31322f" name: "基本線" default: true)',
-    'color accent ("#b42318" name: "裁断線")'
+    'color main ("#31322f", name: "基本線", default: true)',
+    'color accent ("#b42318", name: "裁断線")'
   ]);
   sections.push([
     'role seam (name: "縫い代")',
-    "view 通常 (default: true seam: false)",
-    "view 印刷 (default: true seam: true)",
+    "view 通常 (default: true, seam: false)",
+    "view 印刷 (default: true, seam: true)",
     "activeView 通常"
   ]);
 
   const elementLines: string[] = [];
   for (let index = 0; index < params.pointCount; index += 1) {
-    elementLines.push(`point P${index} = coordinate(x: ${index * 10} y: ${index * 3})`);
+    elementLines.push(`point P${index} = coordinate(x: ${index * 10}, y: ${index * 3})`);
   }
   // 参照を1つ入れる(リネーム伝播の運動場)。
   if (params.pointCount >= 2) {
-    elementLines.push("point Ref0 = offset(from: P0 dx: 5 dy: 5)");
+    elementLines.push("point Ref0 = offset(from: P0, dx: 5, dy: 5)");
   }
   if (params.withContinuation) {
-    // v2の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。palette側で
+    // nui 3の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。palette側で
     // 定義済みの"main"色を参照する(パースはcolorIdの存在検証をしない)。
     elementLines.push("point PC = coordinate(");
-    elementLines.push("  x: 5");
-    elementLines.push("  y: 5");
+    elementLines.push("  x: 5,");
+    elementLines.push("  y: 5,");
     elementLines.push("  color: main");
     elementLines.push(")");
   }
   for (let index = 0; index < params.groupCount; index += 1) {
     elementLines.push(`group G${index} {`);
-    elementLines.push(`  point GP${index}a = coordinate(x: ${index} y: 1)`);
-    elementLines.push(`  point GP${index}b = coordinate(x: ${index} y: 2)`);
+    elementLines.push(`  point GP${index}a = coordinate(x: ${index}, y: 1)`);
+    elementLines.push(`  point GP${index}b = coordinate(x: ${index}, y: 2)`);
     elementLines.push("}");
   }
   if (params.withIf) {
     elementLines.push("if IF0 (1) {");
-    elementLines.push("  point IT0 = coordinate(x: 100 y: 1)");
+    elementLines.push("  point IT0 = coordinate(x: 100, y: 1)");
     elementLines.push("} else {");
-    elementLines.push("  point IE0 = coordinate(x: 100 y: 2)");
+    elementLines.push("  point IE0 = coordinate(x: 100, y: 2)");
     elementLines.push("}");
   }
   if (params.withFor) {
-    elementLines.push("for F0 (i from: 0 count: 3 step: 1) {");
-    elementLines.push("  point FP0 = coordinate(x: i * 10 y: 0)");
+    elementLines.push("for F0 (i, from: 0, count: 3, step: 1) {");
+    elementLines.push("  point FP0 = coordinate(x: @i * 10, y: 0)");
     elementLines.push("}");
   }
   for (let index = 0; index < params.unnamedCount; index += 1) {
-    elementLines.push(`point = coordinate(x: ${900 + index} y: ${index})`);
+    elementLines.push(`point = coordinate(x: ${900 + index}, y: ${index})`);
   }
   sections.push(elementLines);
 
   if (params.withLayout && params.groupCount > 0) {
     sections.splice(3, 0, [
       "printLayout L0 (",
-      "  output: pdf",
-      "  paper: a4",
-      "  orientation: portrait",
-      "  columns: 2",
-      "  rows: 2",
-      "  overlap: 10",
-      "  scale: 1",
+      "  output: pdf,",
+      "  paper: a4,",
+      "  orientation: portrait,",
+      "  columns: 2,",
+      "  rows: 2,",
+      "  overlap: 10,",
+      "  scale: 1,",
       "  canvas: (410, 584)",
       ") {",
       "  layoutVar margin = 15",
-      "  place G0 (at: (0, margin) angle: 0 mirrorX: false)",
+      "  place G0 (at: (0, margin), angle: 0, mirrorX: false)",
       "}"
     ]);
   }
@@ -227,8 +227,8 @@ const descendantIds = (elements: CadElement[], rootId: ElementId): Set<ElementId
 let generatedNameCounter = 0;
 
 const makeFreePoint = (name: string, x: number, y: number): CadElement => {
-  const statement = name ? `point ${name} = coordinate(x: ${x} y: ${y})` : `point = coordinate(x: ${x} y: ${y})`;
-  const compiled = compileDslDocument(`nui 2\n${statement}`);
+  const statement = name ? `point ${name} = coordinate(x: ${x}, y: ${y})` : `point = coordinate(x: ${x}, y: ${y})`;
+  const compiled = compileDslDocument(`nui 3\n${statement}`);
   expect(compiled.document, "generator fragment must compile").not.toBeNull();
   return compiled.document!.elements[0];
 };
@@ -269,7 +269,7 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
         ...document,
         elements: document.elements.map((element) =>
           element.id === target.id
-            ? ({ ...element, enabled: !element.enabled } as CadElement)
+            ? ({ ...element, activity: element.activity === "disabled" ? "visible" : "disabled" } as CadElement)
             : element
         )
       },

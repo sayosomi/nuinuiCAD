@@ -3,36 +3,26 @@ import {
   activityAllowsDrawing,
   activityAllowsEvaluation,
   effectiveElementActivityById,
-  elementActivityFromLegacyFlags,
   elementTypeSupportsHiddenActivity,
-  legacyFlagsForElementActivity,
   nextElementActivity
 } from "./elementActivity";
 
-describe("element activity legacy bridge", () => {
+describe("element activity", () => {
   it.each([
-    [{ visible: true, enabled: true }, "visible"],
-    [{ visible: false, enabled: true }, "hidden"],
-    [{ visible: true, enabled: false }, "disabled"],
-    [{ visible: false, enabled: false }, "disabled"]
-  ] as const)("maps %o to %s", (flags, activity) => {
-    expect(elementActivityFromLegacyFlags(flags)).toBe(activity);
+    ["visible"],
+    ["hidden"],
+    ["disabled"]
+  ] as const)("allows evaluation/drawing correctly for %s", (activity) => {
     expect(activityAllowsEvaluation(activity)).toBe(activity !== "disabled");
     expect(activityAllowsDrawing(activity)).toBe(activity === "visible");
   });
 
-  it("writes the canonical v2 flag pair for every activity", () => {
-    expect(legacyFlagsForElementActivity("visible")).toEqual({ visible: true, enabled: true });
-    expect(legacyFlagsForElementActivity("hidden")).toEqual({ visible: false, enabled: true });
-    expect(legacyFlagsForElementActivity("disabled")).toEqual({ visible: true, enabled: false });
-  });
-
   it("composes parents once while giving disabled precedence over hidden", () => {
     const activities = effectiveElementActivityById([
-      { id: "hidden", type: "group", visible: false, enabled: true },
-      { id: "nested", type: "group", parentGroupId: "hidden", visible: true, enabled: false },
-      { id: "child", type: "freePoint", parentGroupId: "nested", visible: true, enabled: true },
-      { id: "visible-child", type: "freePoint", parentGroupId: "hidden", visible: true, enabled: true }
+      { id: "hidden", type: "group", activity: "hidden" },
+      { id: "nested", type: "group", parentGroupId: "hidden", activity: "disabled" },
+      { id: "child", type: "freePoint", parentGroupId: "nested", activity: "visible" },
+      { id: "visible-child", type: "freePoint", parentGroupId: "hidden", activity: "visible" }
     ]);
 
     expect(activities.get("nested")).toMatchObject({ activity: "disabled", disabledByElementId: "nested" });
@@ -48,7 +38,6 @@ describe("element activity legacy bridge", () => {
     ["line", true],
     ["image", true],
     ["text", true],
-    ["variable", false],
     ["edge", false],
     ["extendTrim", false],
     ["move", false],
@@ -63,9 +52,9 @@ describe("element activity legacy bridge", () => {
     expect(nextElementActivity("disabled", "freePoint")).toBe("visible");
   });
 
-  it("skips hidden for types where it is meaningless, and recovers forward from a legacy hidden state", () => {
-    expect(nextElementActivity("visible", "variable")).toBe("disabled");
-    expect(nextElementActivity("disabled", "variable")).toBe("visible");
-    expect(nextElementActivity("hidden", "variable")).toBe("disabled");
+  it("skips hidden for types where it is meaningless, and recovers forward from a hidden state", () => {
+    expect(nextElementActivity("visible", "extendTrim")).toBe("disabled");
+    expect(nextElementActivity("disabled", "extendTrim")).toBe("visible");
+    expect(nextElementActivity("hidden", "extendTrim")).toBe("disabled");
   });
 });

@@ -509,17 +509,6 @@ impl<'a> Parser<'a> {
         if let Some(parameter_path) = property.strip_prefix("params.") {
             return self.parameter_reference_value(element_id, parameter_path);
         }
-        if property == "value" {
-            if let Some(value) = self
-                .state
-                .computed_variables
-                .get(element_id)
-                .and_then(|variable| variable.get("value"))
-                .and_then(Value::as_f64)
-            {
-                return Ok(value);
-            }
-        }
         let geometry = self
             .state
             .computed_geometry

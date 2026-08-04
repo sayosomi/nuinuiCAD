@@ -82,7 +82,6 @@ const completionAt = async ({
     printLayouts: () => [],
     printLayoutRanges: () => fixture.printLayoutRanges,
     isComposing: () => false,
-    computedVariables: () => undefined,
     computedGeometry: () => geometry,
     effectiveEnabledElementIds: () => enabled,
     evaluationErrors: () => errors,

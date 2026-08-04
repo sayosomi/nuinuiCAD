@@ -106,7 +106,6 @@ export const dslReferenceCompletionOptions = ({
   const evaluation = {
     computedGeometry: computedGeometry ?? fallbackEvaluation!.computedGeometry,
     forGroupGeneratedRows: forGroupGeneratedRows ?? fallbackEvaluation?.forGroupGeneratedRows,
-    computedVariables: new Map(),
     effectiveEnabledElementIds: effectiveEnabledElementIds ?? fallbackEvaluation?.effectiveEnabledElementIds,
     errors: errors ?? fallbackEvaluation?.errors ?? [],
     warnings: []

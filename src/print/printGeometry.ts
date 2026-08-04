@@ -120,7 +120,6 @@ const resolveAnchorPoint = ({
     computedGeometry: evaluation.computedGeometry,
     elementsById,
     currentElement: group,
-    computedVariables: evaluation.computedVariables,
     elements
   }).value;
   const y = evaluateNumericValue({
@@ -128,7 +127,6 @@ const resolveAnchorPoint = ({
     computedGeometry: evaluation.computedGeometry,
     elementsById,
     currentElement: group,
-    computedVariables: evaluation.computedVariables,
     elements
   }).value;
   return {

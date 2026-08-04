@@ -10,8 +10,7 @@ const group = (id: string, patch: Partial<GroupElement> = {}): GroupElement => (
   id,
   name: id,
   type: "group",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   ...patch
 });
 

@@ -58,7 +58,7 @@ describe("cadDocumentStore file state", () => {
     };
     commitDocumentChangeAndSelect({
       elements: before.elements.map((element, index) =>
-        index === 0 ? { ...element, enabled: false } : element
+        index === 0 ? { ...element, activity: "disabled" } : element
       )
     }, afterSelection);
 
@@ -83,7 +83,7 @@ describe("cadDocumentStore file state", () => {
     useCadDocumentStore.getState().commitText("nui 1\npoint A = (", "test");
 
     const result = commitDocumentChangeAndSelect(
-      { elements: state.elements.map((element) => ({ ...element, enabled: false })) },
+      { elements: state.elements.map((element) => ({ ...element, activity: "disabled" })) },
       {
         selectedElementId: state.elements[0].id,
         selectedElementIds: [state.elements[0].id],
@@ -142,7 +142,7 @@ describe("cadDocumentStore file state", () => {
     const before = useCadDocumentStore.getState();
     const previewElements = before.elements.map((element) =>
       element.id === before.elements[0].id
-        ? ({ ...element, enabled: false } as typeof element)
+        ? ({ ...element, activity: "disabled" } as typeof element)
         : element
     );
 
@@ -176,13 +176,13 @@ describe("cadDocumentStore file state", () => {
 
   it("projects valid source-editor preview text without changing canonical text or history", () => {
     const source = dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 12, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 12, y: 0 }
     ]);
     useCadDocumentStore.getState().commitText(source, "test");
     const before = useCadDocumentStore.getState();
 
     useCadDocumentStore.getState().setSourceEditorPreviewText(dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 15, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 15, y: 0 }
     ]));
 
     const during = useCadDocumentStore.getState();

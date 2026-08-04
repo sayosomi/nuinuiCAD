@@ -166,21 +166,6 @@ describe("compileSetStatements: target resolution", () => {
     expect(diagnostics).toEqual([expect.objectContaining({ code: INVALID_SET_TARGET_CODE })]);
   });
 
-  it("rejects a legacy var target with invalid-set-target (mutability check, not the no-catalog branch)", () => {
-    // An unrelated let forces analyzeTypedDeclarations to build a real
-    // catalog (it only builds one when a const/let exists at all), so this
-    // exercises the `binding.mutability !== "let"` branch specifically -
-    // not the "no catalog at all" branch, which produces the same code but
-    // via a different path.
-    const { statements, stableStatementIdByIndex, bindingAnalysis, spans } = compileFor(
-      ["let unrelated: number = 1", "var x = 1", "set x = 2"].join("\n")
-    );
-    expect(bindingAnalysis).toBeDefined();
-    const { setsByStatementIndex, diagnostics } = compileSetStatements({ statements, stableStatementIdByIndex, bindingAnalysis, spans });
-    expect(setsByStatementIndex.size).toBe(0);
-    expect(diagnostics).toEqual([expect.objectContaining({ code: INVALID_SET_TARGET_CODE })]);
-  });
-
   it("rejects a forGroup iteration binding target with invalid-set-target (mutability check, not the no-catalog branch)", () => {
     const { statements, stableStatementIdByIndex, bindingAnalysis, spans } = compileFor([
       "let unrelated: number = 1",

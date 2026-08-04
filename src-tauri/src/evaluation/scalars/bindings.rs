@@ -1,26 +1,4 @@
-//! Document-context evaluation for Task 19's already-resolved scalar program.
-//! This module never parses source or resolves a binding name.
-//!
-//! Task 23 changed this from a one-shot `evaluate_scalar_program(program,
-//! state)` function (which built a full snapshot of legacy `var` values from
-//! `state` up front, then walked every statement once) into
-//! `ScalarBindingResolver`, an on-demand, memoized resolver: `resolve` only
-//! evaluates a binding's initializer the first time something asks for it,
-//! reading `state.computed_variables` *live* rather than from a snapshot.
-//! This lets a caller (the per-element evaluation loop in `mod.rs`) resolve
-//! a specific binding mid-loop - e.g. to materialize a bound element
-//! property - without re-evaluating the whole program and without ever
-//! evaluating any single binding more than once. `finalize` still produces
-//! the exact same `computed_scalar_bindings` shape/order as the original
-//! one-shot function, by walking `program.statements` in order and pulling
-//! each value from the (memoized) resolver.
-//!
-//! A compiled ScalarProgram is already guaranteed acyclic and forward-
-//! reference free (Task 13's diagnostics reject any document containing a
-//! cycle/forward reference at compile time), so on-demand recursion always
-//! strictly resolves "earlier" statements first and terminates; the
-//! `in_progress` guard below is defense-in-depth only, for this new
-//! recursive control flow, not a correctness requirement.
+//! Runtime evaluation for an already-resolved nui 3 scalar program.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -34,8 +12,7 @@ use super::types::{BindingId, ScalarEvaluation, ScalarType, ScalarValue};
 use crate::evaluation::numeric_expression::computed_reference_value;
 use crate::evaluation::types::EvaluationState;
 
-const LEGACY_BINDING_PREFIX: &str = "binding:";
-const EXTERNAL_BINDING_UNAVAILABLE: &str = "evaluation-external-binding-unavailable";
+const BINDING_UNAVAILABLE: &str = "evaluation-binding-unavailable";
 const RUNTIME_VALUE_TYPE_MISMATCH: &str = "evaluation-runtime-value-type-mismatch";
 const BINDING_CYCLE_GUARD: &str = "evaluation-binding-cycle-guard";
 
@@ -46,29 +23,8 @@ pub(crate) trait ScalarDocumentBindingResolver {
 fn unavailable_binding(binding_id: &str) -> ScalarEvaluation {
     ScalarEvaluation::Error {
         r#type: ScalarType::Number,
-        issue_code: EXTERNAL_BINDING_UNAVAILABLE.to_owned(),
+        issue_code: BINDING_UNAVAILABLE.to_owned(),
         binding_id: Some(binding_id.to_owned()),
-    }
-}
-
-pub(crate) fn resolve_external_binding(
-    binding_id: &str,
-    state: &EvaluationState,
-) -> ScalarEvaluation {
-    let Some(element_id) = binding_id.strip_prefix(LEGACY_BINDING_PREFIX) else {
-        return unavailable_binding(binding_id);
-    };
-    let value = state
-        .computed_variables
-        .get(element_id)
-        .and_then(|variable| variable.get("value"))
-        .and_then(Value::as_f64);
-    match value {
-        Some(value) => ScalarEvaluation::Ok {
-            r#type: ScalarType::Number,
-            value: ScalarValue::Number(value),
-        },
-        None => unavailable_binding(binding_id),
     }
 }
 
@@ -140,7 +96,7 @@ impl<'a> ScalarBindingResolver<'a> {
         }
 
         let Some(statement) = self.statement_by_binding_id.get(binding_id).copied() else {
-            return resolve_external_binding(binding_id, state);
+            return unavailable_binding(binding_id);
         };
 
         if !self.in_progress.borrow_mut().insert(binding_id.to_owned()) {

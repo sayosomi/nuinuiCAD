@@ -8,8 +8,7 @@ describe("elementSupportsDisplayColor", () => {
       id: "point",
       name: "点",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       x: 0,
       y: 0
     };
@@ -17,8 +16,7 @@ describe("elementSupportsDisplayColor", () => {
       id: "line",
       name: "線",
       type: "line",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" }
     };
@@ -26,8 +24,7 @@ describe("elementSupportsDisplayColor", () => {
       id: "group",
       name: "グループ",
       type: "group",
-      visible: true,
-      enabled: true,
+      activity: "visible",
     };
 
     expect(elementSupportsDisplayColor(point)).toBe(true);
@@ -35,27 +32,12 @@ describe("elementSupportsDisplayColor", () => {
     expect(elementSupportsDisplayColor(group)).toBe(true);
   });
 
-  it("excludes variables and modification elements that do not draw their own color", () => {
-    const variable: CadElement = {
-      id: "variable",
-      name: "変数",
-      type: "variable",
-      visible: true,
-      enabled: true,
-      scope: "global",
-      valueMode: "expression",
-      point1: { mode: "reference", pointId: "point-a" },
-      point2: { mode: "reference", pointId: "point-b" },
-      point: { mode: "reference", pointId: "point-a" },
-      lineId: "line-a",
-      expression: 10
-    };
+  it("excludes modification elements that do not draw their own color", () => {
     const move: CadElement = {
       id: "move",
       name: "移動",
       type: "move",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
       scale: 1,
@@ -64,7 +46,6 @@ describe("elementSupportsDisplayColor", () => {
       baseLineIds: ["line-a"]
     };
 
-    expect(elementSupportsDisplayColor(variable)).toBe(false);
     expect(elementSupportsDisplayColor(move)).toBe(false);
   });
 });

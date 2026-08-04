@@ -32,12 +32,8 @@ import { useCadUiStore } from "../state/cadUiStore";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
 import {
   applyTemplatePickedLine,
-  applyTemplatePickedPoint,
-  insertTemplateNumericExpressionSnippet,
-  startTemplateNumericReferenceInsertPick,
-  templateNumericTargetContext
+  applyTemplatePickedPoint
 } from "../templates/templateInsertionCommands";
-import { TEMPLATE_INSERTION_NUMERIC_TARGET_ID } from "../templates/templateInsertionMode";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
@@ -130,19 +126,6 @@ export const insertNumericExpressionSnippet = (context?: CommandContext) => {
   const snippet = context?.numericExpressionSnippet;
   if (!snippet) return;
 
-  const templateTarget = templateNumericTargetContext(context?.elementId, context?.parameterKey);
-  if (templateTarget) {
-    insertTemplateNumericExpressionSnippet({
-      inputId: templateTarget.inputId,
-      snippet,
-      displayedExpression: context?.displayedExpression,
-      selectionStart: context?.selectionStart,
-      selectionEnd: context?.selectionEnd,
-      appendMode: context?.numericExpressionAppendMode
-    });
-    return;
-  }
-
   const target = numericExpressionTarget(context);
   if (!target) return;
 
@@ -209,32 +192,6 @@ export const insertNumericExpressionSnippet = (context?: CommandContext) => {
 };
 
 const measurementTargetFromContext = (context?: CommandContext) => {
-  const templateTarget = templateNumericTargetContext(context?.elementId, context?.parameterKey);
-  if (templateTarget) {
-    const { activeMeasurementInsertTarget } = useCadUiStore.getState();
-    const mode =
-      context?.measurementInsertMode ??
-      (activeMeasurementInsertTarget?.elementId === TEMPLATE_INSERTION_NUMERIC_TARGET_ID &&
-      activeMeasurementInsertTarget.parameterKey === templateTarget.inputId
-        ? activeMeasurementInsertTarget.mode
-        : "distance");
-    const currentValue =
-      templateTarget.insertion.inputValues[templateTarget.inputId] ?? templateTarget.input.defaultValue;
-    const displayedExpression =
-      context?.displayedExpression ??
-      activeMeasurementInsertTarget?.displayedExpression ??
-      numericValueExpression(currentValue as NumericValue);
-
-    return {
-      elementId: TEMPLATE_INSERTION_NUMERIC_TARGET_ID,
-      parameterKey: templateTarget.inputId,
-      mode,
-      displayedExpression,
-      selectionStart: context?.selectionStart ?? activeMeasurementInsertTarget?.selectionStart ?? null,
-      selectionEnd: context?.selectionEnd ?? activeMeasurementInsertTarget?.selectionEnd ?? null
-    };
-  }
-
   const target = numericExpressionTarget(context);
   if (!target) return null;
   const { activeMeasurementInsertTarget } = useCadUiStore.getState();
@@ -403,20 +360,6 @@ export const startNumericReferencePick = (context?: CommandContext) => {
 };
 
 export const startNumericReferenceInsertPick = (context?: CommandContext) => {
-  const templateTarget = templateNumericTargetContext(context?.elementId, context?.parameterKey);
-  if (templateTarget) {
-    startTemplateNumericReferenceInsertPick({
-      inputId: templateTarget.inputId,
-      property: context?.numericReferenceProperty ?? "length",
-      displayedExpression: context?.displayedExpression ?? numericValueExpression(
-        (templateTarget.insertion.inputValues[templateTarget.inputId] ?? templateTarget.input.defaultValue) as NumericValue
-      ),
-      selectionStart: context?.selectionStart ?? null,
-      selectionEnd: context?.selectionEnd ?? null
-    });
-    return;
-  }
-
   const target = numericExpressionTarget(context);
   if (!target) return;
   const currentValue = getParameterValue(target.targetElement, target.definition.key);

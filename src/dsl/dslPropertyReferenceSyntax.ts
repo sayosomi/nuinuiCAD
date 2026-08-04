@@ -4,8 +4,7 @@
 // `Element.property` occurrence (no leading `@`) in a nui 3 document's
 // numeric-expression-bearing statements as an explicit diagnostic, rather
 // than silently accepting the pre-migration spelling or silently rewriting
-// it. nui 2 documents are entirely unaffected - callers gate this on
-// `majorVersion === 3` before invoking it (mirrors compileTextTemplates'
+// it. Callers invoke it only for `nui 3` compilation (mirrors compileTextTemplates'
 // own gate in dslDocument.ts, not compileNumericBindings' scalarAnalysis
 // gate, since a nui 3 document with zero const/let/set statements never
 // runs scalar analysis but must still reject bare property references).
@@ -57,7 +56,7 @@ export const compilePropertyReferenceSyntax = ({
   const diagnostics: DslDiagnostic[] = [];
 
   statements.forEach((statement, statementIndex) => {
-    if (statement.kind !== "element" && statement.kind !== "group" && statement.kind !== "variable") return;
+    if (statement.kind !== "element" && statement.kind !== "group") return;
     const element = byId.get(elementIdByStatementIndex.get(statementIndex) ?? "");
     const logical = spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
     if (!element || !logical) return;

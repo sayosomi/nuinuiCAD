@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslDocumentData, type DslMajorVersion } from "../dsl/dslDocument";
+import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslDocumentData } from "../dsl/dslDocument";
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import {
@@ -10,7 +10,6 @@ import {
   type CanonicalDocumentValue,
   type LastGoodDslDocument
 } from "../document/canonicalDocument";
-import { buildNuiMajorVersionSplice } from "../document/nuiVersion";
 import { assertReconcileSane, assertShadowEquivalent, shadowAssertEnabled } from "../document/shadowTextAssert";
 import { defaultVisibilityProfile, visibilityIdFromName } from "../model/visibilityProfiles";
 import {
@@ -51,11 +50,6 @@ export type DocumentMutationResult =
   | { status: "rejected"; reason: "pending-text" | "composition" | "invalid-change" };
 
 export type CommitTextOrigin = "editor" | "file" | "test" | "bridge-internal" | "command";
-
-export type UpgradeDslMajorVersionResult =
-  | { status: "applied" }
-  | { status: "noop" }
-  | { status: "rejected"; reason: "composition" | "unrecognized-header" };
 
 export type CadDocumentState = {
   /** The only canonical document value. */
@@ -112,8 +106,6 @@ export type CadDocumentState = {
     origin: CommitTextOrigin,
     options?: { cursorLineAtBurstStart: number | null }
   ) => void;
-  /** Header-only splice (single Undo step) that changes the document's major version. */
-  upgradeDslMajorVersion: (target: DslMajorVersion) => UpgradeDslMajorVersionResult;
   /** Ephemeral valid DSL projection used while a source-editor gesture is still uncommitted. */
   setSourceEditorPreviewText: (sourceText: string | null) => void;
   previewDocumentChange: (change: Partial<DslDocumentData>) => DocumentMutationResult;
@@ -428,7 +420,6 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
 type CadDocumentActions = Pick<
   CadDocumentState,
   | "commitText"
-  | "upgradeDslMajorVersion"
   | "setSourceEditorPreviewText"
   | "previewDocumentChange"
   | "clearPreviewDocumentChange"
@@ -548,28 +539,6 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       };
     });
     if (selectionElements) useCadUiStore.getState().reconcileSelectionWithElements(selectionElements);
-  },
-  upgradeDslMajorVersion: (target) => {
-    const flushResult = sourceEditSession.flush("command");
-    if (flushResult === "blocked-composition") {
-      useCadUiStore.getState().setCommandErrorMessage(
-        "日本語入力の確定中は文書のバージョンを変更できません。入力を確定してから再操作してください。"
-      );
-      return { status: "rejected", reason: "composition" };
-    }
-    const state = get();
-    const result = buildNuiMajorVersionSplice(state.sourceText, target);
-    if (result.status === "already-target") return { status: "noop" };
-    if (result.status === "unrecognized-header") {
-      useCadUiStore.getState().setCommandErrorMessage(
-        "文書の先頭が `nui <バージョン>` 形式ではないため、バージョンを変更できません。"
-      );
-      return { status: "rejected", reason: "unrecognized-header" };
-    }
-    const { from, to, insert } = result.splice;
-    const nextText = `${state.sourceText.slice(0, from)}${insert}${state.sourceText.slice(to)}`;
-    get().commitText(nextText, "command");
-    return { status: "applied" };
   },
   setSourceEditorPreviewText: (sourceText) => {
     set((state) => {

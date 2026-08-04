@@ -11,12 +11,12 @@ describe("selection move commands", () => {
 
   it("moves only the cursor-owned group and its complete subtree", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 2",
-      "point Before = coordinate(x: 0 y: 0)",
+      "nui 3",
+      "point Before = coordinate(x: 0, y: 0)",
       "group G {",
-      "  point Child = coordinate(x: 1 y: 1)",
+      "  point Child = coordinate(x: 1, y: 1)",
       "}",
-      "point After = coordinate(x: 2 y: 2)"
+      "point After = coordinate(x: 2, y: 2)"
     ].join("\n"), "test");
     const elements = useCadDocumentStore.getState().elements;
     const group = elements.find((element) => element.name === "G")!;
@@ -36,7 +36,7 @@ describe("selection move commands", () => {
     ]);
     expect(useCadUiStore.getState().selectedElementId).toBe(group.id);
     expect(useCadDocumentStore.getState().sourceText).toMatch(
-      /group G \{\n {2}point Child = coordinate\(x: 1 y: 1\)\n\}\npoint Before/
+      /group G \{\n {2}point Child = coordinate\(x: 1, y: 1\)\n\}\npoint Before/
     );
   });
 });

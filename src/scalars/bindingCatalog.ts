@@ -3,20 +3,15 @@
 // from the parsed statement stream.
 import type { DslSpan } from "../dsl/dslTypes";
 import type { LexicalScopeIndex, ScopeId } from "./lexicalScopeIndex";
-import type { LegacyContainerIndex } from "./legacyContainerIndex";
+import type { CadContainerIndex } from "./containerIndex";
 import type { ScalarType } from "./types";
-import { buildElementLocalRangeIndex, type ElementLocalRangeIndex } from "./elementLocalRangeIndex";
 
 export type BindingId = string;
-export type BindingKind = "typed" | "legacy" | "iteration" | "elementLocal";
+export type BindingKind = "typed" | "iteration";
 export type BindingMutability = "const" | "let" | "readonly";
 export type BindingVisibility =
   | { kind: "typed"; scopeId: ScopeId }
-  | { kind: "global" }
-  | { kind: "groupSubtree"; ownerContainerId: string }
-  | { kind: "iteration"; rootScopeId: ScopeId }
-  | { kind: "outsideGroups" }
-  | { kind: "elementLocal"; ownerId: string; startOrder: number; endOrder: number };
+  | { kind: "iteration"; rootScopeId: ScopeId };
 
 export type BindingSeed = {
   id: BindingId;
@@ -49,10 +44,8 @@ export type Binding = {
 export type BuildBindingCatalogInput = {
   scopeIndex: LexicalScopeIndex;
   stableStatementIdByIndex: ReadonlyMap<number, string>;
-  legacyBindings?: readonly BindingSeed[];
   iterationBindings?: readonly BindingSeed[];
-  elementLocalBindings?: readonly BindingSeed[];
-  containerIndex?: LegacyContainerIndex;
+  containerIndex?: CadContainerIndex;
 };
 
 export type BindingCatalog = {
@@ -68,24 +61,16 @@ export type BindingCatalog = {
    */
   lookupNamespaces: BindingLookupNamespaces;
   bindingsByEffectiveScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
-  elementLocalBindingsByOwnerAndName: ReadonlyMap<string, ReadonlyMap<string, readonly Binding[]>>;
-  elementLocalRangeIndex: ElementLocalRangeIndex;
-  containerIndex: LegacyContainerIndex;
+  containerIndex: CadContainerIndex;
   declarationDuplicateBuckets: readonly (readonly Binding[])[];
 };
 
 export type BindingLookupNamespaces = {
-  /** Registered legacy lanes. Runtime visibility begins only on activation. */
-  globalByName: ReadonlyMap<string, readonly Binding[]>;
-  /** Selected only for sites outside every CAD group. */
-  outsideGroupsByName: ReadonlyMap<string, readonly Binding[]>;
-  groupByOwnerAndName: ReadonlyMap<string, ReadonlyMap<string, readonly Binding[]>>;
   /** Iteration slots are structural and become visible when their scope opens. */
   iterationByScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
-  legacyByStatementIndex: ReadonlyMap<number, readonly Binding[]>;
 };
 
-const emptyContainerIndex: LegacyContainerIndex = {
+const emptyContainerIndex: CadContainerIndex = {
   ownerContainerIdByStatementIndex: new Map(),
   containerIdByScopeId: new Map(),
   containerKindById: new Map(),
@@ -94,27 +79,19 @@ const emptyContainerIndex: LegacyContainerIndex = {
 };
 
 /**
- * Shared binding-id convention for every stable-statement-identity-backed
- * binding, not just typed declarations: `bindingCatalogAdapter.ts` builds a
- * legacy `var` binding's id from this exact same template, using the
- * compiled CadElement id as its stableStatementId (dslDocument.ts seeds
- * `stableStatementIdByIndex` with the element id for every element-producing
- * statement). Exported so evaluation-side code (Task 20's
- * src/geometry/scalarProgramEvaluation.ts) can map a runtime CadElement id to
- * its legacy binding id without re-deriving this format.
+ * Stable binding IDs are derived only from the reconciler-owned statement
+ * identity; runtime element IDs are never used as a binding namespace.
  */
 export const bindingIdForStableStatementId = (stableStatementId: string): BindingId => `binding:${stableStatementId}`;
 const typedBindingId = bindingIdForStableStatementId;
-const kindLane: Record<BindingKind, number> = { typed: 0, legacy: 1, iteration: 2, elementLocal: 3 };
+const kindLane: Record<BindingKind, number> = { typed: 0, iteration: 1 };
 
 type Ordered = Omit<Binding, "rank"> & { sourceOrder: number };
 
 export const buildBindingCatalog = ({
   scopeIndex,
   stableStatementIdByIndex,
-  legacyBindings = [],
   iterationBindings = [],
-  elementLocalBindings = [],
   containerIndex = emptyContainerIndex
 }: BuildBindingCatalogInput): BindingCatalog => {
   const statementCount = scopeIndex.statementRankByIndex.size;
@@ -139,14 +116,14 @@ export const buildBindingCatalog = ({
       visibility: { kind: "typed", scopeId: declaration.scopeId }, mutability: declaration.bindingKind, declaredType: declaration.declaredType
     });
   }
-  for (const seed of [...legacyBindings, ...iterationBindings, ...elementLocalBindings]) {
+  for (const seed of iterationBindings) {
     if (!Number.isInteger(seed.sourceOrder) || seed.sourceOrder < 0) throw new Error(`bindingCatalog: invalid sourceOrder for ${seed.id}`);
     enqueue({ ...seed, mutability: seed.mutability ?? "readonly", declaredType: seed.declaredType ?? null });
   }
 
   const bindings: Binding[] = [];
   for (const statementLanes of lanes) {
-    for (let lane = 0; lane < 4; lane += 1) {
+    for (let lane = 0; lane < 2; lane += 1) {
       const slots = statementLanes[lane];
       if (!slots) continue;
       const slotCount = slots.size;
@@ -160,12 +137,7 @@ export const buildBindingCatalog = ({
 
   const bindingsById = new Map<BindingId, Binding>();
   const documentBuckets = new Map<ScopeId, Map<string, Binding[]>>();
-  const localBuckets = new Map<string, Map<string, Binding[]>>();
-  const globalByName = new Map<string, Binding[]>();
-  const outsideGroupsByName = new Map<string, Binding[]>();
-  const groupByOwnerAndName = new Map<string, Map<string, Binding[]>>();
   const iterationByScopeAndName = new Map<ScopeId, Map<string, Binding[]>>();
-  const legacyByStatementIndex = new Map<number, Binding[]>();
   const addLookupBinding = <K>(index: Map<K, Map<string, Binding[]>>, key: K, binding: Binding) => {
     const names = index.get(key) ?? new Map<string, Binding[]>();
     const bucket = names.get(binding.name) ?? [];
@@ -176,32 +148,11 @@ export const buildBindingCatalog = ({
   for (const binding of bindings) {
     if (bindingsById.has(binding.id)) throw new Error(`bindingCatalog: duplicate binding id ${binding.id}`);
     bindingsById.set(binding.id, binding);
-    if (binding.visibility.kind === "elementLocal") {
-      const names = localBuckets.get(binding.visibility.ownerId) ?? new Map<string, Binding[]>();
-      const bucket = names.get(binding.name) ?? [];
-      bucket.push(binding); names.set(binding.name, bucket); localBuckets.set(binding.visibility.ownerId, names);
-    } else {
-      const names = documentBuckets.get(binding.effectiveScopeId) ?? new Map<string, Binding[]>();
-      const bucket = names.get(binding.name) ?? [];
-      bucket.push(binding); names.set(binding.name, bucket); documentBuckets.set(binding.effectiveScopeId, names);
-      if (binding.visibility.kind === "global") {
-        const globalBucket = globalByName.get(binding.name) ?? [];
-        globalBucket.push(binding);
-        globalByName.set(binding.name, globalBucket);
-      } else if (binding.visibility.kind === "outsideGroups") {
-        const outsideBucket = outsideGroupsByName.get(binding.name) ?? [];
-        outsideBucket.push(binding);
-        outsideGroupsByName.set(binding.name, outsideBucket);
-      } else if (binding.visibility.kind === "groupSubtree") {
-        addLookupBinding(groupByOwnerAndName, binding.visibility.ownerContainerId, binding);
-      } else if (binding.visibility.kind === "iteration") {
-        addLookupBinding(iterationByScopeAndName, binding.visibility.rootScopeId, binding);
-      }
-      if (binding.kind === "legacy") {
-        const statementBindings = legacyByStatementIndex.get(binding.statementIndex) ?? [];
-        statementBindings.push(binding);
-        legacyByStatementIndex.set(binding.statementIndex, statementBindings);
-      }
+    const names = documentBuckets.get(binding.effectiveScopeId) ?? new Map<string, Binding[]>();
+    const bucket = names.get(binding.name) ?? [];
+    bucket.push(binding); names.set(binding.name, bucket); documentBuckets.set(binding.effectiveScopeId, names);
+    if (binding.visibility.kind === "iteration") {
+      addLookupBinding(iterationByScopeAndName, binding.visibility.rootScopeId, binding);
     }
   }
   const declarationDuplicateBuckets: (readonly Binding[])[] = [];
@@ -212,21 +163,13 @@ export const buildBindingCatalog = ({
     return result;
   };
   const bindingsByEffectiveScopeAndName = freezeBuckets(documentBuckets);
-  const elementLocalBindingsByOwnerAndName = freezeBuckets(localBuckets);
-  const elementLocalRangeIndex = buildElementLocalRangeIndex(elementLocalBindingsByOwnerAndName);
   const lookupNamespaces: BindingLookupNamespaces = {
-    globalByName,
-    outsideGroupsByName,
-    groupByOwnerAndName: freezeBuckets(groupByOwnerAndName),
-    iterationByScopeAndName: freezeBuckets(iterationByScopeAndName),
-    legacyByStatementIndex
+    iterationByScopeAndName: freezeBuckets(iterationByScopeAndName)
   };
   // Discover duplicate buckets in catalog rank order, not Map insertion order.
   for (const binding of bindings) {
-    const bucket = binding.visibility.kind === "elementLocal"
-      ? elementLocalBindingsByOwnerAndName.get(binding.visibility.ownerId)?.get(binding.name)
-      : bindingsByEffectiveScopeAndName.get(binding.effectiveScopeId)?.get(binding.name);
+    const bucket = bindingsByEffectiveScopeAndName.get(binding.effectiveScopeId)?.get(binding.name);
     if (bucket && bucket.length > 1 && !duplicateSeen.has(bucket)) { duplicateSeen.add(bucket); declarationDuplicateBuckets.push(bucket); }
   }
-  return { scopeIndex, bindings, bindingsById, lookupNamespaces, bindingsByEffectiveScopeAndName, elementLocalBindingsByOwnerAndName, elementLocalRangeIndex, containerIndex, declarationDuplicateBuckets };
+  return { scopeIndex, bindings, bindingsById, lookupNamespaces, bindingsByEffectiveScopeAndName, containerIndex, declarationDuplicateBuckets };
 };

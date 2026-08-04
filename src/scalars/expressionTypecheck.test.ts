@@ -44,7 +44,6 @@ const catalogFor = (source: string): BindingCatalog => {
   return buildBindingCatalog({
     scopeIndex,
     stableStatementIdByIndex: stableIds,
-    legacyBindings: adapter.legacyBindings,
     iterationBindings: adapter.iterationBindings,
     containerIndex: adapter.containerIndex
   });
@@ -317,26 +316,39 @@ describe("typecheckScalarExpression / reference binding ID attachment", () => {
     expect(result.typed).toMatchObject({ kind: "reference", bindingId: "binding:stable-0", type: { kind: "number" } });
   });
 
-  it("infers an implicit number type for a resolved legacy binding (null declaredType)", () => {
-    const catalog = catalogFor(["var legacy = 1", "const use: number = @legacy"].join("\n"));
-    const resolution = resolutionAt(catalog, "legacy", 1);
+  it("infers an implicit number type for a resolved iteration binding (null declaredType)", () => {
+    const catalog = catalogFor(["for Loop (i, from: 0, count: 2) {", "  const use: number = @i", "}"].join("\n"));
+    const resolution = resolveBindingReferenceForTests(catalog, "i", { scopeId: "for:stable-0", statementIndex: 1 });
     expect(resolution.kind).toBe("resolved");
-    if (resolution.kind === "resolved") expect(resolution.binding.kind).toBe("legacy");
-    const result = check("@legacy", { kind: "number" }, [resolution]);
+    if (resolution.kind === "resolved") expect(resolution.binding.kind).toBe("iteration");
+    const result = check("@i", { kind: "number" }, [resolution]);
     expect(result.type).toEqual({ kind: "number" });
     expect(result.diagnostics).toEqual([]);
   });
 
   it("resolves interleaved references across a tree in correct left-to-right order", () => {
-    const catalog = catalogFor(["var a = 1", "var b = 2", "var c = 3", "const use: number = @a"].join("\n"));
-    const [aRes, bRes, cRes] = [resolutionAt(catalog, "a", 3), resolutionAt(catalog, "b", 3), resolutionAt(catalog, "c", 3)];
+    const catalog = catalogFor([
+      "for A (a, from: 0, count: 1) {",
+      "  for B (b, from: 0, count: 1) {",
+      "    for C (c, from: 0, count: 1) {",
+      "      const use: number = @a",
+      "    }",
+      "  }",
+      "}"
+    ].join("\n"));
+    const site = { scopeId: "for:stable-2", statementIndex: 3 };
+    const [aRes, bRes, cRes] = [
+      resolveBindingReferenceForTests(catalog, "a", site),
+      resolveBindingReferenceForTests(catalog, "b", site),
+      resolveBindingReferenceForTests(catalog, "c", site)
+    ];
     const result = check("@a + @b * @c", { kind: "number" }, [aRes, bRes, cRes]);
     expect(result.type).toEqual({ kind: "number" });
     expect(result.diagnostics).toEqual([]);
     if (result.typed.kind !== "binary" || result.typed.right.kind !== "binary") throw new Error("expected + over (b * c)");
-    expect(result.typed.left).toMatchObject({ name: "a", bindingId: "binding:stable-0" });
-    expect(result.typed.right.left).toMatchObject({ name: "b", bindingId: "binding:stable-1" });
-    expect(result.typed.right.right).toMatchObject({ name: "c", bindingId: "binding:stable-2" });
+    expect(result.typed.left).toMatchObject({ name: "a", bindingId: "binding:iteration:stable-0" });
+    expect(result.typed.right.left).toMatchObject({ name: "b", bindingId: "binding:iteration:stable-1" });
+    expect(result.typed.right.right).toMatchObject({ name: "c", bindingId: "binding:iteration:stable-2" });
   });
 });
 

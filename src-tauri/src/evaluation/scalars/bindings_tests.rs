@@ -59,8 +59,6 @@ fn empty_state() -> EvaluationState {
         group_states: HashMap::new(),
         computed_geometry: HashMap::new(),
         computed_geometry_order: Vec::new(),
-        computed_variables: HashMap::new(),
-        computed_variable_order: Vec::new(),
         errors: Vec::new(),
         warnings: Vec::new(),
     }

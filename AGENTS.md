@@ -78,9 +78,10 @@ Elements with dependency errors should be visibly marked in the UI. Invalid
 geometry should not be drawn as normal valid geometry; either omit it or render
 a clear warning marker.
 
-`visible` controls drawing. `enabled` controls evaluation. A hidden element may
-still be evaluated and referenced. A disabled element must not produce computed
-geometry, even if it is visible.
+Each element has a single `activity` state: `visible`, `hidden`, or `disabled`.
+`visible` evaluates and draws normally. `hidden` still evaluates and may be
+referenced, but is not drawn. `disabled` is not evaluated and must not produce
+computed geometry or be referenced by later elements.
 
 For now, document order can continue to serve as both evaluation order and
 display order unless a change explicitly introduces separate visual layering.
@@ -95,7 +96,7 @@ TypeScript reference. Treat mismatches as implementation bugs unless a
 deliberate Rust-first behavior change is being made and covered by updated
 tests. Do not make a user-facing element type or dependency form production
 ready until its Rust behavior, geometry output, errors, warnings, and
-visibility/enabled masks are covered by focused fixtures.
+per-activity-state evaluation/draw behavior are covered by focused fixtures.
 
 Keep the Tauri command boundary stable. The public Rust command for document
 evaluation should remain `evaluate_document(input)` unless a deliberate
@@ -266,7 +267,7 @@ Important scenarios include:
 
 * valid evaluation order
 * missing, disabled, invalid, or too-late dependencies
-* visibility versus enabled behavior
+* visible/hidden/disabled activity behavior
 * command dispatch behavior
 * keyboard shortcut mapping and form-input exclusion
 * parameter definition and keyboard edit behavior

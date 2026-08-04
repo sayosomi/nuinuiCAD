@@ -8,8 +8,7 @@ const validElements: CadElement[] = [
     id: "a",
     name: "点A",
     type: "freePoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     x: 10,
     y: 20
   },
@@ -17,8 +16,7 @@ const validElements: CadElement[] = [
     id: "b",
     name: "点B",
     type: "offsetPoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     fromPointId: "a",
     dx: 30,
     dy: 5
@@ -27,8 +25,7 @@ const validElements: CadElement[] = [
     id: "ab",
     name: "直線AB",
     type: "line",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     startPoint: { mode: "reference", pointId: "a" },
     endPoint: { mode: "reference", pointId: "b" }
   }
@@ -51,8 +48,7 @@ describe("evaluateElements", () => {
         id: "image",
         name: "下絵",
         type: "image",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         sourcePath: "underlay.png",
         originPoint: { mode: "reference", pointId: "a" },
         naturalWidthPx: 300,
@@ -77,30 +73,18 @@ describe("evaluateElements", () => {
     });
   });
 
-  it("evaluates text with point anchors and live numeric references", () => {
+  // A raw element with no compiled textTemplate context (as built directly here,
+  // without going through compileDslDocument) never interpolates `{...}` holes;
+  // see src/geometry/textTemplateEvaluationIntegration.test.ts for the compiled path.
+  it("evaluates text with point anchors as literal text without a compiled template", () => {
     const result = evaluateElements([
       ...validElements,
-      {
-        id: "ease",
-        name: "ゆとり",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: 12,
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "b" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: "ab"
-      },
       {
         id: "text",
         name: "注記",
         type: "text",
-        visible: true,
-        enabled: true,
-        text: "前中心 {@ゆとり} / {直線AB.length} / 裸 @ゆとり",
+        activity: "visible",
+        text: "前中心 {直線AB.length}",
         anchor: { mode: "reference", pointId: "a" },
         fontSize: 4
       }
@@ -109,7 +93,7 @@ describe("evaluateElements", () => {
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get("text")).toMatchObject({
       kind: "text",
-      text: "前中心 12 / 30.414 / 裸 @ゆとり",
+      text: "前中心 {直線AB.length}",
       anchor: { x: 10, y: 20 },
       fontSize: 4
     });
@@ -121,8 +105,7 @@ describe("evaluateElements", () => {
         id: "text",
         name: "メモ",
         type: "text",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         text: "ここから前身頃",
         anchor: null,
         fontSize: 3
@@ -143,8 +126,7 @@ describe("evaluateElements", () => {
         id: "image",
         name: "壊れた画像",
         type: "image",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         sourcePath: "broken.png",
         originPoint: { mode: "coordinate", x: 0, y: 0 },
         naturalWidthPx: 300,
@@ -193,8 +175,7 @@ describe("evaluateElements", () => {
       id: "broken-parent",
       name: "壊れた親点",
       type: "offsetPoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       fromPointId: "ghost",
       dx: 10,
       dy: 0
@@ -203,8 +184,7 @@ describe("evaluateElements", () => {
       id: "dependent-line",
       name: "依存線",
       type: "line",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "reference", pointId: "broken-parent" },
       endPoint: { mode: "coordinate", x: 10, y: 10 }
     };
@@ -215,8 +195,7 @@ describe("evaluateElements", () => {
           id: "line",
           name: "参照線",
           type: "line",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           startPoint: { mode: "reference", pointId: "ghost" },
           endPoint: { mode: "coordinate", x: 10, y: 10 }
         }
@@ -256,13 +235,12 @@ describe("evaluateElements", () => {
     });
 
     it("targets only the failed parent when one of several parents is broken", () => {
-      const validParent: CadElement = { id: "valid-parent", name: "正常な親点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 };
+      const validParent: CadElement = { id: "valid-parent", name: "正常な親点", type: "freePoint", activity: "visible", x: 0, y: 0 };
       const twoParentLine: CadElement = {
         id: "two-parent-line",
         name: "二親線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "valid-parent" },
         endPoint: { mode: "reference", pointId: "broken-parent" }
       };
@@ -281,10 +259,9 @@ describe("evaluateElements", () => {
         id: "group",
         name: "前身頃",
         type: "group",
-        visible: false,
-        enabled: true,
+        activity: "hidden",
       },
-      { ...validElements[0], parentGroupId: "group", visible: true }
+      { ...validElements[0], parentGroupId: "group" }
     ]);
 
     expect(result.errors).toHaveLength(0);
@@ -298,16 +275,14 @@ describe("evaluateElements", () => {
         id: "group",
         name: "前身頃",
         type: "group",
-        visible: true,
-        enabled: false,
+        activity: "disabled",
       },
-      { ...validElements[0], parentGroupId: "group", enabled: true },
+      { ...validElements[0], parentGroupId: "group" },
       {
         id: "line",
         name: "参照線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "coordinate", x: 10, y: 10 }
       }
@@ -325,10 +300,10 @@ describe("evaluateElements", () => {
 
   it("keeps hidden dependencies evaluable and excludes disabled dependencies", () => {
     const result = evaluateElements([
-      { id: "hidden", name: "hidden", type: "freePoint", visible: false, enabled: true, x: 0, y: 0 },
-      { id: "hidden-child", name: "hidden child", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "hidden" }, dx: 1, dy: 0 },
-      { id: "disabled", name: "disabled", type: "freePoint", visible: false, enabled: false, x: 10, y: 0 },
-      { id: "disabled-child", name: "disabled child", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "disabled" }, dx: 1, dy: 0 }
+      { id: "hidden", name: "hidden", type: "freePoint", activity: "hidden", x: 0, y: 0 },
+      { id: "hidden-child", name: "hidden child", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "hidden" }, dx: 1, dy: 0 },
+      { id: "disabled", name: "disabled", type: "freePoint", activity: "disabled", x: 10, y: 0 },
+      { id: "disabled-child", name: "disabled child", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "disabled" }, dx: 1, dy: 0 }
     ]);
 
     expect(result.computedGeometry.has("hidden")).toBe(true);
@@ -346,8 +321,7 @@ describe("evaluateElements", () => {
         id: "if",
         name: "寸法分岐",
         type: "conditionalGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         condition: 1,
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
@@ -368,8 +342,7 @@ describe("evaluateElements", () => {
         id: "if",
         name: "寸法分岐",
         type: "conditionalGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         condition: 0,
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
@@ -389,8 +362,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "a",
         dx: 100,
         dy: 0
@@ -399,8 +371,7 @@ describe("evaluateElements", () => {
         id: "ac",
         name: "直線AC",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "c" }
       },
@@ -408,8 +379,7 @@ describe("evaluateElements", () => {
         id: "if",
         name: "寸法分岐",
         type: "conditionalGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         condition: makeNumericExpression("ab.length >= 100 || ac.length >= 100"),
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
@@ -429,8 +399,7 @@ describe("evaluateElements", () => {
         id: "if",
         name: "寸法分岐",
         type: "conditionalGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         condition: makeNumericExpression("ab.length > 0 && ab.length + 10 <= 10"),
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
@@ -450,8 +419,7 @@ describe("evaluateElements", () => {
         id: "if",
         name: "寸法分岐",
         type: "conditionalGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         condition: makeNumericExpression("ab.length = 0"),
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" }
@@ -470,8 +438,7 @@ describe("evaluateElements", () => {
         id: "loop",
         name: "プリーツ繰り返し",
         type: "forGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         variableName: "i",
         start: 0,
         count: 3,
@@ -482,8 +449,7 @@ describe("evaluateElements", () => {
         id: "p",
         name: "プリーツ点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "loop",
         x: makeNumericExpression("@i * 10"),
         y: 5
@@ -508,8 +474,7 @@ describe("evaluateElements", () => {
         id: "origin",
         name: "原点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -517,8 +482,7 @@ describe("evaluateElements", () => {
         id: "loop",
         name: "ボタン繰り返し",
         type: "forGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         variableName: "i",
         start: 1,
         count: 2,
@@ -529,8 +493,7 @@ describe("evaluateElements", () => {
         id: "button",
         name: "ボタン位置",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "loop",
         fromPoint: { mode: "reference", pointId: "origin" },
         fromPointId: "origin",
@@ -541,8 +504,7 @@ describe("evaluateElements", () => {
         id: "button-line",
         name: "ボタン線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "loop",
         startPoint: { mode: "reference", pointId: "origin" },
         endPoint: { mode: "reference", pointId: "button" }
@@ -564,16 +526,15 @@ describe("evaluateElements", () => {
 
   it("applies generated for group extend trims to matching generated lines", () => {
     const result = evaluateElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 110, y: 0 },
-      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 0, y: 30 },
-      { id: "d", name: "D", type: "freePoint", visible: true, enabled: true, x: 110, y: 30 },
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 110, y: 0 },
+      { id: "c", name: "C", type: "freePoint", activity: "visible", x: 0, y: 30 },
+      { id: "d", name: "D", type: "freePoint", activity: "visible", x: 110, y: 30 },
       {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -581,8 +542,7 @@ describe("evaluateElements", () => {
         id: "cd",
         name: "CD",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "c" },
         endPoint: { mode: "reference", pointId: "d" }
       },
@@ -590,8 +550,7 @@ describe("evaluateElements", () => {
         id: "loop",
         name: "繰り返し",
         type: "forGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         variableName: "i",
         start: 1,
         count: 2,
@@ -602,8 +561,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "線上分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "loop",
         endpoint: { lineId: "ab", endpointKey: "start" },
         placement: { kind: "ratio", value: makeNumericExpression("@i / 11") }
@@ -612,8 +570,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "線上オフセット点",
         type: "lineTangentOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "loop",
         baseLineId: "ab",
         basePoint: { mode: "reference", pointId: "division" },
@@ -624,8 +581,7 @@ describe("evaluateElements", () => {
         id: "guide",
         name: "補助線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "loop",
         startPoint: { mode: "reference", pointId: "division" },
         endPoint: { mode: "reference", pointId: "offset" }
@@ -634,8 +590,7 @@ describe("evaluateElements", () => {
         id: "intersection",
         name: "交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "loop",
         line1Id: "guide",
         line2Id: "cd",
@@ -646,8 +601,7 @@ describe("evaluateElements", () => {
         id: "trim",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "loop",
         endpoint: { lineId: "guide", endpointKey: "end" },
         point: { mode: "reference", pointId: "intersection" }
@@ -678,8 +632,7 @@ describe("evaluateElements", () => {
         id: "loop",
         name: "不正な繰り返し",
         type: "forGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         variableName: "i",
         start: 0,
         count: 1.5,
@@ -700,8 +653,7 @@ describe("evaluateElements", () => {
         id: "if",
         name: "寸法分岐",
         type: "conditionalGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         condition: 0,
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
@@ -709,8 +661,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "参照線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "then-point" },
         endPoint: { mode: "coordinate", x: 10, y: 10 }
       }
@@ -732,8 +683,7 @@ describe("evaluateElements", () => {
         id: "if",
         name: "寸法分岐",
         type: "conditionalGroup",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         condition: makeNumericExpression("missing.length"),
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" }
@@ -754,8 +704,7 @@ describe("evaluateElements", () => {
         id: "direct-line",
         name: "直接線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         numericVariables: [{ id: "base", name: "基準", value: 10 }],
         startPoint: {
           mode: "coordinate",
@@ -780,82 +729,13 @@ describe("evaluateElements", () => {
     });
   });
 
-  it("evaluates global variable elements and resolves them from later numeric expressions", () => {
-    const result = evaluateElements([
-      {
-        id: "ease",
-        name: "ゆとり",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: 12,
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "a" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: ""
-      },
-      {
-        id: "a",
-        name: "点A",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: { kind: "expression", expression: "@ゆとり + 8" },
-        y: 0
-      }
-    ]);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedVariables.get("ease")).toMatchObject({ value: 12 });
-    expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 20 });
-  });
-
-  it("evaluates variable element expressions from local numeric variables", () => {
-    const result = evaluateElements([
-      {
-        id: "size",
-        name: "寸法",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        numericVariables: [
-          { id: "base", name: "基準", value: 30 },
-          { id: "ease", name: "ゆとり", value: { kind: "expression", expression: "@base + 5" } }
-        ],
-        scope: "global",
-        valueMode: "expression",
-        expression: { kind: "expression", expression: "@ゆとり * 2" },
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "a" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: ""
-      },
-      {
-        id: "a",
-        name: "点A",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: { kind: "expression", expression: "@寸法" },
-        y: 0
-      }
-    ]);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedVariables.get("size")).toMatchObject({ value: 70 });
-    expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 70 });
-  });
-
   it("evaluates sqrt and pi numeric expressions", () => {
     const result = evaluateElements([
       {
         id: "a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: { kind: "expression", expression: "sqrt(2) * pi" },
         y: { kind: "expression", expression: "sqrt(pi * 4)" }
       }
@@ -875,8 +755,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: { kind: "expression", expression: "sqrt(-1)" },
         y: 0
       }
@@ -887,365 +766,6 @@ describe("evaluateElements", () => {
     expect(result.errors[0].message).toContain("sqrt");
   });
 
-  it("uses the nearest previous variable with the same name", () => {
-    const variable = (id: string, expression: number): CadElement => ({
-      id,
-      name: "寸法",
-      type: "variable",
-      visible: true,
-      enabled: true,
-      scope: "global",
-      valueMode: "expression",
-      expression,
-      point1: { mode: "reference", pointId: "a" },
-      point2: { mode: "reference", pointId: "a" },
-      point: { mode: "reference", pointId: "a" },
-      lineId: ""
-    });
-    const result = evaluateElements([
-      variable("size-1", 10),
-      variable("size-2", 30),
-      {
-        id: "a",
-        name: "点A",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: { kind: "expression", expression: "@寸法" },
-        y: 0
-      }
-    ]);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 30 });
-  });
-
-  it("keeps root local variables out of child groups", () => {
-    const result = evaluateElements([
-      {
-        id: "local",
-        name: "局所",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "group",
-        valueMode: "expression",
-        expression: 10,
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "a" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: ""
-      },
-      {
-        id: "group",
-        name: "身頃",
-        type: "group",
-        visible: true,
-        enabled: true,
-      },
-      {
-        id: "a",
-        name: "点A",
-        type: "freePoint",
-        parentGroupId: "group",
-        visible: true,
-        enabled: true,
-        x: { kind: "expression", expression: "@局所" },
-        y: 0
-      }
-    ]);
-
-    expect(result.computedGeometry.has("a")).toBe(false);
-    expect(result.errors[0].message).toContain("参照可能な変数");
-  });
-
-  it("makes group local variables visible to descendant groups", () => {
-    const result = evaluateElements([
-      {
-        id: "group",
-        name: "身頃",
-        type: "group",
-        visible: true,
-        enabled: true,
-      },
-      {
-        id: "local",
-        name: "局所",
-        type: "variable",
-        parentGroupId: "group",
-        visible: true,
-        enabled: true,
-        scope: "group",
-        valueMode: "expression",
-        expression: 10,
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "a" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: ""
-      },
-      {
-        id: "child",
-        name: "袖ぐり",
-        type: "group",
-        parentGroupId: "group",
-        visible: true,
-        enabled: true,
-      },
-      {
-        id: "a",
-        name: "点A",
-        type: "freePoint",
-        parentGroupId: "child",
-        visible: true,
-        enabled: true,
-        x: { kind: "expression", expression: "@局所 + 2" },
-        y: 0
-      }
-    ]);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 12 });
-  });
-
-  it("evaluates point distance, point angle, and point-line distance variables", () => {
-    const result = evaluateElements([
-      {
-        id: "a",
-        name: "点A",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: 0,
-        y: 0
-      },
-      {
-        id: "b",
-        name: "点B",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: 0,
-        y: -10
-      },
-      {
-        id: "line",
-        name: "直線",
-        type: "line",
-        visible: true,
-        enabled: true,
-        startPoint: { mode: "coordinate", x: 0, y: 0 },
-        endPoint: { mode: "coordinate", x: 10, y: 0 }
-      },
-      {
-        id: "distance",
-        name: "距離",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "pointDistance",
-        expression: 0,
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "b" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: "line"
-      },
-      {
-        id: "angle",
-        name: "角度",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "pointAngle",
-        expression: 0,
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "b" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: "line"
-      },
-      {
-        id: "line-distance",
-        name: "点線距離",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "pointLineDistance",
-        expression: 0,
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "b" },
-        point: { mode: "reference", pointId: "b" },
-        lineId: "line"
-      },
-      {
-        id: "reverse-angle",
-        name: "逆角度",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "pointAngle",
-        expression: 0,
-        point1: { mode: "reference", pointId: "b" },
-        point2: { mode: "reference", pointId: "a" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: "line"
-      }
-    ]);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedVariables.get("distance")?.value).toBeCloseTo(10);
-    expect(result.computedVariables.get("angle")?.value).toBeCloseTo(270);
-    expect(result.computedVariables.get("reverse-angle")?.value).toBeCloseTo(90);
-    expect(result.computedVariables.get("line-distance")?.value).toBeCloseTo(10);
-  });
-
-  it("evaluates point distance, point angle, and point-line distance inside expressions", () => {
-    const result = evaluateElements([
-      {
-        id: "a",
-        name: "点A",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: 0,
-        y: 0
-      },
-      {
-        id: "b",
-        name: "点B",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: 0,
-        y: -10
-      },
-      {
-        id: "line",
-        name: "直線",
-        type: "line",
-        visible: true,
-        enabled: true,
-        startPoint: { mode: "coordinate", x: 0, y: 0 },
-        endPoint: { mode: "coordinate", x: 10, y: 0 }
-      },
-      {
-        id: "measurement",
-        name: "測定",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: {
-          kind: "expression",
-          expression: "distance(a, b) + angle(a, b) + lineDistance(b, line)"
-        },
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "b" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: "line"
-      }
-    ]);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedVariables.get("measurement")?.value).toBeCloseTo(290);
-  });
-
-  it("evaluates point distance expressions with line endpoint arguments", () => {
-    const result = evaluateElements([
-      {
-        id: "a",
-        name: "点A",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: 0,
-        y: 0
-      },
-      {
-        id: "b",
-        name: "点B",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: 10,
-        y: 0
-      },
-      {
-        id: "line",
-        name: "線AB",
-        type: "line",
-        visible: true,
-        enabled: true,
-        startPoint: { mode: "reference", pointId: "a" },
-        endPoint: { mode: "reference", pointId: "b" }
-      },
-      {
-        id: "measurement",
-        name: "測定",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: { kind: "expression", expression: "distance(line:start, line:end)" },
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "b" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: "line"
-      }
-    ]);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedVariables.get("measurement")?.value).toBeCloseTo(10);
-  });
-
-  it("reports dependency errors for measurement function references that appear too late", () => {
-    const result = evaluateElements([
-      {
-        id: "measurement",
-        name: "測定",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: { kind: "expression", expression: "distance(a, b)" },
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "b" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: ""
-      },
-      {
-        id: "a",
-        name: "点A",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: 0,
-        y: 0
-      },
-      {
-        id: "b",
-        name: "点B",
-        type: "freePoint",
-        visible: true,
-        enabled: true,
-        x: 10,
-        y: 0
-      }
-    ]);
-
-    expect(result.computedVariables.has("measurement")).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      elementId: "measurement",
-      missingDependencyId: "a",
-      missingDependencyName: "点A"
-    });
-  });
-
   it("reports a direct coordinate expression dependency that appears too late", () => {
     const result = evaluateElements([
       validElements[0],
@@ -1253,8 +773,7 @@ describe("evaluateElements", () => {
         id: "direct-line",
         name: "直接線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 0, y: 0 },
         endPoint: { mode: "coordinate", x: { kind: "expression", expression: "ab.length" }, y: 0 }
       },
@@ -1270,41 +789,25 @@ describe("evaluateElements", () => {
     });
   });
 
-  it("evaluates numeric reference paths for computed geometry, parameters, and variables", () => {
+  it("evaluates numeric reference paths for computed geometry and parameters", () => {
     const result = evaluateElements([
       validElements[0],
       validElements[1],
       validElements[2],
       {
-        id: "ratio-variable",
-        name: "割合変数",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: 0.25,
-        point1: { mode: "reference", pointId: "a" },
-        point2: { mode: "reference", pointId: "b" },
-        point: { mode: "reference", pointId: "a" },
-        lineId: ""
-      },
-      {
         id: "division",
         name: "分点",
         type: "divisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
-        placement: { kind: "ratio", value: { kind: "expression", expression: "ratio-variable.value" } }
+        placement: { kind: "ratio", value: 0.25 }
       },
       {
         id: "derived",
         name: "参照確認",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPoint: { mode: "reference", pointId: "division" },
         dx: {
           kind: "expression",
@@ -1332,8 +835,7 @@ describe("evaluateElements", () => {
         id: "right",
         name: "右",
         type: "polarOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "a",
         angleDeg: 0,
         distance: 10
@@ -1342,8 +844,7 @@ describe("evaluateElements", () => {
         id: "up",
         name: "上",
         type: "polarOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "a",
         angleDeg: 90,
         distance: 10
@@ -1362,8 +863,7 @@ describe("evaluateElements", () => {
         id: "right-line",
         name: "右線",
         type: "angleLengthLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         angleDeg: 0,
         length: 10
@@ -1372,8 +872,7 @@ describe("evaluateElements", () => {
         id: "up-line",
         name: "上線",
         type: "angleLengthLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         angleDeg: 90,
         length: 10
@@ -1407,8 +906,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "分点",
         type: "divisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
         placement: { kind: "distance", value: 15 }
@@ -1431,8 +929,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "中点",
         type: "divisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
         placement: { kind: "ratio", value: 0.5 }
@@ -1459,8 +956,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "分点",
         type: "divisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
         placement: { value: 0.5 }
@@ -1479,8 +975,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "分点",
         type: "divisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
         placement: { kind: "nonsense", value: 0.5 }
@@ -1498,8 +993,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "分点",
         type: "divisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
         placement: { kind: "ratio", value: 0.5 }
@@ -1521,8 +1015,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -1530,8 +1023,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -1539,8 +1031,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "基準線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -1548,8 +1039,7 @@ describe("evaluateElements", () => {
         id: "p",
         name: "分割点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 40,
         y: 0
       },
@@ -1557,8 +1047,7 @@ describe("evaluateElements", () => {
         id: "split",
         name: "先の線",
         type: "splitLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "line",
         splitPoint: { mode: "reference", pointId: "p" }
       }
@@ -1590,8 +1079,7 @@ describe("evaluateElements", () => {
         id: "outside",
         name: "外側点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 160,
         y: 45
       },
@@ -1599,8 +1087,7 @@ describe("evaluateElements", () => {
         id: "split",
         name: "分割線",
         type: "splitLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "ab",
         splitPoint: { mode: "reference", pointId: "outside" }
       }
@@ -1623,8 +1110,7 @@ describe("evaluateElements", () => {
         id: "split",
         name: "分割線",
         type: "splitLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "ab",
         splitPoint: { mode: "reference", pointId: "a" }
       }
@@ -1640,8 +1126,7 @@ describe("evaluateElements", () => {
         id: "center",
         name: "中心",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -1649,8 +1134,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "円弧",
         type: "arcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         centerPoint: { mode: "reference", pointId: "center" },
         radius: 10,
         startAngleDeg: 0,
@@ -1660,8 +1144,7 @@ describe("evaluateElements", () => {
         id: "mid",
         name: "中点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: Math.SQRT1_2 * 10,
         y: Math.SQRT1_2 * 10
       },
@@ -1669,8 +1152,7 @@ describe("evaluateElements", () => {
         id: "split",
         name: "先円弧",
         type: "splitLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "arc",
         splitPoint: { mode: "reference", pointId: "mid" }
       }
@@ -1689,8 +1171,7 @@ describe("evaluateElements", () => {
         id: "start",
         name: "始点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -1698,8 +1179,7 @@ describe("evaluateElements", () => {
         id: "end",
         name: "終点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -1707,8 +1187,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "start" },
         startHandleAngleDeg: 0,
         startHandleLength: 30,
@@ -1721,8 +1200,7 @@ describe("evaluateElements", () => {
         id: "mid",
         name: "中点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 50,
         y: 0
       },
@@ -1730,8 +1208,7 @@ describe("evaluateElements", () => {
         id: "split",
         name: "先曲線",
         type: "splitLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "curve",
         splitPoint: { mode: "reference", pointId: "mid" }
       }
@@ -1757,8 +1234,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 28.931366411079747,
         y: -77.9400300699557
       },
@@ -1766,8 +1242,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 176.6944080265404,
         y: -62.993702802121724
       },
@@ -1775,8 +1250,7 @@ describe("evaluateElements", () => {
         id: "d",
         name: "点D",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 101.39129725109973,
         y: -1.4362552885086997
       },
@@ -1784,8 +1258,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線BC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "b" },
         startHandleAngleDeg: 335.4717868151397,
         startHandleLength: 33.637281785342516,
@@ -1798,8 +1271,7 @@ describe("evaluateElements", () => {
         id: "direction",
         name: "D方向線",
         type: "angleLengthLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "d" },
         angleDeg: -77,
         length: 100
@@ -1808,8 +1280,7 @@ describe("evaluateElements", () => {
         id: "intersection",
         name: "交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "direction",
         line2Id: "curve",
         intersectionIndex: 0,
@@ -1819,8 +1290,7 @@ describe("evaluateElements", () => {
         id: "split",
         name: "BC分割",
         type: "splitLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "curve",
         splitPoint: { mode: "reference", pointId: "intersection" }
       }
@@ -1848,8 +1318,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -1857,8 +1326,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -1866,8 +1334,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 150,
         y: 80
       },
@@ -1875,8 +1342,7 @@ describe("evaluateElements", () => {
         id: "d",
         name: "D",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 150,
         y: 160
       },
@@ -1884,8 +1350,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -1893,8 +1358,7 @@ describe("evaluateElements", () => {
         id: "cd",
         name: "CD",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "c" },
         endPoint: { mode: "reference", pointId: "d" }
       },
@@ -1902,8 +1366,7 @@ describe("evaluateElements", () => {
         id: "edge",
         name: "エッジ",
         type: "edge",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint1: { lineId: "ab", endpointKey: "end" },
         endpoint2: { lineId: "cd", endpointKey: "start" },
         intersectionIndex: 0
@@ -1930,8 +1393,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -1939,8 +1401,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -1948,8 +1409,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 20
       },
@@ -1957,8 +1417,7 @@ describe("evaluateElements", () => {
         id: "d",
         name: "D",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 20
       },
@@ -1966,8 +1425,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -1975,8 +1433,7 @@ describe("evaluateElements", () => {
         id: "cd",
         name: "CD",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "c" },
         endPoint: { mode: "reference", pointId: "d" }
       },
@@ -1984,8 +1441,7 @@ describe("evaluateElements", () => {
         id: "edge",
         name: "エッジ",
         type: "edge",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint1: { lineId: "ab", endpointKey: "end" },
         endpoint2: { lineId: "cd", endpointKey: "start" },
         intersectionIndex: 0
@@ -2005,8 +1461,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -2014,8 +1469,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -2023,8 +1477,7 @@ describe("evaluateElements", () => {
         id: "target",
         name: "目標",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 140,
         y: 0
       },
@@ -2032,8 +1485,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -2041,8 +1493,7 @@ describe("evaluateElements", () => {
         id: "extend",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "line", endpointKey: "end" },
         point: { mode: "reference", pointId: "target" }
       }
@@ -2066,8 +1517,7 @@ describe("evaluateElements", () => {
         id: "target",
         name: "外点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 140,
         y: 20
       },
@@ -2075,8 +1525,7 @@ describe("evaluateElements", () => {
         id: "extend",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "ab", endpointKey: "end" },
         point: { mode: "reference", pointId: "target" }
       }
@@ -2095,8 +1544,7 @@ describe("evaluateElements", () => {
         id: "center",
         name: "中心",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -2104,8 +1552,7 @@ describe("evaluateElements", () => {
         id: "target",
         name: "目標",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: -10,
         y: 0
       },
@@ -2113,8 +1560,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "円弧",
         type: "arcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         centerPoint: { mode: "reference", pointId: "center" },
         radius: 10,
         startAngleDeg: 0,
@@ -2124,8 +1570,7 @@ describe("evaluateElements", () => {
         id: "extend",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "arc", endpointKey: "end" },
         point: { mode: "reference", pointId: "target" }
       }
@@ -2149,8 +1594,7 @@ describe("evaluateElements", () => {
         id: "start",
         name: "始点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -2158,8 +1602,7 @@ describe("evaluateElements", () => {
         id: "end",
         name: "終点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -2167,8 +1610,7 @@ describe("evaluateElements", () => {
         id: "target",
         name: "目標",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: -20,
         y: 0
       },
@@ -2176,8 +1618,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "start" },
         startHandleAngleDeg: 0,
         startHandleLength: 30,
@@ -2190,8 +1631,7 @@ describe("evaluateElements", () => {
         id: "extend",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "curve", endpointKey: "start" },
         point: { mode: "reference", pointId: "target" }
       }
@@ -2211,8 +1651,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -2220,8 +1659,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -2229,8 +1667,7 @@ describe("evaluateElements", () => {
         id: "target",
         name: "目標",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 140,
         y: -10
       },
@@ -2238,8 +1675,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -2247,8 +1683,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "オフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["line"],
         offset: 10,
         side: "right",
@@ -2258,8 +1693,7 @@ describe("evaluateElements", () => {
         id: "extend",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "offset", endpointKey: "end" },
         point: { mode: "reference", pointId: "target" }
       }
@@ -2277,8 +1711,7 @@ describe("evaluateElements", () => {
       id: "curve",
       name: "曲線",
       type: "bezierCurve",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "reference", pointId: "start" },
       startHandleAngleDeg: 90,
       startHandleLength: 40,
@@ -2289,8 +1722,8 @@ describe("evaluateElements", () => {
     });
 
     const originalResult = evaluateElements([
-      { id: "start", name: "始点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "end", name: "終点", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      { id: "start", name: "始点", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "end", name: "終点", type: "freePoint", activity: "visible", x: 100, y: 0 },
       archCurve()
     ]);
     const originalCurve = originalResult.computedGeometry.get("curve");
@@ -2298,15 +1731,14 @@ describe("evaluateElements", () => {
     const originalSegment = originalCurve.segments[0];
 
     const result = evaluateElements([
-      { id: "start", name: "始点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "end", name: "終点", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      { id: "start", name: "始点", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "end", name: "終点", type: "freePoint", activity: "visible", x: 100, y: 0 },
       archCurve(),
       {
         id: "division",
         name: "線上分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "curve", endpointKey: "start" },
         placement: { kind: "distance", value: 40 }
       },
@@ -2314,8 +1746,7 @@ describe("evaluateElements", () => {
         id: "extend",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "curve", endpointKey: "end" },
         point: { mode: "reference", pointId: "division" }
       }
@@ -2344,14 +1775,13 @@ describe("evaluateElements", () => {
 
   it("shortens a bezier curve's start to a division point on its body", () => {
     const result = evaluateElements([
-      { id: "start", name: "始点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "end", name: "終点", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      { id: "start", name: "始点", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "end", name: "終点", type: "freePoint", activity: "visible", x: 100, y: 0 },
       {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "start" },
         startHandleAngleDeg: 90,
         startHandleLength: 40,
@@ -2364,8 +1794,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "線上分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "curve", endpointKey: "start" },
         placement: { kind: "distance", value: 60 }
       },
@@ -2373,8 +1802,7 @@ describe("evaluateElements", () => {
         id: "extend",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "curve", endpointKey: "start" },
         point: { mode: "reference", pointId: "division" }
       }
@@ -2394,14 +1822,13 @@ describe("evaluateElements", () => {
 
   it("reports the zero-length error instead of the angle-line error when a bezier endpoint is trimmed onto its own opposite anchor", () => {
     const result = evaluateElements([
-      { id: "start", name: "始点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "end", name: "終点", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      { id: "start", name: "始点", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "end", name: "終点", type: "freePoint", activity: "visible", x: 100, y: 0 },
       {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "start" },
         startHandleAngleDeg: 90,
         startHandleLength: 40,
@@ -2414,8 +1841,7 @@ describe("evaluateElements", () => {
         id: "extend",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "curve", endpointKey: "end" },
         point: { mode: "reference", pointId: "start" }
       }
@@ -2426,14 +1852,13 @@ describe("evaluateElements", () => {
   });
 
   const offsetBezierElements = (): CadElement[] => [
-    { id: "start", name: "始点", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-    { id: "end", name: "終点", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+    { id: "start", name: "始点", type: "freePoint", activity: "visible", x: 0, y: 0 },
+    { id: "end", name: "終点", type: "freePoint", activity: "visible", x: 100, y: 0 },
     {
       id: "curve",
       name: "曲線",
       type: "bezierCurve",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "reference", pointId: "start" },
       startHandleAngleDeg: 90,
       startHandleLength: 40,
@@ -2446,8 +1871,7 @@ describe("evaluateElements", () => {
       id: "offset",
       name: "オフセット",
       type: "offsetLine",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       baseLineIds: ["curve"],
       offset: 10,
       side: "right",
@@ -2489,13 +1913,12 @@ describe("evaluateElements", () => {
 
     const result = evaluateElements([
       ...offsetBezierElements(),
-      { id: "target", name: "目標", type: "freePoint", visible: true, enabled: true, x: target.x, y: target.y },
+      { id: "target", name: "目標", type: "freePoint", activity: "visible", x: target.x, y: target.y },
       {
         id: "extend",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "offset", endpointKey: "start" },
         point: { mode: "reference", pointId: "target" }
       }
@@ -2529,13 +1952,12 @@ describe("evaluateElements", () => {
 
     const result = evaluateElements([
       ...offsetBezierElements(),
-      { id: "target", name: "目標", type: "freePoint", visible: true, enabled: true, x: targetX, y: targetY },
+      { id: "target", name: "目標", type: "freePoint", activity: "visible", x: targetX, y: targetY },
       {
         id: "extend",
         name: "延長短縮",
         type: "extendTrim",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "offset", endpointKey: "end" },
         point: { mode: "reference", pointId: "target" }
       }
@@ -2562,8 +1984,7 @@ describe("evaluateElements", () => {
         id: "same",
         name: "同一点",
         type: "divisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "a" },
         placement: { kind: "distance", value: 10 }
@@ -2584,8 +2005,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -2593,8 +2013,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -2602,8 +2021,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -2611,8 +2029,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "線上分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "line", endpointKey: "start" },
         placement: { kind: "distance", value: 25 }
       }
@@ -2630,14 +2047,13 @@ describe("evaluateElements", () => {
   // if/elseで、missingや不正なkindはratio分岐(length * ratio)へフォールバックする。
   it("falls back to the ratio branch when placement.kind is missing (lineDivisionPoint)", () => {
     const result = evaluateElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 100, y: 0 },
       {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -2645,8 +2061,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "線上分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "line", endpointKey: "start" },
         placement: { value: 0.4 }
       } as unknown as CadElement
@@ -2658,14 +2073,13 @@ describe("evaluateElements", () => {
 
   it("falls back to the ratio branch when placement.kind is an unrecognized string (lineDivisionPoint)", () => {
     const result = evaluateElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 100, y: 0 },
       {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -2673,8 +2087,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "線上分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "line", endpointKey: "start" },
         placement: { kind: "nonsense", value: 0.4 }
       } as unknown as CadElement
@@ -2690,8 +2103,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -2699,8 +2111,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -2708,8 +2119,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -2717,8 +2127,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "線上分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "line", endpointKey: "end" },
         placement: { kind: "ratio", value: 1.2 }
       }
@@ -2738,8 +2147,7 @@ describe("evaluateElements", () => {
         id: "center",
         name: "中心",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -2747,8 +2155,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -2756,8 +2163,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -2765,8 +2171,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "円弧",
         type: "arcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         centerPoint: { mode: "reference", pointId: "center" },
         radius: 10,
         startAngleDeg: 0,
@@ -2776,8 +2181,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 0,
@@ -2790,8 +2194,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -2799,8 +2202,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "オフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["line"],
         offset: 10,
         side: "right",
@@ -2810,8 +2212,7 @@ describe("evaluateElements", () => {
         id: "arc-division",
         name: "円弧分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "arc", endpointKey: "start" },
         placement: { kind: "ratio", value: 0.5 }
       },
@@ -2819,8 +2220,7 @@ describe("evaluateElements", () => {
         id: "curve-division",
         name: "曲線分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "curve", endpointKey: "start" },
         placement: { kind: "ratio", value: 0.5 }
       },
@@ -2828,8 +2228,7 @@ describe("evaluateElements", () => {
         id: "offset-division",
         name: "オフセット分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "offset", endpointKey: "start" },
         placement: { kind: "ratio", value: 0.5 }
       }
@@ -2859,8 +2258,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "線上分点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "ab", endpointKey: "start" },
         placement: { kind: "ratio", value: 0.5 }
       },
@@ -2881,8 +2279,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -2890,8 +2287,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 80,
         y: 0
       },
@@ -2899,8 +2295,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 80,
         y: 30
       },
@@ -2908,8 +2303,7 @@ describe("evaluateElements", () => {
         id: "d",
         name: "D",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 40,
         y: 100
       },
@@ -2917,8 +2311,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -2926,8 +2319,7 @@ describe("evaluateElements", () => {
         id: "bc",
         name: "BC",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "b" },
         endPoint: { mode: "reference", pointId: "c" }
       },
@@ -2935,8 +2327,7 @@ describe("evaluateElements", () => {
         id: "copy",
         name: "コピー線",
         type: "copyLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "d" },
         scale: 1,
@@ -2968,8 +2359,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -2977,8 +2367,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 20,
         y: 0
       },
@@ -2986,8 +2375,7 @@ describe("evaluateElements", () => {
         id: "target",
         name: "移動先",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 10,
         y: 10
       },
@@ -2995,8 +2383,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -3004,8 +2391,7 @@ describe("evaluateElements", () => {
         id: "copy",
         name: "コピー線",
         type: "copyLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "target" },
         scale: 0.5,
@@ -3032,8 +2418,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3041,8 +2426,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 80,
         y: 0
       },
@@ -3050,8 +2434,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 80,
         y: 30
       },
@@ -3059,8 +2442,7 @@ describe("evaluateElements", () => {
         id: "d",
         name: "D",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 40,
         y: 100
       },
@@ -3068,8 +2450,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -3077,8 +2458,7 @@ describe("evaluateElements", () => {
         id: "bc",
         name: "BC",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "b" },
         endPoint: { mode: "reference", pointId: "c" }
       },
@@ -3086,8 +2466,7 @@ describe("evaluateElements", () => {
         id: "copy",
         name: "コピー線",
         type: "copyLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "d" },
         scale: 1,
@@ -3119,8 +2498,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3128,8 +2506,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 80,
         y: 0
       },
@@ -3137,8 +2514,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 80,
         y: 30
       },
@@ -3146,8 +2522,7 @@ describe("evaluateElements", () => {
         id: "d",
         name: "D",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 40,
         y: 100
       },
@@ -3155,8 +2530,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -3164,8 +2538,7 @@ describe("evaluateElements", () => {
         id: "bc",
         name: "BC",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "b" },
         endPoint: { mode: "reference", pointId: "c" }
       },
@@ -3173,8 +2546,7 @@ describe("evaluateElements", () => {
         id: "copy",
         name: "コピー線",
         type: "copyLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "d" },
         scale: 1,
@@ -3202,8 +2574,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3211,8 +2582,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 80,
         y: 0
       },
@@ -3220,8 +2590,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 80,
         y: 30
       },
@@ -3229,8 +2598,7 @@ describe("evaluateElements", () => {
         id: "axis-a",
         name: "軸A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 40,
         y: -50
       },
@@ -3238,8 +2606,7 @@ describe("evaluateElements", () => {
         id: "axis-b",
         name: "軸B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 40,
         y: 50
       },
@@ -3247,8 +2614,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -3256,8 +2622,7 @@ describe("evaluateElements", () => {
         id: "bc",
         name: "BC",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "b" },
         endPoint: { mode: "reference", pointId: "c" }
       },
@@ -3265,8 +2630,7 @@ describe("evaluateElements", () => {
         id: "symmetric",
         name: "対称コピー線",
         type: "symmetricCopyLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         axisPoint1: { mode: "reference", pointId: "axis-a" },
         axisPoint2: { mode: "reference", pointId: "axis-b" },
         baseLineIds: ["ab", "bc"]
@@ -3295,8 +2659,7 @@ describe("evaluateElements", () => {
         id: "axis-a",
         name: "軸A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3304,8 +2667,7 @@ describe("evaluateElements", () => {
         id: "axis-b",
         name: "軸B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 100
       },
@@ -3313,8 +2675,7 @@ describe("evaluateElements", () => {
         id: "p1",
         name: "P1",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 20
       },
@@ -3322,8 +2683,7 @@ describe("evaluateElements", () => {
         id: "p2",
         name: "P2",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 30,
         y: 20
       },
@@ -3331,8 +2691,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "p1" },
         endPoint: { mode: "reference", pointId: "p2" }
       },
@@ -3340,8 +2699,7 @@ describe("evaluateElements", () => {
         id: "symmetric",
         name: "対称コピー線",
         type: "symmetricCopyLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         axisPoint1: { mode: "reference", pointId: "axis-a" },
         axisPoint2: { mode: "reference", pointId: "axis-b" },
         baseLineIds: ["line"]
@@ -3363,8 +2721,7 @@ describe("evaluateElements", () => {
         id: "axis-a",
         name: "軸A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3372,8 +2729,7 @@ describe("evaluateElements", () => {
         id: "axis-b",
         name: "軸B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 100
       },
@@ -3381,8 +2737,7 @@ describe("evaluateElements", () => {
         id: "symmetric",
         name: "対称コピー線",
         type: "symmetricCopyLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         axisPoint1: { mode: "reference", pointId: "axis-a" },
         axisPoint2: { mode: "reference", pointId: "axis-b" },
         baseLineIds: ["line"]
@@ -3391,8 +2746,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "axis-a" },
         endPoint: { mode: "reference", pointId: "axis-b" }
       }
@@ -3415,8 +2769,7 @@ describe("evaluateElements", () => {
         id: "symmetric",
         name: "対称コピー線",
         type: "symmetricCopyLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         axisPoint1: { mode: "reference", pointId: "a" },
         axisPoint2: { mode: "reference", pointId: "a" },
         baseLineIds: ["ab"]
@@ -3437,8 +2790,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3446,8 +2798,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 80,
         y: 0
       },
@@ -3455,8 +2806,7 @@ describe("evaluateElements", () => {
         id: "d",
         name: "D",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 40,
         y: 100
       },
@@ -3464,8 +2814,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -3473,8 +2822,7 @@ describe("evaluateElements", () => {
         id: "move",
         name: "移動",
         type: "move",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "d" },
         scale: 1,
@@ -3501,8 +2849,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3510,8 +2857,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 20,
         y: 0
       },
@@ -3519,8 +2865,7 @@ describe("evaluateElements", () => {
         id: "target",
         name: "移動先",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 10,
         y: 10
       },
@@ -3528,8 +2873,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -3537,8 +2881,7 @@ describe("evaluateElements", () => {
         id: "move",
         name: "移動",
         type: "move",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "target" },
         scale: 0.5,
@@ -3568,8 +2911,7 @@ describe("evaluateElements", () => {
         id: "move",
         name: "移動",
         type: "move",
-        visible: true,
-        enabled: false,
+        activity: "disabled",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "c" },
         scale: 1,
@@ -3595,8 +2937,7 @@ describe("evaluateElements", () => {
         id: "axis-a",
         name: "軸A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 40,
         y: -50
       },
@@ -3604,8 +2945,7 @@ describe("evaluateElements", () => {
         id: "axis-b",
         name: "軸B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 40,
         y: 50
       },
@@ -3613,8 +2953,7 @@ describe("evaluateElements", () => {
         id: "p1",
         name: "P1",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3622,8 +2961,7 @@ describe("evaluateElements", () => {
         id: "p2",
         name: "P2",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 80,
         y: 0
       },
@@ -3631,8 +2969,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "p1" },
         endPoint: { mode: "reference", pointId: "p2" }
       },
@@ -3640,8 +2977,7 @@ describe("evaluateElements", () => {
         id: "symmetric-move",
         name: "対称移動",
         type: "symmetricMove",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         axisPoint1: { mode: "reference", pointId: "axis-a" },
         axisPoint2: { mode: "reference", pointId: "axis-b" },
         baseLineIds: ["line"]
@@ -3666,8 +3002,7 @@ describe("evaluateElements", () => {
         id: "move",
         name: "移動",
         type: "move",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" },
         scale: 1,
@@ -3692,8 +3027,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3701,8 +3035,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -3710,8 +3043,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -3719,8 +3051,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "線上オフセット点",
         type: "lineTangentOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "line",
         basePoint: { mode: "reference", pointId: "a" },
         tangentAngleDeg: 90,
@@ -3742,8 +3073,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3751,8 +3081,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 10,
         y: 10
       },
@@ -3760,8 +3089,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -3769,8 +3097,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "線上オフセット点",
         type: "lineTangentOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "line",
         basePoint: { mode: "reference", pointId: "a" },
         tangentAngleDeg: 0,
@@ -3792,8 +3119,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3801,8 +3127,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -3810,8 +3135,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 0,
@@ -3824,8 +3148,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "線上オフセット点",
         type: "lineTangentOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "curve",
         basePoint: { mode: "reference", pointId: "a" },
         tangentAngleDeg: 0,
@@ -3847,8 +3170,7 @@ describe("evaluateElements", () => {
         id: "start",
         name: "始点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 62.1,
         y: 59.52
       },
@@ -3856,8 +3178,7 @@ describe("evaluateElements", () => {
         id: "middle",
         name: "中間点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 68.05,
         y: 27.18
       },
@@ -3865,8 +3186,7 @@ describe("evaluateElements", () => {
         id: "end",
         name: "終点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 89.92,
         y: 39.33
       },
@@ -3874,8 +3194,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "start" },
         startHandleAngleDeg: 254.72,
         startHandleLength: 18.52,
@@ -3896,8 +3215,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "線上オフセット点",
         type: "lineTangentOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "curve",
         basePoint: { mode: "reference", pointId: "middle" },
         tangentAngleDeg: 270,
@@ -3919,8 +3237,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "線上オフセット点",
         type: "lineTangentOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "ab",
         basePoint: { mode: "reference", pointId: "a" },
         tangentAngleDeg: 0,
@@ -3943,8 +3260,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -3952,8 +3268,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -3961,8 +3276,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 50,
         y: 5
       },
@@ -3970,8 +3284,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -3979,8 +3292,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "線上オフセット点",
         type: "lineTangentOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineId: "line",
         basePoint: { mode: "reference", pointId: "c" },
         tangentAngleDeg: 0,
@@ -4002,8 +3314,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -4011,8 +3322,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 100
       },
@@ -4020,8 +3330,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 100
       },
@@ -4029,8 +3338,7 @@ describe("evaluateElements", () => {
         id: "d",
         name: "D",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -4038,8 +3346,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -4047,8 +3354,7 @@ describe("evaluateElements", () => {
         id: "cd",
         name: "CD",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "c" },
         endPoint: { mode: "reference", pointId: "d" }
       },
@@ -4056,8 +3362,7 @@ describe("evaluateElements", () => {
         id: "intersection",
         name: "交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "ab",
         line2Id: "cd",
         intersectionIndex: 0,
@@ -4079,8 +3384,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -4088,8 +3392,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -4097,8 +3400,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 100
       },
@@ -4106,8 +3408,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "直線AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -4115,8 +3416,7 @@ describe("evaluateElements", () => {
         id: "ac",
         name: "直線AC",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "c" }
       },
@@ -4124,8 +3424,7 @@ describe("evaluateElements", () => {
         id: "corner",
         name: "角R",
         type: "cornerRadiusArcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint1: { lineId: "ab", endpointKey: "start" },
         endpoint2: { lineId: "ac", endpointKey: "start" },
         radius: 10,
@@ -4167,8 +3466,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -4176,8 +3474,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -4185,8 +3482,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 100
       },
@@ -4194,8 +3490,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "直線AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -4203,8 +3498,7 @@ describe("evaluateElements", () => {
         id: "ac",
         name: "直線AC",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "c" }
       },
@@ -4212,8 +3506,7 @@ describe("evaluateElements", () => {
         id: "corner",
         name: "角R",
         type: "cornerRadiusArcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint1: { lineId: "ab", endpointKey: "start" },
         endpoint2: { lineId: "ac", endpointKey: "start" },
         radius: 10,
@@ -4223,8 +3516,7 @@ describe("evaluateElements", () => {
         id: "division",
         name: "トリム後始点",
         type: "lineDivisionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint: { lineId: "ab", endpointKey: "start" },
         placement: { kind: "distance", value: 0 }
       },
@@ -4232,8 +3524,7 @@ describe("evaluateElements", () => {
         id: "length-line",
         name: "長さ参照線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 0, y: 0 },
         endPoint: { mode: "coordinate", x: { kind: "expression", expression: "ab.length" }, y: 0 }
       }
@@ -4257,8 +3548,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -4266,8 +3556,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -4275,8 +3564,7 @@ describe("evaluateElements", () => {
         id: "base",
         name: "基準",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -4284,8 +3572,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 0, y: 0 },
         startHandleAngleDeg: 90,
         startHandleLength: 40,
@@ -4298,8 +3585,7 @@ describe("evaluateElements", () => {
         id: "corner",
         name: "角R",
         type: "cornerRadiusArcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint1: { lineId: "base", endpointKey: "start" },
         endpoint2: { lineId: "curve", endpointKey: "start" },
         radius: 10,
@@ -4318,8 +3604,7 @@ describe("evaluateElements", () => {
         id: "corner",
         name: "角R",
         type: "cornerRadiusArcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint1: { lineId: "ab", endpointKey: "start" },
         endpoint2: { lineId: "ac", endpointKey: "start" },
         radius: 10,
@@ -4337,8 +3622,7 @@ describe("evaluateElements", () => {
         id: "corner",
         name: "角R",
         type: "cornerRadiusArcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint1: { lineId: "ab", endpointKey: "start" },
         endpoint2: { lineId: "ab", endpointKey: "end" },
         radius: 0,
@@ -4354,8 +3638,7 @@ describe("evaluateElements", () => {
         id: "ac",
         name: "直線AC",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "coordinate", x: 10, y: 100 }
       },
@@ -4363,8 +3646,7 @@ describe("evaluateElements", () => {
         id: "corner",
         name: "角R",
         type: "cornerRadiusArcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         endpoint1: { lineId: "ab", endpointKey: "start" },
         endpoint2: { lineId: "ac", endpointKey: "start" },
         radius: 10,
@@ -4376,16 +3658,15 @@ describe("evaluateElements", () => {
 
   it("uses line endpoint tangent extensions when requested", () => {
     const elements: CadElement[] = [
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
-      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 20, y: -10 },
-      { id: "d", name: "D", type: "freePoint", visible: true, enabled: true, x: 20, y: 10 },
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
+      { id: "c", name: "C", type: "freePoint", activity: "visible", x: 20, y: -10 },
+      { id: "d", name: "D", type: "freePoint", activity: "visible", x: 20, y: 10 },
       {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -4393,8 +3674,7 @@ describe("evaluateElements", () => {
         id: "cd",
         name: "CD",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "c" },
         endPoint: { mode: "reference", pointId: "d" }
       }
@@ -4405,8 +3685,7 @@ describe("evaluateElements", () => {
         id: "intersection",
         name: "交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "ab",
         line2Id: "cd",
         intersectionIndex: 0,
@@ -4419,8 +3698,7 @@ describe("evaluateElements", () => {
         id: "intersection",
         name: "交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "ab",
         line2Id: "cd",
         intersectionIndex: 0,
@@ -4439,19 +3717,18 @@ describe("evaluateElements", () => {
 
   it("evaluates intersections with arc, Bezier, and offset lines", () => {
     const result = evaluateElements([
-      { id: "center", name: "中心", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 100, y: 0 },
-      { id: "p1", name: "P1", type: "freePoint", visible: true, enabled: true, x: -20, y: 7 },
-      { id: "p2", name: "P2", type: "freePoint", visible: true, enabled: true, x: 20, y: 7 },
-      { id: "v1", name: "V1", type: "freePoint", visible: true, enabled: true, x: 50, y: -20 },
-      { id: "v2", name: "V2", type: "freePoint", visible: true, enabled: true, x: 50, y: 20 },
+      { id: "center", name: "中心", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 100, y: 0 },
+      { id: "p1", name: "P1", type: "freePoint", activity: "visible", x: -20, y: 7 },
+      { id: "p2", name: "P2", type: "freePoint", activity: "visible", x: 20, y: 7 },
+      { id: "v1", name: "V1", type: "freePoint", activity: "visible", x: 50, y: -20 },
+      { id: "v2", name: "V2", type: "freePoint", activity: "visible", x: 50, y: 20 },
       {
         id: "arc",
         name: "円弧",
         type: "arcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         centerPoint: { mode: "reference", pointId: "center" },
         radius: 10,
         startAngleDeg: 0,
@@ -4461,8 +3738,7 @@ describe("evaluateElements", () => {
         id: "horizontal",
         name: "水平線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "p1" },
         endPoint: { mode: "reference", pointId: "p2" }
       },
@@ -4470,8 +3746,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 0,
@@ -4484,8 +3759,7 @@ describe("evaluateElements", () => {
         id: "vertical",
         name: "垂直線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "v1" },
         endPoint: { mode: "reference", pointId: "v2" }
       },
@@ -4493,8 +3767,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "オフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["curve"],
         offset: 10,
         side: "right",
@@ -4504,8 +3777,7 @@ describe("evaluateElements", () => {
         id: "arc-intersection",
         name: "円弧交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "arc",
         line2Id: "horizontal",
         intersectionIndex: 0,
@@ -4515,8 +3787,7 @@ describe("evaluateElements", () => {
         id: "curve-intersection",
         name: "曲線交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "curve",
         line2Id: "vertical",
         intersectionIndex: 0,
@@ -4526,8 +3797,7 @@ describe("evaluateElements", () => {
         id: "offset-intersection",
         name: "オフセット交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "offset",
         line2Id: "vertical",
         intersectionIndex: 0,
@@ -4555,15 +3825,14 @@ describe("evaluateElements", () => {
 
   it("selects an intersection by index when multiple intersections exist", () => {
     const result = evaluateElements([
-      { id: "center", name: "中心", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "p1", name: "P1", type: "freePoint", visible: true, enabled: true, x: -20, y: 7 },
-      { id: "p2", name: "P2", type: "freePoint", visible: true, enabled: true, x: 20, y: 7 },
+      { id: "center", name: "中心", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "p1", name: "P1", type: "freePoint", activity: "visible", x: -20, y: 7 },
+      { id: "p2", name: "P2", type: "freePoint", activity: "visible", x: 20, y: 7 },
       {
         id: "arc",
         name: "円弧",
         type: "arcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         centerPoint: { mode: "reference", pointId: "center" },
         radius: 10,
         startAngleDeg: 0,
@@ -4573,8 +3842,7 @@ describe("evaluateElements", () => {
         id: "line",
         name: "水平線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "p1" },
         endPoint: { mode: "reference", pointId: "p2" }
       },
@@ -4582,8 +3850,7 @@ describe("evaluateElements", () => {
         id: "intersection",
         name: "交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "arc",
         line2Id: "line",
         intersectionIndex: 1,
@@ -4606,8 +3873,7 @@ describe("evaluateElements", () => {
         id: "intersection",
         name: "交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "ab",
         line2Id: "missing",
         intersectionIndex: 0,
@@ -4621,8 +3887,7 @@ describe("evaluateElements", () => {
         id: "intersection",
         name: "交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "ab",
         line2Id: "ab",
         intersectionIndex: 0,
@@ -4631,14 +3896,13 @@ describe("evaluateElements", () => {
     ]);
     const invalidIndex = evaluateElements([
       ...validElements,
-      { id: "c", name: "C", type: "freePoint", visible: true, enabled: true, x: 10, y: 25 },
-      { id: "d", name: "D", type: "freePoint", visible: true, enabled: true, x: 40, y: 20 },
+      { id: "c", name: "C", type: "freePoint", activity: "visible", x: 10, y: 25 },
+      { id: "d", name: "D", type: "freePoint", activity: "visible", x: 40, y: 20 },
       {
         id: "cd",
         name: "CD",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "c" },
         endPoint: { mode: "reference", pointId: "d" }
       },
@@ -4646,8 +3910,7 @@ describe("evaluateElements", () => {
         id: "intersection",
         name: "交点",
         type: "intersectionPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         line1Id: "ab",
         line2Id: "cd",
         intersectionIndex: 0.5,
@@ -4671,8 +3934,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "a",
         dx: { kind: "expression", expression: "ab.length + 10" },
         dy: { kind: "expression", expression: "ab.startAngleDeg / 9" }
@@ -4697,8 +3959,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線AB",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
@@ -4728,8 +3989,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "b",
         dx: 0,
         dy: 40
@@ -4738,8 +3998,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線ABC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
@@ -4772,8 +4031,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "直接曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 0, y: 0 },
         startHandleAngleDeg: 0,
         startHandleLength: 10,
@@ -4811,8 +4069,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線AB",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
@@ -4825,8 +4082,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "a",
         dx: { kind: "expression", expression: "curve.length" },
         dy: 0
@@ -4847,8 +4103,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "円弧",
         type: "arcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         centerPoint: { mode: "reference", pointId: "a" },
         radius: 10,
         startAngleDeg: 0,
@@ -4876,8 +4131,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "またぎ円弧",
         type: "arcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         centerPoint: { mode: "reference", pointId: "a" },
         radius: 20,
         startAngleDeg: 300,
@@ -4899,8 +4153,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "完全円",
         type: "arcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         centerPoint: { mode: "reference", pointId: "a" },
         radius: 10,
         startAngleDeg: 0,
@@ -4928,8 +4181,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "円弧",
         type: "arcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         centerPoint: { mode: "reference", pointId: "a" },
         radius: 10,
         startAngleDeg: 0,
@@ -4939,8 +4191,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "a",
         dx: { kind: "expression", expression: "arc.length" },
         dy: { kind: "expression", expression: "arc.endAngleDeg / 9" }
@@ -4958,8 +4209,7 @@ describe("evaluateElements", () => {
         id: "p1",
         name: "点1",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 10,
         y: 0
       },
@@ -4967,8 +4217,7 @@ describe("evaluateElements", () => {
         id: "p2",
         name: "点2",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: -10
       },
@@ -4976,8 +4225,7 @@ describe("evaluateElements", () => {
         id: "p3",
         name: "点3",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: -10,
         y: 0
       },
@@ -4985,8 +4233,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "三点円弧",
         type: "threePointArcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         point1: { mode: "reference", pointId: "p1" },
         point2: { mode: "reference", pointId: "p2" },
         point3: { mode: "reference", pointId: "p3" },
@@ -5021,8 +4268,7 @@ describe("evaluateElements", () => {
         id: "p1",
         name: "点1",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 20,
         y: 0
       },
@@ -5030,8 +4276,7 @@ describe("evaluateElements", () => {
         id: "p2",
         name: "点2",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: -20
       },
@@ -5039,8 +4284,7 @@ describe("evaluateElements", () => {
         id: "p3",
         name: "点3",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: -20,
         y: 0
       },
@@ -5048,8 +4292,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "三点円弧",
         type: "threePointArcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         point1: { mode: "reference", pointId: "p1" },
         point2: { mode: "reference", pointId: "p2" },
         point3: { mode: "reference", pointId: "p3" },
@@ -5060,8 +4303,7 @@ describe("evaluateElements", () => {
         id: "measure",
         name: "計測点",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "p1",
         dx: { kind: "expression", expression: "arc.length" },
         dy: { kind: "expression", expression: "arc.endAngleDeg" }
@@ -5083,8 +4325,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "三点円弧",
         type: "threePointArcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         point1: { mode: "reference", pointId: "a" },
         point2: { mode: "reference", pointId: "b" },
         point3: { mode: "reference", pointId: "missing" },
@@ -5108,8 +4349,7 @@ describe("evaluateElements", () => {
         id: "p1",
         name: "点1",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -5117,8 +4357,7 @@ describe("evaluateElements", () => {
         id: "p2",
         name: "点2",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 10,
         y: 0
       },
@@ -5126,8 +4365,7 @@ describe("evaluateElements", () => {
         id: "p3",
         name: "点3",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 20,
         y: 0
       },
@@ -5135,8 +4373,7 @@ describe("evaluateElements", () => {
         id: "arc",
         name: "三点円弧",
         type: "threePointArcLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         point1: { mode: "reference", pointId: "p1" },
         point2: { mode: "reference", pointId: "p2" },
         point3: { mode: "reference", pointId: "p3" },
@@ -5160,8 +4397,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線AB",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         numericVariables: [{ id: "shared", name: "共通長", value: 40 }],
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
@@ -5188,8 +4424,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         numericVariables: [
           { id: "base", name: "基準", value: 20 },
           { id: "half", name: "半分", value: { kind: "expression", expression: "@base / 2" } }
@@ -5210,8 +4445,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "点B",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         numericVariables: [{ id: "move", name: "移動量", value: 15 }],
         fromPointId: "a",
         dx: { kind: "expression", expression: "@move * 2" },
@@ -5230,8 +4464,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "点B",
         type: "polarOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         numericVariables: [
           { id: "angle", name: "角度", value: 90 },
           { id: "distance", name: "距離", value: 10 }
@@ -5252,8 +4485,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: { kind: "expression", expression: "@missing" },
         y: 0
       }
@@ -5275,8 +4507,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線AB",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 15,
         startHandleLength: 20,
@@ -5289,8 +4520,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "a",
         dx: { kind: "expression", expression: "curve.startHandleLength + curve.endHandleLength" },
         dy: { kind: "expression", expression: "curve.startHandleAngleDeg + curve.endHandleAngleDeg" }
@@ -5313,8 +4543,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "a",
         dx: makeNumericExpression(expression),
         dy: 0
@@ -5336,8 +4565,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "a",
         dx: { kind: "expression", expression: "ab.length" },
         dy: 0
@@ -5360,8 +4588,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "点B",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "missing",
         dx: 30,
         dy: 5
@@ -5381,8 +4608,7 @@ describe("evaluateElements", () => {
         id: "polar",
         name: "角度距離点",
         type: "polarOffsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "missing",
         angleDeg: 0,
         distance: 30
@@ -5402,8 +4628,7 @@ describe("evaluateElements", () => {
         id: "angle-line",
         name: "角度距離線",
         type: "angleLengthLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "missing" },
         angleDeg: 0,
         length: 30
@@ -5436,8 +4661,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線AB",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
@@ -5464,8 +4688,7 @@ describe("evaluateElements", () => {
         id: "derived-line",
         name: "派生線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "derived", elementId: "ab", pointKey: "start" },
         endPoint: { mode: "derived", elementId: "ab", pointKey: "end" }
       }
@@ -5486,8 +4709,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "点C",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPointId: "b",
         dx: 0,
         dy: 40
@@ -5496,8 +4718,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線ABC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
@@ -5518,8 +4739,7 @@ describe("evaluateElements", () => {
         id: "from-mid",
         name: "中間点からの点",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPoint: { mode: "derived", elementId: "curve", pointKey: "intermediate:mid-1" },
         dx: 5,
         dy: 6
@@ -5541,8 +4761,7 @@ describe("evaluateElements", () => {
         id: "before-line",
         name: "前の線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "derived", elementId: "ab", pointKey: "end" }
       },
@@ -5560,7 +4779,7 @@ describe("evaluateElements", () => {
 
   it("allows hidden elements to be evaluated and referenced", () => {
     const hiddenSource: CadElement[] = [
-      { ...validElements[0], visible: false },
+      { ...validElements[0], activity: "hidden" },
       validElements[1]
     ];
 
@@ -5572,7 +4791,7 @@ describe("evaluateElements", () => {
 
   it("does not evaluate disabled elements", () => {
     const disabledSource: CadElement[] = [
-      { ...validElements[0], enabled: false },
+      { ...validElements[0], activity: "disabled" },
       validElements[1]
     ];
 
@@ -5592,8 +4811,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -5601,8 +4819,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -5610,8 +4827,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 100
       },
@@ -5619,8 +4835,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -5628,8 +4843,7 @@ describe("evaluateElements", () => {
         id: "bc",
         name: "BC",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "b" },
         endPoint: { mode: "reference", pointId: "c" }
       },
@@ -5637,8 +4851,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "オフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["ab", "bc"],
         offset: 10,
         side: "right",
@@ -5665,8 +4878,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -5674,8 +4886,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -5683,8 +4894,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 100
       },
@@ -5692,8 +4902,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -5701,8 +4910,7 @@ describe("evaluateElements", () => {
         id: "cb",
         name: "CB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "c" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -5710,8 +4918,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "オフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["ab", "cb"],
         offset: 10,
         side: "right",
@@ -5732,8 +4939,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -5741,8 +4947,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 100,
         y: 0
       },
@@ -5750,8 +4955,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 100
       },
@@ -5759,8 +4963,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -5768,8 +4971,7 @@ describe("evaluateElements", () => {
         id: "ac",
         name: "AC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 270,
         startHandleLength: 30,
@@ -5782,8 +4984,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "オフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["ab", "ac"],
         offset: 10,
         side: "right",
@@ -5804,8 +5005,7 @@ describe("evaluateElements", () => {
         id: "a",
         name: "A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 50,
         y: 50
       },
@@ -5813,8 +5013,7 @@ describe("evaluateElements", () => {
         id: "b",
         name: "B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 150,
         y: 50
       },
@@ -5822,8 +5021,7 @@ describe("evaluateElements", () => {
         id: "c",
         name: "C",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 150,
         y: 130
       },
@@ -5831,8 +5029,7 @@ describe("evaluateElements", () => {
         id: "ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
       },
@@ -5840,8 +5037,7 @@ describe("evaluateElements", () => {
         id: "ac",
         name: "AC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 45,
@@ -5854,8 +5050,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "オフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["ab", "ac"],
         offset: 10,
         side: "right",
@@ -5877,8 +5072,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 0, y: 0 },
         startHandleAngleDeg: 45,
         startHandleLength: 80,
@@ -5891,8 +5085,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "オフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["curve"],
         offset: 10,
         side: "right",
@@ -5916,8 +5109,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 0, y: 0 },
         startHandleAngleDeg: 45,
         startHandleLength: 80,
@@ -5930,8 +5122,7 @@ describe("evaluateElements", () => {
         id: "offset-1",
         name: "オフセット1",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["curve"],
         offset: 10,
         side: "right",
@@ -5941,8 +5132,7 @@ describe("evaluateElements", () => {
         id: "offset-2",
         name: "オフセット2",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["offset-1"],
         offset: 10,
         side: "right",
@@ -5965,8 +5155,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 0, y: 0 },
         startHandleAngleDeg: 45,
         startHandleLength: 90,
@@ -5979,8 +5168,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "大きいオフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["curve"],
         offset: 20,
         side: "left",
@@ -6008,8 +5196,7 @@ describe("evaluateElements", () => {
       id: "curve",
       name: "曲線",
       type: "bezierCurve",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "coordinate", x: 0, y: 0 },
       startHandleAngleDeg: 45,
       startHandleLength: 90,
@@ -6024,8 +5211,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "小さいオフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["curve"],
         offset: 5,
         side: "right",
@@ -6038,8 +5224,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "大きいオフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["curve"],
         offset: 60,
         side: "right",
@@ -6065,8 +5250,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線AC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 50, y: 50 },
         startHandleAngleDeg: 0,
         startHandleLength: 45,
@@ -6079,8 +5263,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "オフセット線",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["curve"],
         offset: 35,
         side: "right",
@@ -6110,8 +5293,7 @@ describe("evaluateElements", () => {
         id: "curve",
         name: "曲線AC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "coordinate", x: 50, y: 50 },
         startHandleAngleDeg: 0,
         startHandleLength: 45,
@@ -6124,8 +5306,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "オフセット線",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["curve"],
         offset: 35,
         side: "right",
@@ -6151,8 +5332,7 @@ describe("evaluateElements", () => {
         id: "offset",
         name: "先のオフセット",
         type: "offsetLine",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         baseLineIds: ["ab"],
         offset: 10,
         side: "right",

@@ -20,25 +20,25 @@ const compile = (source: string) => {
 
 describe("dslEnclosingPrintLayoutLine", () => {
   it("resolves the block when the cursor is on the printLayout line itself", () => {
-    const source = ["nui 2", "printLayout Layout1 (columns: 2) {", "  layoutVar Width = 10", "}"].join("\n");
+    const source = ["nui 3", "printLayout Layout1 (columns: 2) {", "  layoutVar Width = 10", "}"].join("\n");
     const parsed = parseDsl(source);
     expect(dslEnclosingPrintLayoutLine(parsed, 2)).toMatchObject({ line: 2 });
   });
 
   it("resolves the block when the cursor is on a place/layoutVar member line", () => {
-    const source = ["nui 2", "printLayout Layout1 () {", "  layoutVar Width = 10", "}"].join("\n");
+    const source = ["nui 3", "printLayout Layout1 () {", "  layoutVar Width = 10", "}"].join("\n");
     const parsed = parseDsl(source);
     expect(dslEnclosingPrintLayoutLine(parsed, 3)).toMatchObject({ line: 2 });
   });
 
   it("returns null when the cursor is outside any printLayout block", () => {
-    const source = ["nui 2", "printLayout Layout1 () {", "  layoutVar Width = 10", "}", "point A = coordinate(x: 0 y: 0)"].join("\n");
+    const source = ["nui 3", "printLayout Layout1 () {", "  layoutVar Width = 10", "}", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const parsed = parseDsl(source);
     expect(dslEnclosingPrintLayoutLine(parsed, 5)).toBeNull();
   });
 
   it("returns null when the cursor is inside a different block kind (group)", () => {
-    const source = ["nui 2", "group Outer {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    const source = ["nui 3", "group Outer {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     const parsed = parseDsl(source);
     expect(dslEnclosingPrintLayoutLine(parsed, 3)).toBeNull();
   });
@@ -47,7 +47,7 @@ describe("dslEnclosingPrintLayoutLine", () => {
 describe("dslPrintLayoutVariableCompletionOptions", () => {
   it("offers only strictly-earlier layoutVars to a later layoutVar's own expression", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "printLayout Layout1 () {",
       "  layoutVar Width = 10",
       "  layoutVar Height = 20",
@@ -64,13 +64,13 @@ describe("dslPrintLayoutVariableCompletionOptions", () => {
 
   it("offers strictly-earlier layoutVars to a place's at=/angle= (own-line cutoff)", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "group G {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}",
       "printLayout Layout1 () {",
       "  layoutVar Width = 10",
-      "  place G (at: (0, 0) angle: 0)",
+      "  place G (at: (0, 0), angle: 0)",
       "  layoutVar Height = 20",
       "}"
     ].join("\n");
@@ -86,7 +86,7 @@ describe("dslPrintLayoutVariableCompletionOptions", () => {
 
   it("offers every layoutVar in the block (including later ones) to the printLayout's own attrs", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "printLayout Layout1 (columns: 2) {",
       "  layoutVar Width = 10",
       "  layoutVar Height = 20",
@@ -103,7 +103,7 @@ describe("dslPrintLayoutVariableCompletionOptions", () => {
 
   it("never leaks a layoutVar from a different printLayout block", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "printLayout Layout1 () {",
       "  layoutVar Width = 10",
       "}",
@@ -127,7 +127,7 @@ describe("dslPrintLayoutVariableCompletionOptions", () => {
     // whichever declaration is processed first. Any candidate here must be
     // suppressed rather than risk pointing at the wrong one.
     const source = [
-      "nui 2",
+      "nui 3",
       "printLayout Layout1 () {",
       "  layoutVar Width = 10",
       "  layoutVar Width = 20",
@@ -145,9 +145,9 @@ describe("dslPrintLayoutVariableCompletionOptions", () => {
   });
 
   it("returns [] for a never-compiled block (no stable ids to correlate against)", () => {
-    const compiledSource = ["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n");
+    const compiledSource = ["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const { printLayouts, printLayoutIdsByLiveLine } = compile(compiledSource);
-    const liveSource = ["nui 2", "printLayout Layout1 () {", "  layoutVar Width = 10", "}", "point A = coordinate(x: 0 y: 0)"].join("\n");
+    const liveSource = ["nui 3", "printLayout Layout1 () {", "  layoutVar Width = 10", "}", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const parsed = parseDsl(liveSource);
     const block = dslEnclosingPrintLayoutLine(parsed, 2)!;
     const labels = dslPrintLayoutVariableCompletionOptions({
@@ -158,7 +158,7 @@ describe("dslPrintLayoutVariableCompletionOptions", () => {
 
   it("excludes a layoutVar with a syntactically unparseable expression", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "printLayout Layout1 () {",
       "  layoutVar Broken = )))",
       "  layoutVar Height = 20",

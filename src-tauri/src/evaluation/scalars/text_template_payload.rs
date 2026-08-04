@@ -6,10 +6,10 @@
 //! `span`/`contentSpan`/`cookedInsertOffset`/`cookedRange`/`quote`/
 //! `dependencies`, none of which Rust evaluation needs (those are TS
 //! editor/dependency-graph concerns) - only `cooked` literal text, `raw`
-//! legacy-hole content, and a typed hole's `expression` AST.
+//! numeric-expression-hole content, and a typed hole's `expression` AST.
 //!
-//! This module does not re-scan source or re-resolve names: a legacy hole's
-//! `raw` content is handed unchanged to the existing, unmodified legacy
+//! This module does not re-scan source or re-resolve names: a numeric hole's
+//! `raw` content is handed unchanged to the existing numeric
 //! numeric-expression pipeline at runtime (`text_template_runtime.rs`); a
 //! typed hole's `expression` is decoded via the existing, reused Task 17
 //! `validate_typed_expression_payload` - this module never re-implements
@@ -34,7 +34,7 @@ use crate::evaluation::types::ElementId;
 #[derive(Debug)]
 pub(crate) enum ValidatedTextTemplateSegment {
     Literal { cooked: String },
-    LegacyHole { raw: String },
+    NumericExpressionHole { raw: String },
     StringHole { expression: TypedScalarExpression },
     NumberHole { expression: TypedScalarExpression },
 }
@@ -105,22 +105,26 @@ fn decode_hole_segment(
         "text template hole segment holeKind",
     )?;
     match hole_kind {
-        "legacy" => {
+        "numeric" => {
             reject_unexpected_fields(
                 object,
                 &["kind", "holeKind", "raw"],
-                "text template legacy hole segment",
+                "text template numeric-expression hole segment",
             )?;
-            let raw = require_field(object, "raw", "text template legacy hole segment")?
-                .as_str()
-                .ok_or_else(|| {
-                    issue(
-                        Code::InvalidFieldType,
-                        "text template legacy hole segment raw must be a string",
-                    )
-                })?
-                .to_owned();
-            Ok(ValidatedTextTemplateSegment::LegacyHole { raw })
+            let raw = require_field(
+                object,
+                "raw",
+                "text template numeric-expression hole segment",
+            )?
+            .as_str()
+            .ok_or_else(|| {
+                issue(
+                    Code::InvalidFieldType,
+                    "text template numeric-expression hole segment raw must be a string",
+                )
+            })?
+            .to_owned();
+            Ok(ValidatedTextTemplateSegment::NumericExpressionHole { raw })
         }
         "string" | "number" => {
             reject_unexpected_fields(
@@ -237,8 +241,8 @@ fn decode_text_template(
 /// or Task 32's `binding_versions` - if neither runtime payload is present
 /// but a typed hole is present
 /// anywhere in the payload, that is a caller-contract violation and the
-/// whole call fails closed (never a silent fallback to legacy evaluation).
-/// A payload containing only `"legacy"` holes and literals is valid with no
+/// whole call fails closed (never a silent fallback to numeric expression evaluation).
+/// A payload containing only `"numeric"` holes and literals is valid with no
 /// `scalar_program` - Task 26 compiles a template for every nui 3
 /// `label(text:...)` occurrence regardless of whether the document has any
 /// typed declaration at all.

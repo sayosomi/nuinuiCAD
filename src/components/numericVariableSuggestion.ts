@@ -1,4 +1,4 @@
-import type { NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
+import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
 import { dslVariableTokenEndingAt } from "../dsl/dslVariableToken";
 
 export type NumericVariableSuggestionMatch = {
@@ -18,7 +18,7 @@ export const numericVariableSuggestionMatch = (
 };
 
 export const filteredNumericVariableSuggestions = (
-  options: NumericVariableReferenceOption[],
+  options: NumericReferenceOption[],
   query: string,
   limit: number | null = 8
 ) => {

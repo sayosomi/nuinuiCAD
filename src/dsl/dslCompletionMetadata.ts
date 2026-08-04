@@ -11,7 +11,7 @@ import { NEW_DOCUMENT_DSL_MAJOR_VERSION } from "./dslVersion";
 
 export type DslCompletionParameter = {
   definition: ParameterDefinition;
-  /** v2 unifies all element call arguments into `key: value` (no positional/
+  /** nui 3 unifies all element call arguments into `key: value` (no positional/
    * named split), so every non-name parameter maps to "attr". "printLayoutBlock"
    * marks a synthetic parameter for `place`/`layoutVar`/`printLayout` block
    * statements, which have no real CadElement/ParameterDefinition to derive
@@ -33,7 +33,7 @@ const cache = new Map<CadElementType, DslCompletionElementMetadata>();
 const sampleValue = (definition: ParameterDefinition): unknown => {
   switch (definition.kind) {
     case "boolean":
-      return definition.key === "visible" || definition.key === "enabled" ? false : true;
+      return true;
     case "number":
       return 1;
     case "reference":
@@ -70,7 +70,7 @@ const metadataFor = (element: CadElement): DslCompletionElementMetadata => {
   const samples = [element, ...variants];
   const parameters = new Map<string, DslCompletionParameter>();
   for (const sample of samples) {
-    // v2 is a stable, deterministic form for label derivation; this doesn't reflect
+    // nui 3 is a stable, deterministic form for label derivation; this doesn't reflect
     // any real document's version.
     const line = serializeElementStatementLogical(sample, documentDslRefs([sample], NEW_DOCUMENT_DSL_MAJOR_VERSION));
     for (const definition of definitions) {

@@ -7,9 +7,7 @@ import {
   compileDslDocument,
   layoutElementTree,
   parseDslDocument,
-  requireDslMajorVersionForFeature,
   serializeDocumentToDsl,
-  TYPED_SYNTAX_REQUIRES_NUI3_CODE,
   type DslDocumentData
 } from "./dslDocument";
 import {
@@ -40,7 +38,7 @@ describe("dslDocument round-trip matrix", () => {
   });
 
   it("round-trips offsetPoint via name reference and expression", () => {
-    const { document, parsed } = roundTrip(["var d = 12", "point A = coordinate(x: 0 y: 0)", "point B = offset(from: A dx: d dy: -(d * 2))"].join("\n"));
+    const { document, parsed } = roundTrip(["point A = coordinate(x: 0 y: 0)", "point B = offset(from: A dx: 12 dy: -(12 * 2))"].join("\n"));
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
@@ -85,18 +83,18 @@ describe("dslDocument round-trip matrix", () => {
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
-  it("keeps multi-token numeric expressions intact across a round-trip (v2 needs no quoting: key: takes the rest of the line)", () => {
+  it("keeps multi-token numeric expressions intact across a round-trip", () => {
     const source = [
-      "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 100 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "point Polar = polar(from: A angle: 0 distance: 1)",
-      "line Length = polar(start: A angle: 0 length: 1)",
-      "arc Arc = arc(center: A radius: 1 start: 0 end: 90)",
-      "point Tail = tangentOffset(line: AB base: A angle: 0 distance: 1)",
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "point Polar = polar(from: A, angle: 0, distance: 1)",
+      "line Length = polar(start: A, angle: 0, length: 1)",
+      "arc Arc = arc(center: A, radius: 1, start: 0, end: 90)",
+      "point Tail = tangentOffset(line: AB, base: A, angle: 0, distance: 1)",
       "if 条件 (1) {",
-      "  point ConditionalPoint = coordinate(x: 0 y: 0)",
+      "  point ConditionalPoint = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n");
     const initialResult = compileDslDocument(source);
@@ -124,7 +122,7 @@ describe("dslDocument round-trip matrix", () => {
       return element;
     });
     const document = { ...initial, elements };
-    const serialized = serializeDocumentToDsl(document, 2);
+    const serialized = serializeDocumentToDsl(document, 3);
     const compiled = compileDslDocument(serialized);
 
     expect(serialized).toContain("angle: 1 + 2");
@@ -244,17 +242,6 @@ describe("dslDocument round-trip matrix", () => {
     });
   });
 
-  it("round-trips variable with expression mode and with pointDistance mode", () => {
-    const { document, parsed } = roundTrip(
-      [
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 10 y: 0)",
-        "var bust = 840",
-        "var d = pointDistance(point1: A point2: B)"
-      ].join("\n")
-    );
-    expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
-  });
 });
 
 describe("dslDocument nesting", () => {
@@ -321,10 +308,10 @@ describe("dslDocument unnamed elements", () => {
 describe("dslDocument palette", () => {
   it("round-trips palette colors and defaultColorId", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "",
-      'color main ("#112233" name: "本体")',
-      'color accent ("#445566" name: "アクセント" default: true)'
+      'color main ("#112233", name: "本体")',
+      'color accent ("#445566", name: "アクセント", default: true)'
     ].join("\n");
     const parsed = parseDslDocument(source);
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
@@ -335,13 +322,13 @@ describe("dslDocument palette", () => {
       ],
       defaultColorId: "accent"
     });
-    const reserialized = serializeDocumentToDsl(parsed.document!, 2);
+    const reserialized = serializeDocumentToDsl(parsed.document!, 3);
     const reparsed = parseDslDocument(reserialized);
     expect(reparsed.document?.palette).toEqual(parsed.document?.palette);
   });
 
   it("falls back to the default palette when no color statements are present", () => {
-    const parsed = parseDslDocument("nui 2\n\npoint A = coordinate(x: 0 y: 0)");
+    const parsed = parseDslDocument("nui 3\n\npoint A = coordinate(x: 0, y: 0)");
     expect(parsed.document?.palette).toEqual(defaultDocumentPalette());
   });
 });
@@ -349,28 +336,28 @@ describe("dslDocument palette", () => {
 describe("dslDocument printLayout and activePrintLayout", () => {
   it("round-trips a full print layout block", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "",
       'role seam (name: "縫い代")',
-      "view 印刷 (default: true seam: true)",
+      "view 印刷 (default: true, seam: true)",
       "",
       "printLayout A4 (",
-      "  output: svg",
-      "  view: 印刷",
-      "  paper: a3",
-      "  orientation: landscape",
-      "  columns: 3",
-      "  rows: 4",
-      "  overlap: 15",
-      "  scale: 0.5",
+      "  output: svg,",
+      "  view: 印刷,",
+      "  paper: a3,",
+      "  orientation: landscape,",
+      "  columns: 3,",
+      "  rows: 4,",
+      "  overlap: 15,",
+      "  scale: 0.5,",
       "  canvas: (500, 700)",
       ") {",
       "  layoutVar margin = 20",
-      "  place 前身頃 (at: (10, margin) angle: 90 mirrorX: true)",
+      "  place 前身頃 (at: (10, margin), angle: 90, mirrorX: true)",
       "}",
       "",
       "group 前身頃 {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n");
     const parsed = parseDslDocument(source);
@@ -391,7 +378,7 @@ describe("dslDocument printLayout and activePrintLayout", () => {
     expect(layout.placements).toHaveLength(1);
     expect(layout.numericVariables).toHaveLength(1);
 
-    const reserialized = serializeDocumentToDsl(parsed.document!, 2);
+    const reserialized = serializeDocumentToDsl(parsed.document!, 3);
     const reparsed = parseDslDocument(reserialized);
     expect(reparsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(reparsed.document!.printLayouts[0]).toMatchObject({
@@ -412,7 +399,7 @@ describe("dslDocument printLayout and activePrintLayout", () => {
       activePrintLayoutId: undefined as unknown as string
     };
     document.activePrintLayoutId = document.printLayouts[0].id;
-    const text = serializeDocumentToDsl(document, 2);
+    const text = serializeDocumentToDsl(document, 3);
     expect(text).not.toContain("activePrintLayout");
   });
 
@@ -424,7 +411,7 @@ describe("dslDocument printLayout and activePrintLayout", () => {
       printLayouts: [first, second],
       activePrintLayoutId: second.id
     };
-    const text = serializeDocumentToDsl(document, 2);
+    const text = serializeDocumentToDsl(document, 3);
     expect(text).toContain("activePrintLayout レイアウト1");
     expect(text).toContain("printLayout レイアウト1");
 
@@ -477,13 +464,13 @@ describe("dslDocument @stop / evaluationLimitIndex", () => {
 
 describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
   it("bakes a container's `{` onto its own header row and emits multi-line vertical-call rows for regular elements", () => {
-    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "  @stop", "  point B = coordinate(x: 1 y: 1)", "}"].join("\n");
+    const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "  @stop", "  point B = coordinate(x: 1, y: 1)", "}"].join("\n");
     const compiled = compileDslDocument(source);
     const document = compiled.document!;
     const refs = documentDslRefs(document.elements);
     const rows = layoutElementTree(document.elements, refs, document.evaluationLimitIndex);
 
-    // v2 no longer has a separate "blockStart" row: a container's own header
+    // There is no separate "blockStart" row: a container's own header
     // row carries its `{` on its last physical line.
     expect(rows.map((row) => row.role)).toEqual(["statement", "statement", "atStop", "statement", "blockEnd"]);
 
@@ -494,7 +481,7 @@ describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
     // Regular (non-container) elements now serialize as vertical calls:
     // header line, one arg per line, closing `)` line.
     const pointARow = rows[1];
-    expect(pointARow.lines).toEqual(["  point A = coordinate(", "    x: 0", "    y: 0", "  )"]);
+    expect(pointARow.lines).toEqual(["  point A = coordinate(", "    x: 0,", "    y: 0", "  )"]);
     expect(pointARow.argKeys).toEqual([null, "x", "y", null]);
 
     expect(rows.find((row) => row.role === "atStop")!.lines).toEqual(["  @stop"]);
@@ -506,18 +493,18 @@ describe("dslDocument idempotence", () => {
   it("is a fixed point for a rich hand-written document", () => {
     const first = parseDslDocument(sampleFixture);
     expect(first.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    const canonical = serializeDocumentToDsl(first.document!, 2);
+    const canonical = serializeDocumentToDsl(first.document!, 3);
     const second = parseDslDocument(canonical);
     expect(second.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    const reserialized = serializeDocumentToDsl(second.document!, 2);
+    const reserialized = serializeDocumentToDsl(second.document!, 3);
     expect(reserialized).toBe(canonical);
   });
 
   it("is a fixed point for an empty document", () => {
-    const canonical = serializeDocumentToDsl(emptyDocument(), 2);
+    const canonical = serializeDocumentToDsl(emptyDocument(), 3);
     const parsed = parseDslDocument(canonical);
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(serializeDocumentToDsl(parsed.document!, 2)).toBe(canonical);
+    expect(serializeDocumentToDsl(parsed.document!, 3)).toBe(canonical);
   });
 
   it("is a fixed point for a document with non-contiguous group children (parent= fallback)", () => {
@@ -528,11 +515,11 @@ describe("dslDocument idempotence", () => {
     elements = compileDslToElements("point B = coordinate(x: 2 y: 2 id: pb parent: g1)", { elements }).elements;
 
     const document: DslDocumentData = { ...emptyDocument(), elements, evaluationLimitIndex: elements.length };
-    const canonical = serializeDocumentToDsl(document, 2);
+    const canonical = serializeDocumentToDsl(document, 3);
     expect(canonical).toContain("parent: G");
     const parsed = parseDslDocument(canonical);
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(serializeDocumentToDsl(parsed.document!, 2)).toBe(canonical);
+    expect(serializeDocumentToDsl(parsed.document!, 3)).toBe(canonical);
 
     const b = parsed.document!.elements.find((element) => element.name === "B");
     const g = parsed.document!.elements.find((element) => element.name === "G");
@@ -553,20 +540,16 @@ describe("dslDocument version handling", () => {
     expect(parsed.diagnostics.some((item) => item.severity === "error")).toBe(true);
   });
 
-  it("accepts nui 2 and nui 3 as supported major versions", () => {
-    const v2 = compileDslDocument("nui 2\npoint A = coordinate(x: 0 y: 0)");
-    expect(v2.document).not.toBeNull();
-    expect(v2.majorVersion).toBe(2);
-
+  it("accepts nui 3 as the only supported major version", () => {
     const v3 = compileDslDocument("nui 3\npoint A = coordinate(x: 0, y: 0)");
     expect(v3.document).not.toBeNull();
     expect(v3.majorVersion).toBe(3);
   });
 
   it("rejects an unsupported major version and lists the supported set", () => {
-    const parsed = parseDslDocument("nui 4\npoint A = coordinate(x: 0 y: 0)");
+    const parsed = parseDslDocument("nui 4\npoint A = coordinate(x: 0, y: 0)");
     expect(parsed.document).toBeNull();
-    expect(parsed.diagnostics.some((item) => item.message.includes("未対応のDSLバージョンです: 4(対応: 2, 3)"))).toBe(
+    expect(parsed.diagnostics.some((item) => item.message.includes("未対応のDSLバージョンです: 4(対応: 3)"))).toBe(
       true
     );
   });
@@ -578,31 +561,31 @@ describe("dslDocument version handling", () => {
   });
 
   it("rejects a duplicate nui statement and leaves majorVersion unresolved", () => {
-    const compiled = compileDslDocument(["nui 2", "nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
+    const compiled = compileDslDocument(["nui 3", "nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n"));
     expect(compiled.document).toBeNull();
     expect(compiled.majorVersion).toBeNull();
     expect(compiled.diagnostics.some((item) => item.message.includes("先頭に1つだけ"))).toBe(true);
   });
 
-  it("accepts a valid nui 2 header with a leading comment", () => {
-    const parsed = parseDslDocument(["# comment before header is not allowed to precede nui", "nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n"));
-    // comments do not produce statements, so nui 2 is still the first statement
+  it("accepts a valid nui 3 header with a leading comment", () => {
+    const parsed = parseDslDocument(["# comment before header is not allowed to precede nui", "nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    // comments do not produce statements, so nui 3 is still the first statement
     expect(parsed.document).not.toBeNull();
   });
 
   it("keeps majorVersion resolved even when an unrelated body statement is fatal", () => {
-    // A valid nui 2 header, but the body has a known-fatal DivisionPlacement
+    // A valid nui 3 header, but the body has a known-fatal DivisionPlacement
     // conflict (both distance and ratio given) unrelated to the header itself.
     const compiled = compileDslDocument(
       [
-        "nui 2",
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 10 y: 0)",
-        "point Both = between(start: A end: B distance: 4 ratio: 0.25)"
+        "nui 3",
+        "point A = coordinate(x: 0, y: 0)",
+        "point B = coordinate(x: 10, y: 0)",
+        "point Both = between(start: A, end: B, distance: 4, ratio: 0.25)"
       ].join("\n")
     );
     expect(compiled.document).toBeNull();
-    expect(compiled.majorVersion).toBe(2);
+    expect(compiled.majorVersion).toBe(3);
     expect(compiled.diagnostics.some((item) => item.severity === "error")).toBe(true);
   });
 });
@@ -640,22 +623,22 @@ describe("compileDslDocument facade", () => {
       return info!;
     };
 
-    expect(infoOf("前身頃")).toMatchObject({ line: 29, range: { startLine: 29, endLine: 62 }, indentDepth: 0 });
+    expect(infoOf("前身頃")).toMatchObject({ line: 27, range: { startLine: 27, endLine: 60 }, indentDepth: 0 });
     expect(infoOf("見返し")).toMatchObject({
-      line: 44,
-      range: { startLine: 44, endLine: 54 },
-      elseLine: 49,
+      line: 42,
+      range: { startLine: 42, endLine: 52 },
+      elseLine: 47,
       indentDepth: 1
     });
-    expect(infoOf("C")).toMatchObject({ line: 45, endLine: 48, indentDepth: 2 });
-    expect(infoOf("D")).toMatchObject({ line: 50, endLine: 53, indentDepth: 2 });
-    expect(infoOf("繰返し")).toMatchObject({ range: { startLine: 56, endLine: 61 }, indentDepth: 1 });
-    expect(infoOf("after")).toMatchObject({ line: 71, endLine: 74, range: { startLine: 71, endLine: 71 }, indentDepth: 0 });
+    expect(infoOf("C")).toMatchObject({ line: 43, endLine: 46, indentDepth: 2 });
+    expect(infoOf("D")).toMatchObject({ line: 48, endLine: 51, indentDepth: 2 });
+    expect(infoOf("繰返し")).toMatchObject({ range: { startLine: 54, endLine: 59 }, indentDepth: 1 });
+    expect(infoOf("after")).toMatchObject({ line: 69, endLine: 72, range: { startLine: 69, endLine: 69 }, indentDepth: 0 });
 
     // 全要素がstatementMapに載る(無名要素含む)。
     expect(map.byElementId.size).toBe(document.elements.length);
     const unnamed = document.elements.find((item) => item.name === "" && item.type === "freePoint");
-    expect(map.byElementId.get(unnamed!.id)).toMatchObject({ line: 64 });
+    expect(map.byElementId.get(unnamed!.id)).toMatchObject({ line: 62 });
   });
 
   it("keys non-element statements and records section ends for the sample fixture", () => {
@@ -670,13 +653,13 @@ describe("compileDslDocument facade", () => {
     expect(map.byKey.get("view:印刷")).toMatchObject({ line: 9 });
     expect(map.byKey.get("activeView")).toMatchObject({ line: 10 });
     expect(map.byKey.get("printLayout:A4")).toMatchObject({ range: { startLine: 12, endLine: 25 } });
-    expect(map.byKey.get("atStop")).toMatchObject({ line: 69 });
+    expect(map.byKey.get("atStop")).toMatchObject({ line: 67 });
 
     expect(map.sectionEnds).toEqual({ version: 1, palette: 5, visibility: 10, printLayouts: 25 });
   });
 
   it("injects assignedElementIds while letting explicit id= win", () => {
-    const source = ["nui 2", "", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 1 y: 1 id: pinned-b)"].join("\n");
+    const source = ["nui 3", "", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1, id: pinned-b)"].join("\n");
     const baseline = compileDslDocument(source);
     expect(baseline.document!.elements.map((item) => item.name)).toEqual(["A", "B"]);
 
@@ -708,34 +691,8 @@ describe("dslDocument golden fixture", () => {
   });
 });
 
-describe("requireDslMajorVersionForFeature", () => {
-  it("returns null once the document major meets the requirement", () => {
-    expect(requireDslMajorVersionForFeature(3, 3, 5, "state: 構文")).toBeNull();
-    expect(requireDslMajorVersionForFeature(3, 2, 5, "state: 構文")).toBeNull();
-  });
-
-  it("returns a coded diagnostic when the document major is too low", () => {
-    const diagnostic = requireDslMajorVersionForFeature(2, 3, 5, "state: 構文");
-    expect(diagnostic).toMatchObject({
-      severity: "error",
-      line: 5,
-      column: 1,
-      code: TYPED_SYNTAX_REQUIRES_NUI3_CODE,
-      message: "state: 構文 は nui 3 以降でのみ使用できます(現在: nui 2)。"
-    });
-  });
-});
-
-describe("nui 2/3 state syntax wiring", () => {
-  it("rejects state: under a nui 2 document with the version-gate diagnostic", () => {
-    const parsed = parseDslDocument("nui 2\npoint A = coordinate(x: 0 y: 0 state: hidden)");
-    expect(parsed.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: TYPED_SYNTAX_REQUIRES_NUI3_CODE })])
-    );
-    expect(parsed.document).toBeNull();
-  });
-
-  it("accepts state: visible/hidden/disabled under a nui 3 document and lowers to ElementActivity", () => {
+describe("nui 3 state syntax wiring", () => {
+  it("accepts state: visible/hidden/disabled and lowers to ElementActivity", () => {
     const parsed = parseDslDocument([
       "nui 3",
       "point A = coordinate(x: 0, y: 0, state: hidden)",
@@ -744,19 +701,13 @@ describe("nui 2/3 state syntax wiring", () => {
     ].join("\n"));
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(parsed.document!.elements).toMatchObject([
-      { name: "A", visible: false, enabled: true },
-      { name: "B", visible: true, enabled: false },
-      { name: "C", visible: true, enabled: true }
+      { name: "A", activity: "hidden" },
+      { name: "B", activity: "disabled" },
+      { name: "C", activity: "visible" }
     ]);
   });
 
-  it("v3 still accepts legacy visible/enabled flags alone (compatibility input)", () => {
-    const parsed = parseDslDocument("nui 3\npoint A = coordinate(x: 0, y: 0, visible: false)");
-    expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(parsed.document!.elements).toMatchObject([{ name: "A", visible: false, enabled: true }]);
-  });
-
-  it("regenerates canonical v3 output as state: while keeping the document major unchanged", () => {
+  it("regenerates canonical output as state: only", () => {
     const compiled = compileDslDocument("nui 3\npoint A = coordinate(x: 0, y: 0, state: hidden)");
     expect(compiled.majorVersion).toBe(3);
     const regenerated = serializeDocumentToDsl(compiled.document!, compiled.majorVersion!);
@@ -767,16 +718,8 @@ describe("nui 2/3 state syntax wiring", () => {
   });
 });
 
-describe("nui 2/3 typed declaration wiring", () => {
-  it("rejects const/let under a nui 2 document with the version-gate diagnostic", () => {
-    const parsed = parseDslDocument("nui 2\nconst x: number = 1");
-    expect(parsed.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: TYPED_SYNTAX_REQUIRES_NUI3_CODE })])
-    );
-    expect(parsed.document).toBeNull();
-  });
-
-  it("accepts const/let under a nui 3 document with no diagnostics, staying out of document.elements", () => {
+describe("nui 3 typed declaration wiring", () => {
+  it("accepts const/let with no diagnostics, staying out of document.elements", () => {
     // 型付き宣言のidentityはstatement reconcilerが供給する。直接compilerを
     // 呼ぶこの単体テストでも、その契約を明示して渡す。
     const compiled = compileDslDocument(
@@ -913,12 +856,6 @@ describe("Task 26 text template wiring", () => {
     );
   });
 
-  it("leaves textTemplates undefined for a nui 2 document", () => {
-    const compiled = compileDslDocument(["nui 2", 'text T = label(text: "plain" anchor: none size: 3)'].join("\n"));
-    expect(compiled.diagnostics).toEqual([]);
-    expect(compiled.document).not.toBeNull();
-    expect(compiled.textTemplates).toBeUndefined();
-  });
 });
 
 describe("Task 29 set statement wiring", () => {
@@ -984,13 +921,6 @@ describe("Task 29 set statement wiring", () => {
     expect(compiled.setStatements).toBeUndefined();
   });
 
-  it("rejects set under a nui 2 document with the version-gate diagnostic", () => {
-    const compiled = compileDslDocument(["nui 2", "let x: number = 1", "set x = 2"].join("\n"));
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: TYPED_SYNTAX_REQUIRES_NUI3_CODE })])
-    );
-  });
 });
 
 describe("Task 36 typed dependency graph wiring", () => {

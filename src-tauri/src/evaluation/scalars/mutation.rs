@@ -2,7 +2,7 @@
 //! by Task 25's Rust runtime; this module never parses or evaluates a branch.
 mod for_group_scheduler;
 use super::bindings::ScalarDocumentBindingResolver;
-use super::bindings::{resolve_external_binding, result_for_declared_type, scalar_evaluation_json};
+use super::bindings::{result_for_declared_type, scalar_evaluation_json};
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 use super::mutation_payload::{
     InitialState, ValidatedBindingVersion, ValidatedBindingVersionKind, ValidatedBindingVersions,
@@ -124,11 +124,15 @@ impl<'a> ScalarMutationResolver<'a> {
             }
         }
     }
-    pub(crate) fn resolve(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
+    pub(crate) fn resolve(&self, binding_id: &str, _state: &EvaluationState) -> ScalarEvaluation {
         if self.program.binding_ids.contains(binding_id) {
             self.lookup_current(binding_id)
         } else {
-            resolve_external_binding(binding_id, state)
+            ScalarEvaluation::Error {
+                r#type: ScalarType::Number,
+                issue_code: "evaluation-binding-unavailable".to_owned(),
+                binding_id: Some(binding_id.to_owned()),
+            }
         }
     }
     pub(crate) fn computed_bindings(&self) -> Vec<Value> {

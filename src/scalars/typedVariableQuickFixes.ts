@@ -22,7 +22,6 @@
 // computes offsets; it never re-verifies them against a *different* text.
 
 import { parseDslSnapshot } from "../dsl/dslParser";
-import { commonExclusiveGroups, ELEMENT_STATE_CONFLICT_CODE } from "../dsl/dslCallParser";
 import { MISSING_DECLARED_TYPE_CODE } from "../dsl/dslDeclarationParser";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import {
@@ -30,7 +29,6 @@ import {
   type LogicalStatement,
   type LogicalStatementSourceMap
 } from "../dsl/logicalStatementSourceMap";
-import { TYPED_SYNTAX_REQUIRES_NUI3_CODE, type DslMajorVersion } from "../dsl/dslVersion";
 import { IDENTIFIER_PATTERN } from "./literalScanner";
 
 export type TypedVariableQuickFixSplice = {
@@ -44,9 +42,7 @@ export type TypedVariableQuickFixSplice = {
   readonly selection: number;
 };
 
-export type TypedVariableQuickFixAction =
-  | { readonly kind: "upgrade-major-version"; readonly target: DslMajorVersion }
-  | TypedVariableQuickFixSplice;
+export type TypedVariableQuickFixAction = TypedVariableQuickFixSplice;
 
 export type TypedVariableQuickFixDescriptor = {
   readonly id: string;
@@ -270,47 +266,6 @@ const setSkeletonRecoveryFix = (
   };
 };
 
-const elementStateConflictFixes = (
-  sourceText: string,
-  sourceMap: LogicalStatementSourceMap,
-  logicalIndex: Map<string, LogicalStatement>,
-  entry: StatementEntry
-): TypedVariableQuickFixDescriptor[] => {
-  const { statement } = entry;
-  if (statement.kind !== "element") return [];
-  const logical = logicalStatementFor(logicalIndex, statement);
-  if (!logical) return [];
-  const attrs = statement.attrs;
-
-  // Re-derive every legacy side actually in conflict directly from the
-  // statement's own attrs (never from a diagnostic's own span - multiple
-  // `element-state-conflict` diagnostics on the same line, e.g. state+visible
-  // *and* state+enabled both present, would otherwise be indistinguishable
-  // by code+line alone). The legacy side is always a group's own last entry.
-  const legacyKeys = new Set(
-    commonExclusiveGroups
-      .filter((group) => group.every((key) => attrs.some((attr) => attr.key === key)))
-      .map((group) => group[group.length - 1])
-  );
-
-  const descriptors: TypedVariableQuickFixDescriptor[] = [];
-  attrs.forEach((attr, attrIndex) => {
-    if (!legacyKeys.has(attr.key)) return;
-    const rangeStart = attrIndex < attrs.length - 1 ? attr.keyStart : (attrs[attrIndex - 1]?.valueEnd ?? attr.keyStart);
-    const rangeEnd = attrIndex < attrs.length - 1 ? attrs[attrIndex + 1].keyStart : attr.valueEnd;
-    const splice = projectSplice(sourceText, sourceMap, logical, { start: rangeStart, end: rangeEnd }, "", 0);
-    if (splice) {
-      descriptors.push({
-        id: `remove-legacy-state-arg:${entry.index}:${attr.key}`,
-        label: `"${attr.key}" を削除 (state を維持)`,
-        sourceSnapshot: sourceText,
-        action: splice
-      });
-    }
-  });
-  return descriptors;
-};
-
 /**
  * One descriptor list per input `diagnostics` entry, same index alignment.
  * `rawSourceText` may carry any line-ending style (the production caller
@@ -336,27 +291,12 @@ export const typedVariableQuickFixes = (
   const logicalIndex = buildLogicalIndex(parsed.sourceMap);
 
   return diagnostics.map((diagnostic) => {
-    if (diagnostic.code === TYPED_SYNTAX_REQUIRES_NUI3_CODE) {
-      return [
-        {
-          id: "upgrade-nui3",
-          label: "nui 3 へアップグレード",
-          sourceSnapshot: sourceText,
-          action: { kind: "upgrade-major-version", target: 3 as DslMajorVersion }
-        }
-      ];
-    }
-
     const entry = lineIndex.get(diagnostic.line);
     if (!entry) return [];
 
     if (diagnostic.code === MISSING_DECLARED_TYPE_CODE) {
       const fix = missingDeclaredTypeFix(sourceText, parsed.sourceMap, logicalIndex, entry);
       return fix ? [fix] : [];
-    }
-
-    if (diagnostic.code === ELEMENT_STATE_CONFLICT_CODE) {
-      return elementStateConflictFixes(sourceText, parsed.sourceMap, logicalIndex, entry);
     }
 
     if (

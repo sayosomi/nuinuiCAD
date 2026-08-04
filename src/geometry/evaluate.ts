@@ -1,4 +1,4 @@
-import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId, EvaluationResult, EvaluationWarning, ForGroupGeneratedRow } from "../types/geometry";
+import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationResult, EvaluationWarning, ForGroupGeneratedRow } from "../types/geometry";
 import {
   isConditionalGroupElement,
   isForGroupElement,
@@ -12,7 +12,6 @@ import {
 } from "../model/elementActivity";
 import { evaluateLocalVariables, numericError } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
-import { evaluateVariableElement } from "./variableEvaluator";
 import {
   expandForGroupIteration,
   forGroupMutationTemplateElements,
@@ -81,8 +80,8 @@ export type EvaluateElementsOptions = {
    * Task 25's elementId-keyed typed boolean conditions for `conditionalGroup`
    * (already re-keyed from CompiledDslDocument.conditionalGroupConditions by
    * controlBooleanRuntime.ts's buildConditionalGroupConditionsByElementId -
-   * never built here). An element with no entry here always uses the legacy
-   * `NumericValue` condition path unchanged.
+   * never built here). An element with no entry here uses its literal
+   * `NumericValue` condition.
    */
   conditionalGroupConditionsByElementId?: ReadonlyMap<ElementId, TypedScalarExpression>;
   /**
@@ -96,7 +95,7 @@ export type EvaluateElementsOptions = {
    * textTemplateRuntime.ts's buildTextTemplateEntriesByElementId - never
    * built here). Unlike every entry above, this does NOT require
    * `scalarProgram`: Task 26's compileTextTemplates runs for every nui 3
-   * document regardless of typed declarations, so an all-legacy-hole
+   * document regardless of typed declarations, so an all-numeric-hole
    * template can be present with no scalarProgram at all.
    */
   textTemplateEntriesByElementId?: ReadonlyMap<ElementId, TextTemplateAst>;
@@ -141,7 +140,7 @@ export const evaluateElements = (
   }
   // textTemplateEntriesByElementId deliberately has no such guard: Task 26's
   // compileTextTemplates runs for every nui 3 document regardless of typed
-  // declarations, so it can be non-empty with an all-legacy-hole template
+  // declarations, so it can be non-empty with an all-numeric-hole template
   // and no scalarProgram at all - see EvaluateElementsOptions's doc comment.
 
   const evaluationLimitIndex = Math.min(
@@ -151,15 +150,9 @@ export const evaluateElements = (
   const evaluatedElements = elements.slice(0, evaluationLimitIndex);
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
-  const computedVariables = new Map<ElementId, ComputedVariable>();
   const errors: DependencyError[] = [];
   const warnings: EvaluationWarning[] = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
-  // Legacy `var` lookup is the only reason evaluateLocalVariables needs to
-  // locate a runtime element and scan all preceding runtime elements. This is
-  // deliberately based on the source document once, rather than on the
-  // growing forGroup runtime array for every generated element.
-  const hasLegacyVariableElements = elements.some((element) => element.type === "variable");
   const runtimeElementsById = new Map(elementsById);
   const runtimeElements = [...evaluatedElements];
   const activities = effectiveElementActivityById(elements);
@@ -195,10 +188,10 @@ export const evaluateElements = (
     throw new Error("evaluateElements: binding mutation requires the compiled statementInfoByElementId mapping");
   }
   const linearMutationResolver = linearMutationEnabled
-    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, computedVariables, { computedGeometry, elementsById })
+    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, elementsById })
     : undefined;
   const declarationResolver = !linearMutationResolver && options.scalarProgram
-    ? createDocumentScalarBindingResolver(options.scalarProgram, computedVariables, { computedGeometry, elementsById })
+    ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, elementsById })
     : undefined;
   const scalarBindingResolver = linearMutationResolver ?? declarationResolver;
   const propertyBindingEntriesByElementId = options.propertyBindingEntries
@@ -368,9 +361,7 @@ export const evaluateElements = (
       computedGeometry,
       runtimeElementsById,
       errors,
-      computedVariables,
-      runtimeElements,
-      hasLegacyVariableElements
+      runtimeElements
     );
     if (!localVariables) return;
 
@@ -393,7 +384,6 @@ export const evaluateElements = (
               localVariables.localVariableValues,
               localVariables.localVariableNames,
               disabledByGroupId,
-              computedVariables,
               runtimeElements
             );
             return conditionValue === undefined ? null : conditionValue === 0 ? "else" : "then";
@@ -414,7 +404,6 @@ export const evaluateElements = (
         localVariables.localVariableValues,
         localVariables.localVariableNames,
         disabledByGroupId,
-        computedVariables,
         runtimeElements
       );
       const count = forGroupIterationCount(
@@ -428,7 +417,6 @@ export const evaluateElements = (
           localVariables.localVariableValues,
           localVariables.localVariableNames,
           disabledByGroupId,
-          computedVariables,
           runtimeElements
         )
       );
@@ -441,7 +429,6 @@ export const evaluateElements = (
         localVariables.localVariableValues,
         localVariables.localVariableNames,
         disabledByGroupId,
-        computedVariables,
         runtimeElements
       );
       if (start === undefined || count === undefined || step === undefined) return;
@@ -547,17 +534,6 @@ export const evaluateElements = (
       return;
     }
 
-    if (element.type === "variable") {
-      evaluateVariableElement(element, {
-        computedGeometry,
-        computedVariables,
-        elementsById: runtimeElementsById,
-        errors,
-        disabledByGroupId,
-        localVariables
-      });
-      return;
-    }
 
     // Bound properties live on the template statement/element, not on a
     // forGroup-generated clone's own synthetic id - look up by the template
@@ -611,7 +587,6 @@ export const evaluateElements = (
       warnings,
       disabledByGroupId,
       localVariables,
-      computedVariables,
       elements: runtimeElements,
       ...(textTemplateForElement
         ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText }
@@ -635,7 +610,6 @@ export const evaluateElements = (
 
   return {
     computedGeometry,
-    computedVariables,
     errors,
     warnings,
     evaluatedElementIds,

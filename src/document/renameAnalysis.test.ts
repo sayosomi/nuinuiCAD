@@ -46,28 +46,26 @@ const compileWithInheritedIds = (before: ReturnType<typeof complete>, source: st
 // ヘルパ。参照密度をfast-checkで振るプロパティテスト用の入力生成であり、
 // v1構文自体は検証対象ではない。
 const referenceDenseElements = (generatedReferenceCount: number, includeDangling: boolean): DslDocumentData["elements"] => [
-  { id: "target", name: "Target", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-  { id: "front", name: "Front", type: "group", visible: true, enabled: true },
-  { id: "front-shared", name: "Shared", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "front" },
+  { id: "target", name: "Target", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "front", name: "Front", type: "group", activity: "visible" },
+  { id: "front-shared", name: "Shared", type: "freePoint", activity: "visible", x: 1, y: 0, parentGroupId: "front" },
   {
     id: "front-user",
     name: "FrontUser",
     type: "offsetPoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     fromPoint: { mode: "reference", pointId: "target" },
     dx: 1,
     dy: 0,
     parentGroupId: "front"
   },
-  { id: "back", name: "Back", type: "group", visible: true, enabled: true },
-  { id: "back-shared", name: "Shared", type: "freePoint", visible: true, enabled: true, x: 2, y: 0, parentGroupId: "back" },
+  { id: "back", name: "Back", type: "group", activity: "visible" },
+  { id: "back-shared", name: "Shared", type: "freePoint", activity: "visible", x: 2, y: 0, parentGroupId: "back" },
   {
     id: "qualified",
     name: "Qualified",
     type: "offsetPoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     fromPoint: { mode: "reference", pointId: "front-shared" },
     dx: 1,
     dy: 0,
@@ -77,8 +75,7 @@ const referenceDenseElements = (generatedReferenceCount: number, includeDangling
     id: "target-user",
     name: "TargetUser",
     type: "offsetPoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     fromPoint: { mode: "reference", pointId: "target" },
     dx: 1,
     dy: 0,
@@ -88,8 +85,7 @@ const referenceDenseElements = (generatedReferenceCount: number, includeDangling
     id: "dangling",
     name: "Dangling",
     type: "offsetPoint" as const,
-    visible: true,
-    enabled: true,
+    activity: "visible" as const,
     fromPoint: { mode: "reference" as const, pointId: "missing-element" },
     dx: 1,
     dy: 0,
@@ -99,8 +95,7 @@ const referenceDenseElements = (generatedReferenceCount: number, includeDangling
     id: `p${index}`,
     name: `P${index}`,
     type: "offsetPoint" as const,
-    visible: true,
-    enabled: true,
+    activity: "visible" as const,
     fromPoint: { mode: "reference" as const, pointId: "target" },
     dx: index + 1,
     dy: 0
@@ -113,15 +108,14 @@ const referenceDenseSource = (generatedReferenceCount: number, includeDangling: 
 describe("renameAnalysis", () => {
   it("classifies direct, derived, and expression references to the target", () => {
     const source = dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
-      { id: "l", name: "L", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
+      { id: "l", name: "L", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
       {
         id: "derived",
         name: "Derived",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPoint: { mode: "derived", elementId: "l", pointKey: "start" },
         dx: 1,
         dy: 0
@@ -129,18 +123,13 @@ describe("renameAnalysis", () => {
       {
         id: "length",
         name: "Length",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: { kind: "expression", expression: "L.length" },
-        point1: { mode: "coordinate", x: 0, y: 0 },
-        point2: { mode: "coordinate", x: 0, y: 0 },
-        point: { mode: "coordinate", x: 0, y: 0 },
-        lineId: ""
+        type: "offsetPoint",
+        activity: "visible",
+        fromPoint: { mode: "reference", pointId: "a" },
+        dx: { kind: "expression", expression: "@L.length" },
+        dy: 0
       },
-      { id: "extended", name: "Extended", type: "extendTrim", visible: true, enabled: true, endpoint: { lineId: "l", endpointKey: "end" }, point: { mode: "reference", pointId: "a" } }
+      { id: "extended", name: "Extended", type: "extendTrim", activity: "visible", endpoint: { lineId: "l", endpointKey: "end" }, point: { mode: "reference", pointId: "a" } }
     ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "L")!;
@@ -157,26 +146,12 @@ describe("renameAnalysis", () => {
 
   it("lists direct, derived, expression, qualified, and print-layout references", () => {
     const elements: DslDocumentData["elements"] = [
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 1, dy: 0 },
-      { id: "l", name: "L", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
-      {
-        id: "length",
-        name: "Length",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: { kind: "expression", expression: "L.length" },
-        point1: { mode: "coordinate", x: 0, y: 0 },
-        point2: { mode: "coordinate", x: 0, y: 0 },
-        point: { mode: "coordinate", x: 0, y: 0 },
-        lineId: ""
-      },
-      { id: "g", name: "G", type: "group", visible: true, enabled: true },
-      { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: 2, y: 0, parentGroupId: "g" },
-      { id: "qualifieduser", name: "QualifiedUser", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "p" }, dx: 1, dy: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 1, dy: 0 },
+      { id: "l", name: "L", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
+      { id: "g", name: "G", type: "group", activity: "visible" },
+      { id: "p", name: "P", type: "freePoint", activity: "visible", x: 2, y: 0, parentGroupId: "g" },
+      { id: "qualifieduser", name: "QualifiedUser", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "p" }, dx: 1, dy: 0 }
     ];
     const source = serializeDocumentToDsl({
       ...emptyDocument(),
@@ -197,7 +172,7 @@ describe("renameAnalysis", () => {
         placements: [{ id: "place-g", groupId: "g", x: 0, y: 0, angleDeg: 0, mirrorX: false }]
       }],
       activePrintLayoutId: "layout"
-    }, 2);
+    }, 3);
     const compiled = complete(source);
     const group = compiled.document.elements.find((element) => element.name === "G")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: group.id, newName: "H" });
@@ -214,7 +189,7 @@ describe("renameAnalysis", () => {
 
   it("accepts quoted Japanese names and follows the existing trim rule", () => {
     const source = dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 }
     ]);
     const compiled = complete(source);
     const target = compiled.document.elements[0];
@@ -228,8 +203,8 @@ describe("renameAnalysis", () => {
 
   it("rejects a same-scope conflict", () => {
     const source = dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 0 }
     ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "A")!;
@@ -239,8 +214,8 @@ describe("renameAnalysis", () => {
 
   it("rejects capture of an existing dangling token", () => {
     const source = dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "user", name: "User", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "NewName" }, dx: 1, dy: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "user", name: "User", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "NewName" }, dx: 1, dy: 0 }
     ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "A")!;
@@ -248,49 +223,12 @@ describe("renameAnalysis", () => {
       .toMatchObject({ verdict: "rejected", reason: "resolution-change" });
   });
 
-  it("rejects capture of a dangling @variable token", () => {
-    const source = dslTextForElements([
-      {
-        id: "old",
-        name: "Old",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: 1,
-        point1: { mode: "coordinate", x: 0, y: 0 },
-        point2: { mode: "coordinate", x: 0, y: 0 },
-        point: { mode: "coordinate", x: 0, y: 0 },
-        lineId: ""
-      },
-      {
-        id: "user",
-        name: "User",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: { kind: "expression", expression: "@NewName + 1" },
-        point1: { mode: "coordinate", x: 0, y: 0 },
-        point2: { mode: "coordinate", x: 0, y: 0 },
-        point: { mode: "coordinate", x: 0, y: 0 },
-        lineId: ""
-      }
-    ]);
-    const compiled = complete(source);
-    const target = compiled.document.elements.find((element) => element.name === "Old")!;
-    expect(analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "NewName" }))
-      .toMatchObject({ verdict: "rejected", reason: "resolution-change" });
-  });
-
   it("detects a shadowing resolution change using inherited element IDs", () => {
     const beforeSource = dslTextForElements([
-      { id: "outer", name: "Outer", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "g", name: "G", type: "group", visible: true, enabled: true },
-      { id: "inner", name: "Inner", type: "freePoint", visible: true, enabled: true, x: 1, y: 0, parentGroupId: "g" },
-      { id: "user", name: "User", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "outer" }, dx: 1, dy: 0, parentGroupId: "g" }
+      { id: "outer", name: "Outer", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "g", name: "G", type: "group", activity: "visible" },
+      { id: "inner", name: "Inner", type: "freePoint", activity: "visible", x: 1, y: 0, parentGroupId: "g" },
+      { id: "user", name: "User", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "outer" }, dx: 1, dy: 0, parentGroupId: "g" }
     ]);
     const before = complete(beforeSource);
     const local = before.document.elements.find((element) => element.name === "Inner")!;
@@ -303,21 +241,21 @@ describe("renameAnalysis", () => {
 
   it("fails closed when the after catalog introduces an unmatched reference slot", () => {
     const before = complete(dslFlatTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "user", name: "User", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 1, dy: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "user", name: "User", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 1, dy: 0 }
     ]));
     const after = complete(dslFlatTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "user", name: "User", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 1, dy: 0 },
-      { id: "added", name: "Added", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 2, dy: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "user", name: "User", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 1, dy: 0 },
+      { id: "added", name: "Added", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 2, dy: 0 }
     ]));
 
     expect(validateRenameReferenceStability({ before, after }))
       .toMatchObject({ verdict: "rejected", reason: "analysis-incomplete" });
 
     const afterWithDifferentKey = complete(dslFlatTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "replaced", name: "Replaced", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 1, dy: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "replaced", name: "Replaced", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 1, dy: 0 }
     ]));
     expect(validateRenameReferenceStability({ before, after: afterWithDifferentKey }))
       .toMatchObject({ verdict: "rejected", reason: "analysis-incomplete" });
@@ -325,7 +263,7 @@ describe("renameAnalysis", () => {
 
   it.each(["", "::", "A::B"])("rejects invalid name %j", (newName) => {
     const source = dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 }
     ]);
     const compiled = complete(source);
     expect(analyzeRename({ sourceText: source, compiled, targetElementId: compiled.document.elements[0].id, newName }))

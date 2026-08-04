@@ -15,8 +15,7 @@ const point = (id: string, patch: Partial<CadElement> = {}): CadElement => ({
   id,
   name: id,
   type: "freePoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   x: 0,
   y: 0,
   ...patch
@@ -26,8 +25,7 @@ const group = (id: string, patch: Partial<CadElement> = {}): CadElement => ({
   id,
   name: id,
   type: "group",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   ...patch
 } as CadElement);
 

@@ -3,7 +3,7 @@ import { createCadElement } from "../model/elementFactory";
 import { referenceAnchor } from "../model/pointAnchors";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { createElementNameContext } from "../model/elementNames";
-import type { CadElement, VariableValueMode } from "../types/geometry";
+import type { CadElement } from "../types/geometry";
 import { applyArgs, createDefaultIntermediateId, type DslApplyArgsResolvers } from "./dslApplyArgs";
 import { parseDslCallStatement } from "./dslCallParser";
 import { argNameForParameter, constructionFor } from "./dslConstructions";
@@ -14,41 +14,33 @@ import {
   resolveParameterTargetAt,
   resolveParameterValueSpan,
 } from "./dslParameterSpans";
-import { v2CanonicalElementStatements, type V2CanonicalElementStatement } from "./__fixtures__/v2CanonicalStatements";
+import { nui3CanonicalElementStatements, type Nui3CanonicalElementStatement } from "./__fixtures__/nui3CanonicalStatements";
 
 const refs: CadElement[] = [
-  { id: "A", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-  { id: "B", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
-  { id: "C", name: "C", type: "freePoint", visible: true, enabled: true, x: 20, y: 0 },
-  { id: "AB", name: "AB", type: "line", visible: true, enabled: true, startPoint: referenceAnchor("A"), endPoint: referenceAnchor("B") },
-  { id: "CD", name: "CD", type: "line", visible: true, enabled: true, startPoint: referenceAnchor("B"), endPoint: referenceAnchor("C") },
+  { id: "A", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "B", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
+  { id: "C", name: "C", type: "freePoint", activity: "visible", x: 20, y: 0 },
+  { id: "AB", name: "AB", type: "line", activity: "visible", startPoint: referenceAnchor("A"), endPoint: referenceAnchor("B") },
+  { id: "CD", name: "CD", type: "line", activity: "visible", startPoint: referenceAnchor("B"), endPoint: referenceAnchor("C") },
 ];
-
-const variableModeFor = (construction: string): VariableValueMode | null =>
-  construction === "expression" || construction === "pointDistance" || construction === "pointAngle" || construction === "pointLineDistance"
-    ? construction
-    : null;
 
 const resolvers = (elements: CadElement[]): DslApplyArgsResolvers => ({
   index: createNameIndex([...refs, ...elements]), line: 1, elementsForExpressions: [...refs, ...elements],
   nameContext: createElementNameContext([...refs, ...elements]), visibilityRoles: [{ id: "seam", name: "縫い代" }], createIntermediateId: createDefaultIntermediateId,
 });
 
-const isContainerElementType = (elementType: V2CanonicalElementStatement["elementType"]) =>
+const isContainerElementType = (elementType: Nui3CanonicalElementStatement["elementType"]) =>
   elementType === "group" || elementType === "conditionalGroup" || elementType === "forGroup";
 
 /** Parses+applies canonical text the same way the production compiler eventually will (C1), so
  * span resolution is always checked against the element the text actually produces. */
-const applyFixtureText = (fixture: V2CanonicalElementStatement, text: string) => {
+const applyFixtureText = (fixture: Nui3CanonicalElementStatement, text: string) => {
   const parsed = parseDslCallStatement(text, { opensBlock: isContainerElementType(fixture.elementType) });
   expect(parsed.diagnostics, text).toEqual([]);
   const statement = parsed.statement!;
   const spec = constructionFor(statement.category, statement.construction)!;
   const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
-  const variableMode = variableModeFor(spec.construction);
-  const prepared = base.type === "variable" && variableMode
-    ? { ...base, name: statement.name, valueMode: variableMode }
-    : { ...base, name: statement.name };
+  const prepared = { ...base, name: statement.name };
   const applied = applyArgs(prepared, spec, statement.args, resolvers([]));
   expect(applied.diagnostics.filter((item) => item.severity === "error"), text).toEqual([]);
   return { element: applied.element, statement };
@@ -58,29 +50,26 @@ const applyFixtureText = (fixture: V2CanonicalElementStatement, text: string) =>
 const specialArgNames = new Set(["steps", "vars", "varIds", "id", "roles", "parent", "branch", "intermediates"]);
 
 /**
- * `visible`/`enabled`/`color` are universal `CadElement` fields that P5
- * serializes whenever non-default, regardless of whether a given type's
- * `getParameterDefinitions` exposes them as an editable parameterKey (e.g. `edge`
- * omits `colorId`, `variable` omits `visible`, yet both still carry the field and
- * P5 still writes it out if set). The reverse "every emitted arg is claimed"
- * check would otherwise flag this pre-existing, type-independent P5 behavior as
- * a gap; the forward per-type check below still fully covers these keys for the
- * types that do expose them.
+ * `state`/`color` are universal `CadElement` fields that P5 serializes whenever
+ * non-default, regardless of whether a given type's `getParameterDefinitions`
+ * exposes them as an editable parameterKey (e.g. `edge` omits `colorId`, yet
+ * still carries the field and P5 still writes it out if set). The reverse
+ * "every emitted arg is claimed" check would otherwise flag this pre-existing,
+ * type-independent P5 behavior as a gap; the forward per-type check below
+ * still fully covers these keys for the types that do expose them.
  */
-const universalArgNames = new Set(["visible", "enabled", "color"]);
+const universalArgNames = new Set(["state", "color"]);
 
 /**
- * Three parameterKeys are never written to v2 text directly, by construction of
- * the P1 registry and P5 serializer (not a gap in P9): `placementMode` has no
- * arg at all; the inactive distance/ratio side is omitted by
- * `shouldSerializeConstructionArg`; `scope` is only declared on the `expression`
- * construction spec, so P5 never emits it for measurement-mode variables. All
- * three are fixed/asserted in dedicated tests below, not in the generic sweep.
+ * Two parameterKeys are never written to nui 3 text directly, by construction
+ * of the P1 registry and P5 serializer (not a gap in P9): `placementMode` has
+ * no arg at all; the inactive distance/ratio side is omitted by
+ * `shouldSerializeConstructionArg`. Both are fixed/asserted in dedicated
+ * tests below, not in the generic sweep.
  */
 const isFixedElsewhere = (element: CadElement, key: string) =>
   key === "placementMode" ||
-  ((element.type === "divisionPoint" || element.type === "lineDivisionPoint") && (key === "distance" || key === "ratio")) ||
-  (element.type === "variable" && key === "scope" && element.valueMode !== "expression");
+  ((element.type === "divisionPoint" || element.type === "lineDivisionPoint") && (key === "distance" || key === "ratio"));
 
 const baseKeyOf = (key: string) => key.match(/^(.+):(x|y)$/)?.[1] ?? key;
 
@@ -102,12 +91,9 @@ const expectedArgText = (text: string, outer: { start: number; end: number }, pa
  *  - every parameterKey resolves iff its arg is present in the text (this is the
  *    "minimal: present resolves, omitted defaults are null" requirement).
  */
-const checkFixtureSpans = (fixture: V2CanonicalElementStatement, text: string) => {
+const checkFixtureSpans = (fixture: Nui3CanonicalElementStatement, text: string) => {
   const { element, statement } = applyFixtureText(fixture, text);
   const present = new Set(Object.keys(statement.payloadSpans));
-  // P3's short-`var` branch aliases the sole value under both "value" and
-  // "expression" for convenience; only "value" is a real registry arg name.
-  if (statement.shortVariable) present.delete("expression");
 
   const definitions = getParameterDefinitions(element).filter(
     (definition) => definition.key !== "name" && !isFixedElsewhere(element, definition.key) &&
@@ -147,16 +133,16 @@ const checkFixtureSpans = (fixture: V2CanonicalElementStatement, text: string) =
   }
 };
 
-describe("DSL v2 P9 parameter value span resolution", () => {
-  describe("全27要素型 + variable 4 construction の populated/minimal 網羅", () => {
-    for (const fixture of v2CanonicalElementStatements) {
+describe("DSL nui 3 P9 parameter value span resolution", () => {
+  describe("全26要素型の populated/minimal 網羅", () => {
+    for (const fixture of nui3CanonicalElementStatements) {
       it(`resolves ${fixture.key} (populated)`, () => checkFixtureSpans(fixture, fixture.populated));
       it(`resolves ${fixture.key} (minimal)`, () => checkFixtureSpans(fixture, fixture.minimal));
     }
   });
 
   it("resolves the element name span for every fixture", () => {
-    for (const fixture of v2CanonicalElementStatements) {
+    for (const fixture of nui3CanonicalElementStatements) {
       for (const text of [fixture.populated, fixture.minimal]) {
         const { element, statement } = applyFixtureText(fixture, text);
         const span = resolveParameterValueSpan(text, element, "name", {});
@@ -169,7 +155,7 @@ describe("DSL v2 P9 parameter value span resolution", () => {
   });
 
   it("resolves numericVariables records with content matching P5's own serialization", () => {
-    for (const fixture of v2CanonicalElementStatements) {
+    for (const fixture of nui3CanonicalElementStatements) {
       for (const text of [fixture.populated, fixture.minimal]) {
         const { element } = applyFixtureText(fixture, text);
         for (const variable of element.numericVariables ?? []) {
@@ -182,7 +168,7 @@ describe("DSL v2 P9 parameter value span resolution", () => {
   });
 
   it("resolves bezierCurve intermediate records with content matching P5's own serialization", () => {
-    const fixture = v2CanonicalElementStatements.find((item) => item.key === "bezierCurve")!;
+    const fixture = nui3CanonicalElementStatements.find((item) => item.key === "bezierCurve")!;
     const { element } = applyFixtureText(fixture, fixture.populated);
     const bezier = element as Extract<CadElement, { type: "bezierCurve" }>;
     const dslRefs = documentDslRefs([...refs, element]);
@@ -203,7 +189,7 @@ describe("DSL v2 P9 parameter value span resolution", () => {
 
   describe("placementMode・非アクティブ側・測定variableのscope(DSL上に直接表現されない)", () => {
     it("fixes placementMode to null and resolves only the active distance/ratio side", () => {
-      for (const fixture of v2CanonicalElementStatements.filter((item) => item.key === "divisionPoint" || item.key === "lineDivisionPoint")) {
+      for (const fixture of nui3CanonicalElementStatements.filter((item) => item.key === "divisionPoint" || item.key === "lineDivisionPoint")) {
         for (const text of [fixture.populated, fixture.minimal]) {
           const { element } = applyFixtureText(fixture, text);
           const mode = (element as { placement: { kind: "distance" | "ratio" } }).placement.kind;
@@ -228,20 +214,6 @@ describe("DSL v2 P9 parameter value span resolution", () => {
       expect(text.slice(ratioSpan!.start, ratioSpan!.end)).toBe("0.7");
     });
 
-    it("fixes scope to null for measurement-mode variables and resolves it for expression variables", () => {
-      for (const fixture of v2CanonicalElementStatements.filter((item) => item.elementType === "variable")) {
-        for (const populated of [true, false]) {
-          const text = populated ? fixture.populated : fixture.minimal;
-          const { element } = applyFixtureText(fixture, text);
-          const span = resolveParameterValueSpan(text, element, "scope", {});
-          if (fixture.construction === "expression" && populated) {
-            expect(span, `${fixture.key} populated=${populated}`).not.toBeNull();
-          } else {
-            expect(span, `${fixture.key} populated=${populated}`).toBeNull();
-          }
-        }
-      }
-    });
   });
 
   it("resolves x/y sub-spans for a literal coordinate anchor (line accepts coordinate literals for any reference-kind parameter)", () => {
@@ -292,18 +264,6 @@ describe("DSL v2 P9 parameter value span resolution", () => {
     expect(text.slice(dySpan!.start, dySpan!.end)).toBe("5");
   });
 
-  it("resolves the var short-form expression span", () => {
-    const text = "var bust = 840";
-    const parsed = parseDslCallStatement(text);
-    expect(parsed.statement!.shortVariable).toBe(true);
-    const spec = constructionFor("var", "expression")!;
-    const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
-    const prepared = base.type === "variable" ? { ...base, name: parsed.statement!.name, valueMode: "expression" as const } : { ...base, name: parsed.statement!.name };
-    const applied = applyArgs(prepared, spec, parsed.statement!.args, resolvers([]));
-    const span = resolveParameterValueSpan(text, applied.element, "expression");
-    expect(span).not.toBeNull();
-    expect(text.slice(span!.start, span!.end)).toBe("840");
-  });
 
   describe("resolveParameterTargetAt / resolveParameterKeyForValueSpan", () => {
     it("picks the most specific span containing the caret, and the reverse lookup agrees", () => {

@@ -54,10 +54,10 @@ const compiledWithStableIds = (source: string) => {
 describe("statementRangeIndex", () => {
   it("anchors an inline brace on the final row of a handwritten multiline header", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "group Multi (printEnabled: true",
       ") {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n");
     const result = compiled(source);
@@ -75,11 +75,11 @@ describe("statementRangeIndex", () => {
 
   it("adds a statement target for a handwritten multiline expression and leaves its close row visible", () => {
     const source = [
-      "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: A",
-      "  dx: 100",
+      "  from: A,",
+      "  dx: 100,",
       "  dy: 0",
       ")"
     ].join("\n");
@@ -98,8 +98,8 @@ describe("statementRangeIndex", () => {
 
   it("temporarily disables a multiline statement target when its opening row becomes dirty", () => {
     const source = [
-      "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  from: A",
       ")"
@@ -119,7 +119,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("temporarily disables only a target whose structural anchor is dirty", () => {
-    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const group = result.document!.elements[0]!;
@@ -136,7 +136,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("maps an intact target through dirty interior line edits", () => {
-    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const group = result.document!.elements[0]!;
@@ -144,7 +144,7 @@ describe("statementRangeIndex", () => {
 
     const mapped = mapStatementRangeIndex(
       createStatementRangeIndex(doc, result.statementMap!),
-      ChangeSet.of({ from: doc.line(3).to, insert: "\n  point B = coordinate(x: 1 y: 1)" }, doc.length)
+      ChangeSet.of({ from: doc.line(3).to, insert: "\n  point B = coordinate(x: 1, y: 1)" }, doc.length)
     ).get(group.id)!.foldTargets[0]!;
 
     expect(mapped.gutterLineFrom).toBe(original.gutterLineFrom);
@@ -152,7 +152,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("maps runtime-ID ranges through dirty edits without consulting stale statement lines", () => {
-    const source = "nui 2\npoint A = coordinate(x: 0 y: 0)\npoint = coordinate(x: 1 y: 1)";
+    const source = "nui 3\npoint A = coordinate(x: 0, y: 0)\npoint = coordinate(x: 1, y: 1)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const unnamedId = result.document!.elements.find((element) => element.name === "")!.id;
@@ -166,7 +166,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("drops a wholly deleted statement instead of retaining a stale line identity", () => {
-    const source = "nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 1 y: 1)";
+    const source = "nui 3\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const pointB = result.document!.elements.find((element) => element.name === "B")!;
@@ -178,7 +178,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("keeps a statement identity when replacing a value at its final character", () => {
-    const source = "nui 2\npoint B = coordinate(x: 0 y: 0)\npoint A = offset(from: B dx: 130 dy: 9)";
+    const source = "nui 3\npoint B = coordinate(x: 0, y: 0)\npoint A = offset(from: B, dx: 130, dy: 9)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const pointA = result.document!.elements.find((element) => element.name === "A")!;
@@ -195,7 +195,7 @@ describe("statementRangeIndex", () => {
 });
 
 describe("printLayoutRangeIndex", () => {
-  const printLayoutSource = ["nui 2", "printLayout Layout1 () {", "  layoutVar Width = 10", "}"].join("\n");
+  const printLayoutSource = ["nui 3", "printLayout Layout1 () {", "  layoutVar Width = 10", "}"].join("\n");
 
   it("builds one entry per printLayout:<id> statementMap key, at the block-opening line", () => {
     const result = compiled(printLayoutSource);
@@ -290,7 +290,7 @@ describe("typedDeclarationRangeIndex", () => {
   });
 
   it("returns an empty index when no statement identity was assigned (no typed declarations)", () => {
-    const noTypedSource = ["nui 2", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const noTypedSource = ["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const result = compiled(noTypedSource);
     const doc = Text.of(noTypedSource.split("\n"));
     expect(createTypedDeclarationRangeIndex(doc, result.statementMap!).size).toBe(0);
@@ -480,7 +480,7 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
   });
 
   it("returns no fields for a document with no typed declarations", () => {
-    const noTypedSource = ["nui 2", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const noTypedSource = ["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const result = compiled(noTypedSource);
     const doc = Text.of(noTypedSource.split("\n"));
     expect(createTypedDeclarationFieldRangeIndex(doc, result.statementMap!, result.statements).size).toBe(0);
@@ -758,7 +758,7 @@ describe("propertyBindingRangeIndex (Task 43)", () => {
   });
 
   it("returns an empty index when the document has no propertyBindings map at all", () => {
-    const noTypedSource = ["nui 2", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const noTypedSource = ["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const result = compiled(noTypedSource);
     const doc = Text.of(noTypedSource.split("\n"));
     expect(createPropertyBindingRangeIndex(doc, result.statementMap!, result.statements, result.propertyBindings).size).toBe(0);

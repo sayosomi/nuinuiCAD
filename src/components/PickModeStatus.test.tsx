@@ -9,8 +9,7 @@ const line = (id: string, name: string): CadElement => ({
   id,
   name,
   type: "line",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "coordinate", x: 0, y: 0 },
   endPoint: { mode: "coordinate", x: 10, y: 0 }
 });
@@ -27,8 +26,7 @@ describe("PickModeStatus", () => {
       id: "offset",
       name: "オフセット線",
       type: "offsetLine",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       baseLineIds: [],
       offset: 10,
       side: "left",

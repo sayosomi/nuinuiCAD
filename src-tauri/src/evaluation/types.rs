@@ -50,7 +50,7 @@ pub struct EvaluationInput {
     pub(crate) condition_expressions: Option<Value>,
     /// Compiled Task 26/27 text-template segments. This carries no source
     /// text or names for Rust to parse: typed holes already contain resolved
-    /// expression ASTs, while legacy holes retain their existing numeric
+    /// expression ASTs, while numeric holes retain their local numeric
     /// runtime path.
     pub(crate) text_templates: Option<Value>,
     /// Validated bare `@binding` sources for `text.text`. Kept separate from
@@ -110,7 +110,6 @@ pub(crate) struct ForGroupGeneratedRow {
 #[serde(rename_all = "camelCase")]
 pub struct EvaluationPayload {
     pub(crate) computed_geometry: Vec<Value>,
-    pub(crate) computed_variables: Vec<Value>,
     pub(crate) errors: Vec<DependencyError>,
     pub(crate) warnings: Vec<EvaluationWarning>,
     pub(crate) evaluated_element_ids: Vec<ElementId>,
@@ -176,8 +175,6 @@ pub(crate) struct EvaluationState {
     pub(crate) group_states: HashMap<ElementId, GroupState>,
     pub(crate) computed_geometry: HashMap<ElementId, Value>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
-    pub(crate) computed_variables: HashMap<ElementId, Value>,
-    pub(crate) computed_variable_order: Vec<ElementId>,
     pub(crate) errors: Vec<DependencyError>,
     pub(crate) warnings: Vec<EvaluationWarning>,
 }
@@ -196,10 +193,6 @@ pub fn element_name(element: &Value) -> String {
 
 pub fn element_type(element: &Value) -> Option<&str> {
     element.get("type")?.as_str()
-}
-
-pub fn bool_field(element: &Value, key: &str, default: bool) -> bool {
-    element.get(key).and_then(Value::as_bool).unwrap_or(default)
 }
 
 pub fn parent_group_id(element: &Value) -> Option<ElementId> {
@@ -222,11 +215,4 @@ pub fn insert_geometry(state: &mut EvaluationState, id: ElementId, geometry: Val
         state.computed_geometry_order.push(id.clone());
     }
     state.computed_geometry.insert(id, geometry);
-}
-
-pub fn insert_variable(state: &mut EvaluationState, id: ElementId, variable: Value) {
-    if !state.computed_variables.contains_key(&id) {
-        state.computed_variable_order.push(id.clone());
-    }
-    state.computed_variables.insert(id, variable);
 }

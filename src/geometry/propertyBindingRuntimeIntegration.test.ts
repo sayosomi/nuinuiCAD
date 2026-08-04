@@ -93,15 +93,15 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     // A choice const can only ever be a literal or a reference to another
     // choice binding (no computed/conditional choice expressions - see
     // plan.md), so it can never itself become runtime-poisoned; a boolean
-    // binding can, via a numeric comparison against a disabled legacy var
-    // (D05 shared namespace), mirroring scalarProgramEvaluation.test.ts's own
-    // poison fixture.
+    // binding can, via a numeric comparison against a disabled element's
+    // property, mirroring scalarProgramEvaluation.test.ts's own poison
+    // fixture.
     const compiled = compileCanonical([
       "nui 3",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "var d = pointDistance(point1: Z1, point2: Z2, state: disabled)",
-      "let 有効: boolean = @d > 0",
+      "line D = segment(start: Z1, end: Z2, state: disabled)",
+      "let 有効: boolean = @D.length > 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",

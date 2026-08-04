@@ -51,7 +51,6 @@ export const legacyBindingIdMap: Readonly<Record<string, string>> = {
   "normal.commandLineAddMove": "normal.addMove",
   "normal.commandLineAddSymmetricMove": "normal.addSymmetricMove",
   "normal.commandLineAddSplitLine": "normal.addSplitLine",
-  "normal.commandLineAddVariable": "normal.addVariable",
   "normal.commandLineAddText": "normal.addText"
 };
 
@@ -98,7 +97,8 @@ export const retiredCommandIds = [
   "toggleElementVisibility",
   "toggleElementEnabled",
   "toggleSelectedElementVisibility",
-  "toggleSelectedElementEnabled"
+  "toggleSelectedElementEnabled",
+  "commandLineAddVariable"
 ] as const;
 
 const retiredCommandIdSet = new Set<string>(retiredCommandIds);

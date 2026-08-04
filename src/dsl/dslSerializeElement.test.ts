@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createCadElement } from "../model/elementFactory";
 import { referenceAnchor } from "../model/pointAnchors";
 import type { CadElement, CadElementType } from "../types/geometry";
-import { commonArgSpecs, constructionFor, constructionForElementType } from "./dslConstructions";
+import { commonArgSpecs, constructionForElementType } from "./dslConstructions";
 import { documentDslRefs, flatRefs } from "./dslSerializer";
 import {
   serializeElementStatementBlock,
@@ -10,11 +10,11 @@ import {
 } from "./dslSerializeElement";
 
 const referenceElements: CadElement[] = [
-  { id: "p1", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-  { id: "p2", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
-  { id: "p3", name: "C", type: "freePoint", visible: true, enabled: true, x: 20, y: 0 },
-  { id: "l1", name: "AB", type: "line", visible: true, enabled: true, startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2") },
-  { id: "l2", name: "CD", type: "line", visible: true, enabled: true, startPoint: referenceAnchor("p2"), endPoint: referenceAnchor("p3") },
+  { id: "p1", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "p2", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
+  { id: "p3", name: "C", type: "freePoint", activity: "visible", x: 20, y: 0 },
+  { id: "l1", name: "AB", type: "line", activity: "visible", startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2") },
+  { id: "l2", name: "CD", type: "line", activity: "visible", startPoint: referenceAnchor("p2"), endPoint: referenceAnchor("p3") },
 ];
 
 const minimal = (type: CadElementType) => createCadElement(type, [], {
@@ -34,22 +34,20 @@ const calls: ReadonlyArray<readonly [CadElementType, string, string]> = [
   ["edge", "line", "edge"], ["bezierCurve", "curve", "bezier"],
   ["arcLine", "arc", "arc"], ["threePointArcLine", "arc", "through"],
   ["cornerRadiusArcLine", "arc", "corner"], ["text", "text", "label"],
-  ["image", "image", "image"], ["variable", "var", "expression"],
+  ["image", "image", "image"],
   ["group", "group", ""], ["conditionalGroup", "if", ""], ["forGroup", "for", ""],
 ];
 
-describe("DSL v2 element serializer", () => {
-  it("serializes all 27 element types from their registry construction", () => {
+describe("DSL nui 3 element serializer", () => {
+  it("serializes all 26 element types from their registry construction", () => {
     for (const [type, category, construction] of calls) {
       const element = minimal(type);
       const block = serializeElementStatementBlock(element, documentDslRefs([...referenceElements, element]));
       const spec = constructionForElementType(type);
 
       expect(spec).toMatchObject({ category, construction });
-      if (type === "variable") {
-        expect(block).toEqual({ header: `var ${element.name} = 0`, args: [], close: null });
-      } else if (type === "group") {
-        expect(block).toEqual({ header: `group ${element.name}`, args: [], close: null });
+      if (type === "group") {
+        expect(block).toEqual({ header: `group ${element.name}`, args: [], close: null, argumentSeparator: "comma" });
       } else if (type === "conditionalGroup" || type === "forGroup") {
         expect(block.close).toBeNull();
         expect(block.args).toEqual([]);
@@ -86,8 +84,7 @@ describe("DSL v2 element serializer", () => {
       name: "前 身",
       x: { kind: "expression" as const, expression: "-(bust / 4)" },
       y: -2,
-      visible: false,
-      enabled: false,
+      activity: "disabled" as const,
       colorId: "pattern-black",
       numericParameterSteps: { x: 0.1 },
       numericVariables: [{ id: "local-1", name: "幅", value: 12 }],
@@ -98,14 +95,15 @@ describe("DSL v2 element serializer", () => {
       header: 'point "前 身" = coordinate(',
       args: [
         { key: "x", text: "x: -(bust / 4)" }, { key: "y", text: "y: -2" },
-        { key: "enabled", text: "enabled: false" },
+        { key: "state", text: "state: disabled" },
         { key: "color", text: "color: pattern-black" },
         { key: "steps", text: "steps: [x: 0.1]" }, { key: "vars", text: "vars: [幅: 12]" },
       ],
       close: ")",
+      argumentSeparator: "comma",
     });
     expect(serializeElementStatementLogical(point, refs)).toBe(
-      'point "前 身" = coordinate(x: -(bust / 4) y: -2 enabled: false color: pattern-black steps: [x: 0.1] vars: [幅: 12])',
+      'point "前 身" = coordinate(x: -(bust / 4), y: -2, state: disabled, color: pattern-black, steps: [x: 0.1], vars: [幅: 12])',
     );
 
     const curve = {
@@ -123,7 +121,7 @@ describe("DSL v2 element serializer", () => {
   it("uses only the active exclusive placement argument and canonical common-argument order", () => {
     const division = {
       ...minimal("divisionPoint"), placement: { kind: "distance" as const, value: 24 },
-      visible: false, enabled: false, colorId: "red",
+      activity: "disabled" as const, colorId: "red",
       numericParameterSteps: { distance: 1 },
       numericVariables: [{ id: "local-1", name: "幅", value: 5 }],
       parentGroupId: "g1", conditionalBranch: "else" as const,
@@ -132,7 +130,7 @@ describe("DSL v2 element serializer", () => {
     expect(args.map((arg) => arg.key)).toEqual([
       "start", "end", "distance",
       ...commonArgSpecs
-        .filter((arg) => arg.arg !== "roles" && arg.arg !== "visible" && arg.arg !== "locked" && arg.arg !== "state")
+        .filter((arg) => arg.arg !== "roles")
         .map((arg) => arg.arg),
     ]);
     expect(args.map((arg) => arg.text)).toContain("parent: g1");
@@ -152,83 +150,37 @@ describe("DSL v2 element serializer", () => {
     expect(args.map((arg) => arg.text)).toContain("distance: 12");
   });
 
-  it("keeps all four variable constructions and both expression forms fixed", () => {
-    const base = minimal("variable");
-    const refs = documentDslRefs([...referenceElements, base]);
-
-    expect(serializeElementStatementBlock(base, refs)).toEqual({
-      header: `var ${base.name} = 0`, args: [], close: null,
-    });
-    const expressionCall = { ...base, enabled: false };
-    expect(serializeElementStatementBlock(expressionCall, refs)).toEqual({
-      header: `var ${base.name} = expression(`,
-      args: [
-        { key: "value", text: "value: 0" }, { key: "scope", text: "scope: global" },
-        { key: "enabled", text: "enabled: false" },
-      ],
-      close: ")",
-    });
-
-    for (const mode of ["expression", "pointDistance", "pointAngle", "pointLineDistance"] as const) {
-      const element = { ...base, valueMode: mode } as CadElement;
-      const construction = constructionFor("var", mode)!;
-      const output = serializeElementStatementBlock(element, refs);
-      expect(construction.construction).toBe(mode);
-      if (mode !== "expression") {
-        expect(output.header).toBe(`var ${base.name} = ${mode}(`);
-        expect(output.args.map((arg) => arg.key)).toEqual(construction.args.map((arg) => arg.arg));
-      }
-    }
-  });
-
   it("writes group, if, and for headers without block braces", () => {
     const group = { ...minimal("group"), printEnabled: true, visibilityRoleIds: ["seam"] };
     expect(serializeElementStatementBlock(group, documentDslRefs([...referenceElements, group]))).toEqual({
-      header: `group ${group.name} (printEnabled: true roles: [seam])`, args: [], close: null,
+      header: `group ${group.name} (printEnabled: true, roles: [seam])`, args: [], close: null, argumentSeparator: "comma",
     });
     const conditional = minimal("conditionalGroup");
     const loop = minimal("forGroup");
     expect(serializeElementStatementLogical(conditional, documentDslRefs([...referenceElements, conditional])))
       .toBe("if ifブロック1 (1)");
     expect(serializeElementStatementLogical(loop, documentDslRefs([...referenceElements, loop])))
-      .toBe("for forブロック1 (i from: 0 count: 3 step: 1 showGenerated: false)");
+      .toBe("for forブロック1 (i, from: 0, count: 3, step: 1, showGenerated: false)");
   });
 });
 
-describe("nui 2/3 activity serialization", () => {
-  const argTexts = (element: CadElement, majorVersion: 2 | 3) =>
-    serializeElementStatementBlock(element, flatRefs(majorVersion)).args.map((arg) => arg.text);
+describe("nui 3 activity serialization", () => {
+  const argTexts = (element: CadElement) =>
+    serializeElementStatementBlock(element, flatRefs()).args.map((arg) => arg.text);
 
-  it("v3 omits state for visible and never emits legacy visible/enabled flags", () => {
+  it("omits state for visible and never emits legacy visible/enabled flags", () => {
     const visible = minimal("freePoint");
-    expect(argTexts(visible, 3).some((text) => text.startsWith("state:"))).toBe(false);
-    expect(argTexts(visible, 3).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
+    expect(argTexts(visible).some((text) => text.startsWith("state:"))).toBe(false);
+    expect(argTexts(visible).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
   });
 
-  it("v3 emits state: hidden / state: disabled and never legacy flags", () => {
-    const hidden = { ...minimal("freePoint"), visible: false, enabled: true };
-    expect(argTexts(hidden, 3)).toContain("state: hidden");
-    expect(argTexts(hidden, 3).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
+  it("emits state: hidden / state: disabled and never legacy flags", () => {
+    const hidden = { ...minimal("freePoint"), activity: "hidden" as const };
+    expect(argTexts(hidden)).toContain("state: hidden");
+    expect(argTexts(hidden).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
 
-    const disabled = { ...minimal("freePoint"), visible: true, enabled: false };
-    expect(argTexts(disabled, 3)).toContain("state: disabled");
-    expect(argTexts(disabled, 3).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
-
-    // enabled wins, same truth table as elementActivityFromLegacyFlags.
-    const bothFalse = { ...minimal("freePoint"), visible: false, enabled: false };
-    expect(argTexts(bothFalse, 3)).toContain("state: disabled");
-  });
-
-  it("v2 canonical output is unchanged: never emits state, keeps legacy visible/enabled flags", () => {
-    const hidden = { ...minimal("freePoint"), visible: false, enabled: true };
-    expect(argTexts(hidden, 2)).toContain("visible: false");
-    expect(argTexts(hidden, 2).some((text) => text.startsWith("state:"))).toBe(false);
-
-    const disabled = { ...minimal("freePoint"), visible: true, enabled: false };
-    expect(argTexts(disabled, 2)).toContain("enabled: false");
-    expect(argTexts(disabled, 2).some((text) => text.startsWith("state:"))).toBe(false);
-
-    const visible = minimal("freePoint");
-    expect(argTexts(visible, 2).some((text) => text.startsWith("state:"))).toBe(false);
+    const disabled = { ...minimal("freePoint"), activity: "disabled" as const };
+    expect(argTexts(disabled)).toContain("state: disabled");
+    expect(argTexts(disabled).some((text) => text.startsWith("visible:") || text.startsWith("enabled:"))).toBe(false);
   });
 });

@@ -7,9 +7,9 @@ import { assertReconcileSane, assertShadowEquivalent } from "./shadowTextAssert"
 // 1000要素コンパイルが秒単位を大きく超える状態に戻ったら落とす。
 
 const buildExpressionSource = (count: number): string => {
-  const lines = ["nui 2", "point P0 = coordinate(x: 0 y: 0)"];
+  const lines = ["nui 3", "point P0 = coordinate(x: 0, y: 0)"];
   for (let index = 1; index < count; index += 1) {
-    lines.push(`point P${index} = coordinate(x: P${index - 1}.x + 1 y: P${index - 1}.y + 1)`);
+    lines.push(`point P${index} = coordinate(x: @P${index - 1}.x + 1, y: @P${index - 1}.y + 1)`);
   }
   return lines.join("\n");
 };
@@ -40,7 +40,9 @@ const buildCommitFixture = (elementCount: number) => {
   const afterDoc: DslDocumentData = {
     ...compiled.document,
     elements: compiled.document.elements.map((element, index) =>
-      index === Math.floor(elementCount / 2) ? ({ ...element, enabled: !element.enabled } as typeof element) : element
+      index === Math.floor(elementCount / 2)
+        ? ({ ...element, activity: element.activity === "disabled" ? "visible" : "disabled" } as typeof element)
+        : element
     )
   };
   return { source, compiled, prev, afterDoc };
@@ -49,11 +51,11 @@ const buildCommitFixture = (elementCount: number) => {
 const measureCommitCost = (elementCount: number, runs: number) => {
   const { prev, afterDoc } = buildCommitFixture(elementCount);
   const prodMedian = measureMedian(`${elementCount}要素 advanceShadow prod相当`, runs, () => {
-    advanceShadow(prev, afterDoc, 2);
+    advanceShadow(prev, afterDoc, 3);
   });
   const devMedian = measureMedian(`${elementCount}要素 advanceShadow dev相当`, runs, () => {
-    const next = advanceShadow(prev, afterDoc, 2);
-    assertShadowEquivalent(afterDoc, next.compiled.document, 2);
+    const next = advanceShadow(prev, afterDoc, 3);
+    assertShadowEquivalent(afterDoc, next.compiled.document, 3);
     assertReconcileSane(prev.compiled, next.text, afterDoc);
   });
   return { prodMedian, devMedian };
@@ -98,7 +100,7 @@ describe("shadowText 大規模文書コミットコスト計測", () => {
     const { compiled } = buildCommitFixture(1000);
     if (!compiled.document) throw new Error("fixture must compile");
     measureMedian("1000要素 serializeDocumentToDsl（式入り）", 3, () => {
-      serializeDocumentToDsl(compiled.document!, 2);
+      serializeDocumentToDsl(compiled.document!, 3);
     });
   }, 20_000);
 });

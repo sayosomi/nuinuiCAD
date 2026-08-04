@@ -24,7 +24,6 @@ export const elementSupportsDisplayColor = (element: CadElement): boolean => {
     case "symmetricCopyLine":
     case "text":
       return true;
-    case "variable":
     case "edge":
     case "extendTrim":
     case "move":

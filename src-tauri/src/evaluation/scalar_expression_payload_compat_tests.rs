@@ -14,8 +14,7 @@ fn baseline_elements() -> Vec<Value> {
         "id": "a",
         "name": "点A",
         "type": "freePoint",
-        "visible": true,
-        "enabled": true,
+        "activity": "visible",
         "x": 10,
         "y": 20
     })]

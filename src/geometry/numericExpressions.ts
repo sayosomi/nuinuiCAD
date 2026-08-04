@@ -3,7 +3,6 @@ import type {
   ComputedGeometry,
   ComputedLine,
   ComputedPoint,
-  ComputedVariable,
   ElementId,
   NumericVariable,
   NumericValue
@@ -21,7 +20,6 @@ import type {
   NumericExpressionReference,
   NumericMeasurementKey
 } from "./numericExpressionTypes";
-import { resolveVariableReference } from "./variableScope";
 export { lineMeasurementLabel } from "./numericExpressionProperties";
 export type {
   LineMeasurementKey,
@@ -175,8 +173,7 @@ export const formatNumericExpressionForDisplay = (
     .replace(/@([^\s()+*/.<>!=&|]+)/g, (match, variableId: string) => {
       const variableName = variablesById.get(variableId);
       if (variableName) return `@${variableName}`;
-      const variableElement = elementsById.get(variableId);
-      return variableElement?.type === "variable" ? `@${displayName(variableElement)}` : match;
+      return match;
     })
     .replace(
       /(distance|angle|lineDistance|距離|角度|点線距離)\(\s*([^)]*?)\s*\)/g,
@@ -275,7 +272,7 @@ const filteredNameTokensFor = (
   const cached = filteredNameTokensCache.get(nameTokens);
   if (cached) return cached;
   const computed: FilteredNameTokens = {
-    variableElementTokens: nameTokens.filter(({ element }) => element.type === "variable"),
+    variableElementTokens: [],
     measurableElementTokens: nameTokens.filter(({ element }) => measurableElementIds.has(element.id))
   };
   filteredNameTokensCache.set(nameTokens, computed);
@@ -613,7 +610,6 @@ export const evaluateNumericValue = ({
   elementsById,
   localVariables,
   localVariableNames,
-  computedVariables,
   currentElement,
   elements
 }: {
@@ -622,7 +618,6 @@ export const evaluateNumericValue = ({
   elementsById: Map<ElementId, CadElement>;
   localVariables?: Map<string, number>;
   localVariableNames?: Map<string, string>;
-  computedVariables?: Map<ElementId, ComputedVariable>;
   currentElement?: CadElement;
   elements?: CadElement[];
 }): { value?: number; error?: NumericExpressionError } => {
@@ -695,7 +690,6 @@ export const evaluateNumericValue = ({
               elementsById,
               localVariables,
               localVariableNames,
-              computedVariables,
               currentElement,
               elements
             });
@@ -715,7 +709,6 @@ export const evaluateNumericValue = ({
             elementsById,
             localVariables,
             localVariableNames,
-            computedVariables,
             currentElement,
             elements
           });
@@ -726,9 +719,6 @@ export const evaluateNumericValue = ({
           });
         }
       }
-
-      const variableValue = computedVariables?.get(reference.elementId);
-      if (reference.property === "value" && variableValue) return variableValue.value;
 
       if (!geometry) {
         const dependencyName = elementsById.get(reference.elementId)?.name;
@@ -757,23 +747,6 @@ export const evaluateNumericValue = ({
     }, (variableId) => {
       const variableValue = localVariables?.get(variableId);
       if (variableValue !== undefined) return variableValue;
-
-      if (currentElement && elements && computedVariables) {
-        const variable = resolveVariableReference({
-          variableIdOrName: variableId,
-          consumer: currentElement,
-          elements,
-          elementsById,
-          computedVariables
-        });
-        if (variable?.computed) return variable.computed.value;
-        if (variable?.element) {
-          throw Object.assign(
-            new Error(`${variable.element.name} はこの要素より後にあるか、評価できません。`),
-            { dependencyId: variable.element.id, dependencyName: variable.element.name }
-          );
-        }
-      }
 
       throw Object.assign(
         new Error(`${localVariableNames?.get(variableId) ?? variableId} はこの要素内に存在しません。または参照可能な変数に存在しません。`),
@@ -822,7 +795,6 @@ type ResolveTextReferencesArgs = {
   elementsById: Map<ElementId, CadElement>;
   localVariables?: Map<string, number>;
   localVariableNames?: Map<string, string>;
-  computedVariables?: Map<ElementId, ComputedVariable>;
   currentElement?: CadElement;
   elements?: CadElement[];
 };
@@ -839,7 +811,6 @@ export const resolveTextReferences = ({
   elementsById,
   localVariables,
   localVariableNames,
-  computedVariables,
   currentElement,
   elements
 }: ResolveTextReferencesArgs): { text?: string; error?: NumericExpressionError } => {
@@ -857,7 +828,6 @@ export const resolveTextReferences = ({
       elementsById,
       localVariables,
       localVariableNames,
-      computedVariables,
       currentElement,
       elements
     });

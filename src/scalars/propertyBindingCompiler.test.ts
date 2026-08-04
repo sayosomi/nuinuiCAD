@@ -260,10 +260,10 @@ describe("compilePropertyBindings: non-opt-in rejection", () => {
     expect(diagnostics[0].code).toBe(PROPERTY_BINDING_NOT_SUPPORTED_CODE);
   });
 
-  it("does not disturb an ordinary literal group(visible/printEnabled) statement", () => {
+  it("does not disturb an ordinary literal group(state/printEnabled) statement", () => {
     const compiled = compileFor([
       "const unused: number = 1",
-      "group G (visible: true printEnabled: false) {", "}"
+      "group G (state: visible printEnabled: false) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);

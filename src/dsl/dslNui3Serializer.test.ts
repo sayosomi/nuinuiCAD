@@ -56,7 +56,7 @@ describe("nui 3 serializer facade", () => {
     expect(reparsed.doc.scalarProgram?.statements.map((entry) => entry.declaration.declaredType.kind)).toEqual(["string", "boolean"]);
     expect(reparsed.doc.setStatements).toHaveLength(1);
     expect(reparsed.doc.propertyBindings).toHaveLength(1);
-    expect(reparsed.doc.document.elements.find((element) => element.name === "A")).toMatchObject({ visible: false, enabled: true });
+    expect(reparsed.doc.document.elements.find((element) => element.name === "A")).toMatchObject({ activity: "hidden" });
   });
 
   it("patches a complete multiline statement range and leaves all other bytes untouched", () => {
@@ -239,7 +239,12 @@ describe("nui 3 serializer facade", () => {
   });
 
   it("rejects every non-nui-3 serializer entry without a fallback rewrite", () => {
-    const current = currentFor("nui 2\npoint A = coordinate(x: 0 y: 0)");
+    // compileCanonicalText now rejects any non-nui-3 source outright, so a
+    // majorVersion !== 3 `current` can no longer arise from real input; this
+    // exercises the defensive guard directly against a still-valid nui 3
+    // `current` with only its reported majorVersion overridden.
+    const nui3Current = currentFor("nui 3\npoint A = coordinate(x: 0, y: 0)");
+    const current = { ...nui3Current, doc: { ...nui3Current.doc, majorVersion: 2 as unknown as 3 } };
     expect(serializeNui3Document(current)).toMatchObject({ status: "noop" });
     expect(buildNui3StatementPatch(current, "anything")).toMatchObject({ status: "noop" });
   });

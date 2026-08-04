@@ -16,8 +16,7 @@ const group = (
   id,
   name: id,
   type: "group",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   ...patch
 });
 
@@ -28,8 +27,7 @@ const point = (
   id,
   name: id,
   type: "freePoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   x: 0,
   y: 0,
   ...patch
@@ -51,9 +49,9 @@ describe("visibility profiles", () => {
     })]).toEqual(["body", "allowance", "allowance-point", "multi", "multi-point"]);
   });
 
-  it("does not let role visibility override visible=false", () => {
+  it("does not let role visibility override activity: hidden", () => {
     const elements = [
-      group("allowance", { visible: false, visibilityRoleIds: ["seam"] }),
+      group("allowance", { activity: "hidden", visibilityRoleIds: ["seam"] }),
       point("child", { parentGroupId: "allowance" })
     ];
 

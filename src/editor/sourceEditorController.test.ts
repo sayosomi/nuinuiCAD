@@ -13,7 +13,7 @@ import { startCommandLineCreation } from "../commands/commandLineSessionCommands
 import { SourceEditorController } from "./sourceEditorController";
 
 const freePoint = (id: string, name: string, x: number, y: number): DslDocumentData["elements"][number] => ({
-  id, name, type: "freePoint", visible: true, enabled: true, x, y
+  id, name, type: "freePoint", activity: "visible", x, y
 });
 
 const onePointSource = (x = 0, y = 0) => dslTextForElements([freePoint("a", "A", x, y)]);
@@ -27,7 +27,7 @@ const twoPointSource = (a: [number, number] = [0, 0], b: [number, number] = [1, 
 // 文字追記でその場が"1200"に伸びる、という各テストの前提を保つため)。
 const numericValueSource = () => dslTextForElements([
   freePoint("a", "A", 0, 0),
-  { id: "b", name: "B", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 0, dy: 120 }
+  { id: "b", name: "B", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 0, dy: 120 }
 ]);
 
 type ControllerInternals = {
@@ -99,13 +99,13 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("places a creation-return cursor after a group's complete closing structure", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 2",
+      "nui 3",
       "if 分岐 (1) {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "} else {",
-      "  point B = coordinate(x: 1 y: 1)",
+      "  point B = coordinate(x: 1, y: 1)",
       "}",
-      "point C = coordinate(x: 2 y: 2)"
+      "point C = coordinate(x: 2, y: 2)"
     ].join("\n"), "test");
     const parent = document.createElement("div");
     document.body.append(parent);
@@ -131,12 +131,12 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("uses the mapped statement end when an uncommitted deletion makes closeBraceLine stale", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 2",
+      "nui 3",
       "# 上方の未commit行",
       "group G {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}",
-      "point B = coordinate(x: 1 y: 1)"
+      "point B = coordinate(x: 1, y: 1)"
     ].join("\n"), "test");
     const parent = document.createElement("div");
     document.body.append(parent);
@@ -160,9 +160,9 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("rejects an invalid mapped range without changing selection or focus", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 2",
+      "nui 3",
       "group G {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"), "test");
     const parent = document.createElement("div");
@@ -188,7 +188,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       freePoint("a", "A", 0, 0),
       freePoint("b", "B", 100, 0),
       {
-        id: "c", name: "C", type: "bezierCurve", visible: true, enabled: true,
+        id: "c", name: "C", type: "bezierCurve", activity: "visible",
         startPoint: { mode: "reference", pointId: "a" }, startHandleAngleDeg: 0, startHandleLength: 1,
         endPoint: { mode: "reference", pointId: "b" }, endHandleAngleDeg: 2, endHandleLength: 3,
         intermediatePoints: [{
@@ -230,9 +230,9 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("does not move the creation-return cursor during composition, then moves after compositionend", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 2",
+      "nui 3",
       "group G {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"), "test");
     const parent = document.createElement("div");
@@ -258,7 +258,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("falls back to the element line for a parameter omitted by DSL defaults", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
-      { id: "g", name: "G", type: "group", visible: true, enabled: true }
+      { id: "g", name: "G", type: "group", activity: "visible" }
     ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -273,10 +273,10 @@ describe("SourceEditorController commit and history boundaries", () => {
   it("starts the matching Canvas picker from a complete selected parameter value", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
       freePoint("a", "A", 0, 0),
-      { id: "b", name: "B", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 10, dy: 20 },
-      { id: "ab", name: "AB", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
-      { id: "cross", name: "Cross", type: "intersectionPoint", visible: true, enabled: true, line1Id: "ab", line2Id: "ab", intersectionIndex: 0, useExtensions: false },
-      { id: "seam", name: "Seam", type: "offsetLine", visible: true, enabled: true, baseLineIds: ["ab"], offset: 10, side: "left", closed: false }
+      { id: "b", name: "B", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 10, dy: 20 },
+      { id: "ab", name: "AB", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
+      { id: "cross", name: "Cross", type: "intersectionPoint", activity: "visible", line1Id: "ab", line2Id: "ab", intersectionIndex: 0, useExtensions: false },
+      { id: "seam", name: "Seam", type: "offsetLine", activity: "visible", baseLineIds: ["ab"], offset: 10, side: "left", closed: false }
     ]), "test");
     const parent = document.createElement("div");
     document.body.append(parent);
@@ -341,7 +341,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   it("rejects unsupported, partial, multiline, invalid, or already-active Source Editor selections", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
       freePoint("a", "A", 0, 0),
-      { id: "b", name: "B", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: 10, dy: 20 }
+      { id: "b", name: "B", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 10, dy: 20 }
     ]), "test");
     const parent = document.createElement("div");
     document.body.append(parent);
@@ -512,7 +512,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
       // Canvas-equivalent model patch on the clean editor
       const patched = useCadDocumentStore.getState().elements.map((element) =>
-        element.name === "A" ? { ...element, enabled: cycle % 2 === 0 } : element
+        element.name === "A" ? { ...element, activity: cycle % 2 === 0 ? "visible" as const : "disabled" as const } : element
       );
       const result = useCadDocumentStore.getState().commitDocumentChange({ elements: patched });
       expect(result).toEqual({ status: "applied" });
@@ -708,7 +708,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("keeps Canvas multiple selection as one cursor plus secondary line decoration", () => {
     useCadDocumentStore.getState().commitText(
-      "nui 2\npoint A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 1 y: 1)",
+      "nui 3\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)",
       "test"
     );
     const parent = document.createElement("div");
@@ -724,7 +724,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
     internals.view.dispatch({ changes: { from: internals.view.state.selection.main.head, insert: "# " } });
     expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("# point A");
-    expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("point B = coordinate(x: 1 y: 1)");
+    expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("point B = coordinate(x: 1, y: 1)");
     controller.destroy();
   });
 
@@ -752,7 +752,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("defers Canvas cursor and fold projection until composition ends", () => {
     const source = dslTextForElements([
-      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "g", name: "G", type: "group", activity: "visible" },
       { ...freePoint("a", "A", 0, 0), parentGroupId: "g" },
       freePoint("b", "B", 1, 1)
     ]);
@@ -782,7 +782,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("uses dirty mapped fold positions rather than stale statement line numbers", () => {
     const source = dslTextForElements([
-      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "g", name: "G", type: "group", activity: "visible" },
       { ...freePoint("a", "A", 0, 0), parentGroupId: "g" }
     ]);
     useCadDocumentStore.getState().commitText(source, "test");
@@ -805,7 +805,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("unfolds an invalidated dirty target instead of retaining a stale brace row", () => {
-    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -821,11 +821,11 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("projects nested group and else folds from cadUiStore, expanding ancestors before an external jump", () => {
     const source = dslTextForElements([
-      { id: "outer", name: "Outer", type: "group", visible: true, enabled: true },
-      { id: "branch", name: "Branch", type: "conditionalGroup", visible: true, enabled: true, condition: 1, parentGroupId: "outer" },
-      { id: "then", name: "Then", type: "freePoint", visible: true, enabled: true, x: 0, y: 0, parentGroupId: "branch", conditionalBranch: "then" },
-      { id: "inner", name: "Inner", type: "group", visible: true, enabled: true, parentGroupId: "branch", conditionalBranch: "else" },
-      { id: "else", name: "Else", type: "freePoint", visible: true, enabled: true, x: 1, y: 1, parentGroupId: "inner" }
+      { id: "outer", name: "Outer", type: "group", activity: "visible" },
+      { id: "branch", name: "Branch", type: "conditionalGroup", activity: "visible", condition: 1, parentGroupId: "outer" },
+      { id: "then", name: "Then", type: "freePoint", activity: "visible", x: 0, y: 0, parentGroupId: "branch", conditionalBranch: "then" },
+      { id: "inner", name: "Inner", type: "group", activity: "visible", parentGroupId: "branch", conditionalBranch: "else" },
+      { id: "else", name: "Else", type: "freePoint", activity: "visible", x: 1, y: 1, parentGroupId: "inner" }
     ]);
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
@@ -858,11 +858,11 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("folds and unfolds every currently valid conditional target", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "if Choice (1) {",
-      "  point Then = coordinate(x: 0 y: 0)",
+      "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
-      "  point Else = coordinate(x: 1 y: 1)",
+      "  point Else = coordinate(x: 1, y: 1)",
       "}"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
@@ -889,11 +889,11 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("folds a multiline statement from its opening line while keeping its closing row visible", () => {
     const source = [
-      "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: A",
-      "  dx: 100",
+      "  from: A,",
+      "  dx: 100,",
       "  dy: 0",
       ")"
     ].join("\n");
@@ -920,15 +920,15 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("expands only the statement target when jumping to a parameter inside a folded multiline statement", () => {
     const source = [
-      "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: A",
-      "  dx: 100",
+      "  from: A,",
+      "  dx: 100,",
       "  dy: 0",
       ")",
       "group G {",
-      "  point C = coordinate(x: 2 y: 2)",
+      "  point C = coordinate(x: 2, y: 2)",
       "}"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
@@ -967,8 +967,8 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("renders a fold gutter marker for an initially expanded multiline statement", () => {
     const source = [
-      "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  from: A",
       ")"
@@ -983,7 +983,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("folds every physical row of a vertical child statement", () => {
     const source = dslTextForElements([
-      { id: "g", name: "G", type: "group", visible: true, enabled: true },
+      { id: "g", name: "G", type: "group", activity: "visible" },
       { ...freePoint("a", "A", 0, 0), parentGroupId: "g" }
     ]);
     useCadDocumentStore.getState().commitText(source, "test");
@@ -1005,7 +1005,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("consumes gutter clicks on lines without a fold target", () => {
-    const source = ["nui 2", "point A = coordinate(x: 0 y: 0)"].join("\n");
+    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -1025,15 +1025,15 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("applies Fold All and Unfold All as a single store update", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "if Choice (1) {",
-      "  point Then = coordinate(x: 0 y: 0)",
+      "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
-      "  point Else = coordinate(x: 1 y: 1)",
+      "  point Else = coordinate(x: 1, y: 1)",
       "}",
       "point B = offset(",
-      "  from: Then",
-      "  dx: 100",
+      "  from: Then,",
+      "  dx: 100,",
       "  dy: 0",
       ")"
     ].join("\n");
@@ -1069,7 +1069,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("unfolds via a placeholder click through the app fold state", () => {
-    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     document.body.append(parent);
@@ -1089,12 +1089,12 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("keeps a child statement fold independent of its parent group fold", () => {
     const source = [
-      "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
       "group G {",
       "  point B = offset(",
-      "    from: A",
-      "    dx: 100",
+      "    from: A,",
+      "    dx: 100,",
       "    dy: 0",
       "  )",
       "}"
@@ -1131,7 +1131,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("restores fold state after a dirty anchor edit is undone and recommitted", () => {
-    const source = ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "}"].join("\n");
+    const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -1168,11 +1168,11 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("drives fold and unfold-all through the real keymap", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "if Choice (1) {",
-      "  point Then = coordinate(x: 0 y: 0)",
+      "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
-      "  point Else = coordinate(x: 1 y: 1)",
+      "  point Else = coordinate(x: 1, y: 1)",
       "}"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
@@ -1462,7 +1462,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
     // 同一statement内に3個以上の数値を持つ要素(arc: radius/start/end)を使う。
     const arcSource = dslTextForElements([
       freePoint("a", "A", 0, 0),
-      { id: "arc", name: "Arc", type: "arcLine", visible: true, enabled: true, centerPoint: { mode: "coordinate", x: 0, y: 0 }, radius: 0, startAngleDeg: 0, endAngleDeg: 120 }
+      { id: "arc", name: "Arc", type: "arcLine", activity: "visible", centerPoint: { mode: "coordinate", x: 0, y: 0 }, radius: 0, startAngleDeg: 0, endAngleDeg: 120 }
     ]);
     useCadDocumentStore.getState().commitText(arcSource, "test");
     const parent = document.createElement("div");

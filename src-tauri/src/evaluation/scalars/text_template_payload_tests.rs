@@ -12,8 +12,8 @@ fn literal_segment(cooked: &str) -> serde_json::Value {
     json!({"kind": "literal", "cooked": cooked})
 }
 
-fn legacy_hole_segment(raw: &str) -> serde_json::Value {
-    json!({"kind": "hole", "holeKind": "legacy", "raw": raw})
+fn numeric_expression_hole_segment(raw: &str) -> serde_json::Value {
+    json!({"kind": "hole", "holeKind": "numeric", "raw": raw})
 }
 
 fn string_literal_expression(value: &str) -> serde_json::Value {
@@ -45,12 +45,12 @@ fn accepts_a_literal_only_template_without_a_scalar_program() {
 }
 
 #[test]
-fn accepts_a_legacy_hole_only_template_without_a_scalar_program() {
+fn accepts_a_numeric_expression_hole_only_template_without_a_scalar_program() {
     let payload = json!([template(
         "label-1",
         vec![
             literal_segment("count: "),
-            legacy_hole_segment("line.length")
+            numeric_expression_hole_segment("line.length")
         ]
     )]);
     assert!(validate_text_templates_payload(&payload, &text_type_map(), false).is_ok());
@@ -133,8 +133,8 @@ fn rejects_a_literal_segment_with_an_unexpected_field() {
 }
 
 #[test]
-fn rejects_a_legacy_hole_segment_with_an_unexpected_field() {
-    let mut segment = legacy_hole_segment("line.length");
+fn rejects_a_numeric_expression_hole_segment_with_an_unexpected_field() {
+    let mut segment = numeric_expression_hole_segment("line.length");
     segment["extra"] = json!(true);
     let payload = json!([template("label-1", vec![segment])]);
     assert!(validate_text_templates_payload(&payload, &text_type_map(), false).is_err());

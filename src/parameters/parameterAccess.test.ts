@@ -15,8 +15,7 @@ describe("parameterAccess", () => {
       id: "point-a",
       name: "点A",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       x: 10,
       y: 20
     };
@@ -30,8 +29,7 @@ describe("parameterAccess", () => {
       id: "point-b",
       name: "点B",
       type: "offsetPoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       fromPointId: "point-a",
       dx: 10,
       dy: 0
@@ -49,8 +47,7 @@ describe("parameterAccess", () => {
       id: "line",
       name: "線",
       type: "line",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "coordinate", x: 0, y: 5 },
       endPoint: referenceAnchor("point-a")
     };
@@ -68,8 +65,7 @@ describe("parameterAccess", () => {
       id: "arc",
       name: "円弧",
       type: "arcLine",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       centerPoint: referenceAnchor("point-a"),
       radius: 30,
       startAngleDeg: 0,
@@ -86,8 +82,7 @@ describe("parameterAccess", () => {
       id: "arc",
       name: "三点円弧",
       type: "threePointArcLine",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       point1: referenceAnchor("point-a"),
       point2: referenceAnchor("point-b"),
       point3: referenceAnchor("point-c"),
@@ -106,8 +101,7 @@ describe("parameterAccess", () => {
       id: "division",
       name: "分点",
       type: "divisionPoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: referenceAnchor("point-a"),
       endPoint: referenceAnchor("point-b"),
       placement: { kind: "ratio", value: 0.5 }
@@ -130,8 +124,7 @@ describe("parameterAccess", () => {
       id: "division",
       name: "分点",
       type: "divisionPoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: referenceAnchor("point-a"),
       endPoint: referenceAnchor("point-b"),
       placement: { kind: "ratio", value: 0.5 }
@@ -152,8 +145,7 @@ describe("parameterAccess", () => {
       id: "line-division",
       name: "線上分点",
       type: "lineDivisionPoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       endpoint: { lineId: "line-a", endpointKey: "start" },
       placement: { kind: "ratio", value: 0.5 }
     };
@@ -175,8 +167,7 @@ describe("parameterAccess", () => {
       id: "intersection",
       name: "交点",
       type: "intersectionPoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       line1Id: "line-a",
       line2Id: "line-b",
       intersectionIndex: 0,
@@ -195,8 +186,7 @@ describe("parameterAccess", () => {
       id: "line-tangent-offset",
       name: "線上オフセット点",
       type: "lineTangentOffsetPoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       baseLineId: "line-a",
       basePoint: referenceAnchor("point-a"),
       tangentAngleDeg: 0,
@@ -219,8 +209,7 @@ describe("parameterAccess", () => {
       id: "split",
       name: "分割線",
       type: "splitLine",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       baseLineId: "line-a",
       splitPoint: referenceAnchor("point-a")
     };
@@ -241,8 +230,7 @@ describe("parameterAccess", () => {
       id: "curve",
       name: "曲線",
       type: "bezierCurve",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: referenceAnchor("point-a"),
       startHandleAngleDeg: 0,
       startHandleLength: 20,
@@ -288,8 +276,7 @@ describe("parameterAccess", () => {
       id: "point-a",
       name: "点A",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       numericVariables: [{ id: "var-1", name: "幅", value: 30 }],
       x: { kind: "expression", expression: "@var-1" },
       y: 20
@@ -306,21 +293,15 @@ describe("parameterAccess", () => {
     });
   });
 
-  it("supports numeric variables on variable elements", () => {
+  it("supports numeric variables on ordinary elements", () => {
     const variable: CadElement = {
-      id: "variable",
-      name: "変数",
-      type: "variable",
-      visible: true,
-      enabled: true,
+      id: "point-with-vars",
+      name: "点",
+      type: "freePoint",
+      activity: "visible",
       numericVariables: [{ id: "var-1", name: "幅", value: 30 }],
-      scope: "global",
-      valueMode: "expression",
-      expression: { kind: "expression", expression: "@var-1 * 2" },
-      point1: { mode: "reference", pointId: "point-a" },
-      point2: { mode: "reference", pointId: "point-b" },
-      point: { mode: "reference", pointId: "point-a" },
-      lineId: "line-ab"
+      x: 0,
+      y: 0
     };
 
     expect(supportsNumericVariables(variable)).toBe(true);

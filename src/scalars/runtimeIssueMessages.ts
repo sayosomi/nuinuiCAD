@@ -9,7 +9,7 @@
 // still get a message (fail-closed, never blank) rather than being dropped.
 const RUNTIME_ISSUE_MESSAGES: Readonly<Record<string, string>> = {
   "poisoned-binding": "評価に失敗し無効化されています。",
-  "evaluation-external-binding-unavailable": "参照先の変数が見つかりません。",
+  "evaluation-binding-unavailable": "参照先のbindingを解決できません。",
   "evaluation-runtime-value-type-mismatch": "値の型が宣言と一致しません。",
   "evaluation-binding-cycle-guard": "循環参照が検出されました。",
   "evaluation-binding-version-unavailable": "この時点のsetがまだ評価されていません。",

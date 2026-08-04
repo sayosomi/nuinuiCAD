@@ -29,7 +29,7 @@ describe("SourceSearchPanel", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
-    useCadDocumentStore.getState().commitText("nui 2\npoint Alpha = coordinate(x: 0 y: 0)\npoint Beta = coordinate(x: 1 y: 1)", "test");
+    useCadDocumentStore.getState().commitText("nui 3\npoint Alpha = coordinate(x: 0, y: 0)\npoint Beta = coordinate(x: 1, y: 1)", "test");
   });
 
   afterEach(() => {

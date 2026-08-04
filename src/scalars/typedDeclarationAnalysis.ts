@@ -11,7 +11,7 @@ import { resolveInitializerReferences, type BindingResolution, type InitializerR
 import type { ScalarExpressionAst } from "./expressionAst";
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
-import type { ReconciledCadContainerInput } from "./legacyContainerIndex";
+import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { ScalarProgramPositionMap } from "./scalarProgram";
 import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
@@ -62,37 +62,25 @@ export const collectReferences = (ast: ScalarExpressionAst): readonly { name: st
   return references;
 };
 
-/**
- * Any occurrence of these forms anywhere in an AST - through `group`
- * wrapping - is syntax the legacy numeric expression grammar
- * (src/geometry/numericExpressionParser.ts) cannot represent at all,
- * regardless of what any `@name` reference inside it resolves to. Shared by
- * Task 25's conditionalGroupConditionCompiler.ts and Task 26's
- * textTemplate.ts, which both need to decide whether a piece of syntax could
- * ever have been a working legacy expression before falling back to it.
- */
-export const containsLegacyIncompatibleSyntax = (ast: ScalarExpressionAst): boolean => {
+/** Whether an expression needs scalar-only syntax rather than the separate
+ * numeric expression evaluator used by geometry, local numeric variables,
+ * and text interpolation. */
+export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolean => {
   switch (ast.kind) {
     case "booleanLiteral":
     case "stringLiteral":
     case "unresolvedChoiceLiteral":
       return true;
     case "unary":
-      return ast.operator === "!" || containsLegacyIncompatibleSyntax(ast.operand);
+      return ast.operator === "!" || containsNonNumericScalarSyntax(ast.operand);
     case "binary":
-      return containsLegacyIncompatibleSyntax(ast.left) || containsLegacyIncompatibleSyntax(ast.right);
+      return containsNonNumericScalarSyntax(ast.left) || containsNonNumericScalarSyntax(ast.right);
     case "group":
-      return containsLegacyIncompatibleSyntax(ast.expression);
+      return containsNonNumericScalarSyntax(ast.expression);
     default:
       return false;
   }
 };
-
-/** A resolution is a "definite" legacy reference only when it actually
- * resolved to a binding whose declaredType is null (the legacy-var shape) -
- * anything else (unresolved, or a typed binding) is not legacy-eligible. */
-export const isDefiniteLegacyReference = (resolution: BindingResolution | undefined): boolean =>
-  resolution?.kind === "resolved" && resolution.binding.declaredType === null;
 
 /** Shared "why this reference isn't usable" message for a non-resolved
  * BindingResolution - same wording Task 25's conditionalGroupConditionCompiler.ts
@@ -201,9 +189,7 @@ export const analyzeTypedDeclarations = ({
   const catalog = buildBindingCatalog({
     scopeIndex,
     stableStatementIdByIndex,
-    legacyBindings: adapter.legacyBindings,
     iterationBindings: adapter.iterationBindings,
-    elementLocalBindings: adapter.elementLocalBindings,
     containerIndex: adapter.containerIndex
   });
   const parsedByBindingId = new Map<BindingId, ParsedInitializer>();

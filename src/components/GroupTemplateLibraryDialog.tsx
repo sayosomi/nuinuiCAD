@@ -6,7 +6,6 @@ import { isGroupElement, subtreeIdsForElement } from "../model/groups";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import {
-  candidateNumericTemplateInputs,
   createTemplateFromGroup,
   type GroupTemplate,
   type GroupTemplateLibrary
@@ -33,8 +32,7 @@ const selectedGroup = (elements: CadElement[], selectedElementId: ElementId | nu
 const templateSummary = (template: GroupTemplate) => {
   const points = template.inputs.filter((input) => input.kind === "point").length;
   const lines = template.inputs.filter((input) => input.kind === "line").length;
-  const numbers = template.inputs.filter((input) => input.kind === "numeric").length;
-  return `${template.elements.length}要素 / 点${points} / 線${lines} / 数値${numbers}`;
+  return `${template.elements.length}要素 / 点${points} / 線${lines}`;
 };
 
 const normalizedSearchText = (template: GroupTemplate) =>
@@ -52,7 +50,6 @@ export const GroupTemplateLibraryDialog = () => {
   const [library, setLibrary] = useState<GroupTemplateLibrary>({ version: 1, templates: [] });
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState("");
-  const [numericInputIds, setNumericInputIds] = useState<Set<ElementId>>(new Set());
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const group = selectedGroup(elements, selectedElementId);
@@ -60,13 +57,9 @@ export const GroupTemplateLibraryDialog = () => {
   const insertionIndex = templateInsertionSourceInsertion?.insertionTarget.insertionIndex
     ?? creationPlacementForEvaluationLimit(elements, evaluationLimitIndex).insertionIndex;
 
-  const templateElements = useMemo(
-    () => group ? elements.filter((element) => subtreeIdsForElement(elements, group.id).includes(element.id)) : [],
+  const templateChildCount = useMemo(
+    () => group ? subtreeIdsForElement(elements, group.id).length - 1 : 0,
     [elements, group]
-  );
-  const numericCandidates = useMemo(
-    () => candidateNumericTemplateInputs(templateElements),
-    [templateElements]
   );
   const filteredTemplates = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -113,8 +106,7 @@ export const GroupTemplateLibraryDialog = () => {
       const template = createTemplateFromGroup({
         elements,
         groupId: group.id,
-        name: saveTemplateName,
-        numericVariableElementIds: [...numericInputIds]
+        name: saveTemplateName
       });
       const nextLibrary = await upsertGroupTemplate(template);
       setLibrary(nextLibrary);
@@ -254,12 +246,9 @@ export const GroupTemplateLibraryDialog = () => {
 
           <GroupTemplateSavePanel
             groupName={group?.name ?? null}
-            childCount={Math.max(templateElements.length - 1, 0)}
+            childCount={Math.max(templateChildCount, 0)}
             templateName={templateName}
-            numericCandidates={numericCandidates}
-            numericInputIds={numericInputIds}
             onTemplateNameChange={setTemplateName}
-            onNumericInputIdsChange={setNumericInputIds}
             onSave={saveSelectedGroup}
           />
         </div>

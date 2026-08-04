@@ -35,8 +35,8 @@ export type DependencyIndex = {
 
 /**
  * Compiled nui 3 text templates retain the distinction between literal,
- * typed, and legacy holes that the cooked `TextElement.text` value loses.
- * Callers with a compiled document should provide this map so only legacy
+ * typed, and numeric holes that the cooked `TextElement.text` value loses.
+ * Callers with a compiled document should provide this map so only compiled
  * holes participate in geometry dependency collection.
  */
 export type DependencyCollectionOptions = {
@@ -63,7 +63,7 @@ const textGeometryParentReferences = (
   const template = textTemplatesByElementId?.get(element.id);
   if (!template) return extractTextReferences(element.text);
   return template.segments.flatMap((segment) =>
-    segment.kind === "hole" && segment.holeKind === "legacy"
+    segment.kind === "hole" && segment.holeKind === "numeric"
       // Task 51: `segment.raw` is unnormalized *name*-form source text (no
       // element-name context is available here to run the full
       // normalizeNumericExpressionInput lowering), so a nui 3
@@ -95,25 +95,6 @@ export const getDirectParentIds = (
           ...extractNumericExpressionReferences(element.start),
           ...extractNumericExpressionReferences(element.count),
           ...extractNumericExpressionReferences(element.step)
-        ].map((reference) => reference.elementId);
-      case "variable":
-        return [
-          ...numericVariableReferences(element),
-          ...(element.valueMode === "expression"
-            ? extractNumericExpressionReferences(element.expression)
-            : []),
-          ...(element.valueMode === "pointDistance" || element.valueMode === "pointAngle"
-            ? [
-                ...pointAnchorParentIds(element.point1).map((elementId) => ({ elementId })),
-                ...pointAnchorParentIds(element.point2).map((elementId) => ({ elementId }))
-              ]
-            : []),
-          ...(element.valueMode === "pointLineDistance"
-            ? [
-                ...pointAnchorParentIds(element.point).map((elementId) => ({ elementId })),
-                { elementId: element.lineId }
-              ]
-            : [])
         ].map((reference) => reference.elementId);
       case "freePoint":
         return [
@@ -281,8 +262,6 @@ export const getDirectParentIds = (
     case "conditionalGroup":
       return numericExpressionParentIds();
     case "forGroup":
-      return numericExpressionParentIds();
-    case "variable":
       return numericExpressionParentIds();
     case "freePoint":
       return numericExpressionParentIds();

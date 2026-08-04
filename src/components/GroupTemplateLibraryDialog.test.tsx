@@ -18,14 +18,7 @@ const library: GroupTemplateLibrary = {
       elements: [],
       inputs: [
         { id: "point:base", kind: "point", label: "基準点", sourceElementId: "base" },
-        { id: "line:guide", kind: "line", label: "基準線", sourceElementId: "guide" },
-        {
-          id: "numeric:length",
-          kind: "numeric",
-          label: "袖丈",
-          variableElementId: "length",
-          defaultValue: 55
-        }
+        { id: "line:guide", kind: "line", label: "基準線", sourceElementId: "guide" }
       ],
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z"
@@ -104,10 +97,9 @@ describe("GroupTemplateLibraryDialog", () => {
     expect(await screen.findByRole("heading", { name: "テンプレートを挿入" })).toBeInTheDocument();
     expect(screen.getByText(`${library.templates.length}件 / 挿入位置 3`)).toBeInTheDocument();
     expect(screen.getByText("袖テンプレート")).toBeInTheDocument();
-    expect(screen.getByText("0要素 / 点1 / 線1 / 数値1")).toBeInTheDocument();
+    expect(screen.getByText("0要素 / 点1 / 線1")).toBeInTheDocument();
     expect(screen.getByText("基準点")).toBeInTheDocument();
     expect(screen.getByText("基準線")).toBeInTheDocument();
-    expect(screen.getByText("袖丈")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /挿入を開始/ }));
 

@@ -32,7 +32,7 @@ export type DslSerializerRefs = {
   numeric: (value: NumericValue, source: CadElement) => string;
   name: (element: CadElement) => string;
   includeRecordIds: boolean;
-  /** Selects v2 legacy `visible`/`enabled` flags vs. v3 `state:` canonical output. */
+  /** The sole supported nui 3 document dialect. */
   majorVersion: DslMajorVersion;
 };
 

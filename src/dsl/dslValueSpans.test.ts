@@ -14,15 +14,15 @@ const textOf = (source: string, span: { start: number; end: number }) => source.
 
 describe("dslLineValueSpans", () => {
   it("keeps the legacy projection while exposing payload and attribute labels", () => {
-    const source = "point A = coordinate(x: 0 y: 10 visible: false)";
+    const source = "point A = coordinate(x: 0 y: 10 state: hidden)";
     const labeled = dslLineLabeledValueSpans(source);
     const xStart = source.indexOf("x: 0") + "x: ".length;
     const yStart = source.indexOf("y: 10") + "y: ".length;
-    const visibleStart = source.indexOf("visible: false") + "visible: ".length;
+    const stateStart = source.indexOf("state: hidden") + "state: ".length;
     expect(labeled).toEqual([
       { start: xStart, end: xStart + 1, source: "attr", key: "x" },
       { start: yStart, end: yStart + 2, source: "attr", key: "y" },
-      { start: visibleStart, end: visibleStart + 5, source: "attr", key: "visible" }
+      { start: stateStart, end: stateStart + 6, source: "attr", key: "state" }
     ]);
     expect(labeled.map(({ start, end }) => ({ start, end }))).toEqual(dslLineValueSpans(source));
   });
@@ -57,7 +57,7 @@ describe("dslLineValueSpans", () => {
   });
 
   it("selects a boolean attribute value", () => {
-    const source = "point A = coordinate(x: 0 y: 10 visible: true)";
+    const source = "line L = offset(sources: [AB] distance: 10 side: right closed: true)";
     const spans = dslLineValueSpans(source);
     expect(spans.at(-1)).toBeDefined();
     expect(textOf(source, spans.at(-1)!)).toBe("true");
@@ -187,9 +187,9 @@ describe("adjacentDslValueSpan", () => {
   });
 
   it("walks a mixed payload/attribute line in source order", () => {
-    const source = "line AB = segment(start: A end: B color: red locked: false)";
+    const source = "line AB = segment(start: A end: B color: red state: hidden)";
     const spans = dslLineValueSpans(source);
-    expect(spans.map((span) => textOf(source, span))).toEqual(["A", "B", "red", "false"]);
+    expect(spans.map((span) => textOf(source, span))).toEqual(["A", "B", "red", "hidden"]);
 
     let current = spans[0].start;
     const order: string[] = [];
@@ -198,7 +198,7 @@ describe("adjacentDslValueSpan", () => {
       order.push(textOf(source, next));
       current = next.start;
     }
-    expect(order).toEqual(["B", "red", "false", "A", "B"]);
+    expect(order).toEqual(["B", "red", "hidden", "A", "B"]);
   });
 
   it("resolves from a caret inside a value, an exact-match selection, and a caret outside every value", () => {

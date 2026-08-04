@@ -4,9 +4,7 @@ import {
 } from "../model/documentSelection";
 import { moveElementsToInsertionIndex as moveDocumentElementsToInsertionIndex } from "../model/documentOrder";
 import {
-  elementActivityFromLegacyFlags,
   elementTypeSupportsHiddenActivity,
-  legacyFlagsForElementActivity,
   nextElementActivity,
   type ElementActivity
 } from "../model/elementActivity";
@@ -43,9 +41,9 @@ const applyActivityToTargets = (
   const nextElements = elements.map((element) => {
     if (!targetIds.has(element.id)) return element;
     if (activity === "hidden" && !elementTypeSupportsHiddenActivity(element.type)) return element;
-    if (elementActivityFromLegacyFlags(element) === activity) return element;
+    if (element.activity === activity) return element;
     changed = true;
-    return { ...element, ...legacyFlagsForElementActivity(activity) };
+    return { ...element, activity };
   });
   return changed ? nextElements : null;
 };
@@ -55,10 +53,10 @@ export const cycleElementActivity = (elementId: ElementId | undefined) => {
   const target = elements.find((element) => element.id === elementId);
   if (!target) return;
 
-  const next = nextElementActivity(elementActivityFromLegacyFlags(target), target.type);
+  const next = nextElementActivity(target.activity, target.type);
   useCadDocumentStore.getState().commitDocumentChange({
     elements: elements.map((element) =>
-      element.id === elementId ? { ...element, ...legacyFlagsForElementActivity(next) } : element
+      element.id === elementId ? { ...element, activity: next } : element
     )
   });
 };

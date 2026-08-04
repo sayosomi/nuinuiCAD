@@ -1,7 +1,7 @@
 import { dslLineLabeledValueSpans } from "./dslValueSpans";
 import { recordFields, recordRemainder, recordSpans } from "./dslParameterSpanScanner";
 import { unquoteDslString } from "./dslTokens";
-import { localNumericVariableReferenceOptions, type NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
+import { localNumericReferenceOptions, type NumericReferenceOption } from "../geometry/numericReferenceOptions";
 import type { CadElement, ElementId } from "../types/geometry";
 
 const recordNameText = (lineText: string, record: { start: number; end: number }) => {
@@ -38,7 +38,7 @@ export const dslLocalVariableCompletionOptions = ({
   pos: number;
   elementId: ElementId | undefined;
   elements: readonly CadElement[];
-}): NumericVariableReferenceOption[] => {
+}): NumericReferenceOption[] => {
   if (!elementId) return [];
   const element = elements.find((item) => item.id === elementId);
   if (!element) return [];
@@ -65,5 +65,5 @@ export const dslLocalVariableCompletionOptions = ({
     ? localVariables.findIndex((variable) => variable.id === matches[0].id)
     : localVariables.length;
 
-  return localNumericVariableReferenceOptions({ element, localVariableLimit });
+  return localNumericReferenceOptions({ element, localVariableLimit });
 };

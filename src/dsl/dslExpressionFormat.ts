@@ -61,14 +61,6 @@ export const formatNumericValueForDsl = (
     .replace(/@([^\s()+*/.<>!=&|]+)/g, (match, variableId: string) => {
       const localName = localVariableTokenById.get(variableId);
       if (localName) return `@${localName}`;
-      const variableElement = elementsById.get(variableId);
-      if (variableElement?.type === "variable") {
-        const token = tokenById.get(variableId);
-        // A print/local variable with the same name has lookup precedence.
-        // Keep the global runtime ID in that case so the round-trip cannot
-        // silently retarget the expression to the local variable.
-        if (token && !localVariableNameCounts.has(token)) return `@${token}`;
-      }
       return match;
     })
     .replace(/([\w-]+):(\w+)/g, (match, elementId: string, pointKey: string) => {

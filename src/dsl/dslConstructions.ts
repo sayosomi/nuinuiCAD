@@ -25,7 +25,6 @@ export type DslConstructionCategory =
   | "arc"
   | "text"
   | "image"
-  | "var"
   | "group"
   | "if"
   | "for";
@@ -58,11 +57,6 @@ const special = (argName: string, value: DslArgSpecial): DslArgSpec => ({
 });
 
 export const commonArgSpecs: DslArgSpec[] = [
-  arg("locked"),
-  arg("visible"),
-  arg("enabled"),
-  // v3-only alternative to visible/enabled; see element-state-conflict validation
-  // in dslCallParser.ts and lowering in dslApplyArgs.ts.
   arg("state"),
   arg("color", "colorId"),
   special("steps", "steps"),
@@ -172,28 +166,6 @@ const constructionSpecs: DslConstructionSpec[] = [
       arg("angleDeg"),
       arg("mirrorX"),
     ],
-  },
-  { category: "var", construction: "expression", elementType: "variable", args: [arg("value", "expression"), arg("scope")] },
-  {
-    category: "var",
-    construction: "pointDistance",
-    elementType: "variable",
-    preset: { valueMode: "pointDistance" },
-    args: [arg("point1"), arg("point2")],
-  },
-  {
-    category: "var",
-    construction: "pointAngle",
-    elementType: "variable",
-    preset: { valueMode: "pointAngle" },
-    args: [arg("point1"), arg("point2")],
-  },
-  {
-    category: "var",
-    construction: "pointLineDistance",
-    elementType: "variable",
-    preset: { valueMode: "pointLineDistance" },
-    args: [arg("point"), arg("line", "lineId")],
   },
   { category: "group", construction: "", elementType: "group", args: [arg("printEnabled"), arg("printAnchor"), special("roles", "roles")] },
   { category: "if", construction: "", elementType: "conditionalGroup", args: [{ ...positional("condition"), required: true }] },

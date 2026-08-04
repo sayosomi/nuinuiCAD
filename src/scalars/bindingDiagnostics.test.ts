@@ -25,7 +25,6 @@ const catalogFor = (source: string) => {
   return buildBindingCatalog({
     scopeIndex,
     stableStatementIdByIndex: stableIds,
-    legacyBindings: adapter.legacyBindings,
     iterationBindings: adapter.iterationBindings,
     containerIndex: adapter.containerIndex
   });

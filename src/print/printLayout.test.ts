@@ -8,32 +8,16 @@ import {
   resolvePrintLayout
 } from "./printLayout";
 
-const variable: CadElement = {
-  id: "scale-var",
-  name: "倍率",
-  type: "variable",
-  visible: true,
-  enabled: true,
-  scope: "global",
-  valueMode: "expression",
-  expression: 1.5,
-  point1: { mode: "coordinate", x: 0, y: 0 },
-  point2: { mode: "coordinate", x: 0, y: 0 },
-  point: { mode: "coordinate", x: 0, y: 0 },
-  lineId: ""
-};
-
 const group: CadElement = {
   id: "print-group",
   name: "印刷グループ",
   type: "group",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   printEnabled: true,
   printAnchor: { mode: "coordinate", x: 0, y: 0 }
 };
 
-const elements = [variable, group];
+const elements = [group];
 
 describe("printLayout", () => {
   it("resolves the active layout by id, then the first layout, then the default", () => {
@@ -94,18 +78,18 @@ describe("printLayout", () => {
     expect(layout.outputKind).toBe("svg");
   });
 
-  it("resolves print layout expressions with global variables and clamps page counts", () => {
+  it("resolves print layout numeric expressions and clamps page counts", () => {
     const layout: PrintLayout = {
       ...DEFAULT_PRINT_LAYOUT,
       columns: { kind: "expression", expression: "30" },
-      scale: { kind: "expression", expression: "@scale-var" },
-      svgCanvasWidthMm: { kind: "expression", expression: "@scale-var * 100" },
+      scale: { kind: "expression", expression: "1.5" },
+      svgCanvasWidthMm: { kind: "expression", expression: "1.5 * 100" },
       svgCanvasHeightMm: { kind: "expression", expression: "-20" },
       placements: [
         {
           id: "placement-1",
           groupId: group.id,
-          x: { kind: "expression", expression: "@scale-var * 10" },
+          x: { kind: "expression", expression: "1.5 * 10" },
           y: 20,
           angleDeg: 0,
           mirrorX: false

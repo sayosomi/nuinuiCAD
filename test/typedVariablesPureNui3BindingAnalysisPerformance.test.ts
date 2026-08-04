@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../src/dsl/dslDocument";
-import {
-  BASELINE_SIZES,
-  buildPureNui3BindingAnalysisBaselineSource
-} from "./typedVariablesBaselineFixtures";
+import { PURE_NUI3_BINDING_SIZES, buildPureNui3BindingSource } from "./pureNui3BindingFixtures";
 import {
   expectPerformanceRegressionGate,
   logPerformanceGateMeasurement,
@@ -11,14 +8,14 @@ import {
   type FixtureCounts
 } from "./typedVariablesPerformanceMeasurement";
 
-const [SMALL_SIZE, LARGE_SIZE] = BASELINE_SIZES;
+const [SMALL_SIZE, LARGE_SIZE] = PURE_NUI3_BINDING_SIZES;
 const runPerformanceGates = (globalThis as {
   process?: { env?: Record<string, string | undefined> };
 }).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
 const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 
 const prepare = (bindingCount: number) => {
-  const fixture = buildPureNui3BindingAnalysisBaselineSource(bindingCount);
+  const fixture = buildPureNui3BindingSource(bindingCount);
   return {
     ...fixture,
     assignedStatementIds: new Map(

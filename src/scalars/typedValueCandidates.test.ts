@@ -100,11 +100,14 @@ describe("resolvePrecedingOperandType", () => {
   });
 });
 
-describe("resolvePrecedingOperandType: legacy binding implicit-number and invalid exclusion", () => {
-  it("legacy var reference resolves to implicit number", () => {
-    const { catalog, entriesById } = compileFor(["nui 3", "var legacy = 1", "const n: number = @legacy"].join("\n"));
-    const site = { scopeId: catalog.scopeIndex.rootScopeId, statementIndex: bindingIdByName(catalog, "n").statementIndex };
-    const referenceToken = tokenizeScalarExpression("@legacy", { start: 0, end: 7 }).tokens[0];
+describe("resolvePrecedingOperandType: implicit-number binding and invalid exclusion", () => {
+  it("forGroup iteration binding reference resolves to implicit number", () => {
+    const { catalog, entriesById } = compileFor(
+      ["nui 3", "for Loop (i, from: 0, count: 2) {", "  const n: number = @i", "}"].join("\n")
+    );
+    const n = bindingIdByName(catalog, "n");
+    const site = { scopeId: n.effectiveScopeId, statementIndex: n.statementIndex };
+    const referenceToken = tokenizeScalarExpression("@i", { start: 0, end: 2 }).tokens[0];
     expect(resolvePrecedingOperandType({ precedingToken: referenceToken, catalog, entriesById, site, rootType: null })).toEqual({ kind: "number" });
   });
 

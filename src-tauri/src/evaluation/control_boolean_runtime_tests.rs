@@ -71,12 +71,12 @@ fn program(statements: Vec<Value>) -> Value {
 }
 
 fn point(id: &str, x: f64, y: f64) -> Value {
-    json!({ "id": id, "name": id, "type": "freePoint", "visible": true, "enabled": true, "x": x, "y": y })
+    json!({ "id": id, "name": id, "type": "freePoint", "activity": "visible", "x": x, "y": y })
 }
 
 fn conditional_group(id: &str, condition: Value) -> Value {
     json!({
-        "id": id, "name": id, "type": "conditionalGroup", "visible": true, "enabled": true,
+        "id": id, "name": id, "type": "conditionalGroup", "activity": "visible",
         "condition": condition, "expanded": true, "elseExpanded": true
     })
 }
@@ -84,7 +84,7 @@ fn conditional_group(id: &str, condition: Value) -> Value {
 fn branch_point(id: &str, parent_id: &str, branch: &str) -> Value {
     json!({
         "id": id, "name": id, "type": "freePoint", "parentGroupId": parent_id,
-        "conditionalBranch": branch, "visible": true, "enabled": true, "x": 0, "y": 0
+        "conditionalBranch": branch, "activity": "visible", "x": 0, "y": 0
     })
 }
 
@@ -97,7 +97,7 @@ fn control_boolean_binding_entry(element_id: &str, parameter_key: &str, binding_
 
 fn for_group(id: &str, count: f64, show_generated_literal: bool) -> Value {
     json!({
-        "id": id, "name": id, "type": "forGroup", "visible": true, "enabled": true,
+        "id": id, "name": id, "type": "forGroup", "activity": "visible",
         "variableName": "i", "start": 0, "count": count, "step": 1, "showGenerated": show_generated_literal
     })
 }
@@ -253,7 +253,7 @@ fn show_generated_bound_true_is_reflected_without_affecting_rows() {
 #[test]
 fn show_generated_bound_false_keeps_generated_geometry_but_removes_it_from_the_draw_mask() {
     let template = json!({
-        "id": "copy", "name": "copy", "type": "freePoint", "visible": true, "enabled": true,
+        "id": "copy", "name": "copy", "type": "freePoint", "activity": "visible",
         "parentGroupId": "loop", "x": 10, "y": 0
     });
     let result = evaluate_document_input(input(
@@ -315,25 +315,25 @@ fn a_typed_condition_inside_a_for_group_template_resolves_the_same_branch_on_eve
     let line_a = point("a", 0.0, 0.0);
     let line_b = point("b", 10.0, 0.0);
     let base_line = json!({
-        "id": "ab", "name": "ab", "type": "line", "visible": true, "enabled": true,
+        "id": "ab", "name": "ab", "type": "line", "activity": "visible",
         "startPoint": {"mode": "reference", "pointId": "a"},
         "endPoint": {"mode": "reference", "pointId": "b"}
     });
     let for_group_el = for_group("loop", 3.0, false);
     let if_el = json!({
         "id": "if", "name": "if", "type": "conditionalGroup", "parentGroupId": "loop",
-        "visible": true, "enabled": true, "condition": 0.0, "expanded": true, "elseExpanded": true
+        "activity": "visible", "condition": 0.0, "expanded": true, "elseExpanded": true
     });
     let then_line = json!({
         "id": "then-line", "name": "then-line", "type": "copyLine", "parentGroupId": "if",
-        "conditionalBranch": "then", "visible": true, "enabled": true,
+        "conditionalBranch": "then", "activity": "visible",
         "startPoint": {"mode": "reference", "pointId": "a"},
         "endPoint": {"mode": "reference", "pointId": "b"},
         "scale": 1, "angleDeg": 0, "mirrorX": false, "baseLineIds": ["ab"]
     });
     let else_line = json!({
         "id": "else-line", "name": "else-line", "type": "copyLine", "parentGroupId": "if",
-        "conditionalBranch": "else", "visible": true, "enabled": true,
+        "conditionalBranch": "else", "activity": "visible",
         "startPoint": {"mode": "reference", "pointId": "a"},
         "endPoint": {"mode": "reference", "pointId": "b"},
         "scale": 1, "angleDeg": 0, "mirrorX": true, "baseLineIds": ["ab"]

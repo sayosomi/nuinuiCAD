@@ -3081,20 +3081,20 @@ textarea {
   font-size: 12px;
 }
 
-.reference-helper-legacy {
+.reference-helper {
   display: grid;
   gap: 8px;
   border-top: 1px solid #d8dbd2;
   padding-top: 10px;
 }
 
-.reference-helper-legacy-actions {
+.reference-helper-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.reference-helper-legacy .measurement-mode-grid {
+.reference-helper .measurement-mode-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 

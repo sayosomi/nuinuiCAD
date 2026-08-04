@@ -31,12 +31,6 @@ describe("nui 3 bare element-property reference diagnostic (Task 51)", () => {
     expect(errors[0].message).toContain("@AB.length");
   });
 
-  it("flags a bare reference in var NAME = expr", () => {
-    const source = ["nui 3", "line AB = segment(start: (0, 0), end: (10, 0))", "var v = expression(value: AB.length)"].join("\n");
-    const errors = errorsOf(source);
-    expect(errors.some((error) => error.code === BARE_PROPERTY_REFERENCE_CODE)).toBe(true);
-  });
-
   it("flags a bare reference inside a vars=[...] record", () => {
     const source = [
       "nui 3",
@@ -66,16 +60,6 @@ describe("nui 3 bare element-property reference diagnostic (Task 51)", () => {
       "if 条件 (@AB.length > 0) {",
       "  point C = coordinate(x: 0, y: 0)",
       "}"
-    ].join("\n");
-    const errors = errorsOf(source);
-    expect(errors).toEqual([]);
-  });
-
-  it("does not flag anything in a nui 2 document (nui 2 is unaffected)", () => {
-    const source = [
-      "nui 2",
-      "line AB = segment(start: (0, 0) end: (10, 0))",
-      "point C = coordinate(x: AB.length y: 0)"
     ].join("\n");
     const errors = errorsOf(source);
     expect(errors).toEqual([]);

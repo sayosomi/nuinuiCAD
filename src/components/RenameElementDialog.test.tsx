@@ -42,10 +42,10 @@ const renderDialog = async (onConfirmed: ComponentProps<typeof RenameElementDial
 };
 
 const seed = () => {
-  // Written in v2's canonical vertical-call shape: renameElementWithPropagation's
+  // Written in nui 3's canonical vertical-call shape: renameElementWithPropagation's
   // dev assertion requires an in-place line patch (no inserted/removed lines).
   useCadDocumentStore.getState().commitText(
-    ["nui 2", "point A = coordinate(", "  x: 0", "  y: 0", ")", "point B = coordinate(", "  x: 10", "  y: 0", ")"].join("\n"),
+    ["nui 3", "point A = coordinate(", "  x: 0,", "  y: 0", ")", "point B = coordinate(", "  x: 10,", "  y: 0", ")"].join("\n"),
     "test"
   );
   useCadDocumentStore.setState({ past: [], future: [], dirtySinceSave: false });

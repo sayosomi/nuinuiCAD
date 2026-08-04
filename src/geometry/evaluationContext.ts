@@ -1,7 +1,6 @@
 import type {
   CadElement,
   ComputedGeometry,
-  ComputedVariable,
   ComputedPoint,
   DependencyError,
   ElementId,
@@ -11,7 +10,6 @@ import type {
 } from "../types/geometry";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { evaluateNumericValue } from "./numericExpressions";
-import { isVariableElement, variableIsInScope } from "./variableScope";
 
 export type LocalVariableEvaluation = {
   localVariableValues: Map<string, number>;
@@ -96,7 +94,6 @@ export const numericError = (
   localVariables?: Map<string, number>,
   localVariableNames?: Map<string, string>,
   disabledByGroupId?: Map<ElementId, ElementId>,
-  computedVariables?: Map<ElementId, ComputedVariable>,
   elements?: CadElement[]
 ) => {
   const result = evaluateNumericValue({
@@ -105,7 +102,6 @@ export const numericError = (
     elementsById,
     localVariables,
     localVariableNames,
-    computedVariables,
     currentElement: element,
     elements
   });
@@ -137,7 +133,6 @@ export const getPointAnchorOrError = (
   localVariables?: Map<string, number>,
   localVariableNames?: Map<string, string>,
   disabledByGroupId?: Map<ElementId, ElementId>,
-  computedVariables?: Map<ElementId, ComputedVariable>,
   elements?: CadElement[]
 ) => {
   if (anchor.mode === "reference") {
@@ -174,7 +169,6 @@ export const getPointAnchorOrError = (
     localVariables,
     localVariableNames,
     disabledByGroupId,
-    computedVariables,
     elements
   );
   const y = numericError(
@@ -186,7 +180,6 @@ export const getPointAnchorOrError = (
     localVariables,
     localVariableNames,
     disabledByGroupId,
-    computedVariables,
     elements
   );
   if (x === undefined || y === undefined) return undefined;
@@ -205,34 +198,12 @@ export const evaluateLocalVariables = (
   computedGeometry: Map<ElementId, ComputedGeometry>,
   elementsById: Map<ElementId, CadElement>,
   errors: DependencyError[],
-  computedVariables?: Map<ElementId, ComputedVariable>,
-  elements?: CadElement[],
-  hasLegacyVariableElements = true
+  elements?: CadElement[]
 ): LocalVariableEvaluation | null => {
   const localVariableValues = new Map<string, number>();
   const localVariableNames = new Map(
     (element.numericVariables ?? []).map((variable) => [variable.id, variable.name])
   );
-
-  // `evaluateElements` determines this once from the source document. A
-  // forGroup appends runtime elements as it expands, so repeating this search
-  // here would make a pure nui 3 loop pay a growing legacy-variable scan for
-  // every generated element. Keep the legacy path byte-for-byte equivalent
-  // when a document does contain a `variable` element.
-  if (hasLegacyVariableElements && computedVariables && elements) {
-    const elementIndex = elements.findIndex((item) => item.id === element.id);
-    for (let index = elementIndex - 1; index >= 0; index -= 1) {
-      const candidate = elements[index];
-      if (!isVariableElement(candidate)) continue;
-      if (!variableIsInScope({ variable: candidate, consumer: element, elementsById })) continue;
-      const computed = computedVariables.get(candidate.id);
-      if (!computed) continue;
-      if (!localVariableValues.has(candidate.id)) localVariableValues.set(candidate.id, computed.value);
-      if (!localVariableValues.has(candidate.name)) localVariableValues.set(candidate.name, computed.value);
-      if (!localVariableNames.has(candidate.id)) localVariableNames.set(candidate.id, candidate.name);
-      if (!localVariableNames.has(candidate.name)) localVariableNames.set(candidate.name, candidate.name);
-    }
-  }
 
   for (const variable of element.numericVariables ?? []) {
     const value = numericError(
@@ -244,7 +215,6 @@ export const evaluateLocalVariables = (
       localVariableValues,
       localVariableNames,
       undefined,
-      computedVariables,
       elements
     );
     if (value === undefined) return null;

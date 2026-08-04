@@ -9,7 +9,6 @@ import { scanTextTemplateLiteral } from "./textTemplateScan";
 import {
   compileTextTemplates,
   TEXT_TEMPLATE_HOLE_INVALID_CODE,
-  TEXT_TEMPLATE_HOLE_LEGACY_REFERENCE_CODE,
   TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE,
   TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE,
   type TextTemplateAst,
@@ -198,15 +197,6 @@ describe("compileTextTemplates: typed holes", () => {
     expect(compiled.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE);
   });
 
-  it("legacy var mixed into typed-only syntax is text-template-hole-legacy-reference", () => {
-    const compiled = compileTemplatesFor([
-      "const _unused: number = 0",
-      "var legacyVar = 5",
-      'text T = label(text: "{!(@legacyVar == 1)}" anchor: none size: 3)'
-    ].join("\n"));
-    expect(compiled.diagnostics.map((d) => d.code)).toContain(TEXT_TEMPLATE_HOLE_LEGACY_REFERENCE_CODE);
-  });
-
   it("reference to an invalid declaration is text-template-hole-invalid", () => {
     const compiled = compileTemplatesFor([
       "const 壊れた: string = @何か",
@@ -216,20 +206,8 @@ describe("compileTextTemplates: typed holes", () => {
   });
 });
 
-describe("compileTextTemplates: legacy holes stay untouched", () => {
-  it("a plain legacy var reference produces no diagnostics and a legacy hole", () => {
-    const compiled = compileTemplatesFor([
-      "const _unused: number = 0",
-      "var legacyVar = 5",
-      'text T = label(text: "value {@legacyVar}" anchor: none size: 3)'
-    ].join("\n"));
-    expect(compiled.diagnostics).toEqual([]);
-    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(2, "text"))!;
-    expect(holeAt(template, 0).holeKind).toBe("legacy");
-    expect(template.dependencies).toEqual([]);
-  });
-
-  it("legacy element-property syntax the typed grammar can't parse at all falls through untouched (nui 3 sigil form, Task 51)", () => {
+describe("compileTextTemplates: numeric-expression holes", () => {
+  it("element-property syntax outside the typed grammar remains a numeric-expression hole (nui 3 sigil form)", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
       "point A = coordinate(x: 0 y: 0)",
@@ -239,10 +217,10 @@ describe("compileTextTemplates: legacy holes stay untouched", () => {
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "text"))!;
-    expect(holeAt(template, 0)).toMatchObject({ holeKind: "legacy", raw: "@AB.length" });
+    expect(holeAt(template, 0)).toMatchObject({ holeKind: "numeric", raw: "@AB.length" });
   });
 
-  it("flags a bare (non-sigil) element-property reference inside a legacy hole (Task 51)", () => {
+  it("flags a bare (non-sigil) element-property reference inside a numeric-expression hole", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
       "point A = coordinate(x: 0 y: 0)",
@@ -255,14 +233,25 @@ describe("compileTextTemplates: legacy holes stay untouched", () => {
     expect(compiled.diagnostics[0].message).toContain("@AB.length");
   });
 
-  it("plain numeric expression hole with no references is legacy-eligible", () => {
+  it("plain numeric expression hole with no references remains numeric", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
       'text T = label(text: "sum {2+3}" anchor: none size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "text"))!;
-    expect(holeAt(template, 0).holeKind).toBe("legacy");
+    expect(holeAt(template, 0).holeKind).toBe("numeric");
+  });
+
+  it("a hole referencing only an element-local numeric variable compiles as a numeric-expression hole, even alongside an unrelated typed declaration", () => {
+    const compiled = compileTemplatesFor([
+      "const _unused: number = 0",
+      'text T = label(text: "幅は{@幅}mm" anchor: none size: 3 vars: [幅: 42])'
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "text"))!;
+    expect(holeAt(template, 0)).toMatchObject({ holeKind: "numeric", raw: "@幅" });
+    expect(template.dependencies).toEqual([]);
   });
 });
 
@@ -290,7 +279,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
     expect(scalarAnalysisCompilation.analysis).toBeUndefined();
   });
 
-  it("still scans brace/escape structure and classifies holes as legacy with bindingAnalysis undefined", () => {
+  it("still scans brace/escape structure and classifies numeric holes with bindingAnalysis undefined", () => {
     const parsed = parseDsl(noTypedDeclarationSource);
     const compiled = compileDslToElements(noTypedDeclarationSource, { elements: [], mode: "document", majorVersion: 3 });
     const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
@@ -305,7 +294,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
     const template = result.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(3, "text"))!;
     expect(template).toBeDefined();
     expect(template.segments[0]).toMatchObject({ kind: "literal", cooked: "length {AB.length} = " });
-    expect(holeAt(template, 0)).toMatchObject({ holeKind: "legacy", raw: "@AB.length" });
+    expect(holeAt(template, 0)).toMatchObject({ holeKind: "numeric", raw: "@AB.length" });
     expect(template.dependencies).toEqual([]);
   });
 
@@ -322,5 +311,21 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
     });
     expect(result.diagnostics).toHaveLength(1);
     expect(result.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE);
+  });
+
+  it("a hole referencing only an element-local numeric variable compiles as a numeric-expression hole with bindingAnalysis undefined", () => {
+    const source = ['text T = label(text: "幅は{@幅}mm" anchor: none size: 3 vars: [幅: 42])'].join("\n");
+    const parsed = parseDsl(source);
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+    const result = compileTextTemplates({
+      statements: parsed.statements,
+      elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+      elements: compiled.elements,
+      bindingAnalysis: undefined,
+      spans: { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom }
+    });
+    expect(result.diagnostics).toEqual([]);
+    const template = result.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(0, "text"))!;
+    expect(holeAt(template, 0)).toMatchObject({ holeKind: "numeric", raw: "@幅" });
   });
 });

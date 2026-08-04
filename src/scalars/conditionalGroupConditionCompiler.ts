@@ -1,26 +1,12 @@
-// Task 25: compiles a `conditionalGroup.condition` DSL value into a typed
-// boolean expression when it is genuinely typed-only syntax, leaving every
-// legacy numeric condition (including one that happens to use comparisons or
-// `&&`/`||`, which the legacy numeric grammar already supports) completely
-// untouched. See docs/typed-variables/tasks/25-boolean-control-flow-runtime.md.
-//
-// Classification is NOT "does it parse as a scalar expression" - the legacy
-// numeric expression grammar (src/geometry/numericExpressionParser.ts) also
-// parses comparisons and `&&`/`||`, producing 0/1. A condition is only
-// legacy-eligible when it contains no syntax the legacy grammar cannot
-// represent at all (boolean/string/choice literals, unary `!`) AND every
-// `@name` reference inside it resolves to a definite legacy var
-// (`declaredType === null`, or is absent entirely - zero references is
-// vacuously legacy-eligible too, since it's already fully expressible in the
-// old system). Anything else is a typed candidate: an unresolved reference,
-// a legacy-var reference mixed into otherwise-typed-only syntax, or a
-// non-boolean result type all become a fail-closed compile diagnostic - never
-// a silent fallback to the legacy adapter once committed to the typed path.
+// Compiles a `conditionalGroup.condition` DSL value into a typed boolean
+// expression whenever it references a typed binding or uses typed-only
+// syntax. Reference-free numeric conditions remain in the element-local
+// numeric evaluation path.
 //
 // Unlike src/scalars/propertyBindingCompiler.ts (Task 22), this module does
 // not route through ParameterDefinition.kind/SCALAR_ELIGIBLE_PARAMETER_KINDS
 // at all: `condition`'s ParameterDefinition intentionally stays `kind:
-// "number"` (its legacy literal/UI shape is unchanged), and the whole
+// "number"` (its literal/UI shape is unchanged), and the whole
 // attribute value here is a full expression - not a single `@name` token -
 // so Task 22's bare-reference-only compiler cannot represent it.
 
@@ -34,15 +20,13 @@ import { typecheckScalarExpression } from "./expressionTypecheck";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import {
   collectReferences,
-  containsLegacyIncompatibleSyntax,
-  isDefiniteLegacyReference,
+  containsNonNumericScalarSyntax,
   unresolvedReferenceMessage
 } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 
 export const CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE = "conditional-group-condition-unresolved";
 export const CONDITIONAL_GROUP_CONDITION_INVALID_CODE = "conditional-group-condition-invalid";
-export const CONDITIONAL_GROUP_CONDITION_LEGACY_REFERENCE_CODE = "conditional-group-condition-legacy-reference";
 export const CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE = "conditional-group-condition-type-mismatch";
 
 export type CompileConditionalGroupConditionsInput = {
@@ -97,7 +81,7 @@ export const compileConditionalGroupConditions = ({
 
     const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };
     const parsed = parseScalarExpression(" ".repeat(attr.valueStart) + attr.value, span);
-    if (!parsed.ast) return; // Not valid scalar-expression syntax at all - legacy path, untouched.
+    if (!parsed.ast) return; // Not scalar-expression syntax: numeric evaluation owns it.
     const ast = parsed.ast;
 
     const references = collectReferences(ast);
@@ -113,14 +97,10 @@ export const compileConditionalGroupConditions = ({
     const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests);
     const resolutionAt = (index: number) => resolutions.get(requestKey(index));
 
-    const hasTypedOnlySyntax = containsLegacyIncompatibleSyntax(ast);
-    const legacyEligible = !hasTypedOnlySyntax
-      && references.every((_, index) => isDefiniteLegacyReference(resolutionAt(index)));
-    if (legacyEligible) return; // Fully expressible in - and left to - the legacy numeric adapter.
+    if (references.length === 0 && !containsNonNumericScalarSyntax(ast)) return;
 
     // Typed candidate: every reference must resolve to a usable typed
-    // binding, or this occurrence fails closed with a diagnostic rather than
-    // silently falling back to legacy (it is committed to the typed path).
+    // binding, or this occurrence fails closed with a diagnostic.
     let hasReferenceDiagnostic = false;
     references.forEach((reference, index) => {
       const resolution = resolutionAt(index);
@@ -129,14 +109,6 @@ export const compileConditionalGroupConditions = ({
           spans, statement, reference.span, CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE,
           unresolvedReferenceMessage(reference.name, resolution)
         ));
-        hasReferenceDiagnostic = true;
-        return;
-      }
-      if (resolution.binding.declaredType === null) {
-        const message = resolution.binding.kind === "legacy"
-          ? `"${reference.name}" はlegacy変数であり、型付き条件式の中では使用できません。`
-          : `"${reference.name}" は無効な宣言のため参照できません。`;
-        diagnostics.push(diagnosticAt(spans, statement, reference.span, CONDITIONAL_GROUP_CONDITION_LEGACY_REFERENCE_CODE, message));
         hasReferenceDiagnostic = true;
         return;
       }

@@ -18,10 +18,10 @@ describe("useCanvasOverlayData", () => {
   it("keeps a planned group's first child in the virtual command-line point overlay", () => {
     const elements: CadElement[] = [
       {
-        id: "group", name: "グループ", type: "group", visible: true, enabled: true
+        id: "group", name: "グループ", type: "group", activity: "visible"
       },
       {
-        id: "first-point", name: "先頭点", type: "freePoint", visible: true, enabled: true,
+        id: "first-point", name: "先頭点", type: "freePoint", activity: "visible",
         parentGroupId: "group", x: 20, y: 0
       }
     ];
@@ -64,8 +64,7 @@ describe("useCanvasOverlayData", () => {
       id: "hidden-point",
       name: "Hidden",
       type: "freePoint",
-      visible: false,
-      enabled: true,
+      activity: "hidden",
       x: 20,
       y: 0
     }];
@@ -97,11 +96,11 @@ describe("useCanvasOverlayData", () => {
   it("keeps showGenerated=false loop geometry out of Canvas and pick overlays while retaining evaluation metadata", () => {
     const elements: CadElement[] = [
       {
-        id: "loop", name: "Loop", type: "forGroup", visible: true, enabled: true,
+        id: "loop", name: "Loop", type: "forGroup", activity: "visible",
         variableName: "i", start: 0, count: 2, step: 1, showGenerated: false
       },
       {
-        id: "generated-point", name: "Generated point", type: "freePoint", visible: true, enabled: true,
+        id: "generated-point", name: "Generated point", type: "freePoint", activity: "visible",
         parentGroupId: "loop", x: 10, y: 0
       }
     ];
@@ -133,10 +132,10 @@ describe("useCanvasOverlayData", () => {
 
   it("uses evaluated document text size and Canvas zoom without a minimum-size fallback", () => {
     const elements: CadElement[] = [
-      { id: "anchor", name: "Anchor", type: "freePoint", visible: true, enabled: true, x: 10, y: 20 },
-      { id: "small", name: "Small", type: "text", visible: true, enabled: true, text: "small", anchor: { mode: "reference", pointId: "anchor" }, fontSize: 3 },
-      { id: "large", name: "Large", type: "text", visible: true, enabled: true, text: "large", anchor: { mode: "reference", pointId: "anchor" }, fontSize: 30 },
-      { id: "hidden", name: "Hidden", type: "text", visible: false, enabled: true, text: "hidden", anchor: { mode: "reference", pointId: "anchor" }, fontSize: 2 },
+      { id: "anchor", name: "Anchor", type: "freePoint", activity: "visible", x: 10, y: 20 },
+      { id: "small", name: "Small", type: "text", activity: "visible", text: "small", anchor: { mode: "reference", pointId: "anchor" }, fontSize: 3 },
+      { id: "large", name: "Large", type: "text", activity: "visible", text: "large", anchor: { mode: "reference", pointId: "anchor" }, fontSize: 30 },
+      { id: "hidden", name: "Hidden", type: "text", activity: "hidden", text: "hidden", anchor: { mode: "reference", pointId: "anchor" }, fontSize: 2 },
     ];
     const pointPickCandidates = pickCandidates(elements, evaluateElements(elements), {
       activePointPickTarget: null,

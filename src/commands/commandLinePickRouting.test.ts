@@ -26,10 +26,10 @@ import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
 import type { CreationRecipe } from "./creationRecipes";
 
 const source = [
-  "nui 2",
-  "point A = coordinate(x: 0 y: 0)",
-  "point B = coordinate(x: 100 y: 0)",
-  "line AB = segment(start: A end: B)"
+  "nui 3",
+  "point A = coordinate(x: 0, y: 0)",
+  "point B = coordinate(x: 100, y: 0)",
+  "line AB = segment(start: A, end: B)"
 ].join("\n");
 
 const byName = (name: string) => {
@@ -299,15 +299,15 @@ describe("command-line pick routing", () => {
   it("normalizes generated forGroup references with the planned parent group and no target metadata", () => {
     const elements: CadElement[] = [
       {
-        id: "loop", name: "繰り返し", type: "forGroup", visible: true, enabled: true,
+        id: "loop", name: "繰り返し", type: "forGroup", activity: "visible",
         variableName: "i", start: 0, count: 2, step: 1, showGenerated: true
       },
       {
-        id: "point-template", name: "", type: "freePoint", visible: true, enabled: true,
+        id: "point-template", name: "", type: "freePoint", activity: "visible",
         parentGroupId: "loop", x: 0, y: 0
       },
       {
-        id: "inside", name: "内側", type: "offsetPoint", visible: true, enabled: true,
+        id: "inside", name: "内側", type: "offsetPoint", activity: "visible",
         parentGroupId: "loop", fromPoint: referenceAnchor("point-template"), dx: 10, dy: 0
       }
     ];

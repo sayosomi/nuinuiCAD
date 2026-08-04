@@ -13,8 +13,7 @@ const activityChain = (count: number): CadElement[] =>
     id: `group-${index}`,
     name: `group-${index}`,
     type: "group" as const,
-    visible: index % 3 !== 1,
-    enabled: index % 5 !== 2,
+    activity: index % 5 === 2 ? "disabled" as const : index % 3 === 1 ? "hidden" as const : "visible" as const,
     ...(index ? { parentGroupId: `group-${index - 1}` } : {})
   }));
 

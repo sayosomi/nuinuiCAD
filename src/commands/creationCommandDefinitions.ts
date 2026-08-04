@@ -21,12 +21,6 @@ export const creationCommandDefinitions = {
     palette: { order: 1, keywords: ["point", "free", "free point", "点", "追加"] },
     run: (context) => startCreationSessionForCommand("addFreePoint", context)
   },
-  addVariable: {
-    id: "addVariable",
-    label: "変数を追加",
-    palette: { order: 21.5, keywords: ["variable", "global", "local", "変数", "グローバル", "ローカル", "追加"] },
-    run: (context) => startCreationSessionForCommand("addVariable", context)
-  },
   addText: {
     id: "addText",
     label: "テキストを追加",

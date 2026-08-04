@@ -5,7 +5,7 @@
 //
 // Fixed precedence, loosest to tightest (docs/typed-variables/plan.md D09):
 //   ||  &&  ==/!=  </<=/>/>=  +/-  * /   then unary (!, -, +), then primary.
-// This differs from the legacy numeric parser (src/geometry/numericExpressionParser.ts,
+// This differs from the local numeric parser (src/geometry/numericExpressionParser.ts,
 // not imported here), which conflates comparison+equality into a single
 // non-chained tier - this parser splits them into two tiers per plan.md, and
 // keeps both non-chaining: a second comparison/equality operator applied

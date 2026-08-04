@@ -31,6 +31,7 @@ import {
   type InitializerResolutionRequest,
   type SiteReferenceRequest
 } from "./bindingResolution";
+import type { ElementLocalRangeIndex } from "./elementLocalRangeIndex";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
 import type { ScalarProgram } from "./scalarProgram";
 import { classifySetTargetResolution, type SetStatementAnalysis, type SetTargetClassification } from "./setStatementCompiler";
@@ -55,6 +56,13 @@ export type TypedRenameAnalysisInput = {
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
+  /** Same neutral local-resolution owner numeric-expression/text-template
+   * compilation already uses (see elementLocalRangeIndex.ts) - a rename
+   * that would newly resolve a reference to a same-named element-local
+   * variable must be rejected as a capture exactly like any other
+   * resolution change, so replay must see the same element-local data the
+   * real compiler does. */
+  elementLocalRangeIndex: ElementLocalRangeIndex;
 };
 
 export type TypedRenameSpan = {
@@ -152,6 +160,15 @@ const sameResolution = (before: BindingResolution, after: BindingResolution): bo
       return after.kind === "forward" && idListsEqual(before.bindingIds, after.bindingIds);
     case "duplicate":
       return after.kind === "duplicate" && idListsEqual(before.bindingIds, after.bindingIds);
+    case "resolvedLocal":
+      // Numeric-expression and template-hole occurrences both carry
+      // site.elementLocal and this replay passes elementLocalRangeIndex, so
+      // this arm is live: it is exactly what rejects a rename that would
+      // newly capture a same-named element-local variable (before/after
+      // local.id differs, or one side is "resolvedLocal" and the other
+      // isn't, which the outer `before.kind !== after.kind` check above
+      // already catches).
+      return after.kind === "resolvedLocal" && before.local.id === after.local.id;
   }
 };
 
@@ -220,9 +237,16 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
   const otherSiteOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind !== "set-target");
 
   // Pass 1: real catalog, every occurrence's actual current name text - one
-  // batched sweep per resolver, not one call per occurrence.
-  const initializerBefore = resolveInitializerReferences(input.catalog, toInitializerRequests(initializerOccurrences, null, null));
-  const siteBefore = resolveReferencesAtSites(input.catalog, toSiteRequests(siteOccurrences, null, null));
+  // batched sweep per resolver, not one call per occurrence. Both passes
+  // share the exact same elementLocalRangeIndex: a typed-binding rename
+  // never touches any element's numericVariables, so element-local
+  // visibility is identical before and after.
+  const initializerBefore = resolveInitializerReferences(
+    input.catalog,
+    toInitializerRequests(initializerOccurrences, null, null),
+    input.elementLocalRangeIndex
+  );
+  const siteBefore = resolveReferencesAtSites(input.catalog, toSiteRequests(siteOccurrences, null, null), input.elementLocalRangeIndex);
 
   const affectedKeys = new Set<string>();
   for (const resolved of initializerBefore) {
@@ -244,10 +268,11 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
   // occurrence keeps its real, unchanged text.
   const initializerAfterList = resolveInitializerReferences(
     virtualCatalog,
-    toInitializerRequests(initializerOccurrences, affectedKeys, newName)
+    toInitializerRequests(initializerOccurrences, affectedKeys, newName),
+    input.elementLocalRangeIndex
   );
   const initializerAfter = new Map(initializerAfterList.map((resolved) => [occurrenceKeyFor(resolved), resolved.resolution]));
-  const siteAfter = resolveReferencesAtSites(virtualCatalog, toSiteRequests(siteOccurrences, affectedKeys, newName));
+  const siteAfter = resolveReferencesAtSites(virtualCatalog, toSiteRequests(siteOccurrences, affectedKeys, newName), input.elementLocalRangeIndex);
 
   for (let index = 0; index < initializerOccurrences.length; index += 1) {
     const occurrence = initializerOccurrences[index];

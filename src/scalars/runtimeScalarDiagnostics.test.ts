@@ -64,7 +64,7 @@ describe("runtimeScalarDiagnostics", () => {
     const compiled = compile(source);
     const bindingId = bindingIdFor(compiled, "label");
     const diagnostics = runtimeScalarDiagnostics(
-      baseInput(compiled, new Map([[bindingId, errorEvaluation("evaluation-external-binding-unavailable")]]))
+      baseInput(compiled, new Map([[bindingId, errorEvaluation("evaluation-binding-unavailable")]]))
     );
     expect(diagnostics).toHaveLength(1);
     const [diagnostic] = diagnostics;

@@ -6,8 +6,7 @@ const point = (id: string, patch: Partial<CadElement> = {}): CadElement => ({
   id,
   name: id,
   type: "freePoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   x: 0,
   y: 0,
   ...patch
@@ -22,8 +21,7 @@ const line = (
   id,
   name: id,
   type: "line",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "reference", pointId: startId },
   endPoint: { mode: "reference", pointId: endId },
   ...patch
@@ -33,14 +31,12 @@ const group = (id: string, patch: Partial<CadElement> = {}): CadElement => ({
   id,
   name: id,
   type: "group",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   ...patch
 } as CadElement);
 
 const emptyEvaluation = (errors: EvaluationResult["errors"] = []): EvaluationResult => ({
   computedGeometry: new Map(),
-  computedVariables: new Map(),
   errors,
   warnings: []
 });
@@ -143,7 +139,7 @@ describe("DSL dependency closure export", () => {
 
   it("reports disabled and invalid pulled dependencies", () => {
     const elements = [
-      point("a", { enabled: false }),
+      point("a", { activity: "disabled" }),
       point("b"),
       line("ab", "a", "b")
     ];

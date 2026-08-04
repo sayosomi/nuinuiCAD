@@ -38,7 +38,7 @@ export const CONST_ASSIGNMENT_CODE = "const-assignment";
 export const INVALID_SET_TARGET_CODE = "invalid-set-target";
 export const MISSING_SET_STATEMENT_IDENTITY_CODE = "missing-stable-statement-identity";
 // Distinct from INVALID_SET_TARGET_CODE, which is reserved (plan.md) for the
-// *target* itself being unresolved/const/legacy/local/iteration. A reference
+// *target* itself being unresolved/const/local/iteration. A reference
 // elsewhere inside the RHS expression is a different failure mode, mirroring
 // how propertyBindingCompiler.ts/conditionalGroupConditionCompiler.ts each
 // use their own per-consumer codes for this rather than overloading a single
@@ -94,7 +94,7 @@ export type SetTargetClassification =
 
 /**
  * The single target-validity chain for a `set` statement's name resolution:
- * must resolve, must be a `let` (never `const`, and never legacy/iteration/
+ * must resolve, must be a `let` (never `const`, nor iteration/
  * elementLocal, all of which carry mutability "readonly"), and must have a
  * known declared type. Shared with Task 37's rename safety analysis
  * (src/scalars/typedRenameAnalysis.ts), which classifies the same target
@@ -297,16 +297,9 @@ export const compileSetStatements = ({
         return;
       }
       const referencedEntry = bindingAnalysis.entriesById.get(resolution.binding.id);
-      // Legacy measurement vars are the migration bridge's typed-number
-      // external bindings. Their catalog shape deliberately has no declared
-      // type or typed-program eligibility entry, but Task 15's typechecker
-      // already treats them as number and Task 31 reads their live runtime
-      // value. Do not reject that resolved reference as an invalid typed
-      // declaration.
-      const isLegacyNumericBinding = resolution.binding.kind === "legacy";
       if (
-        (!isLegacyNumericBinding && resolution.binding.declaredType === null) ||
-        (!isLegacyNumericBinding && referencedEntry?.status.kind === "invalid")
+        resolution.binding.declaredType === null ||
+        referencedEntry?.status.kind === "invalid"
       ) {
         diagnostics.push(diagnosticAt(
           spans,

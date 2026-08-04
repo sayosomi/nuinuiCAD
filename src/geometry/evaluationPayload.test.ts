@@ -11,16 +11,13 @@ import {
 import type { EvaluationPayload } from "./evaluationPayload";
 
 describe("evaluation payload conversion", () => {
-  it("round-trips computed geometry, variables, errors, warnings, and id sets", () => {
+  it("round-trips computed geometry, errors, warnings, and id sets", () => {
     const evaluation = evaluateElements(sampleElements, { evaluationLimitIndex: 3 });
     const payload = evaluationResultToPayload(evaluation);
     const roundTrip = evaluationPayloadToResult(payload);
 
     expect(Array.from(roundTrip.computedGeometry.values())).toEqual(
       Array.from(evaluation.computedGeometry.values())
-    );
-    expect(Array.from(roundTrip.computedVariables.values())).toEqual(
-      Array.from(evaluation.computedVariables.values())
     );
     expect(roundTrip.errors).toEqual(evaluation.errors);
     expect(roundTrip.warnings).toEqual(evaluation.warnings);
@@ -42,8 +39,8 @@ describe("evaluation payload conversion", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
-      "var d = pointDistance(point1: A, point2: B, state: disabled)",
-      "const dist: number = @d",
+      "line AB = segment(start: A, end: B, state: disabled)",
+      "const dist: number = @AB.length",
       "const label: string = \"seam\""
     ].join("\n")).doc;
 

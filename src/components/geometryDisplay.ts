@@ -10,8 +10,7 @@ import type {
   ComputedGeometry,
   ComputedLine,
   ComputedOffsetLine,
-  ComputedPoint,
-  ComputedVariable
+  ComputedPoint
 } from "../types/geometry";
 import { bezierCurveEndpointPoints } from "../geometry/lineMeasurements";
 
@@ -86,10 +85,6 @@ export const pointCoordinateRows = (point: ComputedPoint) => [
   { label: "座標", value: formatCoordinate(point) }
 ];
 
-export const variableInfoRows = (variable: ComputedVariable) => [
-  { label: "値", value: formatNumber(variable.value) }
-];
-
 export const lineInfoRows = (line: ComputedLine) => [
   { label: "始点", value: formatCoordinate(line.start) },
   { label: "終点", value: formatCoordinate(line.end) },
@@ -136,10 +131,8 @@ export const offsetLineInfoRows = (line: ComputedOffsetLine) => [
 
 /** Existing measurement formatting collected behind one read-only presentation entry point. */
 export const geometryInfoRows = (
-  geometry: ComputedGeometry | undefined,
-  variable: ComputedVariable | undefined
+  geometry: ComputedGeometry | undefined
 ) => {
-  if (variable) return variableInfoRows(variable);
   if (!geometry) return [];
   if (geometry.kind === "point") return pointCoordinateRows(geometry);
   if (geometry.kind === "line") return lineInfoRows(geometry);

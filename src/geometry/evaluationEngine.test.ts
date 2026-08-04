@@ -10,8 +10,7 @@ const pointA: CadElement = {
   id: "a",
   name: "A",
   type: "freePoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   x: 0,
   y: 0
 };
@@ -20,8 +19,7 @@ const pointB: CadElement = {
   id: "b",
   name: "B",
   type: "freePoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   x: 100,
   y: 0
 };
@@ -30,8 +28,7 @@ const line: CadElement = {
   id: "line",
   name: "線",
   type: "line",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "reference", pointId: "a" },
   endPoint: { mode: "reference", pointId: "b" }
 };
@@ -40,8 +37,7 @@ const angleLengthLine: CadElement = {
   id: "angle-line",
   name: "角度距離線",
   type: "angleLengthLine",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "reference", pointId: "a" },
   angleDeg: 0,
   length: 100
@@ -51,8 +47,7 @@ const arcLine: CadElement = {
   id: "arc",
   name: "円弧",
   type: "arcLine",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   centerPoint: { mode: "reference", pointId: "a" },
   radius: 10,
   startAngleDeg: 0,
@@ -63,8 +58,7 @@ const threePointArcLine: CadElement = {
   id: "three-point-arc",
   name: "三点円弧",
   type: "threePointArcLine",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   point1: { mode: "reference", pointId: "a" },
   point2: { mode: "coordinate", x: 0, y: -10 },
   point3: { mode: "coordinate", x: -10, y: 0 },
@@ -76,8 +70,7 @@ const bezierCurve: CadElement = {
   id: "curve",
   name: "曲線",
   type: "bezierCurve",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "reference", pointId: "a" },
   startHandleAngleDeg: 0,
   startHandleLength: 0,
@@ -91,8 +84,7 @@ const offsetLine: CadElement = {
   id: "offset",
   name: "オフセット",
   type: "offsetLine",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   baseLineIds: ["line"],
   offset: 10,
   side: "right",
@@ -103,8 +95,7 @@ const splitLine: CadElement = {
   id: "split",
   name: "分割線",
   type: "splitLine",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   baseLineId: "line",
   splitPoint: { mode: "reference", pointId: "a" }
 };
@@ -113,8 +104,7 @@ const edge = (line1Id: string, line2Id: string): CadElement => ({
   id: `edge-${line1Id}-${line2Id}`,
   name: "エッジ",
   type: "edge",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   endpoint1: { lineId: line1Id, endpointKey: "end" },
   endpoint2: { lineId: line2Id, endpointKey: "start" },
   intersectionIndex: 0
@@ -124,8 +114,7 @@ const extendTrim = (lineId: string): CadElement => ({
   id: `extend-${lineId}`,
   name: "延長短縮",
   type: "extendTrim",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   endpoint: { lineId, endpointKey: "end" },
   point: { mode: "reference", pointId: "a" }
 });
@@ -134,8 +123,7 @@ const cornerRadiusArcLine = (line1Id: string, line2Id: string): CadElement => ({
   id: `corner-${line1Id}-${line2Id}`,
   name: "角R",
   type: "cornerRadiusArcLine",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   endpoint1: { lineId: line1Id, endpointKey: "end" },
   endpoint2: { lineId: line2Id, endpointKey: "start" },
   radius: 10,
@@ -146,8 +134,7 @@ const lineDivisionPoint = (lineId: string): CadElement => ({
   id: `division-${lineId}`,
   name: "線上分点",
   type: "lineDivisionPoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   endpoint: { lineId, endpointKey: "start" },
   placement: { kind: "ratio", value: 0.5 }
 });
@@ -156,8 +143,7 @@ const lineTangentOffsetPoint = (lineId: string): CadElement => ({
   id: `tangent-offset-${lineId}`,
   name: "線上オフセット点",
   type: "lineTangentOffsetPoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   baseLineId: lineId,
   basePoint: { mode: "reference", pointId: "a" },
   tangentAngleDeg: 90,
@@ -168,8 +154,7 @@ const intersectionPoint = (line1Id: string, line2Id: string): CadElement => ({
   id: `intersection-${line1Id}-${line2Id}`,
   name: "交点",
   type: "intersectionPoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   line1Id,
   line2Id,
   intersectionIndex: 0,
@@ -180,8 +165,7 @@ const copyLine = (baseLineIds: string[]): CadElement => ({
   id: `copy-${baseLineIds.join("-")}`,
   name: "コピー",
   type: "copyLine",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "reference", pointId: "a" },
   endPoint: { mode: "reference", pointId: "b" },
   scale: 1,
@@ -194,8 +178,7 @@ const symmetricCopyLine = (baseLineIds: string[]): CadElement => ({
   id: `symmetric-copy-${baseLineIds.join("-")}`,
   name: "対称コピー",
   type: "symmetricCopyLine",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   axisPoint1: { mode: "reference", pointId: "a" },
   axisPoint2: { mode: "reference", pointId: "b" },
   baseLineIds
@@ -205,8 +188,7 @@ const move = (baseLineIds: string[]): CadElement => ({
   id: `move-${baseLineIds.join("-")}`,
   name: "移動",
   type: "move",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "reference", pointId: "a" },
   endPoint: { mode: "reference", pointId: "b" },
   scale: 1,
@@ -219,8 +201,7 @@ const symmetricMove = (baseLineIds: string[]): CadElement => ({
   id: `symmetric-move-${baseLineIds.join("-")}`,
   name: "対称移動",
   type: "symmetricMove",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   axisPoint1: { mode: "reference", pointId: "a" },
   axisPoint2: { mode: "reference", pointId: "b" },
   baseLineIds
@@ -230,8 +211,7 @@ const unsupportedElement = {
   id: "unsupported",
   name: "未対応",
   type: "unsupportedElement",
-  visible: true,
-  enabled: true
+  activity: "visible"
 } as unknown as CadElement;
 
 describe("canUseRustEvaluationForElements", () => {

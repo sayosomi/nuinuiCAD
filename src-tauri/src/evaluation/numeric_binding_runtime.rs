@@ -1,5 +1,5 @@
 //! Validates and materializes general numeric-expression BindingId slots.
-//! Legacy numeric tokens remain untouched and are evaluated by the existing
+//! Numeric expression tokens remain owned by the existing
 //! numeric-expression runtime after this pass.
 use std::collections::{HashMap, HashSet};
 
