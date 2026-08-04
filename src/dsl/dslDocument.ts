@@ -61,15 +61,12 @@ import {
 } from "./dslVersion";
 
 export {
-  LEGACY_IMPORT_DSL_MAJOR_VERSION,
   NEW_DOCUMENT_DSL_MAJOR_VERSION,
-  requireDslMajorVersionForFeature,
   SUPPORTED_DSL_MAJOR_VERSIONS,
-  TYPED_SYNTAX_REQUIRES_NUI3_CODE,
   type DslMajorVersion
 } from "./dslVersion";
 
-// `nui 2` 文書全体のcompile / serializeファサード。`.nui` のsourceTextを唯一の
+// `nui 3` 文書全体のcompile / serializeファサード。`.nui` のsourceTextを唯一の
 // 正として扱い、ここではテキストと構造化データの往復だけを担う。
 
 export type DslDocumentData = {
@@ -452,7 +449,7 @@ const statementRows = (
 
 // 非連続な親子配置(並べ替え禁止の帰結として通常のブロック表現が不可能な
 // 場合)の過渡期フォールバック用: parent:/branch: を呼び出しの引数として
-// 差し込む(短形式 var のように呼び出し本体を持たない header は
+// 差し込む(呼び出し本体を持たない header は
 // expression(...) 呼び出しへ開き直す)。Phase 5で `parent=` パース受理ごと
 // このフォールバック自体を削除する想定。
 export const withFallbackParentArgs = (
@@ -658,7 +655,7 @@ const validateVersionStatements = (statements: DslStatement[]): VersionValidatio
   const firstStatement = statements[0];
 
   if (!firstStatement) {
-    diagnostics.push(versionDiagnostic(1, "文書が空です。先頭に `nui 1` が必要です。"));
+    diagnostics.push(versionDiagnostic(1, "文書が空です。先頭に `nui 3` が必要です。"));
   } else if (firstStatement.kind !== "version") {
     diagnostics.push(versionDiagnostic(firstStatement.line, "文書の先頭は `nui <バージョン>` である必要があります。"));
   } else {

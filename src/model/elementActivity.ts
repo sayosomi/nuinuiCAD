@@ -2,15 +2,10 @@ import type { CadElementType, ElementId } from "../types/geometry";
 
 export type ElementActivity = "visible" | "hidden" | "disabled";
 
-/** The v2 DSL and Rust IPC continue to use this boolean representation. */
-export type LegacyElementActivityFlags = {
-  visible?: boolean;
-  enabled?: boolean;
-};
-
-type ActivityElement = LegacyElementActivityFlags & {
+type ActivityElement = {
   id: ElementId;
   type: string;
+  activity: ElementActivity;
   parentGroupId?: ElementId;
 };
 
@@ -18,27 +13,6 @@ export type EffectiveElementActivity = {
   activity: ElementActivity;
   hiddenByElementId?: ElementId;
   disabledByElementId?: ElementId;
-};
-
-export const elementActivityFromLegacyFlags = ({
-  visible = true,
-  enabled = true
-}: LegacyElementActivityFlags): ElementActivity => {
-  if (!enabled) return "disabled";
-  return visible ? "visible" : "hidden";
-};
-
-export const legacyFlagsForElementActivity = (
-  activity: ElementActivity
-): Required<LegacyElementActivityFlags> => {
-  switch (activity) {
-    case "visible":
-      return { visible: true, enabled: true };
-    case "hidden":
-      return { visible: false, enabled: true };
-    case "disabled":
-      return { visible: true, enabled: false };
-  }
 };
 
 export const activityAllowsEvaluation = (activity: ElementActivity) => activity !== "disabled";
@@ -51,12 +25,10 @@ const isActivityContainer = (elementType: string) =>
 /**
  * Types whose evaluator never assigns computedGeometry under their own
  * element id: edge/extendTrim/move/symmetricMove mutate a referenced line's
- * geometry in place instead, and variable writes to computedVariables, not
- * computedGeometry. hidden and visible are indistinguishable for these
+ * geometry in place instead. hidden and visible are indistinguishable for these
  * types; only disabled changes anything observable.
  */
 const elementTypesWithoutOwnDrawableGeometry = new Set<CadElementType>([
-  "variable",
   "edge",
   "extendTrim",
   "move",
@@ -90,7 +62,7 @@ export const effectiveElementActivityById = <T extends ActivityElement>(
     const cached = cache.get(element.id);
     if (cached) return cached;
 
-    const ownActivity = elementActivityFromLegacyFlags(element);
+    const ownActivity = element.activity;
     const parent = element.parentGroupId ? byId.get(element.parentGroupId) : undefined;
     const parentActivity = parent && isActivityContainer(parent.type) && !visiting.has(element.id)
       ? (() => {
@@ -123,7 +95,7 @@ export const effectiveElementActivityById = <T extends ActivityElement>(
 export const effectiveElementActivity = <T extends ActivityElement>(
   element: T,
   activities: ReadonlyMap<ElementId, EffectiveElementActivity>
-) => activities.get(element.id) ?? { activity: elementActivityFromLegacyFlags(element) };
+) => activities.get(element.id) ?? { activity: element.activity };
 
 export const effectiveDrawElementIds = <T extends ActivityElement>(elements: readonly T[]) => {
   const activities = effectiveElementActivityById(elements);

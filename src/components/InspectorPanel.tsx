@@ -220,12 +220,7 @@ export const InspectorPanel = ({
     const line = doc.statementMap.byElementId.get(element.id)?.line;
     return line ? diagnostics.filter((item) => item.line === line) : [];
   }, [diagnostics, doc.statementMap, element, isLastGood]);
-  const infoRows = element
-    ? geometryInfoRows(
-        evaluation.computedGeometry.get(element.id),
-        evaluation.computedVariables.get(element.id),
-      )
-    : [];
+  const infoRows = element ? geometryInfoRows(evaluation.computedGeometry.get(element.id)) : [];
   const jumpToTypedDeclaration = (bindingId: BindingId): boolean =>
     sourceEditorRef.current?.jumpToBindingDeclaration(bindingId) ?? false;
   const jumpToTypedDeclarationPart = (bindingId: BindingId, part: "type" | "initializer"): boolean =>

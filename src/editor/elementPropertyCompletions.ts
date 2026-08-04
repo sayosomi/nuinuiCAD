@@ -1,7 +1,7 @@
 import type { Completion } from "@codemirror/autocomplete";
 import { dslElementParameterCompletionOptions } from "../dsl/dslElementParameterCompletionCandidates";
 import type { DslLiveStatementIdentity } from "../dsl/dslCompletionCandidates";
-import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId } from "../types/geometry";
+import type { CadElement, ComputedGeometry, DependencyError, ElementId } from "../types/geometry";
 
 /** Editor adapter shared by numeric and typed expression property completion. */
 export const elementPropertyCompletions = ({
@@ -11,7 +11,6 @@ export const elementPropertyCompletions = ({
   elements,
   elementToken,
   computedGeometry,
-  computedVariables,
   effectiveEnabledElementIds,
   errors,
   evaluationIsCurrent
@@ -22,7 +21,6 @@ export const elementPropertyCompletions = ({
   elements: readonly CadElement[];
   elementToken: string;
   computedGeometry: Map<ElementId, ComputedGeometry>;
-  computedVariables?: Map<ElementId, ComputedVariable>;
   effectiveEnabledElementIds?: Set<ElementId>;
   errors: DependencyError[];
   evaluationIsCurrent: boolean;
@@ -35,8 +33,7 @@ export const elementPropertyCompletions = ({
     elements,
     elementToken,
     computedGeometry,
-    computedVariables,
     effectiveEnabledElementIds,
     errors
-  }).map((option) => ({ label: option.label, apply: option.path, detail: option.detail, type: "variable" }));
+  }).map((option) => ({ label: option.label, apply: option.path, detail: option.detail, type: "constant" }));
 };

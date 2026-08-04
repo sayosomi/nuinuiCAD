@@ -1,7 +1,6 @@
 import type {
   CadElement,
   ComputedGeometry,
-  ComputedVariable,
   DependencyError,
   ElementId,
   EvaluationWarning
@@ -18,13 +17,12 @@ export type ElementEvaluationContext = {
   warnings: EvaluationWarning[];
   disabledByGroupId: Map<ElementId, ElementId>;
   localVariables: LocalVariableEvaluation;
-  computedVariables?: Map<ElementId, ComputedVariable>;
   elements?: CadElement[];
   /**
    * Task 27: this text element's compiled TextTemplateAst, when one exists -
    * set together with `resolveScalarBinding` or not at all. Its presence,
    * not the element's own `text` field, decides whether textEvaluator.ts
-   * uses the AST path or the legacy regex path - a compiled AST is always
+   * uses the AST path; a raw element without an AST is literal text.
    * used when present, since a typed string literal's escape processing
    * already unescaped `\{`/`\}` into literal braces before storage, and
    * re-running the old regex over that cooked string would wrongly

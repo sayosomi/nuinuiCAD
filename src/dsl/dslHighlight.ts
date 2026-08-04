@@ -10,7 +10,7 @@ const keywords = new Set<string>(Object.values(dslStatementKeywords));
 const stopKeyword = "@stop";
 
 const constructionCategories = new Set<DslConstructionCategory>([
-  "point", "line", "curve", "arc", "text", "image", "var"
+  "point", "line", "curve", "arc", "text", "image"
 ]);
 
 // Task 51: `@name` and the pre-migration bare `Element.property` collapse

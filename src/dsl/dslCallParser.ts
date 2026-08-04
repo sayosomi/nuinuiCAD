@@ -12,9 +12,6 @@ import { unquoteDslString } from "./dslTokens";
 
 export type DslCallDiagnostic = { message: string; span: DslSpan; code?: string };
 
-/** v3-only `state` conflicting with legacy `visible`/`enabled` in the same statement. */
-export const ELEMENT_STATE_CONFLICT_CODE = "element-state-conflict";
-
 export type DslCallStatement = {
   category: string;
   construction: string;
@@ -27,7 +24,6 @@ export type DslCallStatement = {
   attrs: DslAttribute[];
   payloadSpans: Record<string, DslSpan>;
   opensBlock: boolean;
-  shortVariable: boolean;
 };
 
 export type DslCallParseResult = {
@@ -108,15 +104,6 @@ const attrsFromArgs = (args: readonly ScannedArg[]): DslAttribute[] =>
 const diagnostic = (diagnostics: DslCallDiagnostic[], message: string, span: DslSpan, code?: string) =>
   diagnostics.push(code ? { message, span, code } : { message, span });
 
-/** state/visible/enabled live in commonArgSpecs, not any single construction's `args`, so
- * this conflict can't be expressed via `DslConstructionSpec.exclusiveGroups`. Exported so
- * Task 41's Quick Fix module can re-derive which side of a conflict is the legacy one
- * (always the second/last entry of a group) without duplicating this table. */
-export const commonExclusiveGroups: readonly (readonly [string, string])[] = [
-  ["state", "visible"],
-  ["state", "enabled"],
-];
-
 /** A call whose `(` never finds its matching `)` (mid-edit, e.g. an unterminated
  * string swallowing the rest of the line). The statement returned alongside this
  * code is a best-effort/degraded one - its call span runs to end of text - kept
@@ -125,14 +112,6 @@ export const commonExclusiveGroups: readonly (readonly [string, string])[] = [
  * unaffected: every compile gate rejects on `severity: "error"` regardless of
  * this code, the same as any other diagnostic here. */
 export const UNCLOSED_CALL_CODE = "unclosed-call";
-
-const isCallConstruction = (source: string, start: number) => {
-  const match = source.slice(start).match(identifier);
-  if (!match) return false;
-  let cursor = start + match[0].length;
-  while (whitespace.test(source[cursor] ?? "")) cursor += 1;
-  return source[cursor] === "(";
-};
 
 const parseName = (source: string, span: DslSpan) => {
   if (span.start === span.end) return { name: "", nameSpan: null };
@@ -207,17 +186,6 @@ const validateArgs = (
       diagnostic(diagnostics, `引数「${group.join("」と「")}」は同時に指定できません。`, span);
     }
   }
-  for (const group of commonExclusiveGroups) {
-    if (group.every((key) => args.some((arg) => arg.key === key))) {
-      const span = args.find((arg) => arg.key === group.at(-1))?.keySpan ?? constructionSpan ?? categorySpan;
-      diagnostic(
-        diagnostics,
-        `引数「${group.join("」と「")}」は同時に指定できません。`,
-        span,
-        ELEMENT_STATE_CONFLICT_CODE,
-      );
-    }
-  }
   return spec;
 };
 
@@ -248,7 +216,6 @@ const callStatement = (
     attrs: attrsFromArgs(scanned.args),
     payloadSpans,
     opensBlock,
-    shortVariable: false,
   } satisfies DslCallStatement;
 };
 
@@ -267,31 +234,6 @@ export const parseDslCallStatement = (
   const afterCategory = trimSpan(logicalText, category.length, logicalText.length);
   const isContainer = containerCategories.has(category);
   const equals = topLevelIndex(logicalText, "=", afterCategory.start);
-
-  if (category === "var" && equals >= 0) {
-    const name = parseName(logicalText, trimSpan(logicalText, afterCategory.start, equals));
-    const right = trimSpan(logicalText, equals + 1, logicalText.length);
-    if (!isCallConstruction(logicalText, right.start)) {
-      if (!name.nameSpan) diagnostic(diagnostics, "var には名前が必要です。", keywordSpan);
-      if (right.start === right.end) diagnostic(diagnostics, "var には「=」の後に式が必要です。", right);
-      return {
-        statement: {
-          category,
-          construction: "expression",
-          elementType: constructionFor("var", "expression")?.elementType ?? null,
-          ...name,
-          keywordSpan,
-          constructionSpan: null,
-          args: [{ key: "value", keySpan: null, value: logicalText.slice(right.start, right.end), valueSpan: right }],
-          attrs: [],
-          payloadSpans: { value: right, expression: right },
-          opensBlock: false,
-          shortVariable: true,
-        },
-        diagnostics,
-      };
-    }
-  }
 
   if (isContainer) {
     const brace = topLevelIndex(logicalText, "{", afterCategory.start);

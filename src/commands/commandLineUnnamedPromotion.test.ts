@@ -12,8 +12,7 @@ const point = (id: string, name = ""): CadElement => ({
   id,
   name,
   type: "freePoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   x: 0,
   y: 0
 });
@@ -22,8 +21,7 @@ const line = (id: string, name = ""): CadElement => ({
   id,
   name,
   type: "line",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "coordinate", x: 0, y: 0 },
   endPoint: { mode: "coordinate", x: 10, y: 0 }
 });

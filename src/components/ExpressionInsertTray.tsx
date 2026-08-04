@@ -4,7 +4,7 @@ import {
   numericReferenceCandidates,
   type NumericReferenceCandidate
 } from "../geometry/numericReferencePaths";
-import { availableNumericVariableReferenceOptions } from "../geometry/variableReferenceOptions";
+import { localNumericReferenceOptionsForParameter } from "../geometry/numericReferenceOptions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import {
   DEFAULT_REFERENCE_HELPER_POSITION,
@@ -49,7 +49,6 @@ const relationNavItems: Array<NumericReferenceCandidate["relation"] | "all"> = [
 
 const emptyEvaluation: EvaluationResult = {
   computedGeometry: new Map(),
-  computedVariables: new Map(),
   errors: [],
   warnings: []
 };
@@ -108,14 +107,11 @@ export const ExpressionInsertTray = ({
   );
   const variableOptions = useMemo(
     () =>
-      availableNumericVariableReferenceOptions({
+      localNumericReferenceOptionsForParameter({
         element,
-        elements,
-        parameterKey,
-        computedVariables:
-          evaluation.computedVariables.size > 0 ? evaluation.computedVariables : undefined
+        parameterKey
       }),
-    [element, elements, evaluation, parameterKey]
+    [element, parameterKey]
   );
   const mergedCandidates: NumericReferenceCandidate[] = [
     ...variableOptions.map((option) => ({
@@ -154,7 +150,7 @@ export const ExpressionInsertTray = ({
 
   const close = () => onClose();
 
-  const startLegacyLinePick = () => {
+  const startNumericReferencePick = () => {
     const target = getInputTarget();
     dispatchCommand("startNumericReferenceInsertPick", {
       elementId: element.id,
@@ -263,7 +259,7 @@ export const ExpressionInsertTray = ({
             }
           }}
         />
-        <button type="button" onClick={startLegacyLinePick}>キャンバスから選択</button>
+        <button type="button" onClick={startNumericReferencePick}>キャンバスから選択</button>
       </div>
 
       <div className="reference-helper-body">
@@ -345,8 +341,8 @@ export const ExpressionInsertTray = ({
         </aside>
       </div>
 
-      <div className="reference-helper-legacy">
-        <button type="button" onClick={startLegacyLinePick}>線・曲線を選択</button>
+      <div className="reference-helper">
+        <button type="button" onClick={startNumericReferencePick}>線・曲線を選択</button>
         {element.type === "conditionalGroup" && parameterKey === "condition" ? (
           <div className="expression-operator-grid" role="group" aria-label="挿入する条件演算子">
             {conditionalOperators.map(({ operator, description }) => (

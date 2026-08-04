@@ -5,15 +5,12 @@
 
 import type { Action } from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";
-import type { DslMajorVersion } from "../dsl/dslVersion";
-import type { UpgradeDslMajorVersionResult } from "../state/cadDocumentStore";
 import type { TypedVariableQuickFixDescriptor } from "../scalars/typedVariableQuickFixes";
 import { sourceEditSession } from "./sourceEditSession";
 
 export type TypedVariableQuickFixActionDeps = {
   isComposing: () => boolean;
   hasPendingText: () => boolean;
-  upgradeDslMajorVersion: (target: DslMajorVersion) => UpgradeDslMajorVersionResult;
 };
 
 /**
@@ -56,10 +53,6 @@ export const buildTypedVariableLintActions = (
     apply: (view: EditorView) => {
       if (!canApply(deps)) return;
       if (view.state.doc.toString() !== descriptor.sourceSnapshot) return;
-      if (descriptor.action.kind === "upgrade-major-version") {
-        deps.upgradeDslMajorVersion(descriptor.action.target);
-        return;
-      }
       applySplice(view, descriptor.action);
     }
   }));

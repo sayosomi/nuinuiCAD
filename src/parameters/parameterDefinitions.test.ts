@@ -9,8 +9,7 @@ describe("parameterDefinitions propertyCapability", () => {
       id: "point-a",
       name: "点A",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       x: 10,
       y: 20
     };
@@ -37,19 +36,19 @@ describe("parameterDefinitions propertyCapability", () => {
 
 describe("parameterDefinitions Task 22 opt-in property capability registry", () => {
   const text: CadElement = {
-    id: "text-1", name: "テキスト1", type: "text", visible: true, enabled: true,
+    id: "text-1", name: "テキスト1", type: "text", activity: "visible",
     numericVariables: [], text: "テキスト", anchor: null, fontSize: 3
   };
   const offsetLine: CadElement = {
-    id: "offset-1", name: "オフセット1", type: "offsetLine", visible: true, enabled: true,
+    id: "offset-1", name: "オフセット1", type: "offsetLine", activity: "visible",
     numericVariables: [], baseLineIds: [], offset: 10, side: "right", closed: false, suppressTrimWarnings: false
   };
   const intersectionPoint: CadElement = {
-    id: "intersection-1", name: "交点1", type: "intersectionPoint", visible: true, enabled: true,
+    id: "intersection-1", name: "交点1", type: "intersectionPoint", activity: "visible",
     numericVariables: [], line1Id: "", line2Id: "", intersectionIndex: 0, useExtensions: true
   };
   const copyLine: CadElement = {
-    id: "copy-1", name: "コピー1", type: "copyLine", visible: true, enabled: true,
+    id: "copy-1", name: "コピー1", type: "copyLine", activity: "visible",
     numericVariables: [],
     startPoint: { mode: "reference", pointId: "" },
     endPoint: { mode: "reference", pointId: "" },
@@ -57,17 +56,17 @@ describe("parameterDefinitions Task 22 opt-in property capability registry", () 
   };
   const move: CadElement = { ...copyLine, id: "move-1", name: "移動1", type: "move" };
   const image: CadElement = {
-    id: "image-1", name: "画像1", type: "image", visible: true, enabled: true,
+    id: "image-1", name: "画像1", type: "image", activity: "visible",
     numericVariables: [], sourcePath: "", originPoint: { mode: "coordinate", x: 0, y: 0 },
     naturalWidthPx: 1, naturalHeightPx: 1, sourceDpi: 300, targetPixelsPerMm: 300 / 25.4,
     scale: 1, angleDeg: 0, mirrorX: false
   };
   const group: CadElement = {
-    id: "group-1", name: "グループ1", type: "group", visible: true, enabled: true,
+    id: "group-1", name: "グループ1", type: "group", activity: "visible",
     printEnabled: false, printAnchor: { mode: "coordinate", x: 0, y: 0 }
   };
   const forGroup: CadElement = {
-    id: "for-1", name: "for1", type: "forGroup", visible: true, enabled: true,
+    id: "for-1", name: "for1", type: "forGroup", activity: "visible",
     variableName: "i", start: 0, count: 3, step: 1, showGenerated: false
   };
 
@@ -88,12 +87,20 @@ describe("parameterDefinitions Task 22 opt-in property capability registry", () 
   });
 
   it.each<[CadElement, string]>([
-    [group, "visible"],
-    [group, "enabled"],
     [offsetLine, "offset"],
     [text, "fontSize"]
   ])("leaves %s.%s without a property capability", (element, key) => {
     const definition = getParameterDefinitions(element).find((item) => item.key === key);
     expect(definition?.propertyCapability).toBeUndefined();
   });
+
+  it.each<["visible" | "hidden" | "disabled"]>([["visible"], ["hidden"], ["disabled"]])(
+    "never exposes visible/enabled parameter keys for a %s element",
+    (activity) => {
+      const element: CadElement = { ...text, activity };
+      const keys = getParameterDefinitions(element).map((definition) => definition.key);
+      expect(keys).not.toContain("visible");
+      expect(keys).not.toContain("enabled");
+    }
+  );
 });

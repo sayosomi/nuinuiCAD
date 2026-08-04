@@ -4,10 +4,11 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { cycleElementActivity, setElementActivity, setElementsActivity } from "./selectionCommands";
 
 const twoPointsAndVariableSource = [
-  "nui 2",
-  "point A = coordinate(x: 0 y: 0)",
-  "point B = coordinate(x: 1 y: 1)",
-  "var W = 10"
+  "nui 3",
+  "point A = coordinate(x: 0, y: 0)",
+  "point B = coordinate(x: 1, y: 1)",
+  "line AB = segment(start: A, end: B)",
+  "line W = extend(end: AB.start, to: A)"
 ].join("\n");
 
 const elementNamed = (name: string) => useCadDocumentStore.getState().elements.find((element) => element.name === name)!;
@@ -23,31 +24,31 @@ describe("activity commands", () => {
     const pointA = elementNamed("A");
 
     cycleElementActivity(pointA.id);
-    expect(elementNamed("A")).toMatchObject({ visible: false, enabled: true });
+    expect(elementNamed("A")).toMatchObject({ activity: "hidden" });
 
     cycleElementActivity(pointA.id);
-    expect(elementNamed("A")).toMatchObject({ visible: true, enabled: false });
+    expect(elementNamed("A")).toMatchObject({ activity: "disabled" });
 
     cycleElementActivity(pointA.id);
-    expect(elementNamed("A")).toMatchObject({ visible: true, enabled: true });
+    expect(elementNamed("A")).toMatchObject({ activity: "visible" });
   });
 
   it("skips hidden when cycling a non-drawable element, and recovers forward from a legacy hidden state", () => {
     const variable = elementNamed("W");
 
     cycleElementActivity(variable.id);
-    expect(elementNamed("W")).toMatchObject({ visible: true, enabled: false });
+    expect(elementNamed("W")).toMatchObject({ activity: "disabled" });
 
     cycleElementActivity(variable.id);
-    expect(elementNamed("W")).toMatchObject({ visible: true, enabled: true });
+    expect(elementNamed("W")).toMatchObject({ activity: "visible" });
 
     useCadDocumentStore.setState({
       elements: useCadDocumentStore.getState().elements.map((element) =>
-        element.id === variable.id ? { ...element, visible: false, enabled: true } : element
+        element.id === variable.id ? { ...element, activity: "hidden" } : element
       )
     });
     cycleElementActivity(variable.id);
-    expect(elementNamed("W")).toMatchObject({ visible: true, enabled: false });
+    expect(elementNamed("W")).toMatchObject({ activity: "disabled" });
   });
 
   it("applies a single-element direct-set through setElementActivity", () => {
@@ -55,7 +56,7 @@ describe("activity commands", () => {
 
     setElementActivity(pointA.id, "disabled");
 
-    expect(elementNamed("A")).toMatchObject({ visible: true, enabled: false });
+    expect(elementNamed("A")).toMatchObject({ activity: "disabled" });
   });
 
   it("applies a multi-selection direct-set in exactly one Undo entry", () => {
@@ -66,8 +67,8 @@ describe("activity commands", () => {
 
     setElementsActivity("hidden");
 
-    expect(elementNamed("A")).toMatchObject({ visible: false, enabled: true });
-    expect(elementNamed("B")).toMatchObject({ visible: false, enabled: true });
+    expect(elementNamed("A")).toMatchObject({ activity: "hidden" });
+    expect(elementNamed("B")).toMatchObject({ activity: "hidden" });
     expect(useCadDocumentStore.getState().past.length).toBe(pastLengthBefore + 1);
   });
 
@@ -87,7 +88,7 @@ describe("activity commands", () => {
 
     setElementsActivity("hidden");
 
-    expect(elementNamed("W")).toMatchObject({ visible: true, enabled: true });
+    expect(elementNamed("W")).toMatchObject({ activity: "visible" });
     expect(useCadDocumentStore.getState().past.length).toBe(pastLengthBefore);
   });
 
@@ -98,7 +99,7 @@ describe("activity commands", () => {
 
     setElementsActivity("hidden");
 
-    expect(elementNamed("A")).toMatchObject({ visible: false, enabled: true });
-    expect(elementNamed("W")).toMatchObject({ visible: true, enabled: true });
+    expect(elementNamed("A")).toMatchObject({ activity: "hidden" });
+    expect(elementNamed("W")).toMatchObject({ activity: "visible" });
   });
 });

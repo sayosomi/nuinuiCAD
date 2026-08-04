@@ -25,7 +25,6 @@ mod issue;
 mod json_helpers;
 mod mutation;
 mod mutation_payload;
-mod numeric_function_adapter;
 mod program_payload;
 mod property_binding_payload;
 mod scalar_payload;
@@ -46,8 +45,6 @@ mod expression_evaluator_tests;
 mod expression_payload_tests;
 #[cfg(test)]
 mod for_group_mutation_core_tests;
-#[cfg(test)]
-mod numeric_function_adapter_tests;
 #[cfg(test)]
 mod program_payload_tests;
 #[cfg(test)]
@@ -74,14 +71,12 @@ pub(crate) use for_group_mutation_core::{
 };
 pub(crate) use mutation::{ForGroupMutationStatement, ScalarMutationResolver};
 pub(crate) use mutation_payload::{validate_binding_versions_payload, ValidatedBindingVersions};
-#[allow(unused_imports)]
-pub(crate) use numeric_function_adapter::adapt_numeric_result;
 pub(crate) use program_payload::{validate_scalar_program_payload, ValidatedScalarProgram};
 pub(crate) use property_binding_payload::{
     validate_property_bindings_payload, ValidatedPropertyBinding,
 };
 pub(crate) use text::{
-    evaluate_text_template_segments, LegacyHoleEvaluator, TextTemplateHoleOrigin,
+    evaluate_text_template_segments, NumericExpressionHoleEvaluator, TextTemplateHoleOrigin,
 };
 pub(crate) use text_property_binding_payload::validate_text_property_bindings_payload;
 pub(crate) use text_template_payload::{validate_text_templates_payload, ValidatedTextTemplate};

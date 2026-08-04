@@ -2,13 +2,13 @@
 //! (`src/scalars/textTemplateEvaluator.ts`, Task 27). Consumes only
 //! `text_template_payload.rs`'s validated segments and a caller-supplied
 //! context implementing [`ScalarEvaluationEnvironment`] (Task 18's
-//! evaluator) + [`LegacyHoleEvaluator`] - it never touches `serde_json::Value`
+//! evaluator) + [`NumericExpressionHoleEvaluator`] - it never touches `serde_json::Value`
 //! or `EvaluationState` directly.
 //!
 //! The two traits are combined on one caller-supplied `&mut C` (rather than
 //! a `&environment` plus a separate `FnMut` closure) deliberately: the real
 //! production context (`text_template_runtime.rs`) holds one
-//! `&mut EvaluationState` field that a legacy hole must borrow mutably
+//! `&mut EvaluationState` field that a numeric-expression hole must borrow mutably
 //! (`evaluate_numeric_or_push` can push a `DependencyError`) while a typed
 //! hole must borrow it immutably (`ScalarBindingResolver::resolve` only
 //! reads state) - within one interleaved walk. Two separate long-lived
@@ -29,15 +29,15 @@ use super::types::{ScalarEvaluation, ScalarValue};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TextTemplateHoleOrigin {
-    Legacy,
+    NumericExpression,
     Typed,
 }
 
 #[derive(Debug)]
 pub(crate) struct TextTemplateEvalError {
     pub(crate) origin: TextTemplateHoleOrigin,
-    /// Only ever set for a `Typed` origin. A `Legacy` origin carries no
-    /// message: the legacy-hole evaluator's own caller
+    /// Only ever set for a `Typed` origin. A numeric-expression origin carries no
+    /// message: the numeric-expression-hole evaluator's own caller
     /// (`evaluate_numeric_or_push`, called from `text_template_runtime.rs`)
     /// has already pushed the correct `DependencyError` onto `state.errors`
     /// before signalling failure here by returning `None` - nothing in this
@@ -46,12 +46,12 @@ pub(crate) struct TextTemplateEvalError {
     pub(crate) message: Option<String>,
 }
 
-/// Evaluates one legacy hole's already-extracted raw content. Mirrors
+/// Evaluates one numeric-expression hole's already-extracted raw content. Mirrors
 /// `evaluate_numeric_or_push`'s own `Option`-returning, push-then-`None`
 /// convention: `None` means the implementor already recorded the failure
 /// (e.g. onto `state.errors`) and this module must not record a second one.
-pub(crate) trait LegacyHoleEvaluator {
-    fn evaluate_legacy_hole(&mut self, raw: &str) -> Option<String>;
+pub(crate) trait NumericExpressionHoleEvaluator {
+    fn evaluate_numeric_expression_hole(&mut self, raw: &str) -> Option<String>;
 }
 
 fn typed_error(message: String) -> TextTemplateEvalError {
@@ -64,10 +64,10 @@ fn typed_error(message: String) -> TextTemplateEvalError {
 /// Evaluates a validated template's segments in source order against
 /// `context`, which must resolve typed-hole references (via
 /// [`ScalarEvaluationEnvironment::lookup_binding`], reused as-is from Task
-/// 18/21's `ScalarBindingResolver`) and evaluate legacy holes (via
-/// [`LegacyHoleEvaluator::evaluate_legacy_hole`], reusing the existing
-/// unmodified legacy numeric-expression pipeline). `format_number` is the
-/// shared `text_number` formatter, used for both legacy and typed number
+/// 18/21's `ScalarBindingResolver`) and evaluate numeric-expression holes (via
+/// [`NumericExpressionHoleEvaluator::evaluate_numeric_expression_hole`], reusing the
+/// numeric-expression pipeline). `format_number` is the shared `text_number`
+/// formatter, used for both numeric-expression and typed number
 /// holes.
 pub(crate) fn evaluate_text_template_segments<C>(
     segments: &[ValidatedTextTemplateSegment],
@@ -75,19 +75,19 @@ pub(crate) fn evaluate_text_template_segments<C>(
     format_number: impl Fn(f64) -> String,
 ) -> Result<String, TextTemplateEvalError>
 where
-    C: ScalarEvaluationEnvironment + LegacyHoleEvaluator,
+    C: ScalarEvaluationEnvironment + NumericExpressionHoleEvaluator,
 {
     let mut text = String::new();
 
     for segment in segments {
         match segment {
             ValidatedTextTemplateSegment::Literal { cooked } => text.push_str(cooked),
-            ValidatedTextTemplateSegment::LegacyHole { raw } => {
-                match context.evaluate_legacy_hole(raw) {
+            ValidatedTextTemplateSegment::NumericExpressionHole { raw } => {
+                match context.evaluate_numeric_expression_hole(raw) {
                     Some(value) => text.push_str(&value),
                     None => {
                         return Err(TextTemplateEvalError {
-                            origin: TextTemplateHoleOrigin::Legacy,
+                            origin: TextTemplateHoleOrigin::NumericExpression,
                             message: None,
                         })
                     }

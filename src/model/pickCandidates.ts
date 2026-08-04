@@ -3,10 +3,6 @@ import {
   numericReferenceGeometrySupportsProperty,
   type NumericReferenceGeometry
 } from "../geometry/numericReferenceProperties";
-import {
-  availableNumericVariableReferenceOptions,
-  isVariableReferenceCandidate
-} from "../geometry/variableReferenceOptions";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
 import type {
@@ -278,7 +274,6 @@ const numericReferenceCandidates = (
   evaluation: EvaluationResult,
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget
 ): PickCandidate[] => {
-  const targetElement = elements.find((element) => element.id === activeNumericReferencePickTarget.elementId);
   return elements
     .filter((element) =>
       pickSourcePrecedesTarget(
@@ -304,24 +299,6 @@ const numericReferenceCandidates = (
               }
             ]
           : [];
-      if (
-        targetElement &&
-        isVariableReferenceCandidate(element, targetElement, elements, evaluation.computedVariables)
-      ) {
-        const option = availableNumericVariableReferenceOptions({
-          element: targetElement,
-          elements,
-          parameterKey: activeNumericReferencePickTarget.parameterKey,
-          computedVariables: evaluation.computedVariables
-        }).find((candidate) => candidate.elementId === element.id);
-        if (option) {
-          options.push({
-            kind: "variableReference",
-            label: option.label,
-            expression: option.expression
-          });
-        }
-      }
       return { elementId: element.id, options };
     })
     .filter((candidate) => candidate.options.length > 0);

@@ -42,9 +42,7 @@ use super::types::{
 /// reference node actually reached during evaluation, never for a
 /// `bindingId` inside a short-circuited `&&`/`||` branch. No numeric-geometry
 /// hook exists here: the typed-expression grammar has no call-node syntax to
-/// reach geometry functions (mirrors TS's own documented, unreachable
-/// `numericGeometryLookup` seam - see `numeric_function_adapter.rs` for the
-/// separate, unconnected bridge this task adds instead), so adding an inert
+/// reach geometry functions, so adding an inert
 /// method here would be speculative surface with no product need yet.
 pub(crate) trait ScalarEvaluationEnvironment {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation;

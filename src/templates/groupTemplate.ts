@@ -1,5 +1,3 @@
-import { isNumericExpression } from "../geometry/numericExpressions";
-import { tokenize, type Token } from "../geometry/numericExpressionParser";
 import { getDirectParentIds } from "../model/dependencies";
 import { createCadElementId } from "../model/cadIds";
 import { remapElementReferences } from "../model/elementDuplication";
@@ -10,18 +8,10 @@ import type {
   CadElement,
   ConditionalBranch,
   ElementId,
-  NumericValue,
   PointAnchor
 } from "../types/geometry";
 
 export type GroupTemplateInput =
-  | {
-      id: string;
-      kind: "numeric";
-      label: string;
-      variableElementId: ElementId;
-      defaultValue: NumericValue;
-    }
   | {
       id: string;
       kind: "point";
@@ -50,10 +40,7 @@ export type GroupTemplateLibrary = {
   templates: GroupTemplate[];
 };
 
-export type TemplateInstantiationInputValues = Record<
-  string,
-  NumericValue | ElementId | PointAnchor | null | undefined
->;
+export type TemplateInstantiationInputValues = Record<string, ElementId | PointAnchor | null | undefined>;
 
 export type TemplateInstantiationChange = {
   elements: CadElement[];
@@ -73,53 +60,6 @@ export const templateInputId = () => `template-input-${Date.now().toString(36)}-
 
 export const createGroupTemplateId = () =>
   `group-template-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-
-const expressionTokenText = (
-  token: Token,
-  idMap: Map<ElementId, ElementId>
-) => {
-  switch (token.type) {
-    case "number":
-      return `${token.value}`;
-    case "reference":
-      return `${idMap.get(token.elementId) ?? token.elementId}.${token.property}`;
-    case "element":
-      return idMap.get(token.elementId) ?? token.elementId;
-    case "localVariable":
-      return `@${idMap.get(token.variableId) ?? token.variableId}`;
-    case "function":
-      return token.name;
-    case "operator":
-    case "comparisonOperator":
-    case "logicalOperator":
-      return ` ${token.value} `;
-    case "comma":
-      return ", ";
-    case "leftParen":
-      return "(";
-    case "rightParen":
-      return ")";
-  }
-};
-
-const remapNumericInputValue = (
-  value: NumericValue,
-  idMap: Map<ElementId, ElementId>
-): NumericValue => {
-  if (!isNumericExpression(value)) return value;
-  try {
-    return {
-      ...value,
-      expression: tokenize(value.expression)
-        .map((token) => expressionTokenText(token, idMap))
-        .join("")
-        .replace(/\s+/g, " ")
-        .trim()
-    };
-  } catch {
-    return value;
-  }
-};
 
 const pointInputAnchorReplacement = (
   value: unknown,
@@ -190,27 +130,14 @@ const externalReferenceInputs = (
   });
 };
 
-export const candidateNumericTemplateInputs = (templateElements: CadElement[]) =>
-  templateElements
-    .filter((element) => element.type === "variable")
-    .map((element) => ({
-      id: `numeric:${element.id}`,
-      kind: "numeric" as const,
-      label: element.name || element.id,
-      variableElementId: element.id,
-      defaultValue: element.expression
-    }));
-
 export const createTemplateFromGroup = ({
   elements,
   groupId,
-  name,
-  numericVariableElementIds = []
+  name
 }: {
   elements: CadElement[];
   groupId: ElementId;
   name?: string;
-  numericVariableElementIds?: ElementId[];
 }): GroupTemplate => {
   const root = elements.find((element) => element.id === groupId);
   if (!root || !isGroupElement(root)) {
@@ -224,14 +151,12 @@ export const createTemplateFromGroup = ({
     throw new Error("画像を含むグループはテンプレート化できません。");
   }
   const now = new Date().toISOString();
-  const numericInputs = candidateNumericTemplateInputs(templateElements)
-    .filter((input) => numericVariableElementIds.includes(input.variableElementId));
   return {
     id: createGroupTemplateId(),
     name: name?.trim() || root.name || "グループテンプレート",
     rootGroupId: groupId,
     elements: structuredClone(templateElements) as CadElement[],
-    inputs: [...externalReferenceInputs(elements, templateElements, idSet), ...numericInputs],
+    inputs: externalReferenceInputs(elements, templateElements, idSet),
     createdAt: now,
     updatedAt: now
   };
@@ -278,12 +203,6 @@ export const instantiateGroupTemplate = ({
     }
   }
 
-  const variableInputs = new Map(
-    template.inputs
-      .filter((input): input is Extract<GroupTemplateInput, { kind: "numeric" }> => input.kind === "numeric")
-      .map((input) => [input.variableElementId, input])
-  );
-
   const inserted: CadElement[] = [];
   for (const original of template.elements) {
     const copiedId = idMap.get(original.id);
@@ -311,15 +230,6 @@ export const instantiateGroupTemplate = ({
     copied = applyPointInputAnchorReplacements(copied, pointInputReplacements);
     copied = remapElementReferences(copied, idMap);
 
-    const variableInput = variableInputs.get(original.id);
-    if (variableInput && copied.type === "variable") {
-      const value = inputValues[variableInput.id] ?? variableInput.defaultValue;
-      copied = {
-        ...copied,
-        valueMode: "expression",
-        expression: remapNumericInputValue(value as NumericValue, idMap)
-      };
-    }
     inserted.push(copied);
   }
 

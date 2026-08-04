@@ -55,11 +55,10 @@ describe("setTargetCandidates", () => {
     expect(names).toEqual(["poison"]);
   });
 
-  it("excludes legacy var, iteration, and elementLocal bindings", () => {
+  it("excludes iteration bindings", () => {
     const source = [
       "nui 3",
       "let a: number = 1",
-      "var legacy = 2",
       "for Loop (i, from: 0, count: 2) {",
       "}"
     ].join("\n");

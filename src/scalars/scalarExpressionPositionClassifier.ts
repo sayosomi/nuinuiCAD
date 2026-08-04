@@ -85,7 +85,7 @@ export type ScalarOperandWordMatch = { readonly from: number; readonly to: numbe
 
 // Mirrors literalScanner.ts's own IDENTIFIER_PATTERN (`/^[\p{L}_][\p{L}\p{N}_]*/u`)
 // in reverse, and dslVariableToken.ts's boundary-character convention adapted
-// to this grammar's own operator set (rather than reusing that legacy-numeric
+// to this grammar's own operator set (rather than reusing the local-numeric
 // module directly - the typed scalar grammar owns its own operator symbols).
 const REFERENCE_WORD_ENDING_AT = /(?:^|[\s()+\-*/<>=!&|,])@([\p{L}_][\p{L}\p{N}_]*)?$/u;
 const BARE_WORD_ENDING_AT = /[\p{L}_][\p{L}\p{N}_]*$/u;

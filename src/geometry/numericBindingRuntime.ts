@@ -1,5 +1,6 @@
 // Runtime materialization for compiled typed occurrences inside general
-// numeric expressions.  The legacy parser still owns every non-typed token;
+// numeric expressions. The numeric-expression compiler owns non-typed
+// local numeric syntax;
 // this module replaces only compiler-proven BindingId slots before that
 // parser runs.  It never inserts a typed value into a name map or resolves a
 // typed name at runtime.

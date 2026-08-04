@@ -3,7 +3,6 @@ import {
   confirmTemplateInsertion,
   selectTemplateInsertionInput,
   selectTemplateInsertionInputByOffset,
-  setTemplateNumericInput,
   startTemplateInsertion
 } from "../templates/templateInsertionCommands";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -42,14 +41,6 @@ export const templateCommandDefinitions = {
     label: "テンプレート入力を選択",
     run: (context) => {
       if (context?.templateInputId) selectTemplateInsertionInput(context.templateInputId);
-    }
-  },
-  setTemplateNumericInput: {
-    id: "setTemplateNumericInput",
-    label: "テンプレート数値入力を設定",
-    run: (context) => {
-      if (!context?.templateInputId || context.numericValue === undefined) return;
-      setTemplateNumericInput(context.templateInputId, context.numericValue);
     }
   },
   confirmTemplateInsertion: {

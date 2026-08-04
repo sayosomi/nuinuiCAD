@@ -7,19 +7,19 @@ import { createStatementRangeIndex } from "./statementRangeIndex";
 describe("sourceEditorFolding structural rows", () => {
   it("resolves only collapsed folds from their visible opening and terminal rows", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "group G {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}",
       "point B = offset(",
-      "  from: A",
-      "  dx: 10",
+      "  from: A,",
+      "  dx: 10,",
       "  dy: 0",
       ")",
       "if Choice (1) {",
-      "  point T = coordinate(x: 0 y: 0)",
+      "  point T = coordinate(x: 0, y: 0)",
       "} else {",
-      "  point E = coordinate(x: 1 y: 1)",
+      "  point E = coordinate(x: 1, y: 1)",
       "}"
     ].join("\n");
     const compiled = compileDslDocument(source, { sourceRevision: 4 });
@@ -53,10 +53,10 @@ describe("sourceEditorFolding structural rows", () => {
 
   it("offers an expanded-by-default target for an ordinary multiline statement", () => {
     const source = [
-      "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: A",
+      "  from: A,",
       "  dx: 100",
       ")"
     ].join("\n");
@@ -79,12 +79,12 @@ describe("sourceEditorFolding structural rows", () => {
 
   it("places controls on independent brace rows and leaves both markers visible", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "if Choice (1)",
       "{",
-      "  point T = coordinate(x: 0 y: 0)",
+      "  point T = coordinate(x: 0, y: 0)",
       "} else {",
-      "  point E = coordinate(x: 1 y: 1)",
+      "  point E = coordinate(x: 1, y: 1)",
       "}"
     ].join("\n");
     const compiled = compileDslDocument(source, { sourceRevision: 4 });
@@ -102,11 +102,11 @@ describe("sourceEditorFolding structural rows", () => {
 
   it("projects then and else targets independently when both are collapsed", () => {
     const source = [
-      "nui 2",
+      "nui 3",
       "if Choice (1) {",
-      "  point T = coordinate(x: 0 y: 0)",
+      "  point T = coordinate(x: 0, y: 0)",
       "} else {",
-      "  point E = coordinate(x: 1 y: 1)",
+      "  point E = coordinate(x: 1, y: 1)",
       "}"
     ].join("\n");
     const compiled = compileDslDocument(source, { sourceRevision: 4 });

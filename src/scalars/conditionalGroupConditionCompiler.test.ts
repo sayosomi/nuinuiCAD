@@ -7,7 +7,6 @@ import type { BindingAnalysis } from "./bindingAnalysis";
 import {
   compileConditionalGroupConditions,
   CONDITIONAL_GROUP_CONDITION_INVALID_CODE,
-  CONDITIONAL_GROUP_CONDITION_LEGACY_REFERENCE_CODE,
   CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE,
   CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE
 } from "./conditionalGroupConditionCompiler";
@@ -116,7 +115,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
   });
 });
 
-describe("compileConditionalGroupConditions: legacy-eligible conditions are left untouched", () => {
+describe("compileConditionalGroupConditions: numeric-only conditions are left untouched", () => {
   it("a plain numeric literal produces no entry and no diagnostic", () => {
     const compiled = compileFor(["const _unused: number = 0", "if C (1) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
@@ -127,32 +126,6 @@ describe("compileConditionalGroupConditions: legacy-eligible conditions are left
 
   it("a zero-reference numeric comparison produces no entry and no diagnostic", () => {
     const compiled = compileFor(["const _unused: number = 0", "if C (1 > 0) {", "}"].join("\n"));
-    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
-    expect(diagnostics).toEqual([]);
-    expect(sourcesByOccurrenceKey.size).toBe(0);
-  });
-
-  it("a comparison referencing only legacy vars produces no entry and no diagnostic", () => {
-    const compiled = compileFor([
-      "const _unused: number = 0",
-      "var legacyA = 1",
-      "var legacyB = 2",
-      "if C (@legacyA > @legacyB) {",
-      "}"
-    ].join("\n"));
-    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
-    expect(diagnostics).toEqual([]);
-    expect(sourcesByOccurrenceKey.size).toBe(0);
-  });
-
-  it("a logical && referencing only legacy vars produces no entry and no diagnostic", () => {
-    const compiled = compileFor([
-      "const _unused: number = 0",
-      "var legacyA = 1",
-      "var legacyB = 1",
-      "if C (@legacyA && @legacyB) {",
-      "}"
-    ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -189,19 +162,6 @@ describe("compileConditionalGroupConditions: fail-closed diagnostics once classi
     expect(sourcesByOccurrenceKey.size).toBe(0);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].code).toBe(CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE);
-  });
-
-  it("a legacy var reference mixed into an otherwise-typed-only expression", () => {
-    const compiled = compileFor([
-      "const _unused: number = 0",
-      "var legacyA = 1",
-      "if C (@legacyA && true) {",
-      "}"
-    ].join("\n"));
-    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
-    expect(sourcesByOccurrenceKey.size).toBe(0);
-    expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0].code).toBe(CONDITIONAL_GROUP_CONDITION_LEGACY_REFERENCE_CODE);
   });
 
   it("an invalid (poisoned) typed declaration referenced inside a typed-only expression", () => {

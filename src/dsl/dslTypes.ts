@@ -112,7 +112,6 @@ export type DslStatement =
   | (DslStatementBase & { kind: "view" })
   | (DslStatementBase & { kind: "activeView" })
   | (DslStatementBase & { kind: "printLayout" })
-  | (DslStatementBase & { kind: "variable"; expression: string })
   | (DslStatementBase & { kind: "group" })
   | (DslStatementBase & { kind: "element"; type: CadElementType | null; category: string; construction: string })
   | (DslStatementBase & { kind: "version"; value: string })

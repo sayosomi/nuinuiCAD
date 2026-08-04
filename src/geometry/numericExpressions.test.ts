@@ -73,8 +73,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "front",
         name: "前身頃",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -82,8 +81,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "back",
         name: "後身頃",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -91,8 +89,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "front-line",
         name: "脇線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "front",
         startPoint: { mode: "reference", pointId: "a" },
         endPoint: { mode: "reference", pointId: "b" }
@@ -101,8 +98,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "back-line",
         name: "脇線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "back",
         startPoint: { mode: "reference", pointId: "c" },
         endPoint: { mode: "reference", pointId: "d" }
@@ -123,8 +119,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "curve-ac",
         name: "曲線AC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
@@ -152,8 +147,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "curve-ac",
         name: "曲線AC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         numericVariables: [{ id: "shared", name: "共通長", value: 30 }],
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
@@ -180,8 +174,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "curve-ac",
         name: "曲線AC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
@@ -215,41 +208,26 @@ describe("normalizeNumericExpressionInput", () => {
     ).toBe("distance(曲線AC.中間点2, 曲線AC.終点)");
   });
 
-  it("normalizes qualified local variables and global variable display names", () => {
-    const variable: CadElement = {
-      id: "base-variable",
-      name: "基準寸法",
-      type: "variable",
-      visible: true,
-      enabled: true,
-      scope: "global",
-      valueMode: "expression",
-      expression: 20,
-      point1: { mode: "reference", pointId: "point-a" },
-      point2: { mode: "reference", pointId: "point-b" },
-      point: { mode: "reference", pointId: "point-a" },
-      lineId: "line-ab"
-    };
+  it("normalizes a qualified local variable display name", () => {
     const point: CadElement = {
       id: "point-a",
       name: "袖",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
       x: 0,
       y: 0
     };
-    const elements = [variable, point];
+    const elements = [point];
 
     expect(
       normalizeNumericExpressionInput(
-        "@袖.寸法 + @基準寸法",
+        "@袖.寸法",
         elements,
         point.numericVariables ?? [],
         point
       )
-    ).toBe("@local-width + @base-variable");
+    ).toBe("@local-width");
   });
 
   it("normalizes the nui 3 sigil form of an element property reference (Task 51)", () => {
@@ -258,8 +236,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "line-ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" }
       }
@@ -277,8 +254,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "curve-ac",
         name: "曲線AC",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
@@ -301,8 +277,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "line-ab",
         name: "AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" }
       }
@@ -316,8 +291,7 @@ describe("normalizeNumericExpressionInput", () => {
       id: "point-a",
       name: "袖",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       x: 0,
       y: 0
     };
@@ -335,8 +309,7 @@ describe("normalizeNumericExpressionInput", () => {
       id: "point-ab",
       name: "AB",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       x: 0,
       y: 0
     };
@@ -344,8 +317,7 @@ describe("normalizeNumericExpressionInput", () => {
       id: "line-cd",
       name: "CD",
       type: "line",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "reference", pointId: "point-ab" },
       endPoint: { mode: "reference", pointId: "point-ab" }
     };
@@ -365,8 +337,7 @@ describe("normalizeNumericExpressionInput", () => {
       id: "point-a",
       name: "袖",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       numericVariables: [
         { id: "local-width-1", name: "寸法", value: 30 },
         { id: "local-width-2", name: "寸法", value: 40 }
@@ -394,8 +365,7 @@ describe("normalizeNumericExpressionInput", () => {
       id: "point-a",
       name: "袖",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
       x: 0,
       y: 0
@@ -411,8 +381,7 @@ describe("normalizeNumericExpressionInput", () => {
       id: "curve-ac",
       name: "曲線AC",
       type: "bezierCurve",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "reference", pointId: "a" },
       startHandleAngleDeg: 0,
       startHandleLength: 20,
@@ -436,8 +405,7 @@ describe("normalizeNumericExpressionInput", () => {
       id: "line-ab",
       name: "AB",
       type: "line",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" }
     };
@@ -453,8 +421,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "point-a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -462,8 +429,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "point-b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 10,
         y: 0
       },
@@ -471,8 +437,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "line-ab",
         name: "直線AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" }
       }
@@ -489,8 +454,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "front",
         name: "前身頃",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -498,8 +462,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "line-front",
         name: "脇線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "front",
         numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
         startPoint: { mode: "reference", pointId: "point-a" },
@@ -509,8 +472,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "curve-front",
         name: "曲線",
         type: "bezierCurve",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "front",
         startPoint: { mode: "reference", pointId: "point-a" },
         startHandleAngleDeg: 0,
@@ -519,20 +481,6 @@ describe("normalizeNumericExpressionInput", () => {
         endPoint: { mode: "reference", pointId: "point-b" },
         endHandleAngleDeg: 0,
         endHandleLength: 20
-      },
-      {
-        id: "variable-front",
-        name: "基準寸法",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: 20,
-        point1: { mode: "reference", pointId: "point-a" },
-        point2: { mode: "reference", pointId: "point-b" },
-        point: { mode: "reference", pointId: "point-a" },
-        lineId: "line-front"
       }
     ];
     const context = createElementNameContext(elements);
@@ -559,8 +507,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "group-front",
         name: "前身頃",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -568,8 +515,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "point-a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "group-front",
         x: 0,
         y: 0
@@ -578,8 +524,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "point-b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "group-front",
         x: 10,
         y: 0
@@ -588,26 +533,11 @@ describe("normalizeNumericExpressionInput", () => {
         id: "line-ab",
         name: "脇線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "group-front",
         numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" }
-      },
-      {
-        id: "variable-base",
-        name: "基準寸法",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: 20,
-        point1: { mode: "reference", pointId: "point-a" },
-        point2: { mode: "reference", pointId: "point-b" },
-        point: { mode: "reference", pointId: "point-a" },
-        lineId: "line-ab"
       }
     ];
     const current = elements[3];
@@ -638,8 +568,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "point-a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
@@ -647,8 +576,7 @@ describe("normalizeNumericExpressionInput", () => {
         id: "point-b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 10,
         y: 0
       }
@@ -659,40 +587,25 @@ describe("normalizeNumericExpressionInput", () => {
     );
   });
 
-  it("formats local and global variable ids for display", () => {
-    const variable: CadElement = {
-      id: "base-variable",
-      name: "基準寸法",
-      type: "variable",
-      visible: true,
-      enabled: true,
-      scope: "global",
-      valueMode: "expression",
-      expression: 20,
-      point1: { mode: "reference", pointId: "point-a" },
-      point2: { mode: "reference", pointId: "point-b" },
-      point: { mode: "reference", pointId: "point-a" },
-      lineId: "line-ab"
-    };
+  it("formats a local variable id for display", () => {
     const point: CadElement = {
       id: "point-a",
       name: "袖",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
-      x: { kind: "expression", expression: "@local-width + @base-variable" },
+      x: { kind: "expression", expression: "@local-width" },
       y: 0
     };
 
     expect(
       formatNumericExpressionForDisplay(
-        expression("@local-width + @base-variable"),
-        [variable, point],
+        expression("@local-width"),
+        [point],
         point.numericVariables ?? [],
         point
       )
-    ).toBe("@袖.寸法 + @基準寸法");
+    ).toBe("@袖.寸法");
   });
 
   it("falls back to local variable ids when display names are ambiguous", () => {
@@ -700,8 +613,7 @@ describe("normalizeNumericExpressionInput", () => {
       id: "point-a",
       name: "袖",
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       numericVariables: [
         { id: "local-width-1", name: "寸法", value: 30 },
         { id: "local-width-2", name: "寸法", value: 40 }

@@ -43,15 +43,6 @@ describe("DSL parser spans", () => {
     expect(source.slice(statement.payloadSpans.y.start, statement.payloadSpans.y.end)).toBe("-20.5");
   });
 
-  it("records expression payload spans for variables", () => {
-    const source = "var bust = 840 + 20";
-    const statement = single(source);
-    expect(statement.kind).toBe("variable");
-    if (statement.kind !== "variable") return;
-    expect(statement.expression).toBe("840 + 20");
-    expect(source.slice(statement.payloadSpans.expression.start, statement.payloadSpans.expression.end)).toBe("840 + 20");
-  });
-
   it("records line payload spans", () => {
     const source = "line AB = segment(start: A end: B)";
     const statement = single(source);
@@ -605,23 +596,21 @@ describe("DSL parser compatibility", () => {
 
   it("still parses the vertical call drafting syntax", () => {
     const parsed = parseDsl([
-      "var bust = 840",
       "point A = coordinate(x: 0 y: 0)",
-      "point B = offset(from: A dx: 0 dy: -(bust / 4))",
+      "point B = offset(from: A dx: 0 dy: -(210 / 4))",
       "line AB = segment(start: A end: B)",
       "arc armhole = arc(center: A radius: 120 start: 0 end: -90)",
       "text label = label(text: \"前中心\" anchor: A size: 4)"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements.map((statement) => statement.kind)).toEqual([
-      "variable",
       "element",
       "element",
       "element",
       "element",
       "element"
     ]);
-    expect(parsed.statements.slice(1).map((statement) => (statement.kind === "element" ? statement.type : null))).toEqual([
+    expect(parsed.statements.map((statement) => (statement.kind === "element" ? statement.type : null))).toEqual([
       "freePoint",
       "offsetPoint",
       "line",
@@ -644,15 +633,4 @@ describe("DSL parser compatibility", () => {
     );
   });
 
-  it("keeps an exact conflicting-arg span on the state/visible conflict diagnostic, not a whole-statement span", () => {
-    const source = "point A = coordinate(x: 0 y: 0 state: hidden visible: false)";
-    const parsed = parseDsl(source);
-    const conflict = parsed.diagnostics.find((item) => item.code === "element-state-conflict");
-    expect(conflict).toBeDefined();
-    expect(conflict?.physicalSpan?.segments).toHaveLength(1);
-    const [segment] = conflict!.physicalSpan!.segments;
-    expect(source.slice(segment.from, segment.to)).toBe("visible");
-    // Not the whole statement, which starts at offset 0 ("point").
-    expect(segment.from).toBeGreaterThan(0);
-  });
 });

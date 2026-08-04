@@ -35,7 +35,6 @@ export const dslStatementKeywords = {
   version: "nui",
   for: "for",
   place: "place",
-  variable: "var",
   layoutVariable: "layoutVar",
   role: "role",
   view: "view",
@@ -68,7 +67,6 @@ const callCategoryKeywords = new Set<string>([
   dslStatementKeywords.arc,
   dslStatementKeywords.text,
   dslStatementKeywords.image,
-  dslStatementKeywords.variable,
   dslStatementKeywords.group,
   dslStatementKeywords.conditional,
   dslStatementKeywords.for
@@ -187,9 +185,6 @@ const withSyntheticPositionalAttr = (call: DslCallStatement, base: DslStatementB
 
 const callStatementToDslStatement = (call: DslCallStatement, line: number, endLine: number): DslStatement => {
   const base = withSyntheticPositionalAttr(call, baseFrom(call, line, endLine));
-  if (call.shortVariable) {
-    return { ...base, kind: "variable", expression: call.args[0]?.value ?? "" };
-  }
   if (call.category === "group") {
     return { ...base, kind: "group" };
   }
@@ -469,7 +464,7 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
   statement.documentRange = logical.range;
   statement.physicalSpan = physicalSpanForStatement(logical);
   const project = (span: DslSpan) => physicalSpanForLogicalRange(sourceMap, logical, span);
-  // Keep legacy logical spans for parser/serializer compatibility while making
+  // Keep logical spans for parser/serializer compatibility while making
   // all source projections use the map-owned physical spans.
   for (const attr of statement.attrs) {
     const physical = project({ start: attr.valueStart, end: attr.valueEnd });
@@ -531,7 +526,7 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
     }
     if (!logical.logicalText.trim()) continue;
     // A multi-line block header is followed by its own structural opening line.
-    // An inline `{` at the header's own end (the v2 canonical form) is
+    // An inline `{` at the header's own end is
     // recognized by the P3/P4 parsers themselves from the logical text.
     const next = sourceMap.statements[index + 1];
     const opensOnNextLine = next?.structural === "open";

@@ -16,8 +16,8 @@ type ControllerInternals = {
 };
 
 const source = dslTextForElements([
-  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-  { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+  { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
 ]);
 
 describe("SourceEditorController patch-change highlight", () => {
@@ -39,7 +39,7 @@ describe("SourceEditorController patch-change highlight", () => {
   const patchElement = (name: string) => {
     const elements = useCadDocumentStore.getState().elements;
     return useCadDocumentStore.getState().commitDocumentChange({
-      elements: elements.map((element) => (element.name === name ? { ...element, enabled: false } : element))
+      elements: elements.map((element) => (element.name === name ? { ...element, activity: "disabled" } : element))
     });
   };
 
@@ -90,7 +90,7 @@ describe("SourceEditorController patch-change highlight", () => {
     // (unaffected by this edit) must still read "y: 0".
     const line = internals.view.state.doc.lineAt(mark.from);
     const fullLineText = internals.view.state.doc.sliceString(line.from, line.to);
-    expect(fullLineText).toBe("  x: 777");
+    expect(fullLineText).toBe("  x: 777,");
     const yLine = internals.view.state.doc.line(line.number + 1);
     expect(internals.view.state.doc.sliceString(yLine.from, yLine.to)).toBe("  y: 0");
     controller.destroy();

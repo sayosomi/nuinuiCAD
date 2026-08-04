@@ -36,12 +36,12 @@ fn geometry<'a>(result: &'a EvaluationPayload, id: &str) -> &'a Value {
 }
 
 fn point(id: &str, x: f64, y: f64) -> Value {
-    json!({ "id": id, "name": id, "type": "freePoint", "visible": true, "enabled": true, "x": x, "y": y })
+    json!({ "id": id, "name": id, "type": "freePoint", "activity": "visible", "x": x, "y": y })
 }
 
 fn line(id: &str, start: &str, end: &str) -> Value {
     json!({
-        "id": id, "name": id, "type": "line", "visible": true, "enabled": true,
+        "id": id, "name": id, "type": "line", "activity": "visible",
         "startPoint": { "mode": "reference", "pointId": start },
         "endPoint": { "mode": "reference", "pointId": end }
     })
@@ -56,7 +56,7 @@ fn reverse_changes_later_offset_source_direction_and_preserves_document_order() 
         line("ab", "a", "b"),
         line("cb", "c", "b"),
         json!({
-            "id": "seam", "name": "seam", "type": "offsetLine", "visible": true, "enabled": true,
+            "id": "seam", "name": "seam", "type": "offsetLine", "activity": "visible",
             "baseLineIds": ["ab", "cb"], "offset": 1, "side": "right", "closed": false
         }),
     ];
@@ -89,7 +89,7 @@ fn reverse_twice_restores_an_arc_and_reverses_its_sweep() {
     let elements = vec![
         point("center", 0.0, 0.0),
         json!({
-            "id": "arc", "name": "arc", "type": "arcLine", "visible": true, "enabled": true,
+            "id": "arc", "name": "arc", "type": "arcLine", "activity": "visible",
             "centerPoint": { "mode": "reference", "pointId": "center" }, "radius": 10,
             "startAngleDeg": 0, "endAngleDeg": 90
         }),
@@ -128,7 +128,7 @@ fn conditional_reverse_only_applies_for_the_selected_branch() {
         point("a", 0.0, 0.0),
         point("b", 10.0, 0.0),
         line("ab", "a", "b"),
-        json!({ "id": "if", "name": "if", "type": "conditionalGroup", "visible": true, "enabled": true, "condition": 0 }),
+        json!({ "id": "if", "name": "if", "type": "conditionalGroup", "activity": "visible", "condition": 0 }),
         point("after", 20.0, 0.0),
     ];
     let result = evaluate_document_input(input(
@@ -184,7 +184,7 @@ fn reverse_bezier_reverses_segments_controls_and_endpoints() {
         point("mid", 10.0, 10.0),
         point("b", 20.0, 0.0),
         json!({
-            "id": "curve", "name": "curve", "type": "bezierCurve", "visible": true, "enabled": true,
+            "id": "curve", "name": "curve", "type": "bezierCurve", "activity": "visible",
             "startPoint": { "mode": "reference", "pointId": "a" }, "startHandleAngleDeg": 0, "startHandleLength": 5,
             "intermediatePoints": [{ "id": "m", "point": { "mode": "reference", "pointId": "mid" }, "handleAngleDeg": 90, "incomingHandleLength": 4, "outgoingHandleLength": 4 }],
             "endPoint": { "mode": "reference", "pointId": "b" }, "endHandleAngleDeg": 180, "endHandleLength": 5

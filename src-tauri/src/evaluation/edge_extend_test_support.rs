@@ -39,8 +39,7 @@ pub(super) fn arch_curve(id: &str, name: &str, start_id: &str, end_id: &str) -> 
         "id": id,
         "name": name,
         "type": "bezierCurve",
-        "visible": true,
-        "enabled": true,
+        "activity": "visible",
         "startPoint": { "mode": "reference", "pointId": start_id },
         "startHandleAngleDeg": 90,
         "startHandleLength": 40,
@@ -56,8 +55,7 @@ pub(super) fn free_point(id: &str, name: &str, x: f64, y: f64) -> Value {
         "id": id,
         "name": name,
         "type": "freePoint",
-        "visible": true,
-        "enabled": true,
+        "activity": "visible",
         "x": x,
         "y": y
     }))
@@ -68,8 +66,7 @@ pub(super) fn line(id: &str, name: &str, start_id: &str, end_id: &str) -> Value 
         "id": id,
         "name": name,
         "type": "line",
-        "visible": true,
-        "enabled": true,
+        "activity": "visible",
         "startPoint": { "mode": "reference", "pointId": start_id },
         "endPoint": { "mode": "reference", "pointId": end_id }
     }))

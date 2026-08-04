@@ -7,7 +7,7 @@
 // field - literal property compile output (src/dsl/dslApplyArgs.ts) is
 // completely untouched. Only args whose ParameterDefinition.kind is
 // text/choice/boolean are ever inspected; `number` args keep their
-// pre-existing, unrelated legacy `@name` numeric-variable-reference syntax.
+// pre-existing local `@name` numeric-reference syntax.
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
@@ -160,7 +160,7 @@ export const compilePropertyBindings = ({
 
     for (const attr of statement.attrs) {
       // Never touches quoted literals (strings always start with a quote)
-      // or the pre-existing legacy numeric `@name` measurement-reference
+      // or the pre-existing local numeric `@name` measurement-reference
       // syntax - only unquoted, `@`-prefixed text/choice/boolean values.
       if (!attr.value.startsWith("@")) continue;
       const parameterKey = parameterKeyForArg(element.type, attr.key);

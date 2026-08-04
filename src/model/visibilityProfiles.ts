@@ -189,7 +189,7 @@ export const effectiveVisibleElementIdsForProfile = ({
   return new Set(
     elements
       .filter((element) =>
-        element.visible &&
+        element.activity === "visible" &&
         !states.get(element.id)?.hiddenByGroupId &&
         !hiddenByVisibilityRole(element, elementsById, profile, roleHiddenCache)
       )

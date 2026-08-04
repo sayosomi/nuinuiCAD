@@ -84,7 +84,7 @@ export const DEFAULT_PRINT_LAYOUT: PrintLayout = {
   placements: []
 };
 
-/** Resolves the active layout while preserving the legacy mirror fallback order. */
+/** Resolves the active layout, falling back to the first current layout. */
 export const activePrintLayout = (
   printLayouts: readonly PrintLayout[],
   activePrintLayoutId: string
@@ -232,20 +232,16 @@ const uniquePrintLayoutName = (baseName: string, layouts: PrintLayout[]) => {
 
 export const normalizePrintLayouts = ({
   printLayouts,
-  legacyPrintLayout,
   elements,
   visibilityProfiles = [],
   preserveDanglingReferences = false
 }: {
   printLayouts: unknown;
-  legacyPrintLayout: unknown;
   elements: CadElement[];
   visibilityProfiles?: VisibilityProfile[];
   preserveDanglingReferences?: boolean;
 }) => {
-  const source = Array.isArray(printLayouts) && printLayouts.length > 0
-    ? printLayouts
-    : [legacyPrintLayout];
+  const source = Array.isArray(printLayouts) && printLayouts.length > 0 ? printLayouts : [];
   const normalized: PrintLayout[] = [];
   const usedIds = new Set<string>();
 
@@ -273,18 +269,6 @@ const clampInteger = (value: number, fallback: number, max: number) =>
 const clampMin = (value: number, fallback: number, min: number) =>
   Math.max(Number.isFinite(value) ? value : fallback, min);
 
-const globalVariableValues = (elements: CadElement[], evaluation: EvaluationResult) => {
-  const values = new Map<string, number>();
-  for (const element of elements) {
-    if (element.type !== "variable" || element.scope !== "global") continue;
-    const computed = evaluation.computedVariables.get(element.id);
-    if (!computed) continue;
-    values.set(element.id, computed.value);
-    values.set(element.name, computed.value);
-  }
-  return values;
-};
-
 const printVariableValues = ({
   variables,
   elements,
@@ -294,7 +278,7 @@ const printVariableValues = ({
   elements: CadElement[];
   evaluation: EvaluationResult;
 }) => {
-  const values = globalVariableValues(elements, evaluation);
+  const values = new Map<string, number>();
   const resolvedVariables: Array<Omit<NumericVariable, "value"> & { value: number }> = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   for (const variable of variables) {
@@ -302,7 +286,6 @@ const printVariableValues = ({
       value: variable.value,
       computedGeometry: evaluation.computedGeometry,
       elementsById,
-      computedVariables: evaluation.computedVariables,
       elements,
       localVariables: values
     });
@@ -336,7 +319,6 @@ const resolveNumericValue = ({
     value,
     computedGeometry: evaluation.computedGeometry,
     elementsById: new Map(elements.map((element) => [element.id, element])),
-    computedVariables: evaluation.computedVariables,
     elements,
     localVariables
   });

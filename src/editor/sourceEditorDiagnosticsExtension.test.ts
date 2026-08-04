@@ -1,6 +1,6 @@
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import { currentDiagnosticsWithActions, type DiagnosticsExtensionSource } from "./sourceEditorDiagnosticsExtension";
@@ -29,32 +29,31 @@ const baseSource = (compiled: ReturnType<typeof compile>, overrides: Partial<Dia
   committedDiagnostics: () => compiled.diagnostics,
   runtimeDiagnostics: () => [],
   staleBaseline: () => [],
-  upgradeDslMajorVersion: vi.fn(() => ({ status: "applied" }) as const),
   ...overrides
 });
 
 describe("currentDiagnosticsWithActions", () => {
   it("attaches an action for a fixable diagnostic, even though the error makes the compiled document non-last-good", () => {
-    const source = ["nui 2", "const x: number = 1"].join("\n");
+    const source = ["nui 3", "const x = 1"].join("\n");
     const compiled = compile(source);
-    // The version-gate error is itself what nulls `document`/`statementMap` -
+    // The missing-declared-type error is itself what nulls `document`/`statementMap` -
     // this is the exact case that previously (before routing statements
     // through a fresh parseDsl instead of a last-good `doc`) silently
     // produced zero actions for every one of this module's target codes.
     expect(compiled.document).toBeNull();
     const view = makeView(source);
     const diagnostics = currentDiagnosticsWithActions(view, baseSource(compiled));
-    const conflict = diagnostics.find((d) => d.message.includes("nui 3"));
+    const conflict = diagnostics.find((d) => d.message.includes("型注釈"));
     expect(conflict?.actions?.length).toBeGreaterThan(0);
   });
 
   it("passes the live deps through so a click on the resulting action still no-ops mid-composition", () => {
-    const source = ["nui 2", "const x: number = 1"].join("\n");
+    const source = ["nui 3", "const x = 1"].join("\n");
     const compiled = compile(source);
     const view = makeView(source);
     let composing = false;
     const diagnostics = currentDiagnosticsWithActions(view, baseSource(compiled, { isComposing: () => composing }));
-    const conflict = diagnostics.find((d) => d.message.includes("nui 3"));
+    const conflict = diagnostics.find((d) => d.message.includes("型注釈"));
     const action = conflict?.actions?.[0];
     expect(action).toBeTruthy();
 

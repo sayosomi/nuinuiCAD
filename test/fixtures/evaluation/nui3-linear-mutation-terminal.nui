@@ -1,8 +1,8 @@
 nui 3
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 3, y: 4)
-var distance = pointDistance(point1: A, point2: B, state: hidden)
-let value: number = @distance
+line AB = segment(start: A, end: B)
+let value: number = @AB.length
 let mirror: number = 0
 let label: string = "old"
 let flag: boolean = false
@@ -12,8 +12,8 @@ set value = @value + 1
 set label = "new"
 set flag = true
 set side = left
-set value = 1 / 0
 set mirror = @value
-set value = @distance + 2
+set value = @AB.length + 2
+text Label = label(text: "{@label} {@value}", anchor: none, size: 3)
 @stop
 set value = 99

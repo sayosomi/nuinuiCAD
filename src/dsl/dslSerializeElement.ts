@@ -3,20 +3,18 @@ import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { CadElement, LineEndpointReference, NumericValue, PointAnchor } from "../types/geometry";
 import {
   commonArgSpecs,
-  constructionFor,
   constructionForElementType,
   type DslArgSpec,
   type DslConstructionSpec,
 } from "./dslConstructions";
 import type { DslSerializerRefs } from "./dslSerializer";
 import { formatDslName, quoteDslString } from "./dslTokens";
-import { elementActivityFromLegacyFlags, legacyFlagsForElementActivity } from "../model/elementActivity";
 
 export type SerializedStatement = {
   header: string;
   args: Array<{ key: string; text: string }>;
   close: ")" | null;
-  /** Omitted for legacy space-separated output. */
+  /** Set for call-style argument output. */
   argumentSeparator?: "comma";
 };
 
@@ -24,9 +22,7 @@ const defaultGroupAnchor = (value: PointAnchor | null | undefined) =>
   !value || (value.mode === "coordinate" && value.x === 0 && value.y === 0);
 
 const constructionForElement = (element: CadElement): DslConstructionSpec =>
-  element.type === "variable"
-    ? constructionFor("var", element.valueMode)!
-    : constructionForElementType(element.type);
+  constructionForElementType(element.type);
 
 const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerializerRefs): string | null => {
   switch (arg.special) {
@@ -80,9 +76,6 @@ const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerialize
 
 const ordinaryArgText = (element: CadElement, parameterKey: string, refs: DslSerializerRefs): string => {
   const value = getParameterValue(element, parameterKey);
-  if (parameterKey === "visible" || parameterKey === "enabled") {
-    return `${value}`;
-  }
   if (parameterKey === "colorId") return formatDslName((value as string | undefined) ?? "");
 
   const definition = findParameterDefinition(element, parameterKey);
@@ -143,25 +136,16 @@ const commonArgs = (
   refs: DslSerializerRefs,
   constructionArgNames: ReadonlySet<string> = new Set()
 ) => {
-  const isV3 = refs.majorVersion >= 3;
-  const activity = elementActivityFromLegacyFlags(element);
-  const legacyActivityFlags = legacyFlagsForElementActivity(activity);
+  const activity = element.activity;
   return commonArgSpecs
     .filter((arg) => {
       if (constructionArgNames.has(arg.arg)) return false;
       if (arg.special) return specialArgText(element, arg, refs) !== null;
       const key = arg.parameterKey ?? arg.arg;
-      // `locked` is a retired legacy attribute: recognized for parsing so old
-      // documents don't error, but never regenerated in output.
-      if (key === "locked") return false;
-      // v3 canonical always prefers `state:`; v2 keeps the legacy visible/enabled flags.
-      if (key === "state") return isV3 && activity !== "visible";
-      if (key === "visible") return !isV3 && legacyActivityFlags.visible === false;
-      if (key === "enabled") return !isV3 && legacyActivityFlags.enabled === false;
+      if (key === "state") return activity !== "visible";
       return key === "colorId" && Boolean(element.colorId);
     })
-    // `state` has no ParameterDefinition/CadElement field of its own (it's derived from
-    // the legacy flags), so it can't go through the generic ordinaryArgText lookup below.
+    // `state` is model activity rather than an editable parameter.
     .map((arg) => (arg.arg === "state" ? { key: "state", text: `state: ${activity}` } : serializeArg(element, arg, refs)))
     .filter((arg): arg is { key: string; text: string } => arg !== null);
 };
@@ -192,19 +176,6 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
   return { header, args: [], close: null, ...(usesCommas ? { argumentSeparator: "comma" as const } : {}) };
 };
 
-const isShortExpressionVariable = (
-  element: CadElement,
-  args: readonly { key: string; text: string }[],
-  refs: DslSerializerRefs,
-) =>
-  element.type === "variable" &&
-  element.valueMode === "expression" &&
-  element.scope === "global" &&
-  args.length === 0 &&
-  // 短形式 `var 名 = 式` はnameが必須(dslCallParser.tsの制約)。無名の
-  // expression変数は呼び出し形式 `var = expression(value: 式)` へ回す。
-  refs.name(element) !== "";
-
 export const serializeElementStatementBlock = (
   element: CadElement,
   refs: DslSerializerRefs,
@@ -215,14 +186,6 @@ export const serializeElementStatementBlock = (
   }
 
   const common = commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg)));
-  if (element.type === "variable" && isShortExpressionVariable(element, common, refs)) {
-    return {
-      header: `var ${refs.name(element)} = ${refs.numeric(element.expression, element)}`,
-      args: [],
-      close: null,
-      ...(refs.majorVersion >= 3 ? { argumentSeparator: "comma" as const } : {}),
-    };
-  }
 
   const name = refs.name(element);
   const header = [spec.category, name, "=", `${spec.construction}(`].filter(Boolean).join(" ");

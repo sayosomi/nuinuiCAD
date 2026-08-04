@@ -61,12 +61,12 @@ fn input(elements: Vec<Value>, versions: Vec<Value>, cutoff: Option<usize>) -> E
 }
 
 fn point(id: &str) -> Value {
-    json!({"id":id,"name":id,"type":"freePoint","visible":true,"enabled":true,"x":0,"y":0})
+    json!({"id":id,"name":id,"type":"freePoint","activity": "visible","x":0,"y":0})
 }
 
 fn for_group(id: &str) -> Value {
     json!({
-        "id": id, "name": id, "type": "forGroup", "visible": true, "enabled": true,
+        "id": id, "name": id, "type": "forGroup", "activity": "visible",
         "variableName": "i", "start": 1, "count": 2, "step": 1, "showGenerated": false
     })
 }
@@ -265,7 +265,7 @@ fn production_command_runs_for_group_mutation_and_carries_the_final_slot() {
         }]
     });
     let template = json!({
-        "id":template_id,"name":template_id,"type":"freePoint","visible":true,"enabled":true,
+        "id":template_id,"name":template_id,"type":"freePoint","activity": "visible",
         "parentGroupId":loop_id,"x":0,"y":0
     });
     let result = evaluate_document(EvaluationInput {

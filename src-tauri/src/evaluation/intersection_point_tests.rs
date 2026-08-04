@@ -19,8 +19,7 @@ fn line_element(id: &str, name: &str, start: &str, end: &str) -> Value {
         "id": id,
         "name": name,
         "type": "line",
-        "visible": true,
-        "enabled": true,
+        "activity": "visible",
         "startPoint": { "mode": "reference", "pointId": start },
         "endPoint": { "mode": "reference", "pointId": end }
     }))
@@ -31,8 +30,7 @@ fn free_point(id: &str, name: &str, x: f64, y: f64) -> Value {
         "id": id,
         "name": name,
         "type": "freePoint",
-        "visible": true,
-        "enabled": true,
+        "activity": "visible",
         "x": x,
         "y": y
     }))
@@ -43,8 +41,7 @@ fn intersection(line1_id: &str, line2_id: &str, index: Value, use_extensions: bo
         "id": "intersection",
         "name": "交点",
         "type": "intersectionPoint",
-        "visible": true,
-        "enabled": true,
+        "activity": "visible",
         "line1Id": line1_id,
         "line2Id": line2_id,
         "intersectionIndex": index,
@@ -153,8 +150,7 @@ fn evaluates_intersection_point_between_arc_and_line() {
                 "id": "arc",
                 "name": "円弧",
                 "type": "arcLine",
-                "visible": true,
-                "enabled": true,
+                "activity": "visible",
                 "centerPoint": { "mode": "reference", "pointId": "center" },
                 "radius": 10,
                 "startAngleDeg": 0,
@@ -194,8 +190,7 @@ fn selects_intersection_point_by_index() {
                 "id": "arc",
                 "name": "円弧",
                 "type": "arcLine",
-                "visible": true,
-                "enabled": true,
+                "activity": "visible",
                 "centerPoint": { "mode": "reference", "pointId": "center" },
                 "radius": 10,
                 "startAngleDeg": 0,
@@ -382,8 +377,7 @@ fn evaluates_intersection_index_numeric_variables_and_expressions() {
                 "id": "intersection",
                 "name": "交点",
                 "type": "intersectionPoint",
-                "visible": true,
-                "enabled": true,
+                "activity": "visible",
                 "numericVariables": [
                     { "id": "index", "name": "番号", "value": 0 }
                 ],

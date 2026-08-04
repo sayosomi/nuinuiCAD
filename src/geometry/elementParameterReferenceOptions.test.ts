@@ -33,8 +33,7 @@ const lineElement = (id: string, name: string): CadElement => ({
   id,
   name,
   type: "line",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "coordinate", x: 0, y: 0 },
   endPoint: { mode: "coordinate", x: 10, y: 0 }
 });
@@ -43,8 +42,7 @@ const forGroupElement = (id: string, name: string): CadElement => ({
   id,
   name,
   type: "forGroup",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   variableName: "i",
   start: 0,
   count: 5,
@@ -52,24 +50,8 @@ const forGroupElement = (id: string, name: string): CadElement => ({
   showGenerated: true
 });
 
-const variableElement = (id: string, name: string): CadElement => ({
-  id,
-  name,
-  type: "variable",
-  visible: true,
-  enabled: true,
-  scope: "global",
-  valueMode: "expression",
-  expression: 42,
-  point1: { mode: "coordinate", x: 0, y: 0 },
-  point2: { mode: "coordinate", x: 0, y: 0 },
-  point: { mode: "coordinate", x: 0, y: 0 },
-  lineId: ""
-});
-
 const baseEvaluation = (overrides: Partial<EvaluationResult> = {}): EvaluationResult => ({
   computedGeometry: new Map<string, ComputedGeometry>(),
-  computedVariables: new Map(),
   errors: [],
   warnings: [],
   effectiveEnabledElementIds: new Set(),
@@ -118,21 +100,10 @@ describe("referenceablePathsForElement", () => {
     expect(referenceablePathsForElement(element, [element], evaluation)).toEqual([]);
   });
 
-  it("includes value for a computed variable element", () => {
-    const element = variableElement("v1", "変数A");
-    const evaluation = baseEvaluation({
-      computedVariables: new Map([["v1", { kind: "variable" as const, elementId: "v1", name: "変数A", value: 42 }]]),
-      effectiveEnabledElementIds: new Set(["v1"])
-    });
-    const paths = referenceablePathsForElement(element, [element], evaluation).map((item) => item.path);
-    expect(paths).toContain("value");
-  });
-
   it("treats a missing effectiveEnabledElementIds as unknown eligibility (excludes, never guesses)", () => {
     const element = lineElement("line1", "直線AB");
     const evaluation: EvaluationResult = {
       computedGeometry: new Map([["line1", lineGeometry("line1")]]),
-      computedVariables: new Map(),
       errors: [],
       warnings: []
     };

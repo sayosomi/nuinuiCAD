@@ -36,8 +36,7 @@ describe("elementSearchResults", () => {
         id: "group-front",
         name: "前身頃",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
       },
       { ...sampleElements[0], parentGroupId: "group-front" }
     ];

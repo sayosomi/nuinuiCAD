@@ -49,6 +49,21 @@ describe("general numeric typed binding runtime", () => {
     expect((result.computedGeometry.get(point(compiled, "After").id) as { x: number }).x).toBe(9);
   });
 
+  it("gives an element-local numeric variable precedence over a same-named document typed binding (Task 52 B1/B2)", () => {
+    const compiled = compile([
+      "nui 3",
+      "const 幅: number = 100",
+      "point P = coordinate(x: @幅, y: 0, vars: [幅: 5])"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(result.errors).toEqual([]);
+    expect((result.computedGeometry.get(point(compiled, "P").id) as { x: number }).x).toBe(5);
+    // The x expression stays an untouched raw numeric expression (never
+    // typed-materialized): the local binding shadows the document typed
+    // binding at the compile-time classification layer, not at runtime.
+    expect(compiled.numericBindings?.size ?? 0).toBe(0);
+  });
+
   it("keeps legacy measurement tokens in the existing numeric evaluator (nui 3 sigil form, Task 51)", () => {
     const compiled = compile([
       "nui 3",

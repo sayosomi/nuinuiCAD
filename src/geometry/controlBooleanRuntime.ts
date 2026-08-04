@@ -116,12 +116,12 @@ export const resolveForGroupEffectiveShowGenerated = (
 /**
  * A `conditionalGroup`'s active branch from its typed boolean condition:
  * `undefined` means no compiled typed expression exists for this occurrence
- * (the legacy `NumericValue` path applies instead - the caller is
+ * (the literal `NumericValue` path applies instead - the caller is
  * responsible for that fallback, this function is never called in that
  * case). When an expression exists, it is evaluated exactly once via the
  * caller's existing binding resolver; any result other than a clean
  * `{status:"ok", type.kind:"boolean"}` becomes `null` (poisoned - both
- * branches inactive), identical to today's legacy poison semantics so
+ * branches inactive), identical to the established poison semantics so
  * `inactiveConditionalGroupId`'s `activeBranch !== branch` comparison keeps
  * working unmodified for the typed path too.
  */

@@ -11,8 +11,7 @@ const elements: CadElement[] = [
     id: "print-group",
     name: "前身頃",
     type: "group",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     printEnabled: true,
     printAnchor: { mode: "reference", pointId: "origin" }
   },
@@ -20,8 +19,7 @@ const elements: CadElement[] = [
     id: "origin",
     name: "基準",
     type: "freePoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     parentGroupId: "print-group",
     x: 10,
     y: 0
@@ -30,8 +28,7 @@ const elements: CadElement[] = [
     id: "end",
     name: "端",
     type: "freePoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     parentGroupId: "print-group",
     x: 20,
     y: 0
@@ -40,8 +37,7 @@ const elements: CadElement[] = [
     id: "printed-line",
     name: "印刷線",
     type: "line",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     parentGroupId: "print-group",
     startPoint: { mode: "reference", pointId: "origin" },
     endPoint: { mode: "reference", pointId: "end" }
@@ -50,8 +46,7 @@ const elements: CadElement[] = [
     id: "printed-text",
     name: "注記",
     type: "text",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     parentGroupId: "print-group",
     text: "前中心",
     anchor: { mode: "reference", pointId: "origin" },
@@ -61,8 +56,7 @@ const elements: CadElement[] = [
     id: "root-start",
     name: "root start",
     type: "freePoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     x: 0,
     y: 0
   },
@@ -70,8 +64,7 @@ const elements: CadElement[] = [
     id: "root-end",
     name: "root end",
     type: "freePoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     x: 100,
     y: 0
   },
@@ -79,8 +72,7 @@ const elements: CadElement[] = [
     id: "root-line",
     name: "root line",
     type: "line",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     startPoint: { mode: "reference", pointId: "root-start" },
     endPoint: { mode: "reference", pointId: "root-end" }
   },
@@ -88,8 +80,7 @@ const elements: CadElement[] = [
     id: "skip-group",
     name: "印刷しない",
     type: "group",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     printEnabled: false,
     printAnchor: { mode: "coordinate", x: 0, y: 0 }
   }
@@ -153,7 +144,7 @@ describe("printGeometry", () => {
 
   it("uses activity predicates when an evaluation payload has no display masks", () => {
     const hiddenElements = elements.map((element) =>
-      element.id === "printed-line" ? { ...element, visible: false } : element
+      element.id === "printed-line" ? { ...element, activity: "hidden" as const } : element
     );
     const evaluation = evaluateElements(hiddenElements);
     const paths = printablePathsForLayout({
@@ -203,8 +194,7 @@ describe("printGeometry", () => {
         id: "comment",
         name: "コメント",
         type: "text",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "print-group",
         text: "構成リスト用",
         anchor: null,
@@ -218,8 +208,7 @@ describe("printGeometry", () => {
           id: "comment",
           name: "コメント",
           type: "text",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           parentGroupId: "print-group",
           text: "構成リスト用",
           anchor: null,
@@ -247,8 +236,7 @@ describe("printGeometry", () => {
         id: "allowance-group",
         name: "縫い代",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "print-group",
         visibilityRoleIds: ["seam"]
       },
@@ -256,8 +244,7 @@ describe("printGeometry", () => {
         id: "allowance-end",
         name: "縫い代端",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "allowance-group",
         x: 20,
         y: 10
@@ -266,8 +253,7 @@ describe("printGeometry", () => {
         id: "allowance-line",
         name: "縫い代線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "allowance-group",
         startPoint: { mode: "reference", pointId: "origin" },
         endPoint: { mode: "reference", pointId: "allowance-end" }
@@ -394,8 +380,8 @@ describe("printGeometry: group.printEnabled binding", () => {
     const doc = compileCanonical([
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "var d = pointDistance(point1: Z1, point2: Z2, state: disabled)",
-      "const dist: number = @d",
+      "line D = segment(start: Z1, end: Z2, state: disabled)",
+      "const dist: number = @D.length",
       "const 印刷: boolean = @dist > 0",
       "group G (printEnabled: @印刷) {",
       "  point A = coordinate(x: 0, y: 0)",

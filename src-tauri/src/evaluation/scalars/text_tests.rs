@@ -1,11 +1,13 @@
 //! Tests for `text.rs`'s pure `evaluate_text_template_segments` - literal
-//! assembly, legacy/typed hole dispatch, number formatting, and first-
+//! assembly, numeric-expression/typed hole dispatch, number formatting, and first-
 //! failing-hole-wins ordering. Mirrors `src/scalars/textTemplateEvaluator.test.ts`'s
 //! scenarios at the Rust layer.
 
 use std::collections::HashMap;
 
-use super::text::{evaluate_text_template_segments, LegacyHoleEvaluator, TextTemplateHoleOrigin};
+use super::text::{
+    evaluate_text_template_segments, NumericExpressionHoleEvaluator, TextTemplateHoleOrigin,
+};
 use super::text_template_payload::ValidatedTextTemplateSegment;
 use super::types::{ScalarEvaluation, ScalarSpan, ScalarType, ScalarValue, TypedScalarExpression};
 use super::ScalarEvaluationEnvironment;
@@ -13,13 +15,13 @@ use super::ScalarEvaluationEnvironment;
 const SPAN: ScalarSpan = ScalarSpan { start: 0, end: 0 };
 
 /// Stub context implementing both traits `evaluate_text_template_segments`
-/// requires - `lookup_binding` for typed holes, `evaluate_legacy_hole` for
-/// legacy holes - exactly mirroring how the real `text_template_runtime.rs`
+/// requires - `lookup_binding` for typed holes, `evaluate_numeric_expression_hole` for
+/// numeric-expression holes - exactly mirroring how the real `text_template_runtime.rs`
 /// context holds one `&mut EvaluationState` field but exposes it through
 /// two separate, non-overlapping-borrow methods.
 struct StubContext {
     bindings: HashMap<String, ScalarEvaluation>,
-    legacy_results: HashMap<String, Option<String>>,
+    numeric_results: HashMap<String, Option<String>>,
 }
 
 impl ScalarEvaluationEnvironment for StubContext {
@@ -35,16 +37,16 @@ impl ScalarEvaluationEnvironment for StubContext {
     }
 }
 
-impl LegacyHoleEvaluator for StubContext {
-    fn evaluate_legacy_hole(&mut self, raw: &str) -> Option<String> {
-        self.legacy_results.get(raw).cloned().flatten()
+impl NumericExpressionHoleEvaluator for StubContext {
+    fn evaluate_numeric_expression_hole(&mut self, raw: &str) -> Option<String> {
+        self.numeric_results.get(raw).cloned().flatten()
     }
 }
 
 fn empty_context() -> StubContext {
     StubContext {
         bindings: HashMap::new(),
-        legacy_results: HashMap::new(),
+        numeric_results: HashMap::new(),
     }
 }
 
@@ -54,8 +56,8 @@ fn literal(cooked: &str) -> ValidatedTextTemplateSegment {
     }
 }
 
-fn legacy_hole(raw: &str) -> ValidatedTextTemplateSegment {
-    ValidatedTextTemplateSegment::LegacyHole {
+fn numeric_expression_hole(raw: &str) -> ValidatedTextTemplateSegment {
+    ValidatedTextTemplateSegment::NumericExpressionHole {
         raw: raw.to_owned(),
     }
 }
@@ -153,40 +155,41 @@ fn formats_a_non_integer_typed_number_hole_to_three_decimals_trimmed() {
 }
 
 #[test]
-fn delegates_a_legacy_hole_to_the_injected_evaluator() {
+fn delegates_a_numeric_expression_hole_to_the_injected_evaluator() {
     let mut context = empty_context();
     context
-        .legacy_results
+        .numeric_results
         .insert("line.length".to_owned(), Some("42".to_owned()));
-    let segments = vec![literal("長さ: "), legacy_hole("line.length")];
+    let segments = vec![literal("長さ: "), numeric_expression_hole("line.length")];
     let result = evaluate_text_template_segments(&segments, &mut context, format_number);
     assert_eq!(result.unwrap(), "長さ: 42");
 }
 
 #[test]
-fn interleaves_legacy_and_typed_holes_in_source_order() {
+fn interleaves_numeric_expression_and_typed_holes_in_source_order() {
     let mut context = empty_context();
     context
         .bindings
         .insert("binding:label".to_owned(), ok_string("前身頃"));
     context
-        .legacy_results
+        .numeric_results
         .insert("line.length".to_owned(), Some("10".to_owned()));
     let segments = vec![
         string_reference_hole("binding:label"),
         literal(" 長さ:"),
-        legacy_hole("line.length"),
+        numeric_expression_hole("line.length"),
     ];
     let result = evaluate_text_template_segments(&segments, &mut context, format_number);
     assert_eq!(result.unwrap(), "前身頃 長さ:10");
 }
 
 #[test]
-fn fails_closed_on_a_legacy_hole_failure_without_a_message_the_caller_already_pushed_one() {
-    let segments = vec![literal("a"), legacy_hole("bad"), literal("b")];
+fn fails_closed_on_a_numeric_expression_hole_failure_without_a_message_the_caller_already_pushed_one(
+) {
+    let segments = vec![literal("a"), numeric_expression_hole("bad"), literal("b")];
     let error = evaluate_text_template_segments(&segments, &mut empty_context(), format_number)
         .unwrap_err();
-    assert_eq!(error.origin, TextTemplateHoleOrigin::Legacy);
+    assert_eq!(error.origin, TextTemplateHoleOrigin::NumericExpression);
     assert!(error.message.is_none());
 }
 
@@ -220,10 +223,10 @@ fn fails_closed_on_a_typed_hole_evaluation_error() {
 #[test]
 fn stops_at_the_first_failing_hole_in_source_order_never_evaluating_later_segments() {
     let segments = vec![
-        legacy_hole("first-bad"),
+        numeric_expression_hole("first-bad"),
         string_reference_hole("binding:should-not-be-reached"),
     ];
     let error = evaluate_text_template_segments(&segments, &mut empty_context(), format_number)
         .unwrap_err();
-    assert_eq!(error.origin, TextTemplateHoleOrigin::Legacy);
+    assert_eq!(error.origin, TextTemplateHoleOrigin::NumericExpression);
 }

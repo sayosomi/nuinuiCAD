@@ -9,16 +9,12 @@ import {
 } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
-import { LEGACY_CAD_DOCUMENT_EXTENSION } from "./documentFormat";
 import { rebaseImageSourcePathsInText } from "./imageFilePaths";
-import { importLegacyCadDocument } from "./legacyImport";
-import { importLegacyV1Document } from "./legacyV1Import";
 import {
   ensureNuiDocumentFileName,
   NUI_DOCUMENT_EXTENSION
 } from "./nuiFormat";
-import { isLegacyV1NuiDocument, unsupportedNuiMajorVersion } from "./nuiVersion";
-import { SUPPORTED_DSL_MAJOR_VERSIONS } from "../dsl/dslDocument";
+import { unsupportedNuiMajorVersion } from "./nuiVersion";
 
 type DocumentFileFilter = {
   name: string;
@@ -30,11 +26,6 @@ const nuiDocumentFilter: DocumentFileFilter = {
   extensions: [NUI_DOCUMENT_EXTENSION]
 };
 
-const legacyDocumentFilter: DocumentFileFilter = {
-  name: "nuinuiCAD legacy document",
-  extensions: [LEGACY_CAD_DOCUMENT_EXTENSION]
-};
-
 const invokeWriteDocumentFile = (path: string, content: string) =>
   invoke<void>("write_document_file", { path, content });
 
@@ -43,9 +34,6 @@ const invokeReadDocumentFile = (path: string) =>
 
 const openNuiDocumentDialog = () =>
   open({ filters: [nuiDocumentFilter], multiple: false });
-
-const openLegacyDocumentDialog = () =>
-  open({ filters: [legacyDocumentFilter], multiple: false });
 
 const saveDocumentDialog = (defaultPath: string) =>
   save({ filters: [nuiDocumentFilter], defaultPath });
@@ -157,28 +145,11 @@ export const openDocument = async () => {
   const content = await invokeReadDocumentFile(path);
   const unsupportedMajor = unsupportedNuiMajorVersion(content);
   if (unsupportedMajor !== null) {
-    throw new Error(`未対応のDSLバージョンです: ${unsupportedMajor}(対応: ${SUPPORTED_DSL_MAJOR_VERSIONS.join(", ")})`);
+    throw new Error(`nui 3 文書のみ開けます（検出: ${unsupportedMajor}）。`);
   }
-  const imported = isLegacyV1NuiDocument(content) ? importLegacyV1Document(content) : null;
-  if (imported && !imported.ok) throw new Error(imported.message);
   if (!flushSourceEditForFileOperation()) return;
-  useCadDocumentStore.getState().replaceTextDocument(imported?.sourceText ?? content, {
+  useCadDocumentStore.getState().replaceTextDocument(content, {
     currentFilePath: path,
-    dirtySinceSave: imported !== null
-  });
-};
-
-export const importLegacyDocument = async () => {
-  assertTauriFileRuntime();
-  if (!await confirmDiscardUnsavedChanges("旧形式ドキュメントをインポートし")) return;
-
-  const path = selectedPath(await openLegacyDocumentDialog());
-  if (!path) return;
-
-  const sourceText = importLegacyCadDocument(await invokeReadDocumentFile(path), path);
-  if (!flushSourceEditForFileOperation()) return;
-  useCadDocumentStore.getState().replaceTextDocument(sourceText, {
-    currentFilePath: null,
-    dirtySinceSave: true
+    dirtySinceSave: false
   });
 };

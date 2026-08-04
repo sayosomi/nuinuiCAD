@@ -14,18 +14,18 @@ import { referenceAnchor } from "../model/pointAnchors";
 import type { CreationRecipe } from "../commands/creationRecipes";
 import { AppLayout } from "./AppLayout";
 
-// Written in v2's canonical vertical-call shape (matching dslTextForElements'
+// Written in nui 3's canonical vertical-call shape (matching dslTextForElements'
 // real output) so any in-place rename/patch in these tests doesn't need to
 // expand a compact statement to canonical shape mid-test.
 const source = [
-  "nui 2",
+  "nui 3",
   "group G {",
   "  point A = coordinate(",
-  "    x: 0",
+  "    x: 0,",
   "    y: 0",
   "  )",
   "  point B = coordinate(",
-  "    x: 100",
+  "    x: 100,",
   "    y: 0",
   "  )",
   "}"
@@ -139,12 +139,12 @@ describe("AppLayout Source Editor production integration", () => {
 
   it("lets the real command bar handle line-list reference suggestions while capture still blocks the rest of the app", async () => {
     useCadDocumentStore.getState().commitText([
-      "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 100 y: 0)",
-      "point C = coordinate(x: 0 y: 100)",
-      "line L1 = segment(start: A end: B)",
-      "line L2 = segment(start: A end: C)"
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "point C = coordinate(x: 0, y: 100)",
+      "line L1 = segment(start: A, end: B)",
+      "line L2 = segment(start: A, end: C)"
     ].join("\n"), "test");
     const line1 = useCadDocumentStore.getState().elements.find((element) => element.name === "L1")!;
     const view = await renderAppLayout();
@@ -260,14 +260,14 @@ describe("AppLayout Source Editor production integration", () => {
         }
       });
     });
-    act(() => { startCommandLineCreation("variable"); });
+    act(() => { startCommandLineCreation("freePoint"); });
     act(() => { useCadUiStore.getState().setShowCommandPalette(true); });
     const input = view.getByRole("textbox", { name: "コマンドを検索" });
 
     const event = fireEvent.keyDown(input, { key: "c", metaKey: true });
 
     expect(event).toBe(true);
-    expect(useCadUiStore.getState().commandLineSession?.recipe.type).toBe("variable");
+    expect(useCadUiStore.getState().commandLineSession?.recipe.type).toBe("freePoint");
     expect(useCadUiStore.getState().showCommandPalette).toBe(true);
   });
 
@@ -298,18 +298,20 @@ describe("AppLayout Source Editor production integration", () => {
 
   it("confirms from the real bar and returns focus to the existing Source Editor selection path", async () => {
     const view = await renderAppLayout();
-    act(() => { startCommandLineCreation("variable"); });
-    const input = view.getByRole("textbox", { name: "式" }) as HTMLInputElement;
+    act(() => { startCommandLineCreation("freePoint"); });
+    const input = view.getByRole("textbox", { name: "x" }) as HTMLInputElement;
     const form = input.closest("form")!;
 
     fireEvent.change(input, { target: { value: "12" } });
+    fireEvent.submit(form);
+    fireEvent.change(input, { target: { value: "8" } });
     fireEvent.submit(form);
     fireEvent.click(view.getByRole("button", { name: "スキップ" }));
     fireEvent.submit(form);
 
     await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(view.container.querySelector(".cm-content")));
-    expect(useCadDocumentStore.getState().elements.at(-1)).toMatchObject({ type: "variable" });
+    expect(useCadDocumentStore.getState().elements.at(-1)).toMatchObject({ type: "freePoint" });
   });
 
   it("renames through F2, suppresses the shortcut in the prompt input, and returns to the target line", async () => {
@@ -340,8 +342,8 @@ describe("AppLayout Source Editor production integration", () => {
 
   it("blocks bar IME Enter/Escape and global single-key dispatch, then resumes after compositionend", async () => {
     const view = await renderAppLayout();
-    act(() => { startCommandLineCreation("variable"); });
-    const input = view.getByRole("textbox", { name: "式" }) as HTMLInputElement;
+    act(() => { startCommandLineCreation("freePoint"); });
+    const input = view.getByRole("textbox", { name: "x" }) as HTMLInputElement;
     const form = input.closest("form")!;
     fireEvent.change(input, { target: { value: "未確定" } });
     const session = useCadUiStore.getState().commandLineSession;
@@ -378,16 +380,18 @@ describe("AppLayout Source Editor production integration", () => {
       args: { x: 3 }
     }));
 
-    act(() => { cancelCommandLineSession(); startCommandLineCreation("variable"); });
-    const expression = view.getByRole("textbox", { name: "式" }) as HTMLInputElement;
+    act(() => { cancelCommandLineSession(); startCommandLineCreation("freePoint"); });
+    const expression = view.getByRole("textbox", { name: "x" }) as HTMLInputElement;
     fireEvent.change(expression, { target: { value: "3" } });
     fireEvent.submit(expression.closest("form")!);
+    fireEvent.change(expression, { target: { value: "4" } });
+    fireEvent.submit(expression.closest("form")!);
     fireEvent.click(view.getByRole("button", { name: "スキップ" }));
-    fireEvent.click(view.getByRole("button", { name: "式を編集" }));
+    fireEvent.click(view.getByRole("button", { name: "xを編集" }));
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
 
-    act(() => { startCommandLineCreation("variable"); });
+    act(() => { startCommandLineCreation("freePoint"); });
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
   });
@@ -409,19 +413,21 @@ describe("AppLayout Source Editor production integration", () => {
       args: { x: 3 }
     }));
 
-    act(() => { cancelCommandLineSession(); startCommandLineCreation("variable"); });
-    const expression = view.getByRole("textbox", { name: "式" }) as HTMLInputElement;
+    act(() => { cancelCommandLineSession(); startCommandLineCreation("freePoint"); });
+    const expression = view.getByRole("textbox", { name: "x" }) as HTMLInputElement;
     fireEvent.change(expression, { target: { value: "3" } });
     fireEvent.submit(expression.closest("form")!);
+    fireEvent.change(expression, { target: { value: "4" } });
+    fireEvent.submit(expression.closest("form")!);
     fireEvent.click(view.getByRole("button", { name: "スキップ" }));
-    fireEvent.click(view.getByRole("button", { name: "式を編集" }));
-    const editingExpression = view.getByRole("textbox", { name: "式" });
+    fireEvent.click(view.getByRole("button", { name: "xを編集" }));
+    const editingExpression = view.getByRole("textbox", { name: "x" });
     await waitFor(() => expect(editingExpression).toHaveFocus());
     fireEvent.keyDown(editingExpression, { key: "Escape" });
     await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
 
-    act(() => { startCommandLineCreation("variable"); });
-    const normalExpression = view.getByRole("textbox", { name: "式" });
+    act(() => { startCommandLineCreation("freePoint"); });
+    const normalExpression = view.getByRole("textbox", { name: "x" });
     await waitFor(() => expect(normalExpression).toHaveFocus());
     fireEvent.keyDown(normalExpression, { key: "Escape" });
     await waitFor(() => expect(useCadUiStore.getState().commandLineSession).toBeNull());
@@ -447,7 +453,7 @@ describe("AppLayout Source Editor production integration", () => {
     // vertical shape - using a compact one keeps it consistent with its own
     // original (pre-C1) size.
     useCadDocumentStore.getState().commitText(
-      ["nui 2", "group G {", "  point A = coordinate(x: 0 y: 0)", "  point B = coordinate(x: 100 y: 0)", "}"].join("\n"),
+      ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "  point B = coordinate(x: 100, y: 0)", "}"].join("\n"),
       "test"
     );
     const view = await renderAppLayout();
@@ -458,13 +464,13 @@ describe("AppLayout Source Editor production integration", () => {
 
     act(() => {
       const elements = useCadDocumentStore.getState().elements.map((element) =>
-        element.id === pointB ? { ...element, enabled: false } : element
+        element.id === pointB ? { ...element, activity: "disabled" as const } : element
       );
       useCadDocumentStore.getState().commitDocumentChange({ elements });
       useCadUiStore.getState().setCommandErrorMessage("統合テストのエラー");
     });
 
-    await waitFor(() => expect(editorDocText(view.container)).toContain("enabled: false"));
+    await waitFor(() => expect(editorDocText(view.container)).toContain("state: disabled"));
     expect(useCadUiStore.getState().sourceCursorLine).toBe(beforeCursorLine);
     expect(view.getByRole("alert")).toHaveTextContent("統合テストのエラー");
   });
@@ -492,7 +498,7 @@ describe("AppLayout Source Editor production integration", () => {
     // Uncommitted editor text at gesture time: the canvas must defer to the
     // real flush and resolve against the freshly evaluated document.
     act(() => {
-      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = coordinate(x: 0 y: 60)" } });
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = coordinate(x: 0, y: 60)" } });
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
@@ -517,7 +523,7 @@ describe("AppLayout Source Editor production integration", () => {
 
     fireEvent.compositionStart(content);
     act(() => {
-      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint 未確定 = coordinate(x: 0 y: 60)" } });
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint 未確定 = coordinate(x: 0, y: 60)" } });
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
@@ -534,11 +540,11 @@ describe("AppLayout Source Editor production integration", () => {
 
   it("applies a pick candidate from search Enter through the real controller", async () => {
     useCadDocumentStore.getState().commitText([
-      "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 100 y: 0)",
-      "point 選択候補 = coordinate(x: 0 y: -50)",
-      "line AB = segment(start: A end: B)"
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "point 選択候補 = coordinate(x: 0, y: -50)",
+      "line AB = segment(start: A, end: B)"
     ].join("\n"), "test");
     const view = await renderAppLayout();
     const lineId = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!.id;
@@ -566,10 +572,10 @@ describe("AppLayout Source Editor production integration", () => {
 
 describe("Canvas selection focuses the Source Editor", () => {
   const focusSource = [
-    "nui 2",
-    "point A = coordinate(x: 0 y: 0)",
-    "point B = coordinate(x: 100 y: 0)",
-    "line AB = segment(start: A end: B)"
+    "nui 3",
+    "point A = coordinate(x: 0, y: 0)",
+    "point B = coordinate(x: 100, y: 0)",
+    "line AB = segment(start: A, end: B)"
   ].join("\n");
 
   // worldToScreen with the default {panX:0, panY:0, zoom:1} viewport and the
@@ -665,7 +671,7 @@ describe("Canvas selection focuses the Source Editor", () => {
     // Uncommitted editor text at gesture time defers resolution to the resolution
     // effect, which runs after the pointer has already been released.
     act(() => {
-      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = coordinate(x: 0 y: -60)" } });
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = coordinate(x: 0, y: -60)" } });
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });

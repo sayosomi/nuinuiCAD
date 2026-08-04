@@ -500,11 +500,6 @@ pub(crate) fn validate_binding_versions_payload(
                 .collect::<HashSet<_>>()
         })
         .unwrap_or_default();
-    let legacy_variable_ids = elements
-        .iter()
-        .filter(|element| element.get("type").and_then(Value::as_str) == Some("variable"))
-        .filter_map(|element| element.get("id").and_then(Value::as_str))
-        .collect::<HashSet<_>>();
     for version in &versions {
         let expression = match &version.kind {
             ValidatedBindingVersionKind::Declare { initializer } => initializer.as_ref(),
@@ -518,12 +513,6 @@ pub(crate) fn validate_binding_versions_payload(
                     continue;
                 }
                 if listed_iteration_binding_ids.contains(reference) {
-                    continue;
-                }
-                if reference
-                    .strip_prefix("binding:")
-                    .is_some_and(|id| legacy_variable_ids.contains(id))
-                {
                     continue;
                 }
                 return Err(issue(

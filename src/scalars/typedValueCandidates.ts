@@ -49,7 +49,7 @@ export const scalarPrefixOperatorCandidates = (expectedType: ScalarType | null):
   expectedType === null || expectedType.kind === "boolean" ? [{ label: "!" }] : [];
 
 /**
- * Every non-`typed` binding kind (legacy/iteration/elementLocal) carries
+ * Every non-`typed` binding kind (iteration) carries
  * `declaredType: null` in the catalog and is treated as implicit `number` at
  * every existing read site (see expressionTypecheck.ts's own `binding.kind ===
  * "typed" ? binding.declaredType : (binding.declaredType ?? NUMBER_TYPE)`).

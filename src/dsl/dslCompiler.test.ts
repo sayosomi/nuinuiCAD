@@ -9,9 +9,8 @@ describe("DSL compiler", () => {
   it("creates basic drafting elements from short DSL syntax", () => {
     const result = compileDslToElements(
       [
-        "var bust = 840",
         "point A = coordinate(x: 0 y: 0)",
-        "point B = offset(from: A dx: 0 dy: -(bust / 4))",
+        "point B = offset(from: A dx: 0 dy: -(210 / 4))",
         "line AB = segment(start: A end: B)",
         "arc armhole = arc(center: A radius: 120 start: 0 end: -90)",
         "text label = label(text: \"前中心\" anchor: A size: 4)"
@@ -21,21 +20,20 @@ describe("DSL compiler", () => {
 
     expect(result.diagnostics).toEqual([]);
     expect(result.elements.map((element) => element.type)).toEqual([
-      "variable",
       "freePoint",
       "offsetPoint",
       "line",
       "arcLine",
       "text"
     ]);
-    expect(result.elements[2]).toMatchObject({
+    expect(result.elements[1]).toMatchObject({
       type: "offsetPoint",
-      fromPoint: { mode: "reference", pointId: result.elements[1].id }
+      fromPoint: { mode: "reference", pointId: result.elements[0].id }
     });
-    expect(result.elements[3]).toMatchObject({
+    expect(result.elements[2]).toMatchObject({
       type: "line",
-      startPoint: { mode: "reference", pointId: result.elements[1].id },
-      endPoint: { mode: "reference", pointId: result.elements[2].id }
+      startPoint: { mode: "reference", pointId: result.elements[0].id },
+      endPoint: { mode: "reference", pointId: result.elements[1].id }
     });
   });
 
@@ -69,9 +67,8 @@ describe("DSL compiler", () => {
   it("supports quoted names and references with spaces", () => {
     const result = compileDslToElements(
       [
-        "var 'バスト 寸法' = 840",
         "point \"前 上\" = coordinate(x: 0 y: 0)",
-        "point \"前 下\" = offset(from: \"前 上\" dx: 0 dy: -('バスト 寸法' / 4))",
+        "point \"前 下\" = offset(from: \"前 上\" dx: 0 dy: -(210 / 4))",
         "line \"前 中心線\" = segment(start: \"前 上\" end: \"前 下\")",
         "point \"線上 点\" = onLine(from: \"前 中心線\".end distance: 10)"
       ].join("\n"),
@@ -80,20 +77,19 @@ describe("DSL compiler", () => {
 
     expect(result.diagnostics).toEqual([]);
     expect(result.elements.map((element) => element.name)).toEqual([
-      "バスト 寸法",
       "前 上",
       "前 下",
       "前 中心線",
       "線上 点"
     ]);
-    expect(result.elements[3]).toMatchObject({
+    expect(result.elements[2]).toMatchObject({
       type: "line",
-      startPoint: { mode: "reference", pointId: result.elements[1].id },
-      endPoint: { mode: "reference", pointId: result.elements[2].id }
+      startPoint: { mode: "reference", pointId: result.elements[0].id },
+      endPoint: { mode: "reference", pointId: result.elements[1].id }
     });
-    expect(result.elements[4]).toMatchObject({
+    expect(result.elements[3]).toMatchObject({
       type: "lineDivisionPoint",
-      endpoint: { lineId: result.elements[3].id, endpointKey: "end" }
+      endpoint: { lineId: result.elements[2].id, endpointKey: "end" }
     });
   });
 
@@ -168,14 +164,13 @@ describe("DSL compiler", () => {
     });
   });
 
-  it("recognizes legacy locked as an ignored, warned attribute that is never regenerated", () => {
+  it("rejects the retired locked attribute as an unknown argument", () => {
     const result = compileDslToElements("point A = coordinate(x: 0 y: 0 locked: true)", { elements: [] });
 
     expect(result.diagnostics.map((item) => item.message)).toContain(
-      "locked は廃止された属性のため無視されます。"
+      "construction「coordinate」に引数「locked」はありません。候補: x、y、state、color、steps、vars、varIds、id、roles、parent、branch。"
     );
-    expect(result.elements[0]).not.toHaveProperty("locked");
-    expect(serializeElementsToDsl(result.elements)).not.toContain("locked");
+    expect(result.elements).toHaveLength(0);
   });
 
   it("creates drafting point constructions from natural DSL syntax", () => {
@@ -752,26 +747,8 @@ describe("DSL compiler document settings", () => {
   });
 });
 
-describe("DSL compiler: typed declaration version gate", () => {
-  it("rejects const/let under nui 2 (default majorVersion) with the Task 06 version-gate diagnostic", () => {
-    const result = compileDslToElements("const x: number = 1", { elements: [] });
-    expect(result.diagnostics).toEqual([
-      expect.objectContaining({
-        code: "typed-syntax-requires-nui3",
-        message: "const 宣言 は nui 3 以降でのみ使用できます(現在: nui 2)。"
-      })
-    ]);
-    expect(result.elements).toHaveLength(0);
-  });
-
-  it("gates const and let independently, one diagnostic per declaration", () => {
-    const result = compileDslToElements(["const x: number = 1", "let y: boolean = true"].join("\n"), { elements: [] });
-    expect(result.diagnostics).toHaveLength(2);
-    expect(result.diagnostics.every((item) => item.code === "typed-syntax-requires-nui3")).toBe(true);
-    expect(result.diagnostics[1].message).toContain("let 宣言");
-  });
-
-  it("accepts const/let under nui 3 with no diagnostics, and does not lift them into elements", () => {
+describe("DSL compiler: typed declarations", () => {
+  it("accepts const/let with no diagnostics, and does not lift them into elements", () => {
     const result = compileDslToElements(
       ["const x: number = 1", "let y: boolean = true", 'const label: string = "front"', "const dir: choice(a, b) = a"].join(
         "\n"
@@ -792,25 +769,8 @@ describe("DSL compiler: typed declaration version gate", () => {
   });
 });
 
-describe("DSL compiler: set statement version gate", () => {
-  it("rejects set under nui 2 (default majorVersion) with the Task 06 version-gate diagnostic", () => {
-    const result = compileDslToElements("set x = 1", { elements: [] });
-    expect(result.diagnostics).toEqual([
-      expect.objectContaining({
-        code: "typed-syntax-requires-nui3",
-        message: "set 文 は nui 3 以降でのみ使用できます(現在: nui 2)。"
-      })
-    ]);
-    expect(result.elements).toHaveLength(0);
-  });
-
-  it("gates every set statement independently, one diagnostic per statement", () => {
-    const result = compileDslToElements(["set x = 1", "set y = 2"].join("\n"), { elements: [] });
-    expect(result.diagnostics).toHaveLength(2);
-    expect(result.diagnostics.every((item) => item.code === "typed-syntax-requires-nui3")).toBe(true);
-  });
-
-  it("accepts set under nui 3 with no diagnostics, and does not lift it into elements", () => {
+describe("DSL compiler: set statements", () => {
+  it("accepts set with no diagnostics, and does not lift it into elements", () => {
     const result = compileDslToElements(["set x = 1", "set y = 2"].join("\n"), { elements: [], majorVersion: 3 });
     expect(result.diagnostics).toEqual([]);
     expect(result.elements).toHaveLength(0);

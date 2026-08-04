@@ -55,7 +55,7 @@ import type {
   PrintLayoutPlacement
 } from "../types/geometry";
 import { NumericVariableSuggestPopover } from "./NumericVariableSuggestPopover";
-import type { NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
+import { numericReferenceOptionsForPool, type NumericReferenceOption } from "../geometry/numericReferenceOptions";
 import { numericDragStepsForDelta } from "./numericDrag";
 
 type PrintLayoutCanvasProps = {
@@ -102,34 +102,8 @@ const isDeferredPrintNumberInput = (input: string) =>
 const clampNumericValue = (value: NumericValue, min: number | undefined): NumericValue =>
   typeof value === "number" && min !== undefined ? Math.max(value, min) : value;
 
-const printVariableReferenceOptions = ({
-  printVariables,
-  elements
-}: {
-  printVariables: NumericVariable[];
-  elements: CadElement[];
-}): NumericVariableReferenceOption[] => [
-  ...printVariables.map((variable) => ({
-    expression: `@${variable.id}`,
-    displayExpression: `@${variable.name}`,
-    label: `@${variable.name}`,
-    detail: "印刷変数",
-    source: "local" as const,
-    variableId: variable.id
-  })),
-  ...elements
-    .filter((element): element is Extract<CadElement, { type: "variable" }> =>
-      element.type === "variable" && element.scope === "global"
-    )
-    .map((variable) => ({
-      expression: `@${variable.id}`,
-      displayExpression: `@${variable.name}`,
-      label: `@${variable.name}`,
-      detail: "全体変数",
-      source: "global" as const,
-      elementId: variable.id
-    }))
-];
+const printVariableReferenceOptions = (printVariables: NumericVariable[]): NumericReferenceOption[] =>
+  numericReferenceOptionsForPool(printVariables, "印刷変数");
 
 const PrintNumberInput = ({
   label,
@@ -164,21 +138,13 @@ const PrintNumberInput = ({
   // otherwise be the second IME-unsafe source in this same component.
   const [isComposing, setIsComposing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const globalVariables = elements
-    .filter((element) => element.type === "variable" && element.scope === "global")
-    .map((variable) => ({
-      id: variable.id,
-      name: variable.name,
-      value: 0
-    }));
-  const availableVariables = [...printVariables, ...globalVariables];
-  const displayValue = formatNumericExpressionForDisplay(value, elements, availableVariables);
+  const displayValue = formatNumericExpressionForDisplay(value, elements, printVariables);
   const inputValue = draft ?? displayValue;
   const valueFromInput = (input: string) =>
-    makeNumericExpression(normalizeNumericExpressionInput(input, elements, availableVariables));
+    makeNumericExpression(normalizeNumericExpressionInput(input, elements, printVariables));
   const variableOptions = useMemo(
-    () => printVariableReferenceOptions({ printVariables, elements }),
-    [elements, printVariables]
+    () => printVariableReferenceOptions(printVariables),
+    [printVariables]
   );
   const suggestionMatch = !isComposing
     ? numericVariableSuggestionMatch(inputValue, inputSelection.start, inputSelection.end)
@@ -205,7 +171,6 @@ const PrintNumberInput = ({
         currentElement: undefined,
         evaluation: {
           computedGeometry: evaluation.computedGeometry,
-          computedVariables: evaluation.computedVariables,
           effectiveEnabledElementIds: evaluation.effectiveEnabledElementIds,
           errors: evaluation.errors
         }
@@ -234,7 +199,7 @@ const PrintNumberInput = ({
     setDraft(nextInput);
     commitValue({
       kind: "expression",
-      expression: normalizeNumericExpressionInput(nextInput, elements, availableVariables)
+      expression: normalizeNumericExpressionInput(nextInput, elements, printVariables)
     } satisfies NumericExpression);
     setActiveSuggestionIndex(0);
     const nextCursor = activeSuggestionMatch.tokenStart + option.expression.length;

@@ -33,16 +33,6 @@ const applySplice = (source: string, action: Extract<TypedVariableQuickFixDescri
   `${source.slice(0, action.from)}${action.insert}${source.slice(action.to)}`;
 
 describe("typedVariableQuickFixes", () => {
-  describe("nui2->3 header upgrade", () => {
-    it("offers a single upgrade-major-version action for typed-syntax-requires-nui3", () => {
-      const source = ["nui 2", "const x: number = 1"].join("\n");
-      const { descriptors } = fixesFor(source, "typed-syntax-requires-nui3");
-      expect(descriptors).toHaveLength(1);
-      expect(descriptors[0].action).toEqual({ kind: "upgrade-major-version", target: 3 });
-      expect(descriptors[0].sourceSnapshot).toBe(source);
-    });
-  });
-
   describe("missing declared type", () => {
     it("inserts a bare colon skeleton right after the name", () => {
       const source = ["nui 3", "let x = 5"].join("\n");
@@ -179,51 +169,6 @@ describe("typedVariableQuickFixes", () => {
       const action = descriptors[0].action;
       if (action.kind !== "splice") throw new Error("expected a splice action");
       expect(action.insert).toBe("  set x = \n");
-    });
-  });
-
-  describe("element-state-conflict", () => {
-    it("removes a trailing legacy `visible` arg, keeping `state`", () => {
-      const source = ["nui 3", "point A = coordinate(x: 0, y: 0, state: hidden, visible: false)"].join("\n");
-      const { descriptors } = fixesFor(source, "element-state-conflict");
-      expect(descriptors).toHaveLength(1);
-      expect(descriptors[0].id).toContain(":visible");
-      const action = descriptors[0].action;
-      if (action.kind !== "splice") throw new Error("expected a splice action");
-      expect(applySplice(source, action)).toBe(
-        ["nui 3", "point A = coordinate(x: 0, y: 0, state: hidden)"].join("\n")
-      );
-    });
-
-    it("removes a leading legacy `visible` arg", () => {
-      const source = ["nui 3", "point A = coordinate(visible: false, x: 0, y: 0, state: hidden)"].join("\n");
-      const { descriptors } = fixesFor(source, "element-state-conflict");
-      const action = descriptors[0].action;
-      if (action.kind !== "splice") throw new Error("expected a splice action");
-      expect(applySplice(source, action)).toBe(
-        ["nui 3", "point A = coordinate(x: 0, y: 0, state: hidden)"].join("\n")
-      );
-    });
-
-    it("removes a middle legacy `enabled` arg, keeping `state`", () => {
-      const source = ["nui 3", "point A = coordinate(x: 0, enabled: false, y: 0, state: hidden)"].join("\n");
-      const { descriptors } = fixesFor(source, "element-state-conflict");
-      expect(descriptors[0].id).toContain(":enabled");
-      const action = descriptors[0].action;
-      if (action.kind !== "splice") throw new Error("expected a splice action");
-      expect(applySplice(source, action)).toBe(
-        ["nui 3", "point A = coordinate(x: 0, y: 0, state: hidden)"].join("\n")
-      );
-    });
-
-    it("never offers to remove `state` itself", () => {
-      const source = ["nui 3", "point A = coordinate(x: 0, y: 0, state: hidden, visible: false)"].join("\n");
-      const { descriptors } = fixesFor(source, "element-state-conflict");
-      for (const descriptor of descriptors) {
-        const action = descriptor.action;
-        if (action.kind !== "splice") continue;
-        expect(action.expectedOldText).not.toContain("state");
-      }
     });
   });
 

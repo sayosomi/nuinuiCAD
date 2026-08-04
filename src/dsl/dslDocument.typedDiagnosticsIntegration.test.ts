@@ -1,7 +1,7 @@
 // Task 48: integration-level assertions that don't belong to any one
 // compiler's own unit test file - the compileDslDocument-level contract for
 // how BindingIssue diagnostics are exposed without changing pass/fail
-// compilation behavior, and a representative pre-nui3 sanity check.
+// compilation behavior.
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
@@ -42,15 +42,5 @@ describe("compileDslDocument: BindingIssue diagnostics stay non-gating", () => {
     const compiled = compile(["nui 3", 'const x: number = "not a number"'].join("\n"));
     expect(compiled.document).toBeNull();
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "scalar-type-mismatch")).toBe(true);
-  });
-});
-
-describe("compileDslDocument: representative pre-nui3 diagnostic stays actionable", () => {
-  it("a nui 2 document using v3-only typed syntax still reports a positioned, actionable diagnostic", () => {
-    const compiled = compile(["nui 2", "const x: number = 1"].join("\n"));
-    expect(compiled.document).toBeNull();
-    const versionDiagnostic = compiled.diagnostics.find((diagnostic) => diagnostic.code === "typed-syntax-requires-nui3");
-    expect(versionDiagnostic).toBeDefined();
-    expect(versionDiagnostic!.line).toBeGreaterThan(0);
   });
 });

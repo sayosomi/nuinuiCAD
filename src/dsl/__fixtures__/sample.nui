@@ -1,74 +1,72 @@
-nui 2
+nui 3
 
-# P7 v2 golden: comments and canonical multiline calls are intentional.
-color pattern-black ("#31322f" name: "基本線" default: true)
-color cut-red ("#b42318" name: "裁断線")
+# P7 golden: comments and canonical multiline calls are intentional.
+color pattern-black ("#31322f", name: "基本線", default: true)
+color cut-red ("#b42318", name: "裁断線")
 
 role seam (name: "縫い代")
-view 通常 (default: true seam: false)
-view 印刷 (default: true seam: true)
+view 通常 (default: true, seam: false)
+view 印刷 (default: true, seam: true)
 activeView 通常
 
 printLayout A4 (
-  output: pdf
-  view: 印刷
-  paper: a4
-  orientation: portrait
-  columns: 2
-  rows: 2
-  overlap: 10
-  scale: 1
+  output: pdf,
+  view: 印刷,
+  paper: a4,
+  orientation: portrait,
+  columns: 2,
+  rows: 2,
+  overlap: 10,
+  scale: 1,
   canvas: (410, 584)
 ) {
   layoutVar margin = 15
-  place 前身頃 (at: (0, margin) angle: 0 mirrorX: false)
+  place 前身頃 (at: (0, margin), angle: 0, mirrorX: false)
 }
-
-var bust = 840
 
 group 前身頃 {
   point A = coordinate(
-    x: 0
+    x: 0,
     y: 0
   )
   point B = offset(
-    from: A
-    dx: 0
-    dy: -(bust / 4)
+    from: A,
+    dx: 0,
+    dy: -(840 / 4)
   )
   line AB = segment(
-    start: A
+    start: A,
     end: B
   )
 
   if 見返し (1) {
     point C = coordinate(
-      x: 10
+      x: 10,
       y: 10
     )
   } else {
     point D = coordinate(
-      x: 20
+      x: 20,
       y: 20
     )
   }
 
-  for 繰返し (i from: 0 count: 3 step: 1) {
+  for 繰返し (i, from: 0, count: 3, step: 1) {
     point P = coordinate(
-      x: i * 10
+      x: i * 10,
       y: 0
     )
   }
 }
 
 point = coordinate(
-  x: 5
+  x: 5,
   y: 5
 )
 
 @stop
 
 point after = coordinate(
-  x: 99
+  x: 99,
   y: 99
 )

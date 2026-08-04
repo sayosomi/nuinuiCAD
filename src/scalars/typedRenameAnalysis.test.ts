@@ -106,12 +106,12 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.detail.conflictingName).toBe("b");
   });
 
-  it("rejects a same-scope collision against a legacy var (D05 shared namespace)", () => {
-    const compiled = compile(["nui 3", "var legacyName = 5", "const a: number = 1"].join("\n"));
-    const analysis = rename(compiled, "a", "legacyName");
+  it("rejects a same-scope collision against a forGroup iteration binding (D05 shared namespace)", () => {
+    const compiled = compile(["nui 3", "for Loop (loopVar, from: 0, count: 2) {", "  const a: number = 1", "}"].join("\n"));
+    const analysis = rename(compiled, "a", "loopVar");
     expect(analysis).toMatchObject({ verdict: "rejected", reason: "same-scope-collision" });
     if (analysis.verdict !== "rejected" || analysis.reason !== "same-scope-collision") return;
-    expect(analysis.detail.conflictingKind).toBe("legacy");
+    expect(analysis.detail.conflictingKind).toBe("iteration");
   });
 
   it("rejects an outer rename that would be captured by an existing inner shadow", () => {
@@ -127,6 +127,34 @@ describe("typed binding rename safety analysis", () => {
     );
     const analysis = rename(compiled, "outer", "inner");
     expect(analysis).toMatchObject({ verdict: "rejected", reason: "capture" });
+  });
+
+  it("rejects a numeric-expression rename that would newly capture a same-named element-local variable (Task 52 R1)", () => {
+    const compiled = compile(
+      ["nui 3", "const w: number = 100", "point P = coordinate(x: @w, y: 0, vars: [幅: 5])"].join("\n")
+    );
+    const analysis = rename(compiled, "w", "幅");
+    expect(analysis).toMatchObject({ verdict: "rejected", reason: "capture" });
+    if (analysis.verdict !== "rejected" || analysis.reason !== "capture") return;
+    expect(analysis.detail.kind).toBe("numeric-expression");
+  });
+
+  it("rejects a text-template rename that would newly capture a same-named element-local variable (Task 52 R1)", () => {
+    const compiled = compile(
+      ["nui 3", "const w: number = 100", 'text T = label(text: "{@w}", anchor: none, size: 3, vars: [幅: 42])'].join("\n")
+    );
+    const analysis = rename(compiled, "w", "幅");
+    expect(analysis).toMatchObject({ verdict: "rejected", reason: "capture" });
+    if (analysis.verdict !== "rejected" || analysis.reason !== "capture") return;
+    expect(analysis.detail.kind).toBe("template-hole");
+  });
+
+  it("still allows a safe rename with an element-local variable present elsewhere that does not collide (Task 52 R1)", () => {
+    const compiled = compile(
+      ["nui 3", "const w: number = 100", "point P = coordinate(x: @w, y: 0, vars: [幅: 5])"].join("\n")
+    );
+    const analysis = rename(compiled, "w", "safeNewName");
+    expect(analysis.verdict).toBe("ok");
   });
 
   it("never treats an already-invalid const set-target as a live, affected occurrence to patch", () => {

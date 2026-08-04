@@ -4,35 +4,25 @@ import {
   elementParameterReferenceOptionsForPosition,
   type ElementParameterReferenceOption
 } from "../geometry/elementParameterReferenceOptions";
-import type { CadElement, ComputedGeometry, ComputedVariable, DependencyError, ElementId } from "../types/geometry";
+import type { CadElement, ComputedGeometry, DependencyError, ElementId } from "../types/geometry";
 import type { DslStatement } from "./dslTypes";
 
 const attrValue = (statement: DslStatement, key: string) => statement.attrs.find((attr) => attr.key === key)?.value;
-const disabledAttrValues = new Set(["false", "0", "no", "off"]);
-
-/**
- * Generalizes dslVariableCompletionCandidates.ts's isVariableStatementDisabled
- * to any element statement kind - the `enabled=` attribute grammar is uniform
- * across every element type, not variable-specific.
- */
-const isStatementDisabled = (statement: DslStatement) => {
-  const value = attrValue(statement, "enabled")?.toLowerCase();
-  return value !== undefined && disabledAttrValues.has(value);
-};
+const isStatementDisabled = (statement: DslStatement) => attrValue(statement, "state")?.toLowerCase() === "disabled";
 
 /**
  * Live-buffer candidates for `ElementName.parameterKey` completion, reparsing
  * `source` fresh on every call (never falling back to a stale compiled
  * document for element identity/name/scope - only the last-applied
- * evaluation's computedGeometry/computedVariables/errors are necessarily
+ * evaluation's computedGeometry/errors are necessarily
  * stale relative to dirty text, matching dslVariableCompletionOptions's own
  * Tier B compromise).
  *
  * Live/compiled matching guard: liveElementsBeforeLine already excludes a
  * statement whose live type no longer matches the compiled element's type.
  * On top of that, this module additionally excludes a statement whose live
- * `enabled=` attribute no longer agrees with the compiled element's own
- * `enabled` - dirty-editing a statement's enabled state must never keep
+ * `state:` attribute no longer agrees with the compiled element's own
+ * activity - dirty-editing a statement's state must never keep
  * showing candidates derived from the previous (now stale) evaluation.
  */
 export const dslElementParameterCompletionOptions = ({
@@ -42,7 +32,6 @@ export const dslElementParameterCompletionOptions = ({
   elements,
   elementToken,
   computedGeometry,
-  computedVariables,
   effectiveEnabledElementIds,
   errors
 }: {
@@ -52,7 +41,6 @@ export const dslElementParameterCompletionOptions = ({
   elements: readonly CadElement[];
   elementToken: string;
   computedGeometry: Map<ElementId, ComputedGeometry>;
-  computedVariables?: Map<ElementId, ComputedVariable>;
   effectiveEnabledElementIds?: Set<ElementId>;
   errors: DependencyError[];
 }): ElementParameterReferenceOption[] => {
@@ -77,7 +65,7 @@ export const dslElementParameterCompletionOptions = ({
   }
   const trustworthyLive = live.filter((element) => {
     const statement = statementByElementId.get(element.id);
-    return statement !== undefined && isStatementDisabled(statement) === !element.enabled;
+    return statement !== undefined && isStatementDisabled(statement) === (element.activity === "disabled");
   });
 
   return elementParameterReferenceOptionsForPosition({
@@ -86,7 +74,6 @@ export const dslElementParameterCompletionOptions = ({
     currentElement: { parentGroupId },
     evaluation: {
       computedGeometry,
-      computedVariables: computedVariables ?? new Map(),
       effectiveEnabledElementIds,
       errors
     }

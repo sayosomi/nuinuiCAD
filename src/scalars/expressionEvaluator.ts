@@ -9,7 +9,6 @@
 // docs/typed-variables/tasks/16-ts-expression-reference-evaluator.md.
 
 import type { BindingId } from "./bindingCatalog";
-import type { NumericGeometryLookup } from "./numericFunctionAdapter";
 import type {
   TypedScalarBinaryExpressionNode,
   TypedScalarExpression,
@@ -32,13 +31,6 @@ export interface ScalarEvaluationEnvironment {
   /** Document-bound property reads are already resolved to stable IDs. */
   lookupGeometryProperty?: (reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>) => ScalarEvaluation;
 
-  /**
-   * Reserved for later document-context wiring (Tasks 20/27/31). Unused by
-   * this module's own evaluation switch, since the typed-expression grammar
-   * has no call-node syntax to reach geometry functions - see
-   * numericFunctionAdapter.ts.
-   */
-  numericGeometryLookup?: NumericGeometryLookup;
 }
 
 /**

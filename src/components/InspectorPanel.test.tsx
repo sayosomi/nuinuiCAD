@@ -17,10 +17,10 @@ import type { CadElement, CadElementType } from "../types/geometry";
 import { InspectorPanel } from "./InspectorPanel";
 
 const source = [
-  "nui 2",
-  "point A = coordinate(x: 0 y: 0)",
-  "point B = offset(from: A dx: 10 dy: 20)",
-  "line AB = segment(start: A end: B)"
+  "nui 3",
+  "point A = coordinate(x: 0, y: 0)",
+  "point B = offset(from: A, dx: 10, dy: 20)",
+  "line AB = segment(start: A, end: B)"
 ].join("\n");
 
 const makeHandle = (): SourceEditorHandle => ({
@@ -216,11 +216,20 @@ describe("InspectorPanel mouse-only actions", () => {
       'const label: string = "前身頃"',
       'text Label = label(text: "\\{draft\\} {@label}\\n", anchor: none, size: 3)'
     ].join("\n"), "test");
-    const elements = useCadDocumentStore.getState().elements;
+    const state = useCadDocumentStore.getState();
+    const elements = state.elements;
     const label = elements.find((element) => element.name === "Label")!;
-    const { unmount } = renderInspectorElement(label, elements);
+    const textTemplates = buildTextTemplateEntriesByElementId({
+      textTemplates: state.doc.textTemplates!,
+      elementIdByStatementIndex: state.doc.statementMap.elementIdByStatementIndex,
+    });
+    const evaluation = evaluateElements(elements, {
+      scalarProgram: state.doc.scalarProgram,
+      textTemplateEntriesByElementId: textTemplates,
+    });
+    const { unmount } = renderInspectorElement(label, elements, evaluation);
 
-    const textRow = screen.getByText("テキスト").closest(".inspector-row");
+    const textRow = screen.getByText("テキスト（ソース）").closest(".inspector-row");
     if (!(textRow instanceof HTMLElement)) throw new Error("Missing text row");
     expect(within(textRow).getByText("\\{draft\\} {@label}\\n")).toBeInTheDocument();
     expect(within(textRow).queryByText("\\\\{draft\\\\}")).not.toBeInTheDocument();

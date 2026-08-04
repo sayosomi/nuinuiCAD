@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateTextTemplate, type EvaluateLegacyHole } from "./textTemplateEvaluator";
+import { evaluateTextTemplate, type EvaluateNumericExpressionHole } from "./textTemplateEvaluator";
 import type { ScalarEvaluationEnvironment } from "./expressionEvaluator";
 import type { TextTemplateAst, TextTemplateSegment } from "./textTemplate";
 import type { ScalarEvaluation } from "./types";
@@ -50,9 +50,9 @@ const numberHole = (bindingId: string, holeSpanEnd = 1): TextTemplateSegment => 
   expression: numberReference(bindingId, bindingId)
 });
 
-const legacyHoleSegment = (raw: string): TextTemplateSegment => ({
+const numericExpressionHoleSegment = (raw: string): TextTemplateSegment => ({
   kind: "hole",
-  holeKind: "legacy",
+  holeKind: "numeric",
   span: span(0, raw.length),
   contentSpan: span(0, raw.length),
   cookedInsertOffset: 0,
@@ -90,12 +90,12 @@ const poisoned = (bindingId: string, issueCode = "evaluation-divide-by-zero"): S
   bindingId
 });
 
-const alwaysOkLegacyHole: EvaluateLegacyHole = () => ({ ok: true, text: "12" });
+const alwaysOkNumericExpressionHole: EvaluateNumericExpressionHole = () => ({ ok: true, text: "12" });
 
 describe("evaluateTextTemplate", () => {
   it("literal-only template (including escaped braces already cooked into the segment) returns the cooked text verbatim", () => {
     const ast = templateOf([literalSegment("cost {5} yen")]);
-    expect(evaluateTextTemplate(ast, okEnvironment({}), alwaysOkLegacyHole, formatNumber)).toEqual({
+    expect(evaluateTextTemplate(ast, okEnvironment({}), alwaysOkNumericExpressionHole, formatNumber)).toEqual({
       status: "ok",
       text: "cost {5} yen"
     });
@@ -104,7 +104,7 @@ describe("evaluateTextTemplate", () => {
   it("典型的な string hole: 前身頃を2枚カット", () => {
     const ast = templateOf([stringHole("binding:label"), literalSegment("を2枚カット")]);
     const environment = okEnvironment({ "binding:label": okString("前身頃") });
-    expect(evaluateTextTemplate(ast, environment, alwaysOkLegacyHole, formatNumber)).toEqual({
+    expect(evaluateTextTemplate(ast, environment, alwaysOkNumericExpressionHole, formatNumber)).toEqual({
       status: "ok",
       text: "前身頃を2枚カット"
     });
@@ -113,39 +113,39 @@ describe("evaluateTextTemplate", () => {
   it("number hole formats an integer as-is", () => {
     const ast = templateOf([numberHole("binding:count")]);
     const environment = okEnvironment({ "binding:count": okNumber(12) });
-    expect(evaluateTextTemplate(ast, environment, alwaysOkLegacyHole, formatNumber)).toEqual({ status: "ok", text: "12" });
+    expect(evaluateTextTemplate(ast, environment, alwaysOkNumericExpressionHole, formatNumber)).toEqual({ status: "ok", text: "12" });
   });
 
   it("number hole formats a non-integer to max 3 decimals with trailing zeros stripped", () => {
     const ast = templateOf([numberHole("binding:length")]);
     const environment = okEnvironment({ "binding:length": okNumber(30.41421356) });
-    expect(evaluateTextTemplate(ast, environment, alwaysOkLegacyHole, formatNumber)).toEqual({ status: "ok", text: "30.414" });
+    expect(evaluateTextTemplate(ast, environment, alwaysOkNumericExpressionHole, formatNumber)).toEqual({ status: "ok", text: "30.414" });
   });
 
-  it("delegates legacy holes to the injected callback and splices its text in", () => {
-    const ast = templateOf([literalSegment("前中心 "), legacyHoleSegment("直線AB.length")]);
-    const legacy: EvaluateLegacyHole = (raw) => {
+  it("delegates numeric-expression holes to the injected callback and splices its text in", () => {
+    const ast = templateOf([literalSegment("前中心 "), numericExpressionHoleSegment("直線AB.length")]);
+    const numeric: EvaluateNumericExpressionHole = (raw) => {
       expect(raw).toBe("直線AB.length");
       return { ok: true, text: "30.414" };
     };
-    expect(evaluateTextTemplate(ast, okEnvironment({}), legacy, formatNumber)).toEqual({
+    expect(evaluateTextTemplate(ast, okEnvironment({}), numeric, formatNumber)).toEqual({
       status: "ok",
       text: "前中心 30.414"
     });
   });
 
-  it("interleaves literal, typed, and legacy holes in source order", () => {
+  it("interleaves literal, typed, and numeric-expression holes in source order", () => {
     const ast = templateOf([
       literalSegment("A="),
       numberHole("binding:a"),
       literalSegment(", B="),
-      legacyHoleSegment("直線AB.length"),
+      numericExpressionHoleSegment("直線AB.length"),
       literalSegment(", name="),
       stringHole("binding:name")
     ]);
     const environment = okEnvironment({ "binding:a": okNumber(2), "binding:name": okString("x") });
-    const legacy: EvaluateLegacyHole = () => ({ ok: true, text: "30.414" });
-    expect(evaluateTextTemplate(ast, environment, legacy, formatNumber)).toEqual({
+    const numeric: EvaluateNumericExpressionHole = () => ({ ok: true, text: "30.414" });
+    expect(evaluateTextTemplate(ast, environment, numeric, formatNumber)).toEqual({
       status: "ok",
       text: "A=2, B=30.414, name=x"
     });
@@ -154,7 +154,7 @@ describe("evaluateTextTemplate", () => {
   it("fails closed on a poisoned typed binding, carrying the bindingId and issueCode into the message", () => {
     const ast = templateOf([numberHole("binding:poisoned")]);
     const environment = okEnvironment({ "binding:poisoned": poisoned("binding:poisoned") });
-    const result = evaluateTextTemplate(ast, environment, alwaysOkLegacyHole, formatNumber);
+    const result = evaluateTextTemplate(ast, environment, alwaysOkNumericExpressionHole, formatNumber);
     expect(result.status).toBe("error");
     if (result.status === "error") {
       expect(result.error.origin).toBe("typed");
@@ -163,20 +163,20 @@ describe("evaluateTextTemplate", () => {
     }
   });
 
-  it("fails closed on a failing legacy hole, passing the dependency id/name/message through unchanged", () => {
-    const ast = templateOf([legacyHoleSegment("missing.length")]);
-    const legacy: EvaluateLegacyHole = () => ({
+  it("fails closed on a failing numeric-expression hole, passing the dependency id/name/message through unchanged", () => {
+    const ast = templateOf([numericExpressionHoleSegment("missing.length")]);
+    const numeric: EvaluateNumericExpressionHole = () => ({
       ok: false,
       message: "missing はこの要素より後にあるか、存在しません。",
       dependencyId: "missing",
       dependencyName: "missing"
     });
-    const result = evaluateTextTemplate(ast, okEnvironment({}), legacy, formatNumber);
+    const result = evaluateTextTemplate(ast, okEnvironment({}), numeric, formatNumber);
     expect(result).toEqual({
       status: "error",
       error: {
         holeSpan: span(0, "missing.length".length),
-        origin: "legacy",
+        origin: "numeric",
         message: "missing はこの要素より後にあるか、存在しません。",
         dependencyId: "missing",
         dependencyName: "missing"
@@ -192,7 +192,7 @@ describe("evaluateTextTemplate", () => {
         throw new Error(`must not evaluate "${bindingId}" after an earlier hole already failed`);
       }
     };
-    const result = evaluateTextTemplate(ast, environment, alwaysOkLegacyHole, formatNumber);
+    const result = evaluateTextTemplate(ast, environment, alwaysOkNumericExpressionHole, formatNumber);
     expect(result.status).toBe("error");
     if (result.status === "error") expect(result.error.dependencyId).toBe("binding:first");
   });
@@ -209,7 +209,7 @@ describe("evaluateTextTemplate", () => {
       expression: { kind: "numberLiteral", span: span(0, 0), value: 5, type: { kind: "string" } } as unknown as TypedScalarExpression
     };
     const ast = templateOf([malformedStringHole]);
-    const result = evaluateTextTemplate(ast, okEnvironment({}), alwaysOkLegacyHole, formatNumber);
+    const result = evaluateTextTemplate(ast, okEnvironment({}), alwaysOkNumericExpressionHole, formatNumber);
     expect(result.status).toBe("error");
     if (result.status === "error") expect(result.error.origin).toBe("typed");
   });

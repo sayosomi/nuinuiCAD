@@ -1,5 +1,5 @@
 import type { StatementInfo, StatementMap } from "../dsl/dslDocument";
-import type { NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
+import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
 import { isGroupElement } from "../model/groups";
 import type { CadElement } from "../types/geometry";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
@@ -124,7 +124,7 @@ export const commandLineTypedBindingSuggestions = ({
   statementMap: StatementMap;
   bindingAnalysis: BindingAnalysis | undefined;
   elements: readonly CadElement[];
-}): NumericVariableReferenceOption[] => {
+}): NumericReferenceOption[] => {
   if (!session || sourceText !== docText || !bindingAnalysis) return [];
   const insertionOffset = sourceOffsetForSession({ session, source: sourceText, statementMap, elements });
   if (insertionOffset === null) return [];

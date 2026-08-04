@@ -11,13 +11,13 @@ import type { EvaluationResult } from "../types/geometry";
 import { evaluateElements } from "../geometry/evaluate";
 
 const forGroupSource = () => dslTextForElements([
-  { id: "loop", name: "繰返し", type: "forGroup", visible: true, enabled: true, variableName: "i", start: 0, count: 2, step: 1, showGenerated: true },
-  { id: "p", name: "P", type: "freePoint", visible: true, enabled: true, x: { kind: "expression", expression: "i" }, y: 0, parentGroupId: "loop" }
+  { id: "loop", name: "繰返し", type: "forGroup", activity: "visible", variableName: "i", start: 0, count: 2, step: 1, showGenerated: true },
+  { id: "p", name: "P", type: "freePoint", activity: "visible", x: { kind: "expression", expression: "i" }, y: 0, parentGroupId: "loop" }
 ]);
 
 const twoPointSource = () => dslTextForElements([
-  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-  { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+  { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
 ]);
 
 // @stopの直前で評価を打ち切った文書(A有効・B以降は評価対象外)。
@@ -56,7 +56,6 @@ type ControllerInternals = {
 
 const emptyEvaluation: EvaluationResult = {
   computedGeometry: new Map(),
-  computedVariables: new Map(),
   errors: [],
   warnings: []
 };
@@ -153,7 +152,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     expect(parent.querySelectorAll(".cm-generated-rows-widget")).toHaveLength(1);
 
     useCadDocumentStore.getState().replaceTextDocument(dslTextForElements([
-      { id: "x", name: "X", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+      { id: "x", name: "X", type: "freePoint", activity: "visible", x: 0, y: 0 }
     ]), {
       currentFilePath: null,
       dirtySinceSave: false
@@ -218,7 +217,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     expect(beforeIds).toHaveLength(2);
 
     const updatedElements = before.elements.map((element) =>
-      element.name === "B" ? { ...element, enabled: false } : element
+      element.name === "B" ? { ...element, activity: "disabled" as const } : element
     );
     expect(useCadDocumentStore.getState().commitDocumentChange({ elements: updatedElements }).status).toBe("applied");
 
@@ -263,7 +262,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     expect(parent.querySelectorAll(".cm-generated-rows-widget")).toHaveLength(1);
 
     const updatedElements = before.elements.map((element) =>
-      element.id === child.id ? { ...element, enabled: false } : element
+      element.id === child.id ? { ...element, activity: "disabled" as const } : element
     );
     expect(useCadDocumentStore.getState().commitDocumentChange({ elements: updatedElements }).status).toBe("applied");
     expect(internals.decorationIndex.generatedWidgets).toHaveLength(1);
@@ -289,8 +288,8 @@ describe("SourceEditorController @stop mapping", () => {
 
   it("resolves the @stop marker to the committed line when clean", () => {
     useCadDocumentStore.getState().commitText(stoppedSource([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
     ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -304,8 +303,8 @@ describe("SourceEditorController @stop mapping", () => {
 
   it("remaps the @stop range through a dirty edit above it instead of using a stale line number", () => {
     useCadDocumentStore.getState().commitText(stoppedSource([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
     ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -321,8 +320,8 @@ describe("SourceEditorController @stop mapping", () => {
 
   it("hides the @stop marker when an edit fully covers its line, rather than drawing it at a wrong position", () => {
     useCadDocumentStore.getState().commitText(stoppedSource([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 1, y: 1 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
     ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -342,7 +341,7 @@ describe("SourceEditorController @stop mapping", () => {
     // 出力されない(次要素の直前にのみ挿入される仕組みのため)が、@stop自体は
     // v1/v2間で不変のキーワードなので末尾に直接付与しても構文上問題ない。
     const source = `${dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 }
     ])}\n@stop`;
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
@@ -357,7 +356,7 @@ describe("SourceEditorController @stop mapping", () => {
 
   it("routes state gutter actions through the activity cycle command", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
-      { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 }
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 }
     ]), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -595,12 +594,12 @@ describe("SourceEditorController structural shortcuts", () => {
 
   it("moves a collapsed element as one unit from its visible closing row with Option+Arrow", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 2",
-      "point Before = coordinate(x: 0 y: 0)",
+      "nui 3",
+      "point Before = coordinate(x: 0, y: 0)",
       "group G {",
-      "  point Child = coordinate(x: 1 y: 1)",
+      "  point Child = coordinate(x: 1, y: 1)",
       "}",
-      "point After = coordinate(x: 2 y: 2)"
+      "point After = coordinate(x: 2, y: 2)"
     ].join("\n"), "test");
     const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
     useCadUiStore.getState().setGroupFold(group.id, { expanded: false });

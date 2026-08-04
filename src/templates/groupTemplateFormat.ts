@@ -1,4 +1,3 @@
-import type { NumericValue } from "../types/geometry";
 import type { GroupTemplate, GroupTemplateInput, GroupTemplateLibrary } from "./groupTemplate";
 
 export const GROUP_TEMPLATE_SCHEMA_VERSION = 1;
@@ -36,24 +35,9 @@ export const groupTemplateFileFromTemplate = (
 export const serializeGroupTemplateFile = (template: GroupTemplate) =>
   `${JSON.stringify(groupTemplateFileFromTemplate(template), null, 2)}\n`;
 
-const parseNumericValue = (value: unknown): NumericValue =>
-  typeof value === "number" ||
-  (isRecord(value) && value.kind === "expression" && typeof value.expression === "string")
-    ? value as NumericValue
-    : 0;
-
 const parseTemplateInput = (value: unknown): GroupTemplateInput | null => {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.label !== "string") {
     return null;
-  }
-  if (value.kind === "numeric" && typeof value.variableElementId === "string") {
-    return {
-      id: value.id,
-      kind: "numeric",
-      label: value.label,
-      variableElementId: value.variableElementId,
-      defaultValue: parseNumericValue(value.defaultValue)
-    };
   }
   if (
     (value.kind === "point" || value.kind === "line") &&

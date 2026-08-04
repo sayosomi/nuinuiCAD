@@ -8,7 +8,7 @@ import { effectiveElements, initialCadDocumentState, useCadDocumentStore } from 
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";
 
-const source = "nui 2\npoint A = coordinate(x: 12 y: 0 enabled: false)\nvar V = expression(value: 1 scope: global)";
+const source = "nui 3\npoint A = coordinate(x: 12, y: 0)";
 
 const openEditor = (initialSource = source) => {
   useCadDocumentStore.getState().commitText(initialSource, "test");
@@ -106,10 +106,9 @@ describe("SourceEditor editor-native value step commands", () => {
 
   it("steps one quoted expression literal with the parameter step and keeps repeat Undo semantics", () => {
     const expressionSource = [
-      "nui 2",
-      "var 変数1 = 13 + 1",
-      "point A = coordinate(x: 0 y: 0)",
-      'point B = offset(from: A dx: "@変数1 * 2" dy: 0 steps: [dx: 0.25])'
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      'point B = offset(from: A, dx: "@変数1 * 2", dy: 0, steps: [dx: 0.25])'
     ].join("\n");
     const { controller, parent, view } = openEditor(expressionSource);
     const two = view.state.doc.toString().indexOf("* 2") + 2;
@@ -138,14 +137,14 @@ describe("SourceEditor editor-native value step commands", () => {
     // closing `)` as the *next* line — a stronger version of the original
     // "end of physical line" check now that single-line calls always end in `)`.
     const offsetSource = [
-      "nui 2",
-      "point 点A = coordinate(x: 0 y: 0)",
+      "nui 3",
+      "point 点A = coordinate(x: 0, y: 0)",
       "point 点B = offset(",
-      "  from: 点A",
-      "  dx: 130",
+      "  from: 点A,",
+      "  dx: 130,",
       "  dy: 12",
       ")",
-      "point 次 = coordinate(x: 1 y: 1)"
+      "point 次 = coordinate(x: 1, y: 1)"
     ].join("\n");
     const { controller, parent, view } = openEditor(offsetSource);
     const line = view.state.doc.line(6);
@@ -178,14 +177,21 @@ describe("SourceEditor editor-native value step commands", () => {
   });
 
   it("runs boolean and choice changes through the same command path", () => {
-    const { controller, parent, view } = openEditor();
+    const booleanChoiceSource = [
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: right, closed: false)"
+    ].join("\n");
+    const { controller, parent, view } = openEditor(booleanChoiceSource);
     selectToken(view, "false");
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText).toContain("enabled: true");
+    expect(useCadDocumentStore.getState().sourceText).toContain("closed: true");
 
-    selectToken(view, "global");
+    selectToken(view, "right");
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText).toContain("scope: group");
+    expect(useCadDocumentStore.getState().sourceText).toContain("side: left");
     controller.destroy();
     parent.remove();
   });

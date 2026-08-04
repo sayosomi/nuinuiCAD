@@ -62,17 +62,17 @@ describe("resolveDslValueStep", () => {
   });
 
   it("steps only the selected numeric literal inside expressions, including quoted expressions", () => {
-    const variableSource = "var 変数1 = 13 + 1";
-    const variable = compileElement(variableSource);
-    expect(stepAt(variableSource, variable, "13", 1)).toMatchObject({
-      parameterKey: "expression", from: variableSource.indexOf("13"), to: variableSource.indexOf("13") + 2, insert: "14"
+    const pointSource = "point B = offset(from: A dx: 13 + 1 dy: 0)";
+    const point = compileElement(pointSource);
+    expect(stepAt(pointSource, point, "13", 1)).toMatchObject({
+      parameterKey: "dx", from: pointSource.indexOf("13"), to: pointSource.indexOf("13") + 2, insert: "14"
     });
-    const trailingOne = variableSource.lastIndexOf("1");
-    expect(resolveDslValueStep(variableSource, variable, { start: trailingOne, end: trailingOne }, 1)).toMatchObject({
-      parameterKey: "expression", from: variableSource.lastIndexOf("1"), to: variableSource.length, insert: "2"
+    const trailingOne = pointSource.lastIndexOf("1");
+    expect(resolveDslValueStep(pointSource, point, { start: trailingOne, end: trailingOne }, 1)).toMatchObject({
+      parameterKey: "dx", from: trailingOne, to: trailingOne + 1, insert: "2"
     });
 
-    const offsetSource = 'point B = offset(from: A dx: "@変数1 * 2" dy: 0)';
+    const offsetSource = 'point B = offset(from: A dx: "@幅 * 2" dy: 0)';
     const offset = { ...compileElement(offsetSource), numericParameterSteps: { dx: 0.25 } };
     expect(stepAt(offsetSource, offset, "2", 1)).toMatchObject({
       parameterKey: "dx", from: offsetSource.lastIndexOf("2"), to: offsetSource.lastIndexOf("2") + 1, insert: "2.25"
@@ -111,19 +111,19 @@ describe("resolveDslValueStep", () => {
   });
 
   it("toggles booleans and cycles choices, but leaves other parameter kinds untouched", () => {
-    const booleanSource = "point A = coordinate(x: 0 y: 0 enabled: false)";
-    const point = compileElement(booleanSource);
-    expect(stepAt(booleanSource, point, "false", 1)).toMatchObject({ parameterKey: "enabled", insert: "true" });
-    expect(stepAt(booleanSource, point, "false", -1)).toMatchObject({ parameterKey: "enabled", insert: "true" });
+    const booleanSource = "line L = offset(sources: [AB] distance: 10 side: right closed: false)";
+    const booleanLine = compileElement(booleanSource);
+    expect(stepAt(booleanSource, booleanLine, "false", 1)).toMatchObject({ parameterKey: "closed", insert: "true" });
+    expect(stepAt(booleanSource, booleanLine, "false", -1)).toMatchObject({ parameterKey: "closed", insert: "true" });
 
-    const choiceSource = "var V = expression(value: 1 scope: global)";
-    const variable = compileElement(choiceSource);
-    expect(stepAt(choiceSource, variable, "global", 1)).toMatchObject({ parameterKey: "scope", insert: "group" });
-    expect(stepAt(choiceSource, variable, "global", -1)).toMatchObject({ parameterKey: "scope", insert: "group" });
-    const wrappedChoiceSource = "var V = expression(value: 1 scope: group)";
-    const wrappedVariable = compileElement(wrappedChoiceSource);
-    expect(stepAt(wrappedChoiceSource, wrappedVariable, "group", 1)).toMatchObject({ parameterKey: "scope", insert: "global" });
-    expect(stepAt(wrappedChoiceSource, wrappedVariable, "group", -1)).toMatchObject({ parameterKey: "scope", insert: "global" });
+    const choiceSource = "line L = offset(sources: [AB] distance: 10 side: right)";
+    const choiceLine = compileElement(choiceSource);
+    expect(stepAt(choiceSource, choiceLine, "right", 1)).toMatchObject({ parameterKey: "side", insert: "left" });
+    expect(stepAt(choiceSource, choiceLine, "right", -1)).toMatchObject({ parameterKey: "side", insert: "left" });
+    const wrappedChoiceSource = "line L = offset(sources: [AB] distance: 10 side: left)";
+    const wrappedLine = compileElement(wrappedChoiceSource);
+    expect(stepAt(wrappedChoiceSource, wrappedLine, "left", 1)).toMatchObject({ parameterKey: "side", insert: "right" });
+    expect(stepAt(wrappedChoiceSource, wrappedLine, "left", -1)).toMatchObject({ parameterKey: "side", insert: "right" });
 
     const textSource = 'text Label = label(text: "true" anchor: A size: 4)';
     const text = compileElement(textSource);

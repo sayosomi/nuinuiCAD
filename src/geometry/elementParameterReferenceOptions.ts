@@ -54,7 +54,7 @@ const elementIsCurrentlyReferenceable = (
 export const referenceablePathsForElement = (
   element: CadElement,
   elements: readonly CadElement[],
-  evaluation: Pick<EvaluationResult, "computedGeometry" | "computedVariables" | "effectiveEnabledElementIds" | "errors">
+  evaluation: Pick<EvaluationResult, "computedGeometry" | "effectiveEnabledElementIds" | "errors">
 ): ReferenceablePath[] => {
   if (!elementIsCurrentlyReferenceable(element.id, evaluation)) return [];
 
@@ -64,8 +64,7 @@ export const referenceablePathsForElement = (
   };
   const candidatePaths = [
     ...computedPathsForGeometry(evaluation.computedGeometry.get(element.id)),
-    ...parameterPathsForElement(element),
-    ...(evaluation.computedVariables.has(element.id) ? ["value"] : [])
+    ...parameterPathsForElement(element)
   ];
 
   return candidatePaths.flatMap((path) => {
@@ -80,7 +79,7 @@ export type ElementParameterReferencePosition = {
   /** The "ElementName" text typed immediately before the dot. */
   elementToken: string;
   currentElement?: Pick<CadElement, "parentGroupId">;
-  evaluation: Pick<EvaluationResult, "computedGeometry" | "computedVariables" | "effectiveEnabledElementIds" | "errors">;
+  evaluation: Pick<EvaluationResult, "computedGeometry" | "effectiveEnabledElementIds" | "errors">;
 };
 
 /**

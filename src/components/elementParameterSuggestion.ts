@@ -1,5 +1,5 @@
 import type { ElementParameterReferenceOption } from "../geometry/elementParameterReferenceOptions";
-import type { NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
+import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
 import { dslElementParameterTokenEndingAt } from "../dsl/dslElementParameterToken";
 
 export type ElementParameterSuggestionMatch = {
@@ -47,7 +47,7 @@ export const filteredElementParameterSuggestions = (
  */
 export const asNumericVariableReferenceOptions = (
   options: readonly ElementParameterReferenceOption[]
-): NumericVariableReferenceOption[] =>
+): NumericReferenceOption[] =>
   options.map((option) => ({
     expression: option.path,
     displayExpression: option.label,

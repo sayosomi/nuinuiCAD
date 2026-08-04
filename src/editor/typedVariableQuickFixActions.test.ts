@@ -1,8 +1,7 @@
 import { redo, undo, history } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { UpgradeDslMajorVersionResult } from "../state/cadDocumentStore";
+import { afterEach, describe, expect, it } from "vitest";
 import type { TypedVariableQuickFixDescriptor } from "../scalars/typedVariableQuickFixes";
 import { buildTypedVariableLintActions, type TypedVariableQuickFixActionDeps } from "./typedVariableQuickFixActions";
 
@@ -21,7 +20,6 @@ const makeView = (doc: string) => {
 const baseDeps = (overrides: Partial<TypedVariableQuickFixActionDeps> = {}): TypedVariableQuickFixActionDeps => ({
   isComposing: () => false,
   hasPendingText: () => false,
-  upgradeDslMajorVersion: vi.fn(() => ({ status: "applied" }) satisfies UpgradeDslMajorVersionResult),
   ...overrides
 });
 
@@ -102,38 +100,6 @@ describe("buildTypedVariableLintActions", () => {
     const [action] = buildTypedVariableLintActions(baseDeps({ hasPendingText: () => true }), [descriptor]);
     action.apply(view, 0, 0);
     expect(view.state.doc.toString()).toBe("abc");
-  });
-
-  it("calls upgradeDslMajorVersion for a version-upgrade action instead of dispatching a splice", () => {
-    const source = "nui 2\nconst x: number = 1";
-    const view = makeView(source);
-    const upgradeDslMajorVersion = vi.fn(() => ({ status: "applied" }) satisfies UpgradeDslMajorVersionResult);
-    const descriptor: TypedVariableQuickFixDescriptor = {
-      id: "upgrade-nui3",
-      label: "Upgrade",
-      sourceSnapshot: source,
-      action: { kind: "upgrade-major-version", target: 3 }
-    };
-    const [action] = buildTypedVariableLintActions(baseDeps({ upgradeDslMajorVersion }), [descriptor]);
-    action.apply(view, 0, 0);
-    expect(upgradeDslMajorVersion).toHaveBeenCalledWith(3);
-    // The adapter itself never touches the live view for this action kind - the
-    // store action owns its own commit path.
-    expect(view.state.doc.toString()).toBe(source);
-  });
-
-  it("does not call upgradeDslMajorVersion when the live text has drifted from the snapshot", () => {
-    const view = makeView("nui 2\nconst x: number = 2");
-    const upgradeDslMajorVersion = vi.fn(() => ({ status: "applied" }) satisfies UpgradeDslMajorVersionResult);
-    const descriptor: TypedVariableQuickFixDescriptor = {
-      id: "upgrade-nui3",
-      label: "Upgrade",
-      sourceSnapshot: "nui 2\nconst x: number = 1",
-      action: { kind: "upgrade-major-version", target: 3 }
-    };
-    const [action] = buildTypedVariableLintActions(baseDeps({ upgradeDslMajorVersion }), [descriptor]);
-    action.apply(view, 0, 0);
-    expect(upgradeDslMajorVersion).not.toHaveBeenCalled();
   });
 
   it("selects the requested cursor position after applying an insertion", () => {

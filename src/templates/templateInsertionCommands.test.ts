@@ -5,13 +5,9 @@ import type { GroupTemplate } from "./groupTemplate";
 import {
   confirmTemplateInsertion,
   selectTemplateInsertionInputByOffset,
-  startTemplateInsertion,
-  startTemplateNumericReferenceInsertPick
+  startTemplateInsertion
 } from "./templateInsertionCommands";
-import {
-  TEMPLATE_INSERTION_NUMERIC_TARGET_ID,
-  TEMPLATE_INSERTION_PICK_TARGET_ID
-} from "./templateInsertionMode";
+import { TEMPLATE_INSERTION_PICK_TARGET_ID } from "./templateInsertionMode";
 
 const template: GroupTemplate = {
   id: "template",
@@ -20,14 +16,7 @@ const template: GroupTemplate = {
   elements: [],
   inputs: [
     { id: "point:p", kind: "point", label: "基準点", sourceElementId: "p" },
-    { id: "line:l", kind: "line", label: "基準線", sourceElementId: "l" },
-    {
-      id: "numeric:v",
-      kind: "numeric",
-      label: "袖丈",
-      variableElementId: "v",
-      defaultValue: 55
-    }
+    { id: "line:l", kind: "line", label: "基準線", sourceElementId: "l" }
   ],
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z"
@@ -56,27 +45,14 @@ describe("template insertion pick targets", () => {
       parameterKey: "line:l",
       insertionIndex: elementCount
     });
-
-    expect(startTemplateNumericReferenceInsertPick({
-      inputId: "numeric:v",
-      property: "length",
-      displayedExpression: "55",
-      selectionStart: null,
-      selectionEnd: null
-    })).toBe(true);
-    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
-      elementId: TEMPLATE_INSERTION_NUMERIC_TARGET_ID,
-      parameterKey: "numeric:v",
-      insertionIndex: elementCount
-    });
   });
 
   it("splices a complete template tree at its captured Source Editor line", () => {
     const source = [
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
+      "point A = coordinate(x: 0, y: 0)",
       "# insert template here",
-      "point B = coordinate(x: 10 y: 0)"
+      "point B = coordinate(x: 10, y: 0)"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const document = useCadDocumentStore.getState();
@@ -86,13 +62,12 @@ describe("template insertion pick targets", () => {
       rootGroupId: "tree-group",
       inputs: [],
       elements: [
-        { id: "tree-group", name: "袖", type: "group", visible: true, enabled: true },
+        { id: "tree-group", name: "袖", type: "group", activity: "visible" },
         {
           id: "tree-point",
           name: "袖点",
           type: "freePoint",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           parentGroupId: "tree-group",
           x: 10,
           y: 20
@@ -119,7 +94,7 @@ describe("template insertion pick targets", () => {
   });
 
   it("cancels a source-anchored template after an external document change", () => {
-    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0 y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)", "test");
     const document = useCadDocumentStore.getState();
     expect(startTemplateInsertion({
       template: { ...template, inputs: [] },
@@ -129,7 +104,7 @@ describe("template insertion pick targets", () => {
         sourceInsertionLine: 3
       }
     })).toBe(true);
-    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0 y: 0)\n# changed", "test");
+    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)\n# changed", "test");
 
     expect(confirmTemplateInsertion()).toBe(false);
     expect(useCadUiStore.getState().activeTemplateInsertion).toBeNull();

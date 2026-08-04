@@ -6,7 +6,6 @@ import {
   argNameForParameter,
   commonArgSpecs,
   constructionFor,
-  constructionForElementType,
 } from "./dslConstructions";
 import { settingsSpecFor } from "./dslConstructionsSettings";
 
@@ -34,10 +33,6 @@ const calls = [
   ["arc", "corner", "cornerRadiusArcLine"],
   ["text", "label", "text"],
   ["image", "image", "image"],
-  ["var", "expression", "variable"],
-  ["var", "pointDistance", "variable"],
-  ["var", "pointAngle", "variable"],
-  ["var", "pointLineDistance", "variable"],
   ["group", "", "group"],
   ["if", "", "conditionalGroup"],
   ["for", "", "forGroup"],
@@ -51,7 +46,7 @@ const sampleForSpec = (category: string, construction: string) => {
   return { ...sampleFor(spec.elementType), ...spec.preset } as CadElement;
 };
 
-describe("DSL v2 construction registry", () => {
+describe("DSL nui 3 construction registry", () => {
   it("maps every CadElementType to a construction and resolves every call by category", () => {
     const coveredTypes = new Set<CadElementType>();
 
@@ -65,7 +60,6 @@ describe("DSL v2 construction registry", () => {
     }
 
     expect(coveredTypes).toEqual(new Set(Object.keys(elementTypeLabels)));
-    expect(constructionForElementType("variable")).toMatchObject({ construction: "expression" });
   });
 
   it("keeps same-named constructions independent within their categories", () => {
@@ -91,11 +85,8 @@ describe("DSL v2 construction registry", () => {
     const commonSample = sampleFor("freePoint");
     for (const definition of commonArgSpecs) {
       if (definition.special) continue;
-      // `locked` is retired: recognized for legacy-compat parsing only, with no
-      // live parameter definition or editable field.
-      if (definition.arg === "locked") continue;
-      // `state` (v3-only ElementActivity sugar for visible/enabled) is derived, not a
-      // CadElement field, so it deliberately has no ParameterDefinition of its own.
+      // `state` (ElementActivity sugar) is derived, not a CadElement field, so
+      // it deliberately has no ParameterDefinition of its own.
       if (definition.arg === "state") continue;
       expect(findParameterDefinition(commonSample, definition.parameterKey ?? definition.arg)).toBeDefined();
     }
@@ -115,7 +106,7 @@ describe("DSL v2 construction registry", () => {
   });
 });
 
-describe("DSL v2 settings registry", () => {
+describe("DSL nui 3 settings registry", () => {
   it("defines the specified settings arguments and positional slots", () => {
     expect(settingsSpecFor("color")).toMatchObject({
       args: [

@@ -1,6 +1,6 @@
-// Compiles typed references embedded in the pre-existing numeric-expression
-// language.  Geometry measurements and legacy variables deliberately remain
-// in that language; only a resolved typed `@name` occurrence is replaced by
+// Compiles typed references embedded in the numeric-expression language.
+// Geometry measurements and element-local numeric variables remain in that
+// language; only a resolved typed `@name` occurrence is replaced by
 // its stable BindingId at runtime.
 import type { CadElement, ElementId, NumericValue } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
@@ -15,6 +15,7 @@ import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type SiteReferenceRequest } from "./bindingResolution";
 import type { BindingReferenceSite } from "./bindingResolution";
+import { buildElementLocalRangeIndexFromElements } from "./elementLocalRangeIndex";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 
@@ -55,6 +56,7 @@ type Candidate = {
   parameterKey: string;
   expression: string;
   references: readonly CandidateReference[];
+  elementId: ElementId;
 };
 
 const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
@@ -65,7 +67,7 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
   };
 };
 
-// This intentionally mirrors the legacy numeric local-variable token boundary.
+// This intentionally mirrors the numeric local-variable token boundary.
 // In particular `@AB.length` is not a binding occurrence: the established
 // measurement spelling is `AB.length`.
 const referencesIn = (source: string, outer: DslSpan): CandidateReference[] => {
@@ -94,7 +96,7 @@ export const compileNumericBindings = ({
   const requests: SiteReferenceRequest[] = [];
 
   statements.forEach((statement, statementIndex) => {
-    if (statement.kind !== "element" && statement.kind !== "group" && statement.kind !== "variable") return;
+    if (statement.kind !== "element" && statement.kind !== "group") return;
     const element = byId.get(elementIdByStatementIndex.get(statementIndex) ?? "");
     const logical = spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
     if (!element || !logical) return;
@@ -107,8 +109,11 @@ export const compileNumericBindings = ({
       const refs = referencesIn(logical.logicalText.slice(valueSpan.start, valueSpan.end), valueSpan);
       if (!refs.length) continue;
       const key = propertyBindingOccurrenceKey(statementIndex, definition.key);
-      candidates.push({ key, statement, statementIndex, parameterKey: definition.key, expression: value.expression, references: refs });
+      candidates.push({ key, statement, statementIndex, parameterKey: definition.key, expression: value.expression, references: refs, elementId: element.id });
       const scopeId = bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId;
+      // Geometry properties are evaluated after this element's local
+      // variables have been computed, so every local is visible here -
+      // Number.MAX_SAFE_INTEGER always includes the element's full local range.
       refs.forEach((reference, index) => requests.push({
         key: `${key}:${index}`,
         name: reference.name,
@@ -117,7 +122,8 @@ export const compileNumericBindings = ({
     }
   });
 
-  const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests);
+  const elementLocalRangeIndex = buildElementLocalRangeIndexFromElements(elements);
+  const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests, elementLocalRangeIndex);
   const sourcesByOccurrenceKey = new Map<string, CompiledNumericBinding>();
   const diagnostics: DslDiagnostic[] = [];
   for (const candidate of candidates) {
@@ -125,7 +131,7 @@ export const compileNumericBindings = ({
       const resolution = resolutions.get(`${candidate.key}:${index}`);
       return resolution?.kind === "resolved" && resolution.binding.kind === "typed";
     });
-    if (!resolvedTyped) continue; // pure legacy/local/iteration expression: byte-for-byte legacy path.
+    if (!resolvedTyped) continue; // Pure local/iteration expression stays in the numeric evaluator.
 
     let rejected = false;
     const typedRefs: { reference: CandidateReference; bindingId: BindingId }[] = [];
@@ -136,6 +142,12 @@ export const compileNumericBindings = ({
         rejected = true;
         return;
       }
+      if (resolution.kind === "resolvedLocal") {
+        // Element-local references keep the existing numeric evaluator path
+        // even when another occurrence in this same expression is a
+        // compiled typed slot.
+        return;
+      }
       if (resolution.kind !== "resolved") {
         // Binding analysis already emits the duplicate/self invalidation
         // diagnostic.  Do not report the same underlying cause again here.
@@ -144,9 +156,9 @@ export const compileNumericBindings = ({
       }
       const binding = resolution.binding;
       if (binding.kind !== "typed") {
-        // Legacy, iteration, and element-local references keep the existing
-        // numeric evaluator path even when another occurrence in this same
-        // expression is a compiled typed slot.
+        // Iteration references keep the existing numeric evaluator path
+        // even when another occurrence in this same expression is a
+        // compiled typed slot.
         return;
       }
       const entry = bindingAnalysis.entriesById.get(binding.id);
@@ -182,7 +194,11 @@ export const compileNumericBindings = ({
       }
       references.push({ bindingId, name: reference.name, span: reference.span, nameSpan: reference.nameSpan,
         physicalNameSpan: exactPhysicalSpan(spans, candidate.statement, reference.nameSpan), expressionStart: token.start, expressionEnd: token.end,
-        site: { scopeId: bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(candidate.statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId, statementIndex: candidate.statementIndex, elementLocal: { ownerId: byId.get(elementIdByStatementIndex.get(candidate.statementIndex) ?? "")!.id, order: Number.MAX_SAFE_INTEGER } } });
+        site: {
+          scopeId: bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(candidate.statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId,
+          statementIndex: candidate.statementIndex,
+          elementLocal: { ownerId: candidate.elementId, order: Number.MAX_SAFE_INTEGER }
+        } });
     }
     if (!rejected && references.length) sourcesByOccurrenceKey.set(candidate.key, { parameterKey: candidate.parameterKey, expression: candidate.expression, references });
   }

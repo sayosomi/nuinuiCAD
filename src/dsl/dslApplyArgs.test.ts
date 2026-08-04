@@ -11,11 +11,11 @@ import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { createNameIndex } from "./dslReferences";
 
 const references: CadElement[] = [
-  { id: "p1", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-  { id: "p2", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
-  { id: "p3", name: "C", type: "freePoint", visible: true, enabled: true, x: 20, y: 0 },
-  { id: "l1", name: "AB", type: "line", visible: true, enabled: true, startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2") },
-  { id: "l2", name: "CD", type: "line", visible: true, enabled: true, startPoint: referenceAnchor("p2"), endPoint: referenceAnchor("p3") },
+  { id: "p1", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "p2", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
+  { id: "p3", name: "C", type: "freePoint", activity: "visible", x: 20, y: 0 },
+  { id: "l1", name: "AB", type: "line", activity: "visible", startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2") },
+  { id: "l2", name: "CD", type: "line", activity: "visible", startPoint: referenceAnchor("p2"), endPoint: referenceAnchor("p3") },
 ];
 
 const index = createNameIndex(references);
@@ -68,11 +68,10 @@ const specs = [
   ["line", "polar"], ["line", "offset"], ["line", "split"], ["line", "extend"], ["line", "copy"],
   ["line", "move"], ["line", "mirrorCopy"], ["line", "mirrorMove"], ["line", "edge"],
   ["curve", "bezier"], ["arc", "arc"], ["arc", "through"], ["arc", "corner"], ["text", "label"],
-  ["image", "image"], ["var", "expression"], ["var", "pointDistance"], ["var", "pointAngle"],
-  ["var", "pointLineDistance"], ["group", ""], ["if", ""], ["for", ""],
+  ["image", "image"], ["group", ""], ["if", ""], ["for", ""],
 ] as const;
 
-describe("DSL v2 compiler argument application", () => {
+describe("DSL nui 3 compiler argument application", () => {
   it("applies populated and minimal arguments for every registry construction", () => {
     for (const [category, construction] of specs) {
       const spec = constructionFor(category, construction)!;
@@ -101,16 +100,12 @@ describe("DSL v2 compiler argument application", () => {
     const division = sample("divisionPoint");
     const between = applyArgs(division, constructionFor("point", "between")!, [
       arg("start", "A"), arg("end", "B"), arg("ratio", "0.25"),
-      arg("locked", "true"), arg("visible", "false"), arg("enabled", "false"), arg("color", "red"),
+      arg("state", "disabled"), arg("color", "red"),
     ], resolvers);
     expect(between.element).toMatchObject({
       startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2"),
-      placement: { kind: "ratio", value: 0.25 }, visible: true, enabled: false, colorId: "red",
+      placement: { kind: "ratio", value: 0.25 }, activity: "disabled", colorId: "red",
     });
-    expect(between.element).not.toHaveProperty("locked");
-    expect(between.diagnostics.map((item) => item.message)).toContain(
-      "locked は廃止された属性のため無視されます。"
-    );
 
     const curve = applyArgs(sample("bezierCurve"), constructionFor("curve", "bezier")!, [
       arg("start", "A"), arg("end", "B"), arg("intermediates", "[C: 45: 20: 25: mid-1]"),
@@ -209,15 +204,12 @@ describe("DSL v2 compiler argument application", () => {
     expect(result.diagnostics).toEqual([expect.objectContaining({ severity: "warning", message: "参照先が見つかりません: missing" })]);
   });
 
-  it("reports invalid boolean and step values without mutating the input element", () => {
+  it("reports invalid step values without mutating the input element", () => {
     const input = sample("freePoint");
     const result = applyArgs(input, constructionFor("point", "coordinate")!, [
-      arg("locked", "not-a-boolean"), arg("steps", "[x: 0]"),
+      arg("steps", "[x: 0]"),
     ], resolvers);
-    expect(result.element).not.toHaveProperty("locked");
     expect(result.diagnostics.map((item) => item.message)).toEqual([
-      "locked は true/false で指定してください。",
-      "locked は廃止された属性のため無視されます。",
       "steps は parameter:positiveNumber の一覧で指定してください。",
     ]);
   });
@@ -232,60 +224,27 @@ describe("DSL v2 compiler argument application", () => {
 });
 
 describe("nui 3 state syntax lowering", () => {
-  const resolversV3: DslApplyArgsResolvers = { ...resolvers, majorVersion: 3 };
-
-  it("lowers each of the 3 state literals to the matching legacy flags under nui 3", () => {
-    const visible = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "visible")], resolversV3);
+  it("lowers each of the 3 state literals to ElementActivity", () => {
+    const visible = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "visible")], resolvers);
     expect(visible.diagnostics).toEqual([]);
-    expect(visible.element).toMatchObject({ visible: true, enabled: true });
+    expect(visible.element).toMatchObject({ activity: "visible" });
 
-    const hidden = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "hidden")], resolversV3);
+    const hidden = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "hidden")], resolvers);
     expect(hidden.diagnostics).toEqual([]);
-    expect(hidden.element).toMatchObject({ visible: false, enabled: true });
+    expect(hidden.element).toMatchObject({ activity: "hidden" });
 
-    const disabled = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "disabled")], resolversV3);
+    const disabled = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "disabled")], resolvers);
     expect(disabled.diagnostics).toEqual([]);
-    expect(disabled.element).toMatchObject({ visible: true, enabled: false });
-  });
-
-  it("still accepts legacy visible/enabled alone under nui 3 (compatibility input)", () => {
-    const result = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("visible", "false")], resolversV3);
-    expect(result.diagnostics).toEqual([]);
-    expect(result.element).toMatchObject({ visible: false, enabled: true });
-  });
-
-  it("rejects state: under nui 2 with the Task 06 version-gate diagnostic and does not touch activity fields", () => {
-    const input = sample("freePoint");
-    const result = applyArgs(input, constructionFor("point", "coordinate")!, [arg("state", "hidden")], resolvers);
-    expect(result.diagnostics).toEqual([
-      expect.objectContaining({
-        code: "typed-syntax-requires-nui3",
-        message: "state: 構文 は nui 3 以降でのみ使用できます(現在: nui 2)。",
-      }),
-    ]);
-    expect(result.element).toMatchObject({ visible: input.visible, enabled: input.enabled });
+    expect(disabled.element).toMatchObject({ activity: "disabled" });
   });
 
   it("fails closed on an invalid state literal: diagnoses without falling back to any activity value", () => {
-    const input = { ...sample("freePoint"), visible: false, enabled: true };
-    const result = applyArgs(input, constructionFor("point", "coordinate")!, [arg("state", "maybe")], resolversV3);
+    const input: CadElement = { ...sample("freePoint"), activity: "hidden" };
+    const result = applyArgs(input, constructionFor("point", "coordinate")!, [arg("state", "maybe")], resolvers);
     expect(result.diagnostics).toEqual([
       expect.objectContaining({ message: "state は visible/hidden/disabled のいずれかで指定してください。" }),
     ]);
-    // Fail-closed: the element's prior activity fields are untouched, not defaulted to visible.
-    expect(result.element).toMatchObject({ visible: false, enabled: true });
-  });
-
-  it("fails closed when state conflicts with visible or enabled: neither is lowered onto the element", () => {
-    const input = { ...sample("freePoint"), visible: false, enabled: true };
-    const result = applyArgs(
-      input,
-      constructionFor("point", "coordinate")!,
-      [arg("state", "disabled"), arg("visible", "true")],
-      resolversV3,
-    );
-    // dslCallParser.ts's raw-arg validation is responsible for the element-state-conflict
-    // diagnostic; applyArgs only needs to mirror its fail-closed behavior here.
-    expect(result.element).toMatchObject({ visible: false, enabled: true });
+    // Fail-closed: the element's prior activity is untouched, not defaulted to visible.
+    expect(result.element).toMatchObject({ activity: "hidden" });
   });
 });

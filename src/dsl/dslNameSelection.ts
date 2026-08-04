@@ -18,7 +18,6 @@ const nameBearingKeywords = new Set([
   "profile",
   "role",
   "text",
-  "var",
   "view"
 ]);
 

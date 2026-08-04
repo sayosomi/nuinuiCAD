@@ -189,8 +189,7 @@ describe("commandLineSession", () => {
       id: "group",
       name: "Bodice",
       type: "group",
-      visible: true,
-      enabled: true
+      activity: "visible"
     };
     const existing = { ...sampleElements[0], id: "inside", name: "直線", parentGroupId: "group" };
     const elements = [group, existing];

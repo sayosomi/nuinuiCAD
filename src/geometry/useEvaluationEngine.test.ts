@@ -20,8 +20,7 @@ const pointA: CadElement = {
   id: "a",
   name: "点A",
   type: "freePoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   x: 0,
   y: 0
 };
@@ -30,8 +29,7 @@ const pointB: CadElement = {
   id: "b",
   name: "点B",
   type: "freePoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   x: 100,
   y: 0
 };
@@ -40,8 +38,7 @@ const line: CadElement = {
   id: "line",
   name: "直線",
   type: "line",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "reference", pointId: "a" },
   endPoint: { mode: "reference", pointId: "b" }
 };
@@ -75,8 +72,7 @@ const unsupportedElement = {
   id: "unsupported",
   name: "未対応",
   type: "unsupportedElement",
-  visible: true,
-  enabled: true
+  activity: "visible"
 } as unknown as CadElement;
 
 const invokeMock = vi.mocked(invoke);
@@ -229,8 +225,8 @@ describe("useEvaluationEngine", () => {
       "nui 3",
       "let total: number = 0",
       "for Outer (i, from: 0, count: 2, step: 1) {",
-      "  if Branch (@i == 0) {",
-      "    let scratch: number = @i + 1",
+      "  if Branch (@total == 0) {",
+      "    let scratch: number = 1",
       "    set total = @total + @scratch",
       "  } else {",
       "    set total = @total + 10",
@@ -244,6 +240,7 @@ describe("useEvaluationEngine", () => {
     expect(compiled.status).not.toBe("fatal");
     const bindingVersions = compiled.doc.bindingVersions!;
     const options = {
+      scalarProgram: compiled.doc.scalarProgram,
       bindingVersions,
       statementInfoByElementId: compiled.doc.statementMap.byElementId,
       statementIdByStatementIndex: compiled.doc.statementMap.statementIdByStatementIndex,
@@ -358,8 +355,7 @@ describe("useEvaluationEngine", () => {
           id: "c",
           name: "点C",
           type: "freePoint",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           x: 0,
           y: 50
         }

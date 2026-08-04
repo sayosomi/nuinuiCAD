@@ -20,8 +20,8 @@ import { sourceEditSession } from "./sourceEditSession";
  * profiled and fixed even while these loose guards pass.
  */
 
-const source = (count: number) => ["nui 2", ...Array.from({ length: count }, (_, index) =>
-  `point P${index} = coordinate(x: ${index} y: ${index + 1})`
+const source = (count: number) => ["nui 3", ...Array.from({ length: count }, (_, index) =>
+  `point P${index} = coordinate(x: ${index}, y: ${index + 1})`
 )].join("\n");
 
 const stats = (values: number[]) => {
@@ -109,7 +109,7 @@ describe("Phase 2e source editor integration performance", () => {
         const middleElement = elements[Math.floor(elements.length / 2)];
         const patched = elements.map((element) =>
           element.id === middleElement.id
-            ? { ...element, enabled: element.enabled !== true }
+            ? { ...element, activity: element.activity === "disabled" ? "visible" as const : "disabled" as const }
             : element
         );
         const result = store.getState().commitDocumentChange({ elements: patched });
@@ -124,7 +124,7 @@ describe("Phase 2e source editor integration performance", () => {
         const middleElement = elements[Math.floor(elements.length / 2)];
         const patched = elements.map((element) =>
           element.id === middleElement.id
-            ? { ...element, enabled: element.enabled !== true }
+            ? { ...element, activity: element.activity === "disabled" ? "visible" as const : "disabled" as const }
             : element
         );
         const result = store.getState().commitDocumentChange({ elements: patched });

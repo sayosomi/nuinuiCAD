@@ -373,13 +373,7 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
       return dslIntermediatesFieldCompletionContext(code, pos, span, majorVersion);
     }
     const parameters = metadata.parameters.filter((parameter) =>
-      parameter.source === span.source && parameter.key === span.key ||
-      // The canonical short variable form has a payload `value` span, while
-      // serializer-derived metadata exposes that editable parameter as an
-      // attribute. Keep this value path available when construction-token
-      // completion intentionally declines an ambiguous `var Name = …` input.
-      statement.kind === "variable" && span.source === "payload" && span.key === "value" &&
-        parameter.source === "attr" && parameter.key === "value"
+      parameter.source === span.source && parameter.key === span.key
     );
     if (parameters.length !== 1) return null;
     const parameter = parameters[0];

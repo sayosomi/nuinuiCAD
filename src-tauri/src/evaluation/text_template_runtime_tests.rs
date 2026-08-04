@@ -33,7 +33,7 @@ fn input(
 
 fn text_element(id: &str) -> Value {
     json!({
-        "id": id, "name": id, "type": "text", "visible": true, "enabled": true,
+        "id": id, "name": id, "type": "text", "activity": "visible",
         "text": "placeholder - replaced by a compiled template or bound property",
         "anchor": Value::Null, "fontSize": 3
     })
@@ -43,8 +43,8 @@ fn literal_segment(cooked: &str) -> Value {
     json!({"kind": "literal", "cooked": cooked})
 }
 
-fn legacy_hole_segment(raw: &str) -> Value {
-    json!({"kind": "hole", "holeKind": "legacy", "raw": raw})
+fn numeric_expression_hole_segment(raw: &str) -> Value {
+    json!({"kind": "hole", "holeKind": "numeric", "raw": raw})
 }
 
 fn string_hole_segment(expression: Value) -> Value {
@@ -132,13 +132,16 @@ fn assembles_a_literal_only_template_with_no_scalar_program() {
 }
 
 #[test]
-fn assembles_a_legacy_hole_only_template_with_no_scalar_program() {
+fn assembles_a_numeric_expression_hole_only_template_with_no_scalar_program() {
     let result = evaluate_document_input(input(
         vec![text_element("t")],
         None,
         Some(json!([text_template_entry(
             "t",
-            vec![literal_segment("計算: "), legacy_hole_segment("2 + 3")]
+            vec![
+                literal_segment("計算: "),
+                numeric_expression_hole_segment("2 + 3")
+            ]
         )])),
         None,
     ));
@@ -186,7 +189,7 @@ fn substitutes_a_typed_number_hole_and_formats_it() {
 }
 
 #[test]
-fn interleaves_legacy_and_typed_holes() {
+fn interleaves_numeric_expression_and_typed_holes() {
     let result = evaluate_document_input(input(
         vec![text_element("t")],
         Some(program(vec![string_statement(
@@ -198,7 +201,7 @@ fn interleaves_legacy_and_typed_holes() {
             vec![
                 string_hole_segment(string_reference_expr("binding:label")),
                 literal_segment(" 計算:"),
-                legacy_hole_segment("2 + 3")
+                numeric_expression_hole_segment("2 + 3")
             ]
         )])),
         None,
@@ -207,18 +210,18 @@ fn interleaves_legacy_and_typed_holes() {
     assert_eq!(text_value(&result, "t"), "前身頃 計算:5");
 }
 
-/// A legacy hole referencing a nonexistent element - `evaluate_numeric_or_push`
-/// (the existing, unchanged legacy pipeline) already pushes the correct
+/// A numeric-expression hole referencing a nonexistent element - `evaluate_numeric_or_push`
+/// already pushes the correct
 /// `DependencyError` and returns `None`; the new template walker must not
 /// push a second, duplicate one for the same failing hole.
 #[test]
-fn a_legacy_hole_failure_produces_exactly_one_error_no_duplicate() {
+fn a_numeric_expression_hole_failure_produces_exactly_one_error_no_duplicate() {
     let result = evaluate_document_input(input(
         vec![text_element("t")],
         None,
         Some(json!([text_template_entry(
             "t",
-            vec![legacy_hole_segment("存在しない.length")]
+            vec![numeric_expression_hole_segment("存在しない.length")]
         )])),
         None,
     ));
@@ -262,9 +265,9 @@ fn a_typed_hole_referencing_a_poisoned_binding_fails_closed_self_referentially()
 
 /// A typed hole whose reference `bindingId` does not correspond to any
 /// statement in `scalar_program` at all - resolved through the same
-/// `evaluation-external-binding-unavailable` path any other binding
-/// consumer already uses (`bindings.rs`'s `resolve_external_binding`), not
-/// a new decode-time check.
+/// `evaluation-binding-unavailable` path any other binding consumer
+/// already uses (`bindings.rs`'s `unavailable_binding`), not a new
+/// decode-time check.
 #[test]
 fn a_typed_hole_referencing_a_completely_dangling_binding_fails_closed_self_referentially() {
     let result = evaluate_document_input(input(
@@ -304,21 +307,20 @@ fn materializes_a_bare_text_property_binding_with_no_compiled_template() {
 }
 
 /// No `text_templates`/`text_property_bindings` entry at all for this
-/// element - the existing, completely unmodified legacy `resolve_text` path
-/// runs, exactly matching a v2 document (which never has either field
-/// populated for any element).
+/// element: raw text remains literal. The production nui 3 path always sends
+/// a compiled template for source-authored text interpolation.
 #[test]
-fn a_text_element_with_no_compiled_entry_uses_the_unmodified_legacy_path() {
+fn a_text_element_with_no_compiled_entry_keeps_braces_literal() {
     let mut element = text_element("t");
     element["text"] = json!("直接の文字列 {2 + 3}");
     let result = evaluate_document_input(input(vec![element], None, None, None));
     assert!(result.errors.is_empty());
-    assert_eq!(text_value(&result, "t"), "直接の文字列 5");
+    assert_eq!(text_value(&result, "t"), "直接の文字列 {2 + 3}");
 }
 
 fn for_group_el(id: &str, count: f64) -> Value {
     json!({
-        "id": id, "name": id, "type": "forGroup", "visible": true, "enabled": true,
+        "id": id, "name": id, "type": "forGroup", "activity": "visible",
         "variableName": "i", "start": 0, "count": count, "step": 1, "showGenerated": false
     })
 }

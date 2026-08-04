@@ -1,5 +1,5 @@
 // Task 51: the single shared authority for scanning a reference token (either
-// a typed-binding/legacy-variable `@name`, or an element-property
+// a typed-binding `@name`, or an element-property
 // `Element.property`) inside numeric expression *surface* text. Both the
 // Source Editor (dslCompletionContext.ts) and CommandLineBar
 // (numericVariableSuggestion.ts / elementParameterSuggestion.ts) build on
@@ -9,12 +9,12 @@
 //
 // Disambiguation is purely the presence of `.`: `@AB` is a binding
 // reference, `@AB.` is an element-property reference. `AB.length` (no
-// leading `@`) is the same element-property shape but the nui 2 spelling -
-// nui 3 requires the sigil (see barePropertyReferenceIssues below).
+// leading `@`) is an invalid nui 3 element-property reference and is kept
+// recognizable only to report the precise repair diagnostic.
 
 export type ExpressionReferenceTokenMatch =
   /**
-   * `@name` - typed binding or legacy variable reference. `from` INCLUDES
+   * `@name` - typed binding reference. `from` INCLUDES
    * the leading `@` and `to` is the end of the identifier; apply text is
    * `"@" + query` (matches the existing dslVariableToken.ts / asScalarCompletions
    * replacement convention).
@@ -29,8 +29,7 @@ export type ExpressionReferenceTokenMatch =
       readonly query: string;
     }
   /**
-   * `@Element.prop` (nui 3) or bare `Element.prop` (nui 2 / pre-migration
-   * spelling). `from`/`to` cover ONLY the member run after the dot (matches
+   * `@Element.prop` or an invalid bare `Element.prop`. `from`/`to` cover ONLY the member run after the dot (matches
    * the existing dslElementParameterToken.ts / asElementParameterCompletions
    * replacement convention, which never touches `Element.` on apply).
    */
@@ -222,8 +221,7 @@ export const barePropertyReferenceIssues = (
  * through compileDslDocument. Returns the diagnostic message when `input`
  * contains a nui-3-illegal bare property reference, or null when acceptable.
  */
-export const rejectBarePropertyReference = (input: string, majorVersion: 2 | 3): string | null => {
-  if (majorVersion < 3) return null;
+export const rejectBarePropertyReference = (input: string): string | null => {
   const issues = barePropertyReferenceIssues(input);
   return issues.length > 0 ? issues[0].message : null;
 };

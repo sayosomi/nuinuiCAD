@@ -10,8 +10,7 @@ const forGroup: ForGroupElement = {
   id: "loop",
   name: "Loop",
   type: "forGroup",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   variableName: "i",
   start: 0,
   count: 2,
@@ -20,8 +19,8 @@ const forGroup: ForGroupElement = {
 };
 
 const basePoints: CadElement[] = [
-  { id: "point-a", name: "点A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-  { id: "point-b", name: "点B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 }
+  { id: "point-a", name: "点A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "point-b", name: "点B", type: "freePoint", activity: "visible", x: 10, y: 0 }
 ];
 
 describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
@@ -30,8 +29,7 @@ describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
       id: "division",
       name: "分点",
       type: "divisionPoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       parentGroupId: forGroup.id,
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
@@ -61,8 +59,7 @@ describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
       id: "line-ab",
       name: "線AB",
       type: "line",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" }
     };
@@ -70,8 +67,7 @@ describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
       id: "division",
       name: "線上分点",
       type: "lineDivisionPoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       parentGroupId: forGroup.id,
       endpoint: { lineId: "line-ab", endpointKey: "start" },
       placement: { kind: "ratio", value: 0.2 }

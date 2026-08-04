@@ -43,8 +43,6 @@ export type IncrementalLinearMutationEvaluator = {
   ) => ForGroupMutationRunOutcome;
 };
 
-export type ResolveExternalScalarBinding = (bindingId: BindingId) => ScalarEvaluation;
-
 /** Statements are supplied from the compiler's existing element map only. */
 export type ForGroupMutationStatement = {
   sourceOrder: number;
@@ -111,7 +109,6 @@ const conditionalOwners = (graph: BindingVersionGraph): ReadonlyMap<string, read
  */
 export const createIncrementalLinearMutationEvaluator = (
   graph: BindingVersionGraph,
-  resolveExternalBinding: ResolveExternalScalarBinding,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation
 ): IncrementalLinearMutationEvaluator => {
   const currentByBindingId = new Map<BindingId, ScalarEvaluation>();
@@ -147,7 +144,7 @@ export const createIncrementalLinearMutationEvaluator = (
     }
     if (loopValue) return loopValue;
     const current = currentByBindingId.get(bindingId);
-    return current ?? (graph.versionIdsByBindingId.has(bindingId) ? unavailable(bindingId) : resolveExternalBinding(bindingId));
+    return current ?? unavailable(bindingId);
   };
 
   const retireFramesBefore = (sourceOrder: number) => {

@@ -6,7 +6,6 @@ import {
 import { initialCadUiState } from "../state/cadUiStore";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import {
-  importLegacyDocument,
   newDocument,
   openDocument,
   saveDocument,
@@ -15,8 +14,6 @@ import {
 
 const tauriCoreMock = vi.hoisted(() => ({ invoke: vi.fn() }));
 const dialogMock = vi.hoisted(() => ({ confirm: vi.fn(), open: vi.fn(), save: vi.fn() }));
-const LEGACY_APP_ID = "nuinuiCAD";
-const LEGACY_SCHEMA_VERSION = 5;
 
 vi.mock("@tauri-apps/api/core", () => tauriCoreMock);
 vi.mock("@tauri-apps/plugin-dialog", () => dialogMock);
@@ -58,8 +55,7 @@ describe("document file lifecycle", () => {
 
   it.each([
     ["新規作成", newDocument],
-    [".nui を開く", openDocument],
-    ["旧形式を import", importLegacyDocument]
+    [".nui を開く", openDocument]
   ] as const)("uses the dialog wrapper instead of injected window.confirm for dirty Tauri %s", async (_, operation) => {
     const injectedConfirm = vi.fn(() => Promise.reject(new Error("dialog.confirm not allowed. Command not found")));
     const originalConfirm = window.confirm;
@@ -98,7 +94,7 @@ describe("document file lifecycle", () => {
   });
 
   it("opens .nui text verbatim and resets file history", async () => {
-    const content = "\uFEFFnui 2\r\n# keep this\r\npoint A = coordinate(x: 0 y: 0)\r\n";
+    const content = "\uFEFFnui 3\r\n# keep this\r\npoint A = coordinate(x: 0, y: 0)\r\n";
     dialogMock.open.mockResolvedValue("/tmp/loaded.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
@@ -112,23 +108,6 @@ describe("document file lifecycle", () => {
     expect(state.dirtySinceSave).toBe(false);
     expect(state.past).toEqual([]);
     expect(state.future).toEqual([]);
-  });
-
-  it("opens a nui 3 document with legacy-only syntax verbatim", async () => {
-    const content = "nui 3\nvar Global = 12\npoint A = coordinate(x: 0, y: 0, visible: false)\n";
-    dialogMock.open.mockResolvedValue("/tmp/nui3-legacy.nui");
-    tauriCoreMock.invoke.mockResolvedValue(content);
-
-    await openDocument();
-
-    const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toBe(content);
-    expect(state.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(state.elements).toMatchObject([
-      { name: "Global", type: "variable" },
-      { name: "A", type: "freePoint", x: 0, y: 0 }
-    ]);
-    expect(state.dirtySinceSave).toBe(false);
   });
 
   it("opens, saves, and reopens typed nui 3 source without invoking a serializer", async () => {
@@ -184,33 +163,9 @@ describe("document file lifecycle", () => {
     expect(useCadDocumentStore.getState().sourceText).toBe(content);
   });
 
-  it("converts a v1 .nui on open, keeps its path, and marks the result dirty for a v2 save", async () => {
-    const content = "\uFEFFnui 1\n# discarded during conversion\npoint A = (0, 0)";
-    dialogMock.open.mockResolvedValue("/tmp/legacy.nui");
-    tauriCoreMock.invoke.mockResolvedValue(content);
-
-    await openDocument();
-
-    const state = useCadDocumentStore.getState();
-    expect(state.sourceText.startsWith("nui 2\n")).toBe(true);
-    expect(state.sourceText).not.toContain("discarded during conversion");
-    expect(state.elements).toMatchObject([{ name: "A", type: "freePoint", x: 0, y: 0 }]);
-    expect(state.currentFilePath).toBe("/tmp/legacy.nui");
-    expect(state.dirtySinceSave).toBe(true);
-  });
-
-  it("leaves the current document intact when a v1 conversion reports errors", async () => {
-    const before = useCadDocumentStore.getState().sourceText;
-    dialogMock.open.mockResolvedValue("/tmp/broken-v1.nui");
-    tauriCoreMock.invoke.mockResolvedValue("nui 1\npoint Broken = (");
-
-    await expect(openDocument()).rejects.toThrow("nui 1 文書を変換できません");
-
-    expect(useCadDocumentStore.getState().sourceText).toBe(before);
-  });
 
   it("opens fatal text with an empty last-good document instead of leaking the previous document", async () => {
-    const content = "nui 2\npoint Broken = coordinate(";
+    const content = "nui 3\npoint Broken = coordinate(";
     dialogMock.open.mockResolvedValue("/tmp/broken.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
     expect(useCadDocumentStore.getState().elements.length).toBeGreaterThan(0);
@@ -229,9 +184,9 @@ describe("document file lifecycle", () => {
   it("rejects only an unsupported major before replacing the current document", async () => {
     const before = useCadDocumentStore.getState().sourceText;
     dialogMock.open.mockResolvedValue("/tmp/future.nui");
-    tauriCoreMock.invoke.mockResolvedValue("nui 4\npoint A = coordinate(x: 0 y: 0)");
+    tauriCoreMock.invoke.mockResolvedValue("nui 4\npoint A = coordinate(x: 0, y: 0)");
 
-    await expect(openDocument()).rejects.toThrow("未対応のDSLバージョンです: 4(対応: 2, 3)");
+    await expect(openDocument()).rejects.toThrow("nui 3 文書のみ開けます（検出: 4）。");
 
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
   });
@@ -239,9 +194,9 @@ describe("document file lifecycle", () => {
   it("rejects major 0 before replacing the current document", async () => {
     const before = useCadDocumentStore.getState().sourceText;
     dialogMock.open.mockResolvedValue("/tmp/zero.nui");
-    tauriCoreMock.invoke.mockResolvedValue("nui 0\npoint A = coordinate(x: 0 y: 0)");
+    tauriCoreMock.invoke.mockResolvedValue("nui 0\npoint A = coordinate(x: 0, y: 0)");
 
-    await expect(openDocument()).rejects.toThrow("未対応のDSLバージョンです: 0");
+    await expect(openDocument()).rejects.toThrow("nui 3 文書のみ開けます（検出: 0）。");
 
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
   });
@@ -249,9 +204,19 @@ describe("document file lifecycle", () => {
   it.each([
     "",
     "nui abc",
-    "nui 2\nnui 2",
     "point A = (0, 0)"
-  ])("opens malformed version text with fatal diagnostics: %j", async (content) => {
+  ])("rejects a missing/malformed version header before replacing the current document: %j", async (content) => {
+    const before = useCadDocumentStore.getState().sourceText;
+    dialogMock.open.mockResolvedValue("/tmp/missing-version.nui");
+    tauriCoreMock.invoke.mockResolvedValue(content);
+
+    await expect(openDocument()).rejects.toThrow("nui 3 文書のみ開けます（検出: missing）。");
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(before);
+  });
+
+  it("opens malformed nui 3 text with fatal diagnostics instead of rejecting", async () => {
+    const content = "nui 3\nnui 3";
     dialogMock.open.mockResolvedValue("/tmp/fatal.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
 
@@ -264,7 +229,7 @@ describe("document file lifecycle", () => {
   });
 
   it("saves sourceText byte-for-byte and clears dirty only after write succeeds", async () => {
-    const content = "nui 1\r\n# keep\r\npoint A = (0, 0)\r\n";
+    const content = "nui 3\r\n# keep\r\npoint A = coordinate(x: 0, y: 0)\r\n";
     useCadDocumentStore.getState().replaceTextDocument(content, {
       currentFilePath: "/tmp/current.nui",
       dirtySinceSave: false
@@ -283,8 +248,8 @@ describe("document file lifecycle", () => {
   });
 
   it("flushes pending editor text and rereads state before saving", async () => {
-    const flushedText = "nui 1\npoint A = (9, 0)";
-    useCadDocumentStore.getState().replaceTextDocument("nui 1\npoint A = (0, 0)", {
+    const flushedText = "nui 3\npoint A = coordinate(x: 9, y: 0)";
+    useCadDocumentStore.getState().replaceTextDocument("nui 3\npoint A = coordinate(x: 0, y: 0)", {
       currentFilePath: "/tmp/current.nui",
       dirtySinceSave: false
     });
@@ -318,8 +283,8 @@ describe("document file lifecycle", () => {
 
   it("rebases image paths on Save As and restores dirty state across undo and redo", async () => {
     const source = [
-      "nui 2",
-      'image img = image(source: "images/ref.png" origin: (0, 0) scale: 1 angleDeg: 0 mirrorX: false)'
+      "nui 3",
+      'image img = image(source: "images/ref.png", origin: (0, 0), scale: 1, angleDeg: 0, mirrorX: false)'
     ].join("\n");
     useCadDocumentStore.getState().replaceTextDocument(source, {
       currentFilePath: "/old/pattern.nui",
@@ -356,8 +321,8 @@ describe("document file lifecycle", () => {
   });
 
   it("returns to clean when redo restores text saved by Save", async () => {
-    const before = "nui 1\npoint A = (0, 0)";
-    const savedText = "nui 1\npoint A = (5, 0)";
+    const before = "nui 3\npoint A = coordinate(x: 0, y: 0)";
+    const savedText = "nui 3\npoint A = coordinate(x: 5, y: 0)";
     useCadDocumentStore.getState().replaceTextDocument(before, {
       currentFilePath: "/tmp/current.nui",
       dirtySinceSave: false
@@ -376,8 +341,8 @@ describe("document file lifecycle", () => {
   });
 
   it("keeps the document dirty when it changes while a save write is in flight", async () => {
-    const savedText = "nui 1\npoint A = (5, 0)";
-    const laterText = "nui 1\npoint A = (6, 0)";
+    const savedText = "nui 3\npoint A = coordinate(x: 5, y: 0)";
+    const laterText = "nui 3\npoint A = coordinate(x: 6, y: 0)";
     useCadDocumentStore.getState().replaceTextDocument(savedText, {
       currentFilePath: "/tmp/current.nui",
       dirtySinceSave: true
@@ -396,30 +361,6 @@ describe("document file lifecycle", () => {
       sourceText: laterText,
       savedSourceText: savedText,
       dirtySinceSave: true
-    });
-  });
-
-  it("imports legacy JSON as a dirty untitled document without writing its source file", async () => {
-    const snapshot = initialCadDocumentState().doc.document;
-    dialogMock.open.mockResolvedValue("/tmp/legacy.nuinui.json");
-    tauriCoreMock.invoke.mockResolvedValue(JSON.stringify({
-      app: LEGACY_APP_ID,
-      schemaVersion: LEGACY_SCHEMA_VERSION,
-      savedAt: "2026-07-10T00:00:00.000Z",
-      document: snapshot
-    }));
-
-    await importLegacyDocument();
-
-    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("read_document_file", {
-      path: "/tmp/legacy.nuinui.json"
-    });
-    expect(tauriCoreMock.invoke).not.toHaveBeenCalledWith("write_document_file", expect.anything());
-    expect(useCadDocumentStore.getState()).toMatchObject({
-      currentFilePath: null,
-      dirtySinceSave: true,
-      past: [],
-      future: []
     });
   });
 

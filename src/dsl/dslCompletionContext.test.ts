@@ -61,29 +61,6 @@ describe("dslCompletionContextAt", () => {
         parameter: { key: "side", definition: { kind: "choice", choiceOptions: ["right", "left"] } }
       });
     }
-
-    // A second, independent choice attribute on a different element type -
-    // this fix must not be `side`-specific.
-    const varBefore = "var Width = expression(value: 5 scope: global visible: true)";
-    const varDeleteStart = varBefore.indexOf("global");
-    const varDeleteEnd = varDeleteStart + "global".length;
-    const varAfter = varBefore.slice(0, varDeleteStart) + varBefore.slice(varDeleteEnd);
-    const varContext = dslCompletionContextAt(varAfter, varDeleteStart);
-    expect(varContext).toMatchObject({
-      kind: "parameter",
-      from: varDeleteStart,
-      to: varDeleteStart,
-      parameter: { key: "scope", definition: { kind: "choice", choiceOptions: ["global", "group"] } }
-    });
-  });
-
-  it("preserves short-var value completion after the equals sign", () => {
-    const line = "var Copy = @Wi";
-    expect(dslCompletionContextAt(line, at(line, "@Wi"))).toMatchObject({
-      kind: "parameter",
-      parameter: { definition: { kind: "number" } }
-    });
-    expect(dslCompletionContextAt("var Copy = ", "var Copy = ".length)).toBeNull();
   });
 
   it("narrows line-list completion to the current item for safe re-editing", () => {

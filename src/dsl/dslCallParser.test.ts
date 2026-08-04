@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { categoriesForConstruction, constructionCandidatesFor, constructionFor } from "./dslConstructions";
-import { ELEMENT_STATE_CONFLICT_CODE, UNCLOSED_CALL_CODE, parseDslCallStatement } from "./dslCallParser";
+import { UNCLOSED_CALL_CODE, parseDslCallStatement } from "./dslCallParser";
 import { parseDsl } from "./dslParser";
 
 const parse = (source: string, opensBlock = false) => parseDslCallStatement(source, { opensBlock });
@@ -30,13 +30,9 @@ const calls = [
   ["arc", "corner", "arc A = corner(end1: AB.end end2: CD.start radius: 1)"],
   ["text", "label", "text T = label(text: \"A\" anchor: A)"],
   ["image", "image", "image I = image(source: \"a.png\" origin: A)"],
-  ["var", "expression", "var x = expression(value: 1)"],
-  ["var", "pointDistance", "var x = pointDistance(point1: A point2: B)"],
-  ["var", "pointAngle", "var x = pointAngle(point1: A point2: B)"],
-  ["var", "pointLineDistance", "var x = pointLineDistance(point: A line: AB)"],
 ] as const;
 
-describe("DSL v2 call parser", () => {
+describe("DSL nui 3 call parser", () => {
   it("parses every registry element construction", () => {
     for (const [category, construction, source] of calls) {
       const result = parse(source);
@@ -63,9 +59,7 @@ describe("DSL v2 call parser", () => {
     expect(projected.payloadSpans.dx).toEqual({ start: 30, end: 36 });
   });
 
-  it("distinguishes short variables from variable calls and category-scoped constructions", () => {
-    expect(parse("var bust = 840").statement).toMatchObject({ construction: "expression", shortVariable: true, payloadSpans: { expression: { start: 11, end: 14 } } });
-    expect(parse("var width = pointDistance(point1: A point2: B)").statement).toMatchObject({ construction: "pointDistance", shortVariable: false });
+  it("distinguishes category-scoped constructions sharing the same construction name", () => {
     expect(parse("point P = offset(from: A)").statement?.elementType).toBe("offsetPoint");
     expect(parse("line L = offset(sources: [AB])").statement?.elementType).toBe("offsetLine");
   });
@@ -104,30 +98,16 @@ describe("DSL v2 call parser", () => {
     );
   });
 
-  it("diagnoses state/visible and state/enabled conflicts at the exact legacy-flag key span", () => {
-    const stateVisible = "point A = coordinate(x: 0 y: 0 state: hidden visible: false)";
-    const visibleConflict = parse(stateVisible).diagnostics.find((item) => item.code === ELEMENT_STATE_CONFLICT_CODE);
-    expect(visibleConflict).toMatchObject({
-      message: "引数「state」と「visible」は同時に指定できません。",
-      span: { start: stateVisible.indexOf("visible"), end: stateVisible.indexOf("visible") + "visible".length },
-    });
-
-    const stateEnabled = "point A = coordinate(x: 0 y: 0 state: hidden enabled: false)";
-    const enabledConflict = parse(stateEnabled).diagnostics.find((item) => item.code === ELEMENT_STATE_CONFLICT_CODE);
-    expect(enabledConflict).toMatchObject({
-      message: "引数「state」と「enabled」は同時に指定できません。",
-      span: { start: stateEnabled.indexOf("enabled"), end: stateEnabled.indexOf("enabled") + "enabled".length },
-    });
-
-    // state alone, or visible/enabled alone, never conflicts.
+  it("rejects the removed visible/enabled flags as unknown arguments; state alone never conflicts", () => {
     expect(messages("point A = coordinate(x: 0 y: 0 state: hidden)")).toEqual([]);
-    expect(messages("point A = coordinate(x: 0 y: 0 visible: false)")).toEqual([]);
+    expect(messages("point A = coordinate(x: 0 y: 0 visible: false)").join("\n")).toContain("引数「visible」");
+    expect(messages("point A = coordinate(x: 0 y: 0 enabled: false)").join("\n")).toContain("引数「enabled」");
   });
 
-  it("keeps legacy syntax out of the live v2 parser", () => {
-    const arrow = parseDsl("nui 2\nline AB = A -> B");
-    const genericElement = parseDsl("nui 2\nelement Copy type=copyLine startPoint=A");
-    const equalsArguments = parseDsl("nui 2\npoint A = coordinate(x=0 y=0)");
+  it("keeps legacy syntax out of the live parser", () => {
+    const arrow = parseDsl("nui 3\nline AB = A -> B");
+    const genericElement = parseDsl("nui 3\nelement Copy type=copyLine startPoint=A");
+    const equalsArguments = parseDsl("nui 3\npoint A = coordinate(x=0 y=0)");
 
     expect(arrow.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
     expect(genericElement.diagnostics.some((diagnostic) => diagnostic.message.includes("未対応のDSLキーワード"))).toBe(true);
@@ -135,7 +115,7 @@ describe("DSL v2 call parser", () => {
   });
 });
 
-describe("DSL v2 construction registry parser queries", () => {
+describe("DSL nui 3 construction registry parser queries", () => {
   it("keeps parser candidates sourced from the registry", () => {
     expect(constructionCandidatesFor("point").map((spec) => spec.construction)).toContain("coordinate");
     expect(constructionCandidatesFor("line").map((spec) => spec.construction)).toContain("offset");

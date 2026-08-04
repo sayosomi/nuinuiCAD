@@ -1,0 +1,4 @@
+nui 3
+const 幅: number = 100
+point P = coordinate(x: @幅, y: 0, vars: [幅: 5])
+text T = label(text: "幅は{@幅}mm", anchor: none, size: 3, vars: [幅: 42])

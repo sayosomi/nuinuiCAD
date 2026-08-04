@@ -8,8 +8,7 @@ const pointElement = (id: string, name: string, parentGroupId?: string): CadElem
   id,
   name,
   type: "freePoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   ...(parentGroupId ? { parentGroupId } : {}),
   x: 0,
   y: 0
@@ -74,9 +73,9 @@ describe("referenceSuggestions", () => {
 
   it("separates qualified display labels, canonical DSL tokens, and search aliases", () => {
     const elements: CadElement[] = [
-      { id: "left", name: "Left", type: "group", visible: true, enabled: true },
+      { id: "left", name: "Left", type: "group", activity: "visible" },
       pointElement("left-point", "Same", "left"),
-      { id: "right", name: "Right", type: "group", visible: true, enabled: true },
+      { id: "right", name: "Right", type: "group", activity: "visible" },
       pointElement("right-point", "Same", "right")
     ];
     const candidates: PickCandidate[] = ["left-point", "right-point"].map((id) => ({
@@ -93,7 +92,7 @@ describe("referenceSuggestions", () => {
 
   it("caps at eight and preserves document order for equal-rank matches", () => {
     const elements = Array.from({ length: 12 }, (_, index) => pointElement(`p${index}`, `Point${index}`));
-    elements[4] = { ...elements[4], visible: false };
+    elements[4] = { ...elements[4], activity: "hidden" };
     const candidates: PickCandidate[] = elements.map((element) => ({
       elementId: element.id,
       options: [{

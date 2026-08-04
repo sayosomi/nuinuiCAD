@@ -14,7 +14,7 @@ export type DslCallCompletionContext =
 const identifierStart = /[A-Za-z_]/;
 const identifierPart = /[A-Za-z0-9_-]/;
 const categories = new Set<DslConstructionCategory>([
-  "point", "line", "curve", "arc", "text", "image", "var", "group", "if", "for"
+  "point", "line", "curve", "arc", "text", "image", "group", "if", "for"
 ]);
 const containerCategories = new Set<DslConstructionCategory>(["group", "if", "for"]);
 
@@ -177,7 +177,6 @@ const constructionContextAt = (
   const from = trimStart(source, equals + 1);
   if (pos < from) return null;
   const prefix = source.slice(from, pos);
-  if (!prefix && category === "var") return null;
   if (prefix && (!identifierStart.test(prefix[0]) || ![...prefix].every((character) => identifierPart.test(character)))) return null;
   const candidates = constructionCandidatesFor(category).filter((spec) => spec.construction.startsWith(prefix));
   return candidates.length > 0 ? { kind: "construction", from, to: pos, category } : null;

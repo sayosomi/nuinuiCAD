@@ -1,6 +1,5 @@
 import type {
   ComputedGeometry,
-  ComputedVariable,
   DependencyError,
   ElementId,
   EvaluationResult,
@@ -85,7 +84,6 @@ const parseComputedScalarBindingVersions = (value: unknown): Map<BindingVersionI
 
 export type EvaluationPayload = {
   computedGeometry: ComputedGeometry[];
-  computedVariables: ComputedVariable[];
   errors: DependencyError[];
   warnings: EvaluationWarning[];
   evaluatedElementIds: ElementId[];
@@ -103,7 +101,6 @@ export type EvaluationPayload = {
 
 export const evaluationResultToPayload = (result: EvaluationResult): EvaluationPayload => ({
   computedGeometry: Array.from(result.computedGeometry.values()),
-  computedVariables: Array.from(result.computedVariables.values()),
   errors: result.errors,
   warnings: result.warnings,
   evaluatedElementIds: Array.from(result.evaluatedElementIds ?? []),
@@ -125,7 +122,6 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
 
 export const evaluationPayloadToResult = (payload: EvaluationPayload): EvaluationResult => ({
   computedGeometry: new Map(payload.computedGeometry.map((geometry) => [geometry.elementId, geometry])),
-  computedVariables: new Map(payload.computedVariables.map((variable) => [variable.elementId, variable])),
   errors: payload.errors,
   warnings: payload.warnings,
   evaluatedElementIds: new Set(payload.evaluatedElementIds),

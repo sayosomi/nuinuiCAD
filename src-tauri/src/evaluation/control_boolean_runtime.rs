@@ -30,7 +30,7 @@ impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
 /// A `conditionalGroup`'s active branch from its typed boolean condition:
 /// evaluated exactly once via the caller's existing binding resolver. Any
 /// result other than a clean `Ok` boolean becomes `None` (poisoned - both
-/// branches inactive), identical to today's legacy poison semantics so the
+/// branches inactive), identical to the established poison semantics so the
 /// caller's `activeBranch != branch` comparison keeps working unmodified.
 pub(crate) fn resolve_conditional_group_branch(
     expression: &TypedScalarExpression,

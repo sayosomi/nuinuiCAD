@@ -15,7 +15,7 @@ describe("dispatchCommand editor flush boundary", () => {
   afterEach(() => unregister());
 
   it("flushes pending editor text before running the command, applying one patch against the latest model", () => {
-    useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 0 y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)", "test");
     const elementId = useCadDocumentStore.getState().elements[0].id;
     useCadUiStore.getState().setSelectedElementIds([elementId]);
 
@@ -24,7 +24,7 @@ describe("dispatchCommand editor flush boundary", () => {
       pending = false;
       // Simulates the editor committing a burst that moved point A right before the
       // command runs; the command must act on this text, not the pre-flush one.
-      useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 5 y: 5)", "editor");
+      useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 5, y: 5)", "editor");
       return "flushed" as const;
     });
     unregister = registerSourceEditSession({
@@ -39,7 +39,7 @@ describe("dispatchCommand editor flush boundary", () => {
     expect(flush).toHaveBeenCalledWith("command");
     const element = useCadDocumentStore.getState().elements[0];
     expect(element.id).toBe(elementId);
-    expect(element).toMatchObject({ x: 5, y: 5, visible: false });
+    expect(element).toMatchObject({ x: 5, y: 5, activity: "hidden" });
   });
 
   it("does not run the command when the flush is blocked by an active IME composition", () => {
@@ -79,7 +79,7 @@ describe("dispatchCommand editor flush boundary", () => {
   });
 
   it("leaves rename flushing to its confirm-time core instead of opening with a second flush", () => {
-    useCadDocumentStore.getState().commitText("nui 2\npoint A = coordinate(x: 0 y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)", "test");
     const elementId = useCadDocumentStore.getState().elements[0].id;
     useCadUiStore.getState().setSelectedElementIds([elementId]);
     const flush = vi.fn(() => "flushed" as const);

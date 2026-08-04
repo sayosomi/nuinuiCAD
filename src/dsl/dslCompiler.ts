@@ -21,7 +21,7 @@ import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
-import { NEW_DOCUMENT_DSL_MAJOR_VERSION, requireDslMajorVersionForFeature, type DslMajorVersion } from "./dslVersion";
+import type { DslMajorVersion } from "./dslVersion";
 import {
   placeAngleAttrKey,
   placeAtAttrKey,
@@ -44,7 +44,6 @@ const unquoteName = (value: string | undefined) => value === undefined ? undefin
 
 export const statementTypeOf = (statement: DslStatement): CadElementType => {
   if (statement.kind === "element") return statement.type ?? "group";
-  if (statement.kind === "variable") return "variable";
   return statement.kind as CadElementType;
 };
 
@@ -115,14 +114,6 @@ const applyStatement = (
   majorVersion?: DslMajorVersion
 ): CadElement => {
   const named = { ...element, name: statement.name };
-  if (statement.kind === "variable") {
-    if (named.type !== "variable") return named;
-    const expression = makeNumericExpression(
-      normalizeNumericExpressionInput(statement.expression, elementsForExpressions, named.numericVariables ?? [], named, nameContext)
-    );
-    return { ...named, valueMode: "expression", expression };
-  }
-
   const spec = constructionSpecFor(statement);
   if (!spec) return named;
 
@@ -306,36 +297,6 @@ const applyVisibilitySettings = ({
   };
 };
 
-// const/let は v3 専用構文。文法自体はversion非依存でparseできるため、
-// 07のstate:と同様、majorVersionが判明するcompile段階でgateする。
-const typedDeclarationVersionDiagnostics = (
-  statements: DslStatement[],
-  majorVersion: DslMajorVersion
-): DslDiagnostic[] =>
-  statements
-    .filter((statement): statement is Extract<DslStatement, { kind: "typedDeclaration" }> => statement.kind === "typedDeclaration")
-    .map((statement) => requireDslMajorVersionForFeature(majorVersion, 3, statement.line, `${statement.bindingKind} 宣言`))
-    .filter((item): item is DslDiagnostic => item !== null);
-
-// set も v3 専用構文。const/let と同じ理由・同じ仕組みでgateする(Task 29)。
-const setStatementVersionDiagnostics = (
-  statements: DslStatement[],
-  majorVersion: DslMajorVersion
-): DslDiagnostic[] =>
-  statements
-    .filter((statement): statement is Extract<DslStatement, { kind: "set" }> => statement.kind === "set")
-    .map((statement) => requireDslMajorVersionForFeature(majorVersion, 3, statement.line, "set 文"))
-    .filter((item): item is DslDiagnostic => item !== null);
-
-const reverseStatementVersionDiagnostics = (
-  statements: DslStatement[],
-  majorVersion: DslMajorVersion
-): DslDiagnostic[] =>
-  statements
-    .filter((statement): statement is Extract<DslStatement, { kind: "reverse" }> => statement.kind === "reverse")
-    .map((statement) => requireDslMajorVersionForFeature(majorVersion, 3, statement.line, "reverse 文"))
-    .filter((item): item is DslDiagnostic => item !== null);
-
 const buildBlockPrintLayouts = ({
   statements,
   layouts,
@@ -476,11 +437,6 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   }
 
   const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
-  diagnostics.push(
-    ...typedDeclarationVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION),
-    ...setStatementVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION),
-    ...reverseStatementVersionDiagnostics(parsed.statements, context.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION)
-  );
   const printLayoutIdsByStatementIndex = new Map<number, string>();
   const visibilitySettings = applyVisibilitySettings({
     statements: parsed.statements,

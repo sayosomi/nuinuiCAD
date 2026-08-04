@@ -26,7 +26,7 @@ export const MISSING_ARGUMENT_COMMA_CODE = "missing-argument-comma";
 export const EMPTY_ARGUMENT_CODE = "empty-argument";
 
 export type ScanCallArgsOptions = {
-  /** nui 3's strict call grammar. Legacy callers remain whitespace-tolerant. */
+  /** Enables nui 3's strict comma diagnostics. */
   requireCommas?: boolean;
 };
 
@@ -61,7 +61,7 @@ const trimSpan = (source: string, span: DslSpan): DslSpan => {
   return { start, end };
 };
 
-/** Finds the old whitespace-led `key:` boundaries only for recovery and diagnostics. */
+/** Finds whitespace-led `key:` boundaries for recovery and diagnostics. */
 const namedArgBoundaries = (source: string, callSpan: DslSpan): NamedArgBoundary[] => {
   const boundaries: NamedArgBoundary[] = [];
   let quote: string | null = null;
@@ -170,8 +170,8 @@ const addNamedArg = (
 };
 
 /**
- * Splits call arguments on top-level commas. In legacy mode, whitespace-led
- * `key:` boundaries remain accepted; strict mode reports every such missing
+ * Splits call arguments on top-level commas. Recovery retains whitespace-led
+ * `key:` boundaries; strict mode reports every missing
  * comma while retaining the recovered argument spans for editor features.
  */
 export const scanCallArgs = (

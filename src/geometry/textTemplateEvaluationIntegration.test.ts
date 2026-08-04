@@ -181,12 +181,4 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
     expect(options.scalarProgram).toBeUndefined();
     expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
-
-  it("keeps v2 text on the existing TypeScript path", () => {
-    const { result, options, elements, textElementId } = evaluateSource(["nui 2", 'text T = label(text: "plain text" anchor: none size: 3)'].join("\n"));
-    expect(options.textTemplateEntriesByElementId).toBeUndefined();
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedGeometry.get(textElementId!)).toMatchObject({ kind: "text", text: "plain text" });
-    expect(canUseRustEvaluationForElements(elements, options)).toBe(false);
-  });
 });

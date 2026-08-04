@@ -155,7 +155,6 @@ const DRAW_ITEMS: &[MenuSpec] = &[
     SEP,
     cmd("addText", "テキストを追加"),
     SEP,
-    cmd("addVariable", "変数を追加"),
     cmd("addNumericVariable", "要素内変数を追加"),
     cmd("addBezierIntermediatePoint", "曲線の中間点を追加"),
 ];
@@ -364,6 +363,18 @@ mod tests {
                         "application command menu items must use a command specification"
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn draw_menu_does_not_reintroduce_the_retired_add_variable_command() {
+        for item in DRAW_ITEMS {
+            if let MenuSpec::Command(command) = item {
+                assert_ne!(
+                    command.id, "addVariable",
+                    "addVariable was retired in Task 52 (B5) - do not reintroduce it"
+                );
             }
         }
     }

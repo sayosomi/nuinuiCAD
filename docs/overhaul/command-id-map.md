@@ -62,7 +62,6 @@
 | `normal.commandLineAddMove` | `normal.addMove` |
 | `normal.commandLineAddSymmetricMove` | `normal.addSymmetricMove` |
 | `normal.commandLineAddSplitLine` | `normal.addSplitLine` |
-| `normal.commandLineAddVariable` | `normal.addVariable` |
 | `normal.commandLineAddText` | `normal.addText` |
 
 Phase 5cでは `focusElementList` と `enterElementListMode` を統合し、正常系の
@@ -116,6 +115,7 @@ Phase 5cでは `focusElementList` と `enterElementListMode` を統合し、正�
 | `toggleElementEnabled` |
 | `toggleSelectedElementVisibility` |
 | `toggleSelectedElementEnabled` |
+| `commandLineAddVariable` |
 
 ## 3. ID不変で挙動が変わったもの(移行不要)
 

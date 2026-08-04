@@ -14,17 +14,15 @@
 //   separate allowlist - never merged into STANDARD_PROPERTY_TARGETS.
 // - A quoted `"...{...}..."` value is a compiled TextTemplateAst (Task 26);
 //   `evaluateElementTextTemplate` walks its segments via Task 16's
-//   evaluateTypedExpression for typed holes, and re-evaluates legacy holes
-//   through the exact same normalizeNumericExpressionInput +
-//   evaluateNumericValue + textNumber pipeline resolveTextReferences used
-//   per-match, just scoped to one already-delimited hole instead of a
-//   whole-string regex scan.
+//   evaluateTypedExpression for typed holes and uses the existing local
+//   numeric-expression evaluator for numeric holes, scoped to one compiled
+//   hole rather than a whole-string scan.
 
-import type { CadElement, CadElementType, ComputedGeometry, ComputedVariable, ElementId } from "../types/geometry";
+import type { CadElement, CadElementType, ComputedGeometry, ElementId } from "../types/geometry";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { propertyBindingOccurrenceKey, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import type { TextTemplateAst } from "../scalars/textTemplate";
-import { evaluateTextTemplate, type EvaluateLegacyHole } from "../scalars/textTemplateEvaluator";
+import { evaluateTextTemplate, type EvaluateNumericExpressionHole } from "../scalars/textTemplateEvaluator";
 import type { ScalarEvaluation } from "../scalars/types";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
@@ -61,13 +59,13 @@ export const buildTextTemplateEntriesByElementId = (
  * segment content and already-resolved typed expression AST unchanged. */
 export type RustTextTemplateSegment =
   | { kind: "literal"; cooked: string }
-  | { kind: "hole"; holeKind: "legacy"; raw: string }
+  | { kind: "hole"; holeKind: "numeric"; raw: string }
   | { kind: "hole"; holeKind: "string" | "number"; expression: TypedScalarExpression };
 
 export const toRustTextTemplateSegments = (ast: TextTemplateAst): RustTextTemplateSegment[] =>
   ast.segments.map((segment): RustTextTemplateSegment => {
     if (segment.kind === "literal") return { kind: "literal", cooked: segment.cooked };
-    if (segment.holeKind === "legacy") return { kind: "hole", holeKind: "legacy", raw: segment.raw };
+    if (segment.holeKind === "numeric") return { kind: "hole", holeKind: "numeric", raw: segment.raw };
     return { kind: "hole", holeKind: segment.holeKind, expression: segment.expression };
   });
 
@@ -120,24 +118,18 @@ export type TextTemplateElementContext = {
   elementsById: Map<ElementId, CadElement>;
   localVariables?: Map<string, number>;
   localVariableNames?: Map<string, string>;
-  computedVariables?: Map<ElementId, ComputedVariable>;
   currentElement: CadElement;
   elements?: CadElement[];
 };
 
-/** Deliberately the same optional-field shape as resolveTextReferences's own
- * return type (never a discriminated union) - textEvaluator.ts assigns
- * either function's result to one `text` variable and reads `.error`/`.text`
- * uniformly across both branches. */
+/** Evaluation result consumed by textEvaluator.ts. */
 export type TextTemplateRuntimeResult = { text?: string; error?: NumericExpressionError };
 
 /**
  * Evaluates one element's compiled TextTemplateAst. Returns the same
- * `{text}` / `{error: NumericExpressionError}` shape resolveTextReferences
- * already returned, so textEvaluator.ts's existing error -> DependencyError
- * construction (including the disabledGroupName lookup) keeps working
- * unmodified for legacy-hole failures. Typed-hole failures fall back to the
- * element's own id as `dependencyId` (mirrors evaluationContext.ts's
+ * `{text}` / `{error: NumericExpressionError}` result. textEvaluator.ts turns
+ * numeric-expression-hole failures into DependencyError entries. Typed-hole
+ * failures use the element's own id as `dependencyId` (mirrors evaluationContext.ts's
  * `geometryError` convention: a self-referential evaluation error, not a
  * missing geometry dependency).
  */
@@ -146,7 +138,7 @@ export const evaluateElementTextTemplate = (
   context: TextTemplateElementContext,
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation
 ): TextTemplateRuntimeResult => {
-  const evaluateLegacyHole: EvaluateLegacyHole = (raw) => {
+  const evaluateNumericExpressionHole: EvaluateNumericExpressionHole = (raw) => {
     const normalizedExpression = normalizeNumericExpressionInput(
       raw,
       context.elements ?? Array.from(context.elementsById.values()),
@@ -159,7 +151,6 @@ export const evaluateElementTextTemplate = (
       elementsById: context.elementsById,
       localVariables: context.localVariables,
       localVariableNames: context.localVariableNames,
-      computedVariables: context.computedVariables,
       currentElement: context.currentElement,
       elements: context.elements
     });
@@ -169,10 +160,10 @@ export const evaluateElementTextTemplate = (
     return { ok: true, text: textNumber(result.value ?? 0) };
   };
 
-  const result = evaluateTextTemplate(ast, { lookupBinding: resolveBinding }, evaluateLegacyHole, textNumber);
+  const result = evaluateTextTemplate(ast, { lookupBinding: resolveBinding }, evaluateNumericExpressionHole, textNumber);
   if (result.status === "ok") return { text: result.text };
 
-  if (result.error.origin === "legacy") {
+  if (result.error.origin === "numeric") {
     return {
       error: {
         dependencyId: result.error.dependencyId ?? context.currentElement.id,

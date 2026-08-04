@@ -57,18 +57,7 @@ fn program(statements: Vec<Value>) -> Value {
 }
 
 fn point(id: &str, x: f64, y: f64) -> Value {
-    json!({ "id": id, "name": id, "type": "freePoint", "visible": true, "enabled": true, "x": x, "y": y })
-}
-
-fn measurement_variable(enabled: bool) -> Value {
-    json!({
-        "id": "d", "name": "d", "type": "variable", "visible": false, "enabled": enabled,
-        "scope": "global", "valueMode": "pointDistance",
-        "expression": 0,
-        "point1": {"mode": "reference", "pointId": "a"},
-        "point2": {"mode": "reference", "pointId": "b"},
-        "point": {"mode": "coordinate", "x": 0, "y": 0}, "lineId": ""
-    })
+    json!({ "id": id, "name": id, "type": "freePoint", "activity": "visible", "x": x, "y": y })
 }
 
 #[test]
@@ -106,7 +95,7 @@ fn evaluates_all_scalar_literals_and_prior_binding_references_in_order() {
 }
 
 #[test]
-fn reuses_hidden_measurement_and_poison_propagates_when_dependency_is_disabled() {
+fn rejects_external_document_binding_references() {
     let number_type = json!({"kind": "number"});
     let scalar_program = program(vec![
         statement(
@@ -122,35 +111,15 @@ fn reuses_hidden_measurement_and_poison_propagates_when_dependency_is_disabled()
             reference("binding:dist", number_type),
         ),
     ]);
-    let hidden = evaluate_document_input(input(
-        vec![
-            point("a", 0.0, 0.0),
-            point("b", 3.0, 4.0),
-            measurement_variable(true),
-        ],
-        Some(scalar_program.clone()),
-    ));
-    assert_eq!(
-        hidden.computed_scalar_bindings.unwrap()[0]["evaluation"]["value"]["value"],
-        5.0
-    );
-
-    let disabled = evaluate_document_input(input(
-        vec![
-            point("a", 0.0, 0.0),
-            point("b", 3.0, 4.0),
-            measurement_variable(false),
-        ],
-        Some(scalar_program),
-    ));
-    let bindings = disabled.computed_scalar_bindings.unwrap();
+    let external = evaluate_document_input(input(vec![point("a", 0.0, 0.0)], Some(scalar_program)));
+    let bindings = external.computed_scalar_bindings.unwrap();
     assert_eq!(
         bindings[0]["evaluation"]["issueCode"],
-        "evaluation-external-binding-unavailable"
+        "evaluation-binding-unavailable"
     );
     assert_eq!(
         bindings[1]["evaluation"]["issueCode"],
-        "evaluation-external-binding-unavailable"
+        "evaluation-binding-unavailable"
     );
 
     let missing_binding = evaluate_document_input(input(
@@ -164,21 +133,7 @@ fn reuses_hidden_measurement_and_poison_propagates_when_dependency_is_disabled()
     ));
     assert_eq!(
         missing_binding.computed_scalar_bindings.unwrap()[0]["evaluation"]["issueCode"],
-        "evaluation-external-binding-unavailable"
-    );
-
-    let missing_geometry = evaluate_document_input(input(
-        vec![point("a", 0.0, 0.0), measurement_variable(true)],
-        Some(program(vec![statement(
-            "binding:missing-geometry",
-            0,
-            json!({"kind": "number"}),
-            reference("binding:d", json!({"kind": "number"})),
-        )])),
-    ));
-    assert_eq!(
-        missing_geometry.computed_scalar_bindings.unwrap()[0]["evaluation"]["issueCode"],
-        "evaluation-external-binding-unavailable"
+        "evaluation-binding-unavailable"
     );
 }
 

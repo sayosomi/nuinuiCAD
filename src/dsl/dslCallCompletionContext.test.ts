@@ -13,20 +13,13 @@ describe("dslCallCompletionContextAt", () => {
     expect(atEnd("point P = unknown")).toBeNull();
   });
 
-  it("does not mistake a short variable expression for a construction", () => {
-    expect(atEnd("var Width = ")).toBeNull();
-    expect(atEnd("var Width = 10")).toBeNull();
-    expect(atEnd("var Width = @Wi")).toBeNull();
-    expect(atEnd("var Width = pointD")).toMatchObject({ kind: "construction", category: "var" });
-  });
-
   it("uses the exact category/construction spec for argument candidates", () => {
     expect(atEnd("point P = offset(fr")).toMatchObject({ kind: "argument", spec: { category: "point", construction: "offset" } });
-    const context = atEnd("var Width = pointDistance(po");
-    expect(context).toMatchObject({ kind: "argument", spec: { category: "var", construction: "pointDistance" } });
+    const context = atEnd("point P = intersection(li");
+    expect(context).toMatchObject({ kind: "argument", spec: { category: "point", construction: "intersection" } });
     if (!context || context.kind !== "argument") throw new Error("argument context expected");
     expect(argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
-      "point1", "point2", "visible", "enabled", "state", "color", "steps", "vars"
+      "line1", "line2", "index", "extensions", "state", "color", "steps", "vars"
     ]);
   });
 
@@ -36,7 +29,7 @@ describe("dslCallCompletionContextAt", () => {
     expect(offsetContext).toMatchObject({ kind: "argument" });
     if (!offsetContext || offsetContext.kind !== "argument") throw new Error("argument context expected");
     expect(argumentCompletionCandidates(offsetContext.spec, offsetContext.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
-      "dy", "visible", "enabled", "state", "color", "steps", "vars"
+      "dy", "state", "color", "steps", "vars"
     ]);
 
     expect(atEnd("if Branch (")).toBeNull();
@@ -46,10 +39,10 @@ describe("dslCallCompletionContextAt", () => {
   });
 
   it("uses metadata as labels while adding only user-facing common arguments", () => {
-    const spec = constructionFor("var", "pointDistance")!;
+    const spec = constructionFor("point", "intersection")!;
     const candidates = argumentCompletionCandidates(spec, new Set());
     expect(candidates.map((candidate) => candidate.apply)).toEqual([
-      "point1: ", "point2: ", "visible: ", "enabled: ", "state: ", "color: ", "steps: ", "vars: "
+      "line1: ", "line2: ", "index: ", "extensions: ", "state: ", "color: ", "steps: ", "vars: "
     ]);
     expect(candidates.map((candidate) => candidate.label)).not.toEqual(expect.arrayContaining(["id", "varIds", "parent", "branch"]));
   });
@@ -73,13 +66,13 @@ describe("dslCallCompletionContextAt", () => {
     const colonEnd = after.indexOf("side:") + "side:".length;
     expect(dslCallCompletionContextAt(after, colonEnd)).toBeNull();
 
-    // A second, independent choice attribute on a different construction -
+    // A second, independent attribute value on the same construction -
     // this fix must not be `side`-specific.
-    const varBefore = "var Width = expression(value: 5 scope: global visible: true)";
-    const varDeleteStart = varBefore.indexOf("global");
-    const varDeleteEnd = varDeleteStart + "global".length;
-    const varAfter = varBefore.slice(0, varDeleteStart) + varBefore.slice(varDeleteEnd);
-    expect(dslCallCompletionContextAt(varAfter, varDeleteStart)).toBeNull();
+    const closedBefore = "line Off = offset(sources: [AB] side: right closed: false)";
+    const closedDeleteStart = closedBefore.indexOf("false");
+    const closedDeleteEnd = closedDeleteStart + "false".length;
+    const closedAfter = closedBefore.slice(0, closedDeleteStart) + closedBefore.slice(closedDeleteEnd);
+    expect(dslCallCompletionContextAt(closedAfter, closedDeleteStart)).toBeNull();
   });
 
   it("removes the other member of an exclusive argument group", () => {

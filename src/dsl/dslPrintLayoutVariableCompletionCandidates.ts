@@ -1,7 +1,7 @@
 import { dslScopeBeforeParsedLine } from "./dslParser";
 import type { DslStatement, ParseDslResult } from "./dslTypes";
-import { isExpressionSyntaxValid } from "./dslVariableCompletionCandidates";
-import type { NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
+import { numericExpressionSyntaxIsValid } from "../geometry/numericExpressionParser";
+import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
 import type { PrintLayout } from "../types/geometry";
 
 type DslLayoutVarStatement = Extract<DslStatement, { kind: "layoutVar" }>;
@@ -29,7 +29,7 @@ export const dslEnclosingPrintLayoutLine = (
 
 /**
  * Live-buffer candidates for a printLayout block's own `layoutVar` pool
- * (block-scoped: distinct from both top-level `var` and element-local
+ * (block-scoped: distinct from document bindings and element-local
  * `vars=`). `cutoffLine` encodes the two visibility patterns verified against
  * dslCompiler.ts's buildBlockPrintLayouts: a `layoutVar`'s own expression or a
  * `place`'s at=/angle= only see strictly-earlier `layoutVar`s in the same
@@ -69,7 +69,7 @@ export const dslPrintLayoutVariableCompletionOptions = ({
   cutoffLine: number;
   printLayoutIdsByLiveLine: ReadonlyMap<number, string>;
   printLayouts: readonly PrintLayout[];
-}): NumericVariableReferenceOption[] => {
+}): NumericReferenceOption[] => {
   const printLayoutId = printLayoutIdsByLiveLine.get(block.line);
   if (!printLayoutId) return []; // never-compiled block: no stable ids yet (documented limitation)
   const committedVariables = printLayouts.find((layout) => layout.id === printLayoutId)?.numericVariables ?? [];
@@ -85,10 +85,10 @@ export const dslPrintLayoutVariableCompletionOptions = ({
       statement.enclosing?.statementIndex === block.statementIndex &&
       statement.line < cutoffLine &&
       statement.name.trim().length > 0 &&
-      isExpressionSyntaxValid(statement.expression)
+      numericExpressionSyntaxIsValid(statement.expression)
   );
 
-  const options = new Map<string, NumericVariableReferenceOption>();
+  const options = new Map<string, NumericReferenceOption>();
   for (const member of members) {
     if ((committedNameCounts.get(member.name) ?? 0) !== 1) continue; // ambiguous — suppress, never guess an id
     const variable = committedVariables.find((item) => item.name === member.name)!;

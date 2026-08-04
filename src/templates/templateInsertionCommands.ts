@@ -1,10 +1,3 @@
-import { insertNumericExpressionSnippet } from "../geometry/numericExpressionInsertion";
-import {
-  makeNumericExpression,
-  normalizeNumericExpressionInput,
-  numericValueExpression,
-  type NumericMeasurementKey
-} from "../geometry/numericExpressions";
 import {
   creationPlacementForEvaluationLimit,
   creationPlacementForTarget
@@ -15,13 +8,12 @@ import { useCadUiStore } from "../state/cadUiStore";
 import { commitDocumentChangeAndSelect } from "../commands/commitDocumentChangeAndSelect";
 import { commitSourceCreationInsertion } from "../commands/sourceCreationCommit";
 import { sourceCreationInsertionIsCurrent, type SourceCreationInsertion } from "../commands/sourceCreationInsertion";
-import type { ElementId, NumericValue, PointAnchor } from "../types/geometry";
+import type { ElementId, PointAnchor } from "../types/geometry";
 import { instantiateGroupTemplate, type GroupTemplate } from "./groupTemplate";
 import {
   defaultTemplateInputValues,
   firstIncompleteTemplateInput,
   nextTemplateInputId,
-  TEMPLATE_INSERTION_NUMERIC_TARGET_ID,
   TEMPLATE_INSERTION_PICK_TARGET_ID,
   templateInsertionCanConfirm,
   type ActiveTemplateInsertion
@@ -186,85 +178,6 @@ export const applyTemplatePickedLine = (lineId: ElementId) => {
   return true;
 };
 
-export const setTemplateNumericInput = (inputId: string, value: NumericValue) => {
-  updateTemplateInsertion((insertion) => ({
-    ...insertion,
-    inputValues: {
-      ...insertion.inputValues,
-      [inputId]: value
-    },
-    currentInputId: inputId,
-    error: null
-  }));
-};
-
-export const insertTemplateNumericExpressionSnippet = ({
-  inputId,
-  snippet,
-  displayedExpression,
-  selectionStart,
-  selectionEnd,
-  appendMode
-}: {
-  inputId: string;
-  snippet: string;
-  displayedExpression?: string;
-  selectionStart?: number | null;
-  selectionEnd?: number | null;
-  appendMode?: "sum" | "raw";
-}) => {
-  const insertion = useCadUiStore.getState().activeTemplateInsertion;
-  if (!insertion) return false;
-  const input = insertion.template.inputs.find((item) => item.id === inputId);
-  if (!input || input.kind !== "numeric") return false;
-  const currentValue = insertion.inputValues[inputId] ?? input.defaultValue;
-  const currentExpression =
-    displayedExpression ?? numericValueExpression(currentValue as NumericValue);
-  const nextDisplayExpression = insertNumericExpressionSnippet({
-    currentExpression,
-    snippet,
-    selectionStart,
-    selectionEnd,
-    appendMode
-  });
-  const { elements } = useCadDocumentStore.getState();
-  const normalized = normalizeNumericExpressionInput(nextDisplayExpression, elements, []);
-  setTemplateNumericInput(inputId, makeNumericExpression(normalized));
-  return true;
-};
-
-export const startTemplateNumericReferenceInsertPick = ({
-  inputId,
-  property,
-  displayedExpression,
-  selectionStart,
-  selectionEnd
-}: {
-  inputId: string;
-  property: NumericMeasurementKey;
-  displayedExpression: string;
-  selectionStart: number | null;
-  selectionEnd: number | null;
-}) => {
-  const insertion = useCadUiStore.getState().activeTemplateInsertion;
-  const input = insertion?.template.inputs.find((item) => item.id === inputId);
-  if (!insertion || input?.kind !== "numeric") return false;
-  useCadUiStore.setState({
-    activePointPickTarget: null,
-    activeLinePickTarget: null,
-    activeNumericReferencePickTarget: {
-      elementId: TEMPLATE_INSERTION_NUMERIC_TARGET_ID,
-      parameterKey: inputId,
-      insertionIndex: insertion.insertionIndex,
-      mode: "insert",
-      property,
-      displayedExpression,
-      selectionStart,
-      selectionEnd
-    }
-  });
-  return true;
-};
 
 export const confirmTemplateInsertion = () => {
   const insertion = useCadUiStore.getState().activeTemplateInsertion;
@@ -338,16 +251,4 @@ export const confirmTemplateInsertion = () => {
     });
     return false;
   }
-};
-
-export const templateNumericTargetContext = (elementId?: string, parameterKey?: string | null) => {
-  if (elementId !== TEMPLATE_INSERTION_NUMERIC_TARGET_ID || !parameterKey) return null;
-  const insertion = useCadUiStore.getState().activeTemplateInsertion;
-  const input = insertion?.template.inputs.find((item) => item.id === parameterKey);
-  if (!insertion || !input || input.kind !== "numeric") return null;
-  return {
-    insertion,
-    input,
-    inputId: parameterKey
-  };
 };

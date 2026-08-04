@@ -39,8 +39,7 @@ const buildElements = (count: number) =>
     id: `old-${index}`,
     name: `P${index}`,
     type: "freePoint" as const,
-    visible: true,
-    enabled: true,
+    activity: "visible" as const,
     x: index,
     y: index % 97
   }));

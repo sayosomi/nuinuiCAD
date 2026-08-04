@@ -13,8 +13,7 @@ const offsetLine = (overrides: Partial<CadElement & { type: "offsetLine" }> = {}
   id: "offset",
   name: "オフセット",
   type: "offsetLine",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   baseLineIds: ["line"],
   offset: 10,
   side: "right",
@@ -26,8 +25,7 @@ const intersectionPoint = (): CadElement => ({
   id: "isect",
   name: "交点",
   type: "intersectionPoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   line1Id: "line1",
   line2Id: "line2",
   intersectionIndex: 0,
@@ -38,8 +36,7 @@ const copyLine = (): CadElement => ({
   id: "copy",
   name: "複写",
   type: "copyLine",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "coordinate", x: 0, y: 0 },
   endPoint: { mode: "coordinate", x: 1, y: 1 },
   scale: 1,
@@ -52,8 +49,7 @@ const textElement = (): CadElement => ({
   id: "label",
   name: "ラベル",
   type: "text",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   text: "hello",
   anchor: null,
   fontSize: 10
@@ -63,8 +59,7 @@ const groupElement = (): CadElement => ({
   id: "grp",
   name: "グループ",
   type: "group",
-  visible: true,
-  enabled: true
+  activity: "visible"
 });
 
 const bindingSource = (
@@ -175,7 +170,7 @@ describe("materializePropertyBoundElement", () => {
     const evaluation: ScalarEvaluation = {
       status: "error",
       type: { kind: "choice", options: ["right", "left"] },
-      issueCode: "evaluation-external-binding-unavailable"
+      issueCode: "evaluation-binding-unavailable"
     };
     const result = materializePropertyBoundElement(element, sideEntry("binding:a"), () => evaluation);
     expect(result.ok).toBe(false);

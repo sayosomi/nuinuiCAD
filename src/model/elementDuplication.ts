@@ -129,15 +129,6 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         count: remapNumericValue(element.count, idMap),
         step: remapNumericValue(element.step, idMap)
       };
-    case "variable":
-      return {
-        ...element,
-        expression: remapNumericValue(element.expression, idMap),
-        point1: remapPointAnchor(element.point1, idMap),
-        point2: remapPointAnchor(element.point2, idMap),
-        point: remapPointAnchor(element.point, idMap),
-        lineId: mapId(element.lineId, idMap)
-      };
     case "freePoint":
       return {
         ...element,

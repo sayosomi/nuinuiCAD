@@ -46,8 +46,8 @@ describe("container creation from the Source Editor", () => {
   it("keeps a declaration cursor's established after-statement behavior", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
     const document = useCadDocumentStore.getState();
     const pointA = document.elements.find((element) => element.name === "A")!;
@@ -70,10 +70,10 @@ describe("container creation from the Source Editor", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
       "if 分岐 (1) {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  # insert here",
-      "  point B = coordinate(x: 10 y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
       "}"
     ].join("\n"), "test");
     const document = useCadDocumentStore.getState();

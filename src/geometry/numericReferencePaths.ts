@@ -139,7 +139,6 @@ const evaluateNumericParameter = (value: NumericValue, context: ResolveContext) 
     value,
     computedGeometry: context.evaluation.computedGeometry,
     elementsById,
-    computedVariables: context.evaluation.computedVariables,
     currentElement: context.currentElement,
     elements: context.elements
   }).value;
@@ -183,8 +182,6 @@ export const numericReferenceValueForPath = (
   context: ResolveContext
 ) => {
   if (!element) return undefined;
-  const variable = context.evaluation.computedVariables.get(element.id);
-  if (path === "value" && variable) return variable.value;
   return path.startsWith("params.")
     ? parameterNumericReferenceValue(element, path, context)
     : computedNumericReferenceValue(context.evaluation.computedGeometry.get(element.id), path);
@@ -311,7 +308,6 @@ const candidatesForElement = ({
 }) => [
   ...computedPathsForGeometry(context.evaluation.computedGeometry.get(element.id)),
   ...parameterPathsForElement(element),
-  ...(context.evaluation.computedVariables.has(element.id) ? ["value"] : [])
 ].flatMap((path) => {
   const candidate = candidateForPath({
     element,

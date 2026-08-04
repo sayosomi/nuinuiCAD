@@ -70,12 +70,12 @@ fn property_binding(
 }
 
 fn point(id: &str, x: f64, y: f64) -> Value {
-    json!({ "id": id, "name": id, "type": "freePoint", "visible": true, "enabled": true, "x": x, "y": y })
+    json!({ "id": id, "name": id, "type": "freePoint", "activity": "visible", "x": x, "y": y })
 }
 
 fn line(id: &str, start: &str, end: &str) -> Value {
     json!({
-        "id": id, "name": id, "type": "line", "visible": true, "enabled": true,
+        "id": id, "name": id, "type": "line", "activity": "visible",
         "startPoint": {"mode": "reference", "pointId": start},
         "endPoint": {"mode": "reference", "pointId": end}
     })
@@ -83,7 +83,7 @@ fn line(id: &str, start: &str, end: &str) -> Value {
 
 fn offset_line(id: &str, base_line_id: &str, side: &str) -> Value {
     json!({
-        "id": id, "name": id, "type": "offsetLine", "visible": true, "enabled": true,
+        "id": id, "name": id, "type": "offsetLine", "activity": "visible",
         "baseLineIds": [base_line_id], "offset": 5, "side": side, "closed": false, "suppressTrimWarnings": false
     })
 }
@@ -151,8 +151,8 @@ fn fails_closed_when_the_bound_binding_is_poisoned() {
         offset_line("off", "ab", "right"),
     ];
     // References a legacy-var binding id with no matching "variable" element
-    // anywhere in the document - external resolution fails closed with
-    // "evaluation-external-binding-unavailable", exactly like a disabled
+    // anywhere in the document - resolution fails closed with
+    // "evaluation-binding-unavailable", exactly like a disabled
     // legacy var would (scalar_program_integration_tests.rs's own poison
     // fixture uses the same mechanism).
     let scalar_program = program(vec![statement(
@@ -261,11 +261,11 @@ fn materializes_a_bound_boolean_property_uniformly_across_every_forgroup_generat
             point("b", 10.0, 0.0),
             line("ab", "a", "b"),
             json!({
-                "id": "for", "name": "for", "type": "forGroup", "visible": true, "enabled": true,
+                "id": "for", "name": "for", "type": "forGroup", "activity": "visible",
                 "variableName": "i", "start": 0, "count": 3, "step": 1
             }),
             json!({
-                "id": "copy", "name": "copy", "type": "copyLine", "visible": true, "enabled": true,
+                "id": "copy", "name": "copy", "type": "copyLine", "activity": "visible",
                 "parentGroupId": "for",
                 "startPoint": {"mode": "reference", "pointId": "a"},
                 "endPoint": {"mode": "reference", "pointId": "b"},

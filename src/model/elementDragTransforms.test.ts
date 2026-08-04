@@ -11,8 +11,7 @@ const polarPoint: CadElement = {
   id: "polar-point",
   name: "角度距離点",
   type: "polarOffsetPoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   fromPointId: "point-a",
   angleDeg: 0,
   distance: 30
@@ -24,8 +23,7 @@ const divisionPoint = (kind: "distance" | "ratio"): CadElement => ({
   id: "division-point",
   name: "分点",
   type: "divisionPoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   startPoint: { mode: "reference", pointId: "point-a" },
   endPoint: { mode: "reference", pointId: "point-b" },
   placement: { kind, value: kind === "distance" ? 30 : 0.5 }
@@ -35,8 +33,7 @@ const lineDivisionPoint: CadElement = {
   id: "line-division-point",
   name: "線上分点",
   type: "lineDivisionPoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   endpoint: { lineId: "line-ab", endpointKey: "start" },
   placement: { kind: "distance", value: 10 }
 };
@@ -45,8 +42,7 @@ const lineTangentOffsetPoint: CadElement = {
   id: "line-tangent-offset-point",
   name: "線上オフセット点",
   type: "lineTangentOffsetPoint",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   baseLineId: "line-ab",
   basePoint: { mode: "reference", pointId: "point-a" },
   tangentAngleDeg: 90,

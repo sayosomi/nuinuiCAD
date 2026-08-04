@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import type { NumericVariableReferenceOption } from "../geometry/variableReferenceOptions";
+import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
 
 type ViewportPlacement = {
   bottom: number | "auto";
@@ -42,9 +42,9 @@ export const NumericVariableSuggestPopover = ({
   onHover,
   anchorRef
 }: {
-  options: NumericVariableReferenceOption[];
+  options: NumericReferenceOption[];
   activeIndex: number;
-  onApply: (option: NumericVariableReferenceOption) => void;
+  onApply: (option: NumericReferenceOption) => void;
   onHover: (index: number) => void;
   /** When supplied, escape an overflow-clipped command bar through a viewport portal. */
   anchorRef?: RefObject<HTMLElement | null>;

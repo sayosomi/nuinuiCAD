@@ -12,27 +12,12 @@ const group = (id: string, name: string, printEnabled = true): CadElement => ({
   id,
   name,
   type: "group",
-  visible: true,
-  enabled: true,
+  activity: "visible",
   printEnabled,
   printAnchor: { mode: "coordinate", x: 0, y: 0 }
 });
 
 const elements: CadElement[] = [
-  {
-    id: "scale-var",
-    name: "倍率",
-    type: "variable",
-    visible: true,
-    enabled: true,
-    scope: "global",
-    valueMode: "expression",
-    expression: 1.5,
-    point1: { mode: "coordinate", x: 0, y: 0 },
-    point2: { mode: "coordinate", x: 0, y: 0 },
-    point: { mode: "coordinate", x: 0, y: 0 },
-    lineId: ""
-  },
   group("front", "前身頃"),
   group("back", "後ろ身頃"),
   group("sleeve", "袖"),
@@ -194,46 +179,6 @@ describe("PrintLayoutPanel", () => {
     expect(activeLayout().scale).toBe(1.2);
   });
 
-  it("stores print number inputs as expressions using global variables", async () => {
-    await renderPanel();
-    const scaleInput = screen.getByLabelText("拡大率");
-
-    fireEvent.change(scaleInput, { target: { value: "@倍率" } });
-
-    expect(activeLayout().scale).toEqual({
-      kind: "expression",
-      expression: "@scale-var"
-    });
-    expect(scaleInput).toHaveValue("@倍率");
-  });
-
-  it("offers global variables as explicit print number suggestions", async () => {
-    useCadDocumentStore.setState({
-      printLayouts: [{
-        ...DEFAULT_PRINT_LAYOUT,
-        numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
-      }]
-    });
-    await renderPanel();
-    const scaleInput = screen.getByLabelText("拡大率");
-
-    fireEvent.change(scaleInput, {
-      target: { value: "@", selectionStart: 1, selectionEnd: 1 }
-    });
-
-    const suggestions = screen.getByRole("listbox", { name: "変数候補" });
-    expect(within(suggestions).getByRole("option", { name: /@倍率.*印刷変数/ })).toBeInTheDocument();
-    const globalOption = within(suggestions).getByRole("option", { name: /@倍率.*全体変数/ });
-    fireEvent.click(globalOption);
-
-    await waitFor(() => {
-      expect(activeLayout().scale).toEqual({
-        kind: "expression",
-        expression: "@scale-var"
-      });
-    });
-  });
-
   it("shows only PDF-specific settings for PDF layouts", async () => {
     await renderPanel();
 
@@ -371,35 +316,19 @@ describe("PrintLayoutPanel element-parameter completion", () => {
     id,
     name,
     type: "freePoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     x,
     y
   });
 
   const lineElements: CadElement[] = [
-    {
-      id: "scale-var",
-      name: "倍率",
-      type: "variable",
-      visible: true,
-      enabled: true,
-      scope: "global",
-      valueMode: "expression",
-      expression: 1.5,
-      point1: { mode: "coordinate", x: 0, y: 0 },
-      point2: { mode: "coordinate", x: 0, y: 0 },
-      point: { mode: "coordinate", x: 0, y: 0 },
-      lineId: ""
-    },
     point("pt-a", "点A", 0, 0),
     point("pt-b", "点B", 10, 0),
     {
       id: "line-ab",
       name: "直線AB",
       type: "line",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       startPoint: { mode: "reference", pointId: "pt-a" },
       endPoint: { mode: "reference", pointId: "pt-b" }
     }
@@ -471,6 +400,14 @@ describe("PrintLayoutPanel element-parameter completion", () => {
 
   it("coexists with @variable candidates in the same input without interference", async () => {
     await renderWithLine();
+    act(() => {
+      useCadDocumentStore.setState({
+        printLayouts: [{
+          ...DEFAULT_PRINT_LAYOUT,
+          numericVariables: [{ id: "print-variable-1", name: "倍率", value: 1.5 }]
+        }]
+      });
+    });
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.change(scaleInput, { target: { value: "@", selectionStart: 1, selectionEnd: 1 } });

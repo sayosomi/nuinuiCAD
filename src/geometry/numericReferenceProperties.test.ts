@@ -102,8 +102,7 @@ const offsetLine: ComputedOffsetLine = {
 const baseElement = {
   id: "element",
   name: "要素",
-  visible: true,
-  enabled: true
+  activity: "visible" as const
 };
 
 describe("numericReferenceProperties", () => {

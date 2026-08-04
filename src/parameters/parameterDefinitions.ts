@@ -83,19 +83,10 @@ export const angleNumericParameterStepLevels = [0.1, 1, 15, 60, 90] as const;
 const commonParameters: ParameterDefinition[] = [
   { key: "name", label: "名前", kind: "text" },
   { key: "colorId", label: "表示色", kind: "color" },
-  { key: "visible", label: "表示", kind: "boolean" },
-  { key: "enabled", label: "評価", kind: "boolean" },
 ];
 
 const nonColorCommonParameters: ParameterDefinition[] = [
   { key: "name", label: "名前", kind: "text" },
-  { key: "visible", label: "表示", kind: "boolean" },
-  { key: "enabled", label: "評価", kind: "boolean" },
-];
-
-const variableCommonParameters: ParameterDefinition[] = [
-  { key: "name", label: "名前", kind: "text" },
-  { key: "enabled", label: "評価", kind: "boolean" },
 ];
 
 const numericVariableParameters = (
@@ -167,43 +158,6 @@ const parameterDefinitionsForElement = (
           emptyInputDefaultValue: 1,
         },
         { key: "showGenerated", label: "生成結果を表示", kind: "boolean" },
-      ];
-    case "variable":
-      return [
-        ...variableCommonParameters,
-        ...numericVariableParameters(element),
-        {
-          key: "scope",
-          label: "使える範囲",
-          kind: "choice",
-          choiceOptions: ["global", "group"],
-        },
-        ...(element.valueMode === "expression"
-          ? [{ key: "expression", label: "式", kind: "number" as const }]
-          : element.valueMode === "pointLineDistance"
-            ? [
-                {
-                  key: "point",
-                  label: "点",
-                  kind: "reference" as const,
-                  allowCoordinate: false,
-                },
-                { key: "lineId", label: "線", kind: "lineReference" as const },
-              ]
-            : [
-                {
-                  key: "point1",
-                  label: "点1",
-                  kind: "reference" as const,
-                  allowCoordinate: false,
-                },
-                {
-                  key: "point2",
-                  label: "点2",
-                  kind: "reference" as const,
-                  allowCoordinate: false,
-                },
-              ]),
       ];
     case "text":
       return [

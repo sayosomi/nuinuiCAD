@@ -16,8 +16,7 @@ const elements: CadElement[] = [
     id: "point-a",
     name: "点A",
     type: "freePoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     x: 0,
     y: 0
   },
@@ -25,8 +24,7 @@ const elements: CadElement[] = [
     id: "point-b",
     name: "点A 2",
     type: "offsetPoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     fromPointId: "point-a",
     dx: 10,
     dy: 0
@@ -35,8 +33,7 @@ const elements: CadElement[] = [
     id: "line-a",
     name: "直線A",
     type: "line",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     startPoint: { mode: "reference", pointId: "point-a" },
     endPoint: { mode: "reference", pointId: "point-b" }
   }
@@ -69,8 +66,7 @@ describe("elementNames", () => {
         id: "group-a",
         name: "前身頃",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -134,8 +130,7 @@ describe("elementNames", () => {
           id: "point-c",
           name: "",
           type: "freePoint",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           x: 0,
           y: 0
         }
@@ -148,8 +143,7 @@ describe("elementNames", () => {
       id: `point-${index}`,
       name: `点${index + 1}`,
       type: "freePoint",
-      visible: true,
-      enabled: true,
+      activity: "visible",
       x: 0,
       y: 0
     }));
@@ -161,8 +155,7 @@ describe("elementNames", () => {
           id: "point-aa",
           name: "",
           type: "freePoint",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           x: 0,
           y: 0
         }
@@ -178,8 +171,7 @@ describe("elementNames", () => {
           id: "line-b",
           name: "",
           type: "line",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           startPoint: { mode: "reference", pointId: "point-a" },
           endPoint: { mode: "reference", pointId: "point-b" }
         }
@@ -196,8 +188,7 @@ describe("elementNames", () => {
             id: "line-b",
             name: "直線B",
             type: "line",
-            visible: true,
-            enabled: true,
+            activity: "visible",
             startPoint: { mode: "reference", pointId: "point-b" },
             endPoint: { mode: "reference", pointId: "point-a" }
           }
@@ -206,8 +197,7 @@ describe("elementNames", () => {
           id: "cross",
           name: "",
           type: "intersectionPoint",
-          visible: true,
-          enabled: true,
+          activity: "visible",
           numericVariables: [],
           line1Id: "line-a",
           line2Id: "line-b",
@@ -224,8 +214,7 @@ describe("elementNames", () => {
         id: "child",
         name: "袖線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "parent",
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" }
@@ -234,8 +223,7 @@ describe("elementNames", () => {
         id: "point-a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "parent",
         x: 0,
         y: 0
@@ -244,8 +232,7 @@ describe("elementNames", () => {
         id: "parent",
         name: "前身頃",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -253,8 +240,7 @@ describe("elementNames", () => {
         id: "point-b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "parent",
         x: 10,
         y: 0
@@ -294,8 +280,7 @@ describe("elementNames", () => {
         id: "outer",
         name: "外側",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
@@ -303,8 +288,7 @@ describe("elementNames", () => {
         id: "outer-point",
         name: "外側点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "outer",
         x: 0,
         y: 0
@@ -313,8 +297,7 @@ describe("elementNames", () => {
         id: "inner",
         name: "内側",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "outer",
         printEnabled: false,
         printAnchor: { mode: "coordinate", x: 0, y: 0 }
@@ -323,8 +306,7 @@ describe("elementNames", () => {
         id: "inner-point-dup-a",
         name: "重複点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "inner",
         x: 0,
         y: 0
@@ -333,8 +315,7 @@ describe("elementNames", () => {
         id: "inner-point-dup-b",
         name: "重複点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "inner",
         x: 1,
         y: 0
@@ -343,8 +324,7 @@ describe("elementNames", () => {
         id: "leaf",
         name: "葉",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "inner",
         x: 2,
         y: 0

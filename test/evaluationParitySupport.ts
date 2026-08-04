@@ -42,7 +42,7 @@ export const evaluationFixtureDir = (repoRoot: string) => join(repoRoot, "test",
 
 export const parityFixtureNames = (repoRoot: string): string[] =>
   readdirSync(evaluationFixtureDir(repoRoot))
-    .filter((name) => name.endsWith(".json") || name.endsWith(".nui"))
+    .filter((name) => name.endsWith(".nui"))
     .sort();
 
 export const isNui3ReleaseFixture = (name: string) => name.startsWith("nui3-") && name.endsWith(".nui");
@@ -101,7 +101,7 @@ export const fixtureFromSource = (source: string): EvaluationFixture => {
 
 export const readParityFixture = (repoRoot: string, name: string): EvaluationFixture => {
   const source = readFileSync(join(evaluationFixtureDir(repoRoot), name), "utf8");
-  return name.endsWith(".json") ? JSON.parse(source) as EvaluationFixture : fixtureFromSource(source);
+  return fixtureFromSource(source);
 };
 
 export const optionsFor = (fixture: EvaluationFixture): EvaluateElementsOptions => ({

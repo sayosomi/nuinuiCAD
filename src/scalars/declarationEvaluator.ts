@@ -33,15 +33,6 @@ import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
 import type { ScalarEvaluation } from "./types";
 import type { TypedScalarGeometryPropertyReferenceNode } from "./typedExpressionAst";
 
-/**
- * Resolves a binding that is not itself a statement in this program - a
- * legacy `var`, forGroup iteration binding, or anything else the shared
- * namespace (D05) allows a typed initializer to reference. Called at most
- * once per such reference actually reached during evaluation. The caller
- * owns CAD/document context entirely; this module has none.
- */
-export type ResolveExternalScalarBinding = (bindingId: BindingId) => ScalarEvaluation;
-
 export type ScalarProgramEvaluation = {
   /** One entry per evaluated `declare` statement, keyed by its bindingId. */
   resultsByBindingId: ReadonlyMap<BindingId, ScalarEvaluation>;
@@ -64,12 +55,10 @@ const isWithinEvaluationLimit = (program: ScalarProgram, statement: ScalarProgra
  * `resolve` is actually called for a given bindingId; a statement at or after
  * `program.evaluationLimitSourceOrder` (the `@stop` cutoff) is treated as
  * absent, exactly like the array-order sweep this replaces treated it as
- * skipped - falling through to `resolveExternalBinding`, unchanged from prior
- * behavior.
+ * skipped and unavailable to the resolver.
  */
 export const createLazyScalarProgramEvaluator = (
   program: ScalarProgram,
-  resolveExternalBinding: ResolveExternalScalarBinding,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation
 ): LazyScalarProgramEvaluator => {
   const statementByBindingId = new Map<BindingId, ScalarProgramStatement>();
@@ -89,7 +78,9 @@ export const createLazyScalarProgramEvaluator = (
     if (cached) return cached;
 
     const statement = statementByBindingId.get(bindingId);
-    if (!statement) return resolveExternalBinding(bindingId);
+    if (!statement) {
+      return { status: "error", type: { kind: "number" }, issueCode: "evaluation-binding-unavailable", bindingId };
+    }
 
     if (inProgressBindingIds.has(bindingId)) {
       throw new Error(
@@ -146,7 +137,6 @@ export const finalizeScalarProgramEvaluation = (
  * resolve individual bindings before the whole program is walked.
  */
 export const evaluateScalarProgram = (
-  program: ScalarProgram,
-  resolveExternalBinding: ResolveExternalScalarBinding
+  program: ScalarProgram
 ): ScalarProgramEvaluation =>
-  finalizeScalarProgramEvaluation(program, createLazyScalarProgramEvaluator(program, resolveExternalBinding));
+  finalizeScalarProgramEvaluation(program, createLazyScalarProgramEvaluator(program));

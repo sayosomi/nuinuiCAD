@@ -41,7 +41,6 @@ const publishError = (controller: SourceEditorController, bindingId: BindingId, 
   controller.setEvaluation({
     evaluation: {
       computedGeometry: new Map(),
-      computedVariables: new Map(),
       errors: [],
       warnings: [],
       computedScalarBindings: new Map([[bindingId, { status: "error", type: { kind: "number" }, issueCode }]])
@@ -55,7 +54,6 @@ const publishOk = (controller: SourceEditorController, bindingId: BindingId) => 
   controller.setEvaluation({
     evaluation: {
       computedGeometry: new Map(),
-      computedVariables: new Map(),
       errors: [],
       warnings: [],
       computedScalarBindings: new Map([[bindingId, { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 1 } }]])

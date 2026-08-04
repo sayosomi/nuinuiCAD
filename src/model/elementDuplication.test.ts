@@ -11,8 +11,7 @@ describe("duplicateElements", () => {
         id: "point-a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 10,
         y: 20
       },
@@ -20,8 +19,7 @@ describe("duplicateElements", () => {
         id: "point-b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 30,
         y: 40
       }
@@ -52,8 +50,7 @@ describe("duplicateElements", () => {
         id: "point-a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 10,
         y: 20
       },
@@ -61,8 +58,7 @@ describe("duplicateElements", () => {
         id: "point-b",
         name: "点B",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 30,
         y: 40
       },
@@ -70,8 +66,7 @@ describe("duplicateElements", () => {
         id: "line-ab",
         name: "直線AB",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" },
         numericVariables: [{
@@ -105,8 +100,7 @@ describe("duplicateElements", () => {
         id: "point-a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 10,
         y: 20
       },
@@ -114,8 +108,7 @@ describe("duplicateElements", () => {
         id: "image",
         name: "下絵",
         type: "image",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         sourcePath: "underlay.png",
         originPoint: { mode: "reference", pointId: "point-a" },
         naturalWidthPx: 300,
@@ -140,53 +133,53 @@ describe("duplicateElements", () => {
     });
   });
 
-  it("remaps copied variable id references in numeric expressions", () => {
-    const ids = ["variable-copy", "point-copy"];
+  it("remaps copied element id references in numeric expressions", () => {
+    const ids = ["line-copy", "point-copy"];
     const elements: CadElement[] = [
       {
         id: "anchor",
         name: "基準点",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         x: 0,
         y: 0
       },
       {
-        id: "variable",
+        id: "other",
+        name: "端点",
+        type: "freePoint",
+        activity: "visible",
+        x: 50,
+        y: 0
+      },
+      {
+        id: "line",
         name: "寸法",
-        type: "variable",
-        visible: true,
-        enabled: true,
-        scope: "global",
-        valueMode: "expression",
-        expression: 50,
-        point1: { mode: "reference", pointId: "anchor" },
-        point2: { mode: "reference", pointId: "anchor" },
-        point: { mode: "reference", pointId: "anchor" },
-        lineId: ""
+        type: "line",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "anchor" },
+        endPoint: { mode: "reference", pointId: "other" }
       },
       {
         id: "point",
         name: "オフセット点",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         fromPoint: { mode: "reference", pointId: "anchor" },
         fromPointId: "anchor",
-        dx: { kind: "expression", expression: "@variable" },
+        dx: { kind: "expression", expression: "@line.length" },
         dy: 0
       }
     ];
 
-    const change = duplicateElements(elements, ["variable", "point"], {
+    const change = duplicateElements(elements, ["line", "point"], {
       createId: () => ids.shift() ?? "unexpected"
     });
     const copiedPoint = change?.elements.find((element) => element.id === "point-copy");
 
     expect(copiedPoint).toMatchObject({
       type: "offsetPoint",
-      dx: { kind: "expression", expression: "@variable-copy" }
+      dx: { kind: "expression", expression: "@line-copy.length" }
     });
   });
 
@@ -197,15 +190,13 @@ describe("duplicateElements", () => {
         id: "group",
         name: "前身頃",
         type: "group",
-        visible: true,
-        enabled: true,
+        activity: "visible",
       },
       {
         id: "point-a",
         name: "点A",
         type: "freePoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "group",
         x: 10,
         y: 20
@@ -214,8 +205,7 @@ describe("duplicateElements", () => {
         id: "point-b",
         name: "点B",
         type: "offsetPoint",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "group",
         fromPointId: "point-a",
         dx: 30,
@@ -225,8 +215,7 @@ describe("duplicateElements", () => {
         id: "line",
         name: "線",
         type: "line",
-        visible: true,
-        enabled: true,
+        activity: "visible",
         parentGroupId: "group",
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" }
@@ -276,10 +265,10 @@ describe("duplicateElements", () => {
   it("clones the divisionPoint placement value verbatim", () => {
     const ids = ["point-a-copy", "point-b-copy", "division-copy"];
     const elements: CadElement[] = [
-      { id: "point-a", name: "点A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "point-b", name: "点B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+      { id: "point-a", name: "点A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "point-b", name: "点B", type: "freePoint", activity: "visible", x: 10, y: 0 },
       {
-        id: "division", name: "分点", type: "divisionPoint", visible: true, enabled: true,
+        id: "division", name: "分点", type: "divisionPoint", activity: "visible",
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" },
         placement: { kind: "distance", value: 7 }
@@ -302,15 +291,15 @@ describe("duplicateElements", () => {
   it("clones the lineDivisionPoint placement value verbatim", () => {
     const ids = ["point-a-copy", "point-b-copy", "line-copy", "division-copy"];
     const elements: CadElement[] = [
-      { id: "point-a", name: "点A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-      { id: "point-b", name: "点B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
+      { id: "point-a", name: "点A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "point-b", name: "点B", type: "freePoint", activity: "visible", x: 10, y: 0 },
       {
-        id: "line-ab", name: "線AB", type: "line", visible: true, enabled: true,
+        id: "line-ab", name: "線AB", type: "line", activity: "visible",
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" }
       },
       {
-        id: "division", name: "線上分点", type: "lineDivisionPoint", visible: true, enabled: true,
+        id: "division", name: "線上分点", type: "lineDivisionPoint", activity: "visible",
         endpoint: { lineId: "line-ab", endpointKey: "start" },
         placement: { kind: "ratio", value: 0.2 }
       }

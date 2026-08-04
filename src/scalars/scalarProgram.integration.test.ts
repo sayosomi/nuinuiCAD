@@ -78,11 +78,13 @@ describe("compiled scalar program", () => {
     });
   });
 
-  it("omits the optional program for v2/legacy input and errors when typed identity is absent", () => {
-    const legacy = compileDslDocument("nui 2\nvar bust = 840\npoint A = coordinate(x: 0 y: 0)");
-    expect(legacy.document?.elements.map((element) => element.type)).toEqual(["variable", "freePoint"]);
-    expect(legacy.scalarProgram).toBeUndefined();
+  it("omits the optional program for a document with no typed declarations", () => {
+    const noTyped = compileDslDocument("nui 3\npoint A = coordinate(x: 0, y: 0)");
+    expect(noTyped.document?.elements.map((element) => element.type)).toEqual(["freePoint"]);
+    expect(noTyped.scalarProgram).toBeUndefined();
+  });
 
+  it("errors when typed identity is absent", () => {
     const missingIdentity = compileDslDocument("nui 3\nconst width: number = 12");
     expect(missingIdentity.document).toBeNull();
     expect(missingIdentity.diagnostics).toEqual(expect.arrayContaining([

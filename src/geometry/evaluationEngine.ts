@@ -52,7 +52,6 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "group",
   "conditionalGroup",
   "forGroup",
-  "variable",
   "freePoint",
   "offsetPoint",
   "polarOffsetPoint",
@@ -138,13 +137,6 @@ const referencesRustSupportedPointAnchor = (
 
 const pointAnchorsForElement = (element: CadElement): PointAnchor[] => {
   switch (element.type) {
-    case "variable":
-      return [
-        ...(element.valueMode === "pointDistance" || element.valueMode === "pointAngle"
-          ? [element.point1, element.point2]
-          : []),
-        ...(element.valueMode === "pointLineDistance" ? [element.point] : [])
-      ];
     case "offsetPoint":
     case "polarOffsetPoint": {
       const fromPoint = pointAnchorForElement(element);
@@ -215,7 +207,7 @@ const hasRustSupportedCompiledReferences = (
       ? options.bindingVersions!.versionIdsByBindingId.keys()
       : Array.isArray(scalarStatements) ? scalarStatements.map((statement) => statement.bindingId) : []
   );
-  const hasBinding = (bindingId: string) => bindingId.startsWith("legacy:") || availableBindingIds.has(bindingId);
+  const hasBinding = (bindingId: string) => availableBindingIds.has(bindingId);
   const propertyEntries = [
     ...(options.propertyBindingEntries ?? []),
     ...(options.controlBooleanEntries ?? []),
@@ -374,7 +366,6 @@ export const emptyEvaluationResult = (
   );
   return {
     computedGeometry: new Map(),
-    computedVariables: new Map(),
     errors: [],
     warnings: [],
     evaluatedElementIds: new Set(),

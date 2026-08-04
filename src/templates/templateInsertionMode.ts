@@ -1,9 +1,8 @@
 import type { GroupTemplate, GroupTemplateInput, TemplateInstantiationInputValues } from "./groupTemplate";
-import type { ConditionalBranch, ElementId, NumericValue, PointAnchor } from "../types/geometry";
+import type { ConditionalBranch, ElementId, PointAnchor } from "../types/geometry";
 import type { SourceCreationInsertion } from "../commands/sourceCreationInsertion";
 
 export const TEMPLATE_INSERTION_PICK_TARGET_ID = "__template-insertion__";
-export const TEMPLATE_INSERTION_NUMERIC_TARGET_ID = "__template-insertion-numeric__";
 
 export type ActiveTemplateInsertion = {
   template: GroupTemplate;
@@ -16,17 +15,13 @@ export type ActiveTemplateInsertion = {
   error: string | null;
 };
 
-export const defaultTemplateInputValue = (input: GroupTemplateInput): NumericValue | string =>
-  input.kind === "numeric" ? input.defaultValue : "";
-
 export const defaultTemplateInputValues = (template: GroupTemplate): TemplateInstantiationInputValues =>
-  Object.fromEntries(template.inputs.map((input) => [input.id, defaultTemplateInputValue(input)]));
+  Object.fromEntries(template.inputs.map((input) => [input.id, ""]));
 
 export const templateInputValueIsFilled = (
   input: GroupTemplateInput,
-  value: NumericValue | ElementId | PointAnchor | null | undefined
+  value: ElementId | PointAnchor | null | undefined
 ) => {
-  if (input.kind === "numeric") return value !== null && value !== undefined;
   if (input.kind === "point") {
     return typeof value === "string" && value.length > 0
       ? true
@@ -74,7 +69,6 @@ export const nextTemplateInputId = (
 
 export const templateInputLabel = (input: GroupTemplateInput | null) => {
   if (!input) return "入力なし";
-  if (input.kind === "numeric") return `${input.label}（数値/式）`;
   if (input.kind === "point") return `${input.label}（点）`;
   return `${input.label}（線）`;
 };

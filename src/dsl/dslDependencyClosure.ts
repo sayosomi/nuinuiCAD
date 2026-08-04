@@ -124,7 +124,7 @@ export const createDslExportSelection = ({
     const warnings = new Set<DslExportWarningKind>();
     const isPulled = origin === "dependency" || origin === "parent";
     if (isPulled) {
-      if (!element.enabled || groupStates.get(id)?.disabledByGroupId) warnings.add("disabled");
+      if (element.activity === "disabled" || groupStates.get(id)?.disabledByGroupId) warnings.add("disabled");
       if (errorElementIds.has(id)) warnings.add("invalid");
     }
     annotationsByElementId.set(id, { origin, warnings: [...warnings] });

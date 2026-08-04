@@ -8,9 +8,7 @@ export type ElementId = string;
 export type CadElementBase = {
   id: ElementId;
   name: string;
-  /** Legacy v2 DSL / IPC activity flags. Runtime policy lives in elementActivity.ts. */
-  visible: boolean;
-  enabled: boolean;
+  activity: "visible" | "hidden" | "disabled";
   colorId?: string;
   parentGroupId?: ElementId;
   conditionalBranch?: ConditionalBranch;
@@ -87,25 +85,6 @@ export type NumericVariable = {
 };
 
 export type BezierNumericVariable = NumericVariable;
-
-export type VariableScope = "global" | "group";
-
-export type VariableValueMode =
-  | "expression"
-  | "pointDistance"
-  | "pointAngle"
-  | "pointLineDistance";
-
-export type VariableElement = CadElementBase & {
-  type: "variable";
-  scope: VariableScope;
-  valueMode: VariableValueMode;
-  expression: NumericValue;
-  point1: PointAnchor;
-  point2: PointAnchor;
-  point: PointAnchor;
-  lineId: ElementId;
-};
 
 export type FreePointElement = CadElementBase & {
   type: "freePoint";
@@ -349,7 +328,6 @@ export type CadElement =
   | GroupElement
   | ConditionalGroupElement
   | ForGroupElement
-  | VariableElement
   | FreePointElement
   | OffsetPointElement
   | PolarOffsetPointElement
@@ -508,13 +486,6 @@ export type ComputedText = {
   fontSize: number;
 };
 
-export type ComputedVariable = {
-  kind: "variable";
-  elementId: ElementId;
-  name: string;
-  value: number;
-};
-
 export type ComputedGeometry =
   | ComputedPoint
   | ComputedLine
@@ -551,7 +522,6 @@ export type ForGroupGeneratedRow = {
 
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
-  computedVariables: Map<ElementId, ComputedVariable>;
   errors: DependencyError[];
   warnings: EvaluationWarning[];
   evaluatedElementIds?: Set<ElementId>;
@@ -571,9 +541,7 @@ export type EvaluationResult = {
   forGroupEffectiveShowGeneratedIds?: Set<ElementId>;
   /**
    * Task 20: version-0 TS reference evaluation of the compiled scalar
-   * program's const/let declarations, keyed by BindingId - a separate map
-   * from `computedVariables` (legacy numeric variables), never merged with
-   * it. Present only when the source document had a non-empty
+   * program's const/let declarations, keyed by BindingId. Present only when the source document had a non-empty
    * `EvaluateElementsOptions.scalarProgram` and only on the TS reference
    * evaluation path (`evaluateElementsWithRust` does not run
    * `evaluateElements`'s loop at all, so Rust output has no equivalent field
@@ -588,7 +556,6 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   group: "グループ",
   conditionalGroup: "ifブロック",
   forGroup: "forブロック",
-  variable: "変数",
   freePoint: "free point",
   offsetPoint: "offset point",
   polarOffsetPoint: "polar offset point",
@@ -618,7 +585,6 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   group: "group",
   conditionalGroup: "group",
   forGroup: "group",
-  variable: "modification",
   freePoint: "point",
   offsetPoint: "point",
   polarOffsetPoint: "point",

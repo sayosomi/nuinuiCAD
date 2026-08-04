@@ -12,13 +12,6 @@ const compile = (source: string) => {
   return compiled.bindingVersions!;
 };
 
-const external = (bindingId: string) => ({
-  status: "error" as const,
-  type: { kind: "number" as const },
-  issueCode: "external-unavailable",
-  bindingId
-});
-
 describe("incremental linear mutation evaluator", () => {
   it("uses before-statement slots for self and cross-binding RHS reads", () => {
     const graph = compile([
@@ -29,7 +22,7 @@ describe("incremental linear mutation evaluator", () => {
       "set y = @x"
     ].join("\n"));
     const [x0, y0, x1, y1] = graph.versions;
-    const evaluator = createIncrementalLinearMutationEvaluator(graph, external);
+    const evaluator = createIncrementalLinearMutationEvaluator(graph);
 
     evaluator.advanceTo(beforeStatement(x1.sourceOrder));
     expect(evaluator.resolveCurrent(x0.bindingId)).toMatchObject({ value: { value: 1 } });
@@ -44,7 +37,7 @@ describe("incremental linear mutation evaluator", () => {
   it("records poisoned versions and recovers the same slot with a later valid set", () => {
     const graph = compile(["nui 3", "let x: number = 1", "set x = 1 / 0", "set x = 3"].join("\n"));
     const [declaration, failed, recovered] = graph.versions;
-    const final = createIncrementalLinearMutationEvaluator(graph, external).finalize(afterStatement(recovered.sourceOrder));
+    const final = createIncrementalLinearMutationEvaluator(graph).finalize(afterStatement(recovered.sourceOrder));
 
     expect(final.historyByVersionId.get(failed.id)).toMatchObject({
       status: "poisoned", versionId: failed.id, statementId: failed.id, bindingId: declaration.bindingId
@@ -63,7 +56,7 @@ describe("incremental linear mutation evaluator", () => {
       "set flag = true",
       "set side = left"
     ].join("\n"));
-    const final = createIncrementalLinearMutationEvaluator(graph, external).finalize(afterStatement(99));
+    const final = createIncrementalLinearMutationEvaluator(graph).finalize(afterStatement(99));
 
     expect([...final.resultsByBindingId.values()]).toEqual(expect.arrayContaining([
       expect.objectContaining({ value: { kind: "string", value: "new" } }),
@@ -81,7 +74,7 @@ describe("incremental linear mutation evaluator", () => {
       "}"
     ].join("\n"));
     const [declaration, set] = graph.versions;
-    const evaluator = createIncrementalLinearMutationEvaluator(graph, external);
+    const evaluator = createIncrementalLinearMutationEvaluator(graph);
     const final = evaluator.finalize(afterStatement(99));
 
     expect(final.historyByVersionId.get(declaration.id)).toMatchObject({ status: "inactive-control" });
@@ -103,7 +96,7 @@ describe("incremental linear mutation evaluator", () => {
     const outer = graph.versions[0];
     const local = graph.versions.find((version) => version.kind === "declare" && version.bindingId !== outer.bindingId)!;
     const owner = local.control.ownerChain.at(-1)!;
-    const evaluator = createIncrementalLinearMutationEvaluator(graph, external);
+    const evaluator = createIncrementalLinearMutationEvaluator(graph);
 
     evaluator.registerConditionalResult(owner.ownerStatementId, "then");
     const final = evaluator.finalize(afterStatement(99));

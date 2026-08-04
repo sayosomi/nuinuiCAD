@@ -37,15 +37,15 @@ const setUp = () => {
   nextEvaluationRequestRevision = 1;
 };
 
-// `dx: 直線AB.` (empty suffix) is the same shape already proven to compile
+// `dx: @直線AB.` (empty suffix) is the same shape already proven to compile
 // cleanly in cmAutocomplete.test.ts's "elementParameter" describe block - a
-// legacy numeric field tolerates a dangling ElementName. reference as an
+// numeric field tolerates a dangling ElementName. reference as an
 // (initially unresolved) dependency rather than a fatal parse error.
 const buildSource = () => dslTextForElements([
-  { id: "a", name: "A", type: "freePoint", visible: true, enabled: true, x: 0, y: 0 },
-  { id: "b", name: "B", type: "freePoint", visible: true, enabled: true, x: 10, y: 0 },
-  { id: "ab", name: "直線AB", type: "line", visible: true, enabled: true, startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
-  { id: "p", name: "P", type: "offsetPoint", visible: true, enabled: true, fromPoint: { mode: "reference", pointId: "a" }, dx: { kind: "expression", expression: "直線AB." }, dy: 0 }
+  { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
+  { id: "ab", name: "直線AB", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
+  { id: "p", name: "P", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: { kind: "expression", expression: "@直線AB." }, dy: 0 }
 ]);
 
 const lineGeometryFixture = (elementId: string) => ({

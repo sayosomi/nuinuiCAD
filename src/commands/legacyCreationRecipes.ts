@@ -8,7 +8,6 @@ import { creationRecipeForType, type CreationRecipe } from "./creationRecipes";
  */
 export const legacyCreationCommandRecipeMap = {
   addFreePoint: { type: "freePoint", recipeKind: "specialized" },
-  addVariable: { type: "variable", recipeKind: "specialized" },
   addText: { type: "text", recipeKind: "fallback" },
   addOffsetPoint: { type: "offsetPoint", recipeKind: "fallback" },
   addPolarOffsetPoint: { type: "polarOffsetPoint", recipeKind: "fallback" },

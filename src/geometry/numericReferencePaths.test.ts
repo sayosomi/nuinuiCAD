@@ -26,8 +26,7 @@ const elements: CadElement[] = [
     id: "a",
     name: "点A",
     type: "freePoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     x: 0,
     y: 0
   },
@@ -35,8 +34,7 @@ const elements: CadElement[] = [
     id: "curve",
     name: "曲線",
     type: "bezierCurve",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     startPoint: { mode: "reference", pointId: "a" },
     startHandleAngleDeg: 15,
     startHandleLength: 20,
@@ -57,8 +55,7 @@ const elements: CadElement[] = [
     id: "target",
     name: "点T",
     type: "offsetPoint",
-    visible: true,
-    enabled: true,
+    activity: "visible",
     fromPointId: "a",
     dx: 0,
     dy: 0
@@ -105,7 +102,6 @@ const evaluation: EvaluationResult = {
     ["curve", curveGeometry],
     ["target", point("target", 0, 0)]
   ]),
-  computedVariables: new Map(),
   errors: [],
   warnings: []
 };

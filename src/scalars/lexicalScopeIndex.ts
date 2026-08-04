@@ -45,13 +45,6 @@ export type ScopeDeclaration = {
   declaredType: ScalarType | null;
 };
 
-export type LegacyVariableRecord = {
-  scopeId: ScopeId;
-  statementIndex: number;
-  name: string;
-  nameSpan: DslSpan | null;
-};
-
 export type ForGroupIterationSlot = {
   scopeId: ScopeId;
   statementIndex: number;
@@ -68,7 +61,6 @@ export type LexicalScopeIndex = {
   declarationsByScope: ReadonlyMap<ScopeId, readonly ScopeDeclaration[]>;
   /** Full-document declaration order, for Task 12's position-based queries. */
   allDeclarations: readonly ScopeDeclaration[];
-  legacyVariablesByScope: ReadonlyMap<ScopeId, readonly LegacyVariableRecord[]>;
   forGroupIterationSlots: ReadonlyMap<ScopeId, ForGroupIterationSlot>;
   /** Dense indexes: never allocate from a raw statement index. */
   statementRankByIndex: ReadonlyMap<number, number>;
@@ -99,14 +91,6 @@ const ROOT_SCOPE_ID: ScopeId = "root";
 
 const isForGroup = (statement: DslStatement) => statement.kind === "element" && statement.type === "forGroup";
 const isConditionalGroup = (statement: DslStatement) => statement.kind === "element" && statement.type === "conditionalGroup";
-// A short `var Name = value` is its own statement kind, while the legacy
-// call-form (`var Name = expression(value: ... scope: group)`) is an element
-// statement. Task 12 must preserve both forms' established visibility rules,
-// so the index records both without reparsing source text.
-const isLegacyVariable = (statement: DslStatement) =>
-  statement.kind === "variable" ||
-  (statement.kind === "element" && statement.type === "variable" && statement.category === "var");
-
 type MutableScope = {
   kind: ScopeKind;
   parentId: ScopeId | null;
@@ -191,7 +175,6 @@ export const buildLexicalScopeIndex = (
 
   const memberIndices = new Map<ScopeId, number[]>();
   const declarationsByScope = new Map<ScopeId, ScopeDeclaration[]>();
-  const legacyVariablesByScope = new Map<ScopeId, LegacyVariableRecord[]>();
   const allDeclarations: ScopeDeclaration[] = [];
   const forGroupIterationSlots = new Map<ScopeId, ForGroupIterationSlot>();
 
@@ -214,16 +197,6 @@ export const buildLexicalScopeIndex = (
       if (existing) existing.push(declaration);
       else declarationsByScope.set(scopeId, [declaration]);
       allDeclarations.push(declaration);
-    } else if (isLegacyVariable(statement)) {
-      const record: LegacyVariableRecord = {
-        scopeId,
-        statementIndex: index,
-        name: statement.name,
-        nameSpan: statement.nameSpan
-      };
-      const existing = legacyVariablesByScope.get(scopeId);
-      if (existing) existing.push(record);
-      else legacyVariablesByScope.set(scopeId, [record]);
     } else if (isForGroup(statement) && statement.opensBlock) {
       const forScopeId = `for:${resolveStatementId(index, statement)}`;
       const variableAttr = statement.attrs.find((attr) => attr.key === "variable");
@@ -297,7 +270,6 @@ export const buildLexicalScopeIndex = (
     scopeOfStatement: scopeOfStatementMap,
     declarationsByScope,
     allDeclarations,
-    legacyVariablesByScope,
     forGroupIterationSlots,
     statementRankByIndex,
     scopeMetadataById

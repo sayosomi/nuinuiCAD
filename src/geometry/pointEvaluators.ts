@@ -27,7 +27,6 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
     elementsById,
     errors,
     disabledByGroupId,
-    computedVariables,
     elements,
     localVariables: { localVariableValues, localVariableNames }
   } = context;
@@ -41,7 +40,6 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
       localVariableValues,
       localVariableNames,
       disabledByGroupId,
-      computedVariables,
       elements
     );
   const evaluatePointAnchor = (anchor: Parameters<typeof getPointAnchorOrError>[1], key: string) =>
@@ -55,7 +53,6 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
       localVariableValues,
       localVariableNames,
       disabledByGroupId,
-      computedVariables,
       elements
     );
 
