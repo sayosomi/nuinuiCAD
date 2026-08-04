@@ -372,7 +372,7 @@ type BlockFrame = {
   line: number;
 };
 
-const blockFrameKind = (statement: DslStatement): BlockFrame["kind"] | null => {
+export const blockFrameKind = (statement: DslStatement): BlockFrame["kind"] | null => {
   if (statement.kind === "group") return "group";
   if (statement.kind === "printLayout") return "printLayout";
   if (statement.kind === "element") {

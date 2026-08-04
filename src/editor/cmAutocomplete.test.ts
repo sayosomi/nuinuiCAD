@@ -461,6 +461,117 @@ describe("createDslCompletionSource", () => {
     expect(labels).not.toContain("@GroupW");
   });
 
+  // Regression: `@AB.` (an element-property reference, not a typed-binding
+  // reference) inside printLayout/place numeric fields must route through the
+  // same shared elementParameter completion branch ordinary element fields
+  // use. printLayout is a BlockFrame scope (dslParser.ts's blockFrameKind)
+  // like group/conditionalGroup/forGroup, but it is never a CadElement -
+  // dslElementParameterCompletionCandidates.ts previously mistook that
+  // missing elementId for an unresolved group scope and suppressed every
+  // candidate for every printLayout/place numeric field.
+  describe("printLayout/place @Element.property completion (regression)", () => {
+    const buildSource = () => [
+      "nui 3",
+      "const GlobalW: number = 100",
+      "const Flag: boolean = true",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "group G {",
+      "  point C = coordinate(x: 0, y: 0)",
+      "}",
+      "printLayout Layout1 (",
+      "  columns: 2,",
+      "  scale: 1+@AB.length",
+      ") {",
+      "  place G (at: (0, 0), angle: 0+@AB.length)",
+      "}"
+    ].join("\n");
+
+    const setup = () => {
+      const source = buildSource();
+      const statements = parseDsl(source).statements;
+      const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+      const compiled = compileDslDocument(source, { assignedStatementIds });
+      expect(compiled.document).not.toBeNull();
+      expect(compiled.statementMap).not.toBeNull();
+      const abId = compiled.document!.elements.find((element) => element.type === "line")!.id;
+      const state = EditorState.create({ doc: source });
+      const statementRanges = createStatementRangeIndex(state.doc, compiled.statementMap!);
+      const printLayoutRanges = createPrintLayoutRangeIndex(state.doc, compiled.statementMap!);
+      const typedRanges = createTypedDeclarationRangeIndex(state.doc, compiled.statementMap!);
+      const scopeRanges = createScopeBodyRangeIndex(state.doc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex);
+      const computedGeometry = new Map([[abId, {
+        kind: "line" as const,
+        elementId: abId,
+        name: "AB",
+        startPointId: null,
+        endPointId: null,
+        start: { kind: "point" as const, elementId: "a", name: "a", x: 0, y: 0 },
+        end: { kind: "point" as const, elementId: "b", name: "b", x: 10, y: 0 },
+        length: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 0,
+        startTangentAngleDeg: 0,
+        endTangentAngleDeg: 0
+      }]]);
+      const completionSource = createDslCompletionSource({
+        elements: () => compiled.document!.elements,
+        statementRanges: () => statementRanges,
+        printLayouts: () => compiled.document!.printLayouts,
+        printLayoutRanges: () => printLayoutRanges,
+        isComposing: () => false,
+        computedGeometry: () => computedGeometry,
+        effectiveEnabledElementIds: () => new Set([abId]),
+        evaluationErrors: () => [],
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => typedRanges,
+        scopeBodyRanges: () => scopeRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId,
+        statementInfoByKey: () => compiled.statementMap!.byKey
+      });
+      return { source, state, completionSource };
+    };
+
+    it("offers AB's referenceable parameters for @AB. inside printLayout's own scale= field", async () => {
+      const { source, state, completionSource } = setup();
+      const pos = source.indexOf("scale: 1+@AB.") + "scale: 1+@AB.".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toContain("length");
+    });
+
+    it("offers AB's referenceable parameters for @AB. inside place's angle= field", async () => {
+      const { source, state, completionSource } = setup();
+      const pos = source.indexOf("angle: 0+@AB.") + "angle: 0+@AB.".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toContain("length");
+    });
+
+    it("still offers only number-typed top-level bindings for a bare @ in the same printLayout block, never element paths or non-number bindings", async () => {
+      const { source, state, completionSource } = setup();
+      const pos = source.indexOf("scale: 1+@") + "scale: 1+@".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toContain("@GlobalW");
+      expect(labels).not.toContain("@Flag");
+      expect(labels).not.toContain("length");
+    });
+
+    it("returns no candidates for a non-existent element token", async () => {
+      const { source, completionSource } = setup();
+      const dirty = source.replace("angle: 0+@AB.length)", "angle: 0+@Nope.length)");
+      const pos = dirty.indexOf("@Nope.") + "@Nope.".length;
+      const dirtyState = EditorState.create({ doc: dirty });
+      const result = await Promise.resolve(completionSource({ state: dirtyState, pos, explicit: true } as never));
+      expect(result === null || result.options.length === 0).toBe(true);
+    });
+  });
+
   // KNOWN GAP (flagged, not fixed here): the intermediates= completion branch
   // in cmAutocomplete.ts unconditionally clears completions rather than
   // calling the plain top-level typed-binding source its own comment

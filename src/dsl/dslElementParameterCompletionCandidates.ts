@@ -1,4 +1,4 @@
-import { dslScopeBeforeParsedLine, parseDsl } from "./dslParser";
+import { blockFrameKind, dslScopeBeforeParsedLine, parseDsl } from "./dslParser";
 import { liveElementsBeforeLine, type DslLiveStatementIdentity } from "./dslCompletionCandidates";
 import {
   elementParameterReferenceOptionsForPosition,
@@ -49,8 +49,22 @@ export const dslElementParameterCompletionOptions = ({
   const parsed = parseDsl(source);
   const scope = dslScopeBeforeParsedLine(parsed, cursorLine);
   const scopeStatement = scope ? parsed.statements[scope.statementIndex] : null;
-  const parentGroupId = scopeStatement ? statementElementIds.get(scopeStatement.line) : undefined;
-  if (scopeStatement && !parentGroupId) return [];
+  // Only an element-backed group scope (group/conditionalGroup/forGroup - reusing
+  // dslParser.ts's own blockFrameKind, the authority dslScopeBeforeParsedLine's stack
+  // is built from) requires resolving a parentGroupId here. printLayout is also a
+  // BlockFrame kind (its stack treats it identically to a group for line-range
+  // purposes) but it is never a CadElement and has no entry in statementElementIds,
+  // and has no lexical scope of its own (mirrors printLayoutTypedBindingSite's
+  // root-scope treatment) - allowlist the real group kinds explicitly rather than
+  // excluding printLayout by name, so a future non-element-backed block kind doesn't
+  // silently fall into this same bug.
+  const scopeFrameKind = scopeStatement ? blockFrameKind(scopeStatement) : null;
+  const groupScopeStatement =
+    scopeFrameKind === "group" || scopeFrameKind === "conditionalGroup" || scopeFrameKind === "forGroup"
+      ? scopeStatement
+      : null;
+  const parentGroupId = groupScopeStatement ? statementElementIds.get(groupScopeStatement.line) : undefined;
+  if (groupScopeStatement && !parentGroupId) return [];
 
   const firstAtStopLine = parsed.statements.find((statement) => statement.kind === "atStop")?.line ?? Infinity;
   const cutoffLine = Math.min(cursorLine, firstAtStopLine);
