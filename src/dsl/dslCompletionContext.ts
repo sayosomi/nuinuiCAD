@@ -172,7 +172,7 @@ const dslIntermediatesFieldCompletionContext = (
 };
 
 /**
- * `place`/`layoutVar`/`printLayout` have no CadElement/ParameterDefinition to
+ * `place`/`printLayout` have no CadElement/ParameterDefinition to
  * derive metadata from (dslCompletionMetadataForType is unusable), so the
  * accepted attribute-key set comes from dslPrintLayoutAttributes.ts — the same
  * constants dslCompiler.ts's buildBlockPrintLayouts compiles against — rather
@@ -185,17 +185,6 @@ const dslIntermediatesFieldCompletionContext = (
 const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: string, majorVersion?: 2 | 3): DslCompletionContext => {
   const statement = dslLinePrintLayoutStatement(lineText);
   if (!statement) return null;
-
-  if (statement.kind === "layoutVar") {
-    const span = dslLinePrintLayoutValueSpans(lineText)
-      .find((item) => item.source === "payload" && item.key === "expression" && pos >= item.start && pos <= item.end);
-    if (!span) return null;
-    return numberFieldCompletionContext(code, pos, span.start, {
-      source: "printLayoutBlock",
-      key: "expression",
-      definition: { key: "expression", label: "式", kind: "number" }
-    }, majorVersion);
-  }
 
   const numericKeys = statement.kind === "place" ? placeNumericAttrKeys : printLayoutNumericAttrKeys;
   const coordinateKeys = statement.kind === "place" ? placeCoordinateAttrKeys : printLayoutCoordinateAttrKeys;

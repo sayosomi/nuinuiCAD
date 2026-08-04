@@ -2,7 +2,6 @@ import type {
   CadElement,
   EvaluationResult,
   ElementId,
-  NumericVariable,
   NumericValue,
   PaperSizeId,
   PrintLayout,
@@ -10,6 +9,15 @@ import type {
   VisibilityProfile
 } from "../types/geometry";
 import { evaluateNumericValue, isNumericExpression, makeNumericExpression } from "../geometry/numericExpressions";
+import {
+  materializePrintLayoutNumericBinding,
+  printLayoutCompiledNumericBinding,
+  printLayoutPlacementStatementKey,
+  printLayoutStatementKey,
+  type PrintLayoutNumericBindingLookup
+} from "./printLayoutNumericBindingRuntime";
+
+export type { PrintLayoutNumericBindingLookup } from "./printLayoutNumericBindingRuntime";
 
 export type PaperSize = {
   id: PaperSizeId;
@@ -32,7 +40,6 @@ export type ResolvedPrintLayout = Omit<
   | "scale"
   | "svgCanvasWidthMm"
   | "svgCanvasHeightMm"
-  | "numericVariables"
   | "placements"
 > & {
   columns: number;
@@ -41,7 +48,6 @@ export type ResolvedPrintLayout = Omit<
   scale: number;
   svgCanvasWidthMm: number;
   svgCanvasHeightMm: number;
-  numericVariables: Array<Omit<NumericVariable, "value"> & { value: number }>;
   placements: ResolvedPrintLayoutPlacement[];
 };
 
@@ -80,7 +86,6 @@ export const DEFAULT_PRINT_LAYOUT: PrintLayout = {
   scale: 1,
   svgCanvasWidthMm: 410,
   svgCanvasHeightMm: 584,
-  numericVariables: [],
   placements: []
 };
 
@@ -151,17 +156,6 @@ export const createDefaultPrintLayout = (
   name: ""
 });
 
-const normalizeNumericVariable = (value: unknown): NumericVariable | null => {
-  if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string") {
-    return null;
-  }
-  return {
-    id: value.id,
-    name: value.name,
-    value: normalizeNumericValue(value.value, 30)
-  };
-};
-
 export const normalizePrintLayout = (
   value: unknown,
   elements: CadElement[],
@@ -195,11 +189,6 @@ export const normalizePrintLayout = (
         )
         .filter((placement): placement is PrintLayoutPlacement => Boolean(placement))
     : [];
-  const numericVariables = Array.isArray(value.numericVariables)
-    ? value.numericVariables
-        .map(normalizeNumericVariable)
-        .filter((variable): variable is NumericVariable => Boolean(variable))
-    : [];
 
   return {
     id,
@@ -214,7 +203,6 @@ export const normalizePrintLayout = (
     scale: normalizeNumericValue(value.scale, DEFAULT_PRINT_LAYOUT.scale),
     svgCanvasWidthMm: normalizeNumericValue(value.svgCanvasWidthMm, DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm),
     svgCanvasHeightMm: normalizeNumericValue(value.svgCanvasHeightMm, DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm),
-    numericVariables,
     placements
   };
 };
@@ -269,58 +257,40 @@ const clampInteger = (value: number, fallback: number, max: number) =>
 const clampMin = (value: number, fallback: number, min: number) =>
   Math.max(Number.isFinite(value) ? value : fallback, min);
 
-const printVariableValues = ({
-  variables,
-  elements,
-  evaluation
-}: {
-  variables: NumericVariable[];
-  elements: CadElement[];
-  evaluation: EvaluationResult;
-}) => {
-  const values = new Map<string, number>();
-  const resolvedVariables: Array<Omit<NumericVariable, "value"> & { value: number }> = [];
-  const elementsById = new Map(elements.map((element) => [element.id, element]));
-  for (const variable of variables) {
-    const result = evaluateNumericValue({
-      value: variable.value,
-      computedGeometry: evaluation.computedGeometry,
-      elementsById,
-      elements,
-      localVariables: values
-    });
-    if (result.value === undefined) continue;
-    resolvedVariables.push({
-      id: variable.id,
-      name: variable.name,
-      value: result.value
-    });
-    values.set(variable.id, result.value);
-    values.set(variable.name, result.value);
-  }
-  return { values, resolvedVariables };
-};
-
 const resolveNumericValue = ({
   value,
   fallback,
   elements,
   evaluation,
-  localVariables
+  statementKey,
+  parameterKey,
+  numericBindingLookup
 }: {
   value: NumericValue;
   fallback: number;
   elements: CadElement[];
   evaluation: EvaluationResult;
-  localVariables: Map<string, number>;
+  /** `printLayout:<id>` / `place:<id>:<placementIndex>` - identifies the
+   * compiled site for typed `@name` materialization. Absent for fields with
+   * no compiled-site concept (none today; kept optional for callers that
+   * don't have a lookup at all). */
+  statementKey?: string;
+  parameterKey?: string;
+  numericBindingLookup?: PrintLayoutNumericBindingLookup;
 }) => {
   if (!isNumericExpression(value)) return value;
+  const binding = statementKey && parameterKey
+    ? printLayoutCompiledNumericBinding(numericBindingLookup, statementKey, parameterKey)
+    : undefined;
+  const materialized = binding && binding.expression === value.expression
+    ? materializePrintLayoutNumericBinding(binding, evaluation.computedScalarBindings)
+    : null;
+  const effectiveValue: NumericValue = materialized !== null ? { kind: "expression", expression: materialized } : value;
   const result = evaluateNumericValue({
-    value,
+    value: effectiveValue,
     computedGeometry: evaluation.computedGeometry,
     elementsById: new Map(elements.map((element) => [element.id, element])),
-    elements,
-    localVariables
+    elements
   });
   return result.value ?? fallback;
 };
@@ -328,44 +298,42 @@ const resolveNumericValue = ({
 export const resolvePrintLayout = ({
   layout,
   elements,
-  evaluation
+  evaluation,
+  numericBindingLookup
 }: {
   layout: PrintLayout;
   elements: CadElement[];
   evaluation: EvaluationResult;
+  numericBindingLookup?: PrintLayoutNumericBindingLookup;
 }): ResolvedPrintLayout => {
-  const { values: localVariables, resolvedVariables } = printVariableValues({
-    variables: layout.numericVariables ?? [],
-    elements,
-    evaluation
-  });
+  const statementKey = printLayoutStatementKey(layout.id);
   const columns = clampInteger(
-    resolveNumericValue({ value: layout.columns, fallback: DEFAULT_PRINT_LAYOUT.columns as number, elements, evaluation, localVariables }),
+    resolveNumericValue({ value: layout.columns, fallback: DEFAULT_PRINT_LAYOUT.columns as number, elements, evaluation, statementKey, parameterKey: "columns", numericBindingLookup }),
     DEFAULT_PRINT_LAYOUT.columns as number,
     20
   );
   const rows = clampInteger(
-    resolveNumericValue({ value: layout.rows, fallback: DEFAULT_PRINT_LAYOUT.rows as number, elements, evaluation, localVariables }),
+    resolveNumericValue({ value: layout.rows, fallback: DEFAULT_PRINT_LAYOUT.rows as number, elements, evaluation, statementKey, parameterKey: "rows", numericBindingLookup }),
     DEFAULT_PRINT_LAYOUT.rows as number,
     20
   );
   const overlapMm = clampMin(
-    resolveNumericValue({ value: layout.overlapMm, fallback: DEFAULT_PRINT_LAYOUT.overlapMm as number, elements, evaluation, localVariables }),
+    resolveNumericValue({ value: layout.overlapMm, fallback: DEFAULT_PRINT_LAYOUT.overlapMm as number, elements, evaluation, statementKey, parameterKey: "overlap", numericBindingLookup }),
     DEFAULT_PRINT_LAYOUT.overlapMm as number,
     0
   );
   const scale = clampMin(
-    resolveNumericValue({ value: layout.scale, fallback: DEFAULT_PRINT_LAYOUT.scale as number, elements, evaluation, localVariables }),
+    resolveNumericValue({ value: layout.scale, fallback: DEFAULT_PRINT_LAYOUT.scale as number, elements, evaluation, statementKey, parameterKey: "scale", numericBindingLookup }),
     DEFAULT_PRINT_LAYOUT.scale as number,
     0.01
   );
   const svgCanvasWidthMm = clampMin(
-    resolveNumericValue({ value: layout.svgCanvasWidthMm, fallback: DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm as number, elements, evaluation, localVariables }),
+    resolveNumericValue({ value: layout.svgCanvasWidthMm, fallback: DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm as number, elements, evaluation, statementKey, parameterKey: "canvas:x", numericBindingLookup }),
     DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm as number,
     1
   );
   const svgCanvasHeightMm = clampMin(
-    resolveNumericValue({ value: layout.svgCanvasHeightMm, fallback: DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm as number, elements, evaluation, localVariables }),
+    resolveNumericValue({ value: layout.svgCanvasHeightMm, fallback: DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm as number, elements, evaluation, statementKey, parameterKey: "canvas:y", numericBindingLookup }),
     DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm as number,
     1
   );
@@ -382,13 +350,15 @@ export const resolvePrintLayout = ({
     scale,
     svgCanvasWidthMm,
     svgCanvasHeightMm,
-    numericVariables: resolvedVariables,
-    placements: layout.placements.map((placement) => ({
-      ...placement,
-      x: resolveNumericValue({ value: placement.x, fallback: 0, elements, evaluation, localVariables }),
-      y: resolveNumericValue({ value: placement.y, fallback: 0, elements, evaluation, localVariables }),
-      angleDeg: resolveNumericValue({ value: placement.angleDeg, fallback: 0, elements, evaluation, localVariables })
-    }))
+    placements: layout.placements.map((placement, placementIndex) => {
+      const placementStatementKey = printLayoutPlacementStatementKey(layout.id, placementIndex);
+      return {
+        ...placement,
+        x: resolveNumericValue({ value: placement.x, fallback: 0, elements, evaluation, statementKey: placementStatementKey, parameterKey: "at:x", numericBindingLookup }),
+        y: resolveNumericValue({ value: placement.y, fallback: 0, elements, evaluation, statementKey: placementStatementKey, parameterKey: "at:y", numericBindingLookup }),
+        angleDeg: resolveNumericValue({ value: placement.angleDeg, fallback: 0, elements, evaluation, statementKey: placementStatementKey, parameterKey: "angle", numericBindingLookup })
+      };
+    })
   };
 };
 

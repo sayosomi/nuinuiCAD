@@ -86,7 +86,7 @@ describe("renameElementWithPropagation", () => {
 
   it("patches a print layout block with a group rename while preserving unrelated lines", () => {
     // printLayout's own canonical header is always vertical (one arg per
-    // line, per dslDocument.ts's printLayoutBlockLines), unlike place/layoutVar
+    // line, per dslDocument.ts's printLayoutBlockLines), unlike place
     // member lines which stay single-line - matching that shape here for the
     // same in-place-patch reason as the test above.
     const source = [

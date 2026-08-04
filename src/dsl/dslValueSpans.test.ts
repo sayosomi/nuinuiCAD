@@ -276,18 +276,13 @@ describe("dslLinePrintLayoutStatement / dslLinePrintLayoutValueSpans", () => {
     expect(dslLinePrintLayoutStatement(line)?.kind).toBe("place");
   });
 
-  it("recognizes a layoutVar member line", () => {
-    const line = "layoutVar Margin = 20 + 5";
-    expect(dslLinePrintLayoutStatement(line)?.kind).toBe("layoutVar");
-  });
-
   it("rejects a place line with a genuine parse error (missing group reference)", () => {
     expect(dslLinePrintLayoutStatement("place (at: (1, 2))")).toBeNull();
   });
 
   it("keeps returned span offsets relative to the original lineText, not the synthetic wrapper — place", () => {
     // The synthetic wrapper prepends a full extra line ("printLayout {\n") before
-    // this text when reparsing place/layoutVar lines. If span offsets ever leaked
+    // this text when reparsing a place line. If span offsets ever leaked
     // through unadjusted from that wrapped coordinate space, they would be off by
     // "printLayout {\n".length (14) or by an unrelated line-1 offset entirely —
     // this test fails loudly in either case instead of silently mis-selecting text.
@@ -300,14 +295,6 @@ describe("dslLinePrintLayoutStatement / dslLinePrintLayoutValueSpans", () => {
     expect(at.end).toBe(line.indexOf("(10, 20)") + "(10, 20)".length);
     expect(line.slice(angle.start, angle.end)).toBe("15");
     expect(angle.start).toBe(line.indexOf("angle: 15") + "angle: ".length);
-  });
-
-  it("keeps returned span offsets relative to the original lineText — layoutVar", () => {
-    const line = "layoutVar Margin = 20 + 5";
-    const spans = dslLinePrintLayoutValueSpans(line);
-    const expression = spans.find((span) => span.key === "expression")!;
-    expect(line.slice(expression.start, expression.end)).toBe("20 + 5");
-    expect(expression.start).toBe(line.indexOf("20 + 5"));
   });
 
   it("keeps returned span offsets relative to the original lineText — printLayout", () => {

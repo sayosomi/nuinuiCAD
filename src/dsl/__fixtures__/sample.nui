@@ -9,21 +9,6 @@ view 通常 (default: true, seam: false)
 view 印刷 (default: true, seam: true)
 activeView 通常
 
-printLayout A4 (
-  output: pdf,
-  view: 印刷,
-  paper: a4,
-  orientation: portrait,
-  columns: 2,
-  rows: 2,
-  overlap: 10,
-  scale: 1,
-  canvas: (410, 584)
-) {
-  layoutVar margin = 15
-  place 前身頃 (at: (0, margin), angle: 0, mirrorX: false)
-}
-
 group 前身頃 {
   point A = coordinate(
     x: 0,
@@ -70,3 +55,17 @@ point after = coordinate(
   x: 99,
   y: 99
 )
+
+printLayout A4 (
+  output: pdf,
+  view: 印刷,
+  paper: a4,
+  orientation: portrait,
+  columns: 2,
+  rows: 2,
+  overlap: 10,
+  scale: 1,
+  canvas: (410, 584)
+) {
+  place 前身頃 (at: (0, 15), angle: 0, mirrorX: false)
+}

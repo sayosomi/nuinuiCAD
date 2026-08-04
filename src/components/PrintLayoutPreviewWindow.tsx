@@ -4,6 +4,7 @@ import { Minus, X, ZoomIn } from "lucide-react";
 import { printableItemsForLayout } from "../print/printGeometry";
 import type { GroupPrintEnabledLookup } from "../geometry/groupPrintEnabledRuntime";
 import { orientedPaperSize, printCanvasSizeMm, resolvePrintLayout } from "../print/printLayout";
+import type { PrintLayoutNumericBindingLookup } from "../print/printLayout";
 import {
   loadLayoutSettings,
   saveLayoutSettings
@@ -28,7 +29,8 @@ const printLayoutCanvasForLayout = ({
   evaluation,
   visibilityProfiles,
   activeVisibilityProfileId,
-  groupPrintEnabledLookup
+  groupPrintEnabledLookup,
+  printLayoutNumericBindingLookup
 }: {
   layout: PrintLayout;
   elements: ReturnType<typeof useCadDocumentStore.getState>["elements"];
@@ -36,8 +38,9 @@ const printLayoutCanvasForLayout = ({
   visibilityProfiles: ReturnType<typeof useCadDocumentStore.getState>["visibilityProfiles"];
   activeVisibilityProfileId: string;
   groupPrintEnabledLookup: GroupPrintEnabledLookup;
+  printLayoutNumericBindingLookup: PrintLayoutNumericBindingLookup;
 }) => {
-  const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation });
+  const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation, numericBindingLookup: printLayoutNumericBindingLookup });
   const isSvgLayout = resolvedLayout.outputKind === "svg";
   const paper = orientedPaperSize(resolvedLayout);
   const printCanvas = printCanvasSizeMm(resolvedLayout);
@@ -56,7 +59,8 @@ const printLayoutCanvasForLayout = ({
       layout,
       visibilityProfiles,
       activeVisibilityProfileId,
-      groupPrintEnabledLookup
+      groupPrintEnabledLookup,
+      printLayoutNumericBindingLookup
     })
   };
 };
@@ -138,6 +142,12 @@ export const PrintLayoutPreviewWindow = ({
     () => ({ propertyBindings: groupPrintEnabledPropertyBindings, byElementId: groupPrintEnabledByElementId }),
     [groupPrintEnabledPropertyBindings, groupPrintEnabledByElementId]
   );
+  const printLayoutNumericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
+  const printLayoutByKey = useCadDocumentStore((state) => state.doc.statementMap.byKey);
+  const printLayoutNumericBindingLookup: PrintLayoutNumericBindingLookup = useMemo(
+    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey }),
+    [printLayoutNumericBindings, printLayoutByKey]
+  );
   const printPreviewWindow = useCadUiStore((state) => state.printPreviewWindow);
   const updatePrintPreviewWindow = useCadUiStore((state) => state.updatePrintPreviewWindow);
   const setShowPrintPreviewWindow = useCadUiStore((state) => state.setShowPrintPreviewWindow);
@@ -157,10 +167,11 @@ export const PrintLayoutPreviewWindow = ({
             evaluation,
             visibilityProfiles,
             activeVisibilityProfileId,
-            groupPrintEnabledLookup
+            groupPrintEnabledLookup,
+            printLayoutNumericBindingLookup
           })
         : null,
-    [activeVisibilityProfileId, elements, evaluation, selectedLayout, visibilityProfiles, groupPrintEnabledLookup]
+    [activeVisibilityProfileId, elements, evaluation, selectedLayout, visibilityProfiles, groupPrintEnabledLookup, printLayoutNumericBindingLookup]
   );
   const pageStepX = model ? Math.max(model.paper.widthMm - model.resolvedLayout.overlapMm, 1) : 1;
   const pageStepY = model ? Math.max(model.paper.heightMm - model.resolvedLayout.overlapMm, 1) : 1;

@@ -67,7 +67,6 @@ const baseLayout: PrintLayout = {
   scale: 2,
   svgCanvasWidthMm: 410,
   svgCanvasHeightMm: 584,
-  numericVariables: [],
   placements: [
     {
       id: "placement-1",

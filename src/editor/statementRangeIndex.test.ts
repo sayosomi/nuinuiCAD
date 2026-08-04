@@ -195,7 +195,7 @@ describe("statementRangeIndex", () => {
 });
 
 describe("printLayoutRangeIndex", () => {
-  const printLayoutSource = ["nui 3", "printLayout Layout1 () {", "  layoutVar Width = 10", "}"].join("\n");
+  const printLayoutSource = ["nui 3", "printLayout Layout1 () {", "  place G (at: (0, 0), angle: 0)", "}"].join("\n");
 
   it("builds one entry per printLayout:<id> statementMap key, at the block-opening line", () => {
     const result = compiled(printLayoutSource);

@@ -52,10 +52,15 @@ export const exportPrintSvg = async (evaluation: EvaluationResult | undefined) =
 
   const state = useCadDocumentStore.getState();
   const layout = activePrintLayout(state.printLayouts, state.activePrintLayoutId);
+  const numericBindingLookup = {
+    numericBindings: state.doc.numericBindings,
+    byKey: state.doc.statementMap.byKey
+  };
   const resolvedLayout = resolvePrintLayout({
     layout,
     elements: state.elements,
-    evaluation
+    evaluation,
+    numericBindingLookup
   });
   const path = await exportPrintSvgDialog(defaultPrintSvgPath({
     layoutName: layout.name,
@@ -72,7 +77,8 @@ export const exportPrintSvg = async (evaluation: EvaluationResult | undefined) =
     groupPrintEnabledLookup: {
       propertyBindings: state.doc.propertyBindings,
       byElementId: state.doc.statementMap.byElementId
-    }
+    },
+    printLayoutNumericBindingLookup: numericBindingLookup
   });
   const input: ExportPrintSvgInput = {
     path: ensureSvgFileName(path),

@@ -35,7 +35,6 @@ export const dslStatementKeywords = {
   version: "nui",
   for: "for",
   place: "place",
-  layoutVariable: "layoutVar",
   role: "role",
   view: "view",
   activeView: "activeView",
@@ -80,7 +79,6 @@ const settingsKeywords = new Set<string>([
   dslStatementKeywords.activeView,
   dslStatementKeywords.activePrintLayout,
   dslStatementKeywords.printLayout,
-  dslStatementKeywords.layoutVariable,
   dslStatementKeywords.place
 ]);
 
@@ -104,7 +102,6 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "atStop",
   "activePrintLayout",
   "place",
-  "layoutVar",
   "typedDeclaration",
   "set",
   "reverse",
@@ -196,8 +193,6 @@ const settingsStatementToDslStatement = (settings: DslSettingsStatement, line: n
   switch (settings.kind) {
     case "version":
       return { ...base, kind: "version", value: settings.value ?? "" };
-    case "layoutVar":
-      return { ...base, kind: "layoutVar", expression: settings.expression ?? "" };
     case "place": {
       const group = settings.args.find((arg) => arg.key === null)?.value ?? "";
       return { ...base, kind: "place", group };
@@ -414,10 +409,10 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
       return;
     }
     const top = stack.at(-1);
-    if (top?.kind === "printLayout" && statement.kind !== "place" && statement.kind !== "layoutVar") {
-      diagnostics.push(diagnostic(statement.line, "printLayout ブロック内には place と layoutVar のみ書けます。"));
+    if (top?.kind === "printLayout" && statement.kind !== "place") {
+      diagnostics.push(diagnostic(statement.line, "printLayout ブロック内には place のみ書けます。"));
     }
-    if ((statement.kind === "place" || statement.kind === "layoutVar") && top?.kind !== "printLayout") {
+    if (statement.kind === "place" && top?.kind !== "printLayout") {
       diagnostics.push(diagnostic(statement.line, `${statement.kind} は printLayout ブロック内にのみ書けます。`));
     }
     if (statement.opensBlock) {

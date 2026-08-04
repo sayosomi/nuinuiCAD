@@ -119,7 +119,6 @@ export type DslStatement =
   | (DslStatementBase & { kind: "atStop" })
   | (DslStatementBase & { kind: "activePrintLayout" })
   | (DslStatementBase & { kind: "place"; group: string })
-  | (DslStatementBase & { kind: "layoutVar"; expression: string })
   | (DslStatementBase & {
       kind: "typedDeclaration";
       bindingKind: "const" | "let";

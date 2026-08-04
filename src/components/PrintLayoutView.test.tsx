@@ -240,55 +240,6 @@ describe("PrintLayoutPanel", () => {
     expect(screen.queryByRole("button", { name: "PDF" })).not.toBeInTheDocument();
   });
 
-  it("adds print-local variables and prefers them in print number expressions", async () => {
-    await renderPanel();
-    const variableSection = screen.getByRole("heading", { name: "印刷変数" }).closest("section");
-    expect(variableSection).not.toBeNull();
-
-    fireEvent.click(within(variableSection!).getByRole("button", { name: /印刷変数/ }));
-    fireEvent.click(within(variableSection!).getByRole("button", { name: "追加" }));
-    fireEvent.change(within(variableSection!).getByLabelText("印刷変数名"), {
-      target: { value: "倍率" }
-    });
-    fireEvent.change(within(variableSection!).getByLabelText("値"), {
-      target: { value: "2" }
-    });
-
-    const scaleInput = screen.getByLabelText("拡大率");
-    fireEvent.change(scaleInput, { target: { value: "@倍率" } });
-
-    expect(activeLayout().numericVariables).toEqual([
-      {
-        id: "print-variable-1",
-        name: "倍率",
-        value: 2
-      }
-    ]);
-    expect(activeLayout().scale).toEqual({
-      kind: "expression",
-      expression: "@print-variable-1"
-    });
-    expect(scaleInput).toHaveValue("@倍率");
-  });
-
-  it("deletes print-local variables from the print layout", async () => {
-    useCadDocumentStore.setState({
-      printLayouts: [{
-        ...DEFAULT_PRINT_LAYOUT,
-        numericVariables: [{ id: "print-variable-1", name: "倍率", value: 2 }]
-      }]
-    });
-    await renderPanel();
-    const variableSection = screen.getByRole("heading", { name: "印刷変数" }).closest("section");
-    expect(variableSection).not.toBeNull();
-
-    fireEvent.click(within(variableSection!).getByRole("button", { name: /印刷変数/ }));
-    fireEvent.click(within(variableSection!).getByRole("button", { name: "削除" }));
-
-    expect(activeLayout().numericVariables).toEqual([]);
-    expect(within(variableSection!).getByText("印刷変数はありません。")).toBeInTheDocument();
-  });
-
   it("keeps print number inputs blank while editing and restores scale to one on Enter", async () => {
     useCadDocumentStore.setState({
       printLayouts: [{
@@ -398,16 +349,35 @@ describe("PrintLayoutPanel element-parameter completion", () => {
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
   });
 
-  it("coexists with @variable candidates in the same input without interference", async () => {
-    await renderWithLine();
-    act(() => {
-      useCadDocumentStore.setState({
-        printLayouts: [{
-          ...DEFAULT_PRINT_LAYOUT,
-          numericVariables: [{ id: "print-variable-1", name: "倍率", value: 1.5 }]
-        }]
-      });
+  it("coexists with typed const/let @-candidates in the same input without interference (Task 53)", async () => {
+    // Typed binding candidates come from the compiled document's own
+    // bindingAnalysis/statementMap (printLayoutTypedBindingCandidates.ts),
+    // unlike @Element.property candidates which read the live elements array
+    // directly - so this test seeds a real compiled document via commitText
+    // rather than raw store-state injection.
+    useCadDocumentStore.getState().commitText(
+      [
+        "nui 3",
+        "const 倍率: number = 1.5",
+        "point A = coordinate(x: 0, y: 0)",
+        "point B = coordinate(x: 10, y: 0)",
+        "line 直線AB = segment(start: A, end: B)",
+        "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+        "}"
+      ].join("\n"),
+      "test"
+    );
+    await act(async () => {});
+    const state = useCadDocumentStore.getState();
+    const lineElement = state.elements.find((element) => element.name === "直線AB")!;
+    useCadUiStore.setState({
+      ...initialCadUiState(),
+      selectedElementId: lineElement.id,
+      selectedElementIds: [lineElement.id],
+      selectionAnchorElementId: lineElement.id
     });
+    render(<PrintLayoutPanel evaluation={evaluateElements(state.elements)} />);
+    await act(async () => {});
     const scaleInput = screen.getByLabelText("拡大率");
 
     fireEvent.change(scaleInput, { target: { value: "@", selectionStart: 1, selectionEnd: 1 } });

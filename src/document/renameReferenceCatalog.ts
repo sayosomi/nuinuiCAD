@@ -139,7 +139,9 @@ const layoutSlots = (
     return { complete: false, message: `printLayout ${layout.id} の文を特定できません。` };
   }
   const owner = { kind: "print-layout" as const, layoutId: layout.id };
-  const localVariableIds = new Set((layout.numericVariables ?? []).map((variable) => variable.id));
+  // printLayoutにはlocal変数プールが無い(typed const/letのみ参照する) -
+  // nestedVariableReferencesは常に空集合に対して呼ぶ。
+  const localVariableIds = new Set<string>();
   const slots = numericSlots({
     values: [
       layout.columns,
@@ -158,24 +160,11 @@ const layoutSlots = (
   const members = compiled.statements.filter(
     (member) => member.enclosing?.statementIndex === info.statementIndex
   );
-  const layoutVarStatements = members.filter((member) => member.kind === "layoutVar");
   const placeStatements = members.filter((member) => member.kind === "place");
-  const variables = layout.numericVariables ?? [];
-  if (layoutVarStatements.length !== variables.length || placeStatements.length !== layout.placements.length) {
+  if (placeStatements.length !== layout.placements.length) {
     return { complete: false, message: `printLayout ${layout.id} のメンバー対応を証明できません。` };
   }
 
-  variables.forEach((variable, index) => {
-    const member = layoutVarStatements[index];
-    slots.push(...numericSlots({
-      values: [variable.value],
-      keyPrefix: `layout:${layout.id}:variable:${index}`,
-      line: member.line,
-      owner,
-      elementIds,
-      localVariableIds
-    }));
-  });
   layout.placements.forEach((placement, index) => {
     const member = placeStatements[index];
     slots.push({

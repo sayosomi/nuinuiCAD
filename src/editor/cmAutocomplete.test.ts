@@ -410,18 +410,13 @@ describe("createDslCompletionSource", () => {
     expect(result?.options.some((option) => option.label === "@Width")).toBe(true);
   });
 
-  // printLayoutセクションは常に要素ツリーより前にシリアライズされるため(dslDocument.ts
-  // のserializeDocumentToDsl)、「printLayoutブロックより前の行にトップレベルvarがある」
-  // という行順序関係は生成経由では再現できない(dslVariableCompletionOptionsの
-  // cursorLine=block.line カットオフがこの行順序に依存する)。手書きリテラルのまま残す。
-  // KNOWN GAP (flagged, not fixed here): the printLayoutBlock completion
-  // branch in cmAutocomplete.ts only calls dslPrintLayoutVariableCompletionOptions
-  // for local layoutVar candidates; it never merges typed top-level const/let
-  // bindings the way the generic number branch does via
-  // typedNumberBindingCompletions. The legacy-removal manifest calls for this
-  // merge ("connect typed binding candidates directly") but it was never
-  // implemented, so a root-scope const is currently NOT offered here.
-  it("offers only block-local layoutVar candidates for a place/printLayout attribute, not top-level typed bindings", async () => {
+  // Task 53: printLayout/place numeric fields resolve `@name` against
+  // top-level typed const/let number bindings visible at the printLayout
+  // block's own site (root scope, since printLayout has no lexical scope of
+  // its own) - a root-scope const declared before the block is offered, a
+  // const declared inside an unrelated group is not (matches
+  // numericBindingCompiler.ts's own scope resolution for the same block).
+  it("offers visible top-level typed const/let number bindings for a place attribute, not out-of-scope group-local ones", async () => {
     const source = [
       "nui 3",
       "const GlobalW: number = 100",
@@ -430,8 +425,7 @@ describe("createDslCompletionSource", () => {
       "  const GroupW: number = 50",
       "}",
       "printLayout Layout1 (columns: 2) {",
-      "  layoutVar Margin = 20",
-      "  place G (at: (0, 0), angle: 0+@Ma)",
+      "  place G (at: (0, 0), angle: 0+@Gl)",
       "}"
     ].join("\n");
     const statements = parseDsl(source).statements;
@@ -444,7 +438,7 @@ describe("createDslCompletionSource", () => {
     const printLayoutRanges = createPrintLayoutRangeIndex(state.doc, compiled.statementMap!);
     const typedRanges = createTypedDeclarationRangeIndex(state.doc, compiled.statementMap!);
     const scopeRanges = createScopeBodyRangeIndex(state.doc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex);
-    const pos = source.indexOf("@Ma") + "@Ma".length;
+    const pos = source.indexOf("@Gl") + "@Gl".length;
     const completionSource = createDslCompletionSource({
       elements: () => compiled.document!.elements,
       statementRanges: () => statementRanges,
@@ -458,11 +452,12 @@ describe("createDslCompletionSource", () => {
       typedDeclarationRanges: () => typedRanges,
       scopeBodyRanges: () => scopeRanges,
       statementInfoByElementId: () => compiled.statementMap!.byElementId,
+      statementInfoByKey: () => compiled.statementMap!.byKey
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).not.toBeNull();
     const labels = result!.options.map((option) => option.label);
-    expect(labels).toContain("@Margin");
+    expect(labels).toContain("@GlobalW");
     expect(labels).not.toContain("@GroupW");
   });
 

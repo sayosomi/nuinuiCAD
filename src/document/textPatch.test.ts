@@ -511,12 +511,12 @@ describe("textPatch リネーム伝播", () => {
   it("配置済みグループのリネームで printLayout ブロックが書き換わる", () => {
     const source = [
       "nui 3",
-      "printLayout A4 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "  place 前身頃 (at: (0, 0), angle: 0, mirrorX: false)",
-      "}",
-      "",
       "group 前身頃 {",
       "  point A = coordinate(x: 0, y: 0)",
+      "}",
+      "",
+      "printLayout A4 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "  place 前身頃 (at: (0, 0), angle: 0, mirrorX: false)",
       "}"
     ].join("\n");
     const { patched } = applyChange(source, (document) => ({
@@ -605,12 +605,11 @@ describe("textPatch 非要素セクション", () => {
   it("printLayout の属性変更はブロック単位で置換される", () => {
     const source = [
       "nui 3",
-      "printLayout A4 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "  layoutVar margin = 15",
-      "  place G (at: (0, margin), angle: 0, mirrorX: false)",
-      "}",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
+      "}",
+      "printLayout A4 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "  place G (at: (0, 15), angle: 0, mirrorX: false)",
       "}"
     ].join("\n");
     const { patched } = applyChange(source, (document) => ({
@@ -618,16 +617,15 @@ describe("textPatch 非要素セクション", () => {
       printLayouts: document.printLayouts.map((layout) => ({ ...layout, columns: 5 }))
     }));
     expect(patched).toContain("columns: 5");
-    expect(patched).toContain("layoutVar margin = 15");
     expect(patched).toContain("place G ");
   });
 
   it("printLayout の追加と activePrintLayout の切替", () => {
     const source = [
       "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
       "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "}",
-      "point A = coordinate(x: 0, y: 0)"
+      "}"
     ].join("\n");
     const { patched } = applyChange(source, (document) => {
       const added = {
@@ -645,6 +643,56 @@ describe("textPatch 非要素セクション", () => {
     });
     expect(patched).toContain("printLayout 二枚目 ");
     expect(patched).toContain("activePrintLayout 二枚目");
+  });
+
+  it("printLayoutが存在しない文書に新規追加すると、既存elementsセクションより後に挿入される", () => {
+    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      printLayouts: [
+        {
+          id: "レイアウト1",
+          name: "レイアウト1",
+          outputKind: "pdf",
+          visibilityProfileId: undefined,
+          paperSizeId: "a4",
+          orientation: "portrait",
+          columns: 2,
+          rows: 2,
+          overlapMm: 10,
+          scale: 1,
+          svgCanvasWidthMm: 410,
+          svgCanvasHeightMm: 584,
+          numericVariables: [],
+          placements: []
+        }
+      ],
+      activePrintLayoutId: "レイアウト1"
+    }));
+    const lines = patched.split("\n");
+    const pointBLine = lines.findIndex((line) => line.startsWith("point B"));
+    const printLayoutLine = lines.findIndex((line) => line.startsWith("printLayout"));
+    expect(pointBLine).toBeGreaterThanOrEqual(0);
+    expect(printLayoutLine).toBeGreaterThan(pointBLine);
+  });
+
+  it("printLayoutが既に存在する文書へ新規elementを追加すると、printLayoutセクションより前に挿入される", () => {
+    const source = [
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "}"
+    ].join("\n");
+    const newElement = makeElement("point B = coordinate(x: 5, y: 5)");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: [...document.elements, newElement]
+    }));
+    const lines = patched.split("\n");
+    const pointBLine = lines.findIndex((line) => line.startsWith("point B"));
+    const printLayoutLine = lines.findIndex((line) => line.startsWith("printLayout"));
+    expect(pointBLine).toBeGreaterThanOrEqual(0);
+    expect(printLayoutLine).toBeGreaterThan(pointBLine);
   });
 
   it("@stop の移動は削除+挿入", () => {

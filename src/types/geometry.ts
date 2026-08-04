@@ -65,7 +65,6 @@ export type PrintLayout = {
   scale: NumericValue;
   svgCanvasWidthMm: NumericValue;
   svgCanvasHeightMm: NumericValue;
-  numericVariables?: NumericVariable[];
   placements: PrintLayoutPlacement[];
 };
 

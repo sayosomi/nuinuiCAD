@@ -231,6 +231,7 @@ export class SourceEditorController implements SourceEditorHandle {
     typedDeclarationRanges: () => this.typedDeclarationRanges,
     scopeBodyRanges: () => this.scopeBodyRanges,
     statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId,
+    statementInfoByKey: () => this.store.getState().doc.statementMap.byKey,
     majorVersion: () => this.store.getState().doc.majorVersion ?? undefined
   });
   private decorationIndex: EvaluationDecorationIndex = emptyDecorationIndex();

@@ -21,11 +21,6 @@ const sourceWithAllDanglingKinds = [
   "nui 3",
   "view Draft (default: true, ghost: false)",
   'activeView "Missing View"',
-  'printLayout Sheet (output: pdf, view: "Missing View", paper: a4, orientation: portrait, columns: 1, rows: 1, overlap: 0, scale: 1, canvas: (210, 297)) {',
-  "  layoutVar margin = 10",
-  '  place "Missing Group" (at: (margin, 0), angle: 0, mirrorX: false)',
-  "}",
-  'activePrintLayout "Missing Layout"',
   "point A = coordinate(x: 0, y: 0)",
   "point AnchorUser = offset(from: MissingPoint, dx: 1, dy: 2)",
   'point DotAnchorUser = offset(from: "Missing.Point", dx: 1, dy: 2)',
@@ -34,7 +29,11 @@ const sourceWithAllDanglingKinds = [
   'line EndpointDotUser = extend(end: "Missing.Line".end, to: A)',
   'point NormalRefUser = intersection(line1: MissingLine, line2: "Missing line 2", index: 0, extensions: false)',
   'line ListRefUser = copy(startPoint: A, endPoint: A, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [MissingLine, "Missing line 2", "Outer group"::"Missing#line"])',
-  'point ParentUser = coordinate(x: 1, y: 1, parent: "Outer group"::"Missing parent#1")'
+  'point ParentUser = coordinate(x: 1, y: 1, parent: "Outer group"::"Missing parent#1")',
+  'printLayout Sheet (output: pdf, view: "Missing View", paper: a4, orientation: portrait, columns: 1, rows: 1, overlap: 0, scale: 1, canvas: (210, 297)) {',
+  '  place "Missing Group" (at: (10, 0), angle: 0, mirrorX: false)',
+  "}",
+  'activePrintLayout "Missing Layout"'
 ].join("\n");
 
 describe("dangling reference diagnostics and retention", () => {
