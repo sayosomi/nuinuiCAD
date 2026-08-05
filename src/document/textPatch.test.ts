@@ -676,6 +676,41 @@ describe("textPatch 非要素セクション", () => {
     expect(printLayoutLine).toBeGreaterThan(pointBLine);
   });
 
+  it("末尾に@stopがある文書に新規printLayoutを追加すると、@stopより後に挿入される", () => {
+    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "@stop"].join("\n");
+    // applyChange itself already asserts the patched text reparses with zero
+    // error diagnostics - if printLayout landed before @stop, that assertion
+    // would fail on validatePrintLayoutPlacement's structural diagnostic
+    // ("printLayoutブロック以降には...") before this test body even runs.
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      printLayouts: [
+        {
+          id: "レイアウト1",
+          name: "レイアウト1",
+          outputKind: "pdf",
+          visibilityProfileId: undefined,
+          paperSizeId: "a4",
+          orientation: "portrait",
+          columns: 2,
+          rows: 2,
+          overlapMm: 10,
+          scale: 1,
+          svgCanvasWidthMm: 410,
+          svgCanvasHeightMm: 584,
+          numericVariables: [],
+          placements: []
+        }
+      ],
+      activePrintLayoutId: "レイアウト1"
+    }));
+    const lines = patched.split("\n");
+    const atStopLine = lines.findIndex((line) => line.startsWith("@stop"));
+    const printLayoutLine = lines.findIndex((line) => line.startsWith("printLayout"));
+    expect(atStopLine).toBeGreaterThanOrEqual(0);
+    expect(printLayoutLine).toBeGreaterThan(atStopLine);
+  });
+
   it("printLayoutが既に存在する文書へ新規elementを追加すると、printLayoutセクションより前に挿入される", () => {
     const source = [
       "nui 3",

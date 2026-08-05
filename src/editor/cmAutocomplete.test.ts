@@ -265,9 +265,16 @@ describe("createDslCompletionSource", () => {
   it("offers @name typed-binding completions for a number-kind field with a live @ prefix", async () => {
     // fromは未定義"A"へのダングリング参照(この文の意味自体はテスト対象外)。
     const source = ["nui 3", "const Width: number = 10", "point P = offset(from: A, dx: 10+@Wi, dy: 0)"].join("\n");
-    const statements = parseDsl(source).statements;
+    // "@Wi" is a deliberately partial (still-being-typed) reference - compile a
+    // same-shape baseline with it removed so compileDslDocument doesn't treat
+    // this mid-keystroke text as a genuinely unresolved, document-fatal typed
+    // binding reference. Only `state`/`pos` below use the real dirty text,
+    // mirroring how production completion resolves against the store's
+    // last-good bindingAnalysis while the live buffer is still dirty.
+    const compileSource = ["nui 3", "const Width: number = 10", "point P = offset(from: A, dx: 10, dy: 0)"].join("\n");
+    const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds });
+    const compiled = compileDslDocument(compileSource, { assignedStatementIds });
     expect(compiled.document).not.toBeNull();
     expect(compiled.statementMap).not.toBeNull();
     const state = EditorState.create({ doc: source });
@@ -298,9 +305,12 @@ describe("createDslCompletionSource", () => {
 
   it("resolves attribute + @variable completion on a multi-line vertical-call continuation via the statement's logical projection", async () => {
     const source = ["nui 3", "const Width: number = 10", "point P = offset(", "  from: A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
-    const statements = parseDsl(source).statements;
+    // See the previous test's comment: "@Wi" is deliberately partial, so
+    // compile a same-shape (same line count) baseline with it removed.
+    const compileSource = ["nui 3", "const Width: number = 10", "point P = offset(", "  from: A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
+    const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds });
+    const compiled = compileDslDocument(compileSource, { assignedStatementIds });
     expect(compiled.document).not.toBeNull();
     expect(compiled.statementMap).not.toBeNull();
     const state = EditorState.create({ doc: source });
@@ -368,9 +378,15 @@ describe("createDslCompletionSource", () => {
     // logical statement rather than a single physical row.
     const bodySource = ["point P = offset(", "  from: A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
     const source = ["nui 3", "const Width: number = 10", bodySource].join("\n");
-    const statements = parseDsl(source).statements;
+    // "@Wi" is deliberately partial (still-being-typed) - compile a same-shape
+    // baseline with it removed so compileDslDocument doesn't treat this
+    // mid-keystroke text as a genuinely unresolved, document-fatal reference.
+    // `mainState`/the lens below still carry the real dirty "@Wi" text.
+    const compileBodySource = ["point P = offset(", "  from: A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
+    const compileSource = ["nui 3", "const Width: number = 10", compileBodySource].join("\n");
+    const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds });
+    const compiled = compileDslDocument(compileSource, { assignedStatementIds });
     expect(compiled.document).not.toBeNull();
     expect(compiled.statementMap).not.toBeNull();
     const mainState = EditorState.create({ doc: source });
@@ -428,9 +444,25 @@ describe("createDslCompletionSource", () => {
       "  place G (at: (0, 0), angle: 0+@Gl)",
       "}"
     ].join("\n");
-    const statements = parseDsl(source).statements;
+    // "@Gl" is deliberately partial (still-being-typed toward "@GlobalW") -
+    // compile a same-shape baseline with it removed so compileDslDocument
+    // doesn't treat this mid-keystroke text as a genuinely unresolved,
+    // document-fatal reference. `state`/`pos` below still use the real dirty
+    // text.
+    const compileSource = [
+      "nui 3",
+      "const GlobalW: number = 100",
+      "group G {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  const GroupW: number = 50",
+      "}",
+      "printLayout Layout1 (columns: 2) {",
+      "  place G (at: (0, 0), angle: 0)",
+      "}"
+    ].join("\n");
+    const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds });
+    const compiled = compileDslDocument(compileSource, { assignedStatementIds });
     expect(compiled.document).not.toBeNull();
     expect(compiled.statementMap).not.toBeNull();
     const state = EditorState.create({ doc: source });

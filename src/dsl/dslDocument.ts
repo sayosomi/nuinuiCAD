@@ -873,7 +873,8 @@ const buildStatementMap = (
       statement.kind === "element" ||
       statement.kind === "typedDeclaration" ||
       statement.kind === "set" ||
-      statement.kind === "reverse"
+      statement.kind === "reverse" ||
+      statement.kind === "atStop"
     ) {
       // 単一行の複数行call(例: 複数行coordinate())はブロックを開かないため
       // range.endLineは更新されない - info.endLine(文自体の最終物理行)との
@@ -923,7 +924,16 @@ export const compileDslDocument = (
   // output.
   const hasSetStatements = parsed.statements.some((statement) => statement.kind === "set");
   const hasReverseStatements = parsed.statements.some((statement) => statement.kind === "reverse");
-  const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements || hasReverseStatements)
+  // printLayout/place numeric fields resolve `@name` against typed const/let
+  // bindings the same way element fields do (Task 53), so a document with a
+  // printLayout block but zero typedDeclaration/set/reverse statements of its
+  // own must still run scalar analysis - otherwise an unresolved `@name`
+  // inside printLayout (e.g. `scale: @nope`) never reaches
+  // compileNumericBindings at all and silently produces no diagnostic. `place`
+  // never appears outside an enclosing `printLayout` block, so checking
+  // `printLayout` alone covers both.
+  const hasPrintLayoutStatements = parsed.statements.some((statement) => statement.kind === "printLayout");
+  const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements || hasReverseStatements || hasPrintLayoutStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
   if (stableStatementIdByIndex) {

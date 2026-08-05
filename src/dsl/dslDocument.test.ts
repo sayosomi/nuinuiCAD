@@ -747,6 +747,17 @@ describe("compileDslDocument facade", () => {
     expect(map.sectionEnds).toEqual({ version: 1, palette: 5, visibility: 10, elements: 57, printLayouts: 71 });
   });
 
+  it("counts a trailing @stop (with no printLayout yet) as the end of the elements section, not the statement before it", () => {
+    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "@stop"].join("\n");
+    const compiled = compileDslDocument(source);
+    const map = compiled.statementMap!;
+    // Line 2 is "point A = ..."; line 3 is "@stop" - sectionEnds.elements must
+    // point at @stop's own line (the true end of the section) so a
+    // newly-inserted printLayout is anchored after it, not before it.
+    expect(map.byKey.get("atStop")).toMatchObject({ line: 3 });
+    expect(map.sectionEnds.elements).toBe(3);
+  });
+
   it("injects assignedElementIds while letting explicit id= win", () => {
     const source = ["nui 3", "", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1, id: pinned-b)"].join("\n");
     const baseline = compileDslDocument(source);

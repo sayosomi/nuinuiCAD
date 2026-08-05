@@ -242,11 +242,19 @@ export const compileNumericBindings = ({
   const sourcesByOccurrenceKey = new Map<string, CompiledNumericBinding>();
   const diagnostics: DslDiagnostic[] = [];
   for (const candidate of candidates) {
-    const resolvedTyped = candidate.references.some((_, index) => {
+    // Skip only when EVERY reference legitimately belongs to the legacy
+    // numeric evaluator (an element-local var, or a resolved non-typed
+    // binding such as an iteration variable) - never merely because nothing
+    // resolved as typed. A reference that is undefined/forward (or has no
+    // resolution at all) must still reach the per-reference loop below so it
+    // gets NUMERIC_BINDING_UNRESOLVED_CODE instead of silently falling back
+    // to the legacy evaluator, which can't resolve it either and masks the
+    // problem behind a runtime default.
+    const staysInLegacyEvaluator = candidate.references.every((_, index) => {
       const resolution = resolutions.get(`${candidate.key}:${index}`);
-      return resolution?.kind === "resolved" && resolution.binding.kind === "typed";
+      return resolution?.kind === "resolvedLocal" || (resolution?.kind === "resolved" && resolution.binding.kind !== "typed");
     });
-    if (!resolvedTyped) continue; // Pure local/iteration expression stays in the numeric evaluator.
+    if (staysInLegacyEvaluator) continue; // Pure local/iteration expression stays in the numeric evaluator.
 
     let rejected = false;
     const typedRefs: { reference: CandidateReference; bindingId: BindingId }[] = [];
