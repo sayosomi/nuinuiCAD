@@ -28,6 +28,7 @@ import {
 } from "./elementParameterSuggestion";
 import { elementParameterReferenceOptionsForPosition } from "../geometry/elementParameterReferenceOptions";
 import { isGroupPrintEnabled, type GroupPrintEnabledLookup } from "../geometry/groupPrintEnabledRuntime";
+import { printLayoutTypedBindingReferenceOptions } from "../scalars/printLayoutTypedBindingCandidates";
 import { defaultPlacementForGroup, printableGroups, printableItemsForLayout } from "../print/printGeometry";
 import {
   DEFAULT_PRINT_LAYOUT,
@@ -35,7 +36,8 @@ import {
   activePrintLayout,
   orientedPaperSize,
   printCanvasSizeMm,
-  resolvePrintLayout
+  resolvePrintLayout,
+  type PrintLayoutNumericBindingLookup
 } from "../print/printLayout";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -50,12 +52,11 @@ import type {
   ElementId,
   EvaluationResult,
   NumericExpression,
-  NumericVariable,
   NumericValue,
   PrintLayoutPlacement
 } from "../types/geometry";
 import { NumericVariableSuggestPopover } from "./NumericVariableSuggestPopover";
-import { numericReferenceOptionsForPool, type NumericReferenceOption } from "../geometry/numericReferenceOptions";
+import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
 import { numericDragStepsForDelta } from "./numericDrag";
 
 type PrintLayoutCanvasProps = {
@@ -94,7 +95,7 @@ type PrintCanvasDrag =
 const WHEEL_ZOOM_BASE = 1.1;
 
 const deferredPrintNumberInputValues = new Set(["", "+", "-", ".", "+.", "-."]);
-const DEFAULT_COLLAPSED_PRINT_PANEL_SECTIONS = new Set<PrintPanelSectionId>(["variables"]);
+const DEFAULT_COLLAPSED_PRINT_PANEL_SECTIONS = new Set<PrintPanelSectionId>([]);
 
 const isDeferredPrintNumberInput = (input: string) =>
   deferredPrintNumberInputValues.has(input.trim());
@@ -102,16 +103,13 @@ const isDeferredPrintNumberInput = (input: string) =>
 const clampNumericValue = (value: NumericValue, min: number | undefined): NumericValue =>
   typeof value === "number" && min !== undefined ? Math.max(value, min) : value;
 
-const printVariableReferenceOptions = (printVariables: NumericVariable[]): NumericReferenceOption[] =>
-  numericReferenceOptionsForPool(printVariables, "印刷変数");
-
 const PrintNumberInput = ({
   label,
   value,
   resolvedValue,
   defaultValue,
   elements,
-  printVariables,
+  typedBindingOptions,
   evaluation,
   step,
   min,
@@ -122,7 +120,12 @@ const PrintNumberInput = ({
   resolvedValue: number;
   defaultValue: NumericValue;
   elements: ReturnType<typeof useCadDocumentStore.getState>["elements"];
-  printVariables: NumericVariable[];
+  /** Visible typed `const`/`let` number bindings for this field's printLayout
+   * block (Task 53) - shared with CodeMirror's printLayoutBlock completion
+   * via printLayoutTypedBindingCandidates.ts, computed once per layout by
+   * the caller (identical for every field in the same block, since
+   * printLayout has no lexical scope of its own). */
+  typedBindingOptions: NumericReferenceOption[];
   evaluation: EvaluationResult;
   step: number;
   min?: number;
@@ -138,14 +141,14 @@ const PrintNumberInput = ({
   // otherwise be the second IME-unsafe source in this same component.
   const [isComposing, setIsComposing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const displayValue = formatNumericExpressionForDisplay(value, elements, printVariables);
+  // Print layout numeric expressions have no local variable pool of their
+  // own (typed bindings are referenced by plain @name, never rewritten
+  // through an id-mapped pool - see numericBindingCompiler.ts).
+  const displayValue = formatNumericExpressionForDisplay(value, elements, []);
   const inputValue = draft ?? displayValue;
   const valueFromInput = (input: string) =>
-    makeNumericExpression(normalizeNumericExpressionInput(input, elements, printVariables));
-  const variableOptions = useMemo(
-    () => printVariableReferenceOptions(printVariables),
-    [printVariables]
-  );
+    makeNumericExpression(normalizeNumericExpressionInput(input, elements, []));
+  const variableOptions = typedBindingOptions;
   const suggestionMatch = !isComposing
     ? numericVariableSuggestionMatch(inputValue, inputSelection.start, inputSelection.end)
     : null;
@@ -199,7 +202,7 @@ const PrintNumberInput = ({
     setDraft(nextInput);
     commitValue({
       kind: "expression",
-      expression: normalizeNumericExpressionInput(nextInput, elements, printVariables)
+      expression: normalizeNumericExpressionInput(nextInput, elements, [])
     } satisfies NumericExpression);
     setActiveSuggestionIndex(0);
     const nextCursor = activeSuggestionMatch.tokenStart + option.expression.length;
@@ -387,6 +390,12 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
     () => ({ propertyBindings: groupPrintEnabledPropertyBindings, byElementId: groupPrintEnabledByElementId }),
     [groupPrintEnabledPropertyBindings, groupPrintEnabledByElementId]
   );
+  const printLayoutNumericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
+  const printLayoutByKey = useCadDocumentStore((state) => state.doc.statementMap.byKey);
+  const printLayoutNumericBindingLookup: PrintLayoutNumericBindingLookup = useMemo(
+    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey }),
+    [printLayoutNumericBindings, printLayoutByKey]
+  );
   const selectedPrintPlacementId = useCadUiStore((state) => state.selectedPrintPlacementId);
   const setSelectedPrintPlacementId = useCadUiStore((state) => state.setSelectedPrintPlacementId);
   const printCanvasViewport = useCadUiStore((state) => state.printCanvasViewport);
@@ -395,8 +404,8 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
   const [drag, setDrag] = useState<PrintCanvasDrag | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const resolvedLayout = useMemo(
-    () => resolvePrintLayout({ layout, elements, evaluation }),
-    [elements, evaluation, layout]
+    () => resolvePrintLayout({ layout, elements, evaluation, numericBindingLookup: printLayoutNumericBindingLookup }),
+    [elements, evaluation, layout, printLayoutNumericBindingLookup]
   );
   const isSvgLayout = resolvedLayout.outputKind === "svg";
   const paper = orientedPaperSize(resolvedLayout);
@@ -411,9 +420,10 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
       layout,
       visibilityProfiles,
       activeVisibilityProfileId,
-      groupPrintEnabledLookup
+      groupPrintEnabledLookup,
+      printLayoutNumericBindingLookup
     }),
-    [activeVisibilityProfileId, elements, evaluation, layout, visibilityProfiles, groupPrintEnabledLookup]
+    [activeVisibilityProfileId, elements, evaluation, layout, visibilityProfiles, groupPrintEnabledLookup, printLayoutNumericBindingLookup]
   );
   const groupNames = useMemo(
     () => new Map(elements.filter((element) => element.type === "group").map((element) => [element.id, element.name])),
@@ -705,6 +715,17 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
     () => ({ propertyBindings: groupPrintEnabledPropertyBindings, byElementId: groupPrintEnabledByElementId }),
     [groupPrintEnabledPropertyBindings, groupPrintEnabledByElementId]
   );
+  const printLayoutNumericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
+  const printLayoutByKey = useCadDocumentStore((state) => state.doc.statementMap.byKey);
+  const printLayoutNumericBindingLookup: PrintLayoutNumericBindingLookup = useMemo(
+    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey }),
+    [printLayoutNumericBindings, printLayoutByKey]
+  );
+  const printLayoutBindingAnalysis = useCadDocumentStore((state) => state.doc.bindingAnalysis);
+  const typedBindingOptions = useMemo(
+    () => printLayoutTypedBindingReferenceOptions(layout.id, printLayoutByKey, printLayoutBindingAnalysis),
+    [layout.id, printLayoutByKey, printLayoutBindingAnalysis]
+  );
   const [groupQuery, setGroupQuery] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<PrintPanelSectionId>>(
     DEFAULT_COLLAPSED_PRINT_PANEL_SECTIONS
@@ -712,14 +733,13 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
   const placementRowRefs = useRef(new Map<string, HTMLDivElement>());
   const validPrintPanelSectionIds = useMemo(() => new Set<PrintPanelSectionId>(PRINT_PANEL_SECTION_IDS), []);
   const resolvedLayout = useMemo(
-    () => resolvePrintLayout({ layout, elements, evaluation }),
-    [elements, evaluation, layout]
+    () => resolvePrintLayout({ layout, elements, evaluation, numericBindingLookup: printLayoutNumericBindingLookup }),
+    [elements, evaluation, layout, printLayoutNumericBindingLookup]
   );
   const isSvgLayout = resolvedLayout.outputKind === "svg";
   const canvas = isSvgLayout
     ? { widthMm: resolvedLayout.svgCanvasWidthMm, heightMm: resolvedLayout.svgCanvasHeightMm }
     : printCanvasSizeMm(resolvedLayout);
-  const printVariables = layout.numericVariables ?? [];
   const groups = printableGroups(elements, groupPrintEnabledLookup, evaluation.computedScalarBindings);
   const allGroups = elements.filter(
     (element): element is Extract<CadElement, { type: "group" }> => element.type === "group"
@@ -812,36 +832,6 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
       placements: [...layout.placements, placement]
     });
     setSelectedPrintPlacementId(placement.id);
-  };
-  const nextPrintVariableId = () => {
-    let index = printVariables.length + 1;
-    const existingIds = new Set(printVariables.map((variable) => variable.id));
-    while (existingIds.has(`print-variable-${index}`)) {
-      index += 1;
-    }
-    return `print-variable-${index}`;
-  };
-  const addPrintVariable = () => {
-    const variable: NumericVariable = {
-      id: nextPrintVariableId(),
-      name: `v${printVariables.length + 1}`,
-      value: 30
-    };
-    updatePrintLayout({
-      numericVariables: [...printVariables, variable]
-    });
-  };
-  const updatePrintVariable = (variableId: string, patch: Partial<NumericVariable>) => {
-    updatePrintLayout({
-      numericVariables: printVariables.map((variable) =>
-        variable.id === variableId ? { ...variable, ...patch } : variable
-      )
-    });
-  };
-  const deletePrintVariable = (variableId: string) => {
-    updatePrintLayout({
-      numericVariables: printVariables.filter((variable) => variable.id !== variableId)
-    });
   };
   const updatePlacement = (placementId: string, patch: Partial<PrintLayoutPlacement>) => {
     updatePrintLayout({
@@ -1019,65 +1009,19 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
               <option value="landscape">横</option>
             </select>
           </label>
-          <PrintNumberInput label="横枚数" value={layout.columns} resolvedValue={resolvedLayout.columns} defaultValue={DEFAULT_PRINT_LAYOUT.columns} elements={elements} printVariables={printVariables} evaluation={evaluation} min={1} step={1} onChange={(columns) => updatePrintLayout({ columns })} />
-          <PrintNumberInput label="縦枚数" value={layout.rows} resolvedValue={resolvedLayout.rows} defaultValue={DEFAULT_PRINT_LAYOUT.rows} elements={elements} printVariables={printVariables} evaluation={evaluation} min={1} step={1} onChange={(rows) => updatePrintLayout({ rows })} />
-          <PrintNumberInput label="重複 mm" value={layout.overlapMm} resolvedValue={resolvedLayout.overlapMm} defaultValue={DEFAULT_PRINT_LAYOUT.overlapMm} elements={elements} printVariables={printVariables} evaluation={evaluation} min={0} step={1} onChange={(overlapMm) => updatePrintLayout({ overlapMm })} />
+          <PrintNumberInput label="横枚数" value={layout.columns} resolvedValue={resolvedLayout.columns} defaultValue={DEFAULT_PRINT_LAYOUT.columns} elements={elements} typedBindingOptions={typedBindingOptions} evaluation={evaluation} min={1} step={1} onChange={(columns) => updatePrintLayout({ columns })} />
+          <PrintNumberInput label="縦枚数" value={layout.rows} resolvedValue={resolvedLayout.rows} defaultValue={DEFAULT_PRINT_LAYOUT.rows} elements={elements} typedBindingOptions={typedBindingOptions} evaluation={evaluation} min={1} step={1} onChange={(rows) => updatePrintLayout({ rows })} />
+          <PrintNumberInput label="重複 mm" value={layout.overlapMm} resolvedValue={resolvedLayout.overlapMm} defaultValue={DEFAULT_PRINT_LAYOUT.overlapMm} elements={elements} typedBindingOptions={typedBindingOptions} evaluation={evaluation} min={0} step={1} onChange={(overlapMm) => updatePrintLayout({ overlapMm })} />
             </>
           )}
-          <PrintNumberInput label="拡大率" value={layout.scale} resolvedValue={resolvedLayout.scale} defaultValue={DEFAULT_PRINT_LAYOUT.scale} elements={elements} printVariables={printVariables} evaluation={evaluation} min={0.01} step={0.1} onChange={(scale) => updatePrintLayout({ scale })} />
+          <PrintNumberInput label="拡大率" value={layout.scale} resolvedValue={resolvedLayout.scale} defaultValue={DEFAULT_PRINT_LAYOUT.scale} elements={elements} typedBindingOptions={typedBindingOptions} evaluation={evaluation} min={0.01} step={0.1} onChange={(scale) => updatePrintLayout({ scale })} />
           {isSvgLayout ? (
             <>
-              <PrintNumberInput label="SVG幅 mm" value={layout.svgCanvasWidthMm} resolvedValue={resolvedLayout.svgCanvasWidthMm} defaultValue={DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm} elements={elements} printVariables={printVariables} evaluation={evaluation} min={1} step={1} onChange={(svgCanvasWidthMm) => updatePrintLayout({ svgCanvasWidthMm })} />
-              <PrintNumberInput label="SVG高さ mm" value={layout.svgCanvasHeightMm} resolvedValue={resolvedLayout.svgCanvasHeightMm} defaultValue={DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm} elements={elements} printVariables={printVariables} evaluation={evaluation} min={1} step={1} onChange={(svgCanvasHeightMm) => updatePrintLayout({ svgCanvasHeightMm })} />
+              <PrintNumberInput label="SVG幅 mm" value={layout.svgCanvasWidthMm} resolvedValue={resolvedLayout.svgCanvasWidthMm} defaultValue={DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm} elements={elements} typedBindingOptions={typedBindingOptions} evaluation={evaluation} min={1} step={1} onChange={(svgCanvasWidthMm) => updatePrintLayout({ svgCanvasWidthMm })} />
+              <PrintNumberInput label="SVG高さ mm" value={layout.svgCanvasHeightMm} resolvedValue={resolvedLayout.svgCanvasHeightMm} defaultValue={DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm} elements={elements} typedBindingOptions={typedBindingOptions} evaluation={evaluation} min={1} step={1} onChange={(svgCanvasHeightMm) => updatePrintLayout({ svgCanvasHeightMm })} />
             </>
           ) : null}
         </div>
-        </CollapsiblePanelSection>
-
-        <CollapsiblePanelSection
-          id="variables"
-          title="印刷変数"
-          subtitle="@名前で印刷設定から参照"
-          collapsedSections={collapsedSections}
-          onToggle={toggleSection}
-          actions={<button type="button" onClick={addPrintVariable}>追加</button>}
-        >
-        {printVariables.length === 0 ? (
-          <p className="empty-state">印刷変数はありません。</p>
-        ) : (
-          <div className="print-variable-list">
-            {printVariables.map((variable, index) => (
-              <div className="print-variable-row" key={variable.id}>
-                <div className="curve-point-header">
-                  <span>変数{index + 1}</span>
-                  <button type="button" onClick={() => deletePrintVariable(variable.id)}>
-                    削除
-                  </button>
-                </div>
-                <label className="print-select-field">
-                  <span>名前</span>
-                  <input
-                    type="text"
-                    aria-label="印刷変数名"
-                    value={variable.name}
-                    onChange={(event) => updatePrintVariable(variable.id, { name: event.currentTarget.value })}
-                  />
-                </label>
-                <PrintNumberInput
-                  label="値"
-                  value={variable.value}
-                  resolvedValue={resolvedLayout.numericVariables.find((item) => item.id === variable.id)?.value ?? 30}
-                  defaultValue={30}
-                  elements={elements}
-                  printVariables={printVariables}
-                  evaluation={evaluation}
-                  step={1}
-                  onChange={(value) => updatePrintVariable(variable.id, { value })}
-                />
-              </div>
-            ))}
-          </div>
-        )}
         </CollapsiblePanelSection>
 
         <CollapsiblePanelSection
@@ -1211,9 +1155,9 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
               </select>
             </label>
             <div className="print-settings-grid">
-              <PrintNumberInput label="x mm" value={selectedPlacement.x} resolvedValue={selectedResolvedPlacement?.x ?? 0} defaultValue={Math.round(canvas.widthMm / 2)} elements={elements} printVariables={printVariables} evaluation={evaluation} step={1} onChange={(x) => updatePlacement(selectedPlacement.id, { x })} />
-              <PrintNumberInput label="y mm" value={selectedPlacement.y} resolvedValue={selectedResolvedPlacement?.y ?? 0} defaultValue={Math.round(canvas.heightMm / 2)} elements={elements} printVariables={printVariables} evaluation={evaluation} step={1} onChange={(y) => updatePlacement(selectedPlacement.id, { y })} />
-              <PrintNumberInput label="角度" value={selectedPlacement.angleDeg} resolvedValue={selectedResolvedPlacement?.angleDeg ?? 0} defaultValue={0} elements={elements} printVariables={printVariables} evaluation={evaluation} step={1} onChange={(angleDeg) => updatePlacement(selectedPlacement.id, { angleDeg })} />
+              <PrintNumberInput label="x mm" value={selectedPlacement.x} resolvedValue={selectedResolvedPlacement?.x ?? 0} defaultValue={Math.round(canvas.widthMm / 2)} elements={elements} typedBindingOptions={typedBindingOptions} evaluation={evaluation} step={1} onChange={(x) => updatePlacement(selectedPlacement.id, { x })} />
+              <PrintNumberInput label="y mm" value={selectedPlacement.y} resolvedValue={selectedResolvedPlacement?.y ?? 0} defaultValue={Math.round(canvas.heightMm / 2)} elements={elements} typedBindingOptions={typedBindingOptions} evaluation={evaluation} step={1} onChange={(y) => updatePlacement(selectedPlacement.id, { y })} />
+              <PrintNumberInput label="角度" value={selectedPlacement.angleDeg} resolvedValue={selectedResolvedPlacement?.angleDeg ?? 0} defaultValue={0} elements={elements} typedBindingOptions={typedBindingOptions} evaluation={evaluation} step={1} onChange={(angleDeg) => updatePlacement(selectedPlacement.id, { angleDeg })} />
               <label className="print-checkbox-field">
                 <input
                   type="checkbox"

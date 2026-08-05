@@ -639,8 +639,7 @@ describe("DSL compiler document settings", () => {
         "  point A = coordinate(x: 0 y: 0)",
         "}",
         "printLayout 型紙A (output: svg paper: a3 orientation: landscape columns: 3 rows: 4 overlap: 15 scale: 0.5 canvas: (500, 700)) {",
-        "  layoutVar 余白 = 20",
-        "  place 前身頃 (at: (10, @余白) angle: 90 mirrorX: true)",
+        "  place 前身頃 (at: (10, 20) angle: 90 mirrorX: true)",
         "}"
       ].join("\n"),
       { elements: [], mode: "document" }
@@ -661,13 +660,11 @@ describe("DSL compiler document settings", () => {
       svgCanvasWidthMm: 500,
       svgCanvasHeightMm: 700
     });
-    expect(layout.numericVariables).toHaveLength(1);
-    expect(layout.numericVariables![0]).toMatchObject({ name: "余白", value: 20 });
     expect(layout.placements).toHaveLength(1);
     const placement = layout.placements[0];
     expect(placement.groupId).toBe(result.elements[0].id);
     expect(placement.x).toBe(10);
-    expect(placement.y).toEqual({ kind: "expression", expression: "@print-variable-1" });
+    expect(placement.y).toBe(20);
     expect(placement.mirrorX).toBe(true);
     expect(placement.angleDeg).toBe(90);
   });

@@ -23,9 +23,8 @@ const spanKey = (span: DslSpan) => `${span.start}:${span.end}`;
 // 捨てる」dedupe のため、ここで attrs を先に並べて勝たせる。こうすると通常の
 // 引数は "attr"(dslCompletionMetadata.ts の source 正規化・printLayout ブロック
 // 補完・vars/intermediates ルーティングが期待する形)になり、attrs 側に対応
-// エントリを持たない値(layoutVar の expression
-// など、dslSettingsParser/dslCallParser が payloadSpans にしか書かない特別枠)は
-// 従来通り "payload" のまま残る。
+// エントリを持たない値(dslSettingsParser/dslCallParser が payloadSpans にしか
+// 書かない特別枠)は従来通り "payload" のまま残る。
 const candidateSpans = (statement: DslStatement): DslLabeledValueSpan[] => [
   ...statement.attrs.map((attr): DslLabeledValueSpan => ({
     start: attr.valueStart,
@@ -51,7 +50,7 @@ const candidateSpans = (statement: DslStatement): DslLabeledValueSpan[] => [
  * can be told apart from that artifact.
  *
  * Non-element statements (palette/view/print/directive lines such as `nui`, `role`,
- * `view`, `color`, `printLayout`, `place`, `layoutVar`, `atStop`) are never a target,
+ * `view`, `color`, `printLayout`, `place`, `atStop`) are never a target,
  * even when they carry real attribute/payload values — this is the one shared
  * determination both click-selection and Tab-navigation rely on for "is this line's
  * value clickable/tabbable at all."
@@ -96,16 +95,16 @@ const labeledValueSpansForStatement = (statement: DslStatement | null): DslLabel
 export const dslLineLabeledValueSpans = (lineText: string): DslLabeledValueSpan[] =>
   labeledValueSpansForStatement(dslLineElementStatement(lineText));
 
-type DslPrintLayoutBlockStatement = Extract<DslStatement, { kind: "place" | "layoutVar" | "printLayout" }>;
+type DslPrintLayoutBlockStatement = Extract<DslStatement, { kind: "place" | "printLayout" }>;
 
 /**
- * Mirrors dslLineElementStatement for the three printLayout-block-only
+ * Mirrors dslLineElementStatement for the two printLayout-block-only
  * statement kinds, which dslLineElementStatement always rejects
  * (isElementDslStatement is false for them by design — they never produce a
  * CadElement). `printLayout` opens a block itself, so it reuses the same
- * synthetic-closing-`}` trick as dslLineElementStatement. `place`/`layoutVar`
- * instead require an enclosing printLayout block to parse without a spurious
- * "must be inside printLayout" diagnostic (applyBlockStructure), so they are
+ * synthetic-closing-`}` trick as dslLineElementStatement. `place`
+ * instead requires an enclosing printLayout block to parse without a spurious
+ * "must be inside printLayout" diagnostic (applyBlockStructure), so it is
  * reparsed wrapped in a synthetic one-line block. parseDsl parses each source
  * line independently (source.split(...).forEach), so term/span offsets found
  * on the wrapped member line are already relative to `lineText` itself — no
@@ -126,7 +125,7 @@ export const dslLinePrintLayoutStatement = (lineText: string): DslPrintLayoutBlo
     return statement;
   }
 
-  if (probeStatement.kind === "place" || probeStatement.kind === "layoutVar") {
+  if (probeStatement.kind === "place") {
     // printLayout header requires a call envelope (`printLayout
     // NAME (...)`, never a bare `printLayout {`), unlike the v1 shape this
     // synthetic wrapper originally assumed. An empty-but-present `()` plus a
@@ -134,7 +133,7 @@ export const dslLinePrintLayoutStatement = (lineText: string): DslPrintLayoutBlo
     // it never masks a real diagnostic on the member's own line.
     const { statements, diagnostics } = parseDsl(`printLayout __synthetic__ () {\n${lineText}\n}`);
     const statement = statements.find((candidate) => candidate.line === 2);
-    if (!statement || (statement.kind !== "place" && statement.kind !== "layoutVar")) return null;
+    if (!statement || statement.kind !== "place") return null;
     if (diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.line === 2)) return null;
     return statement;
   }

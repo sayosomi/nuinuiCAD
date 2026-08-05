@@ -265,9 +265,16 @@ describe("createDslCompletionSource", () => {
   it("offers @name typed-binding completions for a number-kind field with a live @ prefix", async () => {
     // fromは未定義"A"へのダングリング参照(この文の意味自体はテスト対象外)。
     const source = ["nui 3", "const Width: number = 10", "point P = offset(from: A, dx: 10+@Wi, dy: 0)"].join("\n");
-    const statements = parseDsl(source).statements;
+    // "@Wi" is a deliberately partial (still-being-typed) reference - compile a
+    // same-shape baseline with it removed so compileDslDocument doesn't treat
+    // this mid-keystroke text as a genuinely unresolved, document-fatal typed
+    // binding reference. Only `state`/`pos` below use the real dirty text,
+    // mirroring how production completion resolves against the store's
+    // last-good bindingAnalysis while the live buffer is still dirty.
+    const compileSource = ["nui 3", "const Width: number = 10", "point P = offset(from: A, dx: 10, dy: 0)"].join("\n");
+    const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds });
+    const compiled = compileDslDocument(compileSource, { assignedStatementIds });
     expect(compiled.document).not.toBeNull();
     expect(compiled.statementMap).not.toBeNull();
     const state = EditorState.create({ doc: source });
@@ -298,9 +305,12 @@ describe("createDslCompletionSource", () => {
 
   it("resolves attribute + @variable completion on a multi-line vertical-call continuation via the statement's logical projection", async () => {
     const source = ["nui 3", "const Width: number = 10", "point P = offset(", "  from: A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
-    const statements = parseDsl(source).statements;
+    // See the previous test's comment: "@Wi" is deliberately partial, so
+    // compile a same-shape (same line count) baseline with it removed.
+    const compileSource = ["nui 3", "const Width: number = 10", "point P = offset(", "  from: A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
+    const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds });
+    const compiled = compileDslDocument(compileSource, { assignedStatementIds });
     expect(compiled.document).not.toBeNull();
     expect(compiled.statementMap).not.toBeNull();
     const state = EditorState.create({ doc: source });
@@ -368,9 +378,15 @@ describe("createDslCompletionSource", () => {
     // logical statement rather than a single physical row.
     const bodySource = ["point P = offset(", "  from: A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
     const source = ["nui 3", "const Width: number = 10", bodySource].join("\n");
-    const statements = parseDsl(source).statements;
+    // "@Wi" is deliberately partial (still-being-typed) - compile a same-shape
+    // baseline with it removed so compileDslDocument doesn't treat this
+    // mid-keystroke text as a genuinely unresolved, document-fatal reference.
+    // `mainState`/the lens below still carry the real dirty "@Wi" text.
+    const compileBodySource = ["point P = offset(", "  from: A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
+    const compileSource = ["nui 3", "const Width: number = 10", compileBodySource].join("\n");
+    const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds });
+    const compiled = compileDslDocument(compileSource, { assignedStatementIds });
     expect(compiled.document).not.toBeNull();
     expect(compiled.statementMap).not.toBeNull();
     const mainState = EditorState.create({ doc: source });
@@ -410,18 +426,13 @@ describe("createDslCompletionSource", () => {
     expect(result?.options.some((option) => option.label === "@Width")).toBe(true);
   });
 
-  // printLayoutセクションは常に要素ツリーより前にシリアライズされるため(dslDocument.ts
-  // のserializeDocumentToDsl)、「printLayoutブロックより前の行にトップレベルvarがある」
-  // という行順序関係は生成経由では再現できない(dslVariableCompletionOptionsの
-  // cursorLine=block.line カットオフがこの行順序に依存する)。手書きリテラルのまま残す。
-  // KNOWN GAP (flagged, not fixed here): the printLayoutBlock completion
-  // branch in cmAutocomplete.ts only calls dslPrintLayoutVariableCompletionOptions
-  // for local layoutVar candidates; it never merges typed top-level const/let
-  // bindings the way the generic number branch does via
-  // typedNumberBindingCompletions. The legacy-removal manifest calls for this
-  // merge ("connect typed binding candidates directly") but it was never
-  // implemented, so a root-scope const is currently NOT offered here.
-  it("offers only block-local layoutVar candidates for a place/printLayout attribute, not top-level typed bindings", async () => {
+  // Task 53: printLayout/place numeric fields resolve `@name` against
+  // top-level typed const/let number bindings visible at the printLayout
+  // block's own site (root scope, since printLayout has no lexical scope of
+  // its own) - a root-scope const declared before the block is offered, a
+  // const declared inside an unrelated group is not (matches
+  // numericBindingCompiler.ts's own scope resolution for the same block).
+  it("offers visible top-level typed const/let number bindings for a place attribute, not out-of-scope group-local ones", async () => {
     const source = [
       "nui 3",
       "const GlobalW: number = 100",
@@ -430,13 +441,28 @@ describe("createDslCompletionSource", () => {
       "  const GroupW: number = 50",
       "}",
       "printLayout Layout1 (columns: 2) {",
-      "  layoutVar Margin = 20",
-      "  place G (at: (0, 0), angle: 0+@Ma)",
+      "  place G (at: (0, 0), angle: 0+@Gl)",
       "}"
     ].join("\n");
-    const statements = parseDsl(source).statements;
+    // "@Gl" is deliberately partial (still-being-typed toward "@GlobalW") -
+    // compile a same-shape baseline with it removed so compileDslDocument
+    // doesn't treat this mid-keystroke text as a genuinely unresolved,
+    // document-fatal reference. `state`/`pos` below still use the real dirty
+    // text.
+    const compileSource = [
+      "nui 3",
+      "const GlobalW: number = 100",
+      "group G {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  const GroupW: number = 50",
+      "}",
+      "printLayout Layout1 (columns: 2) {",
+      "  place G (at: (0, 0), angle: 0)",
+      "}"
+    ].join("\n");
+    const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds });
+    const compiled = compileDslDocument(compileSource, { assignedStatementIds });
     expect(compiled.document).not.toBeNull();
     expect(compiled.statementMap).not.toBeNull();
     const state = EditorState.create({ doc: source });
@@ -444,7 +470,7 @@ describe("createDslCompletionSource", () => {
     const printLayoutRanges = createPrintLayoutRangeIndex(state.doc, compiled.statementMap!);
     const typedRanges = createTypedDeclarationRangeIndex(state.doc, compiled.statementMap!);
     const scopeRanges = createScopeBodyRangeIndex(state.doc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex);
-    const pos = source.indexOf("@Ma") + "@Ma".length;
+    const pos = source.indexOf("@Gl") + "@Gl".length;
     const completionSource = createDslCompletionSource({
       elements: () => compiled.document!.elements,
       statementRanges: () => statementRanges,
@@ -458,12 +484,124 @@ describe("createDslCompletionSource", () => {
       typedDeclarationRanges: () => typedRanges,
       scopeBodyRanges: () => scopeRanges,
       statementInfoByElementId: () => compiled.statementMap!.byElementId,
+      statementInfoByKey: () => compiled.statementMap!.byKey
     });
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).not.toBeNull();
     const labels = result!.options.map((option) => option.label);
-    expect(labels).toContain("@Margin");
+    expect(labels).toContain("@GlobalW");
     expect(labels).not.toContain("@GroupW");
+  });
+
+  // Regression: `@AB.` (an element-property reference, not a typed-binding
+  // reference) inside printLayout/place numeric fields must route through the
+  // same shared elementParameter completion branch ordinary element fields
+  // use. printLayout is a BlockFrame scope (dslParser.ts's blockFrameKind)
+  // like group/conditionalGroup/forGroup, but it is never a CadElement -
+  // dslElementParameterCompletionCandidates.ts previously mistook that
+  // missing elementId for an unresolved group scope and suppressed every
+  // candidate for every printLayout/place numeric field.
+  describe("printLayout/place @Element.property completion (regression)", () => {
+    const buildSource = () => [
+      "nui 3",
+      "const GlobalW: number = 100",
+      "const Flag: boolean = true",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "group G {",
+      "  point C = coordinate(x: 0, y: 0)",
+      "}",
+      "printLayout Layout1 (",
+      "  columns: 2,",
+      "  scale: 1+@AB.length",
+      ") {",
+      "  place G (at: (0, 0), angle: 0+@AB.length)",
+      "}"
+    ].join("\n");
+
+    const setup = () => {
+      const source = buildSource();
+      const statements = parseDsl(source).statements;
+      const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
+      const compiled = compileDslDocument(source, { assignedStatementIds });
+      expect(compiled.document).not.toBeNull();
+      expect(compiled.statementMap).not.toBeNull();
+      const abId = compiled.document!.elements.find((element) => element.type === "line")!.id;
+      const state = EditorState.create({ doc: source });
+      const statementRanges = createStatementRangeIndex(state.doc, compiled.statementMap!);
+      const printLayoutRanges = createPrintLayoutRangeIndex(state.doc, compiled.statementMap!);
+      const typedRanges = createTypedDeclarationRangeIndex(state.doc, compiled.statementMap!);
+      const scopeRanges = createScopeBodyRangeIndex(state.doc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex);
+      const computedGeometry = new Map([[abId, {
+        kind: "line" as const,
+        elementId: abId,
+        name: "AB",
+        startPointId: null,
+        endPointId: null,
+        start: { kind: "point" as const, elementId: "a", name: "a", x: 0, y: 0 },
+        end: { kind: "point" as const, elementId: "b", name: "b", x: 10, y: 0 },
+        length: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 0,
+        startTangentAngleDeg: 0,
+        endTangentAngleDeg: 0
+      }]]);
+      const completionSource = createDslCompletionSource({
+        elements: () => compiled.document!.elements,
+        statementRanges: () => statementRanges,
+        printLayouts: () => compiled.document!.printLayouts,
+        printLayoutRanges: () => printLayoutRanges,
+        isComposing: () => false,
+        computedGeometry: () => computedGeometry,
+        effectiveEnabledElementIds: () => new Set([abId]),
+        evaluationErrors: () => [],
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => typedRanges,
+        scopeBodyRanges: () => scopeRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId,
+        statementInfoByKey: () => compiled.statementMap!.byKey
+      });
+      return { source, state, completionSource };
+    };
+
+    it("offers AB's referenceable parameters for @AB. inside printLayout's own scale= field", async () => {
+      const { source, state, completionSource } = setup();
+      const pos = source.indexOf("scale: 1+@AB.") + "scale: 1+@AB.".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toContain("length");
+    });
+
+    it("offers AB's referenceable parameters for @AB. inside place's angle= field", async () => {
+      const { source, state, completionSource } = setup();
+      const pos = source.indexOf("angle: 0+@AB.") + "angle: 0+@AB.".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toContain("length");
+    });
+
+    it("still offers only number-typed top-level bindings for a bare @ in the same printLayout block, never element paths or non-number bindings", async () => {
+      const { source, state, completionSource } = setup();
+      const pos = source.indexOf("scale: 1+@") + "scale: 1+@".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result).not.toBeNull();
+      const labels = result!.options.map((option) => option.label);
+      expect(labels).toContain("@GlobalW");
+      expect(labels).not.toContain("@Flag");
+      expect(labels).not.toContain("length");
+    });
+
+    it("returns no candidates for a non-existent element token", async () => {
+      const { source, completionSource } = setup();
+      const dirty = source.replace("angle: 0+@AB.length)", "angle: 0+@Nope.length)");
+      const pos = dirty.indexOf("@Nope.") + "@Nope.".length;
+      const dirtyState = EditorState.create({ doc: dirty });
+      const result = await Promise.resolve(completionSource({ state: dirtyState, pos, explicit: true } as never));
+      expect(result === null || result.options.length === 0).toBe(true);
+    });
   });
 
   // KNOWN GAP (flagged, not fixed here): the intermediates= completion branch

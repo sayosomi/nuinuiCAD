@@ -175,7 +175,14 @@ export const analyzeTypedDeclarations = ({
   const typedStatements = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
     .filter((entry): entry is { statement: Extract<DslStatement, { kind: "typedDeclaration" }>; statementIndex: number } => entry.statement.kind === "typedDeclaration");
-  if (typedStatements.length === 0) return { diagnostics: [] };
+  // printLayout/place numeric fields resolve `@name` against this same
+  // bindingAnalysis/catalog (Task 53) even when the document declares no
+  // typed const/let of its own - an unresolved `@name` there (e.g.
+  // `scale: @nope`) still needs a populated .analysis so
+  // compileNumericBindings can run and diagnose it, not the bare
+  // `{diagnostics: []}` shortcut below.
+  const hasPrintLayoutStatements = statements.some((statement) => statement.kind === "printLayout");
+  if (typedStatements.length === 0 && !hasPrintLayoutStatements) return { diagnostics: [] };
 
   const missingIdentity = typedStatements.flatMap(({ statement, statementIndex }) =>
     stableStatementIdByIndex.has(statementIndex)

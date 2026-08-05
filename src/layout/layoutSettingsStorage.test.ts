@@ -18,7 +18,7 @@ describe("layoutSettingsStorage", () => {
     await expect(loadLayoutSettings()).resolves.toEqual({
       version: 1,
       leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
-      collapsedPrintPanelSections: ["variables"],
+      collapsedPrintPanelSections: [],
       printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
   });
@@ -63,7 +63,7 @@ describe("layoutSettingsStorage", () => {
     expect(normalizeLayoutSettings(legacySettings)).toEqual({
       version: 1,
       leftPanelWidth: 420,
-      collapsedPrintPanelSections: ["variables"],
+      collapsedPrintPanelSections: [],
       printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
     expect(normalizeLayoutSettings(legacySettings)).not.toHaveProperty("dslPanelWindow");
@@ -80,13 +80,13 @@ describe("layoutSettingsStorage", () => {
     expect(normalizeLayoutSettings({ version: 1, leftPanelWidth: 200 })).toEqual({
       version: 1,
       leftPanelWidth: MIN_LEFT_PANEL_WIDTH,
-      collapsedPrintPanelSections: ["variables"],
+      collapsedPrintPanelSections: [],
       printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
     expect(normalizeLayoutSettings({ version: 1, leftPanelWidth: 9999 })).toEqual({
       version: 1,
       leftPanelWidth: MAX_LEFT_PANEL_WIDTH,
-      collapsedPrintPanelSections: ["variables"],
+      collapsedPrintPanelSections: [],
       printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
     expect(
@@ -117,7 +117,7 @@ describe("layoutSettingsStorage", () => {
     ).toEqual({
       version: 1,
       leftPanelWidth: 420,
-      collapsedPrintPanelSections: ["variables"],
+      collapsedPrintPanelSections: [],
       printPreviewWindow: {
         x: 12,
         y: 21,
@@ -130,7 +130,7 @@ describe("layoutSettingsStorage", () => {
     expect(normalizeLayoutSettings("{not-json")).toEqual({
       version: 1,
       leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
-      collapsedPrintPanelSections: ["variables"],
+      collapsedPrintPanelSections: [],
       printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
   });
@@ -145,7 +145,7 @@ describe("layoutSettingsStorage", () => {
     await expect(loadLayoutSettings()).resolves.toEqual({
       version: 1,
       leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
-      collapsedPrintPanelSections: ["variables"],
+      collapsedPrintPanelSections: [],
       printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
     });
   });

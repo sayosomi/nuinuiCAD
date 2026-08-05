@@ -306,6 +306,26 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     controller.destroy();
   });
 
+  it("propagates a declaration rename into a printLayout numeric field (Task 53)", () => {
+    const source = [
+      "nui 3",
+      "const printScale: number = 120",
+      "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
+      "}"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const offset = source.indexOf("const printScale") + "const ".length;
+    internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
+    const bindingId = controller.currentCursorTypedRenameTargetBindingId();
+    expect(renameTypedBindingWithPropagation(bindingId!, "outputScale")).toBe(true);
+    expect(useCadDocumentStore.getState().sourceText).toContain("scale: @outputScale");
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("@printScale");
+    controller.destroy();
+  });
+
   it("routes and propagates rename through a multiline numeric attribute using its exact physical span", () => {
     const source = ["nui 3", "const length: number = 12", "", "point P = coordinate(", "  x: @length,", "  y: 0", ")"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");

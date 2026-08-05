@@ -11,7 +11,6 @@ import type {
   CadElementType,
   DocumentPalette,
   ElementId,
-  NumericVariable,
   PaletteColor,
   PrintLayout,
   VisibilityProfile,
@@ -37,6 +36,7 @@ import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { compilePathMutationProgram, type PathMutationProgram } from "../geometry/pathMutationProgram";
+import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
@@ -142,6 +142,7 @@ export type StatementMap = {
     version?: number;
     palette?: number;
     visibility?: number;
+    elements?: number;
     printLayouts?: number;
   };
 };
@@ -294,34 +295,26 @@ const printLayoutBlockLines = (
     ? visibilityProfiles.find((profile) => profile.id === layout.visibilityProfileId)?.name ??
       layout.visibilityProfileId
     : undefined;
-  const numeric = (value: Parameters<typeof formatNumericValueForDsl>[0], localVars: NumericVariable[] = []) =>
-    formatNumericValueForDsl(value, elements, localVars, undefined, nameContext, majorVersion);
-  const layoutNumeric = (value: Parameters<typeof formatNumericValueForDsl>[0]) =>
-    numeric(value, layout.numericVariables ?? []);
+  const numeric = (value: Parameters<typeof formatNumericValueForDsl>[0]) =>
+    formatNumericValueForDsl(value, elements, [], undefined, nameContext, majorVersion);
 
   const argLines = [
     `output: ${layout.outputKind}`,
     ...(profileName ? [`view: ${formatDslName(profileName)}`] : []),
     `paper: ${layout.paperSizeId}`,
     `orientation: ${layout.orientation}`,
-    `columns: ${layoutNumeric(layout.columns)}`,
-    `rows: ${layoutNumeric(layout.rows)}`,
-    `overlap: ${layoutNumeric(layout.overlapMm)}`,
-    `scale: ${layoutNumeric(layout.scale)}`,
-    `canvas: (${layoutNumeric(layout.svgCanvasWidthMm)}, ${layoutNumeric(layout.svgCanvasHeightMm)})`
+    `columns: ${numeric(layout.columns)}`,
+    `rows: ${numeric(layout.rows)}`,
+    `overlap: ${numeric(layout.overlapMm)}`,
+    `scale: ${numeric(layout.scale)}`,
+    `canvas: (${numeric(layout.svgCanvasWidthMm)}, ${numeric(layout.svgCanvasHeightMm)})`
   ];
 
-  const localVars = layout.numericVariables ?? [];
   const memberLines: string[] = [];
-  for (const variable of localVars) {
-    memberLines.push(
-      `${DSL_INDENT}layoutVar ${formatDslName(variable.name)} = ${numeric(variable.value, localVars)}`
-    );
-  }
   for (const placement of layout.placements) {
     const separator = majorVersion >= 3 ? ", " : " ";
     memberLines.push(
-      `${DSL_INDENT}place ${resolveGroupToken(elements, placement.groupId, nameContext)} (at: (${numeric(placement.x, localVars)}, ${numeric(placement.y, localVars)})${separator}angle: ${numeric(placement.angleDeg, localVars)}${separator}mirrorX: ${placement.mirrorX})`
+      `${DSL_INDENT}place ${resolveGroupToken(elements, placement.groupId, nameContext)} (at: (${numeric(placement.x)}, ${numeric(placement.y)})${separator}angle: ${numeric(placement.angleDeg)}${separator}mirrorX: ${placement.mirrorX})`
     );
   }
 
@@ -626,10 +619,10 @@ export const serializeDocumentToDsl = (
     [`nui ${majorVersion}`, ...(options.headerComment ? [`# ${options.headerComment}`] : [])],
     serializePaletteLines(data.palette, majorVersion),
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId, majorVersion),
-    serializePrintLayoutSection(data, majorVersion),
     options.preserveElementOrder
       ? serializeFlatElementTree(data.elements, refs, data.evaluationLimitIndex)
-      : serializeElementTree(data.elements, refs, data.evaluationLimitIndex)
+      : serializeElementTree(data.elements, refs, data.evaluationLimitIndex),
+    serializePrintLayoutSection(data, majorVersion)
   ];
   return sections
     .filter((section) => section.length > 0)
@@ -689,6 +682,41 @@ const validateVersionStatements = (statements: DslStatement[]): VersionValidatio
 export const unsupportedDslMajorVersion = (source: string): number | null =>
   validateVersionStatements(parseDsl(source).statements).unsupportedMajor;
 
+/**
+ * printLayoutは文書の真の最終sink: 最初のprintLayoutブロックが始まった後は
+ * さらなるprintLayoutブロック(とその内部のplace)以外を許さない。これは
+ * printLayout位置でのtyped binding参照値を常にterminal valueと一致させる
+ * ための構造的な制約 - 正規化(serializeDocumentToDsl/textPatch.ts)がset等の
+ * 本文statementをprintLayoutセクションより前へ黙って並び替えるため、
+ * printLayoutの後にそれらを書けてしまうと再正規化のたびに評価結果が
+ * 変わりうる。
+ */
+const PRINT_LAYOUT_TRAILING_ALLOWED_KINDS = new Set<DslStatement["kind"]>([
+  "printLayout",
+  "place",
+  "activePrintLayout",
+  "blockEnd",
+  "blockElse"
+]);
+
+const validatePrintLayoutPlacement = (statements: DslStatement[]): DslDiagnostic[] => {
+  const firstPrintLayoutIndex = statements.findIndex((statement) => statement.kind === "printLayout");
+  if (firstPrintLayoutIndex < 0) return [];
+  const diagnostics: DslDiagnostic[] = [];
+  for (let index = firstPrintLayoutIndex + 1; index < statements.length; index += 1) {
+    const statement = statements[index];
+    if (PRINT_LAYOUT_TRAILING_ALLOWED_KINDS.has(statement.kind)) continue;
+    diagnostics.push({
+      severity: "error",
+      line: statement.line,
+      column: 1,
+      message:
+        "printLayoutブロック以降には、さらなるprintLayoutブロック以外のstatementを配置できません。printLayoutは文書の最後にまとめて配置してください。"
+    });
+  }
+  return diagnostics;
+};
+
 const attrValueOf = (statement: DslStatement, key: string) =>
   statement.attrs.find((item) => item.key === key)?.value;
 
@@ -705,6 +733,7 @@ const buildStatementMap = (
   const setFirst = (key: string, info: StatementInfo) => {
     if (!byKey.has(key)) byKey.set(key, info);
   };
+  const placementRefByStatementIndex = buildPlacementRefsByStatementIndex(statements, printLayoutIdsByStatementIndex);
 
   statements.forEach((statement, statementIndex) => {
     if (statement.kind === "blockEnd") {
@@ -775,6 +804,11 @@ const buildStatementMap = (
         if (layoutId) byKey.set(`printLayout:${layoutId}`, info);
         break;
       }
+      case "place": {
+        const ref = placementRefByStatementIndex.get(statementIndex);
+        if (ref) byKey.set(`place:${ref.layoutId}:${ref.placementIndex}`, info);
+        break;
+      }
       case "version":
         setFirst("version", info);
         break;
@@ -834,6 +868,18 @@ const buildStatementMap = (
       sectionEnds.palette = Math.max(sectionEnds.palette ?? 0, info.line);
     } else if (statement.kind === "role" || statement.kind === "view" || statement.kind === "activeView") {
       sectionEnds.visibility = Math.max(sectionEnds.visibility ?? 0, info.line);
+    } else if (
+      statement.kind === "group" ||
+      statement.kind === "element" ||
+      statement.kind === "typedDeclaration" ||
+      statement.kind === "set" ||
+      statement.kind === "reverse" ||
+      statement.kind === "atStop"
+    ) {
+      // 単一行の複数行call(例: 複数行coordinate())はブロックを開かないため
+      // range.endLineは更新されない - info.endLine(文自体の最終物理行)との
+      // maxを取る。
+      sectionEnds.elements = Math.max(sectionEnds.elements ?? 0, info.range.endLine, info.endLine);
     } else if (statement.kind === "printLayout" || statement.kind === "activePrintLayout") {
       sectionEnds.printLayouts = Math.max(sectionEnds.printLayouts ?? 0, info.range.endLine);
     }
@@ -861,6 +907,7 @@ export const compileDslDocument = (
   const sourceLines = normalized.split("\n");
   const parsed = options.preparsed ?? parseDslSnapshot({ normalizedSource: normalized, sourceRevision: options.sourceRevision ?? 0 });
   const versionValidation = validateVersionStatements(parsed.statements);
+  const printLayoutPlacementDiagnostics = validatePrintLayoutPlacement(parsed.statements);
 
   const compiled = compileDslToElements(normalized, {
     elements: [],
@@ -877,7 +924,16 @@ export const compileDslDocument = (
   // output.
   const hasSetStatements = parsed.statements.some((statement) => statement.kind === "set");
   const hasReverseStatements = parsed.statements.some((statement) => statement.kind === "reverse");
-  const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements || hasReverseStatements)
+  // printLayout/place numeric fields resolve `@name` against typed const/let
+  // bindings the same way element fields do (Task 53), so a document with a
+  // printLayout block but zero typedDeclaration/set/reverse statements of its
+  // own must still run scalar analysis - otherwise an unresolved `@name`
+  // inside printLayout (e.g. `scale: @nope`) never reaches
+  // compileNumericBindings at all and silently produces no diagnostic. `place`
+  // never appears outside an enclosing `printLayout` block, so checking
+  // `printLayout` alone covers both.
+  const hasPrintLayoutStatements = parsed.statements.some((statement) => statement.kind === "printLayout");
+  const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements || hasReverseStatements || hasPrintLayoutStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
   if (stableStatementIdByIndex) {
@@ -885,7 +941,7 @@ export const compileDslDocument = (
       stableStatementIdByIndex.set(statementIndex, elementId);
     }
   }
-  const baseDiagnostics = [...versionValidation.diagnostics, ...compiled.diagnostics];
+  const baseDiagnostics = [...versionValidation.diagnostics, ...printLayoutPlacementDiagnostics, ...compiled.diagnostics];
 
   // Task 48: the one parse-time span index every typed-variable diagnostic
   // producer - including ones that run later, against this exact compiled
@@ -945,7 +1001,9 @@ export const compileDslDocument = (
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
-        spans
+        spans,
+        printLayouts: compiled.printLayouts,
+        printLayoutIdsByStatementIndex: compiled.printLayoutIdsByStatementIndex
       })
     : undefined;
   // Task 25: conditionalGroup.condition typed-boolean compile/typecheck.

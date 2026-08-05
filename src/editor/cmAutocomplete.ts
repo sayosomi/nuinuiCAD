@@ -16,8 +16,7 @@ import { dslStatementElementType } from "../dsl/dslCompletionMetadata";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
 import { dslLocalVariableCompletionOptions } from "../dsl/dslLocalVariableCompletionCandidates";
-import { dslEnclosingPrintLayoutLine, dslPrintLayoutVariableCompletionOptions } from "../dsl/dslPrintLayoutVariableCompletionCandidates";
-import { dslLinePrintLayoutStatement } from "../dsl/dslValueSpans";
+import { dslEnclosingPrintLayoutLine } from "../dsl/dslPrintLayoutBlockLocation";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import {
   createLogicalStatementSourceMap,
@@ -42,6 +41,7 @@ import {
   type ScalarCompletionCandidate
 } from "../scalars/typedValueCandidates";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "../scalars/setCompletionCandidates";
+import { printLayoutTypedBindingReferenceOptions } from "../scalars/printLayoutTypedBindingCandidates";
 import { mergeSetTargetCandidates, recoverLiveSetTargetCandidates, type SetTargetCompletionCandidate } from "../scalars/setTargetRecoveryCandidates";
 import { visibleTypedBindingsAtLivePosition } from "../scalars/liveTypedBindingVisibility";
 import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
@@ -87,6 +87,13 @@ export type DslAutocompleteOptions = {
    * scalar value / template hole's BindingReferenceSite (Task 39) - never
    * for any other purpose already covered by statementRanges/computedGeometry. */
   statementInfoByElementId: () => ReadonlyMap<ElementId, StatementInfo> | undefined;
+  /** `doc.statementMap.byKey`, used only to map a printLayout/place block at
+   * the cursor to the compiled catalog's own statementIndex for a
+   * printLayoutBlock numeric field's BindingReferenceSite (Task 53) -
+   * mirrors statementInfoByElementId's role for element-scoped completion.
+   * Optional so existing test-only DslAutocompleteOptions literals that never
+   * exercise printLayoutBlock completion don't need updating. */
+  statementInfoByKey?: () => ReadonlyMap<string, StatementInfo> | undefined;
   /** Whether the evaluation backing computedGeometry/effectiveEnabledElementIds/
    * evaluationErrors above is current for the live document right now (the
    * caller's own evaluationStateIsCurrentFor check - see
@@ -671,22 +678,13 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     // leaks in, and call the plain top-level source unmodified.
     completions = [];
   } else if (completionContext.parameter.source === "printLayoutBlock") {
+    const bindingAnalysis = options.bindingAnalysis();
     const parsed = parseDslSnapshot({ normalizedSource: input.source, sourceRevision: 0 });
-    const block = dslEnclosingPrintLayoutLine(parsed, input.cursorLineNumber);
-    if (!block) {
-      completions = [];
-    } else {
-      const ownStatement = dslLinePrintLayoutStatement(input.lineText);
-      const cutoffLine = ownStatement?.kind === "printLayout" ? Infinity : input.cursorLineNumber;
-      const layoutVarOptions = dslPrintLayoutVariableCompletionOptions({
-        parsed,
-        block,
-        cutoffLine,
-        printLayoutIdsByLiveLine: printLayoutIdsByLiveLine(input.doc, options.printLayoutRanges()),
-        printLayouts: options.printLayouts()
-      });
-      completions = asVariableCompletions(layoutVarOptions);
-    }
+    const block = bindingAnalysis ? dslEnclosingPrintLayoutLine(parsed, input.cursorLineNumber) : null;
+    const layoutId = block ? printLayoutIdsByLiveLine(input.doc, options.printLayoutRanges()).get(block.line) : undefined;
+    completions = asVariableCompletions(
+      printLayoutTypedBindingReferenceOptions(layoutId, options.statementInfoByKey?.(), bindingAnalysis)
+    );
   } else if (completionContext.parameter.definition.kind === "number") {
     const elements = options.elements();
     const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());

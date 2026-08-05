@@ -193,7 +193,7 @@ describe("dslCompletionContextAt", () => {
     });
   });
 
-  describe("place/layoutVar/printLayout block attributes", () => {
+  describe("place/printLayout block attributes", () => {
     it("offers number-kind @-completion for place's angle=", () => {
       const line = "place Group1 (at: (10, 20) angle: 15+@Wi)";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
@@ -233,16 +233,6 @@ describe("dslCompletionContextAt", () => {
         kind: "parameter",
         from: line.indexOf("@Wi"),
         parameter: { source: "printLayoutBlock", key: "canvas" }
-      });
-    });
-
-    it("offers number-kind @-completion for layoutVar's own expression", () => {
-      const line = "layoutVar Margin = 20+@Wi";
-      const context = dslCompletionContextAt(line, at(line, "@Wi"));
-      expect(context).toMatchObject({
-        kind: "parameter",
-        from: line.indexOf("@Wi"),
-        parameter: { source: "printLayoutBlock", key: "expression" }
       });
     });
 

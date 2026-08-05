@@ -13,7 +13,7 @@ export type DslCompletionParameter = {
   definition: ParameterDefinition;
   /** nui 3 unifies all element call arguments into `key: value` (no positional/
    * named split), so every non-name parameter maps to "attr". "printLayoutBlock"
-   * marks a synthetic parameter for `place`/`layoutVar`/`printLayout` block
+   * marks a synthetic parameter for `place`/`printLayout` block
    * statements, which have no real CadElement/ParameterDefinition to derive
    * "attr" from. A distinct source value (rather than reusing `key` as the
    * routing marker, the way dslVarsAttributeParameterKey does) avoids

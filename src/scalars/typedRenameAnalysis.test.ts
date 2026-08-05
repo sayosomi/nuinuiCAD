@@ -139,6 +139,44 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.detail.kind).toBe("numeric-expression");
   });
 
+  it("allows a safe rename that propagates into a printLayout numeric field (Task 53)", () => {
+    const compiled = compile(
+      [
+        "nui 3",
+        "const printScale: number = 120",
+        "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
+        "}"
+      ].join("\n")
+    );
+    const analysis = rename(compiled, "printScale", "outputScale");
+    expect(analysis.verdict).toBe("ok");
+    if (analysis.verdict !== "ok") return;
+    expect(analysis.occurrences).toHaveLength(1);
+    expect(analysis.occurrences[0].kind).toBe("numeric-expression");
+    expect(analysis.occurrences[0].oldName).toBe("printScale");
+    expect(analysis.occurrences[0].newName).toBe("outputScale");
+  });
+
+  it("rejects a rename that would collide with an existing binding, when the only reference is inside a printLayout place field (Task 53)", () => {
+    const compiled = compile(
+      [
+        "nui 3",
+        "const angleA: number = 30",
+        "const angleB: number = 45",
+        "group G {",
+        "  point A = coordinate(x: 0, y: 0)",
+        "}",
+        "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+        "  place G (at: (0, 0), angle: @angleA)",
+        "}"
+      ].join("\n")
+    );
+    const analysis = rename(compiled, "angleA", "angleB");
+    expect(analysis).toMatchObject({ verdict: "rejected", reason: "same-scope-collision" });
+    if (analysis.verdict !== "rejected" || analysis.reason !== "same-scope-collision") return;
+    expect(analysis.detail.conflictingName).toBe("angleB");
+  });
+
   it("rejects a text-template rename that would newly capture a same-named element-local variable (Task 52 R1)", () => {
     const compiled = compile(
       ["nui 3", "const w: number = 100", 'text T = label(text: "{@w}", anchor: none, size: 3, vars: [幅: 42])'].join("\n")

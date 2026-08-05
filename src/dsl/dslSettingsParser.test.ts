@@ -9,7 +9,6 @@ describe("DSL v2 settings parser", () => {
     expect(parse("nui 2").statement).toMatchObject({ kind: "version", value: "2", payloadSpans: { value: { start: 4, end: 5 } } });
     expect(parse("activeView 通常").statement).toMatchObject({ kind: "activeView", name: "通常" });
     expect(parse("activePrintLayout A4").statement).toMatchObject({ kind: "activePrintLayout", name: "A4" });
-    expect(parse("layoutVar margin = 15").statement).toMatchObject({ kind: "layoutVar", name: "margin", expression: "15" });
     expect(parse("@stop").statement).toMatchObject({ kind: "atStop" });
   });
 
@@ -47,7 +46,6 @@ describe("DSL v2 settings parser", () => {
     expect(messages("role seam (name: a name: b)").join("\n")).toContain("重複");
     expect(messages("view 通常 (default: )").join("\n")).toContain("値がありません");
     expect(messages("printLayout A4 (output: pdf)").join("\n")).toContain("ブロック");
-    expect(messages("layoutVar margin").join("\n")).toContain("「=」");
     expect(messages("@stop extra").join("\n")).toContain("単独");
   });
 });

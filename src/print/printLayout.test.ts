@@ -35,10 +35,6 @@ describe("printLayout", () => {
       columns: "3",
       scale: { kind: "expression", expression: "@scale-var" },
       svgCanvasWidthMm: "@scale-var * 100",
-      numericVariables: [
-        { id: "print-variable-1", name: "余白", value: "@scale-var * 10" },
-        { id: "broken-variable", name: 12, value: 10 }
-      ],
       placements: [
         {
           id: "placement-1",
@@ -55,13 +51,6 @@ describe("printLayout", () => {
     expect(layout.columns).toBe(3);
     expect(layout.scale).toEqual({ kind: "expression", expression: "@scale-var" });
     expect(layout.svgCanvasWidthMm).toEqual({ kind: "expression", expression: "@scale-var * 100" });
-    expect(layout.numericVariables).toEqual([
-      {
-        id: "print-variable-1",
-        name: "余白",
-        value: { kind: "expression", expression: "@scale-var * 10" }
-      }
-    ]);
     expect(layout.placements[0]).toMatchObject({
       x: { kind: "expression", expression: "@scale-var * 10" },
       y: 20,
@@ -108,39 +97,5 @@ describe("printLayout", () => {
     expect(resolved.svgCanvasWidthMm).toBe(150);
     expect(resolved.svgCanvasHeightMm).toBe(1);
     expect(resolved.placements[0].x).toBe(15);
-  });
-
-  it("resolves print layout expressions with local print variables before globals", () => {
-    const layout: PrintLayout = {
-      ...DEFAULT_PRINT_LAYOUT,
-      scale: { kind: "expression", expression: "@倍率" },
-      numericVariables: [
-        { id: "print-scale", name: "倍率", value: 2 },
-        { id: "print-spacing", name: "間隔", value: { kind: "expression", expression: "@倍率 * 10" } }
-      ],
-      placements: [
-        {
-          id: "placement-1",
-          groupId: group.id,
-          x: { kind: "expression", expression: "@間隔 + 5" },
-          y: 20,
-          angleDeg: 0,
-          mirrorX: false
-        }
-      ]
-    };
-
-    const resolved = resolvePrintLayout({
-      layout,
-      elements,
-      evaluation: evaluateElements(elements)
-    });
-
-    expect(resolved.numericVariables).toEqual([
-      { id: "print-scale", name: "倍率", value: 2 },
-      { id: "print-spacing", name: "間隔", value: 20 }
-    ]);
-    expect(resolved.scale).toBe(2);
-    expect(resolved.placements[0].x).toBe(25);
   });
 });

@@ -562,9 +562,10 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       insertBefore(ops, lastMatchedOldLine + 1, texts);
     } else {
       // 旧テキストに要素セクションが無い(または全消し後の全新規)。
+      // printLayoutはcanonicalに常にelementsより後なので、その手前にanchorする。
       const { sectionEnds } = statementMap;
       const anchor =
-        sectionEnds.printLayouts ?? sectionEnds.visibility ?? sectionEnds.palette ?? sectionEnds.version ?? 0;
+        sectionEnds.visibility ?? sectionEnds.palette ?? sectionEnds.version ?? 0;
       insertBefore(ops, anchor + 1, anchor > 0 ? ["", ...texts] : texts);
     }
   }
@@ -796,9 +797,9 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
   const activeInfo = statementMap.byKey.get("activePrintLayout");
 
   if (infoById.size === 0) {
-    // セクション新設。
+    // セクション新設。printLayoutはcanonicalに常にelementsより後。
     const { sectionEnds } = statementMap;
-    const anchor = sectionEnds.visibility ?? sectionEnds.palette ?? sectionEnds.version ?? 0;
+    const anchor = sectionEnds.elements ?? sectionEnds.visibility ?? sectionEnds.palette ?? sectionEnds.version ?? 0;
     const lines = [
       ...newPlan.blocks.flatMap((block) => block.lines),
       ...(newPlan.activePrintLayoutLine ? [newPlan.activePrintLayoutLine] : [])

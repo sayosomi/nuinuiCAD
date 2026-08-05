@@ -15,7 +15,7 @@ import {
 export { DEFAULT_LEFT_PANEL_WIDTH, MAX_LEFT_PANEL_WIDTH, MIN_LEFT_PANEL_WIDTH } from "./leftPanelWidth";
 
 const STORAGE_KEY = "nuinuiCAD.layoutSettings.v1";
-export const PRINT_PANEL_SECTION_IDS = ["output", "variables", "groups", "placements"] as const;
+export const PRINT_PANEL_SECTION_IDS = ["output", "groups", "placements"] as const;
 
 export type PrintPanelSectionId = (typeof PRINT_PANEL_SECTION_IDS)[number];
 
@@ -55,7 +55,7 @@ const normalizePrintPreviewWindowSettings = (value: unknown): PrintPreviewWindow
 export const defaultLayoutSettings = (): LayoutSettings => ({
   version: 1,
   leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
-  collapsedPrintPanelSections: ["variables"],
+  collapsedPrintPanelSections: [],
   printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
 });
 

@@ -83,14 +83,13 @@ export const normalizeForComparison = (elements: CadElement[]) => {
 };
 
 // PrintLayoutの実行時IDを除いて意味比較する。placeのgroup参照は要素IDではなく
-// 文書内インデックスへ正規化し、layoutVarはnumericVariablesとして比較する。
+// 文書内インデックスへ正規化する。
 export const comparableLayouts = (layouts: readonly PrintLayout[] | undefined, elements: readonly CadElement[]) => {
   const index = new Map(elements.map((element, position) => [element.id, position]));
   return (layouts ?? []).map((layout) => ({
     name: layout.name, outputKind: layout.outputKind, visibilityProfileId: layout.visibilityProfileId,
     paperSizeId: layout.paperSizeId, orientation: layout.orientation, columns: layout.columns, rows: layout.rows,
     overlapMm: layout.overlapMm, scale: layout.scale, svgCanvasWidthMm: layout.svgCanvasWidthMm, svgCanvasHeightMm: layout.svgCanvasHeightMm,
-    numericVariables: (layout.numericVariables ?? []).map((variable) => ({ name: variable.name, value: variable.value })),
     placements: layout.placements.map((placement) => ({ x: placement.x, y: placement.y, angleDeg: placement.angleDeg, mirrorX: placement.mirrorX, groupId: index.get(placement.groupId) ?? `unknown:${placement.groupId}` }))
   }));
 };

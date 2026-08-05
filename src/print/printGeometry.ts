@@ -22,7 +22,7 @@ import type {
   VisibilityProfile
 } from "../types/geometry";
 import { printCanvasSizeMm, resolvePrintLayout } from "./printLayout";
-import type { ResolvedPrintLayout, ResolvedPrintLayoutPlacement } from "./printLayout";
+import type { PrintLayoutNumericBindingLookup, ResolvedPrintLayout, ResolvedPrintLayoutPlacement } from "./printLayout";
 
 export type PrintPoint = { x: number; y: number };
 
@@ -308,7 +308,8 @@ export const printableItemsForLayout = ({
   layout,
   visibilityProfiles = [],
   activeVisibilityProfileId,
-  groupPrintEnabledLookup
+  groupPrintEnabledLookup,
+  printLayoutNumericBindingLookup
 }: {
   elements: CadElement[];
   evaluation: EvaluationResult;
@@ -316,9 +317,10 @@ export const printableItemsForLayout = ({
   visibilityProfiles?: VisibilityProfile[];
   activeVisibilityProfileId?: string | null;
   groupPrintEnabledLookup?: GroupPrintEnabledLookup;
+  printLayoutNumericBindingLookup?: PrintLayoutNumericBindingLookup;
 }): PrintableItems => {
   const geometries = Array.from(evaluation.computedGeometry.values());
-  const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation });
+  const resolvedLayout = resolvePrintLayout({ layout, elements, evaluation, numericBindingLookup: printLayoutNumericBindingLookup });
   const baseVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveDrawElementIds(elements);
   const profile = visibilityProfileById(
     visibilityProfiles,
@@ -374,7 +376,8 @@ export const printablePathsForLayout = ({
   layout,
   visibilityProfiles,
   activeVisibilityProfileId,
-  groupPrintEnabledLookup
+  groupPrintEnabledLookup,
+  printLayoutNumericBindingLookup
 }: {
   elements: CadElement[];
   evaluation: EvaluationResult;
@@ -382,13 +385,15 @@ export const printablePathsForLayout = ({
   visibilityProfiles?: VisibilityProfile[];
   activeVisibilityProfileId?: string | null;
   groupPrintEnabledLookup?: GroupPrintEnabledLookup;
+  printLayoutNumericBindingLookup?: PrintLayoutNumericBindingLookup;
 }) => printableItemsForLayout({
   elements,
   evaluation,
   layout,
   visibilityProfiles,
   activeVisibilityProfileId,
-  groupPrintEnabledLookup
+  groupPrintEnabledLookup,
+  printLayoutNumericBindingLookup
 }).paths;
 
 export const defaultPlacementForGroup = (

@@ -7,7 +7,6 @@ import type {
   CadElementType,
   DocumentPalette,
   ElementId,
-  NumericVariable,
   PaletteColor,
   PrintLayout,
   PrintLayoutPlacement,
@@ -323,26 +322,15 @@ const buildBlockPrintLayouts = ({
   for (const { statement, index } of blockStatements) {
     if (statement.kind !== "printLayout") continue;
     const members = statements.filter(
-      (member) =>
-        (member.kind === "place" || member.kind === "layoutVar") &&
-        member.enclosing?.statementIndex === index
+      (member) => member.kind === "place" && member.enclosing?.statementIndex === index
     );
-    const numericVariables: NumericVariable[] = [];
     const placements: PrintLayoutPlacement[] = [];
     const numeric = (source: string) =>
       makeNumericExpression(
-        normalizeNumericExpressionInput(source, elements, numericVariables, undefined, nameIndex.nameContext)
+        normalizeNumericExpressionInput(source, elements, [], undefined, nameIndex.nameContext)
       );
 
     for (const member of members) {
-      if (member.kind === "layoutVar") {
-        numericVariables.push({
-          id: `print-variable-${numericVariables.length + 1}`,
-          name: member.name,
-          value: numeric(member.expression)
-        });
-        continue;
-      }
       if (member.kind !== "place") continue;
       const groupId = resolveId(member.group, nameIndex, member.line, diagnostics);
       const target = nameIndex.elementsById.get(groupId);
@@ -407,7 +395,6 @@ const buildBlockPrintLayouts = ({
       scale: scale === undefined ? existing?.scale : numeric(scale),
       svgCanvasWidthMm: canvasPair ? numeric(canvasPair.x) : existing?.svgCanvasWidthMm,
       svgCanvasHeightMm: canvasPair ? numeric(canvasPair.y) : existing?.svgCanvasHeightMm,
-      numericVariables,
       placements
     }, elements, visibilityProfiles, { preserveDanglingReferences: true });
     next = existing

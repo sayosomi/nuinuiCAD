@@ -144,6 +144,74 @@ describe("dslElementParameterCompletionOptions", () => {
     expect(inside.map((option) => option.path)).toContain("length");
   });
 
+  it("resolves element-property candidates for a printLayout header attribute (scale=), even though printLayout is a BlockFrame scope with no elementId", () => {
+    const source = [
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "group G {",
+      "  point C = coordinate(x: 0, y: 0)",
+      "}",
+      "printLayout Layout1 (",
+      "  columns: 2,",
+      "  scale: 1+@AB.length",
+      ") {",
+      "  place G (at: (0, 0), angle: 0+@AB.length)",
+      "}"
+    ].join("\n");
+    const { elements, ids } = identities(source);
+    const abId = ids.get(4)!;
+    const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
+    // Line 10: "  scale: 1+@AB.length" - physically after printLayout's own
+    // opening line (8) but still part of the same statement's continuation,
+    // which is exactly the shape dslScopeBeforeParsedLine reports as an
+    // enclosing printLayout BlockFrame.
+    const options = dslElementParameterCompletionOptions({
+      source,
+      cursorLine: 10,
+      statementElementIds: ids,
+      elements,
+      elementToken: "AB",
+      computedGeometry,
+      effectiveEnabledElementIds: new Set([abId]),
+      errors: []
+    });
+    expect(options.map((option) => option.path)).toContain("length");
+  });
+
+  it("resolves element-property candidates for a place attribute (angle=) inside a printLayout block", () => {
+    const source = [
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "group G {",
+      "  point C = coordinate(x: 0, y: 0)",
+      "}",
+      "printLayout Layout1 (",
+      "  columns: 2,",
+      "  scale: 1",
+      ") {",
+      "  place G (at: (0, 0), angle: 0+@AB.length)",
+      "}"
+    ].join("\n");
+    const { elements, ids } = identities(source);
+    const abId = ids.get(4)!;
+    const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
+    const options = dslElementParameterCompletionOptions({
+      source,
+      cursorLine: 12, // "  place G (at: (0, 0), angle: 0+@AB.length)"
+      statementElementIds: ids,
+      elements,
+      elementToken: "AB",
+      computedGeometry,
+      effectiveEnabledElementIds: new Set([abId]),
+      errors: []
+    });
+    expect(options.map((option) => option.path)).toContain("length");
+  });
+
   it("excludes a disabled compiled element", () => {
     const { elements, ids } = identities(baseSource);
     const abId = ids.get(4)!;

@@ -341,6 +341,10 @@ describe("dslDocument printLayout and activePrintLayout", () => {
       'role seam (name: "縫い代")',
       "view 印刷 (default: true, seam: true)",
       "",
+      "group 前身頃 {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "}",
+      "",
       "printLayout A4 (",
       "  output: svg,",
       "  view: 印刷,",
@@ -352,12 +356,7 @@ describe("dslDocument printLayout and activePrintLayout", () => {
       "  scale: 0.5,",
       "  canvas: (500, 700)",
       ") {",
-      "  layoutVar margin = 20",
-      "  place 前身頃 (at: (10, margin), angle: 90, mirrorX: true)",
-      "}",
-      "",
-      "group 前身頃 {",
-      "  point A = coordinate(x: 0, y: 0)",
+      "  place 前身頃 (at: (10, 20), angle: 90, mirrorX: true)",
       "}"
     ].join("\n");
     const parsed = parseDslDocument(source);
@@ -376,7 +375,6 @@ describe("dslDocument printLayout and activePrintLayout", () => {
       svgCanvasHeightMm: 700
     });
     expect(layout.placements).toHaveLength(1);
-    expect(layout.numericVariables).toHaveLength(1);
 
     const reserialized = serializeDocumentToDsl(parsed.document!, 3);
     const reparsed = parseDslDocument(reserialized);
@@ -419,6 +417,97 @@ describe("dslDocument printLayout and activePrintLayout", () => {
     expect(reparsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(reparsed.document!.printLayouts[1].name).toBe("レイアウト1");
     expect(reparsed.document!.activePrintLayoutId).toBe(reparsed.document!.printLayouts[1].id);
+  });
+});
+
+describe("printLayout is the canonical document-end sink", () => {
+  it("serializes the printLayout section after the elements section", () => {
+    const compiled = compileDslDocument([
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "printLayout レイアウト1 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "}"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    const text = serializeDocumentToDsl(compiled.document!, 3);
+    const elementIndex = text.indexOf("point A");
+    const printLayoutIndex = text.indexOf("printLayout");
+    expect(elementIndex).toBeGreaterThanOrEqual(0);
+    expect(printLayoutIndex).toBeGreaterThan(elementIndex);
+  });
+
+  const bodyStatementAfterPrintLayout = (trailingStatement: string) =>
+    [
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "printLayout レイアウト1 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "}",
+      trailingStatement
+    ].join("\n");
+
+  it("rejects a set statement placed after a printLayout block", () => {
+    const compiled = compileDslDocument([
+      "nui 3",
+      "let v: number = 1",
+      "printLayout レイアウト1 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "}",
+      "set v = 2"
+    ].join("\n"));
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);
+  });
+
+  it("rejects a typed declaration placed after a printLayout block", () => {
+    const compiled = compileDslDocument(bodyStatementAfterPrintLayout("let v: number = 2"));
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);
+  });
+
+  it("rejects an element placed after a printLayout block", () => {
+    const compiled = compileDslDocument(bodyStatementAfterPrintLayout("point B = coordinate(x: 1, y: 1)"));
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);
+  });
+
+  it("rejects a group placed after a printLayout block", () => {
+    const compiled = compileDslDocument(
+      bodyStatementAfterPrintLayout(["group G {", "  point C = coordinate(x: 2, y: 2)", "}"].join("\n"))
+    );
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);
+  });
+
+  it("rejects a reverse statement placed after a printLayout block", () => {
+    const compiled = compileDslDocument([
+      "nui 3",
+      "line AB = segment(start: A, end: B)",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 1, y: 1)",
+      "printLayout レイアウト1 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "}",
+      "reverse AB"
+    ].join("\n"));
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);
+  });
+
+  it("allows a further printLayout block (and its place statements) after the first one", () => {
+    const compiled = compileDslDocument([
+      "nui 3",
+      "group G {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "}",
+      "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "  place G (at: (0, 0), angle: 0, mirrorX: false)",
+      "}",
+      "printLayout 二枚目 (output: pdf, paper: a4, orientation: portrait, columns: 1, rows: 1, overlap: 0, scale: 1, canvas: (410, 584)) {",
+      "  place G (at: (0, 0), angle: 0, mirrorX: false)",
+      "}",
+      "activePrintLayout 二枚目"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.document!.printLayouts).toHaveLength(2);
   });
 });
 
@@ -623,22 +712,22 @@ describe("compileDslDocument facade", () => {
       return info!;
     };
 
-    expect(infoOf("前身頃")).toMatchObject({ line: 27, range: { startLine: 27, endLine: 60 }, indentDepth: 0 });
+    expect(infoOf("前身頃")).toMatchObject({ line: 12, range: { startLine: 12, endLine: 45 }, indentDepth: 0 });
     expect(infoOf("見返し")).toMatchObject({
-      line: 42,
-      range: { startLine: 42, endLine: 52 },
-      elseLine: 47,
+      line: 27,
+      range: { startLine: 27, endLine: 37 },
+      elseLine: 32,
       indentDepth: 1
     });
-    expect(infoOf("C")).toMatchObject({ line: 43, endLine: 46, indentDepth: 2 });
-    expect(infoOf("D")).toMatchObject({ line: 48, endLine: 51, indentDepth: 2 });
-    expect(infoOf("繰返し")).toMatchObject({ range: { startLine: 54, endLine: 59 }, indentDepth: 1 });
-    expect(infoOf("after")).toMatchObject({ line: 69, endLine: 72, range: { startLine: 69, endLine: 69 }, indentDepth: 0 });
+    expect(infoOf("C")).toMatchObject({ line: 28, endLine: 31, indentDepth: 2 });
+    expect(infoOf("D")).toMatchObject({ line: 33, endLine: 36, indentDepth: 2 });
+    expect(infoOf("繰返し")).toMatchObject({ range: { startLine: 39, endLine: 44 }, indentDepth: 1 });
+    expect(infoOf("after")).toMatchObject({ line: 54, endLine: 57, range: { startLine: 54, endLine: 54 }, indentDepth: 0 });
 
     // 全要素がstatementMapに載る(無名要素含む)。
     expect(map.byElementId.size).toBe(document.elements.length);
     const unnamed = document.elements.find((item) => item.name === "" && item.type === "freePoint");
-    expect(map.byElementId.get(unnamed!.id)).toMatchObject({ line: 62 });
+    expect(map.byElementId.get(unnamed!.id)).toMatchObject({ line: 47 });
   });
 
   it("keys non-element statements and records section ends for the sample fixture", () => {
@@ -652,10 +741,21 @@ describe("compileDslDocument facade", () => {
     expect(map.byKey.get("view:通常")).toMatchObject({ line: 8 });
     expect(map.byKey.get("view:印刷")).toMatchObject({ line: 9 });
     expect(map.byKey.get("activeView")).toMatchObject({ line: 10 });
-    expect(map.byKey.get("printLayout:A4")).toMatchObject({ range: { startLine: 12, endLine: 25 } });
-    expect(map.byKey.get("atStop")).toMatchObject({ line: 67 });
+    expect(map.byKey.get("printLayout:A4")).toMatchObject({ range: { startLine: 59, endLine: 71 } });
+    expect(map.byKey.get("atStop")).toMatchObject({ line: 52 });
 
-    expect(map.sectionEnds).toEqual({ version: 1, palette: 5, visibility: 10, printLayouts: 25 });
+    expect(map.sectionEnds).toEqual({ version: 1, palette: 5, visibility: 10, elements: 57, printLayouts: 71 });
+  });
+
+  it("counts a trailing @stop (with no printLayout yet) as the end of the elements section, not the statement before it", () => {
+    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "@stop"].join("\n");
+    const compiled = compileDslDocument(source);
+    const map = compiled.statementMap!;
+    // Line 2 is "point A = ..."; line 3 is "@stop" - sectionEnds.elements must
+    // point at @stop's own line (the true end of the section) so a
+    // newly-inserted printLayout is anchored after it, not before it.
+    expect(map.byKey.get("atStop")).toMatchObject({ line: 3 });
+    expect(map.sectionEnds.elements).toBe(3);
   });
 
   it("injects assignedElementIds while letting explicit id= win", () => {

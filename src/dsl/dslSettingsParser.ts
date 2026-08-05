@@ -14,7 +14,6 @@ export type DslSettingsKind =
   | "activeView"
   | "activePrintLayout"
   | "printLayout"
-  | "layoutVar"
   | "place"
   | "atStop";
 
@@ -28,7 +27,6 @@ export type DslSettingsStatement = {
   payloadSpans: Record<string, DslSpan>;
   opensBlock: boolean;
   value?: string;
-  expression?: string;
 };
 
 export type DslSettingsParseResult = {
@@ -208,27 +206,6 @@ export const parseDslSettingsStatement = (
   }
   if (keyword === "activeView" || keyword === "activePrintLayout") {
     return { statement: simpleStatement(logicalText, keyword, keywordSpan, rest, diagnostics), diagnostics };
-  }
-  if (keyword === "layoutVar") {
-    const equals = topLevelIndex(logicalText, "=", rest.start);
-    const nameSpan = trimSpan(logicalText, rest.start, equals >= 0 ? equals : rest.end);
-    const expressionSpan = trimSpan(logicalText, equals >= 0 ? equals + 1 : rest.end, rest.end);
-    const name = parseName(logicalText, nameSpan);
-    if (!name.nameSpan) addDiagnostic(diagnostics, "layoutVar には名前が必要です。", keywordSpan);
-    if (equals < 0) addDiagnostic(diagnostics, "layoutVar には「=」が必要です。", keywordSpan);
-    if (expressionSpan.start === expressionSpan.end) addDiagnostic(diagnostics, "layoutVar には「=」の後に式が必要です。", expressionSpan);
-    return {
-      statement: {
-        kind: "layoutVar", ...name, keywordSpan, args: [], attrs: [],
-        payloadSpans: {
-          ...(name.nameSpan ? { name: name.nameSpan } : {}),
-          ...(expressionSpan.start !== expressionSpan.end ? { expression: expressionSpan } : {}),
-        },
-        opensBlock: false,
-        expression: logicalText.slice(expressionSpan.start, expressionSpan.end),
-      },
-      diagnostics,
-    };
   }
   if (!callKeywords.has(keyword)) return { statement: null, diagnostics };
 

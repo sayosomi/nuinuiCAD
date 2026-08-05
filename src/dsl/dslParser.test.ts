@@ -241,25 +241,21 @@ describe("DSL parser new document statements", () => {
     expect(statement).toMatchObject({ kind: "activePrintLayout", name: "型紙A" });
   });
 
-  it("parses printLayout blocks with place and layoutVar members", () => {
+  it("parses printLayout blocks with place members", () => {
     const parsed = parseDsl([
       "printLayout 型紙A (output: pdf paper: a4 orientation: portrait columns: 2 rows: 3 overlap: 10 scale: 1) {",
-      "  layoutVar 余白 = 20",
-      "  place 前身頃 (at: (0, 余白) angle: 0 mirrorX: false)",
+      "  place 前身頃 (at: (0, 20) angle: 0 mirrorX: false)",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
-    const [layout, layoutVar, place] = parsed.statements;
+    const [layout, place] = parsed.statements;
     expect(layout).toMatchObject({ kind: "printLayout", name: "型紙A", opensBlock: true });
-    expect(layoutVar).toMatchObject({ kind: "layoutVar", name: "余白", expression: "20" });
     expect(place).toMatchObject({ kind: "place", group: "前身頃" });
-    expect(layoutVar.enclosing).toEqual({ statementIndex: 0, branch: "then" });
     expect(place.enclosing).toEqual({ statementIndex: 0, branch: "then" });
   });
 
-  it("rejects place and layoutVar outside printLayout blocks", () => {
+  it("rejects place outside printLayout blocks", () => {
     expect(errors("place 前身頃 (at: (0,0))")[0].message).toContain("printLayout");
-    expect(errors("layoutVar n = 1")[0].message).toContain("printLayout");
   });
 
   it("rejects element statements inside printLayout blocks", () => {
@@ -268,7 +264,7 @@ describe("DSL parser new document statements", () => {
       "  point A = coordinate(x: 0 y: 0)",
       "}"
     ].join("\n"));
-    expect(parsed[0].message).toContain("place と layoutVar のみ");
+    expect(parsed[0].message).toContain("place のみ");
   });
 });
 
@@ -427,9 +423,9 @@ describe("DSL typed declarations", () => {
     expect(decls[2].enclosing).toMatchObject({ branch: "else" });
   });
 
-  it("is rejected inside printLayout blocks, matching place/layoutVar's own restriction", () => {
+  it("is rejected inside printLayout blocks, matching place's own restriction", () => {
     const result = errors(["printLayout 型紙A () {", "  const x: number = 1", "}"].join("\n"));
-    expect(result.some((item) => item.message.includes("place と layoutVar のみ"))).toBe(true);
+    expect(result.some((item) => item.message.includes("place のみ"))).toBe(true);
   });
 
   it("parses correctly when sandwiched between multi-line vertical element statements", () => {
@@ -492,9 +488,9 @@ describe("DSL set statements", () => {
     expect(sets[2].enclosing).toMatchObject({ branch: "else" });
   });
 
-  it("is rejected inside printLayout blocks, matching place/layoutVar's own restriction", () => {
+  it("is rejected inside printLayout blocks, matching place's own restriction", () => {
     const result = errors(["printLayout 型紙A () {", "  set x = 1", "}"].join("\n"));
-    expect(result.some((item) => item.message.includes("place と layoutVar のみ"))).toBe(true);
+    expect(result.some((item) => item.message.includes("place のみ"))).toBe(true);
   });
 
   it("reports a missing target name", () => {

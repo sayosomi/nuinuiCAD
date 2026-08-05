@@ -180,7 +180,7 @@ export type PrintLayoutRangeIndex = ReadonlyMap<string, PrintLayoutRange>;
 /**
  * Mirrors createStatementRangeIndex for printLayout block-opening lines.
  * statementMap.byKey entries keyed `printLayout:<id>` never appear in the
- * element-keyed StatementRangeIndex (printLayout/place/layoutVar produce no
+ * element-keyed StatementRangeIndex (printLayout/place produce no
  * CadElement), so `@variable` completion for printLayout-block attributes
  * needs this separate live-line -> committed-id index. Only valid while the
  * matching statementMap is current, same contract as createStatementRangeIndex.

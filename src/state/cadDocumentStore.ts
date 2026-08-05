@@ -742,8 +742,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       ...source,
       id: nextPrintLayoutId(document.printLayouts),
       name: source.name.trim().length > 0 ? `${source.name.trim()} コピー` : "",
-      placements: source.placements.map((placement) => ({ ...placement })),
-      numericVariables: source.numericVariables?.map((variable) => ({ ...variable })) ?? []
+      placements: source.placements.map((placement) => ({ ...placement }))
     };
     get().commitDocumentChange({
       printLayouts: [...document.printLayouts, copy],

@@ -84,7 +84,8 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
   sections.push(elementLines);
 
   if (params.withLayout && params.groupCount > 0) {
-    sections.splice(3, 0, [
+    // printLayoutはcanonicalに文書の最後尾(全elementより後)に置く。
+    sections.push([
       "printLayout L0 (",
       "  output: pdf,",
       "  paper: a4,",
@@ -95,8 +96,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
       "  scale: 1,",
       "  canvas: (410, 584)",
       ") {",
-      "  layoutVar margin = 15",
-      "  place G0 (at: (0, margin), angle: 0, mirrorX: false)",
+      "  place G0 (at: (0, 15), angle: 0, mirrorX: false)",
       "}"
     ]);
   }
