@@ -192,6 +192,15 @@ const validateArgs = (
       );
       continue;
     }
+    if (arg.key === "color" && category === MUTATION_CATEGORY) {
+      diagnostic(
+        diagnostics,
+        `${construction} は自身の図形を持たないため color を指定できません。`,
+        arg.valueSpan,
+        "color-unsupported"
+      );
+      continue;
+    }
     seen.add(arg.key);
     payloadSpans[arg.key] = arg.valueSpan;
   }

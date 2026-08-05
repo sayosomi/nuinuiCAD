@@ -1,4 +1,5 @@
 import type { CadElement, CadElementType, ElementId } from "../types/geometry";
+import { elementTypesWithoutOwnDrawableGeometry } from "./elementActivity";
 import { createCadElementId } from "./cadIds";
 import { makeUniqueElementName, withCreatedElementName } from "./elementNames";
 import { derivedAnchor, referenceAnchor } from "./pointAnchors";
@@ -486,5 +487,11 @@ export const createCadElement = (
     }
   }
   })();
-  return withCreatedElementName(element, elements, referenceElements);
+  // The bare mutation DSL grammar has no name slot (edge/extendTrim/move/
+  // symmetricMove/pathReverse); createCadElement guarantees name === "" for
+  // these types at return, rather than relying on a later caller
+  // (emitCreationRecipe / dslCompiler) to reset it.
+  return elementTypesWithoutOwnDrawableGeometry.has(type)
+    ? { ...element, name: "" }
+    : withCreatedElementName(element, elements, referenceElements);
 };

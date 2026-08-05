@@ -1,6 +1,6 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
 import { createCadElementId } from "../model/cadIds";
-import { elementTypeSupportsHiddenActivity, type ElementActivity } from "../model/elementActivity";
+import { elementTypeSupportsHiddenActivity, elementTypesWithoutOwnDrawableGeometry, type ElementActivity } from "../model/elementActivity";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
@@ -178,7 +178,12 @@ export const applyArgs = (
     // `color` is a common argument even for element definitions that omit it
     // from their Inspector parameter list.
     if (!parameter) {
-      if (parameterKey === "colorId") next = { ...next, colorId: unquoteDslString(value) } as CadElement;
+      // Defence in depth: dslCallParser.ts's validateArgs already rejects this
+      // at parse time with a spanned diagnostic (color-unsupported); this
+      // guard only matters for a caller that skips that parse-time gate.
+      if (parameterKey === "colorId" && !elementTypesWithoutOwnDrawableGeometry.has(next.type)) {
+        next = { ...next, colorId: unquoteDslString(value) } as CadElement;
+      }
       continue;
     }
     switch (parameter.kind) {

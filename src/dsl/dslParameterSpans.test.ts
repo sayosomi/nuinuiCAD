@@ -58,6 +58,12 @@ const specialArgNames = new Set(["steps", "vars", "varIds", "id", "roles", "pare
  * "every emitted arg is claimed" check would otherwise flag this pre-existing,
  * type-independent P5 behavior as a gap; the forward per-type check below
  * still fully covers these keys for the types that do expose them.
+ *
+ * `color` is universal for every category except mutation
+ * (edge/extendTrim/move/symmetricMove/pathReverse): those types have no
+ * drawable geometry of their own, so `color:` is rejected at parse time
+ * (dslCallParser.ts's color-unsupported diagnostic) and never appears in
+ * their fixtures.
  */
 const universalArgNames = new Set(["state", "color"]);
 

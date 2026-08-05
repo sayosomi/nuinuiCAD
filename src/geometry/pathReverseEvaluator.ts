@@ -1,6 +1,7 @@
 import type { CadElement } from "../types/geometry";
 import { elementDisplayName } from "../model/elementNames";
-import { dependencyError, geometryError } from "./evaluationContext";
+import { forGroupAncestorIds } from "../model/groups";
+import { dependencyError, forGroupAncestorError, geometryError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { reverseComputedPathGeometry } from "./reversePathGeometry";
 
@@ -19,6 +20,17 @@ export const evaluatePathReverseElement = (
   if (element.type !== "pathReverse") return false;
 
   const { computedGeometry, elementsById, errors, disabledByGroupId } = context;
+
+  const target = elementsById.get(element.targetLineId);
+  if (target) {
+    const reverseAncestors = forGroupAncestorIds(elementsById, element);
+    const targetAncestors = forGroupAncestorIds(elementsById, target);
+    if ([...reverseAncestors].some((id) => !targetAncestors.has(id))) {
+      errors.push(forGroupAncestorError(element, target));
+      return true;
+    }
+  }
+
   const current = computedGeometry.get(element.targetLineId);
   if (!current) {
     errors.push(dependencyError(element, element.targetLineId, elementsById, disabledByGroupId));

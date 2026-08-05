@@ -66,10 +66,12 @@ const reverseEligible = () => {
 /** Inserts a `reverse(target: …)` element immediately after the selected
  * line, through the same source-backed creation path every other element
  * creation command uses (see containerCreation.ts's addContainer) - no
- * hand-written statement text, no dedicated forGroup rejection. A reversal
- * inside a forGroup is a normal element there like any other; whether its
- * target lives inside or outside the loop is the user's concern, the same
- * as any other cross-iteration reference. */
+ * hand-written statement text. A reversal inside a forGroup is a normal
+ * element there like any other; pathReverseEvaluator.ts (TS) and
+ * path_reverse_evaluator.rs (Rust) reject it at evaluation time only when
+ * its target's forGroup ancestor chain isn't a superset of the reverse
+ * statement's own (see forGroupAncestorIds) - a same-loop (including the
+ * same nested loop) or enclosing-scope target stays valid. */
 const insertReverseAfterSelectedPath = () => {
   const selected = reverseEligible();
   const document = useCadDocumentStore.getState();

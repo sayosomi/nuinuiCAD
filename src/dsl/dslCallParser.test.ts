@@ -105,6 +105,16 @@ describe("DSL nui 3 call parser", () => {
     expect(messages("point A = coordinate(x: 0 y: 0 enabled: false)").join("\n")).toContain("引数「enabled」");
   });
 
+  it("rejects color: on a bare mutation statement but keeps it valid on a drawable element", () => {
+    expect(parse("reverse(target: AB color: red)").diagnostics).toContainEqual(
+      expect.objectContaining({ code: "color-unsupported" })
+    );
+    expect(messages("edge(end1: AB.end end2: CD.start color: red)").join("\n")).toContain(
+      "color を指定できません"
+    );
+    expect(messages("point A = coordinate(x: 0 y: 0 color: red)")).toEqual([]);
+  });
+
   it("keeps legacy syntax out of the live parser", () => {
     const arrow = parseDsl("nui 3\nline AB = A -> B");
     const genericElement = parseDsl("nui 3\nelement Copy type=copyLine startPoint=A");

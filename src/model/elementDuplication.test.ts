@@ -43,6 +43,36 @@ describe("duplicateElements", () => {
     expect(change?.selectedElementId).toBe("freePoint-copy");
   });
 
+  it("keeps a duplicated pathReverse element's name empty instead of generating a copy label", () => {
+    const elements: CadElement[] = [
+      {
+        id: "point-a", name: "点A", type: "freePoint", activity: "visible", x: 0, y: 0
+      },
+      {
+        id: "point-b", name: "点B", type: "freePoint", activity: "visible", x: 10, y: 0
+      },
+      {
+        id: "line-ab", name: "線AB", type: "line", activity: "visible",
+        startPoint: { mode: "reference", pointId: "point-a" },
+        endPoint: { mode: "reference", pointId: "point-b" }
+      },
+      {
+        id: "reverse", name: "", type: "pathReverse", activity: "visible", targetLineId: "line-ab"
+      }
+    ];
+
+    const change = duplicateElements(elements, ["reverse"], { createId });
+
+    expect(change?.elements.find((element) => element.id === "pathReverse-copy")).toMatchObject({
+      id: "pathReverse-copy",
+      name: "",
+      type: "pathReverse",
+      // Not selected alongside the mutation, so the target reference is left
+      // pointing at the original line (mirrors forGroup's mapId semantics).
+      targetLineId: "line-ab"
+    });
+  });
+
   it("remaps references inside the duplicated selection only", () => {
     const ids = ["point-a-copy", "line-ab-copy"];
     const elements: CadElement[] = [

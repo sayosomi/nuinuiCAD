@@ -61,6 +61,28 @@ export const isForGroupElement = (
   element: CadElement
 ): element is ForGroupElement => element.type === "forGroup";
 
+/**
+ * Walks `element.parentGroupId` upward, collecting every forGroup-typed
+ * ancestor id. Sized for a single per-element check (pathReverseEvaluator.ts)
+ * rather than groupStateByElementId's whole-document precompute.
+ */
+export const forGroupAncestorIds = (
+  elementsById: Map<ElementId, CadElement>,
+  element: CadElement
+): Set<ElementId> => {
+  const ancestors = new Set<ElementId>();
+  const visited = new Set<ElementId>();
+  let parentId = element.parentGroupId;
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = elementsById.get(parentId);
+    if (!parent) break;
+    if (isForGroupElement(parent)) ancestors.add(parent.id);
+    parentId = parent.parentGroupId;
+  }
+  return ancestors;
+};
+
 export type ElementGroupState = {
   depth: number;
   ancestorGroupIds: ElementId[];

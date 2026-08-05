@@ -210,6 +210,17 @@ pub fn element_display_name(element: &Value) -> String {
     .to_owned()
 }
 
+/// Mirrors the TypeScript `elementTypesWithoutOwnDrawableGeometry` set (see
+/// src/model/elementActivity.ts): these five bare mutation-statement types
+/// always have `name === ""` in the model, since the DSL "mutation" category
+/// has no name slot to write into.
+pub fn element_type_without_own_drawable_geometry(element_type: Option<&str>) -> bool {
+    matches!(
+        element_type,
+        Some("edge" | "extendTrim" | "move" | "symmetricMove" | "pathReverse")
+    )
+}
+
 pub fn element_type(element: &Value) -> Option<&str> {
     element.get("type")?.as_str()
 }

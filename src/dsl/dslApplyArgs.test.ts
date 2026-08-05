@@ -143,12 +143,15 @@ describe("DSL nui 3 compiler argument application", () => {
     expect(onLine.diagnostics).toEqual([]);
   });
 
-  it("applies the common color argument when a legacy type has no Inspector color definition", () => {
+  it("ignores a color argument on a mutation-category type with no Inspector color definition", () => {
+    // Defence in depth: dslCallParser.ts's validateArgs already rejects
+    // color: on a mutation statement at parse time (color-unsupported); this
+    // only exercises applyArgs's own guard for a caller that skips that gate.
     const edge = sample("edge");
     expect(findParameterDefinition(edge, "colorId")).toBeUndefined();
     const result = applyArgs(edge, constructionFor("mutation", "edge")!, [arg("color", "cut-red")], resolvers);
     expect(result.diagnostics).toEqual([]);
-    expect(result.element).toMatchObject({ colorId: "cut-red" });
+    expect(result.element).not.toHaveProperty("colorId");
   });
 
   it("resolves each reference, endpoint, list, choice, text, and coordinate kind", () => {

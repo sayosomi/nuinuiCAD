@@ -1,3 +1,4 @@
+import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { CadElement, LineEndpointReference, NumericValue, PointAnchor } from "../types/geometry";
@@ -144,7 +145,7 @@ const commonArgs = (
       if (arg.special) return specialArgText(element, arg, refs) !== null;
       const key = arg.parameterKey ?? arg.arg;
       if (key === "state") return activity !== "visible";
-      return key === "colorId" && Boolean(element.colorId);
+      return key === "colorId" && Boolean(element.colorId) && !elementTypesWithoutOwnDrawableGeometry.has(element.type);
     })
     // `state` is model activity rather than an editable parameter.
     .map((arg) => (arg.arg === "state" ? { key: "state", text: `state: ${activity}` } : serializeArg(element, arg, refs)))

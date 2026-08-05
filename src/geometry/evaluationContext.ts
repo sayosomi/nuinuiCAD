@@ -67,6 +67,14 @@ export const geometryError = (element: CadElement, message: string): DependencyE
   message
 });
 
+export const forGroupAncestorError = (element: CadElement, target: CadElement): DependencyError => ({
+  elementId: element.id,
+  elementName: elementDisplayName(element),
+  missingDependencyId: target.id,
+  missingDependencyName: elementDisplayName(target),
+  message: `${elementDisplayName(element)} の対象「${elementDisplayName(target)}」はこの反転が属する for の外側にあるため反転できません。対象を同じ for の内側の要素にしてください。`
+});
+
 export const geometryWarning = (element: CadElement, message: string): EvaluationWarning => ({
   elementId: element.id,
   elementName: elementDisplayName(element),

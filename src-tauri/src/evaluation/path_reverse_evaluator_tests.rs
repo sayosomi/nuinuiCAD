@@ -147,6 +147,201 @@ fn path_reverse_only_applies_in_the_active_conditional_branch() {
     assert_close(active_geometry["end"]["x"].as_f64().unwrap(), 0.0);
 }
 
+fn for_group(id: &str, name: &str, count: i64, parent_group_id: Option<&str>) -> serde_json::Value {
+    let mut value = json!({
+        "id": id, "name": name, "type": "forGroup", "activity": "visible",
+        "variableName": "i", "start": 0, "count": count, "step": 1, "showGenerated": false
+    });
+    if let Some(parent) = parent_group_id {
+        value["parentGroupId"] = json!(parent);
+    }
+    value
+}
+
+#[test]
+fn path_reverse_allows_target_declared_in_the_same_for_loop() {
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            free_point("a", "A", 0.0, 0.0),
+            free_point("b", "B", 100.0, 0.0),
+            for_group("loop", "Loop", 2, None),
+            json!({
+                "id": "ab", "name": "AB", "type": "line", "activity": "visible",
+                "parentGroupId": "loop",
+                "startPoint": { "mode": "reference", "pointId": "a" },
+                "endPoint": { "mode": "reference", "pointId": "b" }
+            }),
+            json!({
+                "id": "rev", "name": "", "type": "pathReverse", "activity": "visible",
+                "parentGroupId": "loop", "targetLineId": "ab"
+            }),
+        ],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty());
+}
+
+#[test]
+fn path_reverse_generated_clone_keeps_model_name_empty_but_reports_display_name_fallback() {
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            free_point("a", "A", 0.0, 0.0),
+            free_point("b", "B", 100.0, 0.0),
+            for_group("loop", "Loop", 1, None),
+            json!({
+                "id": "ab", "name": "AB", "type": "line", "activity": "visible",
+                "parentGroupId": "loop",
+                "startPoint": { "mode": "reference", "pointId": "a" },
+                "endPoint": { "mode": "reference", "pointId": "b" }
+            }),
+            json!({
+                "id": "rev", "name": "", "type": "pathReverse", "activity": "visible",
+                "parentGroupId": "loop", "targetLineId": "ab"
+            }),
+        ],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let reverse_row = result
+        .for_group_generated_rows
+        .iter()
+        .find(|row| row.element_type == "pathReverse")
+        .expect("expected a generated pathReverse row");
+    // The row's presentation label falls back to the type label, never a
+    // bracket-labeled model name like "[i=0] " (see element_display_name /
+    // for_group_ancestor_ids' `name === ""` invariant for generated
+    // mutation clones).
+    assert_eq!(reverse_row.element_name, "反転");
+    let line_row = result
+        .for_group_generated_rows
+        .iter()
+        .find(|row| row.element_type == "line")
+        .expect("expected a generated line row");
+    assert_eq!(line_row.element_name, "[i=0] AB");
+}
+
+#[test]
+fn path_reverse_rejects_target_declared_outside_its_for_loop() {
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            free_point("a", "A", 0.0, 0.0),
+            free_point("b", "B", 100.0, 0.0),
+            line("ab", "AB", "a", "b"),
+            for_group("loop", "Loop", 2, None),
+            json!({
+                "id": "rev", "name": "", "type": "pathReverse", "activity": "visible",
+                "parentGroupId": "loop", "targetLineId": "ab"
+            }),
+        ],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(!result.errors.is_empty());
+    assert!(result
+        .errors
+        .iter()
+        .all(|error| error.message.contains("for の外側")));
+    // The rejection must prevent the mutation, not just report it alongside it.
+    let line_geometry = geometry(&result, "ab");
+    assert_close(line_geometry["start"]["x"].as_f64().unwrap(), 0.0);
+}
+
+#[test]
+fn path_reverse_rejects_nested_inner_loop_reverse_targeting_outer_loop_only_element() {
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            free_point("a", "A", 0.0, 0.0),
+            free_point("b", "B", 100.0, 0.0),
+            for_group("outer", "Outer", 1, None),
+            json!({
+                "id": "ab", "name": "AB", "type": "line", "activity": "visible",
+                "parentGroupId": "outer",
+                "startPoint": { "mode": "reference", "pointId": "a" },
+                "endPoint": { "mode": "reference", "pointId": "b" }
+            }),
+            for_group("inner", "Inner", 1, Some("outer")),
+            json!({
+                "id": "rev", "name": "", "type": "pathReverse", "activity": "visible",
+                "parentGroupId": "inner", "targetLineId": "ab"
+            }),
+        ],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(!result.errors.is_empty());
+    assert!(result
+        .errors
+        .iter()
+        .all(|error| error.message.contains("for の外側")));
+}
+
+#[test]
+fn path_reverse_allows_nested_inner_loop_reverse_targeting_same_inner_loop_element() {
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            free_point("a", "A", 0.0, 0.0),
+            free_point("b", "B", 100.0, 0.0),
+            for_group("outer", "Outer", 1, None),
+            for_group("inner", "Inner", 1, Some("outer")),
+            json!({
+                "id": "ab", "name": "AB", "type": "line", "activity": "visible",
+                "parentGroupId": "inner",
+                "startPoint": { "mode": "reference", "pointId": "a" },
+                "endPoint": { "mode": "reference", "pointId": "b" }
+            }),
+            json!({
+                "id": "rev", "name": "", "type": "pathReverse", "activity": "visible",
+                "parentGroupId": "inner", "targetLineId": "ab"
+            }),
+        ],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty());
+}
+
 #[test]
 fn path_reverse_reports_geometry_error_for_non_line_target() {
     let result = evaluate_document_input(EvaluationInput {

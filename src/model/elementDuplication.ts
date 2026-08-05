@@ -9,6 +9,7 @@ import type {
 } from "../types/geometry";
 import { createCadElementId } from "./cadIds";
 import { elementIdsInDocumentOrder, selectedIndexes } from "./documentSelection";
+import { elementTypesWithoutOwnDrawableGeometry } from "./elementActivity";
 import { fallbackElementName, makeUniqueElementName } from "./elementNames";
 import { subtreeIdsForElement } from "./groups";
 
@@ -321,18 +322,23 @@ export const duplicateElements = (
     const copiedId = idMap.get(original.id);
     if (!copiedId) continue;
 
-    const baseName = original.name.trim() || fallbackElementName(original.type);
     const copiedParentGroupId = copy.parentGroupId ? mapId(copy.parentGroupId, idMap) : copy.parentGroupId;
+    // Bare mutation-statement types (edge/extendTrim/move/symmetricMove/
+    // pathReverse) have no DSL name slot; a duplicate must keep name === ""
+    // rather than generating a "... コピー" label.
+    const name = elementTypesWithoutOwnDrawableGeometry.has(original.type)
+      ? ""
+      : makeUniqueElementName({
+          elements: [...elements, ...copiedElements],
+          elementId: copiedId,
+          requestedName: `${original.name.trim() || fallbackElementName(original.type)} コピー`,
+          fallbackBaseName: `${fallbackElementName(original.type)} コピー`,
+          parentGroupId: copiedParentGroupId
+        });
     const renamed = {
       ...copy,
       id: copiedId,
-      name: makeUniqueElementName({
-        elements: [...elements, ...copiedElements],
-        elementId: copiedId,
-        requestedName: `${baseName} コピー`,
-        fallbackBaseName: `${fallbackElementName(original.type)} コピー`,
-        parentGroupId: copiedParentGroupId
-      }),
+      name,
       parentGroupId: copiedParentGroupId
     } as CadElement;
     copiedElements.push(remapElementReferences(renamed, idMap));
