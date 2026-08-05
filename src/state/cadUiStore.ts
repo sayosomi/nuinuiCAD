@@ -10,7 +10,8 @@ import type { CommandLineSession } from "../commands/commandLineSession";
 import type { SourceCreationInsertion } from "../commands/sourceCreationInsertion";
 import type { ActiveTemplateInsertion } from "../templates/templateInsertionMode";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
-import type { FoldTarget, GroupFoldState } from "../model/groups";
+import { isGroupExpanded } from "../model/groups";
+import type { FoldTarget, GroupFoldById, GroupFoldState } from "../model/groups";
 import type { BindingId } from "../scalars/bindingCatalog";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
@@ -294,6 +295,9 @@ export type CadUiState = CadElementSelection & {
   /** Batches many targets into a single groupFoldById update (one subscription notification). */
   setFoldTargetsExpanded: (targets: readonly FoldTarget[], expanded: boolean) => void;
   setGroupFold: (id: ElementId, patch: GroupFoldState) => void;
+  /** Replaces the whole map, so a newly loaded document never inherits fold
+   * entries keyed by an element id that happens to repeat across documents. */
+  replaceGroupFoldById: (groupFoldById: GroupFoldById) => void;
   toggleGroupExpanded: (id: ElementId) => void;
   toggleElseExpanded: (id: ElementId) => void;
   pruneGroupFold: (existingIds: ReadonlySet<ElementId>) => void;
@@ -362,6 +366,7 @@ export const initialCadUiState = (): Omit<
   | "setFoldTargetExpanded"
   | "setFoldTargetsExpanded"
   | "setGroupFold"
+  | "replaceGroupFoldById"
   | "toggleGroupExpanded"
   | "toggleElseExpanded"
   | "pruneGroupFold"
@@ -663,11 +668,12 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       groupFoldById.set(id, next);
       return { groupFoldById };
     }),
+  replaceGroupFoldById: (groupFoldById) => set(() => ({ groupFoldById: new Map(groupFoldById) })),
   toggleGroupExpanded: (id) =>
     set((state) => {
       const previous = state.groupFoldById.get(id) ?? {};
       const groupFoldById = new Map(state.groupFoldById);
-      groupFoldById.set(id, { ...previous, expanded: !(previous.expanded ?? false) });
+      groupFoldById.set(id, { ...previous, expanded: !isGroupExpanded(id, state.groupFoldById) });
       return { groupFoldById };
     }),
   toggleElseExpanded: (id) =>

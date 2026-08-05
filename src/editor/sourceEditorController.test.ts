@@ -8,6 +8,7 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
 import type { DslDocumentData } from "../dsl/dslDocument";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
+import { initialGroupFoldForLoadedDocument } from "../model/groups";
 import { dispatchCommand } from "../commands/commands";
 import { startCommandLineCreation } from "../commands/commandLineSessionCommands";
 import { SourceEditorController } from "./sourceEditorController";
@@ -17,6 +18,18 @@ const freePoint = (id: string, name: string, x: number, y: number): DslDocumentD
 });
 
 const onePointSource = (x = 0, y = 0) => dslTextForElements([freePoint("a", "A", x, y)]);
+
+/**
+ * The collapsed overview a freshly loaded document opens with. `commitText` is
+ * an edit rather than a load, so a group it produces has no fold entry and is
+ * expanded; these suites want the loaded-document state and seed it explicitly,
+ * exactly as replaceDocument/replaceTextDocument do.
+ */
+const collapseGroupsAsLoadedDocument = () => {
+  useCadUiStore.getState().replaceGroupFoldById(
+    initialGroupFoldForLoadedDocument(useCadDocumentStore.getState().elements)
+  );
+};
 
 const twoPointSource = (a: [number, number] = [0, 0], b: [number, number] = [1, 1]) => dslTextForElements([
   freePoint("a", "A", a[0], a[1]),
@@ -786,6 +799,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       { ...freePoint("a", "A", 0, 0), parentGroupId: "g" }
     ]);
     useCadDocumentStore.getState().commitText(source, "test");
+    collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -804,9 +818,44 @@ describe("SourceEditorController commit and history boundaries", () => {
     controller.destroy();
   });
 
+  it("leaves a group written during the session expanded while its body is filled in", () => {
+    useCadDocumentStore.getState().commitText(["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const append = (text: string) => {
+      internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: text } });
+      vi.advanceTimersByTime(300);
+    };
+
+    // Writing the closing brace first and filling the body in afterwards is the
+    // ordinary way to type a block. `{` must end its line, so this parses only
+    // once the newline lands — and that newline is exactly what the block's own
+    // fold range covers, so folding on first compile would hide the keystroke
+    // that just made it valid.
+    append("\ngroup {}");
+    expect(useCadDocumentStore.getState().elements.some((element) => element.type === "group")).toBe(false);
+
+    const closeBrace = internals.view.state.doc.toString().lastIndexOf("}");
+    internals.view.dispatch({ changes: { from: closeBrace, insert: "\n" } });
+    vi.advanceTimersByTime(300);
+    expect(useCadDocumentStore.getState().elements.some((element) => element.type === "group")).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+
+    const bodyLine = internals.view.state.doc.line(internals.view.state.doc.lines - 1);
+    internals.view.dispatch({
+      changes: { from: bodyLine.from, insert: "  point B = coordinate(x: 1, y: 1)\n" }
+    });
+    vi.advanceTimersByTime(300);
+    expect(useCadDocumentStore.getState().elements.some((element) => element.name === "B")).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+  });
+
   it("unfolds an invalidated dirty target instead of retaining a stale brace row", () => {
     const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
+    collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -828,6 +877,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       { id: "else", name: "Else", type: "freePoint", activity: "visible", x: 1, y: 1, parentGroupId: "inner" }
     ]);
     useCadDocumentStore.getState().commitText(source, "test");
+    collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -1071,6 +1121,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   it("unfolds via a placeholder click through the app fold state", () => {
     const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
+    collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
     document.body.append(parent);
     const controller = new SourceEditorController(parent);
@@ -1100,6 +1151,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "}"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
+    collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -1115,8 +1167,9 @@ describe("SourceEditorController commit and history boundaries", () => {
       return ranges;
     };
 
-    // The group folds by default; folding the nested statement too must add a
-    // second, independent fold range rather than replacing the parent's.
+    // The loaded document opens with the group collapsed; folding the nested
+    // statement too must add a second, independent fold range rather than
+    // replacing the parent's.
     useCadUiStore.getState().setFoldTargetExpanded({ elementId: pointB.id, branch: "statement" }, false);
     expect(rangesOf()).toContainEqual({ from: openingLine.to, to: closeLine.from });
     expect(foldedRanges(internals.view.state as never).size).toBe(2);
@@ -1133,6 +1186,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   it("restores fold state after a dirty anchor edit is undone and recommitted", () => {
     const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
+    collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
