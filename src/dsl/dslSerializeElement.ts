@@ -1,9 +1,11 @@
+import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { CadElement, LineEndpointReference, NumericValue, PointAnchor } from "../types/geometry";
 import {
   commonArgSpecs,
   constructionForElementType,
+  MUTATION_CATEGORY,
   type DslArgSpec,
   type DslConstructionSpec,
 } from "./dslConstructions";
@@ -143,7 +145,7 @@ const commonArgs = (
       if (arg.special) return specialArgText(element, arg, refs) !== null;
       const key = arg.parameterKey ?? arg.arg;
       if (key === "state") return activity !== "visible";
-      return key === "colorId" && Boolean(element.colorId);
+      return key === "colorId" && Boolean(element.colorId) && !elementTypesWithoutOwnDrawableGeometry.has(element.type);
     })
     // `state` is model activity rather than an editable parameter.
     .map((arg) => (arg.arg === "state" ? { key: "state", text: `state: ${activity}` } : serializeArg(element, arg, refs)))
@@ -187,8 +189,9 @@ export const serializeElementStatementBlock = (
 
   const common = commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg)));
 
-  const name = refs.name(element);
-  const header = [spec.category, name, "=", `${spec.construction}(`].filter(Boolean).join(" ");
+  const header = spec.category === MUTATION_CATEGORY
+    ? `${spec.construction}(`
+    : [spec.category, refs.name(element), "=", `${spec.construction}(`].filter(Boolean).join(" ");
   return {
     header,
     args: [...constructionArgs(element, spec, refs), ...common],

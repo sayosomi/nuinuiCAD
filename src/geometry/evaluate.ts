@@ -43,8 +43,6 @@ import type { TextTemplateAst } from "../scalars/textTemplate";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
 import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
-import type { PathMutationProgram } from "./pathMutationProgram";
-import { reverseComputedPathGeometry } from "./reversePathGeometry";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -107,7 +105,6 @@ export type EvaluateElementsOptions = {
    * always implies a typed declaration exists.
    */
   textPropertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
-  pathMutationProgram?: PathMutationProgram;
 };
 
 export const evaluateElements = (
@@ -208,28 +205,6 @@ export const evaluateElements = (
     ? groupPropertyBindingRuntimeEntriesByElement(options.textPropertyBindingEntries)
     : undefined;
   const textTemplateEntriesByElementId = options.textTemplateEntriesByElementId;
-  const pathReversals = [...(options.pathMutationProgram?.reversals ?? [])].sort((a, b) => a.sourceOrder - b.sourceOrder);
-  let nextPathReversal = 0;
-  const elementIdByStatementIndex = new Map<number, ElementId>(
-    [...(options.statementInfoByElementId ?? [])].map(([elementId, info]) => [info.statementIndex, elementId])
-  );
-  const applyPathReversalsBefore = (sourceOrder: number) => {
-    while (nextPathReversal < pathReversals.length && pathReversals[nextPathReversal]!.sourceOrder < sourceOrder) {
-      const reversal = pathReversals[nextPathReversal++]!;
-      if (reversal.conditionalOwnerStatementIndex !== undefined) {
-        const ownerId = elementIdByStatementIndex.get(reversal.conditionalOwnerStatementIndex);
-        if (!ownerId || conditionalGroupStates.get(ownerId) !== reversal.conditionalBranch) continue;
-      }
-      const reversed = reverseComputedPathGeometry(computedGeometry.get(reversal.targetElementId)!);
-      if (reversed) computedGeometry.set(reversal.targetElementId, reversed);
-      else {
-        const target = elementsById.get(reversal.targetElementId);
-        errors.push({ elementId: reversal.targetElementId, elementName: target?.name ?? reversal.targetElementId,
-          missingDependencyId: reversal.targetElementId, missingDependencyName: target?.name,
-          message: `reverse の対象「${target?.name ?? reversal.targetElementId}」はこの時点で有効な線ではありません。` });
-      }
-    }
-  };
   /**
    * A typed text hole can only exist when a typed declaration exists, which
    * implies `scalarProgram` exists (see EvaluateElementsOptions's doc
@@ -324,8 +299,6 @@ export const evaluateElements = (
   };
 
   const evaluateRuntimeElement = (element: CadElement, sourceElement?: CadElement) => {
-    const sourceOrder = options.statementInfoByElementId?.get((sourceElement ?? element).id)?.statementIndex;
-    if (sourceOrder !== undefined) applyPathReversalsBefore(sourceOrder);
     advanceLinearBindingsBefore(element, sourceElement);
     const inactiveGroupId = inactiveConditionalGroupId(element);
     if (inactiveGroupId) {
@@ -598,7 +571,6 @@ export const evaluateElements = (
     if (templateDescendantIds.has(element.id)) continue;
     evaluateRuntimeElement(element);
   }
-  applyPathReversalsBefore(Number.POSITIVE_INFINITY);
 
   const linearFinal = linearMutationResolver
     ? linearMutationResolver.finalize({

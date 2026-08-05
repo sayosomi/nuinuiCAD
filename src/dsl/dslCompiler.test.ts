@@ -214,7 +214,7 @@ describe("DSL compiler", () => {
         "line AB = segment(start: A end: B)",
         "curve curveAB = bezier(start: A end: B startAngle: 0 startLength: 25 endAngle: 180 endLength: 25 intermediates: [C:45:10:20:mid-1])",
         "line splitAB = split(source: AB at: C)",
-        "line extended = extend(end: AB.end to: C)",
+        "extend(end: AB.end to: C)",
         "line offsetAB = offset(sources: [AB, curveAB] distance: 10 side: left closed: false)"
       ].join("\n"),
       { elements: [] }

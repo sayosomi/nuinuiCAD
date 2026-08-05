@@ -1,3 +1,4 @@
+import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
 import { createCadElement } from "../model/elementFactory";
 import { referenceAnchor } from "../model/pointAnchors";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
@@ -185,8 +186,7 @@ export const creationRecipes: readonly CreationRecipe[] = [
       stepFor("move", "startPoint"),
       stepFor("move", "endPoint"),
       stepFor("move", "scale"),
-      stepFor("move", "angleDeg"),
-      nameStep
+      stepFor("move", "angleDeg")
     ]
   },
   {
@@ -194,20 +194,26 @@ export const creationRecipes: readonly CreationRecipe[] = [
     steps: [
       stepFor("symmetricMove", "baseLineIds"),
       stepFor("symmetricMove", "axisPoint1"),
-      stepFor("symmetricMove", "axisPoint2"),
-      nameStep
+      stepFor("symmetricMove", "axisPoint2")
     ]
   }
 ];
 
-/** Mechanically generates a recipe for a type without a specialized flow. */
+/**
+ * Mechanically generates a recipe for a type without a specialized flow. A
+ * bare mutation-statement type (see elementActivity.ts's
+ * elementTypesWithoutOwnDrawableGeometry) has no DSL name slot to prompt
+ * for - its `name` is always compiled to "" regardless of what a stray
+ * nameStep would collect, so the step is omitted rather than offered and
+ * silently discarded.
+ */
 export const fallbackCreationRecipe = (type: CadElementType): CreationRecipe => ({
   type,
   steps: [
     ...getParameterDefinitions(definitionElement(type))
       .map(creationStepForDefinition)
       .filter((step): step is Exclude<CreationStep, { kind: "name" }> => step !== null),
-    nameStep
+    ...(elementTypesWithoutOwnDrawableGeometry.has(type) ? [] : [nameStep])
   ]
 });
 

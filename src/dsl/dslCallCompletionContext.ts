@@ -1,5 +1,6 @@
 import { scanCallArgs } from "./dslArgScanner";
 import {
+  bareConstructionFor,
   constructionCandidatesFor,
   constructionFor,
   type DslConstructionCategory,
@@ -187,7 +188,17 @@ const constructionContextAt = (
  * argument-key slot. This intentionally runs before a complete parse exists,
  * so partial vertical statements keep completing without a parallel grammar.
  */
+const leadingIdentifierAt = (source: string): string | null => source.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0] ?? null;
+
 export const dslCallCompletionContextAt = (source: string, pos: number): DslCallCompletionContext => {
+  const bareSpec = bareConstructionFor(leadingIdentifierAt(source) ?? "");
+  if (bareSpec) {
+    const open = topLevelOpenParen(source);
+    if (open < 0) return null;
+    const close = matchingParen(source, open);
+    return argumentContextAt(source, pos, bareSpec, open, close >= 0 ? close : source.length);
+  }
+
   const category = categoryAt(source);
   if (!category) return null;
 

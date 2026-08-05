@@ -7,7 +7,8 @@ use super::line_intersections::find_line_intersections;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::{anchor_reference_element_id, point_anchor_or_error};
 use super::types::{
-    element_id, element_name, insert_geometry, ElementId, EvaluationState, Point as ComputedPoint,
+    element_display_name, element_id, insert_geometry, ElementId, EvaluationState,
+    Point as ComputedPoint,
 };
 
 struct EndpointRef {
@@ -76,7 +77,7 @@ fn apply_endpoint_moves(
             EndpointMoveResult::Error(error) => {
                 state.errors.push(geometry_error(
                     element,
-                    format!("{}: {error}", element_name(element)),
+                    format!("{}: {error}", element_display_name(element)),
                 ));
                 return false;
             }
@@ -108,7 +109,7 @@ pub(crate) fn evaluate_edge(
     let Some(endpoint2) = element.get("endpoint2").and_then(endpoint_ref) else {
         return;
     };
-    let name = element_name(element);
+    let name = element_display_name(element);
     if endpoint1.line_id == endpoint2.line_id {
         state.errors.push(geometry_error(
             element,

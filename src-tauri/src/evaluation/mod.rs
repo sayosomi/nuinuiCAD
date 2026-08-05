@@ -60,9 +60,9 @@ mod offset_paths;
 mod offset_projection;
 mod offset_source_segments;
 mod offset_types;
-mod path_mutation;
+mod path_reverse_evaluator;
 #[cfg(test)]
-mod path_mutation_tests;
+mod path_reverse_evaluator_tests;
 mod path_reverse_geometry;
 #[cfg(test)]
 mod performance_test_support;
@@ -123,9 +123,7 @@ use numeric_binding_runtime::{
 };
 use numeric_expression::evaluate_numeric_or_push;
 use offset_line_evaluator::evaluate_offset_line;
-use path_mutation::{
-    validate_path_mutations_payload, PathMutationResolver, ValidatedPathMutations,
-};
+use path_reverse_evaluator::evaluate_path_reverse;
 use point_evaluators::{
     evaluate_division_point, evaluate_free_point, evaluate_offset_point,
     evaluate_polar_offset_point,
@@ -377,15 +375,6 @@ pub fn evaluate_document(
             code: error.code.as_str().to_owned(),
             message: error.message,
         })?;
-    let path_mutations = input
-        .path_mutations
-        .as_ref()
-        .map(|payload| validate_path_mutations_payload(payload, &input.elements))
-        .transpose()
-        .map_err(|error| EvaluationCommandError {
-            code: error.code.to_owned(),
-            message: error.message,
-        })?;
     if scalar_program.is_some() && binding_versions.is_some() {
         return Err(EvaluationCommandError {
             code: "scalar-payload-invalid-field-type".to_owned(),
@@ -411,7 +400,6 @@ pub fn evaluate_document(
         DecodedScalarPayloads {
             scalar_program,
             binding_versions,
-            path_mutations,
             property_bindings,
             numeric_bindings,
             control_boolean_bindings,
@@ -425,7 +413,6 @@ pub fn evaluate_document(
 struct DecodedScalarPayloads {
     scalar_program: Option<ValidatedScalarProgram>,
     binding_versions: Option<ValidatedBindingVersions>,
-    path_mutations: Option<ValidatedPathMutations>,
     property_bindings: Option<Vec<ValidatedPropertyBinding>>,
     numeric_bindings: Option<Vec<ValidatedNumericBinding>>,
     control_boolean_bindings: Option<Vec<ValidatedPropertyBinding>>,
@@ -553,6 +540,7 @@ fn evaluate_element_by_type(
         }
         Some("move") => evaluate_move(&element, &local_variables, state),
         Some("symmetricMove") => evaluate_symmetric_move(&element, &local_variables, state),
+        Some("pathReverse") => evaluate_path_reverse(&element, state),
         Some("image") => evaluate_image(&element, &local_variables, state),
         Some("text") => evaluate_text(&element, &local_variables, text_context, state),
         _ => {}
@@ -580,12 +568,6 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         .map(|payload| validate_binding_versions_payload(payload, &input.elements))
         .transpose()
         .expect("evaluation test input binding_versions must be valid");
-    let path_mutations = input
-        .path_mutations
-        .as_ref()
-        .map(|payload| validate_path_mutations_payload(payload, &input.elements))
-        .transpose()
-        .expect("evaluation test input path_mutations must be valid");
     let property_bindings =
         decode_property_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())
             .expect("evaluation test input property_bindings must be valid");
@@ -608,7 +590,6 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
         DecodedScalarPayloads {
             scalar_program,
             binding_versions,
-            path_mutations,
             property_bindings,
             numeric_bindings,
             control_boolean_bindings,
@@ -626,7 +607,6 @@ fn evaluate_document_input_with_scalar_program(
     let DecodedScalarPayloads {
         scalar_program,
         binding_versions,
-        path_mutations,
         property_bindings,
         numeric_bindings,
         control_boolean_bindings,
@@ -684,7 +664,6 @@ fn evaluate_document_input_with_scalar_program(
     // evaluated more than once.
     let scalar_binding_resolver = scalar_program.as_ref().map(ScalarBindingResolver::new);
     let mut scalar_mutation_resolver = binding_versions.as_ref().map(ScalarMutationResolver::new);
-    let mut path_mutation_resolver = path_mutations.as_ref().map(PathMutationResolver::new);
     let entries_by_element_id: HashMap<ElementId, Vec<ValidatedPropertyBinding>> =
         property_bindings
             .into_iter()
@@ -730,12 +709,6 @@ fn evaluate_document_input_with_scalar_program(
                 .source_order_for_element(&id)
                 .expect("validated mutation payload must contain every element source order");
             resolver.advance_before(source_order, &state);
-        }
-        if let Some(resolver) = path_mutation_resolver.as_mut() {
-            let source_order = resolver
-                .source_order_for_element(&id)
-                .expect("validated path mutation payload must contain every element source order");
-            resolver.advance_before(source_order, &mut state, &conditional_group_states);
         }
         let active_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
             scalar_mutation_resolver
@@ -1113,9 +1086,6 @@ fn evaluate_document_input_with_scalar_program(
                 None,
             )
         };
-    if let Some(resolver) = path_mutation_resolver.as_mut() {
-        resolver.finalize(&mut state, &conditional_group_states);
-    }
 
     EvaluationPayload {
         computed_geometry: state

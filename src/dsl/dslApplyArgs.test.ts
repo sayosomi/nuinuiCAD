@@ -65,8 +65,10 @@ const populatedArgs = (spec: DslConstructionSpec, element: CadElement) =>
 const specs = [
   ["point", "coordinate"], ["point", "offset"], ["point", "polar"], ["point", "between"],
   ["point", "onLine"], ["point", "intersection"], ["point", "tangentOffset"], ["line", "segment"],
-  ["line", "polar"], ["line", "offset"], ["line", "split"], ["line", "extend"], ["line", "copy"],
-  ["line", "move"], ["line", "mirrorCopy"], ["line", "mirrorMove"], ["line", "edge"],
+  ["line", "polar"], ["line", "offset"], ["line", "split"], ["line", "copy"],
+  ["line", "mirrorCopy"],
+  ["mutation", "extend"], ["mutation", "move"], ["mutation", "mirrorMove"], ["mutation", "edge"],
+  ["mutation", "reverse"],
   ["curve", "bezier"], ["arc", "arc"], ["arc", "through"], ["arc", "corner"], ["text", "label"],
   ["image", "image"], ["group", ""], ["if", ""], ["for", ""],
 ] as const;
@@ -141,12 +143,15 @@ describe("DSL nui 3 compiler argument application", () => {
     expect(onLine.diagnostics).toEqual([]);
   });
 
-  it("applies the common color argument when a legacy type has no Inspector color definition", () => {
+  it("ignores a color argument on a mutation-category type with no Inspector color definition", () => {
+    // Defence in depth: dslCallParser.ts's validateArgs already rejects
+    // color: on a mutation statement at parse time (color-unsupported); this
+    // only exercises applyArgs's own guard for a caller that skips that gate.
     const edge = sample("edge");
     expect(findParameterDefinition(edge, "colorId")).toBeUndefined();
-    const result = applyArgs(edge, constructionFor("line", "edge")!, [arg("color", "cut-red")], resolvers);
+    const result = applyArgs(edge, constructionFor("mutation", "edge")!, [arg("color", "cut-red")], resolvers);
     expect(result.diagnostics).toEqual([]);
-    expect(result.element).toMatchObject({ colorId: "cut-red" });
+    expect(result.element).not.toHaveProperty("colorId");
   });
 
   it("resolves each reference, endpoint, list, choice, text, and coordinate kind", () => {

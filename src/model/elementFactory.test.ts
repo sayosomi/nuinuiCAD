@@ -224,9 +224,11 @@ describe("createCadElement", () => {
   });
 
   it("creates edge modifications using the first two line endpoints as defaults", () => {
+    // edge is a bare mutation-statement type: the DSL grammar has no name
+    // slot, so createCadElement must return name === "" here.
     expect(createCadElement("edge", sampleElements, { createId: createTestId })).toMatchObject({
       id: "edge-test-id",
-      name: "AB_BCエッジ",
+      name: "",
       type: "edge",
       activity: "visible",
       numericVariables: [],
@@ -239,12 +241,22 @@ describe("createCadElement", () => {
   it("creates extend trim modifications using the first line endpoint and first point as defaults", () => {
     expect(createCadElement("extendTrim", sampleElements, { createId: createTestId })).toMatchObject({
       id: "extendTrim-test-id",
-      name: "AB延長短縮",
+      name: "",
       type: "extendTrim",
       activity: "visible",
       numericVariables: [],
       endpoint: { lineId: "line-ab", endpointKey: "start" },
       point: { mode: "reference", pointId: "point-a" }
+    });
+  });
+
+  it("creates pathReverse modifications using the first line as the default target", () => {
+    expect(createCadElement("pathReverse", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "pathReverse-test-id",
+      name: "",
+      type: "pathReverse",
+      activity: "visible",
+      targetLineId: "line-ab"
     });
   });
 
@@ -296,7 +308,7 @@ describe("createCadElement", () => {
   it("creates move modifications using the first two points and first line as defaults", () => {
     expect(createCadElement("move", sampleElements, { createId: createTestId })).toMatchObject({
       id: "move-test-id",
-      name: "AB移動",
+      name: "",
       type: "move",
       activity: "visible",
       numericVariables: [],
@@ -325,7 +337,7 @@ describe("createCadElement", () => {
   it("creates symmetric move modifications using the first two points and first line as defaults", () => {
     expect(createCadElement("symmetricMove", sampleElements, { createId: createTestId })).toMatchObject({
       id: "symmetricMove-test-id",
-      name: "AB対称移動",
+      name: "",
       type: "symmetricMove",
       activity: "visible",
       numericVariables: [],

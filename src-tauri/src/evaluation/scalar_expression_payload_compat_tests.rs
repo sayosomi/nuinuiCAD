@@ -22,7 +22,6 @@ fn baseline_elements() -> Vec<Value> {
 
 fn evaluate_with(payload: Option<Value>) -> Value {
     let result = evaluate_document(EvaluationInput {
-        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -40,7 +39,6 @@ fn evaluate_with(payload: Option<Value>) -> Value {
 
 fn evaluate_with_program(program: Option<Value>) -> Result<Value, EvaluationCommandError> {
     let result = evaluate_document(EvaluationInput {
-        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,

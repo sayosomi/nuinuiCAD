@@ -7,6 +7,7 @@ import { evaluateLineElement } from "./lineEvaluators";
 import { evaluateModificationElement } from "./modificationEvaluators";
 import { evaluateMoveElement } from "./moveEvaluators";
 import { evaluateOffsetLineElement } from "./offsetLineEvaluator";
+import { evaluatePathReverseElement } from "./pathReverseEvaluator";
 import { evaluatePointElement } from "./pointEvaluators";
 import { evaluateSplitLineElement } from "./splitLineEvaluator";
 import { evaluateSymmetricCopyLineElement } from "./symmetricCopyLineEvaluator";
@@ -24,4 +25,5 @@ export const evaluateElement = (element: CadElement, context: ElementEvaluationC
   evaluateImageElement(element, context);
   evaluateTextElement(element, context);
   evaluateModificationElement(element, context);
+  evaluatePathReverseElement(element, context);
 };

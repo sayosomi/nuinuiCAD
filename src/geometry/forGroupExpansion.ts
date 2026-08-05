@@ -1,5 +1,7 @@
+import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
 import { remapElementReferences } from "../model/elementDuplication";
 import { descendantIdsForGroup, isGroupElement } from "../model/groups";
+import { elementDisplayName } from "../model/elementNames";
 import type {
   CadElement,
   ElementId,
@@ -100,7 +102,9 @@ export const expandForGroupIteration = ({
     const renamed = {
       ...cloned,
       id: generatedId,
-      name: `[${forGroupIterationLabel(iterationVariable.name, variableValue)}] ${templateElement.name}`,
+      name: elementTypesWithoutOwnDrawableGeometry.has(templateElement.type)
+        ? ""
+        : `[${forGroupIterationLabel(iterationVariable.name, variableValue)}] ${templateElement.name}`,
       // A template descendant's parent may itself be another template
       // descendant (e.g. a conditionalGroup nested inside the forGroup
       // body) - remap through idMap so the clone's parentGroupId points at
@@ -128,7 +132,7 @@ export const expandForGroupIteration = ({
       iterationIndex,
       variableName: iterationVariable.name,
       variableValue,
-      elementName: element.name,
+      elementName: elementDisplayName(element),
       elementType: element.type
     }));
 

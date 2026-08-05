@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
 import { createCadElement } from "../model/elementFactory";
 import { referenceAnchor } from "../model/pointAnchors";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
@@ -46,7 +47,12 @@ const contextFor = () => {
 };
 
 const argsFor = (recipe: CreationRecipe, includeName = true): CreationArgs => {
-  const args: CreationArgs = includeName ? { name: `作成${recipe.type}` } : {};
+  // A bare mutation-statement recipe (see elementTypesWithoutOwnDrawableGeometry)
+  // has no name step to fill in, so there is no "named" variant to simulate -
+  // this mirrors the real command-line session, which only ever populates
+  // `name` by prompting a recipe's own nameStep.
+  const hasNameStep = recipe.steps.some((step) => step.kind === "name");
+  const args: CreationArgs = includeName && hasNameStep ? { name: `作成${recipe.type}` } : {};
   for (const step of recipe.steps) {
     if (step.kind === "point") args[step.key] = referenceAnchor("point-a");
     if (step.kind === "endpoint") args[step.key] = { lineId: "line-ab", endpointKey: "start" };
@@ -111,8 +117,16 @@ describe("creationRecipes", () => {
       const { element } = emittedFor(recipe);
       const definitions = getParameterDefinitions(element);
       const nameSteps = recipe.steps.filter((step) => step.kind === "name");
-      expect(nameSteps, `${recipe.type} must end with one name step`).toEqual([{ kind: "name", autoSuggest: true }]);
-      expect(recipe.steps.at(-1)?.kind, `${recipe.type} name step must be last`).toBe("name");
+      // A bare mutation-statement type (edge/extendTrim/move/symmetricMove/
+      // pathReverse) has no DSL name slot at all, so its recipe omits the
+      // name step entirely rather than offering one that would be silently
+      // discarded - see creationRecipes.ts's fallbackCreationRecipe.
+      if (elementTypesWithoutOwnDrawableGeometry.has(recipe.type)) {
+        expect(nameSteps, `${recipe.type} must have no name step`).toEqual([]);
+      } else {
+        expect(nameSteps, `${recipe.type} must end with one name step`).toEqual([{ kind: "name", autoSuggest: true }]);
+        expect(recipe.steps.at(-1)?.kind, `${recipe.type} name step must be last`).toBe("name");
+      }
 
       for (const step of recipe.steps) {
         if (step.kind === "name") continue;
@@ -151,14 +165,14 @@ describe("creationRecipes", () => {
       arcLine: "arc 作成arcLine = arc(center: A, radius: 12, start: 12, end: 12)",
       threePointArcLine: "arc 作成threePointArcLine = through(point1: A, point2: A, point3: A, start: 12, end: 12)",
       cornerRadiusArcLine: "arc 作成cornerRadiusArcLine = corner(end1: AB.start, end2: AB.start, radius: 12, index: 12)",
-      edge: "line 作成edge = edge(end1: AB.start, end2: AB.start, index: 12)",
-      extendTrim: "line 作成extendTrim = extend(end: AB.start, to: A)",
+      edge: "edge(end1: AB.start, end2: AB.start, index: 12)",
+      extendTrim: "extend(end: AB.start, to: A)",
       bezierCurve: "curve 作成bezierCurve = bezier(start: A, end: A, startAngle: 12, startLength: 12, endAngle: 12, endLength: 12)",
       offsetLine: "line 作成offsetLine = offset(sources: [AB], distance: 12, side: right, closed: false, suppressTrimWarnings: false)",
       copyLine: "line 作成copyLine = copy(startPoint: A, endPoint: A, scale: 12, angleDeg: 12, mirrorX: false, baseLines: [AB])",
       symmetricCopyLine: "line 作成symmetricCopyLine = mirrorCopy(axis1: A, axis2: A, baseLines: [AB])",
-      move: "line 作成move = move(startPoint: A, endPoint: A, scale: 12, angleDeg: 12, mirrorX: false, baseLines: [AB])",
-      symmetricMove: "line 作成symmetricMove = mirrorMove(axis1: A, axis2: A, baseLines: [AB])",
+      move: "move(targets: [AB], from: A, to: A, scale: 12, angleDeg: 12, mirrorX: false)",
+      symmetricMove: "mirrorMove(targets: [AB], axis1: A, axis2: A)",
       splitLine: "line 作成splitLine = split(source: AB, at: A)"
     });
   });

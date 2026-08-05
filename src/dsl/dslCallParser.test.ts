@@ -18,12 +18,13 @@ const calls = [
   ["line", "polar", "line L = polar(start: A angle: 0 length: 1)"],
   ["line", "offset", "line L = offset(sources: [AB] distance: 1)"],
   ["line", "split", "line L = split(source: AB at: A)"],
-  ["line", "extend", "line L = extend(end: AB.end to: A)"],
   ["line", "copy", "line L = copy(startPoint: A endPoint: B baseLines: [AB])"],
-  ["line", "move", "line L = move(startPoint: A endPoint: B baseLines: [AB])"],
   ["line", "mirrorCopy", "line L = mirrorCopy(axis1: A axis2: B baseLines: [AB])"],
-  ["line", "mirrorMove", "line L = mirrorMove(axis1: A axis2: B baseLines: [AB])"],
-  ["line", "edge", "line L = edge(end1: AB.end end2: CD.start)"],
+  ["mutation", "edge", "edge(end1: AB.end end2: CD.start)"],
+  ["mutation", "extend", "extend(end: AB.end to: A)"],
+  ["mutation", "move", "move(targets: [AB] from: A to: B)"],
+  ["mutation", "mirrorMove", "mirrorMove(targets: [AB] axis1: A axis2: B)"],
+  ["mutation", "reverse", "reverse(target: AB)"],
   ["curve", "bezier", "curve C = bezier(start: A end: B)"],
   ["arc", "arc", "arc A = arc(center: O radius: 1)"],
   ["arc", "through", "arc A = through(point1: A point2: B point3: C)"],
@@ -102,6 +103,16 @@ describe("DSL nui 3 call parser", () => {
     expect(messages("point A = coordinate(x: 0 y: 0 state: hidden)")).toEqual([]);
     expect(messages("point A = coordinate(x: 0 y: 0 visible: false)").join("\n")).toContain("引数「visible」");
     expect(messages("point A = coordinate(x: 0 y: 0 enabled: false)").join("\n")).toContain("引数「enabled」");
+  });
+
+  it("rejects color: on a bare mutation statement but keeps it valid on a drawable element", () => {
+    expect(parse("reverse(target: AB color: red)").diagnostics).toContainEqual(
+      expect.objectContaining({ code: "color-unsupported" })
+    );
+    expect(messages("edge(end1: AB.end end2: CD.start color: red)").join("\n")).toContain(
+      "color を指定できません"
+    );
+    expect(messages("point A = coordinate(x: 0 y: 0 color: red)")).toEqual([]);
   });
 
   it("keeps legacy syntax out of the live parser", () => {

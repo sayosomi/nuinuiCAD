@@ -212,6 +212,13 @@ export type ExtendTrimElement = CadElementBase & {
   point: PointAnchor;
 };
 
+/** Reverses the traversal direction of an already-evaluated line-like
+ * element in place; produces no geometry under its own id. */
+export type PathReverseElement = CadElementBase & {
+  type: "pathReverse";
+  targetLineId: ElementId;
+};
+
 export type BezierIntermediatePoint = {
   id: string;
   point: PointAnchor;
@@ -341,6 +348,7 @@ export type CadElement =
   | CornerRadiusArcLineElement
   | EdgeElement
   | ExtendTrimElement
+  | PathReverseElement
   | BezierCurveElement
   | OffsetLineElement
   | SplitLineElement
@@ -569,6 +577,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   cornerRadiusArcLine: "角R円弧線",
   edge: "エッジ",
   extendTrim: "延長短縮",
+  pathReverse: "反転",
   bezierCurve: "Bezier curve",
   offsetLine: "オフセット線",
   splitLine: "分割線",
@@ -598,6 +607,7 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   cornerRadiusArcLine: "line",
   edge: "modification",
   extendTrim: "modification",
+  pathReverse: "modification",
   bezierCurve: "line",
   offsetLine: "line",
   splitLine: "line",

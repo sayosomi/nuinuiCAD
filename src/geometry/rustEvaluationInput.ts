@@ -2,7 +2,6 @@ import type { CadElement, ElementId } from "../types/geometry";
 import { isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { buildRustBindingMutationPayload, type RustBindingMutationPayload } from "./bindingVersionPayload";
-import { buildRustPathMutationPayload, type RustPathMutationPayload } from "./pathMutationPayload";
 import type { EvaluateElementsOptions } from "./evaluate";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 import type { NumericBindingRuntimeEntry } from "./numericBindingRuntime";
@@ -17,7 +16,6 @@ export type EvaluateDocumentInput = {
   scalarProgram?: EvaluateElementsOptions["scalarProgram"];
   scalarExpressionPayload?: { numericBindings: readonly NumericBindingRuntimeEntry[] };
   bindingVersions?: RustBindingMutationPayload;
-  pathMutations?: RustPathMutationPayload;
   propertyBindings?: readonly PropertyBindingRuntimeEntry[];
   numericBindings?: readonly NumericBindingRuntimeEntry[];
   controlBooleanBindings?: readonly PropertyBindingRuntimeEntry[];
@@ -31,17 +29,13 @@ export const buildRustEvaluationInput = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {},
   {
-    includeBindingVersions = true,
-    includePathMutations = true
-  }: { includeBindingVersions?: boolean; includePathMutations?: boolean } = {}
+    includeBindingVersions = true
+  }: { includeBindingVersions?: boolean } = {}
 ): EvaluateDocumentInput => {
   const mutationPayload = includeBindingVersions && options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions)
     ? buildRustBindingMutationPayload(
         options.bindingVersions, elements, options.statementInfoByElementId, options.statementIdByStatementIndex
       )
-    : undefined;
-  const pathMutationPayload = includePathMutations && options.pathMutationProgram?.reversals.length
-    ? buildRustPathMutationPayload(options.pathMutationProgram, elements, options.statementInfoByElementId)
     : undefined;
   return {
     elements,
@@ -49,7 +43,6 @@ export const buildRustEvaluationInput = (
     ...(mutationPayload
       ? { bindingVersions: mutationPayload }
       : options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),
-    ...(pathMutationPayload ? { pathMutations: pathMutationPayload } : {}),
     ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {}),
     ...(options.numericBindingEntries?.length ? { scalarExpressionPayload: { numericBindings: options.numericBindingEntries } } : {}),
     ...(options.controlBooleanEntries?.length ? { controlBooleanBindings: options.controlBooleanEntries } : {}),

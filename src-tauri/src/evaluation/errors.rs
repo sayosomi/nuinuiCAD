@@ -1,7 +1,8 @@
 use serde_json::Value;
 
 use super::types::{
-    element_id, element_name, find_element_name, DependencyError, EvaluationState, NumericEvalError,
+    element_display_name, element_id, find_element_name, DependencyError, EvaluationState,
+    NumericEvalError,
 };
 
 pub(crate) fn dependency_error(
@@ -20,7 +21,7 @@ pub(crate) fn dependency_error(
     let disabled_group_name = disabled_group_id
         .as_deref()
         .and_then(|id| find_element_name(state, id));
-    let element_name = element_name(element);
+    let element_name = element_display_name(element);
     let dependency_evaluation_failed = disabled_group_name.is_none()
         && state.elements_by_id.contains_key(missing_dependency_id)
         && state
@@ -52,10 +53,24 @@ pub(crate) fn dependency_error(
 pub(crate) fn geometry_error(element: &Value, message: String) -> DependencyError {
     DependencyError {
         element_id: element_id(element).unwrap_or_default(),
-        element_name: element_name(element),
+        element_name: element_display_name(element),
         missing_dependency_id: element_id(element).unwrap_or_default(),
-        missing_dependency_name: Some(element_name(element)),
+        missing_dependency_name: Some(element_display_name(element)),
         message,
+    }
+}
+
+pub(crate) fn for_group_ancestor_error(element: &Value, target: &Value) -> DependencyError {
+    let element_name = element_display_name(element);
+    let target_name = element_display_name(target);
+    DependencyError {
+        element_id: element_id(element).unwrap_or_default(),
+        element_name: element_name.clone(),
+        missing_dependency_id: element_id(target).unwrap_or_default(),
+        missing_dependency_name: Some(target_name.clone()),
+        message: format!(
+            "{element_name} の対象「{target_name}」はこの反転が属する for の外側にあるため反転できません。対象を同じ for の内側の要素にしてください。"
+        ),
     }
 }
 
@@ -67,7 +82,7 @@ pub(crate) fn numeric_error(state: &mut EvaluationState, element: &Value, error:
     let disabled_group_name = disabled_group_id
         .as_deref()
         .and_then(|id| find_element_name(state, id));
-    let element_name = element_name(element);
+    let element_name = element_display_name(element);
 
     state.errors.push(DependencyError {
         element_id: element_id(element).unwrap_or_default(),

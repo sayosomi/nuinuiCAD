@@ -267,6 +267,18 @@ describe("dependencies", () => {
     expect(getDirectParentIds(extendTrim)).toEqual(["ab", "c"]);
   });
 
+  it("returns the pathReverse target line as its direct parent id", () => {
+    const pathReverse: CadElement = {
+      id: "reverse",
+      name: "",
+      type: "pathReverse",
+      activity: "visible",
+      targetLineId: "ab"
+    };
+
+    expect(getDirectParentIds(pathReverse)).toEqual(["ab"]);
+  });
+
   it("returns move point, angle, and target line references as direct parent ids", () => {
     const move: CadElement = {
       id: "move",

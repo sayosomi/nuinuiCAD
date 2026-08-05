@@ -1,9 +1,12 @@
 import type { CadElementType } from "../types/geometry";
+import { elementTypeSupportsHiddenActivity } from "../model/elementActivity";
 import {
+  bareConstructionFor,
   categoriesForConstruction,
   commonArgSpecs,
   constructionCandidatesFor,
   constructionFor,
+  MUTATION_CATEGORY,
   type DslArgSpec,
 } from "./dslConstructions";
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
@@ -135,6 +138,15 @@ const validateArgs = (
     return null;
   }
   if (!spec) {
+    const bare = bareConstructionFor(construction);
+    if (bare) {
+      diagnostic(
+        diagnostics,
+        `「${construction}」は名前なしの単独文になりました。「${category} ${construction} = ...」ではなく「${construction}(…)」と書いてください。`,
+        constructionSpan ?? categorySpan
+      );
+      return null;
+    }
     const categories = categoriesForConstruction(construction);
     const candidates = categoryCandidates.map((candidate) => candidate.construction).filter(Boolean).join("、") || "なし";
     const message = categories.length > 0
@@ -169,6 +181,24 @@ const validateArgs = (
     }
     if (seen.has(arg.key)) {
       diagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!);
+      continue;
+    }
+    if (arg.key === "state" && !elementTypeSupportsHiddenActivity(spec.elementType) && unquoteDslString(arg.value) === "hidden") {
+      diagnostic(
+        diagnostics,
+        `${construction} は自身の図形を持たないため state: hidden を指定できません。visible か disabled を使ってください。`,
+        arg.valueSpan,
+        "state-hidden-unsupported"
+      );
+      continue;
+    }
+    if (arg.key === "color" && category === MUTATION_CATEGORY) {
+      diagnostic(
+        diagnostics,
+        `${construction} は自身の図形を持たないため color を指定できません。`,
+        arg.valueSpan,
+        "color-unsupported"
+      );
       continue;
     }
     seen.add(arg.key);
@@ -259,6 +289,38 @@ export const parseDslCallStatement = (
     if (open >= 0 && close < 0) diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: open, end: open + 1 });
     const callSpan = { start: open >= 0 ? open + 1 : logicalText.length, end: close >= 0 ? close : logicalText.length };
     return { statement: callStatement(logicalText, category, keywordSpan, name, "", null, callSpan, opensBlock, diagnostics, Boolean(options.requireArgumentCommas)), diagnostics };
+  }
+
+  // A mutation statement (edge/extend/move/mirrorMove/reverse) rewrites an
+  // already-declared element's geometry in place instead of declaring its
+  // own, so it has no `<category> <name> =` head: the construction keyword
+  // itself leads the statement and doubles as its own construction token.
+  const bareSpec = bareConstructionFor(category);
+  if (bareSpec) {
+    const bareName = { name: "", nameSpan: null };
+    let open = keywordSpan.end;
+    while (whitespace.test(logicalText[open] ?? "")) open += 1;
+    if (logicalText[open] !== "(") {
+      diagnostic(diagnostics, `${category} は「${category}(引数…)」の形式で書いてください。`, { start: open, end: open });
+      return { statement: null, diagnostics };
+    }
+    const close = matchingClose(logicalText, open);
+    if (close < 0) {
+      diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: open, end: open + 1 }, UNCLOSED_CALL_CODE);
+      const statement = callStatement(
+        logicalText, MUTATION_CATEGORY, keywordSpan, bareName, category, keywordSpan,
+        { start: open + 1, end: logicalText.length }, false, diagnostics, Boolean(options.requireArgumentCommas)
+      );
+      return { statement, diagnostics };
+    }
+    const tail = trimSpan(logicalText, close + 1, logicalText.length);
+    if (tail.start < tail.end) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail);
+    if (options.opensBlock) diagnostic(diagnostics, `${category} の呼び出しはブロックを開けません。`, keywordSpan);
+    const statement = callStatement(
+      logicalText, MUTATION_CATEGORY, keywordSpan, bareName, category, keywordSpan,
+      { start: open + 1, end: close }, false, diagnostics, Boolean(options.requireArgumentCommas)
+    );
+    return { statement, diagnostics };
   }
 
   if (equals < 0) {

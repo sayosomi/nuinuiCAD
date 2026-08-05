@@ -62,7 +62,7 @@ describe("renameElementWithPropagation", () => {
       "  dx: @L.length,",
       "  dy: 0",
       ") # expression comment",
-      "line Extended = extend(",
+      "extend(",
       "  end: L.end,",
       "  to: A",
       ")",

@@ -8,6 +8,7 @@ import type {
   NumericValue,
   PointAnchor
 } from "../types/geometry";
+import { elementDisplayName } from "../model/elementNames";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { evaluateNumericValue } from "./numericExpressions";
 
@@ -23,7 +24,10 @@ export const isPoint = (
 const findElementName = (
   elementsById: Map<ElementId, CadElement>,
   id: ElementId
-) => elementsById.get(id)?.name;
+) => {
+  const found = elementsById.get(id);
+  return found ? elementDisplayName(found) : undefined;
+};
 
 export const dependencyError = (
   element: CadElement,
@@ -32,6 +36,7 @@ export const dependencyError = (
   disabledByGroupId: Map<ElementId, ElementId> = new Map(),
   priorErrors: DependencyError[] = []
 ): DependencyError => {
+  const elementName = elementDisplayName(element);
   const missingDependencyName = findElementName(elementsById, missingDependencyId);
   const dependencyLabel = missingDependencyName ?? missingDependencyId;
   const disabledGroupId = disabledByGroupId.get(missingDependencyId);
@@ -43,28 +48,36 @@ export const dependencyError = (
 
   return {
     elementId: element.id,
-    elementName: element.name,
+    elementName,
     missingDependencyId,
     missingDependencyName,
     message: disabledGroupName
-      ? `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} はグループ ${disabledGroupName} により評価OFFです。${disabledGroupName} を評価ONにするか、参照先を変更してください。`
+      ? `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} はグループ ${disabledGroupName} により評価OFFです。${disabledGroupName} を評価ONにするか、参照先を変更してください。`
       : dependencyEvaluationFailed
-        ? `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} の評価に失敗しているため評価できません。先に ${dependencyLabel} のエラーを解消してください。`
-        : `${element.name} は ${dependencyLabel} を参照していますが、${dependencyLabel} はこの要素より後にあるか、存在しません。${dependencyLabel} を ${element.name} より前に移動してください。`
+        ? `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} の評価に失敗しているため評価できません。先に ${dependencyLabel} のエラーを解消してください。`
+        : `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} はこの要素より後にあるか、存在しません。${dependencyLabel} を ${elementName} より前に移動してください。`
   };
 };
 
 export const geometryError = (element: CadElement, message: string): DependencyError => ({
   elementId: element.id,
-  elementName: element.name,
+  elementName: elementDisplayName(element),
   missingDependencyId: element.id,
-  missingDependencyName: element.name,
+  missingDependencyName: elementDisplayName(element),
   message
+});
+
+export const forGroupAncestorError = (element: CadElement, target: CadElement): DependencyError => ({
+  elementId: element.id,
+  elementName: elementDisplayName(element),
+  missingDependencyId: target.id,
+  missingDependencyName: elementDisplayName(target),
+  message: `${elementDisplayName(element)} の対象「${elementDisplayName(target)}」はこの反転が属する for の外側にあるため反転できません。対象を同じ for の内側の要素にしてください。`
 });
 
 export const geometryWarning = (element: CadElement, message: string): EvaluationWarning => ({
   elementId: element.id,
-  elementName: element.name,
+  elementName: elementDisplayName(element),
   message
 });
 

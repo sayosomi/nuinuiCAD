@@ -9,7 +9,9 @@ use super::offset_paths::is_line_like_geometry;
 use super::offset_source_segments::{connect_source_segment_groups, source_segments_for_geometry};
 use super::offset_types::{line_length, OffsetPoint};
 use super::point_anchor::point_anchor_or_error;
-use super::types::{element_id, element_name, element_type, insert_geometry, EvaluationState};
+use super::types::{
+    element_display_name, element_id, element_type, insert_geometry, EvaluationState,
+};
 
 fn base_line_ids(element: &Value) -> Vec<String> {
     element
@@ -64,7 +66,7 @@ fn evaluate_copy_with_transform(
         .filter(|segments| !segments.is_empty())
         .collect::<Vec<_>>();
     let id = element_id(element).unwrap_or_default();
-    let name = element_name(element);
+    let name = element_display_name(element);
     if source_segment_groups.is_empty() {
         state.errors.push(geometry_error(
             element,
@@ -104,7 +106,7 @@ fn apply_transform_to_targets(
     transform: &LineTransform,
 ) {
     let ids = base_line_ids(element);
-    let name = element_name(element);
+    let name = element_display_name(element);
     if ids.is_empty() {
         state.errors.push(geometry_error(
             element,
@@ -199,7 +201,7 @@ pub(crate) fn evaluate_copy_line(
             element,
             format!(
                 "{} は倍率が0以下のためコピーできません。倍率を正の値にしてください。",
-                element_name(element)
+                element_display_name(element)
             ),
         ));
         return;
@@ -255,7 +257,7 @@ pub(crate) fn evaluate_symmetric_copy_line(
             element,
             format!(
                 "{} の対称軸は同じ点を2回指定できません。",
-                element_name(element)
+                element_display_name(element)
             ),
         ));
         return;
@@ -320,7 +322,7 @@ pub(crate) fn evaluate_move(
             element,
             format!(
                 "{} は倍率が0以下のため移動できません。倍率を正の値にしてください。",
-                element_name(element)
+                element_display_name(element)
             ),
         ));
         return;
@@ -376,7 +378,7 @@ pub(crate) fn evaluate_symmetric_move(
             element,
             format!(
                 "{} の対称軸は同じ点を2回指定できません。",
-                element_name(element)
+                element_display_name(element)
             ),
         ));
         return;

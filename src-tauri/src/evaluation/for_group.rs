@@ -1,7 +1,10 @@
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 
-use super::types::{element_id, element_name, element_type, ElementId, ForGroupGeneratedRow};
+use super::types::{
+    element_display_name, element_id, element_name, element_type,
+    element_type_without_own_drawable_geometry, ElementId, ForGroupGeneratedRow,
+};
 
 fn generated_for_element_id(
     for_group_id: &str,
@@ -188,14 +191,17 @@ pub(crate) fn expand_for_group_iteration_from_template(
         remap_json_ids(&mut element, &id_map);
         if let Some(object) = element.as_object_mut() {
             object.insert("id".to_owned(), Value::String(generated_id.clone()));
-            object.insert(
-                "name".to_owned(),
-                Value::String(format!(
-                    "[{}] {}",
-                    iteration_label(&variable_name, variable_value),
-                    element_name(&template)
-                )),
-            );
+            let generated_name =
+                if element_type_without_own_drawable_geometry(element_type(&template)) {
+                    String::new()
+                } else {
+                    format!(
+                        "[{}] {}",
+                        iteration_label(&variable_name, variable_value),
+                        element_name(&template)
+                    )
+                };
+            object.insert("name".to_owned(), Value::String(generated_name));
             let iteration_variable = json!({
                 "id": format!("{for_group_id}:iteration"),
                 "name": variable_name,
@@ -219,7 +225,7 @@ pub(crate) fn expand_for_group_iteration_from_template(
                 iteration_index,
                 variable_name: variable_name.clone(),
                 variable_value,
-                element_name: element_name(&element),
+                element_name: element_display_name(&element),
                 element_type: element_type(&element).unwrap_or_default().to_owned(),
             });
         }

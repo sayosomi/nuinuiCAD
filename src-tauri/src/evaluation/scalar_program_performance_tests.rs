@@ -30,7 +30,6 @@ fn scalar_program(binding_count: usize) -> Value {
 
 fn evaluate(program: Value) -> EvaluationPayload {
     evaluate_document_input(EvaluationInput {
-        path_mutations: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,

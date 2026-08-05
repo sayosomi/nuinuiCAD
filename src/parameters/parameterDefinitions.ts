@@ -85,10 +85,6 @@ const commonParameters: ParameterDefinition[] = [
   { key: "colorId", label: "表示色", kind: "color" },
 ];
 
-const nonColorCommonParameters: ParameterDefinition[] = [
-  { key: "name", label: "名前", kind: "text" },
-];
-
 const numericVariableParameters = (
   element: CadElement,
 ): ParameterDefinition[] =>
@@ -407,7 +403,6 @@ const parameterDefinitionsForElement = (
       ];
     case "edge":
       return [
-        ...nonColorCommonParameters,
         ...numericVariableParameters(element),
         { key: "endpoint1", label: "端点1", kind: "lineEndpointReference" },
         { key: "endpoint2", label: "端点2", kind: "lineEndpointReference" },
@@ -415,7 +410,6 @@ const parameterDefinitionsForElement = (
       ];
     case "extendTrim":
       return [
-        ...nonColorCommonParameters,
         ...numericVariableParameters(element),
         { key: "endpoint", label: "端点", kind: "lineEndpointReference" },
         {
@@ -424,6 +418,10 @@ const parameterDefinitionsForElement = (
           kind: "reference",
           allowCoordinate: false,
         },
+      ];
+    case "pathReverse":
+      return [
+        { key: "targetLineId", label: "対象線", kind: "lineReference" },
       ];
     case "bezierCurve":
       return [
@@ -502,9 +500,7 @@ const parameterDefinitionsForElement = (
     case "copyLine":
     case "move":
       return [
-        ...(element.type === "move"
-          ? nonColorCommonParameters
-          : commonParameters),
+        ...(element.type === "move" ? [] : commonParameters),
         ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.startPoint,
@@ -541,9 +537,7 @@ const parameterDefinitionsForElement = (
     case "symmetricCopyLine":
     case "symmetricMove":
       return [
-        ...(element.type === "symmetricMove"
-          ? nonColorCommonParameters
-          : commonParameters),
+        ...(element.type === "symmetricMove" ? [] : commonParameters),
         ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.axisPoint1,

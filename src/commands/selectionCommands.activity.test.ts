@@ -8,10 +8,11 @@ const twoPointsAndVariableSource = [
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 1, y: 1)",
   "line AB = segment(start: A, end: B)",
-  "line W = extend(end: AB.start, to: A)"
+  "extend(end: AB.start, to: A, id: W)"
 ].join("\n");
 
 const elementNamed = (name: string) => useCadDocumentStore.getState().elements.find((element) => element.name === name)!;
+const elementById = (id: string) => useCadDocumentStore.getState().elements.find((element) => element.id === id)!;
 
 describe("activity commands", () => {
   beforeEach(() => {
@@ -33,22 +34,27 @@ describe("activity commands", () => {
     expect(elementNamed("A")).toMatchObject({ activity: "visible" });
   });
 
-  it("skips hidden when cycling a non-drawable element, and recovers forward from a legacy hidden state", () => {
-    const variable = elementNamed("W");
+  // A "legacy hidden state" recovery scenario (forcing `activity: "hidden"`
+  // onto a non-drawable element via a raw setState, then cycling it forward)
+  // used to be covered here too. It no longer applies: `state: hidden` on a
+  // bare mutation-statement type (edge/extendTrim/move/symmetricMove/
+  // pathReverse) is now a hard parse-time diagnostic (dslCallParser.ts's
+  // validateArgs), so there is no legal DSL text this in-memory state could
+  // ever have round-tripped through in the first place - forcing it via
+  // setState only fabricates a store/text divergence that
+  // regenerateCanonicalFromModel cannot recover from, which is exactly the
+  // failure mode the diagnostic exists to make impossible. The pure
+  // hidden -> disabled skip is still covered at the elementActivity.ts unit
+  // level (see nextElementActivity("hidden", "extendTrim") in
+  // elementActivity.test.ts).
+  it("skips hidden when cycling a non-drawable element", () => {
+    const variable = elementById("W");
 
     cycleElementActivity(variable.id);
-    expect(elementNamed("W")).toMatchObject({ activity: "disabled" });
+    expect(elementById("W")).toMatchObject({ activity: "disabled" });
 
     cycleElementActivity(variable.id);
-    expect(elementNamed("W")).toMatchObject({ activity: "visible" });
-
-    useCadDocumentStore.setState({
-      elements: useCadDocumentStore.getState().elements.map((element) =>
-        element.id === variable.id ? { ...element, activity: "hidden" } : element
-      )
-    });
-    cycleElementActivity(variable.id);
-    expect(elementNamed("W")).toMatchObject({ activity: "disabled" });
+    expect(elementById("W")).toMatchObject({ activity: "visible" });
   });
 
   it("applies a single-element direct-set through setElementActivity", () => {
@@ -82,24 +88,24 @@ describe("activity commands", () => {
   });
 
   it("does not commit when a hidden direct-set only targets non-drawable elements", () => {
-    const variable = elementNamed("W");
+    const variable = elementById("W");
     useCadUiStore.getState().setSelectedElementIds([variable.id]);
     const pastLengthBefore = useCadDocumentStore.getState().past.length;
 
     setElementsActivity("hidden");
 
-    expect(elementNamed("W")).toMatchObject({ activity: "visible" });
+    expect(elementById("W")).toMatchObject({ activity: "visible" });
     expect(useCadDocumentStore.getState().past.length).toBe(pastLengthBefore);
   });
 
   it("skips only the non-drawable member of a mixed selection when setting hidden", () => {
     const pointA = elementNamed("A");
-    const variable = elementNamed("W");
+    const variable = elementById("W");
     useCadUiStore.getState().setSelectedElementIds([pointA.id, variable.id]);
 
     setElementsActivity("hidden");
 
     expect(elementNamed("A")).toMatchObject({ activity: "hidden" });
-    expect(elementNamed("W")).toMatchObject({ activity: "visible" });
+    expect(elementById("W")).toMatchObject({ activity: "visible" });
   });
 });

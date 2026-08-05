@@ -3,6 +3,7 @@ import { dslCompletionMetadataForType } from "./dslCompletionMetadata";
 import {
   commonArgSpecs,
   constructionCandidatesFor,
+  MUTATION_CATEGORY,
   type DslConstructionCategory,
   type DslConstructionSpec,
 } from "./dslConstructions";
@@ -32,6 +33,7 @@ const userFacingCommonArgumentNames = new Set([
 const completionArgumentSpecs = (spec: DslConstructionSpec) => {
   const byName = new Map(spec.args.map((arg) => [arg.arg, arg]));
   for (const arg of commonArgSpecs) {
+    if (arg.arg === "color" && spec.category === MUTATION_CATEGORY) continue;
     if (userFacingCommonArgumentNames.has(arg.arg) && !byName.has(arg.arg)) byName.set(arg.arg, arg);
   }
   return [...byName.values()];

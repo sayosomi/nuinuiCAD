@@ -199,6 +199,11 @@ export const getDirectParentIds = (
           { elementId: element.endpoint.lineId },
           ...pointAnchorParentIds(element.point).map((elementId) => ({ elementId }))
         ].map((reference) => reference.elementId);
+      case "pathReverse":
+        return [
+          ...numericVariableReferences(element),
+          { elementId: element.targetLineId }
+        ].map((reference) => reference.elementId);
       case "bezierCurve":
         return [
           ...numericVariableReferences(element),
@@ -283,6 +288,7 @@ export const getDirectParentIds = (
     case "cornerRadiusArcLine":
     case "edge":
     case "extendTrim":
+    case "pathReverse":
       return numericExpressionParentIds();
     case "bezierCurve":
     case "offsetLine":

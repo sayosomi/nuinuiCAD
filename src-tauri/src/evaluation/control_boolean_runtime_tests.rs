@@ -16,7 +16,6 @@ fn input(
     condition_expressions: Option<Value>,
 ) -> EvaluationInput {
     EvaluationInput {
-        path_mutations: None,
         elements,
         evaluation_limit_index: None,
         scalar_expression_payload: None,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { elementDisplayName } from "../model/elementNames";
 import type { CadElement, ForGroupElement } from "../types/geometry";
 import { expandForGroupIteration } from "./forGroupExpansion";
 
@@ -90,5 +91,64 @@ describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
         endpoint: { lineId: "line-ab", endpointKey: "start" }
       });
     }
+  });
+});
+
+describe("expandForGroupIteration (anonymous mutation name invariant)", () => {
+  it("keeps a generated pathReverse clone's name empty instead of a bracket-labeled string", () => {
+    const line: CadElement = {
+      id: "line-ab",
+      name: "線AB",
+      type: "line",
+      activity: "visible",
+      parentGroupId: forGroup.id,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" }
+    };
+    const reverse: CadElement = {
+      id: "reverse",
+      name: "",
+      type: "pathReverse",
+      activity: "visible",
+      parentGroupId: forGroup.id,
+      targetLineId: "line-ab"
+    };
+    const elements = [...basePoints, forGroup, line, reverse];
+
+    const { generatedElements } = expandForGroupIteration({
+      elements,
+      forGroup,
+      iterationIndex: 0,
+      variableValue: 0
+    });
+    const generatedReverse = generatedElements.find((element) => element.type === "pathReverse")!;
+
+    expect(generatedReverse.name).toBe("");
+    // The model invariant (name === "") must not remove the presentation
+    // fallback: diagnostics/UI labels still resolve to the type label.
+    expect(elementDisplayName(generatedReverse)).toBe("反転");
+  });
+
+  it("still generates a bracket-labeled name for an ordinary (non-mutation) generated clone", () => {
+    const line: CadElement = {
+      id: "line-ab",
+      name: "線AB",
+      type: "line",
+      activity: "visible",
+      parentGroupId: forGroup.id,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" }
+    };
+    const elements = [...basePoints, forGroup, line];
+
+    const { generatedElements } = expandForGroupIteration({
+      elements,
+      forGroup,
+      iterationIndex: 0,
+      variableValue: 0
+    });
+    const generatedLine = generatedElements.find((element) => element.type === "line")!;
+
+    expect(generatedLine.name).toBe("[i=0] 線AB");
   });
 });

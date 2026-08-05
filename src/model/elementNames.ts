@@ -19,6 +19,7 @@ const defaultNameBases: Record<CadElementType, string> = {
   cornerRadiusArcLine: "角R円弧線",
   edge: "エッジ",
   extendTrim: "延長短縮",
+  pathReverse: "反転",
   bezierCurve: "曲線",
   offsetLine: "オフセット線",
   splitLine: "分割線",
@@ -36,6 +37,19 @@ const normalizeName = (name: string, fallbackBaseName: string) => {
 };
 
 export const fallbackElementName = (type: CadElementType) => defaultNameBases[type];
+
+/**
+ * A label safe to show a user or interpolate into a diagnostic message, even
+ * for a bare mutation-statement element (edge/extendTrim/move/symmetricMove/
+ * pathReverse) whose `name` is always "" - these have no DSL name slot to
+ * write into (see dslConstructions.ts's "mutation" category), so `name`
+ * alone is not presentable. Never write this derived label back into
+ * `element.name`: doing so would make the element referenceable and
+ * collision-prone (see createNameIndex, which deliberately skips blank
+ * names).
+ */
+export const elementDisplayName = (element: CadElement) =>
+  element.name.trim() || fallbackElementName(element.type);
 
 const ROOT_NAMESPACE = "__root__";
 
@@ -469,6 +483,10 @@ export const createdElementName = ({
       case "extendTrim": {
         const token = lineToken(elementsById.get(element.endpoint.lineId));
         return token ? `${token}延長短縮` : fallbackName;
+      }
+      case "pathReverse": {
+        const token = lineToken(elementsById.get(element.targetLineId));
+        return token ? `${token}反転` : fallbackName;
       }
       case "bezierCurve": {
         const token = joinTokens(anchorToken(element.startPoint, elementsById), anchorToken(element.endPoint, elementsById));

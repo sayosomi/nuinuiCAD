@@ -1,0 +1,13 @@
+nui 3
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 10, y: 0)
+point C = coordinate(x: 20, y: 0)
+point D = coordinate(x: 30, y: 0)
+line CD = segment(start: C, end: D)
+for SameLoop (i, from: 0, count: 2, step: 1) {
+  line AB = segment(start: A, end: B)
+  reverse(target: AB)
+}
+for CrossLoop (i, from: 0, count: 2, step: 1) {
+  reverse(target: CD)
+}
