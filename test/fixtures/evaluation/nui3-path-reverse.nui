@@ -4,5 +4,5 @@ point B = coordinate(x: 10, y: 0)
 point C = coordinate(x: 10, y: 10)
 line AB = segment(start: A, end: B)
 line CB = segment(start: C, end: B)
-reverse CB
+reverse(target: CB)
 line Seam = offset(sources: [AB, CB], distance: 1, side: right, closed: false)

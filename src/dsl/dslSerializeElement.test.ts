@@ -28,18 +28,24 @@ const calls: ReadonlyArray<readonly [CadElementType, string, string]> = [
   ["lineDivisionPoint", "point", "onLine"], ["intersectionPoint", "point", "intersection"],
   ["lineTangentOffsetPoint", "point", "tangentOffset"], ["line", "line", "segment"],
   ["angleLengthLine", "line", "polar"], ["offsetLine", "line", "offset"],
-  ["splitLine", "line", "split"], ["extendTrim", "line", "extend"],
-  ["copyLine", "line", "copy"], ["move", "line", "move"],
-  ["symmetricCopyLine", "line", "mirrorCopy"], ["symmetricMove", "line", "mirrorMove"],
-  ["edge", "line", "edge"], ["bezierCurve", "curve", "bezier"],
+  ["splitLine", "line", "split"],
+  ["copyLine", "line", "copy"],
+  ["symmetricCopyLine", "line", "mirrorCopy"],
+  ["extendTrim", "mutation", "extend"], ["move", "mutation", "move"],
+  ["symmetricMove", "mutation", "mirrorMove"], ["edge", "mutation", "edge"],
+  ["pathReverse", "mutation", "reverse"],
+  ["bezierCurve", "curve", "bezier"],
   ["arcLine", "arc", "arc"], ["threePointArcLine", "arc", "through"],
   ["cornerRadiusArcLine", "arc", "corner"], ["text", "text", "label"],
   ["image", "image", "image"],
   ["group", "group", ""], ["conditionalGroup", "if", ""], ["forGroup", "for", ""],
 ];
 
+const bareMutationTypes: ReadonlySet<CadElementType> =
+  new Set(["edge", "extendTrim", "move", "symmetricMove", "pathReverse"]);
+
 describe("DSL nui 3 element serializer", () => {
-  it("serializes all 26 element types from their registry construction", () => {
+  it("serializes all 27 element types from their registry construction", () => {
     for (const [type, category, construction] of calls) {
       const element = minimal(type);
       const block = serializeElementStatementBlock(element, documentDslRefs([...referenceElements, element]));
@@ -54,7 +60,7 @@ describe("DSL nui 3 element serializer", () => {
         expect(block.header).toMatch(new RegExp(`^${category} ${element.name} \\(`));
       } else {
         expect(block).toMatchObject({
-          header: `${category} ${element.name} = ${construction}(`,
+          header: bareMutationTypes.has(type) ? `${construction}(` : `${category} ${element.name} = ${construction}(`,
           close: ")",
         });
         const constructionKeys = spec.args

@@ -47,7 +47,11 @@ import {
 } from "./selectionCommands";
 import { addContainer } from "./containerCreation";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
-import { formatDslName } from "../dsl/dslTokens";
+import { applyCreationPlacement, creationPlacementForTarget } from "../model/elementCreationPlacement";
+import { createCadElement } from "../model/elementFactory";
+import { setParameterValue } from "../parameters/parameterAccess";
+import { commitSourceCreationInsertion } from "./sourceCreationCommit";
+import { resolveSourceCreationInsertion } from "./sourceCreationInsertion";
 
 const reverseEligible = () => {
   const selected = getSelectedElement();
@@ -56,31 +60,62 @@ const reverseEligible = () => {
     "line", "angleLengthLine", "arcLine", "threePointArcLine", "cornerRadiusArcLine",
     "bezierCurve", "offsetLine", "splitLine", "copyLine", "symmetricCopyLine"
   ].includes(selected.type)) return null;
-  const state = useCadDocumentStore.getState();
-  let parentId = selected.parentGroupId;
-  while (parentId) {
-    const parent = state.elements.find((element) => element.id === parentId);
-    if (!parent) break;
-    if (parent.type === "forGroup") return null;
-    parentId = parent.parentGroupId;
-  }
   return selected;
 };
 
+/** Inserts a `reverse(target: …)` element immediately after the selected
+ * line, through the same source-backed creation path every other element
+ * creation command uses (see containerCreation.ts's addContainer) - no
+ * hand-written statement text, no dedicated forGroup rejection. A reversal
+ * inside a forGroup is a normal element there like any other; whether its
+ * target lives inside or outside the loop is the user's concern, the same
+ * as any other cross-iteration reference. */
 const insertReverseAfterSelectedPath = () => {
   const selected = reverseEligible();
-  const state = useCadDocumentStore.getState();
-  if (!selected || state.doc.majorVersion !== 3 || state.docText !== state.sourceText) {
+  const document = useCadDocumentStore.getState();
+  if (!selected || document.doc.majorVersion !== 3 || document.docText !== document.sourceText) {
     useCadUiStore.getState().setCommandErrorMessage("nui 3 の線を1件選択してから実行してください。");
     return false;
   }
-  const info = state.doc.statementMap.byElementId.get(selected.id);
-  if (!info) return false;
-  const lines = state.sourceText.split("\n");
-  const sourceLine = lines[info.line - 1] ?? "";
-  const indent = /^\s*/.exec(sourceLine)?.[0] ?? "";
-  lines.splice(info.endLine, 0, `${indent}reverse ${formatDslName(selected.name)}`);
-  state.commitText(lines.join("\n"), "command");
+  const sourceInsertion = resolveSourceCreationInsertion({
+    cursor: {
+      sourceRevision: document.sourceRevision,
+      line: 0,
+      lineCount: document.sourceText.split("\n").length,
+      elementId: selected.id
+    },
+    sourceRevision: document.sourceRevision,
+    elements: document.elements,
+    statementMap: document.doc.statementMap
+  });
+  if (!sourceInsertion) {
+    useCadUiStore.getState().setCommandErrorMessage("反転の挿入位置を特定できませんでした。");
+    return false;
+  }
+  const placement = creationPlacementForTarget(document.elements, sourceInsertion.insertionTarget, document.evaluationLimitIndex);
+  const reversal = applyCreationPlacement(
+    setParameterValue(
+      createCadElement("pathReverse", document.elements, { referenceElements: placement.referenceElements }),
+      "targetLineId",
+      selected.id
+    ),
+    placement
+  );
+  const sourceCommit = commitSourceCreationInsertion({
+    elements: document.elements,
+    insertionIndex: placement.insertionIndex,
+    insertedElements: [reversal],
+    sourceInsertionLine: sourceInsertion.sourceInsertionLine
+  });
+  if (sourceCommit.result.status !== "applied" || !sourceCommit.selectedElementId) {
+    useCadUiStore.getState().setCommandErrorMessage("反転の挿入に失敗しました。");
+    return false;
+  }
+  useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, {
+    selectedElementId: sourceCommit.selectedElementId,
+    selectedElementIds: sourceCommit.insertedElementIds,
+    selectionAnchorElementId: sourceCommit.selectedElementId
+  });
   useCadUiStore.getState().setCommandErrorMessage(null);
   return true;
 };

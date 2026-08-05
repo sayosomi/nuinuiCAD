@@ -24,16 +24,16 @@ const buildElements = () => {
       "point H = tangentOffset(line: armhole base: A angle: 90 distance: 12 id: p7)",
       "arc r = corner(end1: AB.end end2: shoulder.start radius: 10 index: 0 id: a2)",
       "line lower = split(source: armhole at: D id: l3)",
-      "line adjusted = extend(end: shoulder.end to: E id: l4)",
+      "extend(end: shoulder.end to: E id: l4)",
       "line seam = offset(sources: [AB, shoulder] distance: 10 side: left closed: false id: l5)",
       "curve neckline = bezier(start: A end: B startAngle: -90 startLength: 35 endAngle: 180 endLength: 45 intermediates: [C:45:20:25:i1] id: c1)",
       "arc three = through(point1: A point2: B point3: C start: 180 end: 270 id: a3)",
       'text label = label(text: "前中心" anchor: A size: 4 id: t1)',
-      "line edge1 = edge(end1: AB.start end2: shoulder.end index: 0 id: e1)",
+      "edge(end1: AB.start end2: shoulder.end index: 0 id: e1)",
       "line cp = copy(startPoint: A endPoint: B scale: 1 angleDeg: 0 mirrorX: false baseLines: [AB] id: e2)",
       "line sym = mirrorCopy(axis1: A axis2: B baseLines: [AB] id: e3)",
-      "line mv = move(startPoint: A endPoint: B scale: 1 angleDeg: 0 mirrorX: false baseLines: [AB] id: e4)",
-      "line smv = mirrorMove(axis1: A axis2: B baseLines: [AB] id: e5)",
+      "move(targets: [AB] from: A to: B scale: 1 angleDeg: 0 mirrorX: false id: e4)",
+      "mirrorMove(targets: [AB] axis1: A axis2: B id: e5)",
       "if cond (1 id: e6) {",
       "}",
       "for rep (i from: 0 count: 5 step: 1 showGenerated: false id: e7) {",
@@ -136,7 +136,7 @@ describe("serializeElementsToDsl flat output", () => {
         at: p4,
         id: l3
       )
-      line adjusted = extend(
+      extend(
         end: l2.end,
         to: p5,
         id: l4
@@ -173,7 +173,7 @@ describe("serializeElementsToDsl flat output", () => {
         size: 4,
         id: t1
       )
-      line edge1 = edge(
+      edge(
         end1: l1.start,
         end2: l2.end,
         index: 0,
@@ -194,19 +194,19 @@ describe("serializeElementsToDsl flat output", () => {
         baseLines: [l1],
         id: e3
       )
-      line mv = move(
-        startPoint: p1,
-        endPoint: p2,
+      move(
+        targets: [l1],
+        from: p1,
+        to: p2,
         scale: 1,
         angleDeg: 0,
         mirrorX: false,
-        baseLines: [l1],
         id: e4
       )
-      line smv = mirrorMove(
+      mirrorMove(
+        targets: [l1],
         axis1: p1,
         axis2: p2,
-        baseLines: [l1],
         id: e5
       )
       if cond (1, id: e6)

@@ -42,12 +42,13 @@ categoryごとに使えるconstructionは次のとおりです。各construction
 | category | construction |
 | --- | --- |
 | `point` | `coordinate`, `offset`, `polar`, `between`, `onLine`, `intersection`, `tangentOffset` |
-| `line` | `segment`, `polar`, `offset`, `split`, `extend`, `copy`, `move`, `mirrorCopy`, `mirrorMove`, `edge` |
+| `line` | `segment`, `polar`, `offset`, `split`, `copy`, `mirrorCopy` |
 | `curve` | `bezier` |
 | `arc` | `arc`, `through`, `corner` |
 | `text` | `label` |
 | `image` | `image` |
-| `var` | `expression`, `pointDistance`, `pointAngle`, `pointLineDistance` |
+
+`edge`、`extend`、`move`、`mirrorMove`、`reverse` は既存の要素を書き換える**変更文**です。category と名前を持たず、construction キーワード自身が文を始めます(詳細は「既存要素を書き換える」参照)。
 
 代表例です。
 
@@ -77,14 +78,25 @@ text label = label(
 )
 ```
 
-### パスの向きを反転する
+### 既存要素を書き換える
 
-`reverse 線名` は新しい線を作らず、その文より後で使われる対象パスの向きだけを反転します。`start`/`end`、接線、円弧の sweep、Bezier の制御点順も反転します。
+`edge`、`extend`、`move`、`mirrorMove`、`reverse` は新しい要素を作らず、既存の要素の形状を書き換えます。自身の図形を持たないため、`category 名前 =` の頭を持たず、construction キーワードだけで文が始まります。名前も付けられないため `state:` は `visible` / `disabled` のみ指定できます(`hidden` は診断エラーになります)。
+
+```text
+line AB = segment(start: A, end: B)
+line BC = segment(start: B, end: C)
+edge(end1: AB.end, end2: BC.start, index: 0)
+extend(end: AB.start, to: A)
+move(targets: [AB], from: A, to: B, scale: 1, angleDeg: 0, mirrorX: false)
+mirrorMove(targets: [AB], axis1: A, axis2: B)
+```
+
+`reverse(target: 線名)` は対象パスの向きを反転します。`start`/`end`、接線、円弧の sweep、Bezier の制御点順も反転し、その文より後の要素だけが反転後の向きを見ます。
 
 ```text
 line AB = segment(start: A, end: B)
 line CB = segment(start: C, end: B)
-reverse CB
+reverse(target: CB)
 line seam = offset(sources: [AB, CB], distance: 10, side: right, closed: false)
 ```
 

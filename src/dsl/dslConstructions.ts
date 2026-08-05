@@ -27,7 +27,18 @@ export type DslConstructionCategory =
   | "image"
   | "group"
   | "if"
-  | "for";
+  | "for"
+  | "mutation";
+
+/**
+ * The category for a bare mutation statement - a statement that rewrites an
+ * already-declared element's geometry in place instead of declaring its own
+ * (edge/extend/move/mirrorMove/reverse). These have no `<category> <name> =`
+ * head; the construction keyword itself leads the statement, and the
+ * compiled element's name is always "" (see dslCallParser.ts's bare-call
+ * branch and elementActivity.ts's elementTypesWithoutOwnDrawableGeometry).
+ */
+export const MUTATION_CATEGORY = "mutation" satisfies DslConstructionCategory;
 
 export type DslConstructionSpec = {
   category: DslConstructionCategory;
@@ -107,17 +118,10 @@ const constructionSpecs: DslConstructionSpec[] = [
     args: [required("sources", "baseLineIds"), arg("distance", "offset"), arg("side"), arg("closed"), arg("suppressTrimWarnings")],
   },
   { category: "line", construction: "split", elementType: "splitLine", args: [required("source", "baseLineId"), required("at", "splitPoint")] },
-  { category: "line", construction: "extend", elementType: "extendTrim", args: [required("end", "endpoint"), required("to", "point")] },
   {
     category: "line",
     construction: "copy",
     elementType: "copyLine",
-    args: [required("startPoint"), required("endPoint"), arg("scale"), arg("angleDeg"), arg("mirrorX"), required("baseLines", "baseLineIds")],
-  },
-  {
-    category: "line",
-    construction: "move",
-    elementType: "move",
     args: [required("startPoint"), required("endPoint"), arg("scale"), arg("angleDeg"), arg("mirrorX"), required("baseLines", "baseLineIds")],
   },
   {
@@ -127,12 +131,42 @@ const constructionSpecs: DslConstructionSpec[] = [
     args: [required("axis1", "axisPoint1"), required("axis2", "axisPoint2"), required("baseLines", "baseLineIds")],
   },
   {
-    category: "line",
+    category: MUTATION_CATEGORY,
+    construction: "edge",
+    elementType: "edge",
+    args: [required("end1", "endpoint1"), required("end2", "endpoint2"), arg("index", "intersectionIndex")],
+  },
+  {
+    category: MUTATION_CATEGORY,
+    construction: "extend",
+    elementType: "extendTrim",
+    args: [required("end", "endpoint"), required("to", "point")],
+  },
+  {
+    category: MUTATION_CATEGORY,
+    construction: "move",
+    elementType: "move",
+    args: [
+      required("targets", "baseLineIds"),
+      required("from", "startPoint"),
+      required("to", "endPoint"),
+      arg("scale"),
+      arg("angleDeg"),
+      arg("mirrorX"),
+    ],
+  },
+  {
+    category: MUTATION_CATEGORY,
     construction: "mirrorMove",
     elementType: "symmetricMove",
-    args: [required("axis1", "axisPoint1"), required("axis2", "axisPoint2"), required("baseLines", "baseLineIds")],
+    args: [required("targets", "baseLineIds"), required("axis1", "axisPoint1"), required("axis2", "axisPoint2")],
   },
-  { category: "line", construction: "edge", elementType: "edge", args: [required("end1", "endpoint1"), required("end2", "endpoint2"), arg("index", "intersectionIndex")] },
+  {
+    category: MUTATION_CATEGORY,
+    construction: "reverse",
+    elementType: "pathReverse",
+    args: [required("target", "targetLineId")],
+  },
   {
     category: "curve",
     construction: "bezier",
@@ -191,11 +225,25 @@ export const constructionFor = (category: string, construction: string): DslCons
 export const constructionCandidatesFor = (category: string): readonly DslConstructionSpec[] =>
   constructionSpecs.filter((spec) => spec.category === category);
 
-/** Categories that define a construction spelling, in registry declaration order. */
+/** Categories that define a construction spelling, in registry declaration order.
+ * A bare mutation construction has no `<category> <name> =` head to suggest a
+ * category for, so it is deliberately excluded here - see bareConstructionFor. */
 export const categoriesForConstruction = (construction: string): readonly DslConstructionCategory[] =>
   [...new Set(constructionSpecs
-    .filter((spec) => spec.construction === construction)
+    .filter((spec) => spec.construction === construction && spec.category !== MUTATION_CATEGORY)
     .map((spec) => spec.category))];
+
+const specsByBareConstruction = new Map(
+  constructionSpecs
+    .filter((spec) => spec.category === MUTATION_CATEGORY)
+    .map((spec) => [spec.construction, spec])
+);
+
+/** The mutation-category spec for a bare statement's leading keyword
+ * (`edge`/`extend`/`move`/`mirrorMove`/`reverse`), or null for every other
+ * keyword. */
+export const bareConstructionFor = (construction: string): DslConstructionSpec | null =>
+  specsByBareConstruction.get(construction) ?? null;
 
 export const constructionForElementType = (type: CadElementType): DslConstructionSpec => {
   const spec = specsByElementType.get(type);

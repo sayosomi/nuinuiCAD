@@ -133,7 +133,6 @@ export const AppLayout = () => {
   // the canonical compiled document's own element ids/statement indices.
   const scalarProgram = useCadDocumentStore((state) => state.doc.scalarProgram);
   const bindingVersions = useCadDocumentStore((state) => state.doc.bindingVersions);
-  const pathMutationProgram = useCadDocumentStore((state) => state.doc.pathMutationProgram);
   const propertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
   const numericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
   const conditionalGroupConditions = useCadDocumentStore((state) => state.doc.conditionalGroupConditions);
@@ -261,7 +260,6 @@ export const AppLayout = () => {
         bindingVersions, statementInfoByElementId, statementIdByStatementIndex,
         conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId: forGroupMutationOwnersByElementId
       } : {}),
-      ...(pathMutationProgram ? { pathMutationProgram, statementInfoByElementId } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
@@ -273,7 +271,6 @@ export const AppLayout = () => {
       evaluationLimitIndex,
       scalarProgram,
       bindingVersions,
-      pathMutationProgram,
       statementInfoByElementId,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,

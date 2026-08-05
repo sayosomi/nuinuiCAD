@@ -23,7 +23,6 @@ import {
   type DslTypedDeclarationStatement
 } from "./dslDeclarationParser";
 import { parseDslSetStatement, type DslSetParseResult, type DslSetStatement } from "./dslSetParser";
-import { parseDslReverseStatement, type DslReverseParseResult, type DslReverseStatement } from "./dslReverseParser";
 
 /**
  * Statement-leading spellings accepted by this parser. Keeping these constants
@@ -46,6 +45,10 @@ export const dslStatementKeywords = {
   letDeclaration: "let",
   setStatement: "set",
   reverseStatement: "reverse",
+  edge: "edge",
+  extend: "extend",
+  move: "move",
+  mirrorMove: "mirrorMove",
   point: "point",
   line: "line",
   curve: "curve",
@@ -90,7 +93,17 @@ const declarationKeywords = new Set<string>([dslStatementKeywords.constDeclarati
 // declarationKeywords - Task 29 must not mix a set branch into
 // dslDeclarationParser.ts.
 const setKeywords = new Set<string>([dslStatementKeywords.setStatement]);
-const reverseKeywords = new Set<string>([dslStatementKeywords.reverseStatement]);
+
+// Bare mutation-statement keywords (P3/dslCallParser's bare-call branch):
+// the construction keyword itself leads the statement, with no
+// `<category> <name> =` prefix. See dslConstructions.ts's "mutation" category.
+const mutationKeywords = new Set<string>([
+  dslStatementKeywords.edge,
+  dslStatementKeywords.extend,
+  dslStatementKeywords.move,
+  dslStatementKeywords.mirrorMove,
+  dslStatementKeywords.reverseStatement
+]);
 
 const nonElementKinds = new Set<DslStatement["kind"]>([
   "role",
@@ -104,7 +117,6 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "place",
   "typedDeclaration",
   "set",
-  "reverse",
   "blockEnd",
   "blockElse"
 ]);
@@ -310,21 +322,6 @@ const fromSet = (
   return { statement: setStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
 
-const reverseStatementToDslStatement = (reverse: DslReverseStatement, line: number, endLine: number): DslStatement => ({
-  ...baseFrom(reverse, line, endLine),
-  kind: "reverse"
-});
-
-const fromReverse = (
-  result: DslReverseParseResult,
-  line: number,
-  endLine: number,
-  project: (span: DslSpan) => DslPhysicalSpan | null
-): ParsedLine => {
-  const diagnostics = result.diagnostics.map((item) => diagnostic(line, item.message, item.code, project(item.span) ?? undefined));
-  return result.statement ? { statement: reverseStatementToDslStatement(result.statement, line, endLine), diagnostics } : { diagnostics };
-};
-
 const leadingIdentifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 
 const parseLine = (
@@ -339,7 +336,7 @@ const parseLine = (
     return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine);
   }
   const keyword = logicalText.match(leadingIdentifier)?.[0] ?? "";
-  if (callCategoryKeywords.has(keyword)) {
+  if (callCategoryKeywords.has(keyword) || mutationKeywords.has(keyword)) {
     return fromCall(parseDslCallStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine, project);
   }
   if (settingsKeywords.has(keyword)) {
@@ -350,9 +347,6 @@ const parseLine = (
   }
   if (setKeywords.has(keyword)) {
     return fromSet(parseDslSetStatement(logicalText), line, endLine, project);
-  }
-  if (reverseKeywords.has(keyword)) {
-    return fromReverse(parseDslReverseStatement(logicalText), line, endLine, project);
   }
   return {
     diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]

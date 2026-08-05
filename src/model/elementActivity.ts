@@ -24,15 +24,19 @@ const isActivityContainer = (elementType: string) =>
 
 /**
  * Types whose evaluator never assigns computedGeometry under their own
- * element id: edge/extendTrim/move/symmetricMove mutate a referenced line's
- * geometry in place instead. hidden and visible are indistinguishable for these
- * types; only disabled changes anything observable.
+ * element id: edge/extendTrim/move/symmetricMove/pathReverse mutate a
+ * referenced line's geometry in place instead. hidden and visible are
+ * indistinguishable for these types; only disabled changes anything
+ * observable. Also the single source of truth for "this element has no
+ * user-facing name" - these five are always DSL bare statements with no name
+ * slot at all (see dslConstructions.ts's "mutation" category).
  */
-const elementTypesWithoutOwnDrawableGeometry = new Set<CadElementType>([
+export const elementTypesWithoutOwnDrawableGeometry = new Set<CadElementType>([
   "edge",
   "extendTrim",
   "move",
-  "symmetricMove"
+  "symmetricMove",
+  "pathReverse"
 ]);
 
 export const elementTypeSupportsHiddenActivity = (elementType: CadElementType) =>

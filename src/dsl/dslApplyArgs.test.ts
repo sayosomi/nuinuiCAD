@@ -65,8 +65,10 @@ const populatedArgs = (spec: DslConstructionSpec, element: CadElement) =>
 const specs = [
   ["point", "coordinate"], ["point", "offset"], ["point", "polar"], ["point", "between"],
   ["point", "onLine"], ["point", "intersection"], ["point", "tangentOffset"], ["line", "segment"],
-  ["line", "polar"], ["line", "offset"], ["line", "split"], ["line", "extend"], ["line", "copy"],
-  ["line", "move"], ["line", "mirrorCopy"], ["line", "mirrorMove"], ["line", "edge"],
+  ["line", "polar"], ["line", "offset"], ["line", "split"], ["line", "copy"],
+  ["line", "mirrorCopy"],
+  ["mutation", "extend"], ["mutation", "move"], ["mutation", "mirrorMove"], ["mutation", "edge"],
+  ["mutation", "reverse"],
   ["curve", "bezier"], ["arc", "arc"], ["arc", "through"], ["arc", "corner"], ["text", "label"],
   ["image", "image"], ["group", ""], ["if", ""], ["for", ""],
 ] as const;
@@ -144,7 +146,7 @@ describe("DSL nui 3 compiler argument application", () => {
   it("applies the common color argument when a legacy type has no Inspector color definition", () => {
     const edge = sample("edge");
     expect(findParameterDefinition(edge, "colorId")).toBeUndefined();
-    const result = applyArgs(edge, constructionFor("line", "edge")!, [arg("color", "cut-red")], resolvers);
+    const result = applyArgs(edge, constructionFor("mutation", "edge")!, [arg("color", "cut-red")], resolvers);
     expect(result.diagnostics).toEqual([]);
     expect(result.element).toMatchObject({ colorId: "cut-red" });
   });

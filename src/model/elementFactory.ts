@@ -334,6 +334,18 @@ export const createCadElement = (
         point: referenceAnchor(firstPointId)
       };
     }
+    case "pathReverse": {
+      const id = createId(type);
+      const pathReverseCount = elements.filter((element) => element.type === "pathReverse").length;
+      const requestedName = `反転${pathReverseCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        activity: "visible",
+        targetLineId: lineLikeElements[0]?.id ?? ""
+      };
+    }
     case "bezierCurve": {
       const id = createId(type);
       const curveCount = elements.filter((element) => element.type === "bezierCurve").length;

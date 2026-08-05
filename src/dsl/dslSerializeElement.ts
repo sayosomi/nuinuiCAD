@@ -4,6 +4,7 @@ import type { CadElement, LineEndpointReference, NumericValue, PointAnchor } fro
 import {
   commonArgSpecs,
   constructionForElementType,
+  MUTATION_CATEGORY,
   type DslArgSpec,
   type DslConstructionSpec,
 } from "./dslConstructions";
@@ -187,8 +188,9 @@ export const serializeElementStatementBlock = (
 
   const common = commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg)));
 
-  const name = refs.name(element);
-  const header = [spec.category, name, "=", `${spec.construction}(`].filter(Boolean).join(" ");
+  const header = spec.category === MUTATION_CATEGORY
+    ? `${spec.construction}(`
+    : [spec.category, refs.name(element), "=", `${spec.construction}(`].filter(Boolean).join(" ");
   return {
     header,
     args: [...constructionArgs(element, spec, refs), ...common],

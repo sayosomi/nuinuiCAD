@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
 import { createCadElement } from "../model/elementFactory";
 import { referenceAnchor } from "../model/pointAnchors";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
@@ -134,15 +135,19 @@ const checkFixtureSpans = (fixture: Nui3CanonicalElementStatement, text: string)
 };
 
 describe("DSL nui 3 P9 parameter value span resolution", () => {
-  describe("全26要素型の populated/minimal 網羅", () => {
+  describe("全27要素型の populated/minimal 網羅", () => {
     for (const fixture of nui3CanonicalElementStatements) {
       it(`resolves ${fixture.key} (populated)`, () => checkFixtureSpans(fixture, fixture.populated));
       it(`resolves ${fixture.key} (minimal)`, () => checkFixtureSpans(fixture, fixture.minimal));
     }
   });
 
-  it("resolves the element name span for every fixture", () => {
+  it("resolves the element name span for every fixture with a name", () => {
     for (const fixture of nui3CanonicalElementStatements) {
+      // A bare mutation statement (edge/extend/move/mirrorMove/reverse) has
+      // no `<category> <name> =` head at all - its compiled name is always
+      // "", so there is no name span to resolve.
+      if (elementTypesWithoutOwnDrawableGeometry.has(fixture.elementType)) continue;
       for (const text of [fixture.populated, fixture.minimal]) {
         const { element, statement } = applyFixtureText(fixture, text);
         const span = resolveParameterValueSpan(text, element, "name", {});

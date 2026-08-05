@@ -172,8 +172,8 @@ describe("dslDocument round-trip matrix", () => {
         "point C = coordinate(x: 150 y: 0)",
         "line AB = segment(start: A end: B)",
         "line BC = segment(start: B end: C)",
-        "line e1 = edge(end1: AB.end end2: BC.start index: 0)",
-        "line extended = extend(end: AB.end to: C)"
+        "edge(end1: AB.end end2: BC.start index: 0)",
+        "extend(end: AB.end to: C)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -214,8 +214,8 @@ describe("dslDocument round-trip matrix", () => {
         "line AB = segment(start: A end: B)",
         "line cp = copy(startPoint: A endPoint: B scale: 1 angleDeg: 0 mirrorX: false baseLines: [AB])",
         "line sym = mirrorCopy(axis1: A axis2: B baseLines: [AB])",
-        "line mv = move(startPoint: A endPoint: B scale: 1 angleDeg: 0 mirrorX: false baseLines: [AB])",
-        "line smv = mirrorMove(axis1: A axis2: B baseLines: [AB])"
+        "move(targets: [AB] from: A to: B scale: 1 angleDeg: 0 mirrorX: false)",
+        "mirrorMove(targets: [AB] axis1: A axis2: B)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -485,7 +485,7 @@ describe("printLayout is the canonical document-end sink", () => {
       "point B = coordinate(x: 1, y: 1)",
       "printLayout レイアウト1 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
       "}",
-      "reverse AB"
+      "reverse(target: AB)"
     ].join("\n"));
     expect(compiled.document).toBeNull();
     expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);

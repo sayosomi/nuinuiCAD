@@ -224,6 +224,11 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         endpoint: remapEndpoint(element.endpoint, idMap),
         point: remapPointAnchor(element.point, idMap)
       };
+    case "pathReverse":
+      return {
+        ...element,
+        targetLineId: mapId(element.targetLineId, idMap)
+      };
     case "bezierCurve":
       return {
         ...element,

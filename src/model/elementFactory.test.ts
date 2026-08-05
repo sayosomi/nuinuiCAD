@@ -248,6 +248,16 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates pathReverse modifications using the first line as the default target", () => {
+    expect(createCadElement("pathReverse", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "pathReverse-test-id",
+      name: "AB反転",
+      type: "pathReverse",
+      activity: "visible",
+      targetLineId: "line-ab"
+    });
+  });
+
   it("creates Bezier curves using the first two points as default endpoints", () => {
     expect(createCadElement("bezierCurve", sampleElements, { createId: createTestId })).toMatchObject({
       id: "bezierCurve-test-id",

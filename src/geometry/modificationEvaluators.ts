@@ -10,6 +10,7 @@ import type {
   ElementId,
   LineEndpointReference
 } from "../types/geometry";
+import { elementDisplayName } from "../model/elementNames";
 import { anchorReferenceElementId } from "../model/pointAnchors";
 import {
   approximateBezierSegmentLength,
@@ -549,7 +550,7 @@ const applyEndpointMoves = (
     const moved = moveEndpoint(current, move.endpoint.endpointKey, move.target, move.targetPointId);
     if (moved.error || !moved.geometry) {
       context.errors.push(
-        geometryError(element, `${element.name}: ${moved.error ?? "端点を変更できません。"}`)
+        geometryError(element, `${elementDisplayName(element)}: ${moved.error ?? "端点を変更できません。"}`)
       );
       return false;
     }
@@ -584,7 +585,7 @@ export const evaluateModificationElement = (
       errors.push(
         geometryError(
           element,
-          `${element.name} は同じ線を2回参照しているため、エッジを作れません。端点1と端点2に別の線を指定してください。`
+          `${elementDisplayName(element)} は同じ線を2回参照しているため、エッジを作れません。端点1と端点2に別の線を指定してください。`
         )
       );
       return true;
@@ -606,7 +607,7 @@ export const evaluateModificationElement = (
     );
     if (intersectionIndex === undefined) return true;
     if (!Number.isInteger(intersectionIndex) || intersectionIndex < 0) {
-      errors.push(geometryError(element, `${element.name} の番号は0以上の整数で指定してください。`));
+      errors.push(geometryError(element, `${elementDisplayName(element)} の番号は0以上の整数で指定してください。`));
       return true;
     }
 
@@ -619,13 +620,13 @@ export const evaluateModificationElement = (
     if (!intersection) {
       const message =
         intersectionResult.intersections.length === 0
-          ? `${element.name} は参照線同士の交点を見つけられません。平行線など、延長しても交差しない線はエッジにできません。`
-          : `${element.name} の番号 ${intersectionIndex} に対応する交点はありません。交点数は ${intersectionResult.intersections.length} 個です。`;
+          ? `${elementDisplayName(element)} は参照線同士の交点を見つけられません。平行線など、延長しても交差しない線はエッジにできません。`
+          : `${elementDisplayName(element)} の番号 ${intersectionIndex} に対応する交点はありません。交点数は ${intersectionResult.intersections.length} 個です。`;
       errors.push(geometryError(element, message));
       return true;
     }
 
-    const corner = targetPoint(element, intersection, `${element.name}.交点`);
+    const corner = targetPoint(element, intersection, `${elementDisplayName(element)}.交点`);
     applyEndpointMoves(
       element,
       [

@@ -248,11 +248,25 @@ const scalarPropertyOrHoleCompletionContext = (
   return positionSpan ? { kind: "templateHole", from: positionSpan.from, to: positionSpan.to, contentSpan } : null;
 };
 
+const leadingIdentifierPattern = /^[A-Za-z_][A-Za-z0-9_]*/;
+
+/**
+ * A bare mutation statement (`edge(...)`, `reverse(...)`, ...) has no
+ * `<category> <name> =` head, so splitDslTerms - which only flushes a term
+ * on depth-0 whitespace - collapses the entire statement into a single term
+ * once its `(` opens. Matching against the leading identifier's own extent
+ * (not the whole term, which can swallow the parenthesized argument list)
+ * keeps keyword completion scoped to the keyword itself: once `(` is typed,
+ * this falls through to dslCallCompletionContextAt's own bare-call branch.
+ */
 const lineHeadContext = (code: string, pos: number): DslCompletionContext | null => {
   const terms = splitDslTerms(code);
   if (terms.length === 0) return { kind: "keyword", from: pos, to: pos, options: dslStatementKeywordCompletions };
   const first = terms[0];
-  if (terms.length === 1 && pos >= first.start && pos <= first.end) {
+  if (terms.length !== 1) return null;
+  const identifierLength = first.text.match(leadingIdentifierPattern)?.[0].length ?? first.text.length;
+  const identifierEnd = first.start + identifierLength;
+  if (pos >= first.start && pos <= identifierEnd) {
     return { kind: "keyword", from: first.start, to: pos, options: dslStatementKeywordCompletions };
   }
   return null;

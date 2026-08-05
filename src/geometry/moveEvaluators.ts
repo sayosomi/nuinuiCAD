@@ -9,6 +9,7 @@ import type {
   ComputedPoint,
   ElementId
 } from "../types/geometry";
+import { elementDisplayName } from "../model/elementNames";
 import { dependencyError, geometryError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import { approximateBezierSegmentLength } from "./evaluateGeometryPrimitives";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
@@ -295,7 +296,7 @@ const applyTransformToTargets = ({
   reverseOrientation: boolean;
 }) => {
   if (element.baseLineIds.length === 0) {
-    context.errors.push(geometryError(element, `${element.name} は対象線が指定されていません。対象線を指定してください。`));
+    context.errors.push(geometryError(element, `${elementDisplayName(element)} は対象線が指定されていません。対象線を指定してください。`));
     return;
   }
 
@@ -311,7 +312,7 @@ const applyTransformToTargets = ({
 
     const transformed = transformLineLikeGeometry(current, transform, reverseOrientation);
     if (!transformed) {
-      context.errors.push(geometryError(element, `${element.name}: ${current.name} を移動できません。`));
+      context.errors.push(geometryError(element, `${elementDisplayName(element)}: ${current.name} を移動できません。`));
       return;
     }
     nextGeometry.set(baseLineId, transformed);
@@ -378,7 +379,7 @@ export const evaluateMoveElement = (element: CadElement, context: ElementEvaluat
     );
     if (!startPoint || !endPoint || angleDeg === undefined || scale === undefined) return true;
     if (scale <= 0) {
-      errors.push(geometryError(element, `${element.name} は倍率が0以下のため移動できません。倍率を正の値にしてください。`));
+      errors.push(geometryError(element, `${elementDisplayName(element)} は倍率が0以下のため移動できません。倍率を正の値にしてください。`));
       return true;
     }
 
@@ -415,7 +416,7 @@ export const evaluateMoveElement = (element: CadElement, context: ElementEvaluat
   );
   if (!axisPoint1 || !axisPoint2) return true;
   if (lineLength(axisPoint1, axisPoint2) <= 0) {
-    errors.push(geometryError(element, `${element.name} の対称軸は同じ点を2回指定できません。`));
+    errors.push(geometryError(element, `${elementDisplayName(element)} の対称軸は同じ点を2回指定できません。`));
     return true;
   }
 

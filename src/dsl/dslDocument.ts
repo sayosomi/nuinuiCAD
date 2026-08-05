@@ -35,7 +35,6 @@ import { buildTypedDependencyGraph, type TypedDependencyGraph } from "../scalars
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
-import { compilePathMutationProgram, type PathMutationProgram } from "../geometry/pathMutationProgram";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
@@ -208,7 +207,6 @@ export type CompiledDslDocument = {
   setStatements?: ReadonlyMap<number, SetStatementAnalysis>;
   /** Task 30 evaluation-neutral declaration/set version graph. */
   bindingVersions?: BindingVersionGraph;
-  pathMutationProgram?: PathMutationProgram;
   /** Task 36 static dependency graph for this exact compile attempt. */
   typedDependencyGraph?: TypedDependencyGraph;
   /**
@@ -873,7 +871,6 @@ const buildStatementMap = (
       statement.kind === "element" ||
       statement.kind === "typedDeclaration" ||
       statement.kind === "set" ||
-      statement.kind === "reverse" ||
       statement.kind === "atStop"
     ) {
       // 単一行の複数行call(例: 複数行coordinate())はブロックを開かないため
@@ -923,17 +920,16 @@ export const compileDslDocument = (
   // fallback empty source instead of the caller's real reconciliation
   // output.
   const hasSetStatements = parsed.statements.some((statement) => statement.kind === "set");
-  const hasReverseStatements = parsed.statements.some((statement) => statement.kind === "reverse");
   // printLayout/place numeric fields resolve `@name` against typed const/let
   // bindings the same way element fields do (Task 53), so a document with a
-  // printLayout block but zero typedDeclaration/set/reverse statements of its
-  // own must still run scalar analysis - otherwise an unresolved `@name`
-  // inside printLayout (e.g. `scale: @nope`) never reaches
-  // compileNumericBindings at all and silently produces no diagnostic. `place`
-  // never appears outside an enclosing `printLayout` block, so checking
-  // `printLayout` alone covers both.
+  // printLayout block but zero typedDeclaration/set statements of its own
+  // must still run scalar analysis - otherwise an unresolved `@name` inside
+  // printLayout (e.g. `scale: @nope`) never reaches compileNumericBindings
+  // at all and silently produces no diagnostic. `place` never appears
+  // outside an enclosing `printLayout` block, so checking `printLayout`
+  // alone covers both.
   const hasPrintLayoutStatements = parsed.statements.some((statement) => statement.kind === "printLayout");
-  const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements || hasReverseStatements || hasPrintLayoutStatements)
+  const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements || hasPrintLayoutStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
   if (stableStatementIdByIndex) {
@@ -1066,14 +1062,6 @@ export const compileDslDocument = (
       spans
       })
     : undefined;
-  const pathMutationCompilation = stableStatementIdByIndex && versionValidation.majorVersion === 3 && hasReverseStatements
-    ? compilePathMutationProgram({
-        statements: parsed.statements,
-        elements: compiled.elements,
-        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
-        statementIdByStatementIndex: stableStatementIdByIndex
-      })
-    : undefined;
   // Task 30 only consumes products of the compiler/analysis passes above.
   // It intentionally remains available for a recoverable invalid let: the
   // compiled document is still erroneous, but Task 31 needs the poisoned
@@ -1108,8 +1096,7 @@ export const compileDslDocument = (
     ...(conditionalGroupConditionCompilation ? conditionalGroupConditionCompilation.diagnostics : []),
     ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : []),
     ...(propertyReferenceSyntaxCompilation ? propertyReferenceSyntaxCompilation.diagnostics : []),
-    ...(setStatementCompilation ? setStatementCompilation.diagnostics : []),
-    ...(pathMutationCompilation ? pathMutationCompilation.diagnostics : [])
+    ...(setStatementCompilation ? setStatementCompilation.diagnostics : [])
   ];
   if (finalDiagnostics.some((item) => item.severity === "error")) {
     return {
@@ -1126,7 +1113,6 @@ export const compileDslDocument = (
       ...(numericBindingCompilation ? { numericBindings: numericBindingCompilation.sourcesByOccurrenceKey } : {}),
       ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
       ...(bindingVersions ? { bindingVersions } : {}),
-      ...(pathMutationCompilation ? { pathMutationProgram: pathMutationCompilation.program } : {}),
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
       ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
     };
@@ -1181,7 +1167,6 @@ export const compileDslDocument = (
     ...(textTemplateCompilation ? { textTemplates: textTemplateCompilation.templatesByOccurrenceKey } : {}),
     ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
     ...(bindingVersions ? { bindingVersions } : {}),
-    ...(pathMutationCompilation ? { pathMutationProgram: pathMutationCompilation.program } : {}),
     ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
     ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
   };

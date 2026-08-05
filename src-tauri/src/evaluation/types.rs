@@ -28,9 +28,6 @@ pub struct EvaluationInput {
     /// `scalar_program`: Rust receives stable IDs, resolved references and
     /// source positions, never source text or names to resolve.
     pub(crate) binding_versions: Option<Value>,
-    /// Resolved `reverse <line>` statements. Kept independent from scalar
-    /// binding mutations because geometry traversal is a separate runtime.
-    pub(crate) path_mutations: Option<Value>,
     /// Task 23's elementId-keyed standard property bindings (re-keyed from
     /// `CompiledDslDocument.propertyBindings` by TS's
     /// `propertyBindingRuntime.ts`). Requires `scalar_program` to also be
@@ -191,6 +188,28 @@ pub fn element_name(element: &Value) -> String {
         .to_owned()
 }
 
+/// A label safe to interpolate into a diagnostic message, even for a bare
+/// mutation-statement element (edge/extendTrim/move/symmetricMove/
+/// pathReverse) whose `name` is always "" - these have no DSL name slot to
+/// write into. Every other element type always has a real non-empty name,
+/// so this fallback is unreachable for them.
+pub fn element_display_name(element: &Value) -> String {
+    let name = element_name(element);
+    if !name.is_empty() {
+        return name;
+    }
+    match element_type(element) {
+        Some("edge") => "エッジ",
+        Some("extendTrim") => "延長短縮",
+        Some("move") => "移動",
+        Some("symmetricMove") => "対称移動",
+        Some("pathReverse") => "反転",
+        Some(other) => other,
+        None => "要素",
+    }
+    .to_owned()
+}
+
 pub fn element_type(element: &Value) -> Option<&str> {
     element.get("type")?.as_str()
 }
@@ -207,7 +226,7 @@ pub fn find_element_name(state: &EvaluationState, id: &str) -> Option<String> {
         .elements_by_id
         .get(id)
         .and_then(|index| state.elements.get(*index))
-        .map(element_name)
+        .map(element_display_name)
 }
 
 pub fn insert_geometry(state: &mut EvaluationState, id: ElementId, geometry: Value) {
