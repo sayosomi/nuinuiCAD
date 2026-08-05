@@ -1,10 +1,59 @@
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 
+use super::numeric_expression::evaluate_numeric_or_push;
 use super::types::{
     element_display_name, element_id, element_name, element_type,
-    element_type_without_own_drawable_geometry, ElementId, ForGroupGeneratedRow,
+    element_type_without_own_drawable_geometry, DependencyError, ElementId, EvaluationState,
+    ForGroupGeneratedRow,
 };
+
+/// Reads and validates a forGroup element's start/count/step. Shared by the
+/// mutation-scheduler and generic forGroup runtimes - this has no
+/// resolver/environment dependency, so the same validation applies
+/// uniformly regardless of which runtime is driving the loop.
+pub(crate) fn for_group_loop_values(
+    element: &Value,
+    local_variables: &(HashMap<String, f64>, HashMap<String, String>),
+    state: &mut EvaluationState,
+) -> Option<(f64, usize, f64)> {
+    let start = evaluate_numeric_or_push(
+        element.get("start").unwrap_or(&Value::Null),
+        state,
+        element,
+        &local_variables.0,
+        &local_variables.1,
+    );
+    let count = evaluate_numeric_or_push(
+        element.get("count").unwrap_or(&Value::Null),
+        state,
+        element,
+        &local_variables.0,
+        &local_variables.1,
+    );
+    let step = evaluate_numeric_or_push(
+        element.get("step").unwrap_or(&Value::Null),
+        state,
+        element,
+        &local_variables.0,
+        &local_variables.1,
+    );
+    let (start, count, step) = start.zip(count).zip(step).map(|((a, b), c)| (a, b, c))?;
+    if !count.is_finite() || count < 0.0 || count.fract() != 0.0 || count > 1000.0 {
+        state.errors.push(DependencyError {
+            element_id: element_id(element).unwrap_or_default(),
+            element_name: element_name(element),
+            missing_dependency_id: element_id(element).unwrap_or_default(),
+            missing_dependency_name: Some(element_name(element)),
+            message: format!(
+                "{} の回数は0以上の整数にしてください。",
+                element_name(element)
+            ),
+        });
+        return None;
+    }
+    Some((start, count as usize, step))
+}
 
 fn generated_for_element_id(
     for_group_id: &str,
@@ -57,9 +106,11 @@ pub(crate) fn for_group_template_descendant_ids(elements: &[Value]) -> HashSet<E
     ids
 }
 
-/// Source-order template statements owned by a single mutation scheduler.
-/// Descendants of a nested forGroup belong to that nested invocation instead.
-pub(crate) fn for_group_mutation_template_ids(
+/// Source-order template statement ids owned directly by one forGroup entry
+/// (used by both the mutation-scheduler runtime and the generic
+/// per-iteration path). Descendants of a nested forGroup belong to that
+/// nested invocation instead.
+pub(crate) fn for_group_owned_template_ids(
     elements: &[Value],
     for_group_id: &str,
 ) -> Vec<ElementId> {
@@ -125,35 +176,25 @@ fn iteration_label(variable_name: &str, variable_value: f64) -> String {
     }
 }
 
-pub(crate) fn expand_for_group_iteration(
-    elements: &[Value],
-    for_group: &Value,
-    iteration_index: usize,
-    variable_value: f64,
-) -> (Vec<(Value, ElementId)>, Vec<ForGroupGeneratedRow>) {
-    expand_for_group_iteration_from_template(
-        elements,
-        for_group,
-        element_id(for_group).as_deref(),
-        iteration_index,
-        variable_value,
-    )
-}
-
 /// `for_group` may be a generated nested instance, while its body still comes
 /// from the original template statement identified by `template_for_group_id`.
+/// `ancestor_iteration_variables` carries only the iteration bindings owned by
+/// enclosing forGroup loops (lowest precedence first) - never an ancestor
+/// forGroup opener's own other local variables, which must not leak into a
+/// nested loop's body.
 pub(crate) fn expand_for_group_iteration_from_template(
     elements: &[Value],
     for_group: &Value,
     template_for_group_id: Option<&str>,
     iteration_index: usize,
     variable_value: f64,
-) -> (Vec<(Value, ElementId)>, Vec<ForGroupGeneratedRow>) {
+    ancestor_iteration_variables: &[Value],
+) -> (Vec<(Value, ElementId)>, Vec<ForGroupGeneratedRow>, Value) {
     let Some(for_group_id) = element_id(for_group) else {
-        return (Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new(), Value::Null);
     };
     let Some(template_for_group_id) = template_for_group_id else {
-        return (Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new(), Value::Null);
     };
     let variable_name = for_group
         .get("variableName")
@@ -161,6 +202,11 @@ pub(crate) fn expand_for_group_iteration_from_template(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or("i")
         .to_owned();
+    let iteration_variable = json!({
+        "id": format!("{for_group_id}:iteration"),
+        "name": variable_name,
+        "value": variable_value
+    });
     let template_ids = descendant_ids_for_group(elements, template_for_group_id);
     let template_elements = elements
         .iter()
@@ -188,6 +234,8 @@ pub(crate) fn expand_for_group_iteration_from_template(
             continue;
         };
         let mut element = template.clone();
+        // Descendant-to-descendant parents (e.g. a conditionalGroup nested
+        // inside the forGroup body) are covered by this id_map remap.
         remap_json_ids(&mut element, &id_map);
         if let Some(object) = element.as_object_mut() {
             object.insert("id".to_owned(), Value::String(generated_id.clone()));
@@ -202,16 +250,27 @@ pub(crate) fn expand_for_group_iteration_from_template(
                     )
                 };
             object.insert("name".to_owned(), Value::String(generated_name));
-            let iteration_variable = json!({
-                "id": format!("{for_group_id}:iteration"),
-                "name": variable_name,
-                "value": variable_value
-            });
-            let mut variables = object
+            // A direct child's parentGroupId equals the template forGroup's
+            // own id, which is never a member of id_map (only its
+            // descendants are) - remap it explicitly to this call's runtime
+            // instance id. Fixed up as its own field rather than added to
+            // id_map/remap_json_ids, which would blindly rewrite every
+            // matching string anywhere in the JSON tree, not just this
+            // field.
+            if object.get("parentGroupId").and_then(Value::as_str) == Some(template_for_group_id) {
+                object.insert(
+                    "parentGroupId".to_owned(),
+                    Value::String(for_group_id.clone()),
+                );
+            }
+            let mut variables: Vec<Value> = ancestor_iteration_variables.to_vec();
+            variables.push(iteration_variable.clone());
+            if let Some(own_variables) = object
                 .remove("numericVariables")
                 .and_then(|value| value.as_array().cloned())
-                .unwrap_or_default();
-            variables.insert(0, iteration_variable);
+            {
+                variables.extend(own_variables);
+            }
             object.insert("numericVariables".to_owned(), Value::Array(variables));
         }
         if !matches!(
@@ -232,5 +291,5 @@ pub(crate) fn expand_for_group_iteration_from_template(
         generated.push((element, template_id));
     }
 
-    (generated, rows)
+    (generated, rows, iteration_variable)
 }

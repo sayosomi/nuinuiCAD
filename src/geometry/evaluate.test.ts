@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "./evaluate";
 import { makeNumericExpression, normalizeNumericExpressionInput } from "./numericExpressions";
+import { forGroupGeneratedElementId } from "./forGroupExpansion";
 import type { CadElement } from "../types/geometry";
 
 const validElements: CadElement[] = [
@@ -645,6 +646,204 @@ describe("evaluateElements", () => {
       elementId: "loop",
       message: "不正な繰り返し の回数は0以上の整数にしてください。"
     });
+  });
+
+  it("evaluates a nested generic for group as outer x inner iterations, once each, with correct parent chains", () => {
+    const outer: CadElement = {
+      id: "outer",
+      name: "外側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      variableName: "i",
+      start: 0,
+      count: 2,
+      step: 1,
+      showGenerated: false
+    };
+    const inner: CadElement = {
+      id: "inner",
+      name: "内側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      parentGroupId: "outer",
+      variableName: "j",
+      start: 0,
+      count: 3,
+      step: 1,
+      showGenerated: false
+    };
+    const p: CadElement = {
+      id: "p",
+      name: "P",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner",
+      x: makeNumericExpression("@i"),
+      y: makeNumericExpression("@j")
+    };
+    const result = evaluateElements([outer, inner, p]);
+
+    expect(result.errors).toEqual([]);
+    // Neither the source template forGroups nor the source template point
+    // should be evaluated as ordinary geometry - only their generated clones.
+    expect(result.computedGeometry.has("p")).toBe(false);
+
+    const expectedCoordinates: Array<[number, number]> = [
+      [0, 0], [0, 1], [0, 2],
+      [1, 0], [1, 1], [1, 2]
+    ];
+    const expectedPIds: string[] = [];
+    let index = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const generatedInnerId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "inner", iterationIndex: i });
+      for (let j = 0; j < 3; j += 1) {
+        const generatedPId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: "p", iterationIndex: j });
+        expectedPIds.push(generatedPId);
+        const [x, y] = expectedCoordinates[index];
+        expect(result.computedGeometry.get(generatedPId)).toMatchObject({ kind: "point", x, y });
+        index += 1;
+      }
+    }
+
+    // Exactly 6 P instances were generated and evaluated - not 8 (2 bogus
+    // outer-flattened clones + 6 correctly nested ones, the pre-fix TS
+    // behavior) and not 2 (the pre-fix Rust behavior, inner loop never
+    // expanded). Combine several independent signals so a coincidental
+    // overwrite in one signal cannot mask a duplicate-evaluation regression.
+    expect(result.computedGeometry.size).toBe(6);
+    expect(new Set(expectedPIds).size).toBe(6);
+    expect(result.forGroupGeneratedRows).toHaveLength(6);
+    expect(new Set(result.forGroupGeneratedRows!.map((row) => row.generatedElementId)).size).toBe(6);
+    for (const row of result.forGroupGeneratedRows!) {
+      expect(expectedPIds).toContain(row.generatedElementId);
+      expect(row.templateElementId).toBe("p");
+    }
+  });
+
+  it("gives generated forGroup and body instances a parentGroupId that points at the runtime instance chain, never a source template id", () => {
+    const outer: CadElement = {
+      id: "outer",
+      name: "外側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      variableName: "i",
+      start: 0,
+      count: 1,
+      step: 1,
+      showGenerated: true
+    };
+    const inner: CadElement = {
+      id: "inner",
+      name: "内側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      parentGroupId: "outer",
+      variableName: "j",
+      start: 0,
+      count: 1,
+      step: 1,
+      showGenerated: true
+    };
+    const p: CadElement = {
+      id: "p",
+      name: "P",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner",
+      x: 0,
+      y: 0
+    };
+    // pushGeneratedVisibilityState / runtimeElementsById are internal, so
+    // assert indirectly through the generated row's forGroupId, which is
+    // populated from the generated element's own runtime forGroupId (see
+    // expandForGroupIteration's `forGroupId: forGroup.id`, where `forGroup`
+    // on the recursive call is the generated Inner instance, not the "inner"
+    // template).
+    const result = evaluateElements([outer, inner, p]);
+    const generatedInnerId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "inner", iterationIndex: 0 });
+    expect(result.forGroupGeneratedRows).toHaveLength(1);
+    expect(result.forGroupGeneratedRows![0].forGroupId).toBe(generatedInnerId);
+    expect(result.forGroupGeneratedRows![0].forGroupId).not.toBe("inner");
+  });
+
+  it("generates nothing for the nested inner loop when the outer for group is disabled", () => {
+    const outer: CadElement = {
+      id: "outer",
+      name: "外側繰り返し",
+      type: "forGroup",
+      activity: "disabled",
+      variableName: "i",
+      start: 0,
+      count: 2,
+      step: 1,
+      showGenerated: false
+    };
+    const inner: CadElement = {
+      id: "inner",
+      name: "内側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      parentGroupId: "outer",
+      variableName: "j",
+      start: 0,
+      count: 3,
+      step: 1,
+      showGenerated: false
+    };
+    const p: CadElement = {
+      id: "p",
+      name: "P",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner",
+      x: makeNumericExpression("@i"),
+      y: makeNumericExpression("@j")
+    };
+    const result = evaluateElements([outer, inner, p]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.forGroupGeneratedRows).toHaveLength(0);
+    expect(result.computedGeometry.size).toBe(0);
+  });
+
+  it("generates nothing for a nested inner for group with count 0, while the outer loop still runs", () => {
+    const outer: CadElement = {
+      id: "outer",
+      name: "外側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      variableName: "i",
+      start: 0,
+      count: 2,
+      step: 1,
+      showGenerated: false
+    };
+    const inner: CadElement = {
+      id: "inner",
+      name: "内側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      parentGroupId: "outer",
+      variableName: "j",
+      start: 0,
+      count: 0,
+      step: 1,
+      showGenerated: false
+    };
+    const p: CadElement = {
+      id: "p",
+      name: "P",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner",
+      x: makeNumericExpression("@i"),
+      y: makeNumericExpression("@j")
+    };
+    const result = evaluateElements([outer, inner, p]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.forGroupGeneratedRows).toHaveLength(0);
+    expect(result.computedGeometry.size).toBe(0);
   });
 
   it("reports references to geometry in an inactive conditional branch", () => {

@@ -25,7 +25,12 @@ mod errors;
 #[cfg(test)]
 mod extend_trim_tests;
 mod for_group;
+mod for_group_generic_runtime;
+#[cfg(test)]
+mod for_group_generic_runtime_tests;
 mod for_group_mutation_runtime;
+#[cfg(test)]
+mod for_group_tests;
 mod groups;
 mod image_evaluator;
 #[cfg(test)]
@@ -104,7 +109,8 @@ use control_boolean_runtime::{
 };
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
-use for_group::{expand_for_group_iteration, for_group_template_descendant_ids};
+use for_group::for_group_template_descendant_ids;
+use for_group_generic_runtime::GenericForGroupRuntime;
 use for_group_mutation_runtime::ForGroupMutationRuntime;
 use groups::{effective_element_ids, group_state_by_element_id};
 use image_evaluator::evaluate_image;
@@ -893,6 +899,7 @@ fn evaluate_document_input_with_scalar_program(
                         count as usize,
                         step,
                         effective_show_generated,
+                        &[],
                         &mut state,
                     )
                     .expect("validated forGroup scheduler must not mutate an iteration binding");
@@ -903,129 +910,33 @@ fn evaluate_document_input_with_scalar_program(
                 continue;
             }
 
-            for iteration_index in 0..(count as usize) {
-                let variable_value = start + iteration_index as f64 * step;
-                let (generated, rows) = expand_for_group_iteration(
-                    &original_elements,
-                    &element,
-                    iteration_index,
-                    variable_value,
-                );
-                for_group_generated_rows.extend(rows);
-                for (mut generated_element, template_id) in generated {
-                    let Some(generated_id) = element_id(&generated_element) else {
-                        continue;
-                    };
-                    if effective_show_generated
-                        && effective_visible_element_ids.contains(&id)
-                        && effective_visible_element_ids.contains(&template_id)
-                    {
-                        effective_visible_element_ids.push(generated_id.clone());
-                    }
-                    state
-                        .elements_by_id
-                        .insert(generated_id.clone(), state.elements.len());
-                    state.elements.push(generated_element.clone());
-                    if let Some(condition_group_id) = inactive_conditional_group_id(
-                        &generated_element,
-                        &state,
-                        &conditional_group_states,
-                    ) {
-                        condition_inactive_ids.insert(generated_id.clone());
-                        state
-                            .group_states
-                            .entry(generated_id)
-                            .or_default()
-                            .disabled_by_group_id = Some(condition_group_id);
-                        continue;
-                    }
-                    if !base_effective_enabled_ids.contains(&template_id) {
-                        continue;
-                    }
-                    if effective_enabled_ids.insert(generated_id.clone()) {
-                        effective_enabled_order.push(generated_id.clone());
-                    }
-                    if let Some(entries) = numeric_entries_by_element_id.get(&template_id) {
-                        let resolver = active_scalar_binding_resolver.expect(
-                            "scalar_binding_resolver must exist when numeric bindings exist",
-                        );
-                        match apply_numeric_bindings(
-                            &generated_element,
-                            Some(entries),
-                            resolver,
-                            &state,
-                        ) {
-                            Ok(materialized) => generated_element = materialized,
-                            Err(error) => {
-                                state.errors.push(error);
-                                continue;
-                            }
-                        }
-                    }
-                    let generated_index = state.elements_by_id[&generated_id];
-                    state.elements[generated_index] = generated_element.clone();
-                    let Some(generated_local_variables) =
-                        evaluate_local_variables(generated_index, &mut state)
-                    else {
-                        continue;
-                    };
-                    // Bound properties live on the template statement/element,
-                    // not on a forGroup-generated clone's own synthetic id -
-                    // look up by template_id, so every iteration sees the
-                    // same resolved value uniformly (boolean/choice bindings
-                    // never vary per iteration; that is loop-mutation
-                    // territory, out of scope here).
-                    match entries_by_element_id.get(&template_id) {
-                        Some(entries) if !entries.is_empty() => {
-                            let resolver = active_scalar_binding_resolver.expect(
-                                "scalar_binding_resolver must exist when property bindings exist",
-                            );
-                            match apply_property_bindings(
-                                &generated_element,
-                                Some(entries),
-                                resolver,
-                                &state,
-                            ) {
-                                Ok(materialized_element) => evaluate_element_by_type(
-                                    generated_id,
-                                    materialized_element,
-                                    generated_local_variables,
-                                    &mut conditional_group_states,
-                                    ConditionalGroupContext {
-                                        lookup_id: &template_id,
-                                        by_element_id: &condition_by_element_id,
-                                        scalar_binding_resolver: active_scalar_binding_resolver,
-                                    },
-                                    TextTemplateContext {
-                                        lookup_id: &template_id,
-                                        by_element_id: &text_templates_by_element_id,
-                                        scalar_binding_resolver: active_scalar_binding_resolver,
-                                    },
-                                    &mut state,
-                                ),
-                                Err(error) => state.errors.push(error),
-                            }
-                        }
-                        _ => evaluate_element_by_type(
-                            generated_id,
-                            generated_element,
-                            generated_local_variables,
-                            &mut conditional_group_states,
-                            ConditionalGroupContext {
-                                lookup_id: &template_id,
-                                by_element_id: &condition_by_element_id,
-                                scalar_binding_resolver: active_scalar_binding_resolver,
-                            },
-                            TextTemplateContext {
-                                lookup_id: &template_id,
-                                by_element_id: &text_templates_by_element_id,
-                                scalar_binding_resolver: active_scalar_binding_resolver,
-                            },
-                            &mut state,
-                        ),
-                    }
-                }
-            }
+            let mut generic_runtime = GenericForGroupRuntime::new(
+                &original_elements,
+                &base_effective_enabled_ids,
+                &entries_by_element_id,
+                &numeric_entries_by_element_id,
+                &show_generated_by_element_id,
+                &condition_by_element_id,
+                &text_templates_by_element_id,
+                active_scalar_binding_resolver,
+                &mut effective_visible_element_ids,
+                &mut effective_enabled_ids,
+                &mut effective_enabled_order,
+                &mut conditional_group_states,
+                &mut condition_inactive_ids,
+                &mut for_group_generated_rows,
+                &mut for_group_effective_show_generated_ids,
+            );
+            generic_runtime.run(
+                &element,
+                &element,
+                start,
+                count as usize,
+                step,
+                effective_show_generated,
+                &[],
+                &mut state,
+            );
             continue;
         }
 

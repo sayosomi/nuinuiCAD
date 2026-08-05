@@ -1,0 +1,6 @@
+nui 3
+for Outer (i, from: 0, count: 2, step: 1) {
+  for Inner (j, from: 0, count: 3, step: 1) {
+    point P = coordinate(x: @i, y: @j)
+  }
+}
