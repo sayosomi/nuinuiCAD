@@ -33,8 +33,10 @@ import {
   resolveCommandLineInsertionAnchor
 } from "./commandLineInsertionAnchor";
 import {
+  blankCreationRecipeStepKeys,
   creationRecipeForType,
   emitCreationRecipe,
+  materializeCreationRecipeDraft,
   type CreationRecipe
 } from "./creationRecipes";
 import {
@@ -49,6 +51,7 @@ import {
 } from "./commandLineGhostPreview";
 import { promoteDirectlyReferencedUnnamedElements } from "./commandLineUnnamedPromotion";
 import { commitSourceCreationInsertion } from "./sourceCreationCommit";
+import { commitSourceCreationDraftInsertion } from "./sourceCreationDraftCommit";
 import { sourceInsertionForCreation } from "./sourceCreationInsertion";
 import {
   commandLineDuplicateNameMessage,
@@ -60,6 +63,8 @@ const compositionError = "日本語入力の確定中はコマンドを実行で
 const staleError = "ドキュメントが変更されたため、コマンドライン作成をキャンセルしました。もう一度開始してください。";
 const commitError = "コマンドライン作成を文書へ反映できませんでした。もう一度開始してください。";
 const editValidationError = "編集値をプレビューできません。値または参照を確認してください。";
+const draftRequiresSourceEditorError =
+  "未入力のまま作成するには、Source Editor上のカーソル位置から作成を開始してください。";
 
 const commandLineCompositionIsActive = () =>
   sourceEditSession.isComposing() || isCommandLineInputComposing();
@@ -319,7 +324,13 @@ export const startCommandLineNumericReferencePick = () => {
   return true;
 };
 
-/** Applies the current number/name prompt without creating a second React-side state machine. */
+/**
+ * Applies the current number/name prompt without creating a second
+ * React-side state machine. Blank input always skips the current step
+ * (leaving it unnamed / unfilled) regardless of kind - the name step
+ * deliberately never falls back to session.nameSuggestion here, so an empty
+ * Enter never fabricates a name.
+ */
 export const submitCommandLineInput = (input: string, context?: CommandContext) => {
   if (commandLineCompositionIsActive()) return false;
   const session = useCadUiStore.getState().commandLineSession;
@@ -328,13 +339,13 @@ export const submitCommandLineInput = (input: string, context?: CommandContext) 
   const step = currentStep(session);
   if (!step) return confirmCommandLineSession(context);
 
-  if (step.kind === "name") {
-    return fillCommandLineCurrentStep(input === "" ? session.nameSuggestion : input);
-  }
-  if (step.kind !== "number") return false;
   if (input === "") {
     return skipCommandLineStep();
   }
+  if (step.kind === "name") {
+    return fillCommandLineCurrentStep(input);
+  }
+  if (step.kind !== "number") return false;
   return fillCommandLineCurrentStep(makeNumericExpression(input));
 };
 
@@ -386,6 +397,69 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     insertionTarget,
     document.evaluationLimitIndex
   );
+
+  // A session with one or more genuinely blank recipe steps (see
+  // skipCurrentStep) never becomes a materialized CadElement: it is spliced
+  // in as a literal draft DSL statement instead, with `key:` holes for the
+  // blank steps. A fully-filled session falls through unchanged below.
+  const blankParameterKeys = blankCreationRecipeStepKeys(session.recipe, session.args);
+  if (blankParameterKeys.size > 0) {
+    // The draft path only ever writes a text splice at a known physical
+    // line; the non-anchored fallback commit below is a full CadElement[]
+    // diff and has no way to represent a blank field without a sentinel.
+    if (session.sourceInsertionLine === null) {
+      setSessionAndSyncPickTarget(withCommandLineSessionError(session, draftRequiresSourceEditorError));
+      return false;
+    }
+    const draft = materializeCreationRecipeDraft(session.recipe, session.args, {
+      elements: promotion.elements,
+      referenceElements: placement.referenceElements
+    });
+    const draftNameValidation = validateCommandLineElementName({
+      name: draft.element.name,
+      elements: promotion.elements,
+      parentGroupId: placement.parentGroupId
+    });
+    const draftDuplicateNameMessage = commandLineDuplicateNameMessage(draftNameValidation);
+    if (draftDuplicateNameMessage) {
+      setSessionAndSyncPickTarget(withCommandLineSessionError(session, draftDuplicateNameMessage));
+      return false;
+    }
+    clearCommandLineGhostPreview();
+    const draftCommit = commitSourceCreationDraftInsertion({
+      elements: promotion.elements,
+      sourceInsertionLine: session.sourceInsertionLine,
+      element: draft.element,
+      blankParameterKeys: draft.blankParameterKeys,
+      majorVersion: document.doc.majorVersion,
+      parentGroupId: placement.parentGroupId
+    });
+    if (draftCommit.result.status !== "applied") {
+      const ui = useCadUiStore.getState();
+      clearCommandLineGhostPreview();
+      ui.clearPickMode();
+      ui.setCommandErrorMessage(commitError);
+      return false;
+    }
+
+    // Unlike a complete creation, a draft never selects anything: it has no
+    // materialized element, and any Canvas selection from before this
+    // session must be left exactly as it was.
+    clearCommandLineGhostPreview();
+    useCadUiStore.getState().clearPickMode();
+    const draftEndLine = session.sourceInsertionLine + draftCommit.insertedLineCount - 1;
+    const focusSourceEditorAtDraftEnd = () => {
+      if (context?.focusSourceEditorAtLineEnd) {
+        context.focusSourceEditorAtLineEnd(draftEndLine);
+        return;
+      }
+      context?.focusSourceEditor?.();
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditorAtDraftEnd);
+    else setTimeout(focusSourceEditorAtDraftEnd, 0);
+    return true;
+  }
+
   const emitted = emitCreationRecipe(session.recipe, session.args, {
     elements: promotion.elements,
     referenceElements: placement.referenceElements

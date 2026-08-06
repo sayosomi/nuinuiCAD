@@ -131,9 +131,13 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     : session ? commandLineEditingInputValue(session, step) : "";
   const setInputValue = (value: string) => setInputState({ step: stepIdentity, value });
   const duplicateNameMessage = useMemo(() => {
-    if (!session || step?.kind !== "name") return null;
+    // Blank input no longer adopts session.nameSuggestion on Enter (it leaves
+    // the element unnamed instead), so an empty field never has anything to
+    // validate here - checking the suggestion would warn about a name that
+    // will never actually be used.
+    if (!session || step?.kind !== "name" || !inputValue) return null;
     return commandLineDuplicateNameMessage(validateCommandLineElementName({
-      name: inputValue || session.nameSuggestion,
+      name: inputValue,
       elements,
       parentGroupId: session.insertionTarget.parentGroupId
     }));
@@ -329,21 +333,26 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
   useEffect(() => () => setCommandLineInputComposing(false), []);
 
   if (!session) return null;
-  const canSkip = step?.kind === "name" || (step?.kind === "number" && step.default !== undefined);
+  // skipCurrentStep now advances every step kind (leaving a genuinely blank
+  // recipe step for kinds with no default), so the skip affordance is always
+  // available whenever a step is active.
+  const canSkip = step !== null;
   const stepLabel = commandLineStepLabel(step);
   const inputHelp = commandLineStepHelp(step);
-  // Mirrors submitReferenceInput's empty-Enter selection adoption exactly: only
-  // when no typed query and no pick cursor take precedence, and only when the
-  // selected element is in the shared candidate set (never adopted otherwise).
+  // Mirrors submitReferenceInput's empty-Enter selection adoption exactly:
+  // only during step editing, only when no typed query and no pick cursor
+  // take precedence, and only when the selected element is in the shared
+  // candidate set (never adopted otherwise). Normal step progression always
+  // blank-advances on empty Enter, so this hint has nothing true to show then.
   const selectedAdoptionName = (() => {
-    if (!isCommandLineReferenceStep(step?.kind) || isCommandLineInputComposing()) return null;
+    if (!isEditing || !isCommandLineReferenceStep(step?.kind) || isCommandLineInputComposing()) return null;
     if (inputValue.trim() || activePickCursor) return null;
     const selected = candidates.find((candidate) => candidate.elementId === selectedElementId);
     if (!selected) return null;
     return suggestions.find((suggestion) => suggestion.pickRef.candidateElementId === selected.elementId)?.displayLabel ?? null;
   })();
   const placeholder = step?.kind === "name"
-    ? session.nameSuggestion
+    ? `空Enterで無名のまま進む（候補：${session.nameSuggestion}）`
     : step?.kind === "number" && step.default !== undefined
       ? `Enterで ${step.default}`
       : isCommandLineReferenceStep(step?.kind)
@@ -373,6 +382,15 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
         ? applySuggestion(acceptedReferenceForCurrentInput.suggestion)
         : false;
     }
+    // Empty input during normal step progression always blank-advances (see
+    // submitCommandLineInput/skipCommandLineStep) rather than implicitly
+    // adopting whatever the pick cursor or Canvas selection currently
+    // happens to be - only an explicit pick (typed+accepted suggestion,
+    // candidate click, or a Canvas pick while picking is active) may fill a
+    // reference step. Editing an already-completed step is a distinct mode
+    // where the restored pick cursor is how Enter already re-confirms or
+    // changes the value; that behavior is unchanged below.
+    if (!isEditing) return false;
     if (activePickCursor) {
       applySelectedPickCandidate(evaluation);
       setInputValue("");
@@ -566,6 +584,9 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
                   ? `（選択済み ${lineListDraftSignature.split("\0").length}件）`
                   : ""}
               </span>
+            ) : null}
+            {isCommandLineReferenceStep(step.kind) && !isEditing && !inputValue.trim() ? (
+              <span className="command-line-bar-help">空Enterで未入力のまま次へ進めます</span>
             ) : null}
             {selectedAdoptionName ? (
               <span className="command-line-bar-adopt">Enterで選択中を採用：{selectedAdoptionName}</span>

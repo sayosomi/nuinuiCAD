@@ -41,7 +41,7 @@ describe("command-line session commands", () => {
     vi.unstubAllGlobals();
   });
 
-  it("fills free-point values, adopts the suggested name on empty Enter, and commits once", () => {
+  it("fills free-point values, leaves the element unnamed on empty Enter, and commits once", () => {
     const focusSourceEditorAtElementEnd = vi.fn();
 
     expect(startCommandLineCreation("freePoint")).toBe(true);
@@ -52,13 +52,14 @@ describe("command-line session commands", () => {
     submitCommandLineInput("waist / 2");
     const atName = useCadUiStore.getState().commandLineSession!;
     expect(atName.currentStepIndex).toBe(2);
+    // Still computed (used only as a UI placeholder hint now), but never
+    // adopted by an empty Enter below.
     expect(atName.nameSuggestion).not.toBe("");
 
     submitCommandLineInput("");
-    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      currentStepIndex: 3,
-      args: { name: atName.nameSuggestion }
-    });
+    const atConfirm = useCadUiStore.getState().commandLineSession!;
+    expect(atConfirm.currentStepIndex).toBe(3);
+    expect(atConfirm.args).not.toHaveProperty("name");
 
     const pastBeforeConfirm = useCadDocumentStore.getState().past.length;
     expect(confirmCommandLineSession({ focusSourceEditorAtElementEnd })).toBe(true);
@@ -68,7 +69,7 @@ describe("command-line session commands", () => {
     expect(document.elements).toHaveLength(1);
     expect(document.elements[0]).toMatchObject({
       type: "freePoint",
-      name: atName.nameSuggestion,
+      name: "",
       x: 12,
       y: { kind: "expression", expression: "waist / 2" }
     });
@@ -115,7 +116,7 @@ describe("command-line session commands", () => {
     }
   });
 
-  it("makes an unnamed element only through explicit skip", () => {
+  it("makes an unnamed element through explicit skip", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
     submitCommandLineInput("3 + 4");
     submitCommandLineInput("5");
@@ -126,6 +127,22 @@ describe("command-line session commands", () => {
     expect(session.args).not.toHaveProperty("name");
     expect(confirmCommandLineSession()).toBe(true);
     expect(useCadDocumentStore.getState().elements[0]).toMatchObject({ type: "freePoint", name: "" });
+  });
+
+  it("also makes an unnamed element through empty Enter, with no name token in the resulting statement", () => {
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("3 + 4");
+    submitCommandLineInput("5");
+    // Empty Enter on the name step must behave exactly like the explicit
+    // skip button above - it must never adopt session.nameSuggestion.
+    expect(submitCommandLineInput("")).toBe(true);
+
+    const session = useCadUiStore.getState().commandLineSession!;
+    expect(session.currentStepIndex).toBe(session.recipe.steps.length);
+    expect(session.args).not.toHaveProperty("name");
+    expect(confirmCommandLineSession()).toBe(true);
+    expect(useCadDocumentStore.getState().elements[0]).toMatchObject({ type: "freePoint", name: "" });
+    expect(useCadDocumentStore.getState().sourceText).toMatch(/(^|\n)point = coordinate\(/);
   });
 
   it("commits an edited value through the ghost validation path without rewinding later args", () => {

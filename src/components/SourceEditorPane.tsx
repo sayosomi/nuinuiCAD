@@ -153,6 +153,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
     setEvaluation: (publication: SourceEvaluationPublication) => controllerRef.current?.setEvaluation(publication),
     jumpToElement: (elementId) => controllerRef.current?.jumpToElement(elementId),
     jumpToElementEnd: (elementId) => controllerRef.current?.jumpToElementEnd(elementId) ?? false,
+    jumpToLineEnd: (line) => controllerRef.current?.jumpToLineEnd(line) ?? false,
     jumpToParameterValue: (elementId, parameterKey) => controllerRef.current?.jumpToParameterValue(elementId, parameterKey) ?? false,
     jumpToBindingDeclaration: (bindingId) => controllerRef.current?.jumpToBindingDeclaration(bindingId) ?? false,
     jumpToBindingDeclarationPart: (bindingId, part) => controllerRef.current?.jumpToBindingDeclarationPart(bindingId, part) ?? false,

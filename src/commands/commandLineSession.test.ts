@@ -67,18 +67,37 @@ describe("commandLineSession", () => {
     };
 
     expect(sessionCanConfirm(complete)).toBe(true);
-    expect(sessionCanConfirm({ ...complete, args: { offset: 12 } })).toBe(false);
+    // The only remaining gate is recipe progress - not having reached the
+    // last step yet still blocks confirmation, regardless of what's in args.
+    expect(sessionCanConfirm({ ...complete, currentStepIndex: recipe.steps.length - 1 })).toBe(false);
   });
 
-  it("allows only names and defaulted numbers to be skipped", () => {
+  it("skips every step kind: a declared number default is still applied, every other kind advances blank", () => {
     const point = start();
-    expect(skipCurrentStep(point)).toBe(point);
+    const skippedPoint = skipCurrentStep(point);
+    expect(skippedPoint.currentStepIndex).toBe(1);
+    expect(skippedPoint.args).not.toHaveProperty("startPoint");
+    expect(currentStep(skippedPoint)).toMatchObject({ kind: "number", key: "offset" });
+
+    const withDefault = skipCurrentStep(skippedPoint);
+    expect(withDefault.args).toMatchObject({ offset: 12 });
+    expect(currentStep(withDefault)).toEqual({ kind: "name", autoSuggest: true });
+
     const numberWithoutDefault: CreationRecipe = {
       ...recipe,
       steps: [{ kind: "number", key: "offset", prompt: "オフセット" }]
     };
     const session = startSession(numberWithoutDefault, { insertionIndex: 0, revision: 0, elements: [] });
-    expect(skipCurrentStep(session)).toBe(session);
+    const skippedNumber = skipCurrentStep(session);
+    expect(skippedNumber.currentStepIndex).toBe(1);
+    expect(skippedNumber.args).not.toHaveProperty("offset");
+    expect(sessionCanConfirm(skippedNumber)).toBe(true);
+  });
+
+  it("does not clear an actively-edited step back to blank for kinds with no default", () => {
+    const filled = fillCurrentStep(start(), referenceAnchor("point-a"));
+    const editing = beginStepEdit(filled, 0);
+    expect(skipCurrentStep(editing)).toBe(editing);
   });
 
   it("retreat discards the returned-to step and all later values", () => {
