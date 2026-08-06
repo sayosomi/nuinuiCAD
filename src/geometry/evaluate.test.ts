@@ -1,7 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "./evaluate";
 import { makeNumericExpression, normalizeNumericExpressionInput } from "./numericExpressions";
+import { forGroupGeneratedElementId } from "./forGroupExpansion";
+import { compileDslDocument } from "../dsl/dslDocument";
 import type { CadElement } from "../types/geometry";
+
+const compileAndEvaluate = (source: string) => {
+  const compiled = compileDslDocument(source);
+  expect(compiled.diagnostics).toEqual([]);
+  expect(compiled.document).not.toBeNull();
+  return {
+    result: evaluateElements(compiled.document!.elements, {
+      statementInfoByElementId: compiled.statementMap!.byElementId
+    }),
+    elementId: (name: string): string => {
+      const element = compiled.document!.elements.find((candidate) => candidate.name === name);
+      if (!element) throw new Error(`missing ${name}`);
+      return element.id;
+    }
+  };
+};
 
 const validElements: CadElement[] = [
   {
@@ -645,6 +663,483 @@ describe("evaluateElements", () => {
       elementId: "loop",
       message: "不正な繰り返し の回数は0以上の整数にしてください。"
     });
+  });
+
+  it("evaluates a nested generic for group as outer x inner iterations, once each, with correct parent chains", () => {
+    const outer: CadElement = {
+      id: "outer",
+      name: "外側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      variableName: "i",
+      start: 0,
+      count: 2,
+      step: 1,
+      showGenerated: false
+    };
+    const inner: CadElement = {
+      id: "inner",
+      name: "内側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      parentGroupId: "outer",
+      variableName: "j",
+      start: 0,
+      count: 3,
+      step: 1,
+      showGenerated: false
+    };
+    const p: CadElement = {
+      id: "p",
+      name: "P",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner",
+      x: makeNumericExpression("@i"),
+      y: makeNumericExpression("@j")
+    };
+    const result = evaluateElements([outer, inner, p]);
+
+    expect(result.errors).toEqual([]);
+    // Neither the source template forGroups nor the source template point
+    // should be evaluated as ordinary geometry - only their generated clones.
+    expect(result.computedGeometry.has("p")).toBe(false);
+
+    const expectedCoordinates: Array<[number, number]> = [
+      [0, 0], [0, 1], [0, 2],
+      [1, 0], [1, 1], [1, 2]
+    ];
+    const expectedPIds: string[] = [];
+    let index = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const generatedInnerId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "inner", iterationIndex: i });
+      for (let j = 0; j < 3; j += 1) {
+        const generatedPId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: "p", iterationIndex: j });
+        expectedPIds.push(generatedPId);
+        const [x, y] = expectedCoordinates[index];
+        expect(result.computedGeometry.get(generatedPId)).toMatchObject({ kind: "point", x, y });
+        index += 1;
+      }
+    }
+
+    // Exactly 6 P instances were generated and evaluated - not 8 (2 bogus
+    // outer-flattened clones + 6 correctly nested ones, the pre-fix TS
+    // behavior) and not 2 (the pre-fix Rust behavior, inner loop never
+    // expanded). Combine several independent signals so a coincidental
+    // overwrite in one signal cannot mask a duplicate-evaluation regression.
+    expect(result.computedGeometry.size).toBe(6);
+    expect(new Set(expectedPIds).size).toBe(6);
+    expect(result.forGroupGeneratedRows).toHaveLength(6);
+    expect(new Set(result.forGroupGeneratedRows!.map((row) => row.generatedElementId)).size).toBe(6);
+    for (const row of result.forGroupGeneratedRows!) {
+      expect(expectedPIds).toContain(row.generatedElementId);
+      expect(row.templateElementId).toBe("p");
+    }
+  });
+
+  it("gives generated forGroup and body instances a parentGroupId that points at the runtime instance chain, never a source template id", () => {
+    const outer: CadElement = {
+      id: "outer",
+      name: "外側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      variableName: "i",
+      start: 0,
+      count: 1,
+      step: 1,
+      showGenerated: true
+    };
+    const inner: CadElement = {
+      id: "inner",
+      name: "内側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      parentGroupId: "outer",
+      variableName: "j",
+      start: 0,
+      count: 1,
+      step: 1,
+      showGenerated: true
+    };
+    const p: CadElement = {
+      id: "p",
+      name: "P",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner",
+      x: 0,
+      y: 0
+    };
+    // pushGeneratedVisibilityState / runtimeElementsById are internal, so
+    // assert indirectly through the generated row's forGroupId, which is
+    // populated from the generated element's own runtime forGroupId (see
+    // expandForGroupIteration's `forGroupId: forGroup.id`, where `forGroup`
+    // on the recursive call is the generated Inner instance, not the "inner"
+    // template).
+    const result = evaluateElements([outer, inner, p]);
+    const generatedInnerId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "inner", iterationIndex: 0 });
+    expect(result.forGroupGeneratedRows).toHaveLength(1);
+    expect(result.forGroupGeneratedRows![0].forGroupId).toBe(generatedInnerId);
+    expect(result.forGroupGeneratedRows![0].forGroupId).not.toBe("inner");
+  });
+
+  it("lets a nested inner for group body reference geometry generated by an outer iteration", () => {
+    const b: CadElement = { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 };
+    const outer: CadElement = {
+      id: "outer", name: "Outer", type: "forGroup", activity: "visible",
+      variableName: "i", start: 0, count: 2, step: 1, showGenerated: false
+    };
+    const a: CadElement = {
+      id: "a", name: "A", type: "freePoint", activity: "visible", parentGroupId: "outer",
+      x: makeNumericExpression("@i"), y: 0
+    };
+    const inner: CadElement = {
+      id: "inner", name: "Inner", type: "forGroup", activity: "visible", parentGroupId: "outer",
+      variableName: "j", start: 0, count: 2, step: 1, showGenerated: false
+    };
+    const l: CadElement = {
+      id: "l", name: "L", type: "line", activity: "visible", parentGroupId: "inner",
+      startPoint: { mode: "reference", pointId: "a" },
+      endPoint: { mode: "reference", pointId: "b" }
+    };
+    const result = evaluateElements([b, outer, a, inner, l]);
+
+    expect(result.errors).toEqual([]);
+    const generatedLIds: string[] = [];
+    for (let i = 0; i < 2; i += 1) {
+      const generatedInnerId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "inner", iterationIndex: i });
+      const generatedAId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "a", iterationIndex: i });
+      for (let j = 0; j < 2; j += 1) {
+        const generatedLId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: "l", iterationIndex: j });
+        generatedLIds.push(generatedLId);
+        expect(result.computedGeometry.get(generatedLId)).toMatchObject({ kind: "line", startPointId: generatedAId, endPointId: "b" });
+      }
+    }
+    expect(new Set(generatedLIds).size).toBe(4);
+    // Iterations must not mix: i=0's lines never reference i=1's A, or vice versa.
+    const iteration0AId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "a", iterationIndex: 0 });
+    const iteration1AId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "a", iterationIndex: 1 });
+    expect(iteration0AId).not.toBe(iteration1AId);
+  });
+
+  it("accumulates ancestor element references across three nesting levels", () => {
+    const outer: CadElement = {
+      id: "outer", name: "Outer", type: "forGroup", activity: "visible",
+      variableName: "i", start: 0, count: 2, step: 1, showGenerated: false
+    };
+    const a: CadElement = {
+      id: "a", name: "A", type: "freePoint", activity: "visible", parentGroupId: "outer", x: 0, y: 0
+    };
+    const middle: CadElement = {
+      id: "middle", name: "Middle", type: "forGroup", activity: "visible", parentGroupId: "outer",
+      variableName: "j", start: 0, count: 2, step: 1, showGenerated: false
+    };
+    const m: CadElement = {
+      id: "m", name: "M", type: "freePoint", activity: "visible", parentGroupId: "middle", x: 1, y: 1
+    };
+    const inner: CadElement = {
+      id: "inner", name: "Inner", type: "forGroup", activity: "visible", parentGroupId: "middle",
+      variableName: "k", start: 0, count: 2, step: 1, showGenerated: false
+    };
+    const l: CadElement = {
+      id: "l", name: "L", type: "line", activity: "visible", parentGroupId: "inner",
+      startPoint: { mode: "reference", pointId: "a" },
+      endPoint: { mode: "reference", pointId: "m" }
+    };
+    const result = evaluateElements([outer, a, middle, m, inner, l]);
+
+    expect(result.errors).toEqual([]);
+    let count = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const generatedAId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "a", iterationIndex: i });
+      const generatedMiddleId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "middle", iterationIndex: i });
+      for (let j = 0; j < 2; j += 1) {
+        const generatedMId = forGroupGeneratedElementId({ forGroupId: generatedMiddleId, templateElementId: "m", iterationIndex: j });
+        const generatedInnerId = forGroupGeneratedElementId({ forGroupId: generatedMiddleId, templateElementId: "inner", iterationIndex: j });
+        for (let k = 0; k < 2; k += 1) {
+          const generatedLId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: "l", iterationIndex: k });
+          // L (owned by Inner) references A (2 levels up, Outer-owned) and M
+          // (1 level up, Middle-owned) - both ancestor levels must accumulate.
+          expect(result.computedGeometry.get(generatedLId)).toMatchObject({
+            kind: "line", startPointId: generatedAId, endPointId: generatedMId
+          });
+          count += 1;
+        }
+      }
+    }
+    expect(count).toBe(8);
+  });
+
+  it("resolves an ancestor reference and a current-invocation reference correctly in the same element", () => {
+    const outer: CadElement = {
+      id: "outer", name: "Outer", type: "forGroup", activity: "visible",
+      variableName: "i", start: 0, count: 2, step: 1, showGenerated: false
+    };
+    const a: CadElement = {
+      id: "a", name: "A", type: "freePoint", activity: "visible", parentGroupId: "outer", x: 0, y: 0
+    };
+    const inner: CadElement = {
+      id: "inner", name: "Inner", type: "forGroup", activity: "visible", parentGroupId: "outer",
+      variableName: "j", start: 0, count: 2, step: 1, showGenerated: false
+    };
+    const c: CadElement = {
+      id: "c", name: "C", type: "freePoint", activity: "visible", parentGroupId: "inner", x: 1, y: 1
+    };
+    const l: CadElement = {
+      id: "l", name: "L", type: "line", activity: "visible", parentGroupId: "inner",
+      startPoint: { mode: "reference", pointId: "a" },
+      endPoint: { mode: "reference", pointId: "c" }
+    };
+    const result = evaluateElements([outer, a, inner, c, l]);
+
+    expect(result.errors).toEqual([]);
+    for (let i = 0; i < 2; i += 1) {
+      const generatedAId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "a", iterationIndex: i });
+      const generatedInnerId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "inner", iterationIndex: i });
+      for (let j = 0; j < 2; j += 1) {
+        const generatedCId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: "c", iterationIndex: j });
+        const generatedLId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: "l", iterationIndex: j });
+        // A (ancestor, Outer-owned) and C (current invocation, Inner-owned)
+        // referenced by the same L must both resolve correctly - neither
+        // one masks or corrupts the other.
+        expect(result.computedGeometry.get(generatedLId)).toMatchObject({
+          kind: "line", startPointId: generatedAId, endPointId: generatedCId
+        });
+      }
+    }
+  });
+
+  it("lets a nested inner for group body's numeric expression reference an outer-owned point's property", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 3
+for Outer (i, from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  for Inner (j, from: 0, count: 2, step: 1) {
+    point P = coordinate(x: @A.x + 10, y: @j)
+  }
+}`);
+    expect(result.errors).toEqual([]);
+    const outerId = elementId("Outer");
+    const innerId = elementId("Inner");
+    const aId = elementId("A");
+    const pId = elementId("P");
+
+    let count = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const generatedAId = forGroupGeneratedElementId({ forGroupId: outerId, templateElementId: aId, iterationIndex: i });
+      expect(result.computedGeometry.get(generatedAId)).toMatchObject({ kind: "point", x: i, y: 0 });
+      const generatedInnerId = forGroupGeneratedElementId({ forGroupId: outerId, templateElementId: innerId, iterationIndex: i });
+      for (let j = 0; j < 2; j += 1) {
+        const generatedPId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: pId, iterationIndex: j });
+        expect(result.computedGeometry.get(generatedPId)).toMatchObject({ kind: "point", x: i + 10, y: j });
+        count += 1;
+      }
+    }
+    expect(count).toBe(4);
+    expect(result.computedGeometry.size).toBe(2 /* A instances */ + 4 /* P instances */);
+  });
+
+  it("lets a nested inner for group body's measurement/function reference an outer-owned line", () => {
+    // lineDistance's line argument resolves through a direct computedGeometry
+    // lookup (no ":"-based derived-point-key parsing), unlike its point
+    // argument - using an ancestor-owned *line* here avoids an unrelated,
+    // pre-existing id-parsing collision between the forGroup generated-id
+    // format ("id@forGroupId:iterationIndex") and the derived-point-anchor
+    // reference format ("id:pointKey"), which affects distance()/angle()'s
+    // point arguments regardless of ancestor scope (see completion report).
+    const { result, elementId } = compileAndEvaluate(`nui 3
+point P = coordinate(x: 0, y: 5)
+for Outer (i, from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  point B = coordinate(x: @i + 10, y: 0)
+  line AB = segment(start: A, end: B)
+  for Inner (j, from: 0, count: 2, step: 1) {
+    point Q = coordinate(x: lineDistance(P, AB), y: @j)
+  }
+}`);
+    expect(result.errors).toEqual([]);
+    const outerId = elementId("Outer");
+    const innerId = elementId("Inner");
+    const qId = elementId("Q");
+
+    let count = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const generatedInnerId = forGroupGeneratedElementId({ forGroupId: outerId, templateElementId: innerId, iterationIndex: i });
+      for (let j = 0; j < 2; j += 1) {
+        const generatedQId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: qId, iterationIndex: j });
+        // AB is horizontal (y=0) for every outer iteration - the
+        // perpendicular distance from P=(0,5) is always 5.
+        expect(result.computedGeometry.get(generatedQId)).toMatchObject({ kind: "point", x: 5, y: j });
+        count += 1;
+      }
+    }
+    expect(count).toBe(4);
+  });
+
+  it("lets a for group body's numeric expression reference a same-scope generated sibling", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 3
+for Loop (i, from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  point B = coordinate(x: @A.x + 10, y: 0)
+}`);
+    expect(result.errors).toEqual([]);
+    const loopId = elementId("Loop");
+    const bId = elementId("B");
+
+    for (let i = 0; i < 2; i += 1) {
+      const generatedBId = forGroupGeneratedElementId({ forGroupId: loopId, templateElementId: bId, iterationIndex: i });
+      expect(result.computedGeometry.get(generatedBId)).toMatchObject({ kind: "point", x: i + 10, y: 0 });
+    }
+  });
+
+  it("resolves distance()/angle() for same-scope forGroup-generated point arguments", () => {
+    // Regression coverage for the forGroup generated-id
+    // ("id@forGroupId:iterationIndex") vs. derived-point-key ("id:pointKey")
+    // delimiter collision: A and B are both same-invocation generated
+    // points, so distance()/angle() must resolve them by their full
+    // generated id, not by splitting on the first colon.
+    const { result, elementId } = compileAndEvaluate(`nui 3
+for Loop (i, from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  point B = coordinate(x: @i + 10, y: 0)
+  point Q = coordinate(x: distance(A, B), y: angle(A, B))
+}`);
+    expect(result.errors).toEqual([]);
+    const loopId = elementId("Loop");
+    const qId = elementId("Q");
+
+    for (let i = 0; i < 2; i += 1) {
+      const generatedQId = forGroupGeneratedElementId({ forGroupId: loopId, templateElementId: qId, iterationIndex: i });
+      // A and B always sit 10mm apart on the same horizontal line.
+      expect(result.computedGeometry.get(generatedQId)).toMatchObject({ kind: "point", x: 10, y: 0 });
+    }
+  });
+
+  it("resolves distance() mixing an ancestor-owned and a current-invocation generated point argument", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 3
+for Outer (i, from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  for Inner (j, from: 0, count: 2, step: 1) {
+    point B = coordinate(x: @i + 10, y: 0)
+    point Q = coordinate(x: distance(A, B), y: 0)
+  }
+}`);
+    expect(result.errors).toEqual([]);
+    const outerId = elementId("Outer");
+    const innerId = elementId("Inner");
+    const qId = elementId("Q");
+
+    let count = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const generatedInnerId = forGroupGeneratedElementId({ forGroupId: outerId, templateElementId: innerId, iterationIndex: i });
+      for (let j = 0; j < 2; j += 1) {
+        const generatedQId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: qId, iterationIndex: j });
+        expect(result.computedGeometry.get(generatedQId)).toMatchObject({ kind: "point", x: 10, y: 0 });
+        count += 1;
+      }
+    }
+    expect(count).toBe(4);
+  });
+
+  it("still resolves distance()/angle() for an ordinary non-generated point argument", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 3
+point P = coordinate(x: 0, y: 0)
+point R = coordinate(x: 3, y: 4)
+point Q = coordinate(x: distance(P, R), y: angle(P, R))`);
+    expect(result.errors).toEqual([]);
+    const qId = elementId("Q");
+    expect(result.computedGeometry.get(qId)).toMatchObject({ kind: "point", x: 5, y: expect.closeTo(53.13, 1) });
+  });
+
+  it("still resolves distance() for a derived-point argument on an ordinary non-generated line", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 3
+point P = coordinate(x: 0, y: 0)
+point R = coordinate(x: 10, y: 0)
+line PR = segment(start: P, end: R)
+point Q = coordinate(x: distance(P, PR:start), y: 0)`);
+    expect(result.errors).toEqual([]);
+    const qId = elementId("Q");
+    // PR:start is exactly P itself, so the distance is 0.
+    expect(result.computedGeometry.get(qId)).toMatchObject({ kind: "point", x: 0, y: 0 });
+  });
+
+  it("generates nothing for the nested inner loop when the outer for group is disabled", () => {
+    const outer: CadElement = {
+      id: "outer",
+      name: "外側繰り返し",
+      type: "forGroup",
+      activity: "disabled",
+      variableName: "i",
+      start: 0,
+      count: 2,
+      step: 1,
+      showGenerated: false
+    };
+    const inner: CadElement = {
+      id: "inner",
+      name: "内側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      parentGroupId: "outer",
+      variableName: "j",
+      start: 0,
+      count: 3,
+      step: 1,
+      showGenerated: false
+    };
+    const p: CadElement = {
+      id: "p",
+      name: "P",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner",
+      x: makeNumericExpression("@i"),
+      y: makeNumericExpression("@j")
+    };
+    const result = evaluateElements([outer, inner, p]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.forGroupGeneratedRows).toHaveLength(0);
+    expect(result.computedGeometry.size).toBe(0);
+  });
+
+  it("generates nothing for a nested inner for group with count 0, while the outer loop still runs", () => {
+    const outer: CadElement = {
+      id: "outer",
+      name: "外側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      variableName: "i",
+      start: 0,
+      count: 2,
+      step: 1,
+      showGenerated: false
+    };
+    const inner: CadElement = {
+      id: "inner",
+      name: "内側繰り返し",
+      type: "forGroup",
+      activity: "visible",
+      parentGroupId: "outer",
+      variableName: "j",
+      start: 0,
+      count: 0,
+      step: 1,
+      showGenerated: false
+    };
+    const p: CadElement = {
+      id: "p",
+      name: "P",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner",
+      x: makeNumericExpression("@i"),
+      y: makeNumericExpression("@j")
+    };
+    const result = evaluateElements([outer, inner, p]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.forGroupGeneratedRows).toHaveLength(0);
+    expect(result.computedGeometry.size).toBe(0);
   });
 
   it("reports references to geometry in an inactive conditional branch", () => {

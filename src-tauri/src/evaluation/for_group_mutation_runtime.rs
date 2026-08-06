@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::evaluation::for_group::{
-    expand_for_group_iteration_from_template, for_group_mutation_template_ids,
+    expand_for_group_iteration_from_template, for_group_loop_values, for_group_owned_template_ids,
 };
 use crate::evaluation::scalars::{ForGroupMutationEnvironment, ForGroupMutationError};
 
@@ -73,30 +73,37 @@ impl<'a> ForGroupMutationRuntime<'a> {
         count: usize,
         step: f64,
         show_generated: bool,
+        ancestor_iteration_variables: &[Value],
+        ancestor_element_id_map: &HashMap<ElementId, ElementId>,
         state: &mut EvaluationState,
     ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
         let template_for_group_id = element_id(template_for_group)
             .expect("forGroup template must have a validated element id");
-        let statements =
-            for_group_mutation_template_ids(self.original_elements, &template_for_group_id)
-                .into_iter()
-                .filter_map(|template_element_id| {
-                    resolver
-                        .source_order_for_element(&template_element_id)
-                        .map(|source_order| ForGroupMutationStatement::Element {
-                            source_order,
-                            template_element_id,
-                        })
-                })
-                .chain(
-                    resolver
-                        .for_group_exit_source_order(&template_for_group_id)
-                        .map(|source_order| ForGroupMutationStatement::Exit { source_order }),
-                )
-                .collect::<Vec<_>>();
+        let owned_template_ids_vec =
+            for_group_owned_template_ids(self.original_elements, &template_for_group_id);
+        let owned_template_ids: HashSet<ElementId> =
+            owned_template_ids_vec.iter().cloned().collect();
+        let statements = owned_template_ids_vec
+            .into_iter()
+            .filter_map(|template_element_id| {
+                resolver
+                    .source_order_for_element(&template_element_id)
+                    .map(|source_order| ForGroupMutationStatement::Element {
+                        source_order,
+                        template_element_id,
+                    })
+            })
+            .chain(
+                resolver
+                    .for_group_exit_source_order(&template_for_group_id)
+                    .map(|source_order| ForGroupMutationStatement::Exit { source_order }),
+            )
+            .collect::<Vec<_>>();
         let mut expanded_iteration = None;
         let mut generated = Vec::new();
         let mut rows = Vec::new();
+        let mut current_iteration_variable = Value::Null;
+        let mut current_child_ancestor_element_id_map = ancestor_element_id_map.clone();
         let instance_is_visible = element_id(instance_for_group)
             .is_some_and(|id| self.effective_visible_element_ids.contains(&id));
         resolver.run_for_group(
@@ -123,9 +130,21 @@ impl<'a> ForGroupMutationRuntime<'a> {
                         Some(&template_for_group_id),
                         context.iteration_index,
                         context.iteration_value,
+                        ancestor_iteration_variables,
+                        ancestor_element_id_map,
                     );
                     generated = expanded.0;
                     rows = expanded.1;
+                    current_iteration_variable = expanded.2;
+                    current_child_ancestor_element_id_map = ancestor_element_id_map.clone();
+                    for (generated_element, template_id) in &generated {
+                        if owned_template_ids.contains(template_id) {
+                            if let Some(generated_id) = element_id(generated_element) {
+                                current_child_ancestor_element_id_map
+                                    .insert(template_id.clone(), generated_id);
+                            }
+                        }
+                    }
                 }
                 self.run_generated_statement(
                     resolver,
@@ -135,6 +154,9 @@ impl<'a> ForGroupMutationRuntime<'a> {
                     &rows,
                     show_generated,
                     instance_is_visible,
+                    ancestor_iteration_variables,
+                    &current_child_ancestor_element_id_map,
+                    &current_iteration_variable,
                     state,
                 )
             },
@@ -151,6 +173,9 @@ impl<'a> ForGroupMutationRuntime<'a> {
         rows: &[types::ForGroupGeneratedRow],
         show_generated: bool,
         instance_is_visible: bool,
+        ancestor_iteration_variables: &[Value],
+        ancestor_element_id_map: &HashMap<ElementId, ElementId>,
+        current_iteration_variable: &Value,
         state: &mut EvaluationState,
     ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
         let Some((mut generated_element, template_id)) = generated
@@ -226,7 +251,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 .find(|element| element_id(element).as_deref() == Some(template_id.as_str()))
                 .expect("generated forGroup must retain its source template");
             let Some((start, count, step)) =
-                self.loop_values(&generated_element, &local_variables, state)
+                for_group_loop_values(&generated_element, &local_variables, state)
             else {
                 return Ok(ForGroupMutationRunOutcome::Completed);
             };
@@ -237,6 +262,8 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 environment,
                 state,
             );
+            let mut child_ancestor_iteration_variables = ancestor_iteration_variables.to_vec();
+            child_ancestor_iteration_variables.push(current_iteration_variable.clone());
             return self.run(
                 resolver,
                 environment,
@@ -246,6 +273,8 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 count,
                 step,
                 nested_show_generated,
+                &child_ancestor_iteration_variables,
+                ancestor_element_id_map,
                 state,
             );
         }
@@ -322,50 +351,6 @@ impl<'a> ForGroupMutationRuntime<'a> {
             resolver.register_conditional_result(&template_id, branch);
         }
         Ok(ForGroupMutationRunOutcome::Completed)
-    }
-
-    fn loop_values(
-        &self,
-        element: &Value,
-        local_variables: &(HashMap<String, f64>, HashMap<String, String>),
-        state: &mut EvaluationState,
-    ) -> Option<(f64, usize, f64)> {
-        let start = evaluate_numeric_or_push(
-            element.get("start").unwrap_or(&Value::Null),
-            state,
-            element,
-            &local_variables.0,
-            &local_variables.1,
-        );
-        let count = evaluate_numeric_or_push(
-            element.get("count").unwrap_or(&Value::Null),
-            state,
-            element,
-            &local_variables.0,
-            &local_variables.1,
-        );
-        let step = evaluate_numeric_or_push(
-            element.get("step").unwrap_or(&Value::Null),
-            state,
-            element,
-            &local_variables.0,
-            &local_variables.1,
-        );
-        let (start, count, step) = start.zip(count).zip(step).map(|((a, b), c)| (a, b, c))?;
-        if !count.is_finite() || count < 0.0 || count.fract() != 0.0 || count > 1000.0 {
-            state.errors.push(types::DependencyError {
-                element_id: element_id(element).unwrap_or_default(),
-                element_name: element_name(element),
-                missing_dependency_id: element_id(element).unwrap_or_default(),
-                missing_dependency_name: Some(element_name(element)),
-                message: format!(
-                    "{} の回数は0以上の整数にしてください。",
-                    element_name(element)
-                ),
-            });
-            return None;
-        }
-        Some((start, count as usize, step))
     }
 
     fn record_effective_show_generated(

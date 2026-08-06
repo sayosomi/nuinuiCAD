@@ -57,7 +57,7 @@ pub(crate) fn evaluate_numeric_or_push(
     }
 }
 
-fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
+pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
     let chars = expression.chars().collect::<Vec<_>>();
     let mut tokens = Vec::new();
     let mut index = 0;
@@ -693,20 +693,36 @@ impl<'a> Parser<'a> {
         Ok((dx * (start.y - point.y) - (start.x - point.x) * dy).abs() / length)
     }
 
+    /// `expression_id` is ambiguous by construction: it may be a plain
+    /// (possibly forGroup-generated) element id, or a derived-point
+    /// reference `"<elementId>:<pointKey>"` built by `pointAnchorExpression`
+    /// (`src/geometry/numericExpressions.ts`) - and a forGroup-generated id
+    /// itself contains a colon (`"<templateId>@<forGroupId>:<index>"`), so a
+    /// naive first-colon split mistakes the generated id's own colon for the
+    /// derived-point-key separator. Resolving this by trying a direct,
+    /// whole-string `computed_geometry` lookup first - rather than guessing
+    /// from the string shape - sidesteps the ambiguity entirely: a complete
+    /// generated id (with no derived-point suffix) is always a hit here,
+    /// since forGroup expansion stores geometry under exactly that key. Only
+    /// when that direct lookup misses does this fall back to treating the
+    /// text after the *last* colon as a derived-point key, which also
+    /// correctly separates a derived-point key from a generated id's own
+    /// colon(s) when both are present (arbitrarily nested).
     fn point_value(&self, expression_id: &str) -> Result<Point, NumericEvalError> {
-        let (source_id, point_key) = expression_id
-            .split_once(':')
-            .map_or((expression_id, None), |(source, key)| (source, Some(key)));
+        if let Some(geometry) = self.state.computed_geometry.get(expression_id) {
+            return point_from_geometry(geometry)
+                .ok_or_else(|| self.dependency_error(expression_id));
+        }
+        let Some((source_id, point_key)) = expression_id.rsplit_once(':') else {
+            return Err(self.dependency_error(expression_id));
+        };
         let geometry = self
             .state
             .computed_geometry
             .get(source_id)
             .ok_or_else(|| self.dependency_error(source_id))?;
-        if let Some(key) = point_key {
-            return resolve_derived_point(geometry, key, self.state)
-                .ok_or_else(|| self.dependency_error(source_id));
-        }
-        point_from_geometry(geometry).ok_or_else(|| self.dependency_error(source_id))
+        resolve_derived_point(geometry, point_key, self.state)
+            .ok_or_else(|| self.dependency_error(source_id))
     }
 
     fn dependency_error(&self, element_id: &str) -> NumericEvalError {
