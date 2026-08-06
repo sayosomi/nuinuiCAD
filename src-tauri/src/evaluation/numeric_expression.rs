@@ -57,7 +57,7 @@ pub(crate) fn evaluate_numeric_or_push(
     }
 }
 
-fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
+pub(crate) fn tokenize(expression: &str) -> Result<Vec<Token>, String> {
     let chars = expression.chars().collect::<Vec<_>>();
     let mut tokens = Vec::new();
     let mut index = 0;

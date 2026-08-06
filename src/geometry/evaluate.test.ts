@@ -2,7 +2,24 @@ import { describe, expect, it } from "vitest";
 import { evaluateElements } from "./evaluate";
 import { makeNumericExpression, normalizeNumericExpressionInput } from "./numericExpressions";
 import { forGroupGeneratedElementId } from "./forGroupExpansion";
+import { compileDslDocument } from "../dsl/dslDocument";
 import type { CadElement } from "../types/geometry";
+
+const compileAndEvaluate = (source: string) => {
+  const compiled = compileDslDocument(source);
+  expect(compiled.diagnostics).toEqual([]);
+  expect(compiled.document).not.toBeNull();
+  return {
+    result: evaluateElements(compiled.document!.elements, {
+      statementInfoByElementId: compiled.statementMap!.byElementId
+    }),
+    elementId: (name: string): string => {
+      const element = compiled.document!.elements.find((candidate) => candidate.name === name);
+      if (!element) throw new Error(`missing ${name}`);
+      return element.id;
+    }
+  };
+};
 
 const validElements: CadElement[] = [
   {
@@ -890,6 +907,72 @@ describe("evaluateElements", () => {
         });
       }
     }
+  });
+
+  it("lets a nested inner for group body's numeric expression reference an outer-owned point's property", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 3
+for Outer (i, from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  for Inner (j, from: 0, count: 2, step: 1) {
+    point P = coordinate(x: @A.x + 10, y: @j)
+  }
+}`);
+    expect(result.errors).toEqual([]);
+    const outerId = elementId("Outer");
+    const innerId = elementId("Inner");
+    const aId = elementId("A");
+    const pId = elementId("P");
+
+    let count = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const generatedAId = forGroupGeneratedElementId({ forGroupId: outerId, templateElementId: aId, iterationIndex: i });
+      expect(result.computedGeometry.get(generatedAId)).toMatchObject({ kind: "point", x: i, y: 0 });
+      const generatedInnerId = forGroupGeneratedElementId({ forGroupId: outerId, templateElementId: innerId, iterationIndex: i });
+      for (let j = 0; j < 2; j += 1) {
+        const generatedPId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: pId, iterationIndex: j });
+        expect(result.computedGeometry.get(generatedPId)).toMatchObject({ kind: "point", x: i + 10, y: j });
+        count += 1;
+      }
+    }
+    expect(count).toBe(4);
+    expect(result.computedGeometry.size).toBe(2 /* A instances */ + 4 /* P instances */);
+  });
+
+  it("lets a nested inner for group body's measurement/function reference an outer-owned line", () => {
+    // lineDistance's line argument resolves through a direct computedGeometry
+    // lookup (no ":"-based derived-point-key parsing), unlike its point
+    // argument - using an ancestor-owned *line* here avoids an unrelated,
+    // pre-existing id-parsing collision between the forGroup generated-id
+    // format ("id@forGroupId:iterationIndex") and the derived-point-anchor
+    // reference format ("id:pointKey"), which affects distance()/angle()'s
+    // point arguments regardless of ancestor scope (see completion report).
+    const { result, elementId } = compileAndEvaluate(`nui 3
+point P = coordinate(x: 0, y: 5)
+for Outer (i, from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  point B = coordinate(x: @i + 10, y: 0)
+  line AB = segment(start: A, end: B)
+  for Inner (j, from: 0, count: 2, step: 1) {
+    point Q = coordinate(x: lineDistance(P, AB), y: @j)
+  }
+}`);
+    expect(result.errors).toEqual([]);
+    const outerId = elementId("Outer");
+    const innerId = elementId("Inner");
+    const qId = elementId("Q");
+
+    let count = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const generatedInnerId = forGroupGeneratedElementId({ forGroupId: outerId, templateElementId: innerId, iterationIndex: i });
+      for (let j = 0; j < 2; j += 1) {
+        const generatedQId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: qId, iterationIndex: j });
+        // AB is horizontal (y=0) for every outer iteration - the
+        // perpendicular distance from P=(0,5) is always 5.
+        expect(result.computedGeometry.get(generatedQId)).toMatchObject({ kind: "point", x: 5, y: j });
+        count += 1;
+      }
+    }
+    expect(count).toBe(4);
   });
 
   it("generates nothing for the nested inner loop when the outer for group is disabled", () => {

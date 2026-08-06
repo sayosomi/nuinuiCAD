@@ -127,3 +127,140 @@ fn does_nothing_when_the_ancestor_map_is_empty() {
 
     assert_eq!(element, before);
 }
+
+#[test]
+fn remaps_a_property_reference_element_id_inside_a_numeric_expression() {
+    let mut ancestor_element_id_map = HashMap::new();
+    ancestor_element_id_map.insert("a".to_owned(), "a@outer:0".to_owned());
+
+    let mut element = json!({
+        "id": "generated-p",
+        "type": "freePoint",
+        "activity": "visible",
+        "x": { "kind": "expression", "expression": "a.x + 10" },
+        "y": { "kind": "expression", "expression": "@j" }
+    });
+
+    remap_ancestor_element_references(&mut element, &ancestor_element_id_map);
+
+    assert_eq!(
+        element
+            .get("x")
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("a@outer:0.x + 10")
+    );
+    // The loop variable `@j` must never be touched by the ancestor element
+    // id map, even though it's a token inside the same element's expressions.
+    assert_eq!(
+        element
+            .get("y")
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("@j")
+    );
+}
+
+#[test]
+fn remaps_a_bare_element_token_used_as_a_measurement_function_argument() {
+    let mut ancestor_element_id_map = HashMap::new();
+    ancestor_element_id_map.insert("a".to_owned(), "a@outer:0".to_owned());
+
+    let mut element = json!({
+        "id": "generated-q",
+        "type": "freePoint",
+        "activity": "visible",
+        "x": { "kind": "expression", "expression": "distance(a, b)" },
+        "y": 0
+    });
+
+    remap_ancestor_element_references(&mut element, &ancestor_element_id_map);
+
+    // "a" (ancestor-owned, function argument position) is remapped; "b"
+    // (no ancestor entry - a document-level, never-cloned sibling) is left
+    // untouched, and the function name itself is untouched.
+    assert_eq!(
+        element
+            .get("x")
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("distance(a@outer:0, b)")
+    );
+}
+
+#[test]
+fn does_not_remap_a_loop_variable_token_even_if_its_bare_name_collides_with_an_ancestor_id() {
+    let mut ancestor_element_id_map = HashMap::new();
+    // Deliberately collide the ancestor id with the *name* of a loop
+    // variable/typed binding - "@i" tokenizes as a LocalVariable, which
+    // must never be touched regardless of what happens to be in the map.
+    ancestor_element_id_map.insert("i".to_owned(), "i@outer:0".to_owned());
+
+    let mut element = json!({
+        "id": "generated-p",
+        "type": "freePoint",
+        "activity": "visible",
+        "x": { "kind": "expression", "expression": "@i + 10" },
+        "y": 0
+    });
+
+    remap_ancestor_element_references(&mut element, &ancestor_element_id_map);
+
+    assert_eq!(
+        element
+            .get("x")
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("@i + 10")
+    );
+}
+
+#[test]
+fn leaves_a_numeric_expression_unchanged_when_it_references_nothing_in_the_ancestor_map() {
+    let mut ancestor_element_id_map = HashMap::new();
+    ancestor_element_id_map.insert("a".to_owned(), "a@outer:0".to_owned());
+
+    let mut element = json!({
+        "id": "generated-p",
+        "type": "freePoint",
+        "activity": "visible",
+        "x": { "kind": "expression", "expression": "5 + 3" },
+        "y": 0
+    });
+    let before = element.clone();
+
+    remap_ancestor_element_references(&mut element, &ancestor_element_id_map);
+
+    // No reformatting churn when nothing needed to change.
+    assert_eq!(element, before);
+}
+
+#[test]
+fn remaps_an_element_local_numeric_variables_value_referencing_an_ancestor() {
+    let mut ancestor_element_id_map = HashMap::new();
+    ancestor_element_id_map.insert("a".to_owned(), "a@outer:0".to_owned());
+
+    let mut element = json!({
+        "id": "generated-p",
+        "type": "freePoint",
+        "activity": "visible",
+        "x": 0,
+        "y": 0,
+        "numericVariables": [
+            { "id": "p:own", "name": "scratch", "value": { "kind": "expression", "expression": "a.x * 2" } }
+        ]
+    });
+
+    remap_ancestor_element_references(&mut element, &ancestor_element_id_map);
+
+    assert_eq!(
+        element
+            .get("numericVariables")
+            .and_then(Value::as_array)
+            .and_then(|variables| variables.first())
+            .and_then(|variable| variable.get("value"))
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("a@outer:0.x * 2")
+    );
+}

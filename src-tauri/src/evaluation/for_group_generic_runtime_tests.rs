@@ -174,3 +174,32 @@ fn nested_inner_for_group_with_count_zero_generates_nothing_but_outer_still_runs
         .count();
     assert_eq!(generated_point_count, 0);
 }
+
+#[test]
+fn a_nested_inner_bodys_numeric_expression_references_an_outer_owned_points_property() {
+    // P (owned by Inner) reads "a.x" - a's source id, resolved dynamically
+    // by the numeric-expression evaluator - which is owned by Outer, one
+    // scope up. Only the ancestor-scoped remap (for_group_ancestor_reference.rs)
+    // can rewrite this ahead of evaluation.
+    let elements = vec![
+        for_group("outer", None, "i", 2.0),
+        point_referencing("a", "outer", "@i", "0"),
+        for_group("inner", Some("outer"), "j", 2.0),
+        point_referencing("p", "inner", "a.x + 10", "@j"),
+    ];
+    let result = evaluate_document_input(input(elements));
+
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    let mut generated_p_count = 0;
+    for outer_iteration in 0..2 {
+        let generated_inner_id = format!("inner@outer:{outer_iteration}");
+        for inner_iteration in 0..2 {
+            let generated_p_id = format!("p@{generated_inner_id}:{inner_iteration}");
+            let point = geometry(&result, &generated_p_id)
+                .unwrap_or_else(|| panic!("missing generated geometry for {generated_p_id}"));
+            assert_eq!(point["x"].as_f64(), Some(outer_iteration as f64 + 10.0));
+            generated_p_count += 1;
+        }
+    }
+    assert_eq!(generated_p_count, 4);
+}
