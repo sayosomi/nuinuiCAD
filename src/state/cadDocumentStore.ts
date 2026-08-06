@@ -11,6 +11,7 @@ import {
   type LastGoodDslDocument
 } from "../document/canonicalDocument";
 import { assertReconcileSane, assertShadowEquivalent, shadowAssertEnabled } from "../document/shadowTextAssert";
+import { initialGroupFoldForLoadedDocument } from "../model/groups";
 import { defaultVisibilityProfile, visibilityIdFromName } from "../model/visibilityProfiles";
 import {
   createPaletteColor,
@@ -814,6 +815,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       }
     });
     if (selectionElements) {
+      useCadUiStore.getState().replaceGroupFoldById(initialGroupFoldForLoadedDocument(selectionElements));
       useCadUiStore.getState().applySelection(selectionElements, {
         selectedElementId: null,
         selectedElementIds: [],
@@ -846,6 +848,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       };
     });
     if (selectionElements) {
+      useCadUiStore.getState().replaceGroupFoldById(initialGroupFoldForLoadedDocument(selectionElements));
       useCadUiStore.getState().applySelection(selectionElements, emptySelection);
       useCadUiStore.getState().setSourceCursorLine(null);
     }

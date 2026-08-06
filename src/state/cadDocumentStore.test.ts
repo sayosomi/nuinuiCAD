@@ -4,6 +4,7 @@ import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { commitDocumentChangeAndSelect } from "../commands/commitDocumentChangeAndSelect";
 import { activePrintLayout, DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
+import { isGroupElement, isGroupExpanded } from "../model/groups";
 import {
   effectiveElements,
   effectiveEvaluationLimitIndex,
@@ -126,6 +127,59 @@ describe("cadDocumentStore file state", () => {
       selectedElementIds: [sampleElements[1].id],
       selectionAnchorElementId: sampleElements[1].id,
     });
+  });
+
+  it("seeds every nested group collapsed on load, but never re-seeds on undo/redo", () => {
+    const source = [
+      "nui 3",
+      "group Outer {",
+      "  group Inner {",
+      "    point A = coordinate(x: 0, y: 0)",
+      "  }",
+      "  if Branch (1) {",
+      "    point B = coordinate(x: 1, y: 1)",
+      "  }",
+      "}"
+    ].join("\n");
+
+    useCadDocumentStore.getState().replaceTextDocument(source, {
+      currentFilePath: "/tmp/loaded.nui",
+      dirtySinceSave: false
+    });
+
+    const elements = useCadDocumentStore.getState().elements;
+    const groupIds = elements.filter(isGroupElement).map((element) => element.id);
+    expect(groupIds).toHaveLength(3);
+    const loadedFolds = useCadUiStore.getState().groupFoldById;
+    // Nested groups at every depth are covered: the document element array is flat.
+    expect(groupIds.every((id) => isGroupExpanded(id, loadedFolds) === false)).toBe(true);
+    // Non-group elements get no entry at all.
+    expect(loadedFolds.size).toBe(groupIds.length);
+
+    const inner = elements.find((element) => element.name === "Inner")!;
+    useCadUiStore.getState().setGroupFold(inner.id, { expanded: true });
+    useCadDocumentStore.getState().commitText(`${source}\n# note`, "test");
+    useCadDocumentStore.getState().undo();
+    useCadDocumentStore.getState().redo();
+
+    // Fold state is presentation, not document content: undo/redo must leave it alone.
+    expect(isGroupExpanded(inner.id, useCadUiStore.getState().groupFoldById)).toBe(true);
+  });
+
+  it("leaves a group created after load expanded", () => {
+    useCadDocumentStore.getState().replaceTextDocument("nui 3\npoint A = coordinate(x: 0, y: 0)", {
+      currentFilePath: "/tmp/loaded.nui",
+      dirtySinceSave: false
+    });
+
+    useCadDocumentStore.getState().commitText(
+      ["nui 3", "point A = coordinate(x: 0, y: 0)", "group Fresh {", "}"].join("\n"),
+      "test"
+    );
+
+    const fresh = useCadDocumentStore.getState().elements.find((element) => element.name === "Fresh")!;
+    expect(useCadUiStore.getState().groupFoldById.has(fresh.id)).toBe(false);
+    expect(isGroupExpanded(fresh.id, useCadUiStore.getState().groupFoldById)).toBe(true);
   });
 
   it("keeps file state outside the compiled document", () => {

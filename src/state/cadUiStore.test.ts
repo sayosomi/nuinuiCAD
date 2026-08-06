@@ -19,9 +19,11 @@ describe("cadUiStore group fold state", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
   });
 
-  it("uses the legacy visual defaults for unregistered ids and supports set/toggle", () => {
+  it("uses the visual defaults for unregistered ids and supports set/toggle", () => {
     const store = useCadUiStore.getState();
-    expect(isGroupExpanded("group", store.groupFoldById)).toBe(false);
+    // An id with no entry is expanded: only a document load writes the
+    // collapsed overview, so a group created mid-session stays open.
+    expect(isGroupExpanded("group", store.groupFoldById)).toBe(true);
     expect(isElseExpanded("group", store.groupFoldById)).toBe(true);
 
     store.setGroupFold("group", { expanded: true });
@@ -31,6 +33,26 @@ describe("cadUiStore group fold state", () => {
     const fold = useCadUiStore.getState().groupFoldById;
     expect(isGroupExpanded("group", fold)).toBe(false);
     expect(isElseExpanded("group", fold)).toBe(false);
+  });
+
+  it("toggles an unregistered id off its expanded default", () => {
+    useCadUiStore.getState().toggleGroupExpanded("group");
+
+    expect(isGroupExpanded("group", useCadUiStore.getState().groupFoldById)).toBe(false);
+
+    useCadUiStore.getState().toggleGroupExpanded("group");
+
+    expect(isGroupExpanded("group", useCadUiStore.getState().groupFoldById)).toBe(true);
+  });
+
+  it("replaces the whole map so a loaded document never inherits stale entries", () => {
+    useCadUiStore.getState().setGroupFold("stale", { expanded: false });
+
+    useCadUiStore.getState().replaceGroupFoldById(new Map([["loaded", { expanded: false }]]));
+
+    const folds = useCadUiStore.getState().groupFoldById;
+    expect(folds.has("stale")).toBe(false);
+    expect(isGroupExpanded("loaded", folds)).toBe(false);
   });
 
   it("updates statement, primary, and else presentation targets independently", () => {
