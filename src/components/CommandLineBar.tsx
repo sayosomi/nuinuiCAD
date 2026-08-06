@@ -162,7 +162,7 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     const byExpression = new Map<string, typeof typedOptions[number]>();
     for (const option of typedOptions) byExpression.set(option.expression, option);
     return [...byExpression.values()];
-  }, [session, step, elements, evaluationLimitIndex, evaluation, sourceText, docText, doc]);
+  }, [session, step, elements, sourceText, docText, doc]);
   const numberSuggestionMatch = step?.kind === "number" && !isCommandLineInputComposing()
     ? numericVariableSuggestionMatch(inputValue, numberSuggestionSelection.start, numberSuggestionSelection.end)
     : null;
