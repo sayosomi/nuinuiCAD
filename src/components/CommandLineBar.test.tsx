@@ -165,7 +165,7 @@ describe("CommandLineBar", () => {
     expect(screen.queryByText("endpoint", { exact: true })).not.toBeInTheDocument();
   });
 
-  it("accepts only the shared pick candidates for typed names after Tab, selected empty Enter, and arrow Enter", () => {
+  it("blank-advances a reference step on empty Enter even with a Canvas selection, then accepts a typed Tab candidate", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
@@ -183,8 +183,11 @@ describe("CommandLineBar", () => {
     expect(screen.queryByRole("listbox", { name: "参照候補" })).not.toBeInTheDocument();
     expect(screen.getByText("Canvasで選択できます")).toBeInTheDocument();
 
+    // A pre-existing Canvas selection is never implicitly adopted by empty
+    // Enter during normal progression - the step blank-advances instead.
     fireEvent.submit(form);
-    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual({ mode: "reference", pointId: pointB.id });
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
 
     fireEvent.change(input, { target: { value: "A" } });
     expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("A");
@@ -194,7 +197,30 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().commandLineSession?.args.endPoint).toEqual({ mode: "reference", pointId: pointA.id });
   });
 
-  it("shows the adoptable selected candidate's name only while empty Enter would adopt it", () => {
+  it("does not implicitly adopt a Canvas selection or pick cursor on empty Enter during normal step progression", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)"
+    ].join("\n"), "test");
+    renderBar();
+    const pointB = useCadDocumentStore.getState().elements.find((item) => item.name === "B")!;
+    act(() => { useCadUiStore.getState().setSelectedElementId(pointB.id); });
+
+    act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    const form = input.closest("form")!;
+
+    // An active pick cursor (arrow-selected candidate) is also never
+    // implicitly adopted by plain empty Enter during normal progression.
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(useCadUiStore.getState().activePickCursor).not.toBeNull();
+    fireEvent.submit(form);
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
+  });
+
+  it("shows the adoptable selected candidate's name, and adopts it on empty Enter, only while editing a completed reference step", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
@@ -203,15 +229,26 @@ describe("CommandLineBar", () => {
       "point C = coordinate(x: 200, y: 0)"
     ].join("\n"), "test");
     renderBar();
+    const pointA = useCadDocumentStore.getState().elements.find((item) => item.name === "A")!;
     const pointB = useCadDocumentStore.getState().elements.find((item) => item.name === "B")!;
     const pointC = useCadDocumentStore.getState().elements.find((item) => item.name === "C")!;
-    act(() => { useCadUiStore.getState().setSelectedElementId(pointB.id); });
 
     act(() => { startCommandLineCreation("line"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    const form = input.closest("form")!;
+    // Fill startPoint with A (explicit typed+Tab+Enter accept) so there is a
+    // completed reference step to edit.
+    fireEvent.change(input, { target: { value: "A" } });
+    fireEvent.keyDown(input, { key: "Tab" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual({ mode: "reference", pointId: pointA.id });
+
+    act(() => { startCommandLineStepEdit(0); });
+    expect(useCadUiStore.getState().commandLineSession?.editingStepIndex).toBe(0);
+    act(() => { useCadUiStore.getState().setSelectedElementId(pointB.id); });
     expect(screen.getByText("Enterで選択中を採用：B")).toBeInTheDocument();
 
     // A typed query takes precedence over selection adoption, so the hint goes away.
-    const input = screen.getByRole<HTMLInputElement>("textbox");
     fireEvent.change(input, { target: { value: "A" } });
     expect(screen.queryByText(/Enterで選択中を採用/)).not.toBeInTheDocument();
     fireEvent.change(input, { target: { value: "" } });
@@ -220,9 +257,15 @@ describe("CommandLineBar", () => {
     // An active pick cursor adopts the cursor candidate instead of the selection.
     fireEvent.keyDown(input, { key: "ArrowDown" });
     expect(screen.queryByText(/Enterで選択中を採用/)).not.toBeInTheDocument();
-    act(() => { useCadUiStore.getState().setActivePickCursor(null); });
+
+    // Empty Enter while editing still adopts - unlike normal progression.
+    fireEvent.submit(form);
+    expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual({ mode: "reference", pointId: pointA.id });
+    expect(useCadUiStore.getState().commandLineSession?.editingStepIndex).toBeNull();
 
     // Outside the shared candidate set (unevaluated, past @stop) nothing is offered.
+    act(() => { startCommandLineStepEdit(0); });
+    act(() => { useCadUiStore.getState().setActivePickCursor(null); });
     act(() => { useCadUiStore.getState().setSelectedElementId(pointC.id); });
     expect(screen.queryByText(/Enterで選択中を採用/)).not.toBeInTheDocument();
   });
@@ -247,14 +290,20 @@ describe("CommandLineBar", () => {
 
     act(() => { startCommandLineCreation("line", { currentCursorElementId: () => "inside" }); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
-    const form = input.closest("form")!;
     fireEvent.change(input, { target: { value: "先頭" } });
     expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("先頭点");
 
     fireEvent.change(input, { target: { value: "" } });
     fireEvent.keyDown(input, { key: "ArrowDown" });
+    // "first-point" is reachable via the shared candidate/pick-cursor set...
     expect(useCadUiStore.getState().activePickCursor).toMatchObject({ elementId: "first-point" });
-    fireEvent.submit(form);
+
+    // ...but plain empty Enter never implicitly adopts it during normal
+    // progression (blank-advances instead) - see the dedicated blank-advance
+    // regression tests above. An explicit typed+Tab+Enter accept still works.
+    fireEvent.change(input, { target: { value: "先頭" } });
+    fireEvent.keyDown(input, { key: "Tab" });
+    fireEvent.keyDown(input, { key: "Enter" });
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual({
       mode: "reference",
       pointId: "first-point"
