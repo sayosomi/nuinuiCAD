@@ -79,6 +79,7 @@ impl<'a> GenericForGroupRuntime<'a> {
         step: f64,
         effective_show_generated: bool,
         ancestor_iteration_variables: &[Value],
+        ancestor_element_id_map: &HashMap<ElementId, ElementId>,
         state: &mut EvaluationState,
     ) {
         let template_for_group_id = element_id(template_for_group)
@@ -99,6 +100,7 @@ impl<'a> GenericForGroupRuntime<'a> {
                 iteration_index,
                 variable_value,
                 ancestor_iteration_variables,
+                ancestor_element_id_map,
             );
             for row in rows
                 .into_iter()
@@ -108,6 +110,14 @@ impl<'a> GenericForGroupRuntime<'a> {
             }
             let mut child_ancestor_iteration_variables = ancestor_iteration_variables.to_vec();
             child_ancestor_iteration_variables.push(iteration_variable);
+            let mut child_ancestor_element_id_map = ancestor_element_id_map.clone();
+            for (generated_element, template_id) in &generated {
+                if owned_template_ids.contains(template_id) {
+                    if let Some(generated_id) = element_id(generated_element) {
+                        child_ancestor_element_id_map.insert(template_id.clone(), generated_id);
+                    }
+                }
+            }
             for (generated_element, template_id) in generated {
                 if !owned_template_ids.contains(&template_id) {
                     continue;
@@ -118,6 +128,7 @@ impl<'a> GenericForGroupRuntime<'a> {
                     effective_show_generated,
                     instance_is_visible,
                     &child_ancestor_iteration_variables,
+                    &child_ancestor_element_id_map,
                     state,
                 );
             }
@@ -132,6 +143,7 @@ impl<'a> GenericForGroupRuntime<'a> {
         effective_show_generated: bool,
         instance_is_visible: bool,
         ancestor_iteration_variables: &[Value],
+        ancestor_element_id_map: &HashMap<ElementId, ElementId>,
         state: &mut EvaluationState,
     ) {
         let Some(generated_id) = element_id(&generated_element) else {
@@ -204,6 +216,7 @@ impl<'a> GenericForGroupRuntime<'a> {
                 nested_step,
                 nested_effective_show_generated,
                 ancestor_iteration_variables,
+                ancestor_element_id_map,
                 state,
             );
             return;

@@ -74,31 +74,36 @@ impl<'a> ForGroupMutationRuntime<'a> {
         step: f64,
         show_generated: bool,
         ancestor_iteration_variables: &[Value],
+        ancestor_element_id_map: &HashMap<ElementId, ElementId>,
         state: &mut EvaluationState,
     ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
         let template_for_group_id = element_id(template_for_group)
             .expect("forGroup template must have a validated element id");
-        let statements =
-            for_group_owned_template_ids(self.original_elements, &template_for_group_id)
-                .into_iter()
-                .filter_map(|template_element_id| {
-                    resolver
-                        .source_order_for_element(&template_element_id)
-                        .map(|source_order| ForGroupMutationStatement::Element {
-                            source_order,
-                            template_element_id,
-                        })
-                })
-                .chain(
-                    resolver
-                        .for_group_exit_source_order(&template_for_group_id)
-                        .map(|source_order| ForGroupMutationStatement::Exit { source_order }),
-                )
-                .collect::<Vec<_>>();
+        let owned_template_ids_vec =
+            for_group_owned_template_ids(self.original_elements, &template_for_group_id);
+        let owned_template_ids: HashSet<ElementId> =
+            owned_template_ids_vec.iter().cloned().collect();
+        let statements = owned_template_ids_vec
+            .into_iter()
+            .filter_map(|template_element_id| {
+                resolver
+                    .source_order_for_element(&template_element_id)
+                    .map(|source_order| ForGroupMutationStatement::Element {
+                        source_order,
+                        template_element_id,
+                    })
+            })
+            .chain(
+                resolver
+                    .for_group_exit_source_order(&template_for_group_id)
+                    .map(|source_order| ForGroupMutationStatement::Exit { source_order }),
+            )
+            .collect::<Vec<_>>();
         let mut expanded_iteration = None;
         let mut generated = Vec::new();
         let mut rows = Vec::new();
         let mut current_iteration_variable = Value::Null;
+        let mut current_child_ancestor_element_id_map = ancestor_element_id_map.clone();
         let instance_is_visible = element_id(instance_for_group)
             .is_some_and(|id| self.effective_visible_element_ids.contains(&id));
         resolver.run_for_group(
@@ -126,10 +131,20 @@ impl<'a> ForGroupMutationRuntime<'a> {
                         context.iteration_index,
                         context.iteration_value,
                         ancestor_iteration_variables,
+                        ancestor_element_id_map,
                     );
                     generated = expanded.0;
                     rows = expanded.1;
                     current_iteration_variable = expanded.2;
+                    current_child_ancestor_element_id_map = ancestor_element_id_map.clone();
+                    for (generated_element, template_id) in &generated {
+                        if owned_template_ids.contains(template_id) {
+                            if let Some(generated_id) = element_id(generated_element) {
+                                current_child_ancestor_element_id_map
+                                    .insert(template_id.clone(), generated_id);
+                            }
+                        }
+                    }
                 }
                 self.run_generated_statement(
                     resolver,
@@ -140,6 +155,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                     show_generated,
                     instance_is_visible,
                     ancestor_iteration_variables,
+                    &current_child_ancestor_element_id_map,
                     &current_iteration_variable,
                     state,
                 )
@@ -158,6 +174,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         show_generated: bool,
         instance_is_visible: bool,
         ancestor_iteration_variables: &[Value],
+        ancestor_element_id_map: &HashMap<ElementId, ElementId>,
         current_iteration_variable: &Value,
         state: &mut EvaluationState,
     ) -> Result<ForGroupMutationRunOutcome, ForGroupMutationError> {
@@ -257,6 +274,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 step,
                 nested_show_generated,
                 &child_ancestor_iteration_variables,
+                ancestor_element_id_map,
                 state,
             );
         }

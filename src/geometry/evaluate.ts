@@ -301,7 +301,8 @@ export const evaluateElements = (
   const evaluateRuntimeElement = (
     element: CadElement,
     sourceElement?: CadElement,
-    ancestorIterationVariables: NumericVariable[] = []
+    ancestorIterationVariables: NumericVariable[] = [],
+    ancestorElementIdMap: ReadonlyMap<ElementId, ElementId> = new Map()
   ) => {
     advanceLinearBindingsBefore(element, sourceElement);
     const inactiveGroupId = inactiveConditionalGroupId(element);
@@ -436,6 +437,7 @@ export const evaluateElements = (
         let generatedByTemplateId = new Map<ElementId, CadElement>();
         let rowByTemplateId = new Map<ElementId, ForGroupGeneratedRow>();
         let childAncestorIterationVariables: NumericVariable[] = ancestorIterationVariables;
+        let childAncestorElementIdMap: Map<ElementId, ElementId> = new Map(ancestorElementIdMap);
         const outcome = linearMutationResolver.runForGroup({
           ownerStatementId: mutationOwner.ownerStatementId,
           loopScopeId: mutationOwner.scopeId,
@@ -457,13 +459,16 @@ export const evaluateElements = (
               templateForGroupId: sourceElement?.id,
               iterationIndex: context.iterationIndex,
               variableValue: context.iterationValue,
-              ancestorIterationVariables
+              ancestorIterationVariables,
+              ancestorElementIdMap
             });
             childAncestorIterationVariables = [...ancestorIterationVariables, expanded.iterationVariable];
+            childAncestorElementIdMap = new Map(ancestorElementIdMap);
             for (const generatedElement of expanded.generatedElements) {
               const templateElementId = expanded.templateElementIdByGeneratedId.get(generatedElement.id);
               if (templateElementId && ownedTemplateIds.has(templateElementId)) {
                 generatedByTemplateId.set(templateElementId, generatedElement);
+                childAncestorElementIdMap.set(templateElementId, generatedElement.id);
               }
             }
             for (const row of expanded.rows) {
@@ -478,7 +483,7 @@ export const evaluateElements = (
           runtimeElements.push(generatedElement);
           runtimeElementsById.set(generatedElement.id, generatedElement);
           pushGeneratedVisibilityState(generatedElement, templateElement, effectiveShowGenerated, element);
-          evaluateRuntimeElement(generatedElement, templateElement, childAncestorIterationVariables);
+          evaluateRuntimeElement(generatedElement, templateElement, childAncestorIterationVariables, childAncestorElementIdMap);
           return "completed";
         });
         if (outcome === "stopped") return;
@@ -497,9 +502,14 @@ export const evaluateElements = (
           templateForGroupId: sourceElement?.id,
           iterationIndex,
           variableValue,
-          ancestorIterationVariables
+          ancestorIterationVariables,
+          ancestorElementIdMap
         });
         const childAncestorIterationVariables = [...ancestorIterationVariables, iterationVariable];
+        const childAncestorElementIdMap = new Map(ancestorElementIdMap);
+        for (const [generatedId, templateElementId] of templateElementIdByGeneratedId) {
+          if (ownedTemplateIds.has(templateElementId)) childAncestorElementIdMap.set(templateElementId, generatedId);
+        }
         for (const row of rows) {
           if (ownedTemplateIds.has(row.templateElementId)) forGroupGeneratedRows.push(row);
         }
@@ -512,7 +522,7 @@ export const evaluateElements = (
           if (templateElement) {
             pushGeneratedVisibilityState(generatedElement, templateElement, effectiveShowGenerated, element);
           }
-          evaluateRuntimeElement(generatedElement, templateElement, childAncestorIterationVariables);
+          evaluateRuntimeElement(generatedElement, templateElement, childAncestorIterationVariables, childAncestorElementIdMap);
         }
       }
       return;

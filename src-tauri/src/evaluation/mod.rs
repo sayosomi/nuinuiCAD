@@ -25,6 +25,9 @@ mod errors;
 #[cfg(test)]
 mod extend_trim_tests;
 mod for_group;
+mod for_group_ancestor_reference;
+#[cfg(test)]
+mod for_group_ancestor_reference_tests;
 mod for_group_generic_runtime;
 #[cfg(test)]
 mod for_group_generic_runtime_tests;
@@ -900,6 +903,7 @@ fn evaluate_document_input_with_scalar_program(
                         step,
                         effective_show_generated,
                         &[],
+                        &HashMap::new(),
                         &mut state,
                     )
                     .expect("validated forGroup scheduler must not mutate an iteration binding");
@@ -935,6 +939,7 @@ fn evaluate_document_input_with_scalar_program(
                 step,
                 effective_show_generated,
                 &[],
+                &HashMap::new(),
                 &mut state,
             );
             continue;
