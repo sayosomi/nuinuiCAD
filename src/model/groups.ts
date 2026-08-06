@@ -34,8 +34,14 @@ export type GroupFoldById = ReadonlyMap<ElementId, GroupFoldState>;
 export type FoldTargetBranch = "statement" | "primary" | "else";
 export type FoldTarget = { elementId: ElementId; branch: FoldTargetBranch };
 
+/**
+ * An element with no entry is expanded. The "collapsed on open" overview is a
+ * document-load decision written explicitly by initialGroupFoldForLoadedDocument,
+ * not an implicit default: a group written during an editing session must stay
+ * open while its body is being filled in.
+ */
 export const isGroupExpanded = (id: ElementId, groupFoldById?: GroupFoldById) =>
-  groupFoldById?.get(id)?.expanded ?? false;
+  groupFoldById?.get(id)?.expanded ?? true;
 
 export const isElseExpanded = (id: ElementId, groupFoldById?: GroupFoldById) =>
   groupFoldById?.get(id)?.elseExpanded ?? true;
@@ -52,6 +58,23 @@ export const isFoldTargetExpanded = (target: FoldTarget, groupFoldById?: GroupFo
 
 export const isGroupElement = (element: CadElement): element is GroupLikeElement =>
   element.type === "group" || element.type === "conditionalGroup" || element.type === "forGroup";
+
+/**
+ * The "every group collapsed" overview a freshly loaded document opens with,
+ * as explicit state. Applied only on document load (never on undo/redo), so an
+ * element id that appears later in the session has no entry and reads as
+ * expanded. `elements` is the flat document-order array, so nested
+ * group/forGroup/conditionalGroup elements are all covered at every depth.
+ * Only the `primary` branch is seeded; `else` bodies keep their expanded default.
+ */
+export const initialGroupFoldForLoadedDocument = (
+  elements: readonly CadElement[]
+): GroupFoldById =>
+  new Map(
+    elements
+      .filter(isGroupElement)
+      .map((element) => [element.id, { expanded: false }] as const)
+  );
 
 export const isConditionalGroupElement = (
   element: CadElement
