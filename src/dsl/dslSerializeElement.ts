@@ -200,6 +200,45 @@ export const serializeElementStatementBlock = (
   };
 };
 
+/**
+ * Draft counterpart to serializeElementStatementBlock for a command-line
+ * creation session with one or more blank recipe steps. Every arg whose
+ * parameter key is in `blankParameterKeys` is emitted as a bare `key: `
+ * hole - bypassing ordinaryArgText/getParameterValue entirely, so the
+ * meaningless factory-default value sitting in that field on `element` is
+ * never read or interpreted as real data. Every other arg (filled recipe
+ * steps, and construction args that never become recipe steps, like
+ * offsetLine's `side`/`closed`) is formatted exactly like the complete-
+ * element path. Container categories (group/if/for) never reach here -
+ * those element types are excluded from creation recipes entirely.
+ */
+export const serializeElementStatementBlockWithBlanks = (
+  element: CadElement,
+  refs: DslSerializerRefs,
+  blankParameterKeys: ReadonlySet<string>
+): SerializedStatement => {
+  const spec = constructionForElement(element);
+  const common = commonArgs(element, refs, new Set(spec.args.map((argSpec) => argSpec.arg)));
+  const header = spec.category === MUTATION_CATEGORY
+    ? `${spec.construction}(`
+    : [spec.category, refs.name(element), "=", `${spec.construction}(`].filter(Boolean).join(" ");
+  const constructionArgsWithBlanks = spec.args
+    .filter((argSpec) => !argSpec.positional)
+    .flatMap((argSpec) => {
+      const key = argSpec.parameterKey ?? argSpec.arg;
+      if (blankParameterKeys.has(key)) return [{ key: argSpec.arg, text: `${argSpec.arg}: ` }];
+      if (!shouldSerializeConstructionArg(element, argSpec)) return [];
+      const serialized = serializeArg(element, argSpec, refs);
+      return serialized ? [serialized] : [];
+    });
+  return {
+    header,
+    args: [...constructionArgsWithBlanks, ...common],
+    close: ")",
+    ...(refs.majorVersion >= 3 ? { argumentSeparator: "comma" as const } : {}),
+  };
+};
+
 export const serializeElementStatementLogical = (element: CadElement, refs: DslSerializerRefs): string => {
   const statement = serializeElementStatementBlock(element, refs);
   if (!statement.close) return statement.header;

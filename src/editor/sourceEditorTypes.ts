@@ -66,6 +66,9 @@ export type SourceEditorHandle = {
   jumpToElement: (elementId: ElementId) => void;
   /** Moves the primary cursor to an element's structural end and focuses it; false during IME composition. */
   jumpToElementEnd: (elementId: ElementId) => boolean;
+  /** Moves the primary cursor to the end of a physical line and focuses it, without
+   * touching Canvas selection; false during IME composition or an out-of-range line. */
+  jumpToLineEnd: (line: number) => boolean;
   /** Selects a parameter's current DSL value and focuses the editor. Returns false on fallback. */
   jumpToParameterValue: (elementId: ElementId, parameterKey: string) => boolean;
   /** Moves the primary cursor to a typed binding's declaration statement and selects it as

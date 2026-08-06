@@ -689,6 +689,26 @@ export class SourceEditorController implements SourceEditorHandle {
     return true;
   };
 
+  /** Moves the cursor to the end of a physical line without touching Canvas
+   * selection - used to focus an inserted draft statement that has no
+   * corresponding CadElement/statement range yet (see jumpToElementEnd,
+   * which does own the selection side effect for a real element). */
+  jumpToLineEnd = (line: number): boolean => {
+    if (this.protocol.composing) return false;
+    const doc = this.view.state.doc;
+    if (!Number.isInteger(line) || line < 1 || line > doc.lines) return false;
+    const cursor = doc.line(line).to;
+    this.deferredExternalCursor = null;
+    this.pendingPrimaryCursorProjection = false;
+    this.view.dispatch({
+      selection: EditorSelection.cursor(cursor),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
+    this.view.focus();
+    return true;
+  };
+
   jumpToParameterValue = (elementId: ElementId, parameterKey: string): boolean => {
     if (this.protocol.composing) return false;
     const range = this.statementRanges.get(elementId);

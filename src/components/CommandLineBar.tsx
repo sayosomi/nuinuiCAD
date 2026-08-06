@@ -131,9 +131,13 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     : session ? commandLineEditingInputValue(session, step) : "";
   const setInputValue = (value: string) => setInputState({ step: stepIdentity, value });
   const duplicateNameMessage = useMemo(() => {
-    if (!session || step?.kind !== "name") return null;
+    // Blank input no longer adopts session.nameSuggestion on Enter (it leaves
+    // the element unnamed instead), so an empty field never has anything to
+    // validate here - checking the suggestion would warn about a name that
+    // will never actually be used.
+    if (!session || step?.kind !== "name" || !inputValue) return null;
     return commandLineDuplicateNameMessage(validateCommandLineElementName({
-      name: inputValue || session.nameSuggestion,
+      name: inputValue,
       elements,
       parentGroupId: session.insertionTarget.parentGroupId
     }));
@@ -329,7 +333,10 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
   useEffect(() => () => setCommandLineInputComposing(false), []);
 
   if (!session) return null;
-  const canSkip = step?.kind === "name" || (step?.kind === "number" && step.default !== undefined);
+  // skipCurrentStep now advances every step kind (leaving a genuinely blank
+  // recipe step for kinds with no default), so the skip affordance is always
+  // available whenever a step is active.
+  const canSkip = step !== null;
   const stepLabel = commandLineStepLabel(step);
   const inputHelp = commandLineStepHelp(step);
   // Mirrors submitReferenceInput's empty-Enter selection adoption exactly: only
@@ -343,7 +350,7 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     return suggestions.find((suggestion) => suggestion.pickRef.candidateElementId === selected.elementId)?.displayLabel ?? null;
   })();
   const placeholder = step?.kind === "name"
-    ? session.nameSuggestion
+    ? `空Enterで無名のまま進む（候補：${session.nameSuggestion}）`
     : step?.kind === "number" && step.default !== undefined
       ? `Enterで ${step.default}`
       : isCommandLineReferenceStep(step?.kind)

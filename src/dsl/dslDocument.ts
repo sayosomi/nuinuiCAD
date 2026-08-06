@@ -36,6 +36,7 @@ import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
+import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
@@ -947,7 +948,16 @@ export const compileDslDocument = (
   // error return below, since it depends only on `parsed`.
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
 
-  if (baseDiagnostics.some((item) => item.severity === "error")) {
+  // missing-attribute-value ("well-formed but currently-empty named value" -
+  // see dslArgScanner.ts) is deliberately excluded from the fatal gate here,
+  // matching dslValueSpans.ts's existing carve-out for the same code: an
+  // intentionally-blank `key:` (typed by hand, or spliced in as a
+  // command-line creation draft) still yields a compiled document with an
+  // ordinary element-level diagnostic, the same way an unresolved reference
+  // does, instead of discarding the whole document back to its last-good
+  // state. Every other error-severity diagnostic - actual syntax errors,
+  // type errors, etc. - keeps making the document fatal.
+  if (baseDiagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
     return {
       document: null,
       majorVersion: versionValidation.majorVersion,
@@ -1098,7 +1108,8 @@ export const compileDslDocument = (
     ...(propertyReferenceSyntaxCompilation ? propertyReferenceSyntaxCompilation.diagnostics : []),
     ...(setStatementCompilation ? setStatementCompilation.diagnostics : [])
   ];
-  if (finalDiagnostics.some((item) => item.severity === "error")) {
+  // Same missing-attribute-value carve-out as the earlier fatal gate above.
+  if (finalDiagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
     return {
       document: null,
       majorVersion: versionValidation.majorVersion,

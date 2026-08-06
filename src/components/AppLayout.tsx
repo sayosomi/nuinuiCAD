@@ -326,6 +326,7 @@ export const AppLayout = () => {
     currentSourceCursor: () => sourceEditorRef.current?.currentSourceCursor?.() ?? null,
     currentCursorTypedRenameTargetBindingId: () => sourceEditorRef.current?.currentCursorTypedRenameTargetBindingId?.() ?? null,
     focusSourceEditorAtElementEnd: (elementId: ElementId) => sourceEditorRef.current?.jumpToElementEnd(elementId),
+    focusSourceEditorAtLineEnd: (line: number) => sourceEditorRef.current?.jumpToLineEnd(line),
     clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
     clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,

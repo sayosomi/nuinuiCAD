@@ -59,23 +59,29 @@ describe("CommandLineBar", () => {
     vi.unstubAllGlobals();
   });
 
-  it("stays absent without a session, focuses on start, and accepts a suggested name on empty Enter", async () => {
+  it("stays absent without a session and focuses on start", async () => {
     renderBar();
     expect(screen.queryByRole("form", { name: "コマンドライン作成" })).not.toBeInTheDocument();
 
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     await waitFor(() => expect(document.activeElement).toBe(input));
+  });
 
+  it("never adopts the suggested name on empty Enter - the name step stays unfilled and unnamed", () => {
+    renderBar();
+    act(() => { startCommandLineCreation("freePoint"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
     fireEvent.change(input, { target: { value: "10" } });
     fireEvent.submit(input.closest("form")!);
     fireEvent.change(input, { target: { value: "rise / 2" } });
     fireEvent.submit(input.closest("form")!);
 
-    const suggestion = input.getAttribute("placeholder");
-    expect(suggestion).toBeTruthy();
+    // The placeholder still shows the generated suggestion as a hint, but it
+    // must never be adopted by an empty Enter.
+    expect(input.getAttribute("placeholder")).toContain(useCadUiStore.getState().commandLineSession?.nameSuggestion);
     fireEvent.submit(input.closest("form")!);
-    expect(useCadUiStore.getState().commandLineSession?.args.name).toBe(suggestion);
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("name");
   });
 
   it("keeps unnamed creation behind the explicit skip button", () => {

@@ -177,6 +177,10 @@ export type CommandContext = {
   currentCursorTypedRenameTargetBindingId?: () => BindingId | null;
   /** Focuses the Source Editor at the end of a newly generated element statement. */
   focusSourceEditorAtElementEnd?: (elementId: ElementId) => void;
+  /** Focuses the Source Editor at the end of a physical line, without touching
+   * Canvas selection - used for a just-inserted draft statement that has no
+   * corresponding CadElement yet. */
+  focusSourceEditorAtLineEnd?: (line: number) => void;
   /** Canvas-only ephemeral state cleared before a creation-session replacement. */
   clearPendingCanvasPointerIntent?: () => void;
   /** Cancels the deferred Canvas-to-Source-Editor focus handoff before replacement. */

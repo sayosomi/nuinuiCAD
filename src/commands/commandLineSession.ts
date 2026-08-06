@@ -243,8 +243,15 @@ export const fillCurrentStep = (
 };
 
 /**
- * Skips only optional name input and number input with a declared default.
- * Name skipping intentionally preserves no fabricated name argument.
+ * Skips the current step, advancing regardless of kind. `name` intentionally
+ * preserves no fabricated name argument. A `number` step with a declared
+ * default keeps writing that default, exactly as before. Every other step
+ * (a defaultless `number`, or any reference-kind step) now advances while
+ * leaving its key absent from `args` - a genuinely blank recipe step, not a
+ * fabricated value - so a later confirm can offer it as a draft DSL hole
+ * instead of blocking. Mid-session editing only ever reopens a step that
+ * already has a value (see beginStepEdit's hasOwn guard), so reverting an
+ * edit back to blank is deliberately not supported here.
  */
 export const skipCurrentStep = (session: CommandLineSession): CommandLineSession => {
   const step = currentStep(session);
@@ -255,14 +262,19 @@ export const skipCurrentStep = (session: CommandLineSession): CommandLineSession
     delete args.name;
     return { ...session, args, currentStepIndex: session.currentStepIndex + 1, error: null };
   }
-  if (step.kind !== "number" || step.default === undefined) return session;
-  if (isEditingCommandLineStep(session)) return setEditingDraft(session, makeNumericExpression(step.default));
-  return {
-    ...session,
-    args: { ...session.args, [step.key]: makeNumericExpression(step.default) },
-    currentStepIndex: session.currentStepIndex + 1,
-    error: null
-  };
+  if (step.kind === "number" && step.default !== undefined) {
+    if (isEditingCommandLineStep(session)) return setEditingDraft(session, makeNumericExpression(step.default));
+    return {
+      ...session,
+      args: { ...session.args, [step.key]: makeNumericExpression(step.default) },
+      currentStepIndex: session.currentStepIndex + 1,
+      error: null
+    };
+  }
+  if (isEditingCommandLineStep(session)) return session;
+  const args = { ...session.args };
+  delete args[step.key];
+  return { ...session, args, currentStepIndex: session.currentStepIndex + 1, error: null };
 };
 
 /**
@@ -285,11 +297,16 @@ export const retreatStep = (session: CommandLineSession): CommandLineSession => 
 /**
  * Checks recipe progress only. Numeric evaluation, referenced-element
  * existence, and runtime value-shape validation remain evaluator concerns.
+ * Reaching the end of the recipe is sufficient on its own now: skipCurrentStep
+ * advances past every step kind, filled or left blank, so a per-step
+ * hasOwn(args, key) check would incorrectly reject a session with legitimate
+ * blank (draft) steps. The confirm layer classifies filled vs. blank steps
+ * itself to choose between materializing a CadElement and emitting a draft
+ * DSL statement.
  */
 export const sessionCanConfirm = (session: CommandLineSession) =>
   !isEditingCommandLineStep(session) &&
-  session.currentStepIndex >= session.recipe.steps.length &&
-  session.recipe.steps.every((step) => step.kind === "name" || hasOwn(session.args, step.key));
+  session.currentStepIndex >= session.recipe.steps.length;
 
 /** True when a document commit has advanced the existing source revision. */
 export const sessionIsStale = (session: CommandLineSession, currentRevision: number) =>

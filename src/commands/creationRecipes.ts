@@ -243,6 +243,54 @@ const unspecifiedReferenceValue = (step: Exclude<CreationStep, { kind: "name" }>
   return step.kind === "line" ? "" : [];
 };
 
+const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
+
+/** Recipe step keys the user advanced past without a value (see skipCurrentStep). */
+export const blankCreationRecipeStepKeys = (
+  recipe: CreationRecipe,
+  args: CreationArgs
+): ReadonlySet<ParameterKey> => new Set(
+  recipe.steps.flatMap((step) => step.kind !== "name" && !hasOwn(args, step.key) ? [step.key] : [])
+);
+
+export type CreationRecipeDraft = {
+  element: CadElement;
+  /** Keys whose factory-default field value must never be read - the
+   * corresponding recipe step was left blank, not filled or defaulted. */
+  blankParameterKeys: ReadonlySet<ParameterKey>;
+};
+
+/**
+ * Materializes recipe progress without inventing values for steps the user
+ * left blank. This is `emitCreationRecipe`'s counterpart for a session that
+ * has one or more blank steps: filled steps and always-on factory defaults
+ * (booleans/choices, which never become creation steps) are applied exactly
+ * as `emitCreationRecipe` would, but a blank step's `setParameterValue` call
+ * is skipped entirely rather than writing `unspecifiedReferenceValue`'s
+ * sentinel. Callers must route every key in `blankParameterKeys` around
+ * `element` (e.g. via `serializeElementStatementBlockWithBlanks`) instead of
+ * reading it - the field is left at an arbitrary, meaningless factory value.
+ */
+export const materializeCreationRecipeDraft = (
+  recipe: CreationRecipe,
+  args: CreationArgs,
+  context: CreationEmitContext
+): CreationRecipeDraft => {
+  const blankParameterKeys = blankCreationRecipeStepKeys(recipe, args);
+  const element = createCadElement(recipe.type, context.elements, {
+    referenceElements: context.referenceElements,
+    createId: context.createId
+  });
+  const withArguments = recipe.steps.reduce<CadElement>((current, step) => {
+    if (step.kind === "name" || blankParameterKeys.has(step.key)) return current;
+    return setParameterValue(current, step.key, args[step.key] as CreationArgumentValue);
+  }, element);
+  return {
+    element: setParameterValue(withArguments, "name", args.name ?? ""),
+    blankParameterKeys
+  };
+};
+
 /**
  * Materializes a static recipe with document context. Missing reference inputs only
  * clear factory-provided references; numeric and other defaults remain untouched.

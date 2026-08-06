@@ -11,11 +11,13 @@ import { serializeElementStatementLogical } from "../dsl/dslSerializeElement";
 import { elementTypeLabels, type CadElementType } from "../types/geometry";
 import { creationCommandDefinitions } from "./creationCommandDefinitions";
 import {
+  blankCreationRecipeStepKeys,
   creationRecipeExcludedTypes,
   creationRecipeForType,
   creationRecipes,
   emitCreationRecipe,
   fallbackCreationRecipe,
+  materializeCreationRecipeDraft,
   type CreationArgs,
   type CreationRecipe
 } from "./creationRecipes";
@@ -252,6 +254,26 @@ describe("creationRecipes", () => {
     expect(creationRecipeForLegacyCommand("addGroup")).toBeNull();
     expect(creationRecipeForLegacyCommand("addConditionalGroup")).toBeNull();
     expect(creationRecipeForLegacyCommand("addForGroup")).toBeNull();
+  });
+
+  it("tracks blank recipe steps without inventing a value for them", () => {
+    const recipe = creationRecipeForType("line")!;
+    expect(blankCreationRecipeStepKeys(recipe, {})).toEqual(new Set(["startPoint", "endPoint"]));
+    expect(blankCreationRecipeStepKeys(recipe, { startPoint: referenceAnchor("point-a") }))
+      .toEqual(new Set(["endPoint"]));
+    // name is never tracked as a "blank" recipe step: an omitted name is
+    // already handled by the existing name ?? "" convention.
+    expect(blankCreationRecipeStepKeys(recipe, { startPoint: referenceAnchor("point-a"), name: "" }))
+      .toEqual(new Set(["endPoint"]));
+  });
+
+  it("materializes a draft that mixes a filled step, a blank step, and an omitted name", () => {
+    const context = contextFor();
+    const recipe = creationRecipeForType("line")!;
+    const draft = materializeCreationRecipeDraft(recipe, { startPoint: referenceAnchor("point-a") }, context);
+
+    expect(draft.blankParameterKeys).toEqual(new Set(["endPoint"]));
+    expect(draft.element).toMatchObject({ name: "", startPoint: referenceAnchor("point-a") });
   });
 
   it("generates fallbacks for every eligible element type without asking choice, boolean, or text values", () => {

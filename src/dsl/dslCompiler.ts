@@ -14,7 +14,7 @@ import type {
   VisibilityRole
 } from "../types/geometry";
 import { applyArgs, createDefaultIntermediateId } from "./dslApplyArgs";
-import type { ScannedArg } from "./dslArgScanner";
+import { MISSING_ATTRIBUTE_VALUE_CODE, type ScannedArg } from "./dslArgScanner";
 import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
@@ -407,7 +407,10 @@ const buildBlockPrintLayouts = ({
 
 export const compileDslToElements = (source: string, context: CompileDslContext): CompileDslResult => {
   const parsed = context.preparsed ?? parseDsl(source);
-  if (parsed.diagnostics.some((item) => item.severity === "error")) {
+  // Same missing-attribute-value carve-out as dslDocument.ts's fatal gates:
+  // an intentionally-blank `key:` value must not prevent every other
+  // statement in the document from compiling into elements.
+  if (parsed.diagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
     return {
       elements: context.elements,
       selectedElementId: null,

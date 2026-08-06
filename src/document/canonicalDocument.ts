@@ -6,6 +6,7 @@ import {
   type DslMajorVersion,
   type StatementMap
 } from "../dsl/dslDocument";
+import { MISSING_ATTRIBUTE_VALUE_CODE } from "../dsl/dslArgScanner";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
@@ -128,7 +129,13 @@ const compileZippedModelText = (
 ): { ok: true; doc: LastGoodDslDocument } | { ok: false; reason: string } => {
   const sourceText = normalizedText(text);
   const parsed = parseDslSnapshot({ normalizedSource: sourceText.replace(/\r\n/g, "\n"), sourceRevision });
-  if (parsed.diagnostics.some((item) => item.severity === "error")) {
+  // Same missing-attribute-value carve-out as dslDocument.ts/dslCompiler.ts:
+  // this model-diff recompile path must stay consistent with the line-splice
+  // path (compileCanonicalText), or a document containing an intentionally-
+  // blank `key:` value would patch successfully but fail this fallback
+  // regeneration, which the shadow-equivalence property test treats as a
+  // genuine inconsistency.
+  if (parsed.diagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
     return { ok: false, reason: "モデル差分テキストの構文解析に失敗しました。" };
   }
   const assignedElementIds = zipAssignedElementIds(parsed.statements, afterDocument.elements);
