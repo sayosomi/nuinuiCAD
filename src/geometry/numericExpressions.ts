@@ -631,17 +631,32 @@ export const evaluateNumericValue = ({
         { dependencyId: elementId, dependencyName }
       );
     };
+    // elementId is ambiguous by construction: it may be a plain (possibly
+    // forGroup-generated) element id, or a derived-point reference
+    // "<elementId>:<pointKey>" built by pointAnchorExpression - and a
+    // forGroup-generated id itself contains a colon
+    // ("<templateId>@<forGroupId>:<index>"), so a naive first-colon split
+    // mistakes the generated id's own colon for the derived-point-key
+    // separator. Trying a direct, whole-id computedGeometry lookup first -
+    // rather than guessing from the string shape - sidesteps the ambiguity:
+    // a complete generated id (with no derived-point suffix) is always a
+    // hit here, since forGroup expansion stores geometry under exactly that
+    // key. Only when the direct lookup misses does this fall back to
+    // treating the text after the *last* colon as a derived-point key.
     const pointValue = (elementId: ElementId): ComputedPoint => {
-      const pointKey = pointExpressionKey(elementId);
-      const sourceId = pointExpressionSourceId(elementId);
-      const geometry = computedGeometry.get(sourceId);
-      if (pointKey) {
-        const point = resolveDerivedPoint(geometry, pointKey, elementsById);
-        if (!point) throw dependencyError(sourceId);
-        return point;
+      const direct = computedGeometry.get(elementId);
+      if (direct) {
+        if (direct.kind !== "point") throw dependencyError(elementId);
+        return direct;
       }
-      if (geometry?.kind !== "point") throw dependencyError(sourceId);
-      return geometry;
+      const separatorIndex = elementId.lastIndexOf(":");
+      if (separatorIndex < 0) throw dependencyError(elementId);
+      const sourceId = elementId.slice(0, separatorIndex);
+      const pointKey = elementId.slice(separatorIndex + 1);
+      const geometry = computedGeometry.get(sourceId);
+      const point = resolveDerivedPoint(geometry, pointKey, elementsById);
+      if (!point) throw dependencyError(sourceId);
+      return point;
     };
     const lineValue = (elementId: ElementId): ComputedLine => {
       const geometry = computedGeometry.get(elementId);

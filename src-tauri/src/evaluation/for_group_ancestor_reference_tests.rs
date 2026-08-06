@@ -12,7 +12,9 @@
 //! `LineEndpointReference`'s `endpointKey` - stays untouched.
 
 use super::*;
-use crate::evaluation::for_group_ancestor_reference::remap_ancestor_element_references;
+use crate::evaluation::for_group_ancestor_reference::{
+    remap_ancestor_element_references, remap_current_invocation_numeric_references,
+};
 use serde_json::json;
 
 #[test]
@@ -263,4 +265,119 @@ fn remaps_an_element_local_numeric_variables_value_referencing_an_ancestor() {
             .and_then(Value::as_str),
         Some("a@outer:0.x * 2")
     );
+}
+
+// remap_current_invocation_numeric_references: coverage for the Blocking-1
+// gap - a current forGroup invocation's own id_map (as opposed to an
+// ancestor's) previously only reached structural fields via for_group.rs's
+// blind remap_json_ids, never numeric-expression tokens.
+
+#[test]
+fn remaps_a_property_reference_element_id_inside_a_numeric_expression_for_the_current_invocation() {
+    let mut id_map = HashMap::new();
+    id_map.insert("a".to_owned(), "a@loop:0".to_owned());
+
+    let mut element = json!({
+        "id": "generated-b",
+        "type": "freePoint",
+        "activity": "visible",
+        "x": { "kind": "expression", "expression": "a.x + 10" },
+        "y": { "kind": "expression", "expression": "@i" }
+    });
+
+    remap_current_invocation_numeric_references(&mut element, &id_map);
+
+    assert_eq!(
+        element
+            .get("x")
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("a@loop:0.x + 10")
+    );
+    // The loop variable `@i` must never be touched by the id map, even
+    // though it's a token inside the same element's expressions.
+    assert_eq!(
+        element
+            .get("y")
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("@i")
+    );
+}
+
+#[test]
+fn remaps_a_bare_element_token_used_as_a_measurement_function_argument_for_the_current_invocation()
+{
+    let mut id_map = HashMap::new();
+    id_map.insert("a".to_owned(), "a@loop:0".to_owned());
+    id_map.insert("b".to_owned(), "b@loop:0".to_owned());
+
+    let mut element = json!({
+        "id": "generated-q",
+        "type": "freePoint",
+        "activity": "visible",
+        "x": { "kind": "expression", "expression": "distance(a, b)" },
+        "y": 0
+    });
+
+    remap_current_invocation_numeric_references(&mut element, &id_map);
+
+    assert_eq!(
+        element
+            .get("x")
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("distance(a@loop:0, b@loop:0)")
+    );
+}
+
+#[test]
+fn leaves_structural_reference_fields_untouched_since_remap_json_ids_already_handles_them() {
+    // remap_json_ids (for_group.rs) already remaps structural fields for
+    // the current invocation before this runs, so by the time this sees
+    // the element, pointId already holds the *generated* id, not a key in
+    // id_map - this test simulates that ordering directly to confirm the
+    // numeric-only scope never re-touches (or corrupts) it.
+    let mut id_map = HashMap::new();
+    id_map.insert("a".to_owned(), "a@loop:0".to_owned());
+
+    let mut element = json!({
+        "id": "generated-l",
+        "type": "line",
+        "activity": "visible",
+        "startPoint": { "mode": "reference", "pointId": "a@loop:0" },
+        "endPoint": { "mode": "reference", "pointId": "b" }
+    });
+
+    remap_current_invocation_numeric_references(&mut element, &id_map);
+
+    assert_eq!(
+        element
+            .get("startPoint")
+            .and_then(|anchor| anchor.get("pointId"))
+            .and_then(Value::as_str),
+        Some("a@loop:0")
+    );
+    assert_eq!(
+        element
+            .get("endPoint")
+            .and_then(|anchor| anchor.get("pointId"))
+            .and_then(Value::as_str),
+        Some("b")
+    );
+}
+
+#[test]
+fn does_nothing_when_the_current_invocation_map_is_empty() {
+    let mut element = json!({
+        "id": "generated-p",
+        "type": "freePoint",
+        "x": { "kind": "expression", "expression": "a.x + 10" },
+        "y": 0
+    });
+    let before = element.clone();
+
+    remap_current_invocation_numeric_references(&mut element, &HashMap::new());
+
+    assert_eq!(element, before);
 }

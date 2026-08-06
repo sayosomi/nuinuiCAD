@@ -975,6 +975,93 @@ for Outer (i, from: 0, count: 2, step: 1) {
     expect(count).toBe(4);
   });
 
+  it("lets a for group body's numeric expression reference a same-scope generated sibling", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 3
+for Loop (i, from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  point B = coordinate(x: @A.x + 10, y: 0)
+}`);
+    expect(result.errors).toEqual([]);
+    const loopId = elementId("Loop");
+    const bId = elementId("B");
+
+    for (let i = 0; i < 2; i += 1) {
+      const generatedBId = forGroupGeneratedElementId({ forGroupId: loopId, templateElementId: bId, iterationIndex: i });
+      expect(result.computedGeometry.get(generatedBId)).toMatchObject({ kind: "point", x: i + 10, y: 0 });
+    }
+  });
+
+  it("resolves distance()/angle() for same-scope forGroup-generated point arguments", () => {
+    // Regression coverage for the forGroup generated-id
+    // ("id@forGroupId:iterationIndex") vs. derived-point-key ("id:pointKey")
+    // delimiter collision: A and B are both same-invocation generated
+    // points, so distance()/angle() must resolve them by their full
+    // generated id, not by splitting on the first colon.
+    const { result, elementId } = compileAndEvaluate(`nui 3
+for Loop (i, from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  point B = coordinate(x: @i + 10, y: 0)
+  point Q = coordinate(x: distance(A, B), y: angle(A, B))
+}`);
+    expect(result.errors).toEqual([]);
+    const loopId = elementId("Loop");
+    const qId = elementId("Q");
+
+    for (let i = 0; i < 2; i += 1) {
+      const generatedQId = forGroupGeneratedElementId({ forGroupId: loopId, templateElementId: qId, iterationIndex: i });
+      // A and B always sit 10mm apart on the same horizontal line.
+      expect(result.computedGeometry.get(generatedQId)).toMatchObject({ kind: "point", x: 10, y: 0 });
+    }
+  });
+
+  it("resolves distance() mixing an ancestor-owned and a current-invocation generated point argument", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 3
+for Outer (i, from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  for Inner (j, from: 0, count: 2, step: 1) {
+    point B = coordinate(x: @i + 10, y: 0)
+    point Q = coordinate(x: distance(A, B), y: 0)
+  }
+}`);
+    expect(result.errors).toEqual([]);
+    const outerId = elementId("Outer");
+    const innerId = elementId("Inner");
+    const qId = elementId("Q");
+
+    let count = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const generatedInnerId = forGroupGeneratedElementId({ forGroupId: outerId, templateElementId: innerId, iterationIndex: i });
+      for (let j = 0; j < 2; j += 1) {
+        const generatedQId = forGroupGeneratedElementId({ forGroupId: generatedInnerId, templateElementId: qId, iterationIndex: j });
+        expect(result.computedGeometry.get(generatedQId)).toMatchObject({ kind: "point", x: 10, y: 0 });
+        count += 1;
+      }
+    }
+    expect(count).toBe(4);
+  });
+
+  it("still resolves distance()/angle() for an ordinary non-generated point argument", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 3
+point P = coordinate(x: 0, y: 0)
+point R = coordinate(x: 3, y: 4)
+point Q = coordinate(x: distance(P, R), y: angle(P, R))`);
+    expect(result.errors).toEqual([]);
+    const qId = elementId("Q");
+    expect(result.computedGeometry.get(qId)).toMatchObject({ kind: "point", x: 5, y: expect.closeTo(53.13, 1) });
+  });
+
+  it("still resolves distance() for a derived-point argument on an ordinary non-generated line", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 3
+point P = coordinate(x: 0, y: 0)
+point R = coordinate(x: 10, y: 0)
+line PR = segment(start: P, end: R)
+point Q = coordinate(x: distance(P, PR:start), y: 0)`);
+    expect(result.errors).toEqual([]);
+    const qId = elementId("Q");
+    // PR:start is exactly P itself, so the distance is 0.
+    expect(result.computedGeometry.get(qId)).toMatchObject({ kind: "point", x: 0, y: 0 });
+  });
+
   it("generates nothing for the nested inner loop when the outer for group is disabled", () => {
     const outer: CadElement = {
       id: "outer",

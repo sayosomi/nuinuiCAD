@@ -1,7 +1,9 @@
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 
-use super::for_group_ancestor_reference::remap_ancestor_element_references;
+use super::for_group_ancestor_reference::{
+    remap_ancestor_element_references, remap_current_invocation_numeric_references,
+};
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::types::{
     element_display_name, element_id, element_name, element_type,
@@ -279,6 +281,11 @@ pub(crate) fn expand_for_group_iteration_from_template(
             }
             object.insert("numericVariables".to_owned(), Value::Array(variables));
         }
+        // remap_json_ids above only rewrites a JSON string that exactly
+        // equals an id_map key, which misses numeric-expression fields
+        // (the id sits inside a larger string like "<id>.x + 10") - extend
+        // coverage to those before also applying the ancestor map.
+        remap_current_invocation_numeric_references(&mut element, &id_map);
         remap_ancestor_element_references(&mut element, ancestor_element_id_map);
         if !matches!(
             element_type(&element),

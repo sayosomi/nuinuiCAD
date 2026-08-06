@@ -203,3 +203,140 @@ fn a_nested_inner_bodys_numeric_expression_references_an_outer_owned_points_prop
     }
     assert_eq!(generated_p_count, 4);
 }
+
+#[test]
+fn a_for_group_bodys_numeric_expression_references_a_same_scope_generated_sibling() {
+    // B (owned by Loop) reads "a.x + 10" where A is a *same-invocation*
+    // sibling, not an ancestor - only the current-invocation id_map
+    // (remap_json_ids's blind structural pass, plus
+    // remap_current_invocation_numeric_references's token-aware numeric
+    // pass) can rewrite this ahead of evaluation.
+    let elements = vec![
+        for_group("loop", None, "i", 2.0),
+        point_referencing("a", "loop", "@i", "0"),
+        point_referencing("b", "loop", "a.x + 10", "0"),
+    ];
+    let result = evaluate_document_input(input(elements));
+
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    for iteration in 0..2 {
+        let generated_b_id = format!("b@loop:{iteration}");
+        let point = geometry(&result, &generated_b_id)
+            .unwrap_or_else(|| panic!("missing generated geometry for {generated_b_id}"));
+        assert_eq!(point["x"].as_f64(), Some(iteration as f64 + 10.0));
+    }
+}
+
+#[test]
+fn a_for_group_bodys_measurement_function_resolves_same_scope_generated_point_arguments() {
+    // Q's distance()/angle() arguments are both same-invocation siblings -
+    // this exercises the current-invocation numeric-expression remap
+    // (Blocking 1) and the generated-point point_value lookup (Blocking 2)
+    // together, since forGroup-generated point ids ("a@loop:0") collide in
+    // shape with the unrelated derived-point-key delimiter ("id:pointKey").
+    let elements = vec![
+        for_group("loop", None, "i", 2.0),
+        point_referencing("a", "loop", "@i", "0"),
+        point_referencing("b", "loop", "@i + 10", "0"),
+        point_referencing("q", "loop", "distance(a, b)", "angle(a, b)"),
+    ];
+    let result = evaluate_document_input(input(elements));
+
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    for iteration in 0..2 {
+        let generated_q_id = format!("q@loop:{iteration}");
+        let point = geometry(&result, &generated_q_id)
+            .unwrap_or_else(|| panic!("missing generated geometry for {generated_q_id}"));
+        // A and B always sit 10mm apart on the same horizontal line.
+        assert_eq!(point["x"].as_f64(), Some(10.0));
+        assert_eq!(point["y"].as_f64(), Some(0.0));
+    }
+}
+
+#[test]
+fn a_nested_inner_bodys_measurement_function_resolves_an_outer_owned_generated_point_argument() {
+    // A is Outer-owned (ancestor scope from Inner's perspective), B is
+    // Inner-owned (current-invocation scope) - distance(a, b) mixes both
+    // remap paths in a single function-argument list.
+    let elements = vec![
+        for_group("outer", None, "i", 2.0),
+        point_referencing("a", "outer", "@i", "0"),
+        for_group("inner", Some("outer"), "j", 2.0),
+        point_referencing("b", "inner", "@i + 10", "0"),
+        point_referencing("q", "inner", "distance(a, b)", "0"),
+    ];
+    let result = evaluate_document_input(input(elements));
+
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    for outer_iteration in 0..2 {
+        let generated_inner_id = format!("inner@outer:{outer_iteration}");
+        for inner_iteration in 0..2 {
+            let generated_q_id = format!("q@{generated_inner_id}:{inner_iteration}");
+            let point = geometry(&result, &generated_q_id)
+                .unwrap_or_else(|| panic!("missing generated geometry for {generated_q_id}"));
+            assert_eq!(point["x"].as_f64(), Some(10.0));
+        }
+    }
+}
+
+#[test]
+fn a_measurement_functions_derived_point_argument_still_resolves_for_an_ordinary_non_generated_line(
+) {
+    // Regression coverage for the derived-point ("<elementId>:<pointKey>")
+    // path itself, unrelated to forGroup: AB's own "start" point, picked as
+    // one of distance()'s arguments (exactly what pickCommands.ts's
+    // pointAnchorExpression produces for a derived-point pick) - must still
+    // resolve correctly now that point_value tries a direct whole-id lookup
+    // before falling back to a colon split.
+    let elements = vec![
+        json!({
+            "id": "a", "name": "a", "type": "freePoint", "activity": "visible",
+            "x": 0.0, "y": 0.0
+        }),
+        json!({
+            "id": "b", "name": "b", "type": "freePoint", "activity": "visible",
+            "x": 10.0, "y": 0.0
+        }),
+        json!({
+            "id": "ab", "name": "ab", "type": "line", "activity": "visible",
+            "startPoint": { "mode": "reference", "pointId": "a" },
+            "endPoint": { "mode": "reference", "pointId": "b" }
+        }),
+        json!({
+            "id": "q", "name": "q", "type": "freePoint", "activity": "visible",
+            "x": expression("distance(a, ab:start)"), "y": 0.0
+        }),
+    ];
+    let result = evaluate_document_input(input(elements));
+
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    let point = geometry(&result, "q").unwrap_or_else(|| panic!("missing geometry for q"));
+    // ab:start is exactly A itself, so the distance is 0.
+    assert_eq!(point["x"].as_f64(), Some(0.0));
+}
+
+#[test]
+fn a_measurement_functions_point_argument_still_resolves_for_an_ordinary_non_generated_point() {
+    // Regression coverage for the plain, non-forGroup case: P has no "@" or
+    // ":" in its id at all, so it must resolve via point_value's direct
+    // lookup on the very first attempt.
+    let elements = vec![
+        json!({
+            "id": "p", "name": "p", "type": "freePoint", "activity": "visible",
+            "x": 0.0, "y": 0.0
+        }),
+        json!({
+            "id": "r", "name": "r", "type": "freePoint", "activity": "visible",
+            "x": 3.0, "y": 4.0
+        }),
+        json!({
+            "id": "q", "name": "q", "type": "freePoint", "activity": "visible",
+            "x": expression("distance(p, r)"), "y": 0.0
+        }),
+    ];
+    let result = evaluate_document_input(input(elements));
+
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    let point = geometry(&result, "q").unwrap_or_else(|| panic!("missing geometry for q"));
+    assert_eq!(point["x"].as_f64(), Some(5.0));
+}
