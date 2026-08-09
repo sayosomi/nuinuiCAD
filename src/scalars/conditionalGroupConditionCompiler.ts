@@ -12,6 +12,7 @@
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import { resolveReferencesAtSites, type SiteReferenceRequest } from "./bindingResolution";
@@ -35,6 +36,7 @@ export type CompileConditionalGroupConditionsInput = {
   elements: readonly CadElement[];
   bindingAnalysis: BindingAnalysis;
   spans: DiagnosticSpanContext;
+  includeStatement?: DslStatementInclusion;
 };
 
 export type ConditionalGroupConditionCompilation = {
@@ -65,13 +67,15 @@ export const compileConditionalGroupConditions = ({
   elementIdByStatementIndex,
   elements,
   bindingAnalysis,
-  spans
+  spans,
+  includeStatement
 }: CompileConditionalGroupConditionsInput): ConditionalGroupConditionCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
   const sourcesByOccurrenceKey = new Map<string, TypedScalarExpression>();
 
   statements.forEach((statement, statementIndex) => {
+    if (includeStatement && !includeStatement(statement, statementIndex)) return;
     if (statement.kind !== "element" || statement.type !== "conditionalGroup") return;
     const elementId = elementIdByStatementIndex.get(statementIndex);
     if (!elementId || !elementsById.has(elementId)) return;

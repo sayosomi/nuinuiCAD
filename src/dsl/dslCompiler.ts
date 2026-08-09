@@ -16,6 +16,7 @@ import type {
 import { applyArgs, createDefaultIntermediateId } from "./dslApplyArgs";
 import { MISSING_ATTRIBUTE_VALUE_CODE, type ScannedArg } from "./dslArgScanner";
 import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
+import { isCompilableDslStatement, type DslStatementInclusion } from "./dslCompilationGuard";
 import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
@@ -140,14 +141,17 @@ const applyStatement = (
 const applyPaletteStatements = ({
   statements,
   context,
-  diagnostics
+  diagnostics,
+  includeStatement
 }: {
   statements: DslStatement[];
   context: CompileDslContext;
   diagnostics: DslDiagnostic[];
+  includeStatement: DslStatementInclusion;
 }): DocumentPalette | undefined => {
   const colorStatements = statements.filter(
-    (statement): statement is Extract<DslStatement, { kind: "color" }> => statement.kind === "color"
+    (statement, statementIndex): statement is Extract<DslStatement, { kind: "color" }> =>
+      statement.kind === "color" && includeStatement(statement, statementIndex)
   );
   if (colorStatements.length === 0) return context.palette;
 
@@ -189,12 +193,14 @@ const applyVisibilitySettings = ({
   statements,
   context,
   diagnostics,
-  printLayoutIdsByStatementIndex
+  printLayoutIdsByStatementIndex,
+  includeStatement
 }: {
   statements: DslStatement[];
   context: CompileDslContext;
   diagnostics: DslDiagnostic[];
   printLayoutIdsByStatementIndex?: Map<number, string>;
+  includeStatement: DslStatementInclusion;
 }) => {
   let visibilityRoles = [...(context.visibilityRoles ?? [])];
   let visibilityProfiles = [...(context.visibilityProfiles ?? [])];
@@ -245,14 +251,17 @@ const applyVisibilitySettings = ({
       : [...visibilityProfiles, profile];
   };
 
-  for (const statement of statements) {
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (!includeStatement(statement, statementIndex)) continue;
     if (statement.kind === "role") upsertRole(statement);
   }
-  for (const statement of statements) {
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (!includeStatement(statement, statementIndex)) continue;
     if (statement.kind === "view") upsertProfile(statement);
   }
   for (let statementIndex = 0; statementIndex < statements.length; statementIndex += 1) {
     const statement = statements[statementIndex];
+    if (!includeStatement(statement, statementIndex)) continue;
     if (statement.kind === "activeView") {
       const profileId = profileIdByToken(visibilityProfiles, statement.name);
       if (visibilityProfiles.some((profile) => profile.id === profileId)) {
@@ -285,7 +294,7 @@ const applyVisibilitySettings = ({
     }
   }
 
-  const palette = applyPaletteStatements({ statements, context, diagnostics });
+  const palette = applyPaletteStatements({ statements, context, diagnostics, includeStatement });
 
   return {
     visibilityRoles,
@@ -303,7 +312,8 @@ const buildBlockPrintLayouts = ({
   nameIndex,
   visibilityProfiles,
   diagnostics,
-  printLayoutIdsByStatementIndex
+  printLayoutIdsByStatementIndex,
+  includeStatement
 }: {
   statements: DslStatement[];
   layouts: PrintLayout[] | undefined;
@@ -312,17 +322,25 @@ const buildBlockPrintLayouts = ({
   visibilityProfiles: VisibilityProfile[];
   diagnostics: DslDiagnostic[];
   printLayoutIdsByStatementIndex?: Map<number, string>;
+  includeStatement: DslStatementInclusion;
 }): PrintLayout[] | undefined => {
   const blockStatements = statements
     .map((statement, index) => ({ statement, index }))
-    .filter((item) => item.statement.kind === "printLayout" && item.statement.opensBlock);
+    .filter((item) =>
+      includeStatement(item.statement, item.index) &&
+      item.statement.kind === "printLayout" &&
+      item.statement.opensBlock
+    );
   if (blockStatements.length === 0) return layouts;
 
   let next = layouts ? [...layouts] : [];
   for (const { statement, index } of blockStatements) {
     if (statement.kind !== "printLayout") continue;
     const members = statements.filter(
-      (member) => member.kind === "place" && member.enclosing?.statementIndex === index
+      (member, memberIndex) =>
+        includeStatement(member, memberIndex) &&
+        member.kind === "place" &&
+        member.enclosing?.statementIndex === index
     );
     const placements: PrintLayoutPlacement[] = [];
     const numeric = (source: string) =>
@@ -427,19 +445,24 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   }
 
   const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
+  const includeStatement: DslStatementInclusion = (_statement, statementIndex) =>
+    isCompilableDslStatement(parsed.statements, statementIndex);
   const printLayoutIdsByStatementIndex = new Map<number, string>();
   const visibilitySettings = applyVisibilitySettings({
     statements: parsed.statements,
     context,
     diagnostics,
-    printLayoutIdsByStatementIndex
+    printLayoutIdsByStatementIndex,
+    includeStatement
   });
   const documentMode = context.mode === "document";
   const existing = documentMode ? [] : context.elements;
   const statementIndexOf = new Map<DslStatement, number>(
     parsed.statements.map((statement, index) => [statement, index])
   );
-  const elementStatements = parsed.statements.filter(isElementDslStatement);
+  const elementStatements = parsed.statements.filter(
+    (statement, statementIndex) => isElementDslStatement(statement) && isCompilableDslStatement(parsed.statements, statementIndex)
+  );
   const statementsWithIds = elementStatements.map((statement) => {
     const type = statementTypeOf(statement);
     return {
@@ -557,11 +580,13 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     nameIndex: createNameIndex(elements),
     visibilityProfiles: visibilitySettings.visibilityProfiles,
     diagnostics,
-    printLayoutIdsByStatementIndex
+    printLayoutIdsByStatementIndex,
+    includeStatement
   });
 
   let activePrintLayoutId = context.activePrintLayoutId;
-  for (const statement of parsed.statements) {
+  for (const [statementIndex, statement] of parsed.statements.entries()) {
+    if (!includeStatement(statement, statementIndex)) continue;
     if (statement.kind !== "activePrintLayout") continue;
     const target =
       printLayouts?.find((layout) => layout.name === statement.name) ??
@@ -575,12 +600,17 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   }
 
   let evaluationLimitIndex: number | undefined;
-  const atStopIndex = parsed.statements.findIndex((statement) => statement.kind === "atStop");
+  const atStopIndex = parsed.statements.findIndex(
+    (statement, statementIndex) => statement.kind === "atStop" && includeStatement(statement, statementIndex)
+  );
   if (atStopIndex >= 0) {
     if (documentMode) {
       evaluationLimitIndex = parsed.statements
+        .map((statement, statementIndex) => ({ statement, statementIndex }))
         .slice(0, atStopIndex)
-        .filter(isElementDslStatement).length;
+        .filter(({ statement, statementIndex }) =>
+          isElementDslStatement(statement) && isCompilableDslStatement(parsed.statements, statementIndex)
+        ).length;
     } else {
       diagnostics.push(warning(parsed.statements[atStopIndex].line, "@stop は文書全体の適用でのみ有効なため無視されます。"));
     }

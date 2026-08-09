@@ -10,6 +10,7 @@
 // runs scalar analysis but must still reject bare property references).
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { DslStatementInclusion } from "./dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
@@ -45,17 +46,20 @@ export const compilePropertyReferenceSyntax = ({
   statements,
   elementIdByStatementIndex,
   elements,
-  spans
+  spans,
+  includeStatement
 }: {
   statements: readonly DslStatement[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   elements: readonly CadElement[];
   spans: DiagnosticSpanContext;
+  includeStatement?: DslStatementInclusion;
 }): PropertyReferenceSyntaxCompilation => {
   const byId = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
 
   statements.forEach((statement, statementIndex) => {
+    if (includeStatement && !includeStatement(statement, statementIndex)) return;
     if (statement.kind !== "element" && statement.kind !== "group") return;
     const element = byId.get(elementIdByStatementIndex.get(statementIndex) ?? "");
     const logical = spans.logicalStatementByRangeFrom.get(statement.documentRange.from);

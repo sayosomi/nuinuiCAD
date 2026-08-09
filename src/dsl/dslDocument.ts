@@ -34,10 +34,11 @@ import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTempl
 import { buildTypedDependencyGraph, type TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
+import { isCompilableDslStatement, type DslStatementInclusion } from "./dslCompilationGuard";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
-import { parseDsl, parseDslSnapshot } from "./dslParser";
+import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -639,11 +640,16 @@ type VersionValidation = {
   majorVersion: DslMajorVersion | null;
 };
 
-const validateVersionStatements = (statements: DslStatement[]): VersionValidation => {
+const validateVersionStatements = (
+  statements: DslStatement[],
+  includeStatement: DslStatementInclusion = () => true
+): VersionValidation => {
   const diagnostics: DslDiagnostic[] = [];
   let unsupportedMajor: number | null = null;
   let majorVersion: DslMajorVersion | null = null;
-  const versionStatements = statements.filter((statement) => statement.kind === "version");
+  const versionStatements = statements.filter(
+    (statement, statementIndex) => statement.kind === "version" && includeStatement(statement, statementIndex)
+  );
   const firstStatement = statements[0];
 
   if (!firstStatement) {
@@ -698,12 +704,18 @@ const PRINT_LAYOUT_TRAILING_ALLOWED_KINDS = new Set<DslStatement["kind"]>([
   "blockElse"
 ]);
 
-const validatePrintLayoutPlacement = (statements: DslStatement[]): DslDiagnostic[] => {
-  const firstPrintLayoutIndex = statements.findIndex((statement) => statement.kind === "printLayout");
+const validatePrintLayoutPlacement = (
+  statements: DslStatement[],
+  includeStatement: DslStatementInclusion = () => true
+): DslDiagnostic[] => {
+  const firstPrintLayoutIndex = statements.findIndex(
+    (statement, statementIndex) => statement.kind === "printLayout" && includeStatement(statement, statementIndex)
+  );
   if (firstPrintLayoutIndex < 0) return [];
   const diagnostics: DslDiagnostic[] = [];
   for (let index = firstPrintLayoutIndex + 1; index < statements.length; index += 1) {
     const statement = statements[index];
+    if (!includeStatement(statement, index)) continue;
     if (PRINT_LAYOUT_TRAILING_ALLOWED_KINDS.has(statement.kind)) continue;
     diagnostics.push({
       severity: "error",
@@ -724,7 +736,8 @@ const buildStatementMap = (
   lastLine: number,
   elementIdByStatementIndex: Map<number, ElementId>,
   printLayoutIdsByStatementIndex: Map<number, string> | undefined,
-  assignedStatementIds?: ReadonlyMap<number, string>
+  assignedStatementIds?: ReadonlyMap<number, string>,
+  includeStatement: DslStatementInclusion = () => true
 ): StatementMap => {
   const infos: StatementInfo[] = [];
   const stack: StatementInfo[] = [];
@@ -774,6 +787,7 @@ const buildStatementMap = (
       return;
     }
 
+    const included = includeStatement(statement, statementIndex);
     const info: StatementInfo = {
       statementIndex,
       kind: statement.kind,
@@ -788,6 +802,7 @@ const buildStatementMap = (
     infos.push(info);
     if (statement.opensBlock) stack.push(info);
 
+    if (!included) return;
     switch (statement.kind) {
       case "color":
         byKey.set(`color:${statement.name}`, info);
@@ -861,6 +876,7 @@ const buildStatementMap = (
   const sectionEnds: StatementMap["sectionEnds"] = {};
   for (const info of infos) {
     const statement = statements[info.statementIndex];
+    if (!includeStatement(statement, info.statementIndex)) continue;
     if (statement.kind === "version") {
       sectionEnds.version = Math.max(sectionEnds.version ?? 0, info.line);
     } else if (statement.kind === "color") {
@@ -904,8 +920,10 @@ export const compileDslDocument = (
   const normalized = source.replace(/\r\n/g, "\n");
   const sourceLines = normalized.split("\n");
   const parsed = options.preparsed ?? parseDslSnapshot({ normalizedSource: normalized, sourceRevision: options.sourceRevision ?? 0 });
-  const versionValidation = validateVersionStatements(parsed.statements);
-  const printLayoutPlacementDiagnostics = validatePrintLayoutPlacement(parsed.statements);
+  const includeStatement: DslStatementInclusion = (_statement, statementIndex) =>
+    isCompilableDslStatement(parsed.statements, statementIndex);
+  const versionValidation = validateVersionStatements(parsed.statements, includeStatement);
+  const printLayoutPlacementDiagnostics = validatePrintLayoutPlacement(parsed.statements, includeStatement);
 
   const compiled = compileDslToElements(normalized, {
     elements: [],
@@ -914,13 +932,17 @@ export const compileDslDocument = (
     assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds,
     majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
   });
-  const hasTypedDeclarations = parsed.statements.some((statement) => statement.kind === "typedDeclaration");
+  const hasTypedDeclarations = parsed.statements.some(
+    (statement, statementIndex) => statement.kind === "typedDeclaration" && includeStatement(statement, statementIndex)
+  );
   // set statements need the same reconciler-issued identity map as typed
   // declarations (Task 29) - the gate must include them too, otherwise a
   // document with `set` but no local const/let would build the map from a
   // fallback empty source instead of the caller's real reconciliation
   // output.
-  const hasSetStatements = parsed.statements.some((statement) => statement.kind === "set");
+  const hasSetStatements = parsed.statements.some(
+    (statement, statementIndex) => statement.kind === "set" && includeStatement(statement, statementIndex)
+  );
   // printLayout/place numeric fields resolve `@name` against typed const/let
   // bindings the same way element fields do (Task 53), so a document with a
   // printLayout block but zero typedDeclaration/set statements of its own
@@ -929,7 +951,12 @@ export const compileDslDocument = (
   // at all and silently produces no diagnostic. `place` never appears
   // outside an enclosing `printLayout` block, so checking `printLayout`
   // alone covers both.
-  const hasPrintLayoutStatements = parsed.statements.some((statement) => statement.kind === "printLayout");
+  const hasPrintLayoutStatements = parsed.statements.some(
+    (statement, statementIndex) => statement.kind === "printLayout" && includeStatement(statement, statementIndex)
+  );
+  const hasCompilableGeometryStatements = parsed.statements.some(
+    (statement, statementIndex) => isElementDslStatement(statement) && includeStatement(statement, statementIndex)
+  );
   const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements || hasPrintLayoutStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
@@ -977,7 +1004,8 @@ export const compileDslDocument = (
           elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
           elements: compiled.elements
         },
-        spans
+        spans,
+        includeStatement
       })
     : { diagnostics: [] };
   const allDiagnostics = [...baseDiagnostics, ...scalarAnalysisCompilation.diagnostics];
@@ -998,7 +1026,8 @@ export const compileDslDocument = (
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
-        spans
+        spans,
+        includeStatement
       })
     : undefined;
   const numericBindingCompilation = scalarAnalysis
@@ -1008,6 +1037,7 @@ export const compileDslDocument = (
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         spans,
+        includeStatement,
         printLayouts: compiled.printLayouts,
         printLayoutIdsByStatementIndex: compiled.printLayoutIdsByStatementIndex
       })
@@ -1022,7 +1052,8 @@ export const compileDslDocument = (
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
-        spans
+        spans,
+        includeStatement
       })
     : undefined;
   // Task 26: text template brace/escape/hole analysis for every canonical
@@ -1031,13 +1062,14 @@ export const compileDslDocument = (
   // declarations still needs its text templates scanned for escape/brace
   // structure (only reference resolution itself needs a binding catalog,
   // and gracefully has none here).
-  const textTemplateCompilation = versionValidation.majorVersion === 3
+  const textTemplateCompilation = versionValidation.majorVersion === 3 && hasCompilableGeometryStatements
     ? compileTextTemplates({
         statements: parsed.statements,
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis?.bindingAnalysis,
-        spans
+        spans,
+        includeStatement
       })
     : undefined;
   // Task 51: nui 3 requires element-property references to carry the `@`
@@ -1045,12 +1077,13 @@ export const compileDslDocument = (
   // above and for the same reason - a nui 3 document with zero const/let/set
   // statements never runs scalarAnalysis but must still reject the
   // pre-migration bare `Element.property` spelling.
-  const propertyReferenceSyntaxCompilation = versionValidation.majorVersion === 3
+  const propertyReferenceSyntaxCompilation = versionValidation.majorVersion === 3 && hasCompilableGeometryStatements
     ? compilePropertyReferenceSyntax({
         statements: parsed.statements,
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements,
-        spans
+        spans,
+        includeStatement
       })
     : undefined;
   // Task 29: `set name = expression` target resolution/RHS typecheck. Gated
@@ -1069,7 +1102,8 @@ export const compileDslDocument = (
       bindingAnalysis: scalarAnalysis?.bindingAnalysis,
       elements: compiled.elements,
       elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
-      spans
+      spans,
+      includeStatement
       })
     : undefined;
   // Task 30 only consumes products of the compiler/analysis passes above.
@@ -1151,7 +1185,8 @@ export const compileDslDocument = (
     sourceLines.length,
     compiled.elementIdsByStatementIndex ?? new Map(),
     compiled.printLayoutIdsByStatementIndex,
-    stableStatementIdByIndex
+    stableStatementIdByIndex,
+    includeStatement
   );
 
   return {

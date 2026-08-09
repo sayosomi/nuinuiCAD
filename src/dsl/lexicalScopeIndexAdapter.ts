@@ -20,11 +20,12 @@
 // See docs/typed-variables/tasks/11-lexical-scope-index.md.
 
 import type { DslStatement } from "./dslTypes";
-import { buildLexicalScopeIndex, type LexicalScopeIndex } from "../scalars/lexicalScopeIndex";
+import { buildLexicalScopeIndex, type IncludeStatement, type LexicalScopeIndex } from "../scalars/lexicalScopeIndex";
 
 export const buildLexicalScopeIndexFromStatements = (
   statements: readonly DslStatement[],
-  stableStatementIdByIndex: ReadonlyMap<number, string>
+  stableStatementIdByIndex: ReadonlyMap<number, string>,
+  includeStatement?: IncludeStatement
 ): LexicalScopeIndex =>
   buildLexicalScopeIndex(statements, (index) => {
     const id = stableStatementIdByIndex.get(index);
@@ -32,4 +33,4 @@ export const buildLexicalScopeIndexFromStatements = (
       throw new Error(`lexicalScopeIndexAdapter: no stable statement id supplied for statement index ${index}`);
     }
     return id;
-  });
+  }, includeStatement);

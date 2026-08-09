@@ -1,0 +1,213 @@
+import { describe, expect, it } from "vitest";
+import { compileDslDocument } from "./dslDocument";
+import { parseDsl, parseDslSnapshot } from "./dslParser";
+import type { DslStatement } from "./dslTypes";
+
+const errors = (source: string) => parseDsl(source).diagnostics.filter((item) => item.severity === "error");
+
+const moduleDefinition = (statements: readonly DslStatement[]) =>
+  statements.find((statement): statement is Extract<DslStatement, { kind: "moduleDefinition" }> => statement.kind === "moduleDefinition");
+
+describe("DSL module source AST", () => {
+  it("parses a definition with scalar, geometry, choice, and raw defaults", () => {
+    const source = [
+      "nui 3",
+      "module 凸ノッチ(凸ノッチ高さ: number, 縫い線: line, 縫い代線: line, ノッチ位置: point, 反転: boolean = false, 種別: choice(通常, 反転) = 通常) {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n");
+    const parsed = parseDsl(source);
+    expect(parsed.diagnostics).toEqual([]);
+
+    const definition = moduleDefinition(parsed.statements)!;
+    expect(definition).toMatchObject({ kind: "moduleDefinition", name: "凸ノッチ", opensBlock: true });
+    expect(definition.parameters).toMatchObject([
+      { kind: "moduleParameter", name: "凸ノッチ高さ", type: { kind: "number" }, defaultValue: null },
+      { kind: "moduleParameter", name: "縫い線", type: { kind: "line" }, defaultValue: null },
+      { kind: "moduleParameter", name: "縫い代線", type: { kind: "line" }, defaultValue: null },
+      { kind: "moduleParameter", name: "ノッチ位置", type: { kind: "point" }, defaultValue: null },
+      { kind: "moduleParameter", name: "反転", type: { kind: "boolean" }, defaultValue: "false" },
+      { kind: "moduleParameter", name: "種別", type: { kind: "choice", options: ["通常", "反転"] }, defaultValue: "通常" }
+    ]);
+    const logicalDefinition = source.slice(source.indexOf("module"));
+    const defaultStart = logicalDefinition.indexOf("false");
+    expect(definition.parameters[4].defaultSpan).toEqual({ start: defaultStart, end: defaultStart + "false".length });
+    expect(parsed.statements[2].enclosing).toEqual({ statementIndex: 1, branch: "then" });
+  });
+
+  it("parses multiline definitions and nested module blocks", () => {
+    const parsed = parseDsl([
+      "nui 3",
+      "module Outer(",
+      "  A: number,",
+      "  B: boolean = false,",
+      "  C: line",
+      ") {",
+      "  module Inner() {",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statements.map((statement) => statement.kind)).toEqual([
+      "version",
+      "moduleDefinition",
+      "moduleDefinition",
+      "element",
+      "blockEnd",
+      "blockEnd"
+    ]);
+    expect(parsed.statements[2].enclosing).toEqual({ statementIndex: 1, branch: "then" });
+    expect(parsed.statements[3].enclosing).toEqual({ statementIndex: 2, branch: "then" });
+  });
+
+  it("keeps module parameter and argument physical spans on multiline source", () => {
+    const source = [
+      "nui 3",
+      "module M(",
+      "  A: number = @幅 * 2,",
+      "  B: line",
+      ") {",
+      "}",
+      "module X = M(",
+      "  A: 10,",
+      "  B: 線A",
+      ")"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 27 });
+    expect(parsed.diagnostics).toEqual([]);
+    const definition = moduleDefinition(parsed.statements)!;
+    const parameter = definition.parameters[0];
+    const instance = parsed.statements.find((statement) => statement.kind === "moduleInstance");
+    expect(instance).toMatchObject({ kind: "moduleInstance", name: "X", moduleName: "M" });
+
+    const parameterNameSegment = parameter.namePhysicalSpan!.segments[0];
+    const parameterDefaultSegment = parameter.defaultPhysicalSpan!.segments[0];
+    expect(source.slice(parameterNameSegment.from, parameterNameSegment.to)).toBe("A");
+    expect(source.slice(parameterDefaultSegment.from, parameterDefaultSegment.to)).toBe("@幅 * 2");
+    const argument = (instance as Extract<DslStatement, { kind: "moduleInstance" }>).arguments[1];
+    const labelSegment = argument.labelPhysicalSpan!.segments[0];
+    const valueSegment = argument.valuePhysicalSpan!.segments[0];
+    expect(source.slice(labelSegment.from, labelSegment.to)).toBe("B");
+    expect(source.slice(valueSegment.from, valueSegment.to)).toBe("線A");
+    expect(parameter.namePhysicalSpan?.sourceRevision).toBe(27);
+  });
+
+  it("parses named-only module instances and preserves raw argument values", () => {
+    const source = "nui 3\nmodule ノッチ = 凸ノッチ(凸ノッチ高さ: @高さ, 縫い線: 縫い線, 縫い代線: 縫い代線, ノッチ位置: ノッチ位置, 反転: false)";
+    const parsed = parseDsl(source);
+    expect(parsed.diagnostics).toEqual([]);
+    const instance = parsed.statements[1];
+    expect(instance).toMatchObject({ kind: "moduleInstance", name: "ノッチ", moduleName: "凸ノッチ" });
+    if (instance.kind !== "moduleInstance") return;
+    expect(instance.arguments.map((argument) => [argument.label, argument.value])).toEqual([
+      ["凸ノッチ高さ", "@高さ"],
+      ["縫い線", "縫い線"],
+      ["縫い代線", "縫い代線"],
+      ["ノッチ位置", "ノッチ位置"],
+      ["反転", "false"]
+    ]);
+  });
+
+  it("marks exported geometry without changing its geometry AST", () => {
+    const source = "nui 3\nexport line 先に縫う = copy(baseLines: [AB], startPoint: A, endPoint: B)";
+    const parsed = parseDsl(source);
+    expect(parsed.diagnostics).toEqual([]);
+    const statement = parsed.statements[1];
+    expect(statement).toMatchObject({
+      kind: "element",
+      category: "line",
+      construction: "copy",
+      name: "先に縫う",
+      exported: true,
+      exportSpan: { start: 0, end: 6 }
+    });
+    if (statement.kind === "element") {
+      const logicalLine = source.slice(source.indexOf("export"));
+      const nameStart = logicalLine.indexOf("先に縫う");
+      expect(statement.nameSpan).toEqual({ start: nameStart, end: nameStart + "先に縫う".length });
+      expect(statement.exportPhysicalSpan?.sourceRevision).toBe(0);
+    }
+  });
+});
+
+describe("DSL module syntax diagnostics", () => {
+  type DiagnosticCase = {
+    source: string;
+    label: string;
+    message: string;
+    code?: string;
+    spanText: string;
+  };
+  const diagnosticCases: DiagnosticCase[] = [
+    { source: "module (A: number) {\n}", label: "definition name", message: "module definition には名前が必要です。", spanText: "module" },
+    { source: "module = M(A: 1)", label: "instance name", message: "module instance にはインスタンス名が必要です。", spanText: "module" },
+    { source: "module M(A: number\n}", label: "unclosed parameter list", message: "module parameter list の「(」が閉じられていません。", spanText: "(" },
+    { source: "module M(: number) {\n}", label: "parameter name", message: "module parameter は `名前: 型` の形式で指定してください。", spanText: ": number" },
+    { source: "module M(A number) {\n}", label: "missing parameter colon", message: "module parameter は `名前: 型` の形式で指定してください。", spanText: "A number" },
+    { source: "module M(A:) {\n}", label: "missing parameter type", message: "module parameter には型注釈が必要です。", spanText: "" },
+    { source: "module M(A: unknown) {\n}", label: "unknown parameter type", message: "不明な型注釈です: unknown", spanText: "unknown" },
+    { source: "module M(A: choice()) {\n}", label: "malformed choice", message: "choice 型には少なくとも1つの option が必要です。", spanText: "()" },
+    { source: "module M(A: number =) {\n}", label: "empty default", message: "module parameter の default には `=` の後に値が必要です。", spanText: "" },
+    { source: "module M(A: number B: boolean) {\n}", label: "missing parameter comma", message: "引数「B」の前に「,」が必要です。", code: "missing-argument-comma", spanText: "B" },
+    { source: "module X M(A: number)", label: "missing instance equals", message: "module instance には「=」が必要です。", code: "missing-module-instance-equals", spanText: "M" },
+    { source: "module X = (A: number)", label: "missing module name", message: "module instance には呼び出すmodule名が必要です。", spanText: "" },
+    { source: "module X = M(A: 1", label: "unclosed argument list", message: "module argument list の「(」が閉じられていません。", spanText: "(" },
+    { source: "module X = M(10)", label: "argument label", message: "module argument は名前付き引数で指定してください。", spanText: "10" },
+    { source: "module X = M(A:)", label: "argument value", message: "引数「A」の値がありません。", code: "missing-attribute-value", spanText: "" },
+    { source: "export const x: number = 1", label: "export target", message: "export の後には geometry declaration が必要です。", spanText: "const x: number = 1" }
+  ] as const;
+
+  for (const testCase of diagnosticCases) {
+    it(`reports ${testCase.label} with its own span`, () => {
+      const fullSource = `nui 3\n${testCase.source}`;
+      const diagnostic = errors(fullSource).find((item) =>
+        item.message.includes(testCase.message) && (!testCase.code || item.code === testCase.code)
+      );
+      expect(diagnostic, testCase.source).toBeDefined();
+      if (!diagnostic) return;
+      if ("spanText" in testCase) {
+        const segments = diagnostic.physicalSpan?.segments ?? [];
+        if (testCase.spanText === "") {
+          expect(diagnostic.physicalSpan).toBeDefined();
+          expect(segments).toEqual([]);
+        } else {
+          expect(segments).toHaveLength(1);
+          expect(fullSource.slice(segments[0].from, segments[0].to)).toBe(testCase.spanText);
+        }
+      }
+    });
+  }
+
+  it("requires commas for module parameters and arguments in nui 3", () => {
+    const parsed = parseDsl([
+      "nui 3",
+      "module M(A: number B: boolean) {",
+      "}",
+      "module X = M(A: 1 B: false)"
+    ].join("\n"));
+    expect(parsed.diagnostics.filter((diagnostic) => diagnostic.code === "missing-argument-comma")).toHaveLength(2);
+  });
+
+  it("projects a multiline malformed diagnostic to the exact physical token", () => {
+    const source = [
+      "nui 3",
+      "module M(",
+      "  A: number",
+      "  B: boolean",
+      ") {",
+      "}"
+    ].join("\n");
+    const diagnostic = errors(source).find((item) => item.code === "missing-argument-comma");
+    expect(diagnostic).toBeDefined();
+    const segments = diagnostic?.physicalSpan?.segments ?? [];
+    expect(segments).toHaveLength(1);
+    expect(source.slice(segments[0].from, segments[0].to)).toBe("B");
+  });
+
+  it("keeps existing supported-version validation unchanged", () => {
+    const compiled = compileDslDocument("nui 2\npoint A = coordinate(x: 0, y: 0)");
+    expect(compiled.majorVersion).toBeNull();
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.includes("未対応のDSLバージョン"))).toBe(true);
+  });
+});

@@ -2,6 +2,7 @@
 // lowering consumes this result directly and never repeats this work.
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
+import { isCompilableDslStatement } from "../dsl/dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import { isElementDslStatement } from "../dsl/dslParser";
@@ -150,10 +151,14 @@ const parseInitializer = (
   return { ok: true, value: { ast: parsed.ast, references: collectReferences(parsed.ast) } };
 };
 
-const positionMapFor = (statements: readonly DslStatement[]): ScalarProgramPositionMap => {
+const positionMapFor = (
+  statements: readonly DslStatement[],
+  includeStatement: (statement: DslStatement, statementIndex: number) => boolean
+): ScalarProgramPositionMap => {
   const sourceOrderByElementIndex: number[] = [];
   let evaluationLimit: ScalarProgramPositionMap["evaluationLimit"];
   for (let sourceOrder = 0; sourceOrder < statements.length; sourceOrder += 1) {
+    if (!includeStatement(statements[sourceOrder], sourceOrder)) continue;
     if (statements[sourceOrder].kind === "atStop" && !evaluationLimit) {
       evaluationLimit = { elementIndex: sourceOrderByElementIndex.length, sourceOrder };
     }
@@ -166,23 +171,32 @@ export const analyzeTypedDeclarations = ({
   statements,
   stableStatementIdByIndex,
   reconciledContainers,
-  spans
+  spans,
+  includeStatement: includeStatementOption
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   reconciledContainers: ReconciledCadContainerInput;
   spans: DiagnosticSpanContext;
+  includeStatement?: (statement: DslStatement, statementIndex: number) => boolean;
 }): TypedDeclarationAnalysisCompilation => {
+  const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
+    isCompilableDslStatement(statements, statementIndex)
+  );
   const typedStatements = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
-    .filter((entry): entry is { statement: Extract<DslStatement, { kind: "typedDeclaration" }>; statementIndex: number } => entry.statement.kind === "typedDeclaration");
+    .filter((entry): entry is { statement: Extract<DslStatement, { kind: "typedDeclaration" }>; statementIndex: number } =>
+      entry.statement.kind === "typedDeclaration" && includeStatement(entry.statement, entry.statementIndex)
+    );
   // printLayout/place numeric fields resolve `@name` against this same
   // bindingAnalysis/catalog (Task 53) even when the document declares no
   // typed const/let of its own - an unresolved `@name` there (e.g.
   // `scale: @nope`) still needs a populated .analysis so
   // compileNumericBindings can run and diagnose it, not the bare
   // `{diagnostics: []}` shortcut below.
-  const hasPrintLayoutStatements = statements.some((statement) => statement.kind === "printLayout");
+  const hasPrintLayoutStatements = statements.some((statement, statementIndex) =>
+    statement.kind === "printLayout" && includeStatement(statement, statementIndex)
+  );
   if (typedStatements.length === 0 && !hasPrintLayoutStatements) return { diagnostics: [] };
 
   const missingIdentity = typedStatements.flatMap(({ statement, statementIndex }) =>
@@ -192,7 +206,7 @@ export const analyzeTypedDeclarations = ({
   );
   if (missingIdentity.length > 0) return { diagnostics: missingIdentity };
 
-  const scopeIndex = buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex);
+  const scopeIndex = buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, includeStatement);
   const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers });
   const catalog = buildBindingCatalog({
     scopeIndex,
@@ -284,7 +298,7 @@ export const analyzeTypedDeclarations = ({
     ));
   }
   return {
-    analysis: { bindingAnalysis, typedInitializerByBindingId, positionMap: positionMapFor(statements) },
+    analysis: { bindingAnalysis, typedInitializerByBindingId, positionMap: positionMapFor(statements, includeStatement) },
     diagnostics
   };
 };
