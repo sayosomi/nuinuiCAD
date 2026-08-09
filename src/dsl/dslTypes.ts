@@ -83,6 +83,39 @@ export type DslEnclosing = {
   branch: "then" | "else";
 };
 
+export type DslModuleParameterType =
+  | ScalarType
+  | { kind: "point" }
+  | { kind: "line" };
+
+export type DslModuleParameter = {
+  kind: "moduleParameter";
+  name: string;
+  nameSpan: DslSpan | null;
+  type: DslModuleParameterType | null;
+  typeSpan: DslSpan | null;
+  choiceOptionSpans: readonly DslSpan[];
+  numericTypeOptions?: DslNumericTypeOptions;
+  /** Raw source after `=`. It is null when no default was written. */
+  defaultValue: string | null;
+  /** Empty when `=` was present without a default value. */
+  defaultSpan: DslSpan | null;
+  namePhysicalSpan?: DslPhysicalSpan | null;
+  typePhysicalSpan?: DslPhysicalSpan | null;
+  defaultPhysicalSpan?: DslPhysicalSpan | null;
+};
+
+export type DslModuleArgument = {
+  kind: "moduleArgument";
+  label: string | null;
+  labelSpan: DslSpan | null;
+  value: string;
+  valueSpan: DslSpan;
+  rawValueSpan?: DslSpan;
+  labelPhysicalSpan?: DslPhysicalSpan | null;
+  valuePhysicalSpan?: DslPhysicalSpan | null;
+};
+
 export type DslStatementBase = {
   line: number;
   /** Final physical source line belonging to this logical statement. */
@@ -112,8 +145,27 @@ export type DslStatement =
   | (DslStatementBase & { kind: "view" })
   | (DslStatementBase & { kind: "activeView" })
   | (DslStatementBase & { kind: "printLayout" })
+  | (DslStatementBase & {
+      kind: "moduleDefinition";
+      parameters: readonly DslModuleParameter[];
+    })
+  | (DslStatementBase & {
+      kind: "moduleInstance";
+      moduleName: string;
+      moduleNameSpan: DslSpan | null;
+      moduleNamePhysicalSpan?: DslPhysicalSpan | null;
+      arguments: readonly DslModuleArgument[];
+    })
   | (DslStatementBase & { kind: "group" })
-  | (DslStatementBase & { kind: "element"; type: CadElementType | null; category: string; construction: string })
+  | (DslStatementBase & {
+      kind: "element";
+      type: CadElementType | null;
+      category: string;
+      construction: string;
+      exported: boolean;
+      exportSpan?: DslSpan | null;
+      exportPhysicalSpan?: DslPhysicalSpan | null;
+    })
   | (DslStatementBase & { kind: "version"; value: string })
   | (DslStatementBase & { kind: "color"; hex: string; isDefault: boolean })
   | (DslStatementBase & { kind: "atStop" })

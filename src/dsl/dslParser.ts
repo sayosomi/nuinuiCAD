@@ -23,6 +23,12 @@ import {
   type DslTypedDeclarationStatement
 } from "./dslDeclarationParser";
 import { parseDslSetStatement, type DslSetParseResult, type DslSetStatement } from "./dslSetParser";
+import {
+  parseDslModuleStatement,
+  type DslModuleParsedStatement,
+  type DslModuleParseResult
+} from "./dslModuleParser";
+import { parseDslExportedGeometryStatement } from "./dslExportParser";
 
 /**
  * Statement-leading spellings accepted by this parser. Keeping these constants
@@ -55,7 +61,9 @@ export const dslStatementKeywords = {
   arc: "arc",
   text: "text",
   image: "image",
-  group: "group"
+  group: "group",
+  module: "module",
+  export: "export"
 } as const;
 
 export const dslStatementKeywordCompletions = Object.values(dslStatementKeywords);
@@ -115,6 +123,8 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "atStop",
   "activePrintLayout",
   "place",
+  "moduleDefinition",
+  "moduleInstance",
   "typedDeclaration",
   "set",
   "blockEnd",
@@ -192,12 +202,43 @@ const withSyntheticPositionalAttr = (call: DslCallStatement, base: DslStatementB
   return { ...base, attrs: [synthetic, ...base.attrs] };
 };
 
-const callStatementToDslStatement = (call: DslCallStatement, line: number, endLine: number): DslStatement => {
+const callStatementToDslStatement = (
+  call: DslCallStatement,
+  line: number,
+  endLine: number,
+  exportInfo?: { exportSpan: DslSpan }
+): DslStatement => {
   const base = withSyntheticPositionalAttr(call, baseFrom(call, line, endLine));
   if (call.category === "group") {
     return { ...base, kind: "group" };
   }
-  return { ...base, kind: "element", type: call.elementType, category: call.category, construction: call.construction };
+  return {
+    ...base,
+    kind: "element",
+    type: call.elementType,
+    category: call.category,
+    construction: call.construction,
+    exported: Boolean(exportInfo),
+    exportSpan: exportInfo?.exportSpan ?? null
+  };
+};
+
+const moduleStatementToDslStatement = (
+  parsed: DslModuleParsedStatement,
+  line: number,
+  endLine: number
+): DslStatement => {
+  const base = baseFrom(parsed, line, endLine);
+  if (parsed.kind === "moduleDefinition") {
+    return { ...base, kind: "moduleDefinition", parameters: parsed.parameters };
+  }
+  return {
+    ...base,
+    kind: "moduleInstance",
+    moduleName: parsed.moduleName,
+    moduleNameSpan: parsed.moduleNameSpan,
+    arguments: parsed.arguments
+  };
 };
 
 const settingsStatementToDslStatement = (settings: DslSettingsStatement, line: number, endLine: number): DslStatement => {
@@ -273,13 +314,27 @@ const fromCall = (
   result: DslCallParseResult,
   line: number,
   endLine: number,
+  project: (span: DslSpan) => DslPhysicalSpan | null,
+  exportInfo?: { exportSpan: DslSpan }
+): ParsedLine => {
+  const diagnostics = result.diagnostics.map((item) =>
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+  );
+  if (!result.statement) return { diagnostics };
+  return { statement: callStatementToDslStatement(result.statement, line, endLine, exportInfo), diagnostics };
+};
+
+const fromModule = (
+  result: DslModuleParseResult,
+  line: number,
+  endLine: number,
   project: (span: DslSpan) => DslPhysicalSpan | null
 ): ParsedLine => {
   const diagnostics = result.diagnostics.map((item) =>
     diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
   );
   if (!result.statement) return { diagnostics };
-  return { statement: callStatementToDslStatement(result.statement, line, endLine), diagnostics };
+  return { statement: moduleStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
 
 const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
@@ -336,6 +391,13 @@ const parseLine = (
     return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine);
   }
   const keyword = logicalText.match(leadingIdentifier)?.[0] ?? "";
+  if (keyword === dslStatementKeywords.module) {
+    return fromModule(parseDslModuleStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
+  }
+  if (keyword === dslStatementKeywords.export) {
+    const parsed = parseDslExportedGeometryStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas });
+    return fromCall(parsed.call, line, endLine, project, { exportSpan: parsed.exportSpan });
+  }
   if (callCategoryKeywords.has(keyword) || mutationKeywords.has(keyword)) {
     return fromCall(parseDslCallStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine, project);
   }
@@ -361,12 +423,13 @@ const nui3RequiresArgumentCommas = (logicalStatements: readonly LogicalStatement
 
 type BlockFrame = {
   statementIndex: number;
-  kind: "group" | "conditionalGroup" | "forGroup" | "printLayout";
+  kind: "group" | "conditionalGroup" | "forGroup" | "printLayout" | "moduleDefinition";
   branch: "then" | "else";
   line: number;
 };
 
 export const blockFrameKind = (statement: DslStatement): BlockFrame["kind"] | null => {
+  if (statement.kind === "moduleDefinition") return "moduleDefinition";
   if (statement.kind === "group") return "group";
   if (statement.kind === "printLayout") return "printLayout";
   if (statement.kind === "element") {
@@ -464,6 +527,21 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     keywordPhysicalSpan: project(statement.keywordSpan),
     payloadPhysicalSpans: Object.fromEntries(Object.entries(statement.payloadSpans).map(([key, span]) => [key, project(span)]))
   });
+  if (statement.kind === "element") {
+    statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
+  } else if (statement.kind === "moduleDefinition") {
+    for (const parameter of statement.parameters) {
+      parameter.namePhysicalSpan = parameter.nameSpan ? project(parameter.nameSpan) : null;
+      parameter.typePhysicalSpan = parameter.typeSpan ? project(parameter.typeSpan) : null;
+      parameter.defaultPhysicalSpan = parameter.defaultSpan ? project(parameter.defaultSpan) : null;
+    }
+  } else if (statement.kind === "moduleInstance") {
+    statement.moduleNamePhysicalSpan = statement.moduleNameSpan ? project(statement.moduleNameSpan) : null;
+    for (const argument of statement.arguments) {
+      argument.labelPhysicalSpan = argument.labelSpan ? project(argument.labelSpan) : null;
+      argument.valuePhysicalSpan = project(argument.valueSpan);
+    }
+  }
   return statement;
 };
 
