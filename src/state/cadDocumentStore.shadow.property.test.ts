@@ -61,6 +61,53 @@ const randomOpArbitrary: fc.Arbitrary<RandomOp> = fc.record({
 });
 
 describe("cadDocumentStore 影テキスト: ランダム操作プロパティテスト", () => {
+  it("does not generate a reparent that moves a for-local element outside its iteration scope", () => {
+    const generated = generateDocumentSource({
+      pointCount: 4,
+      groupCount: 1,
+      withIf: true,
+      withFor: true,
+      withLayout: true,
+      unnamedCount: 1,
+      noiseEvery: 3,
+      withContinuation: true
+    });
+    const initialCompiled = compileDslDocument(generated.source);
+    expect(initialCompiled.document).not.toBeNull();
+    const firstInsert = applyRandomOp(initialCompiled.document!, { kind: "insert", a: 0, b: 0 });
+    const secondInsert = applyRandomOp(firstInsert.document, { kind: "insert", a: 0, b: 0 });
+    const documentBeforeReparent = secondInsert.document;
+    const forGroupId = documentBeforeReparent.elements.find((element) => element.name === "F0")?.id;
+    const groupId = documentBeforeReparent.elements.find((element) => element.name === "G0")?.id;
+    const forLocal = documentBeforeReparent.elements.find((element) => element.name === "FP0");
+    expect(forGroupId).toBeDefined();
+    expect(groupId).toBeDefined();
+    expect(forLocal?.parentGroupId).toBe(forGroupId);
+
+    const invalidModel = {
+      ...documentBeforeReparent,
+      elements: documentBeforeReparent.elements.map((element) =>
+        element.name === "FP0" ? ({ ...element, parentGroupId: groupId } as typeof element) : element
+      )
+    };
+    const invalidCompile = compileDslDocument(serializeDocumentToDsl(invalidModel, 3));
+    expect(invalidCompile.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "numeric-binding-unresolved" })
+    ]));
+
+    const reparent = applyRandomOp(documentBeforeReparent, { kind: "reparent", a: 384, b: 0 });
+    const reparsed = compileDslDocument(serializeDocumentToDsl(reparent.document, 3));
+    expect(reparsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(reparent.document.elements.find((element) => element.name === "FP0")?.parentGroupId).toBe(forGroupId);
+
+    const ordinaryReparent = applyRandomOp(documentBeforeReparent, { kind: "reparent", a: 0, b: 0 });
+    const ordinaryTarget = ordinaryReparent.document.elements.find((element) => element.name === "P1");
+    const ordinaryReparsed = compileDslDocument(serializeDocumentToDsl(ordinaryReparent.document, 3));
+    expect(ordinaryTarget?.parentGroupId).toBe(groupId);
+    expect(ordinaryReparent.description).toContain("reparent P1 into G0");
+    expect(ordinaryReparsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
   it("ランダムなコミット列後も影は常にモデルと意味的等価であり、手置きノイズ行は保存される", () => {
     fc.assert(
       fc.property(fc.array(randomOpArbitrary, { minLength: 1, maxLength: 10 }), (ops) => {
