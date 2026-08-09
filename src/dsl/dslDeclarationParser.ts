@@ -1,8 +1,13 @@
 import type { ScalarType } from "../scalars/types";
-import { scanScalarLiteral } from "../scalars/literalScanner";
 import type { DslSpan } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
-import { parseDslNumericTypeOptions, type DslNumericTypeOptions } from "./dslNumericTypeOptions";
+import {
+  parseDslScalarType,
+  type DslScalarTypeParseResult,
+  type DslTypeDiagnostic
+} from "./dslTypeParser";
+
+export { dslChoiceTypeName, dslTypedDeclarationTypeNames } from "./dslTypeParser";
 
 // Focused parser for the v3-only typed declaration statement:
 //   const NAME: TYPE = INITIALIZER
@@ -15,7 +20,7 @@ import { parseDslNumericTypeOptions, type DslNumericTypeOptions } from "./dslNum
 // does so exclusively through scanScalarLiteral (Task 09) - no separate
 // identifier or true/false reserved-word check is implemented here.
 
-export type DslDeclarationDiagnostic = { message: string; span: DslSpan; code?: string };
+export type DslDeclarationDiagnostic = DslTypeDiagnostic;
 
 /** No `:` type annotation at all (as opposed to a colon with empty type text) - Task 41's Quick Fix routes on this. */
 export const MISSING_DECLARED_TYPE_CODE = "missing-declared-type";
@@ -31,7 +36,7 @@ export type DslTypedDeclarationStatement = {
   /** Per-option spans, index-aligned with `declaredType.options` when it is a choice type. */
   choiceOptionSpans: readonly DslSpan[];
   /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
-  numericTypeOptions?: DslNumericTypeOptions;
+  numericTypeOptions?: DslScalarTypeParseResult["numericTypeOptions"];
   /** Raw, unparsed initializer source text - never evaluated or re-quoted. */
   initializer: string;
   payloadSpans: Record<string, DslSpan>;
@@ -86,179 +91,10 @@ const topLevelIndex = (source: string, target: string, from: number, to: number)
   return -1;
 };
 
-const matchingClose = (source: string, open: number, to: number) => {
-  let quote: string | null = null;
-  let depth = 0;
-  for (let index = open; index < to; index += 1) {
-    const character = source[index];
-    if (quote) {
-      if (character === quote && !escaped(source, index)) quote = null;
-      continue;
-    }
-    if ((character === "\"" || character === "'") && !escaped(source, index)) {
-      quote = character;
-    } else if (character === "(") {
-      depth += 1;
-    } else if (character === ")" && --depth === 0) {
-      return index;
-    }
-  }
-  return -1;
-};
-
-const splitTopLevelCommas = (source: string, span: DslSpan): DslSpan[] => {
-  const parts: DslSpan[] = [];
-  let quote: string | null = null;
-  let depth = 0;
-  let start = span.start;
-  for (let index = span.start; index < span.end; index += 1) {
-    const character = source[index];
-    if (quote) {
-      if (character === quote && !escaped(source, index)) quote = null;
-      continue;
-    }
-    if (character === "\"" || character === "'") {
-      quote = character;
-    } else if (character === "(" || character === "[") {
-      depth += 1;
-    } else if (character === ")" || character === "]") {
-      depth -= 1;
-    } else if (character === "," && depth === 0) {
-      parts.push(trimSpan(source, start, index));
-      start = index + 1;
-    }
-  }
-  parts.push(trimSpan(source, start, span.end));
-  return parts;
-};
-
 const parseName = (source: string, span: DslSpan): { name: string; nameSpan: DslSpan | null } =>
   span.start === span.end
     ? { name: "", nameSpan: null }
     : { name: unquoteDslString(source.slice(span.start, span.end)), nameSpan: span };
-
-const NUMBER_TYPE_NAME = "number";
-export const dslChoiceTypeName = "choice";
-
-const KNOWN_SIMPLE_TYPES: Record<string, ScalarType> = {
-  string: { kind: "string" },
-  boolean: { kind: "boolean" }
-};
-
-/**
- * The type names accepted by the typed-declaration grammar. Source Editor
- * completion consumes this export instead of maintaining a second list.
- */
-export const dslTypedDeclarationTypeNames: readonly string[] = [
-  NUMBER_TYPE_NAME,
-  ...Object.keys(KNOWN_SIMPLE_TYPES),
-  dslChoiceTypeName
-];
-
-const NUMBER_HEAD = new RegExp(`^${NUMBER_TYPE_NAME}\\s*\\(`);
-const CHOICE_HEAD = new RegExp(`^${dslChoiceTypeName}\\s*\\(`);
-
-const parseDeclaredType = (
-  source: string,
-  typeSpan: DslSpan,
-  diagnostics: DslDeclarationDiagnostic[]
-): { declaredType: ScalarType | null; choiceOptionSpans: DslSpan[]; numericTypeOptions?: DslNumericTypeOptions } => {
-  const text = source.slice(typeSpan.start, typeSpan.end);
-  if (text === NUMBER_TYPE_NAME) return { declaredType: { kind: "number" }, choiceOptionSpans: [] };
-  if (NUMBER_HEAD.test(text)) {
-    const parsed = parseDslNumericTypeOptions(source, typeSpan);
-    diagnostics.push(...parsed.diagnostics);
-    return parsed.options
-      ? { declaredType: { kind: "number" }, choiceOptionSpans: [], numericTypeOptions: parsed.options }
-      : { declaredType: null, choiceOptionSpans: [] };
-  }
-  const simple = KNOWN_SIMPLE_TYPES[text];
-  if (simple) return { declaredType: simple, choiceOptionSpans: [] };
-
-  const choiceMatch = CHOICE_HEAD.exec(text);
-  if (!choiceMatch) {
-    diagnostics.push({
-      message: `不明な型注釈です: ${text}(number/string/boolean/choice(...) のいずれかを指定してください)`,
-      span: typeSpan
-    });
-    return { declaredType: null, choiceOptionSpans: [] };
-  }
-
-  const openIndex = typeSpan.start + choiceMatch[0].length - 1;
-  const close = matchingClose(source, openIndex, typeSpan.end);
-  if (close < 0) {
-    diagnostics.push({ message: "choice の「(」が閉じられていません。", span: { start: openIndex, end: openIndex + 1 } });
-    return { declaredType: null, choiceOptionSpans: [] };
-  }
-  if (close !== typeSpan.end - 1) {
-    diagnostics.push({
-      message: "choice(...) の後に余分なトークンがあります。",
-      span: trimSpan(source, close + 1, typeSpan.end)
-    });
-    return { declaredType: null, choiceOptionSpans: [] };
-  }
-
-  const inner = trimSpan(source, openIndex + 1, close);
-  if (inner.start === inner.end) {
-    diagnostics.push({
-      message: "choice 型には少なくとも1つの option が必要です。",
-      span: { start: openIndex, end: close + 1 },
-      code: "invalid-choice-type"
-    });
-    return { declaredType: null, choiceOptionSpans: [] };
-  }
-
-  const optionSpans = splitTopLevelCommas(source, inner);
-  const options: string[] = [];
-  const spans: DslSpan[] = [];
-  const seen = new Set<string>();
-  let hasError = false;
-
-  for (const span of optionSpans) {
-    if (span.start === span.end) {
-      diagnostics.push({ message: "choice option が空です。", span, code: "invalid-choice-type" });
-      hasError = true;
-      continue;
-    }
-    // All option-token classification routes through scanScalarLiteral
-    // (Task 09) exclusively - it already distinguishes bare choice
-    // identifiers from the reserved true/false boolean tokens.
-    const token = scanScalarLiteral(source, span);
-    if (token.kind === "choice" && token.span.end === span.end) {
-      if (seen.has(token.raw)) {
-        diagnostics.push({
-          message: `choice option が重複しています: ${token.raw}`,
-          span: token.span,
-          code: "invalid-choice-type"
-        });
-        hasError = true;
-        continue;
-      }
-      seen.add(token.raw);
-      options.push(token.raw);
-      spans.push(token.span);
-      continue;
-    }
-    if (token.kind === "boolean") {
-      diagnostics.push({
-        message: "choice option に true/false は使用できません。",
-        span: token.span,
-        code: "invalid-choice-type"
-      });
-      hasError = true;
-      continue;
-    }
-    diagnostics.push({
-      message: "choice option は裸の識別子で指定してください。",
-      span,
-      code: "invalid-choice-type"
-    });
-    hasError = true;
-  }
-
-  if (hasError) return { declaredType: null, choiceOptionSpans: spans };
-  return { declaredType: { kind: "choice", options }, choiceOptionSpans: spans };
-};
 
 // Declarations never open a block (opensBlock is always false below), so
 // unlike parseDslSettingsStatement/parseDslCallStatement this parser takes
@@ -298,7 +134,7 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
   const { declaredType, choiceOptionSpans, numericTypeOptions } =
     typeSpan.start === typeSpan.end
       ? { declaredType: null as ScalarType | null, choiceOptionSpans: [] as DslSpan[] }
-      : parseDeclaredType(logicalText, typeSpan, diagnostics);
+      : parseDslScalarType(logicalText, typeSpan, diagnostics);
 
   const payloadSpans: Record<string, DslSpan> = {};
   if (name.nameSpan) payloadSpans.name = name.nameSpan;
