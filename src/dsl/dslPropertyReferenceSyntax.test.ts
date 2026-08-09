@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "./dslDocument";
+import { parseDsl } from "./dslParser";
 import { BARE_PROPERTY_REFERENCE_CODE } from "./expressionReferenceToken";
 
 const errorsOf = (source: string) =>
   compileDslDocument(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+
+const assignedStatementIds = (source: string) =>
+  new Map(parseDsl(source).statements.map((_, index) => [index, `test:${index}`]));
 
 describe("nui 3 bare element-property reference diagnostic (Task 51)", () => {
   it("accepts the acceptance-critical sigil form in a coordinate() numeric attribute", () => {
@@ -87,6 +91,47 @@ describe("nui 3 bare element-property reference diagnostic (Task 51)", () => {
       (diagnostic) => diagnostic.severity === "error"
     );
     expect(errors).toEqual([]);
+  });
+
+  it("accepts scoped geometry properties in const and let initializers", () => {
+    const oneLevel = [
+      "nui 3",
+      "group G {",
+      "  line AB = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "const x: number = @G::AB.length"
+    ].join("\n");
+    const nested = [
+      "nui 3",
+      "group G {",
+      "  group H {",
+      "    line AB = segment(start: (0, 0), end: (10, 0))",
+      "  }",
+      "}",
+      "let x: number = @G::H::AB.length"
+    ].join("\n");
+
+    expect(compileDslDocument(oneLevel, { assignedStatementIds: assignedStatementIds(oneLevel) }).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compileDslDocument(nested, { assignedStatementIds: assignedStatementIds(nested) }).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("rejects a scoped head without a geometry property instead of resolving a binding", () => {
+    const source = ["nui 3", "const x: number = @G::AB"].join("\n");
+    const errors = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) }).diagnostics.filter(
+      (diagnostic) => diagnostic.severity === "error"
+    );
+    expect(errors).toEqual(expect.arrayContaining([expect.objectContaining({ code: "unexpected-token" })]));
+    expect(errors.some((error) => error.code === "undefined-binding")).toBe(false);
+  });
+
+  it("keeps unresolved scoped paths as precise geometry-property diagnostics", () => {
+    const source = ["nui 3", "const x: number = @G::Missing.length"].join("\n");
+    const error = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) }).diagnostics.find(
+      (diagnostic) => diagnostic.severity === "error"
+    );
+    expect(error).toMatchObject({ code: "geometry-property-invalid", column: source.split("\n")[1].indexOf("G") + 1 });
+    const segment = error?.physicalSpan?.segments[0];
+    expect(segment && source.slice(segment.from, segment.to)).toBe("G::Missing");
   });
 
   it("accepts a geometry property reference in a number set RHS", () => {

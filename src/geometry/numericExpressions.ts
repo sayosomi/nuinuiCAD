@@ -279,11 +279,14 @@ const filteredNameTokensFor = (
   return computed;
 };
 
+type NumericExpressionCurrentElement = Pick<CadElement, "parentGroupId"> &
+  Partial<Pick<CadElement, "name">>;
+
 export const normalizeNumericExpressionInput = (
   input: string,
   elements: CadElement[],
   localVariables: NumericVariable[] = [],
-  currentElement?: CadElement,
+  currentElement?: NumericExpressionCurrentElement,
   context?: ElementNameContext
 ) => {
   let expression = input.trim();
@@ -299,7 +302,7 @@ export const normalizeNumericExpressionInput = (
     measurableElementIds
   );
 
-  if (currentElement) {
+  if (currentElement?.name) {
     const qualifiedVariables = [...variables].sort(
       (a, b) =>
         `${currentElement.name}.${b.name}`.length - `${currentElement.name}.${a.name}`.length

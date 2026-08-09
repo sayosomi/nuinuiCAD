@@ -104,6 +104,20 @@ describe("typed geometry-property completion", () => {
     expect(result?.options.find((option) => option.label === "length")?.apply).toBe("length");
   });
 
+  it("completes a property after a scoped element path", async () => {
+    const scopedSource = [
+      "nui 3",
+      "group G {",
+      "  line AB = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "const length: number = @G::AB.le"
+    ].join("\n");
+    const fixture = compiledFixture(scopedSource.replace("@G::AB.le", "@G::AB.length"));
+    const result = await completionAt({ fixture, source: scopedSource });
+    expect(result).toMatchObject({ from: scopedSource.length - 2, to: scopedSource.length });
+    expect(result?.options.map((option) => option.label)).toContain("length");
+  });
+
   it("completes an earlier element property in a number set RHS", async () => {
     const fixture = compiledFixture();
     const source = `${baseSource}\nset amount = @AB.`;

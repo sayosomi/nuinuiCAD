@@ -33,6 +33,7 @@ import type { BindingReferenceSite } from "./bindingResolution";
 import { buildElementLocalRangeIndexFromElements } from "./elementLocalRangeIndex";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
+import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 
 export type CompiledNumericBindingReference = {
   bindingId: BindingId;
@@ -83,19 +84,17 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
   };
 };
 
-// This intentionally mirrors the numeric local-variable token boundary.
-// In particular `@AB.length` is not a binding occurrence: the established
-// measurement spelling is `AB.length`.
+// Geometry properties are not binding occurrences. Use the shared scanner so
+// scoped `@Group::Element.property` references are excluded exactly like the
+// existing `@Element.property` spelling.
 const referencesIn = (source: string, outer: DslSpan): CandidateReference[] => {
-  const result: CandidateReference[] = [];
-  const pattern = /@([\p{L}_][\p{L}\p{N}_]*)/gu;
-  for (const match of source.matchAll(pattern)) {
-    const start = match.index ?? 0;
-    const end = start + match[0].length;
-    if (source[end] === ".") continue;
-    result.push({ name: match[1], span: { start: outer.start + start, end: outer.start + end }, nameSpan: { start: outer.start + start + 1, end: outer.start + end } });
-  }
-  return result;
+  return scanExpressionReferences(source)
+    .filter((match): match is Extract<typeof match, { kind: "binding" }> => match.kind === "binding")
+    .map((match) => ({
+      name: match.query,
+      span: { start: outer.start + match.from, end: outer.start + match.to },
+      nameSpan: { start: outer.start + match.from + 1, end: outer.start + match.to }
+    }));
 };
 
 /** printLayout/place statement's own attribute value span, in the same

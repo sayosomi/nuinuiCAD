@@ -16,6 +16,7 @@ import type { ScalarProgramPositionMap } from "./scalarProgram";
 import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { createElementNameContext } from "../model/elementNames";
 
 export type { DiagnosticSpanContext };
 
@@ -246,6 +247,7 @@ export const analyzeTypedDeclarations = ({
   const typedInitializerByBindingId = new Map<BindingId, TypedScalarExpression>();
   const sourceOrderByElementId = new Map<string, number>();
   for (const [statementIndex, elementId] of reconciledContainers.elementIdByStatementIndex) sourceOrderByElementId.set(elementId, statementIndex);
+  const nameContext = createElementNameContext([...reconciledContainers.elements]);
   for (const binding of catalog.bindings) {
     if (binding.kind !== "typed") continue;
     const parsed = parsedByBindingId.get(binding.id);
@@ -255,7 +257,20 @@ export const analyzeTypedDeclarations = ({
       references: resolvedByBindingId.get(binding.id) ?? []
     });
     const statement = statements[binding.statementIndex] as Extract<DslStatement, { kind: "typedDeclaration" }>;
-    const geometryResolution = resolveTypedGeometryProperties(checked.typed, reconciledContainers.elements, sourceOrderByElementId);
+    const ownerContainerId = adapter.containerIndex.ownerContainerIdByStatementIndex.get(binding.statementIndex);
+    // elementNames' currentElement contract uses parentGroupId as the
+    // namespace being searched. Do not pass the owner CadElement itself:
+    // its parentGroupId would select the owner's parent namespace instead of
+    // the owner's direct children.
+    const geometryResolution = resolveTypedGeometryProperties(
+      checked.typed,
+      reconciledContainers.elements,
+      sourceOrderByElementId,
+      {
+        currentElement: { parentGroupId: ownerContainerId ?? undefined },
+        nameContext
+      }
+    );
     typedInitializerByBindingId.set(binding.id, geometryResolution.expression);
     diagnostics.push(...checked.diagnostics.map((diagnostic) =>
       compileDiagnostic(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message, {

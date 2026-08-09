@@ -152,6 +152,33 @@ describe("compileNumericBindings: printLayout/place", () => {
     expect(compiled.numericBindings?.get("4:scale")).toBeUndefined();
   });
 
+  it("does not misclassify a scoped geometry property in printLayout's scale", () => {
+    const compiled = compile([
+      "nui 3",
+      "group G {",
+      "  line AB = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @G::AB.length, canvas: (410, 584)) {",
+      "}"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(compiled.numericBindings?.size ?? 0).toBe(0);
+  });
+
+  it("does not collect a scoped head without a property as a typed binding", () => {
+    const compiled = compile([
+      "nui 3",
+      "const keep: number = 1",
+      "group G {",
+      "  line AB = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @G::AB, canvas: (410, 584)) {",
+      "}"
+    ].join("\n"));
+    expect(compiled.diagnostics.some((item) => item.code === NUMERIC_BINDING_UNRESOLVED_CODE)).toBe(false);
+    expect(compiled.numericBindings?.size ?? 0).toBe(0);
+  });
+
   it("resolves the typed reference and does not diagnose when @Element.property and @typedNumber are mixed", () => {
     const compiled = compile([
       "nui 3",

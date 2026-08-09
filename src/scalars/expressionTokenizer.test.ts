@@ -100,6 +100,38 @@ describe("tokenizeScalarExpression / @name references", () => {
     expect(result.tokens[0]).toMatchObject({ kind: "geometryProperty", property: "startPoint.x", span: { start: 0, end: source.length } });
   });
 
+  it("tokenizes a scoped element name as one geometry-property head", () => {
+    const elementName = "G::H::AB";
+    const source = `@${elementName}.endTangentAngleDeg`;
+    const result = tokenizeScalarExpression(source, fullSpan(source));
+    expect(result.error).toBeNull();
+    expect(result.tokens[0]).toEqual({
+      kind: "geometryProperty",
+      elementName,
+      elementNameSpan: { start: 1, end: 1 + elementName.length },
+      property: "endTangentAngleDeg",
+      propertySpan: { start: 1 + elementName.length + 1, end: source.length },
+      span: { start: 0, end: source.length }
+    });
+  });
+
+  it("rejects a scoped head without a geometry property", () => {
+    const source = "@G::AB";
+    const result = tokenizeScalarExpression(source, fullSpan(source));
+    expect(result.tokens).toEqual([]);
+    expect(result.error).toMatchObject({
+      code: "unexpected-token",
+      span: { start: source.indexOf("::"), end: source.indexOf("::") + 2 }
+    });
+  });
+
+  it("reports an invalid scoped separator at its exact source position", () => {
+    const source = "@G:::AB.length";
+    const result = tokenizeScalarExpression(source, fullSpan(source));
+    expect(result.tokens).toEqual([]);
+    expect(result.error).toMatchObject({ code: "unexpected-token", span: { start: source.indexOf("::"), end: source.indexOf("::") + 1 } });
+  });
+
   it("continues tokenizing a property reference mid-expression", () => {
     const source = "1 + @AB.length";
     const result = tokenizeScalarExpression(source, fullSpan(source));
