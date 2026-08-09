@@ -1,5 +1,7 @@
 import type { DslStatement } from "./dslTypes";
 
+export type DslStatementInclusion = (statement: DslStatement, statementIndex: number) => boolean;
+
 /**
  * Task 1 module definitions are source-AST-only. Until module lowering exists,
  * every statement whose enclosing chain reaches a module definition must stay

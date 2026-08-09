@@ -16,6 +16,7 @@
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
@@ -299,6 +300,7 @@ export type CompileTextTemplatesInput = {
   elements: readonly CadElement[];
   bindingAnalysis: BindingAnalysis | undefined;
   spans: DiagnosticSpanContext;
+  includeStatement?: DslStatementInclusion;
 };
 
 export type TextTemplateCompilation = {
@@ -337,7 +339,8 @@ export const compileTextTemplates = ({
   elementIdByStatementIndex,
   elements,
   bindingAnalysis,
-  spans
+  spans,
+  includeStatement
 }: CompileTextTemplatesInput): TextTemplateCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const elementLocalRangeIndex = buildElementLocalRangeIndexFromElements(elements);
@@ -345,6 +348,7 @@ export const compileTextTemplates = ({
   const templatesByOccurrenceKey = new Map<string, TextTemplateAst>();
 
   statements.forEach((statement, statementIndex) => {
+    if (includeStatement && !includeStatement(statement, statementIndex)) return;
     if (statement.kind !== "element" || statement.type !== "text") return;
     const elementId = elementIdByStatementIndex.get(statementIndex);
     if (!elementId || !elementsById.has(elementId)) return;

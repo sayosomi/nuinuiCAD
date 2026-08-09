@@ -22,6 +22,7 @@
 // regardless of its BindingAnalysis status.
 
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
 import type { CadElement, ElementId } from "../types/geometry";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { BindingAnalysis } from "./bindingAnalysis";
@@ -82,6 +83,7 @@ export type CompileSetStatementsInput = {
   elements?: readonly CadElement[];
   elementIdByStatementIndex?: ReadonlyMap<number, ElementId>;
   spans: DiagnosticSpanContext;
+  includeStatement?: DslStatementInclusion;
 };
 
 export type SetStatementCompilation = {
@@ -149,12 +151,13 @@ export const compileSetStatements = ({
   bindingAnalysis,
   elements,
   elementIdByStatementIndex,
-  spans
+  spans,
+  includeStatement
 }: CompileSetStatementsInput): SetStatementCompilation => {
   const setEntries = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
     .filter((entry): entry is { statement: Extract<DslStatement, { kind: "set" }>; statementIndex: number } =>
-      entry.statement.kind === "set"
+      entry.statement.kind === "set" && (!includeStatement || includeStatement(entry.statement, entry.statementIndex))
     );
   if (setEntries.length === 0) return { setsByStatementIndex: new Map(), diagnostics: [] };
 

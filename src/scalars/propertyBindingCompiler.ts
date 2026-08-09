@@ -11,6 +11,7 @@
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
 import { commonArgSpecs, constructionForElementType } from "../dsl/dslConstructions";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import { findParameterDefinition, type ParameterValueKind } from "../parameters/parameterDefinitions";
@@ -72,6 +73,7 @@ export type CompilePropertyBindingsInput = {
   elements: readonly CadElement[];
   bindingAnalysis: BindingAnalysis;
   spans: DiagnosticSpanContext;
+  includeStatement?: DslStatementInclusion;
 };
 
 export type PropertyBindingCompilation = {
@@ -141,7 +143,8 @@ export const compilePropertyBindings = ({
   elementIdByStatementIndex,
   elements,
   bindingAnalysis,
-  spans
+  spans,
+  includeStatement
 }: CompilePropertyBindingsInput): PropertyBindingCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
@@ -149,6 +152,7 @@ export const compilePropertyBindings = ({
   const requests: SiteReferenceRequest[] = [];
 
   statements.forEach((statement, statementIndex) => {
+    if (includeStatement && !includeStatement(statement, statementIndex)) return;
     // "group" is its own DslStatement kind (elementType is implicitly
     // "group", never stored on the statement); every other element type,
     // including forGroup/conditionalGroup, parses as "element" with `.type`

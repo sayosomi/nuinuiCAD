@@ -4,6 +4,7 @@
 // its stable BindingId at runtime.
 import type { CadElement, ElementId, NumericValue, PrintLayout } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
@@ -109,7 +110,7 @@ const attributeValueSpan = (statement: DslStatement, attrKey: string): DslSpan |
 
 export const compileNumericBindings = ({
   statements, elementIdByStatementIndex, elements, bindingAnalysis, spans,
-  printLayouts, printLayoutIdsByStatementIndex
+  printLayouts, printLayoutIdsByStatementIndex, includeStatement
 }: {
   statements: readonly DslStatement[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
@@ -121,6 +122,7 @@ export const compileNumericBindings = ({
    * statements untouched by this compiler, same as before Task 53. */
   printLayouts?: readonly PrintLayout[];
   printLayoutIdsByStatementIndex?: ReadonlyMap<number, string>;
+  includeStatement?: DslStatementInclusion;
 }): NumericBindingCompilation => {
   const byId = new Map(elements.map((element) => [element.id, element]));
   const printLayoutById = new Map((printLayouts ?? []).map((layout) => [layout.id, layout]));
@@ -154,6 +156,7 @@ export const compileNumericBindings = ({
   const placementRefByStatementIndex = buildPlacementRefsByStatementIndex(statements, printLayoutIdsByStatementIndex);
 
   statements.forEach((statement, statementIndex) => {
+    if (includeStatement && !includeStatement(statement, statementIndex)) return;
     if (statement.kind === "element" || statement.kind === "group") {
       const element = byId.get(elementIdByStatementIndex.get(statementIndex) ?? "");
       const logical = spans.logicalStatementByRangeFrom.get(statement.documentRange.from);

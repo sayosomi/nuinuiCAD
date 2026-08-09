@@ -244,10 +244,16 @@ export const buildLexicalScopeIndex = (
   }
 
   const scopeOfStatementMap = new Map<number, ScopeId>();
-  statements.forEach((_, index) => scopeOfStatementMap.set(index, scopeOfStatement(index)));
+  statements.forEach((statement, index) => {
+    if (!includeStatement(statement, index)) return;
+    scopeOfStatementMap.set(index, scopeOfStatement(index));
+  });
 
   const statementRankByIndex = new Map<number, number>();
-  statements.forEach((_, index) => statementRankByIndex.set(index, statementRankByIndex.size));
+  statements.forEach((statement, index) => {
+    if (!includeStatement(statement, index)) return;
+    statementRankByIndex.set(index, statementRankByIndex.size);
+  });
   const scopeMetadataById = new Map<ScopeId, ScopeMetadata>();
   let treeCursor = 0;
   const visitScope = (scopeId: ScopeId, depth: number, effectiveGroupScopeId: ScopeId | null) => {

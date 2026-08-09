@@ -29,6 +29,7 @@ import {
   type DslModuleParseResult
 } from "./dslModuleParser";
 import { parseDslExportedGeometryStatement } from "./dslExportParser";
+import { isCompilableDslStatement } from "./dslCompilationGuard";
 
 /**
  * Statement-leading spellings accepted by this parser. Keeping these constants
@@ -608,7 +609,13 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   }
   applyBlockStructure(statements, diagnostics);
   reportDuplicateNames(statements, diagnostics);
-  for (const extra of statements.filter((statement) => statement.kind === "atStop").slice(1)) {
+  for (const extra of statements
+    .map((statement, statementIndex) => ({ statement, statementIndex }))
+    .filter(({ statement, statementIndex }) =>
+      statement.kind === "atStop" && isCompilableDslStatement(statements, statementIndex)
+    )
+    .slice(1)
+    .map(({ statement }) => statement)) {
     diagnostics.push(diagnostic(extra.line, "@stop は文書に1つだけ書けます。"));
   }
   return {
