@@ -100,6 +100,7 @@ describe("DSL module source AST", () => {
     const instance = parsed.statements[1];
     expect(instance).toMatchObject({ kind: "moduleInstance", name: "ノッチ", moduleName: "凸ノッチ" });
     if (instance.kind !== "moduleInstance") return;
+    expect(instance.options).toEqual([]);
     expect(instance.arguments.map((argument) => [argument.label, argument.value])).toEqual([
       ["凸ノッチ高さ", "@高さ"],
       ["縫い線", "縫い線"],
@@ -107,6 +108,77 @@ describe("DSL module source AST", () => {
       ["ノッチ位置", "ノッチ位置"],
       ["反転", "false"]
     ]);
+  });
+
+  it.each(["visible", "hidden", "disabled"] as const)("parses module instance state option: %s", (state) => {
+    const parsed = parseDsl(`nui 3\nmodule X(state: ${state}) = M(state: true)`);
+    expect(parsed.diagnostics).toEqual([]);
+    const instance = parsed.statements[1];
+    expect(instance).toMatchObject({ kind: "moduleInstance", name: "X", moduleName: "M" });
+    if (instance.kind !== "moduleInstance") return;
+    const logicalText = `module X(state: ${state}) = M(state: true)`;
+    expect(instance.options).toMatchObject([
+      { kind: "moduleInstanceOption", name: "state", value: state }
+    ]);
+    expect(instance.arguments).toMatchObject([
+      { kind: "moduleArgument", label: "state", value: "true" }
+    ]);
+    expect(instance.payloadSpans.options).toBeDefined();
+    expect(instance.payloadSpans.arguments).toBeDefined();
+    expect(logicalText.slice(instance.payloadSpans.options!.start, instance.payloadSpans.options!.end)).toBe(`state: ${state}`);
+    expect(logicalText.slice(instance.payloadSpans.arguments!.start, instance.payloadSpans.arguments!.end)).toBe("state: true");
+  });
+
+  it("keeps a module parameter named state separate from the instance option", () => {
+    const parsed = parseDsl([
+      "nui 3",
+      "module M(state: boolean) {",
+      "}",
+      "module X(state: hidden) = M(state: true)"
+    ].join("\n"));
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statements[1]).toMatchObject({
+      kind: "moduleDefinition",
+      parameters: [{ name: "state", type: { kind: "boolean" } }]
+    });
+    expect(parsed.statements[3]).toMatchObject({
+      kind: "moduleInstance",
+      options: [{ name: "state", value: "hidden" }],
+      arguments: [{ label: "state", value: "true" }]
+    });
+  });
+
+  it("parses multiline instance options and projects logical and physical spans", () => {
+    const source = [
+      "nui 3",
+      "module X(",
+      "  state: hidden",
+      ") = M(",
+      "  state: true",
+      ")"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 31 });
+    expect(parsed.diagnostics).toEqual([]);
+    const instance = parsed.statements[1];
+    expect(instance.kind).toBe("moduleInstance");
+    if (instance.kind !== "moduleInstance") return;
+    const option = instance.options[0];
+    expect(option.nameSpan).not.toBeNull();
+    expect(option.valueSpan.start).toBeLessThan(option.valueSpan.end);
+    expect(source.slice(
+      option.namePhysicalSpan!.segments[0].from,
+      option.namePhysicalSpan!.segments[0].to
+    )).toBe("state");
+    expect(source.slice(
+      option.valuePhysicalSpan!.segments[0].from,
+      option.valuePhysicalSpan!.segments[0].to
+    )).toBe("hidden");
+    expect(instance.payloadSpans.options).toBeDefined();
+    expect(instance.payloadPhysicalSpans?.options?.segments.map((segment) => source.slice(segment.from, segment.to)).join(""))
+      .toContain("state: hidden");
+    expect(instance.payloadPhysicalSpans?.arguments?.segments.map((segment) => source.slice(segment.from, segment.to)).join(""))
+      .toContain("state: true");
+    expect(option.namePhysicalSpan?.sourceRevision).toBe(31);
   });
 
   it("marks exported geometry without changing its geometry AST", () => {
@@ -187,6 +259,41 @@ describe("DSL module syntax diagnostics", () => {
       "module X = M(A: 1 B: false)"
     ].join("\n"));
     expect(parsed.diagnostics.filter((diagnostic) => diagnostic.code === "missing-argument-comma")).toHaveLength(2);
+  });
+
+  it("applies named-only, duplicate, unknown, and state-literal validation to instance options", () => {
+    const cases = [
+      {
+        source: "module X(hidden) = M()",
+        message: "module instance option は名前付き引数で指定してください。"
+      },
+      {
+        source: "module X(foo: hidden) = M()",
+        message: "module instance option「foo」"
+      },
+      {
+        source: "module X(state: nope) = M()",
+        message: "state は visible/hidden/disabled のいずれかで指定してください。"
+      },
+      {
+        source: "module X(state:) = M()",
+        message: "引数「state」の値がありません。"
+      },
+      {
+        source: "module X(state: hidden state: visible) = M()",
+        message: "引数「state」が重複しています。"
+      }
+    ] as const;
+
+    for (const testCase of cases) {
+      const diagnostic = errors(`nui 3\n${testCase.source}`).find((item) => item.message.includes(testCase.message));
+      expect(diagnostic, testCase.source).toBeDefined();
+    }
+  });
+
+  it("requires commas between instance options", () => {
+    const parsed = parseDsl("nui 3\nmodule X(state: hidden foo: visible) = M()");
+    expect(parsed.diagnostics.filter((diagnostic) => diagnostic.code === "missing-argument-comma")).toHaveLength(1);
   });
 
   it("projects a multiline malformed diagnostic to the exact physical token", () => {

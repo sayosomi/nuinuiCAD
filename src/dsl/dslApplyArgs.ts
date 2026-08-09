@@ -1,6 +1,6 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
 import { createCadElementId } from "../model/cadIds";
-import { elementTypeSupportsHiddenActivity, elementTypesWithoutOwnDrawableGeometry, type ElementActivity } from "../model/elementActivity";
+import { elementTypeSupportsHiddenActivity, elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
@@ -16,6 +16,7 @@ import type { DslDiagnostic } from "./dslTypes";
 import type { ScannedArg } from "./dslArgScanner";
 import { commonArgSpecs, type DslArgSpec, type DslConstructionSpec } from "./dslConstructions";
 import type { DslMajorVersion } from "./dslVersion";
+import { invalidElementActivityMessage, parseElementActivityLiteral } from "./dslActivity";
 
 export type DslApplyArgsMetadata = {
   id?: string;
@@ -64,11 +65,6 @@ const booleanValue = (value: string) =>
     : ["false", "0", "no", "off"].includes(value.toLowerCase())
       ? false
       : null;
-
-const elementActivityLiteral = (value: string): ElementActivity | null => {
-  const token = unquoteDslString(value);
-  return token === "visible" || token === "hidden" || token === "disabled" ? token : null;
-};
 
 const splitRecordFields = (value: string) => {
   const fields: string[] = [];
@@ -161,11 +157,11 @@ export const applyArgs = (
     const parameter = findParameterDefinition(next, parameterKey);
     const value = scanned.value;
     if (parameterKey === "state") {
-      const activity = elementActivityLiteral(value);
+      const activity = parseElementActivityLiteral(value);
       if (activity === null) {
         // Fail-closed: an invalid literal must not fall back to any activity value —
         // lowering to the ElementActivity converter only happens for a valid one.
-        diagnostics.push(diagnostic(resolvers.line, "state は visible/hidden/disabled のいずれかで指定してください。"));
+        diagnostics.push(diagnostic(resolvers.line, invalidElementActivityMessage));
         continue;
       }
       // Defence in depth: dslCallParser.ts's validateArgs already rejects this

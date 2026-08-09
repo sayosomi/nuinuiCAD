@@ -2,6 +2,8 @@ import type { CadElementType, ElementId } from "../types/geometry";
 
 export type ElementActivity = "visible" | "hidden" | "disabled";
 
+export const elementActivityValues = ["visible", "hidden", "disabled"] as const;
+
 type ActivityElement = {
   id: ElementId;
   type: string;

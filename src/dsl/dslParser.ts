@@ -238,6 +238,7 @@ const moduleStatementToDslStatement = (
     kind: "moduleInstance",
     moduleName: parsed.moduleName,
     moduleNameSpan: parsed.moduleNameSpan,
+    options: parsed.options,
     arguments: parsed.arguments
   };
 };
@@ -538,6 +539,10 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     }
   } else if (statement.kind === "moduleInstance") {
     statement.moduleNamePhysicalSpan = statement.moduleNameSpan ? project(statement.moduleNameSpan) : null;
+    for (const option of statement.options) {
+      option.namePhysicalSpan = option.nameSpan ? project(option.nameSpan) : null;
+      option.valuePhysicalSpan = project(option.valueSpan);
+    }
     for (const argument of statement.arguments) {
       argument.labelPhysicalSpan = argument.labelSpan ? project(argument.labelSpan) : null;
       argument.valuePhysicalSpan = project(argument.valueSpan);

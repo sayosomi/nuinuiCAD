@@ -116,6 +116,17 @@ export type DslModuleArgument = {
   valuePhysicalSpan?: DslPhysicalSpan | null;
 };
 
+export type DslModuleInstanceOption = {
+  kind: "moduleInstanceOption";
+  name: string;
+  nameSpan: DslSpan | null;
+  value: string;
+  valueSpan: DslSpan;
+  rawValueSpan?: DslSpan;
+  namePhysicalSpan?: DslPhysicalSpan | null;
+  valuePhysicalSpan?: DslPhysicalSpan | null;
+};
+
 export type DslStatementBase = {
   line: number;
   /** Final physical source line belonging to this logical statement. */
@@ -154,6 +165,7 @@ export type DslStatement =
       moduleName: string;
       moduleNameSpan: DslSpan | null;
       moduleNamePhysicalSpan?: DslPhysicalSpan | null;
+      options: readonly DslModuleInstanceOption[];
       arguments: readonly DslModuleArgument[];
     })
   | (DslStatementBase & { kind: "group" })

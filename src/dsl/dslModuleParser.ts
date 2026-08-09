@@ -3,9 +3,11 @@ import { parseDslScalarType } from "./dslTypeParser";
 import type {
   DslAttribute,
   DslModuleArgument,
+  DslModuleInstanceOption,
   DslModuleParameter,
   DslSpan
 } from "./dslTypes";
+import { invalidElementActivityMessage, parseElementActivityLiteral } from "./dslActivity";
 import { unquoteDslString } from "./dslTokens";
 
 export type DslModuleDiagnostic = { message: string; span: DslSpan; code?: string };
@@ -28,6 +30,7 @@ export type DslModuleParsedStatement =
       kind: "moduleInstance";
       moduleName: string;
       moduleNameSpan: DslSpan | null;
+      options: readonly DslModuleInstanceOption[];
       arguments: readonly DslModuleArgument[];
     });
 
@@ -188,12 +191,40 @@ const argumentFromArg = (arg: ScannedArg, diagnostics: DslModuleDiagnostic[]): D
   };
 };
 
-const parseList = (
+const instanceOptionFromArg = (
+  arg: ScannedArg,
+  diagnostics: DslModuleDiagnostic[],
+  seen: Set<string>
+): DslModuleInstanceOption => {
+  const name = arg.key ?? "";
+  if (arg.key === null) {
+    diagnostic(diagnostics, "module instance option は名前付き引数で指定してください。", arg.valueSpan);
+  } else if (arg.key !== "state") {
+    diagnostic(diagnostics, `module instance option「${arg.key}」はありません。使用できるoption: state。`, arg.keySpan!);
+  } else if (seen.has(arg.key)) {
+    diagnostic(diagnostics, `引数「${arg.key}」が重複しています。`, arg.keySpan!);
+  } else {
+    seen.add(arg.key);
+    if (arg.valueSpan.start !== arg.valueSpan.end && parseElementActivityLiteral(arg.value) === null) {
+      diagnostic(diagnostics, invalidElementActivityMessage, arg.valueSpan, "invalid-module-instance-state");
+    }
+  }
+  return {
+    kind: "moduleInstanceOption",
+    name,
+    nameSpan: arg.keySpan,
+    value: arg.value,
+    valueSpan: arg.valueSpan,
+    ...(arg.rawValueSpan ? { rawValueSpan: arg.rawValueSpan } : {})
+  };
+};
+
+const parseList = <T>(
   source: string,
   span: DslSpan,
   requireArgumentCommas: boolean,
-  map: (arg: ScannedArg, diagnostics: DslModuleDiagnostic[]) => DslModuleParameter | DslModuleArgument
-): { values: Array<DslModuleParameter | DslModuleArgument>; diagnostics: DslModuleDiagnostic[] } => {
+  map: (arg: ScannedArg, diagnostics: DslModuleDiagnostic[]) => T
+): { values: T[]; diagnostics: DslModuleDiagnostic[] } => {
   const scanned = scanCallArgs(source, span, { requireCommas: requireArgumentCommas });
   const diagnostics = scanned.errors.map((error) => ({ message: error.message, span: error.span, ...(error.code ? { code: error.code } : {}) }));
   const values = scanned.args.map((arg) => map(arg, diagnostics));
@@ -262,9 +293,32 @@ const instance = (logicalText: string): DslModuleParseResult => {
   const diagnostics: DslModuleDiagnostic[] = [];
   const keywordSpan = { start: 0, end: "module".length };
   const afterKeyword = trimSpan(logicalText, keywordSpan.end, logicalText.length);
-  const open = topLevelIndex(logicalText, "(", afterKeyword.start);
-  const equals = topLevelIndex(logicalText, "=", afterKeyword.start, open >= 0 ? open : logicalText.length);
-  const instanceNameSpan = trimSpan(logicalText, afterKeyword.start, equals >= 0 ? equals : open >= 0 ? open : logicalText.length);
+  const firstOpen = topLevelIndex(logicalText, "(", afterKeyword.start);
+  const firstClose = firstOpen >= 0 ? matchingClose(logicalText, firstOpen, logicalText.length) : -1;
+  const equalsBeforeFirstOpen = topLevelIndex(
+    logicalText,
+    "=",
+    afterKeyword.start,
+    firstOpen >= 0 ? firstOpen : logicalText.length
+  );
+  const optionOpen = equalsBeforeFirstOpen < 0 ? firstOpen : -1;
+  const optionClose = optionOpen >= 0 ? firstClose : -1;
+  const equals = equalsBeforeFirstOpen >= 0
+    ? equalsBeforeFirstOpen
+    : optionClose >= 0
+      ? topLevelIndex(logicalText, "=", optionClose + 1)
+      : -1;
+  const open = optionOpen >= 0 && equals >= 0
+    ? topLevelIndex(logicalText, "(", equals + 1)
+    : firstOpen;
+  const instanceNameEnd = optionOpen >= 0 && equals > optionOpen
+    ? optionOpen
+    : equals >= 0
+      ? equals
+      : open >= 0
+        ? open
+        : logicalText.length;
+  const instanceNameSpan = trimSpan(logicalText, afterKeyword.start, instanceNameEnd);
   const instanceName = parseName(logicalText, instanceNameSpan);
   if (!instanceName.nameSpan) diagnostic(diagnostics, "module instance にはインスタンス名が必要です。", keywordSpan);
   if (equals < 0) diagnostic(diagnostics, "module instance には「=」が必要です。", keywordSpan);
@@ -282,6 +336,20 @@ const instance = (logicalText: string): DslModuleParseResult => {
   const argumentSpan = { start: open >= 0 ? open + 1 : logicalText.length, end: close >= 0 ? close : logicalText.length };
   const parsed = parseList(logicalText, argumentSpan, true, argumentFromArg);
   diagnostics.push(...parsed.diagnostics);
+  const optionSpan = {
+    start: optionOpen >= 0 ? optionOpen + 1 : logicalText.length,
+    end: optionClose >= 0 ? optionClose : logicalText.length
+  };
+  const seenOptions = new Set<string>();
+  const parsedOptions = optionOpen >= 0 && optionClose >= 0
+    ? parseList(
+        logicalText,
+        optionSpan,
+        true,
+        (arg, listDiagnostics) => instanceOptionFromArg(arg, listDiagnostics, seenOptions)
+      )
+    : { values: [] as Array<DslModuleInstanceOption>, diagnostics: [] as DslModuleDiagnostic[] };
+  diagnostics.push(...parsedOptions.diagnostics);
   return {
     statement: {
       kind: "moduleInstance",
@@ -291,12 +359,14 @@ const instance = (logicalText: string): DslModuleParseResult => {
       payloadSpans: {
         ...(instanceName.nameSpan ? { name: instanceName.nameSpan } : {}),
         ...(moduleName.nameSpan ? { moduleName: moduleName.nameSpan } : {}),
+        ...(optionOpen >= 0 && optionClose >= 0 ? { options: optionSpan } : {}),
         ...(open >= 0 && close >= 0 ? { arguments: argumentSpan } : {})
       },
       attrs: [],
       moduleName: moduleName.name,
       moduleNameSpan: moduleName.nameSpan,
-      arguments: parsed.values as DslModuleArgument[]
+      options: parsedOptions.values,
+      arguments: parsed.values
     },
     diagnostics
   };
@@ -309,7 +379,15 @@ export const parseDslModuleStatement = (
   const keyword = logicalText.match(identifier)?.[0];
   if (keyword !== "module") return { statement: null, diagnostics: [] };
   const afterKeyword = trimSpan(logicalText, keyword.length, logicalText.length);
-  const open = topLevelIndex(logicalText, "(", afterKeyword.start);
-  const equals = topLevelIndex(logicalText, "=", afterKeyword.start, open >= 0 ? open : logicalText.length);
-  return equals >= 0 ? instance(logicalText) : definition(logicalText, options);
+  const firstOpen = topLevelIndex(logicalText, "(", afterKeyword.start);
+  const firstClose = firstOpen >= 0 ? matchingClose(logicalText, firstOpen, logicalText.length) : -1;
+  const equalsBeforeFirstOpen = topLevelIndex(
+    logicalText,
+    "=",
+    afterKeyword.start,
+    firstOpen >= 0 ? firstOpen : logicalText.length
+  );
+  const equalsAfterFirstList = firstClose >= 0 ? topLevelIndex(logicalText, "=", firstClose + 1) : -1;
+  const isInstance = equalsBeforeFirstOpen >= 0 || equalsAfterFirstList >= 0;
+  return isInstance ? instance(logicalText) : definition(logicalText, options);
 };

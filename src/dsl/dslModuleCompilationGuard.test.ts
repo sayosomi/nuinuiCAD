@@ -39,6 +39,23 @@ describe("module definition compilation guard", () => {
     });
   });
 
+  it("keeps option-bearing module instances inert until module materialization exists", () => {
+    const source = [
+      "nui 3",
+      "module X(state: hidden) = M(state: true)",
+      "point Root = coordinate(x: 1, y: 2)"
+    ].join("\n");
+    const { parsed, compiled } = compileWithStableIds(source);
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Root"]);
+    expect(parsed.statements[1]).toMatchObject({
+      kind: "moduleInstance",
+      options: [{ name: "state", value: "hidden" }],
+      arguments: [{ label: "state", value: "true" }]
+    });
+  });
+
   it("keeps nested module groups and their descendants inert", () => {
     const source = [
       "nui 3",
@@ -202,9 +219,8 @@ describe("module definition compilation guard", () => {
     ].join("\n");
     const { parsed, assignedStatementIds, compiled } = compileWithRootStableIds(source);
     const excludedIndices = parsed.statements
-      .map((statement, index) => ({ statement, index }))
-      .filter(({ statement, index }) => !isCompilableDslStatement(parsed.statements, index))
-      .map(({ index }) => index);
+      .map((_, index) => index)
+      .filter((index) => !isCompilableDslStatement(parsed.statements, index));
 
     expect(excludedIndices.length).toBeGreaterThan(0);
     expect(excludedIndices.every((index) => !assignedStatementIds.has(index))).toBe(true);
