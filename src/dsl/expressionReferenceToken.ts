@@ -12,6 +12,8 @@
 // leading `@`) is an invalid nui 3 element-property reference and is kept
 // recognizable only to report the precise repair diagnostic.
 
+import { readExpressionReferenceHead } from "../scalars/expressionReferenceGrammar";
+
 export type ExpressionReferenceTokenMatch =
   /**
    * `@name` - typed binding reference. `from` INCLUDES
@@ -90,6 +92,14 @@ export const expressionReferenceTokenEndingAt = (
   const hasDot = match[3] === ".";
   const query = match[4] ?? "";
 
+  if (head.includes("::")) {
+    const headEnd = hasDot ? pos - query.length - 1 : pos;
+    const headStart = headEnd - head.length;
+    const parsedHead = readExpressionReferenceHead(text, headStart, headEnd);
+    if (!parsedHead || parsedHead.kind === "invalidScoped" || parsedHead.end !== headEnd) return null;
+    if (!hasDot) return null;
+  }
+
   if (!hasDot) {
     // No dot: only a `@name` binding token is a reference. A bare
     // identifier with no sigil and no dot is not a reference token at all.
@@ -152,11 +162,25 @@ export const scanExpressionReferences = (
       continue;
     }
     const headEnd = afterSigil + head.length;
+    let referenceHead = head;
+    const scopedHead = head.includes("::");
+    if (scopedHead) {
+      const parsedHead = readExpressionReferenceHead(text, afterSigil, headEnd);
+      if (!parsedHead || parsedHead.kind === "invalidScoped" || parsedHead.end !== headEnd) {
+        index = parsedHead?.kind === "invalidScoped" ? parsedHead.invalidAt + 1 : headEnd;
+        continue;
+      }
+      referenceHead = parsedHead.name;
+    }
+    if (scopedHead && text[headEnd] !== ".") {
+      index = headEnd;
+      continue;
+    }
     if (text[headEnd] === ".") {
       const queryMatch = text.slice(headEnd + 1).match(queryRunPattern);
       const query = queryMatch?.[0] ?? "";
       const queryEnd = headEnd + 1 + query.length;
-      if (!isNumericLiteralToken(head)) {
+      if (!isNumericLiteralToken(referenceHead)) {
         results.push({
           kind: "elementProperty",
           tokenStart: offset + index,
@@ -164,7 +188,7 @@ export const scanExpressionReferences = (
           from: offset + headEnd + 1,
           to: offset + queryEnd,
           sigil,
-          elementToken: head,
+          elementToken: referenceHead,
           elementFrom: offset + afterSigil,
           elementTo: offset + headEnd,
           query
@@ -181,7 +205,7 @@ export const scanExpressionReferences = (
         from: offset + index,
         to: offset + headEnd,
         sigil: true,
-        query: head
+        query: referenceHead
       });
     }
     index = headEnd;

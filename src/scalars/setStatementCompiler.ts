@@ -33,6 +33,7 @@ import { typecheckScalarExpression } from "./expressionTypecheck";
 import { collectReferences, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { createElementNameContext } from "../model/elementNames";
 
 export const CONST_ASSIGNMENT_CODE = "const-assignment";
 export const INVALID_SET_TARGET_CODE = "invalid-set-target";
@@ -258,6 +259,8 @@ export const compileSetStatements = ({
     throw new Error("setStatementCompiler: candidates present without a bindingAnalysis catalog");
   }
 
+  const nameContext = createElementNameContext([...(elements ?? [])]);
+
   for (const candidate of candidates) {
     const targetResolution = resolutions.get(candidate.targetKey);
     // Shared with Task 37's rename safety analysis - the single target-
@@ -327,7 +330,18 @@ export const compileSetStatements = ({
     }
     const sourceOrderByElementId = new Map<ElementId, number>();
     for (const [sourceOrder, elementId] of elementIdByStatementIndex ?? []) sourceOrderByElementId.set(elementId, sourceOrder);
-    const geometryResolution = resolveTypedGeometryProperties(checked.typed, elements ?? [], sourceOrderByElementId);
+    const ownerContainerId = bindingAnalysis.catalog.containerIndex.ownerContainerIdByStatementIndex.get(candidate.statementIndex);
+    // Pass a namespace-only current element. Passing the owner CadElement
+    // itself would make parentGroupId point at the owner's parent namespace.
+    const geometryResolution = resolveTypedGeometryProperties(
+      checked.typed,
+      elements ?? [],
+      sourceOrderByElementId,
+      {
+        currentElement: { parentGroupId: ownerContainerId ?? undefined },
+        nameContext
+      }
+    );
     if (geometryResolution.issues.length > 0) {
       diagnostics.push(...geometryResolution.issues.map((issue) =>
         diagnosticAt(spans, candidate.statement, issue.span, "geometry-property-invalid", issue.message)

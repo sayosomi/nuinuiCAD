@@ -25,6 +25,21 @@ const referencesInOccurrenceOrder = (expression: TypedScalarExpression): readonl
   }
 };
 
+const geometryPropertiesInOccurrenceOrder = (expression: TypedScalarExpression): readonly Extract<TypedScalarExpression, { kind: "geometryProperty" }>[] => {
+  switch (expression.kind) {
+    case "geometryProperty":
+      return [expression];
+    case "unary":
+      return geometryPropertiesInOccurrenceOrder(expression.operand);
+    case "binary":
+      return [...geometryPropertiesInOccurrenceOrder(expression.left), ...geometryPropertiesInOccurrenceOrder(expression.right)];
+    case "group":
+      return geometryPropertiesInOccurrenceOrder(expression.expression);
+    default:
+      return [];
+  }
+};
+
 describe("analyzeTypedDeclarations resolution buckets", () => {
   it("keeps multiple occurrences for one binding in source occurrence order", () => {
     const fixture = typedDeclarationAnalysisFor([
@@ -105,6 +120,45 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     }))).toEqual([
       { bindingId: bindingIdForName(fixture, "value"), bindingKind: "const", initializerKind: "numberLiteral" },
       { bindingId: bindingIdForName(fixture, "copy"), bindingKind: "let", initializerKind: "reference" }
+    ]);
+  });
+
+  it("resolves scoped and local geometry properties inside a nested group", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 3",
+      "group 後ろ身頃 {",
+      "  line 先に縫う = segment(start: (0, 0), end: (10, 0))",
+      "  group 縫い代 {",
+      "    group 縫い代写し {",
+      "      line 脇コピー = segment(start: (0, 0), end: (5, 0))",
+      "      const 角度: number = @後ろ身頃::先に縫う.endTangentAngleDeg - @脇コピー.endTangentAngleDeg",
+      "    }",
+      "  }",
+      "}"
+    ].join("\n"));
+    const angle = fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, "角度"));
+    expect(angle).toBeDefined();
+    const properties = geometryPropertiesInOccurrenceOrder(angle!);
+    const first = fixture.elements.find((element) => element.name === "先に縫う");
+    const second = fixture.elements.find((element) => element.name === "脇コピー");
+    expect(properties.map((property) => ({
+      elementName: property.elementName,
+      elementId: property.elementId,
+      property: property.property,
+      targetSourceOrder: property.targetSourceOrder
+    }))).toEqual([
+      {
+        elementName: "後ろ身頃::先に縫う",
+        elementId: first?.id,
+        property: "endTangentAngleDeg",
+        targetSourceOrder: fixture.statements.findIndex((statement) => statement.kind === "element" && statement.name === "先に縫う")
+      },
+      {
+        elementName: "脇コピー",
+        elementId: second?.id,
+        property: "endTangentAngleDeg",
+        targetSourceOrder: fixture.statements.findIndex((statement) => statement.kind === "element" && statement.name === "脇コピー")
+      }
     ]);
   });
 });

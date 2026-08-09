@@ -124,6 +124,18 @@ describe("dslCompletionContextAt", () => {
       });
     });
 
+    it("keeps a scoped element path in the elementToken completion context", () => {
+      const line = "const length: number = @G::H::AB.le";
+      const context = dslCompletionContextAt(line, line.length);
+      expect(context).toMatchObject({
+        kind: "elementParameter",
+        elementToken: "G::H::AB",
+        sigil: true,
+        from: line.indexOf(".le") + 1,
+        to: line.length
+      });
+    });
+
     it("does not treat @ alone or non-number initializers as geometry properties", () => {
       expect(dslCompletionContextAt("const length: number = @", "const length: number = @".length)).toMatchObject({ kind: "typedInitializer" });
       expect(dslCompletionContextAt("const label: string = @AB.", "const label: string = @AB.".length)).toBeNull();

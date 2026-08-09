@@ -11,6 +11,7 @@
 
 import { scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
 import type { ScalarExpressionIssueCode } from "./expressionAst";
+import { readExpressionReferenceHead } from "./expressionReferenceGrammar";
 
 export type ScalarExpressionOperatorSymbol =
   | "||"
@@ -50,13 +51,6 @@ export interface ScalarExpressionTokenizeResult {
 // tokenize as two separate single-char operators.
 const TWO_CHAR_OPERATORS = new Set(["&&", "||", "==", "!=", ">=", "<="]);
 const ONE_CHAR_OPERATORS = new Set(["+", "-", "*", "/", "<", ">", "!"]);
-
-// Same Unicode-aware identifier shape as literalScanner.ts's own
-// IDENTIFIER_PATTERN (user-authored binding names are frequently Japanese),
-// deliberately duplicated rather than imported: this tokenizer owns the `@`
-// reference sigil, and literalScanner.ts's pattern explicitly excludes `@`
-// so the two never need to share a definition.
-const REFERENCE_NAME_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*/u;
 
 const PROPERTY_PATH_PATTERN = /^[^\s()+*/<>!=&|]*/;
 
@@ -108,8 +102,8 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
 
     if (char === "@") {
       const nameStart = index + 1;
-      const match = REFERENCE_NAME_PATTERN.exec(source.slice(nameStart, end));
-      if (!match) {
+      const head = readExpressionReferenceHead(source, nameStart, end);
+      if (!head) {
         return {
           tokens,
           error: {
@@ -119,7 +113,28 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
           }
         };
       }
-      const nameSpan: ScalarSpan = { start: nameStart, end: nameStart + match[0].length };
+      if (head.kind === "invalidScoped") {
+        return {
+          tokens,
+          error: {
+            code: "unexpected-token",
+            span: { start: head.invalidAt, end: head.invalidAt + 1 },
+            message: "scoped element name の各 segment は identifier である必要があります。"
+          }
+        };
+      }
+      const nameSpan: ScalarSpan = { start: nameStart, end: head.end };
+      if (head.kind === "scoped" && source[nameSpan.end] !== ".") {
+        const separatorAt = nameStart + head.name.indexOf("::");
+        return {
+          tokens,
+          error: {
+            code: "unexpected-token",
+            span: { start: separatorAt, end: separatorAt + 2 },
+            message: "scoped element name は geometry property の参照でのみ使用できます。"
+          }
+        };
+      }
       if (source[nameSpan.end] === ".") {
         const propertyMatch = PROPERTY_PATH_PATTERN.exec(source.slice(nameSpan.end + 1, end));
         const propertyPath = propertyMatch?.[0] ?? "";
@@ -127,11 +142,11 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
           return { tokens, error: { code: "unexpected-token", span: { start: index, end: nameSpan.end + 1 }, message: "「.」の後にプロパティ名が必要です。" } };
         }
         const propertySpan: ScalarSpan = { start: nameSpan.end + 1, end: nameSpan.end + 1 + propertyPath.length };
-        tokens.push({ kind: "geometryProperty", elementName: match[0], elementNameSpan: nameSpan, property: propertyPath, propertySpan, span: { start: index, end: propertySpan.end } });
+        tokens.push({ kind: "geometryProperty", elementName: head.name, elementNameSpan: nameSpan, property: propertyPath, propertySpan, span: { start: index, end: propertySpan.end } });
         index = propertySpan.end;
         continue;
       }
-      tokens.push({ kind: "reference", name: match[0], nameSpan, span: { start: index, end: nameSpan.end } });
+      tokens.push({ kind: "reference", name: head.name, nameSpan, span: { start: index, end: nameSpan.end } });
       index = nameSpan.end;
       continue;
     }

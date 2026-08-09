@@ -39,6 +39,19 @@ describe("expressionReferenceTokenEndingAt", () => {
     expect(match).toMatchObject({ kind: "elementProperty", sigil: true, elementToken: "AB", query: "len" });
   });
 
+  it("keeps a scoped element path together while completing its property", () => {
+    const text = "@G::H::AB.len";
+    const match = expressionReferenceTokenEndingAt(text, text.length);
+    expect(match).toMatchObject({ kind: "elementProperty", sigil: true, elementToken: "G::H::AB", query: "len" });
+  });
+
+  it("does not classify a scoped head without a property as a binding", () => {
+    expect(expressionReferenceTokenEndingAt("@G::AB", "@G::AB".length)).toBeNull();
+    const matches = scanExpressionReferences("@G::AB + @name");
+    expect(matches.filter((match) => match.kind === "binding").map((match) => match.query)).toEqual(["name"]);
+    expect(matches.some((match) => match.kind === "elementProperty")).toBe(false);
+  });
+
   it("classifies bare AB.length as elementProperty with sigil:false", () => {
     expect(expressionReferenceTokenEndingAt("AB.length", 9)).toEqual({
       kind: "elementProperty",
@@ -159,6 +172,24 @@ describe("scanExpressionReferences", () => {
         elementTo: 12,
         query: "length"
       }
+    ]);
+  });
+
+  it("does not misclassify a scoped geometry property as a binding", () => {
+    expect(scanExpressionReferences("@G::AB.length + @amount")).toEqual([
+      {
+        kind: "elementProperty",
+        tokenStart: 0,
+        tokenEnd: 13,
+        from: 7,
+        to: 13,
+        sigil: true,
+        elementToken: "G::AB",
+        elementFrom: 1,
+        elementTo: 6,
+        query: "length"
+      },
+      { kind: "binding", tokenStart: 16, tokenEnd: 23, from: 16, to: 23, sigil: true, query: "amount" }
     ]);
   });
 
