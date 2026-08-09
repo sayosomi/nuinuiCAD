@@ -16,6 +16,7 @@ import type {
 import { applyArgs, createDefaultIntermediateId } from "./dslApplyArgs";
 import { MISSING_ATTRIBUTE_VALUE_CODE, type ScannedArg } from "./dslArgScanner";
 import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
+import { isCompilableDslStatement } from "./dslCompilationGuard";
 import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
@@ -439,7 +440,9 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   const statementIndexOf = new Map<DslStatement, number>(
     parsed.statements.map((statement, index) => [statement, index])
   );
-  const elementStatements = parsed.statements.filter(isElementDslStatement);
+  const elementStatements = parsed.statements.filter(
+    (statement, statementIndex) => isElementDslStatement(statement) && isCompilableDslStatement(parsed.statements, statementIndex)
+  );
   const statementsWithIds = elementStatements.map((statement) => {
     const type = statementTypeOf(statement);
     return {
@@ -579,8 +582,11 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   if (atStopIndex >= 0) {
     if (documentMode) {
       evaluationLimitIndex = parsed.statements
+        .map((statement, statementIndex) => ({ statement, statementIndex }))
         .slice(0, atStopIndex)
-        .filter(isElementDslStatement).length;
+        .filter(({ statement, statementIndex }) =>
+          isElementDslStatement(statement) && isCompilableDslStatement(parsed.statements, statementIndex)
+        ).length;
     } else {
       diagnostics.push(warning(parsed.statements[atStopIndex].line, "@stop は文書全体の適用でのみ有効なため無視されます。"));
     }

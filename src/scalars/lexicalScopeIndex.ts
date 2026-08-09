@@ -86,6 +86,7 @@ export type ScopeMetadata = {
  * src/dsl/lexicalScopeIndexAdapter.ts; unit tests may use a simple stub.
  */
 export type ResolveStatementId = (statementIndex: number, statement: DslStatement) => string;
+export type IncludeStatement = (statement: DslStatement, statementIndex: number) => boolean;
 
 const ROOT_SCOPE_ID: ScopeId = "root";
 
@@ -100,7 +101,8 @@ type MutableScope = {
 
 export const buildLexicalScopeIndex = (
   statements: readonly DslStatement[],
-  resolveStatementId: ResolveStatementId
+  resolveStatementId: ResolveStatementId,
+  includeStatement: IncludeStatement = () => true
 ): LexicalScopeIndex => {
   const scopeIdCache = new Map<number, ScopeId>();
 
@@ -141,7 +143,8 @@ export const buildLexicalScopeIndex = (
   // `enclosing` value and never lands here, so `else` scopes are only ever
   // created where a real one exists.
   const conditionalGroupsWithElse = new Set<number>();
-  statements.forEach((statement) => {
+  statements.forEach((statement, statementIndex) => {
+    if (!includeStatement(statement, statementIndex)) return;
     if (statement.kind !== "blockElse" || !statement.enclosing || statement.enclosing.branch !== "then") return;
     const parent = statements[statement.enclosing.statementIndex];
     if (isConditionalGroup(parent)) conditionalGroupsWithElse.add(statement.enclosing.statementIndex);
@@ -157,6 +160,7 @@ export const buildLexicalScopeIndex = (
   };
 
   statements.forEach((statement, index) => {
+    if (!includeStatement(statement, index)) return;
     if (!statement.opensBlock) return;
     const parentId = scopeOfStatement(index);
     if (statement.kind === "group") {
@@ -179,6 +183,7 @@ export const buildLexicalScopeIndex = (
   const forGroupIterationSlots = new Map<ScopeId, ForGroupIterationSlot>();
 
   statements.forEach((statement, index) => {
+    if (!includeStatement(statement, index)) return;
     const scopeId = scopeOfStatement(index);
     const members = memberIndices.get(scopeId);
     if (members) members.push(index);
