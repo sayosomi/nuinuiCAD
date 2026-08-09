@@ -1,5 +1,10 @@
 import { expect } from "vitest";
-import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import {
+  compileDslDocument,
+  serializeDocumentToDsl,
+  type CompiledDslDocument,
+  type DslDocumentData
+} from "../dsl/dslDocument";
 import type { CadElement, ElementId } from "../types/geometry";
 
 // プロパティテスト用の文書生成器とランダム操作の解釈器(テスト専用)。
@@ -207,6 +212,11 @@ export const referencedElementIds = (elements: CadElement[]): Set<ElementId> => 
 
 const CONTAINER_TYPES = new Set(["group", "conditionalGroup", "forGroup"]);
 const isContainer = (element: CadElement) => CONTAINER_TYPES.has(element.type);
+
+const isCanonicalDocumentCompilable = (document: DslDocumentData): boolean => {
+  const compiled = compileDslDocument(serializeDocumentToDsl(document, 3));
+  return compiled.document !== null && !compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error");
+};
 
 const descendantIds = (elements: CadElement[], rootId: ElementId): Set<ElementId> => {
   const ids = new Set<ElementId>();
@@ -420,8 +430,10 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
         parentGroupId: group.id,
         conditionalBranch: undefined
       } as CadElement);
+      const candidate = { ...document, elements };
+      if (!isCanonicalDocumentCompilable(candidate)) return fallbackUpdate();
       return {
-        document: { ...document, elements },
+        document: candidate,
         insertedIds: [],
         description: `reparent ${target.name} into ${group.name}`
       };
