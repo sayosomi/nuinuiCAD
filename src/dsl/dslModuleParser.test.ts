@@ -132,28 +132,50 @@ describe("DSL module source AST", () => {
 });
 
 describe("DSL module syntax diagnostics", () => {
-  const diagnosticCases = [
-    ["module (A: number) {\n}", "definition name"],
-    ["module = M(A: 1)", "instance name"],
-    ["module M(A: number\n}", "unclosed parameter list"],
-    ["module M(: number) {\n}", "parameter name"],
-    ["module M(A number) {\n}", "missing parameter colon"],
-    ["module M(A:) {\n}", "missing parameter type"],
-    ["module M(A: unknown) {\n}", "unknown parameter type"],
-    ["module M(A: choice()) {\n}", "malformed choice"],
-    ["module M(A: number =) {\n}", "empty default"],
-    ["module M(A: number B: boolean) {\n}", "missing parameter comma"],
-    ["module X M(A: number)", "missing instance equals"],
-    ["module X = (A: number)", "missing module name"],
-    ["module X = M(A: 1", "unclosed argument list"],
-    ["module X = M(10)", "argument label"],
-    ["module X = M(A:)", "argument value"],
-    ["export const x: number = 1", "export target"]
+  type DiagnosticCase = {
+    source: string;
+    label: string;
+    message: string;
+    code?: string;
+    spanText: string;
+  };
+  const diagnosticCases: DiagnosticCase[] = [
+    { source: "module (A: number) {\n}", label: "definition name", message: "module definition には名前が必要です。", spanText: "module" },
+    { source: "module = M(A: 1)", label: "instance name", message: "module instance にはインスタンス名が必要です。", spanText: "module" },
+    { source: "module M(A: number\n}", label: "unclosed parameter list", message: "module parameter list の「(」が閉じられていません。", spanText: "(" },
+    { source: "module M(: number) {\n}", label: "parameter name", message: "module parameter は `名前: 型` の形式で指定してください。", spanText: ": number" },
+    { source: "module M(A number) {\n}", label: "missing parameter colon", message: "module parameter は `名前: 型` の形式で指定してください。", spanText: "A number" },
+    { source: "module M(A:) {\n}", label: "missing parameter type", message: "module parameter には型注釈が必要です。", spanText: "" },
+    { source: "module M(A: unknown) {\n}", label: "unknown parameter type", message: "不明な型注釈です: unknown", spanText: "unknown" },
+    { source: "module M(A: choice()) {\n}", label: "malformed choice", message: "choice 型には少なくとも1つの option が必要です。", spanText: "()" },
+    { source: "module M(A: number =) {\n}", label: "empty default", message: "module parameter の default には `=` の後に値が必要です。", spanText: "" },
+    { source: "module M(A: number B: boolean) {\n}", label: "missing parameter comma", message: "引数「B」の前に「,」が必要です。", code: "missing-argument-comma", spanText: "B" },
+    { source: "module X M(A: number)", label: "missing instance equals", message: "module instance には「=」が必要です。", code: "missing-module-instance-equals", spanText: "M" },
+    { source: "module X = (A: number)", label: "missing module name", message: "module instance には呼び出すmodule名が必要です。", spanText: "" },
+    { source: "module X = M(A: 1", label: "unclosed argument list", message: "module argument list の「(」が閉じられていません。", spanText: "(" },
+    { source: "module X = M(10)", label: "argument label", message: "module argument は名前付き引数で指定してください。", spanText: "10" },
+    { source: "module X = M(A:)", label: "argument value", message: "引数「A」の値がありません。", code: "missing-attribute-value", spanText: "" },
+    { source: "export const x: number = 1", label: "export target", message: "export の後には geometry declaration が必要です。", spanText: "const x: number = 1" }
   ] as const;
 
-  for (const [source, label] of diagnosticCases) {
-    it(`reports ${label}`, () => {
-      expect(errors(`nui 3\n${source}`).length, source).toBeGreaterThan(0);
+  for (const testCase of diagnosticCases) {
+    it(`reports ${testCase.label} with its own span`, () => {
+      const fullSource = `nui 3\n${testCase.source}`;
+      const diagnostic = errors(fullSource).find((item) =>
+        item.message.includes(testCase.message) && (!testCase.code || item.code === testCase.code)
+      );
+      expect(diagnostic, testCase.source).toBeDefined();
+      if (!diagnostic) return;
+      if ("spanText" in testCase) {
+        const segments = diagnostic.physicalSpan?.segments ?? [];
+        if (testCase.spanText === "") {
+          expect(diagnostic.physicalSpan).toBeDefined();
+          expect(segments).toEqual([]);
+        } else {
+          expect(segments).toHaveLength(1);
+          expect(fullSource.slice(segments[0].from, segments[0].to)).toBe(testCase.spanText);
+        }
+      }
     });
   }
 
@@ -165,6 +187,22 @@ describe("DSL module syntax diagnostics", () => {
       "module X = M(A: 1 B: false)"
     ].join("\n"));
     expect(parsed.diagnostics.filter((diagnostic) => diagnostic.code === "missing-argument-comma")).toHaveLength(2);
+  });
+
+  it("projects a multiline malformed diagnostic to the exact physical token", () => {
+    const source = [
+      "nui 3",
+      "module M(",
+      "  A: number",
+      "  B: boolean",
+      ") {",
+      "}"
+    ].join("\n");
+    const diagnostic = errors(source).find((item) => item.code === "missing-argument-comma");
+    expect(diagnostic).toBeDefined();
+    const segments = diagnostic?.physicalSpan?.segments ?? [];
+    expect(segments).toHaveLength(1);
+    expect(source.slice(segments[0].from, segments[0].to)).toBe("B");
   });
 
   it("keeps existing supported-version validation unchanged", () => {

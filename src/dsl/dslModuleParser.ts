@@ -211,7 +211,18 @@ const definition = (logicalText: string, options: ParseDslModuleOptions): DslMod
   const open = topLevelIndex(logicalText, "(", afterKeyword.start, headerEnd);
   const nameSpan = trimSpan(logicalText, afterKeyword.start, open >= 0 ? open : headerEnd);
   const name = parseName(logicalText, nameSpan);
+  const rawName = nameSpan.start < nameSpan.end ? logicalText.slice(nameSpan.start, nameSpan.end) : "";
+  const firstNameWhitespace = rawName.search(/\s/);
+  const missingInstanceEquals = firstNameWhitespace >= 0 && !/^['"]/.test(rawName);
   if (!name.nameSpan) diagnostic(diagnostics, "module definition には名前が必要です。", keywordSpan);
+  if (missingInstanceEquals) {
+    diagnostic(
+      diagnostics,
+      "module instance には「=」が必要です。",
+      trimSpan(logicalText, nameSpan.start + firstNameWhitespace + 1, nameSpan.end),
+      "missing-module-instance-equals"
+    );
+  }
   if (open < 0) {
     diagnostic(diagnostics, "module definition には parameter list の「(」が必要です。", { start: headerEnd, end: headerEnd });
   }
