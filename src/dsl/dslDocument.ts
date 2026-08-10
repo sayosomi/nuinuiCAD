@@ -1131,7 +1131,8 @@ export const compileDslDocument = (
       },
       includeStatement,
       elements: compiled.elements,
-      sourceScopeIndex: sourceLexicalNamespace?.scopeIndex
+      sourceScopeIndex: sourceLexicalNamespace?.scopeIndex,
+      moduleGeometryRuntime: compiled.moduleGeometryRuntime
     });
     const hasModuleScalarBindings = moduleScalarCompilation.bindingAnalysis.catalog.bindings.some((binding) =>
       binding.resolutionMode === "preResolvedOnly"

@@ -164,6 +164,23 @@ export const analyzeModuleBody = ({
     ];
   };
 
+  const addGeometry = (
+    bodySemantic: ModuleBodyStatementSemantic | null,
+    parameterKey: string,
+    span: DslSpan,
+    reference: ModuleGeometryReferenceSemantic
+  ) => {
+    if (!bodySemantic) return;
+    bodySemantic.geometryReferences = [...bodySemantic.geometryReferences, { parameterKey, span, reference }];
+    // Coordinate anchors are still ordinary numeric fields at runtime. Keep
+    // their typed scalar sites on the existing `<anchorKey>:x/y` path so the
+    // normal numeric binding runtime can materialize them.
+    if (reference.coordinate && !parameterKey.startsWith("intermediates:")) {
+      if (reference.coordinate.x) addScalar(bodySemantic, `${parameterKey}:x`, reference.coordinate.x.ast.span, reference.coordinate.x);
+      if (reference.coordinate.y) addScalar(bodySemantic, `${parameterKey}:y`, reference.coordinate.y.ast.span, reference.coordinate.y);
+    }
+  };
+
   const analyzeTextTemplate = (
     statementIndex: number,
     bodySemantic: ModuleBodyStatementSemantic | null,
@@ -221,7 +238,7 @@ export const analyzeModuleBody = ({
             geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
           }
         );
-        if (bodySemantic) bodySemantic.geometryReferences = [...bodySemantic.geometryReferences, { parameterKey: "intermediates:point", span: pointSpan, reference }];
+        addGeometry(bodySemantic, "intermediates:point", pointSpan, reference);
       }
       for (const [fieldIndex, parameterKey] of [[1, "intermediates:handleAngleDeg"], [2, "intermediates:incomingHandleLength"], [3, "intermediates:outgoingHandleLength"]] as const) {
         const fieldSpan = recordField(source, record, fieldIndex);
@@ -351,7 +368,7 @@ export const analyzeModuleBody = ({
                   "line",
                   { allowCoordinate: parameter.allowCoordinate === true, role: "lineReferenceList" }
                 );
-                if (bodySemantic) bodySemantic.geometryReferences = [...bodySemantic.geometryReferences, { parameterKey, span: reference.span, reference }];
+                addGeometry(bodySemantic, parameterKey, reference.span, reference);
               }
             } else {
               const reference = resolveGeometry(statementIndex, definition.statementIndex, value, valueSpan, expected, {
@@ -362,7 +379,7 @@ export const analyzeModuleBody = ({
                 bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
                 geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
               });
-              if (bodySemantic) bodySemantic.geometryReferences = [...bodySemantic.geometryReferences, { parameterKey, span: valueSpan, reference }];
+              addGeometry(bodySemantic, parameterKey, valueSpan, reference);
             }
           } else {
             const expectedType = statement.kind === "element" && statement.type === "conditionalGroup" && parameterKey === "condition"

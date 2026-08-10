@@ -13,7 +13,7 @@ import type {
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
-import { applyArgs, createDefaultIntermediateId } from "./dslApplyArgs";
+import { applyArgs, createDefaultIntermediateId, type DslGeometryResolverOverrides } from "./dslApplyArgs";
 import { MISSING_ATTRIBUTE_VALUE_CODE, type ScannedArg } from "./dslArgScanner";
 import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isCompilableDslStatement, type DslStatementInclusion } from "./dslCompilationGuard";
@@ -23,6 +23,7 @@ import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, 
 import { unquoteDslString } from "./dslTokens";
 import type { DslMajorVersion } from "./dslVersion";
 import { materializeModuleExecution } from "./moduleMaterialization";
+import { buildModuleGeometryRuntime } from "./moduleGeometryRuntime";
 import { compileMaterializedExecution } from "./moduleExecutionCompiler";
 import {
   placeAngleAttrKey,
@@ -113,7 +114,8 @@ export const applyStatement = (
   elementsForExpressions: CadElement[],
   nameContext: ElementNameContext,
   visibilityRoles: VisibilityRole[] = [],
-  majorVersion?: DslMajorVersion
+  majorVersion?: DslMajorVersion,
+  geometryResolvers?: DslGeometryResolverOverrides
 ): CadElement => {
   const named = { ...element, name: statement.name };
   const spec = constructionSpecFor(statement);
@@ -126,7 +128,8 @@ export const applyStatement = (
     nameContext,
     visibilityRoles,
     createIntermediateId: createDefaultIntermediateId,
-    majorVersion
+    majorVersion,
+    ...geometryResolvers
   });
   diagnostics.push(...result.diagnostics);
 
@@ -465,6 +468,13 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       assignedElementIds: context.assignedElementIds ?? new Map(),
       moduleSemanticAnalysis: context.moduleSemanticAnalysis
     });
+    const moduleGeometryRuntime = buildModuleGeometryRuntime({
+      statements: parsed.statements,
+      stableStatementIdByIndex: context.stableStatementIdByIndex,
+      moduleSemanticAnalysis: context.moduleSemanticAnalysis,
+      moduleMaterialization
+    });
+    diagnostics.push(...moduleGeometryRuntime.diagnostics);
     return compileMaterializedExecution({
       statements: parsed.statements,
       context,
@@ -472,6 +482,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       visibilitySettings,
       printLayoutIdsByStatementIndex,
       materialization: moduleMaterialization,
+      moduleGeometryRuntime,
       applyStatement,
       buildBlockPrintLayouts
     });

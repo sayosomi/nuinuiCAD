@@ -20,6 +20,8 @@ import type {
 } from "../types/geometry";
 import type { DslMajorVersion } from "./dslVersion";
 import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
+import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
+import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
 
 type ApplyStatement = (
   element: CadElement,
@@ -29,7 +31,8 @@ type ApplyStatement = (
   elementsForExpressions: CadElement[],
   nameContext: ElementNameContext,
   visibilityRoles?: VisibilityRole[],
-  majorVersion?: DslMajorVersion
+  majorVersion?: DslMajorVersion,
+  geometryResolvers?: DslGeometryResolverOverrides
 ) => CadElement;
 
 type BuildBlockPrintLayouts = (input: {
@@ -74,6 +77,7 @@ export const compileMaterializedExecution = ({
   visibilitySettings,
   printLayoutIdsByStatementIndex,
   materialization,
+  moduleGeometryRuntime,
   applyStatement,
   buildBlockPrintLayouts
 }: {
@@ -83,6 +87,7 @@ export const compileMaterializedExecution = ({
   visibilitySettings: MaterializedVisibilitySettings;
   printLayoutIdsByStatementIndex: Map<number, string>;
   materialization: ModuleMaterialization;
+  moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
   applyStatement: ApplyStatement;
   buildBlockPrintLayouts: BuildBlockPrintLayouts;
 }): CompileDslResult => {
@@ -180,7 +185,8 @@ export const compileMaterializedExecution = ({
       index.elements,
       index.nameContext,
       visibilitySettings.visibilityRoles,
-      context.majorVersion
+      context.majorVersion,
+      moduleGeometryRuntime?.resolversByRuntimeElementId.get(entry.runtimeElementId)
     );
     return {
       ...compiled,
@@ -241,6 +247,7 @@ export const compileMaterializedExecution = ({
     changedCount: selectedElementIds.length,
     elementIdsByStatementIndex: new Map(materialization.elementIdBySourceStatementIndex),
     printLayoutIdsByStatementIndex,
-    moduleMaterialization: materialization
+    moduleMaterialization: materialization,
+    moduleGeometryRuntime
   };
 };

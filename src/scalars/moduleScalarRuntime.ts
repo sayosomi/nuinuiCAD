@@ -12,6 +12,7 @@ import type {
   ModuleSemanticAnalysis
 } from "../dsl/moduleSemanticTypes";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import type { CadElement, ElementId } from "../types/geometry";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
@@ -152,7 +153,7 @@ const lowerExpression = (
   semantic: ModuleScalarExpressionSemantic,
   bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
   catalogBindings: ReadonlyMap<BindingId, Binding>,
-  geometryPropertyForTarget?: (target: ModuleGeometryPropertySourceTarget) => { elementId: ElementId; targetSourceOrder: number } | undefined
+  geometryPropertyForTarget?: (target: ModuleGeometryPropertySourceTarget) => ModuleGeometryPropertyRuntimeTarget | undefined
 ): { expression: TypedScalarExpression; references: InitializerReference[] } => {
   const references = semanticReferencesUsedByAst(semantic);
   const resolutions = references.map((reference) => bindingResolutionFor(
@@ -166,16 +167,31 @@ const lowerExpression = (
     expectedType: semantic.type,
     references: resolutions
   });
-  const lowerGeometryProperties = (node: TypedScalarExpression): TypedScalarExpression => {
+  const lowerGeometryProperties = (node: TypedScalarExpression): { node: TypedScalarExpression; references: InitializerReference[] } => {
     if (node.kind === "geometryProperty") {
       const semanticProperty = semantic.geometryProperties.find((property) => property.span.start === node.span.start);
       const resolved = semanticProperty?.target && geometryPropertyForTarget?.(semanticProperty.target);
-      return resolved ? { ...node, elementId: resolved.elementId, targetSourceOrder: resolved.targetSourceOrder } : node;
+      if (!resolved) return { node, references: [] };
+      if (resolved.kind === "expression") {
+        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget);
+        return { node: lowered.expression, references: lowered.references };
+      }
+      return { node: { ...node, elementId: resolved.elementId, property: resolved.property, targetSourceOrder: resolved.targetSourceOrder ?? null }, references: [] };
     }
-    if (node.kind === "unary") return { ...node, operand: lowerGeometryProperties(node.operand) };
-    if (node.kind === "binary") return { ...node, left: lowerGeometryProperties(node.left), right: lowerGeometryProperties(node.right) };
-    if (node.kind === "group") return { ...node, expression: lowerGeometryProperties(node.expression) };
-    return node;
+    if (node.kind === "unary") {
+      const operand = lowerGeometryProperties(node.operand);
+      return { node: { ...node, operand: operand.node }, references: operand.references };
+    }
+    if (node.kind === "binary") {
+      const left = lowerGeometryProperties(node.left);
+      const right = lowerGeometryProperties(node.right);
+      return { node: { ...node, left: left.node, right: right.node }, references: [...left.references, ...right.references] };
+    }
+    if (node.kind === "group") {
+      const expression = lowerGeometryProperties(node.expression);
+      return { node: { ...node, expression: expression.node }, references: expression.references };
+    }
+    return { node, references: [] };
   };
   const initializerReferences: InitializerReference[] = references.map((reference, index) => ({
     fromBindingId: "",
@@ -192,7 +208,14 @@ const lowerExpression = (
       throw new Error(`moduleScalarRuntime: lowered reference ${resolution.binding.id} is not in the combined catalog`);
     }
   }
-  return { expression: lowerGeometryProperties(checked.typed), references: initializerReferences };
+  const lowered = lowerGeometryProperties(checked.typed);
+  return {
+    expression: lowered.node,
+    references: [...initializerReferences, ...lowered.references.map((reference, index) => ({
+      ...reference,
+      occurrenceIndex: initializerReferences.length + index
+    }))]
+  };
 };
 
 const elementForBody = (
@@ -253,7 +276,8 @@ export const compileModuleScalarRuntime = ({
   reconciledContainers,
   includeStatement,
   elements,
-  sourceScopeIndex
+  sourceScopeIndex,
+  moduleGeometryRuntime
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -266,6 +290,8 @@ export const compileModuleScalarRuntime = ({
   elements: readonly CadElement[];
   /** Complete source lexical index, including inert module bodies. */
   sourceScopeIndex?: LexicalScopeIndex;
+  /** Task 7 stable geometry target lowering; no runtime name lookup. */
+  moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
 }): ModuleScalarRuntimeCompilation => {
   const include = includeStatement ?? ((_statement, index) => isCompilableDslStatement(statements, index));
   const baseScopeIndex = documentBindingAnalysis?.catalog.scopeIndex ?? buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, include);
@@ -538,7 +564,14 @@ export const compileModuleScalarRuntime = ({
   const resolvedGeometryPropertyForContext = (
     target: ModuleGeometryPropertySourceTarget,
     context: InstanceContext
-  ): { elementId: ElementId; targetSourceOrder: number } | undefined => {
+  ): ModuleGeometryPropertyRuntimeTarget | undefined => {
+    if (moduleGeometryRuntime) {
+      const lowered = moduleGeometryRuntime.resolvePropertyTarget(target, context.path, new Map(elements.map((element) => [element.id, element])));
+      if (!lowered) return undefined;
+      if (lowered.kind === "expression") return lowered;
+      const sourceOrder = elementOrderById.get(lowered.elementId);
+      return sourceOrder === undefined ? undefined : { ...lowered, targetSourceOrder: sourceOrder };
+    }
     if (target.kind !== "sourceGeometryProperty") return undefined;
     let cursor: InstanceContext | undefined = context;
     while (cursor) {
@@ -546,7 +579,7 @@ export const compileModuleScalarRuntime = ({
         const runtime = elementForBody(moduleMaterialization, cursor.path, target.statementId);
         if (runtime) {
           const sourceOrder = elementOrderById.get(runtime.elementId);
-          if (sourceOrder !== undefined) return { elementId: runtime.elementId, targetSourceOrder: sourceOrder };
+          if (sourceOrder !== undefined) return { kind: "runtime", elementId: runtime.elementId, property: target.property, targetSourceOrder: sourceOrder };
         }
       }
       cursor = cursor.parentKey ? contextsByKey.get(cursor.parentKey) : undefined;
@@ -554,7 +587,7 @@ export const compileModuleScalarRuntime = ({
     const documentElementId = moduleMaterialization.elementIdBySourceStatementIndex.get(target.statementIndex);
     if (!documentElementId) return undefined;
     const sourceOrder = elementOrderById.get(documentElementId);
-    return sourceOrder === undefined ? undefined : { elementId: documentElementId, targetSourceOrder: sourceOrder };
+    return sourceOrder === undefined ? undefined : { kind: "runtime", elementId: documentElementId, property: target.property, targetSourceOrder: sourceOrder };
   };
   const moduleInitializers = new Map<BindingId, TypedScalarExpression>();
   const moduleReferences: InitializerReference[] = [];
@@ -702,6 +735,25 @@ export const compileModuleScalarRuntime = ({
         }
         const numeric = numericSourceForModuleSite(element, site, (target) => resolvedBindingForContext(target, context));
         if (numeric) materializedNumericBindings.push({ elementId: runtime.elementId, binding: numeric });
+      }
+      // A geometry parameter can carry a coordinate anchor. When that alias
+      // is consumed by a body element, keep its x/y expressions on the same
+      // numeric binding path as a source-level coordinate() argument.
+      if (moduleGeometryRuntime) {
+        for (const referenceSite of body.geometryReferences) {
+          if (!referenceSite.parameterKey || referenceSite.reference.coordinate) continue;
+          const coordinate = moduleGeometryRuntime.coordinateForReference(referenceSite.reference, context.path);
+          if (!coordinate) continue;
+          for (const [axis, expression] of [["x", coordinate.x], ["y", coordinate.y]] as const) {
+            if (!expression) continue;
+            const numeric = numericSourceForModuleSite(
+              element,
+              { parameterKey: `${referenceSite.parameterKey}:${axis}`, span: expression.ast.span, expression },
+              (target) => resolvedBindingForContext(target, context)
+            );
+            if (numeric) materializedNumericBindings.push({ elementId: runtime.elementId, binding: numeric });
+          }
+        }
       }
     }
   }

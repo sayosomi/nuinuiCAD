@@ -1,5 +1,5 @@
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
-import { isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
+import { constructionFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
 import {
   resolveSourceLexicalDeclaration,
   type SourceLexicalDeclaration,
@@ -18,6 +18,8 @@ import { analyzeModuleBody } from "./moduleBodySemantic";
 import { parseDslReferenceToken } from "./dslReferenceTokens";
 import { lastIndexOfDslOutsideQuotes } from "./dslTokens";
 import { coordinateComponent } from "./dslParameterSpanScanner";
+import { splitDslList } from "./dslTokens";
+import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { isKnownNumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import { isDerivedPointKeyForGeometryCategory, isKnownDerivedPointKey, isLineEndpointPointKey } from "../model/pointAnchors";
@@ -29,6 +31,7 @@ import type {
   ModuleDefinitionSemantic,
   ModuleGeometryPropertySourceTarget,
   ModuleGeometryReferenceSemantic,
+  ModuleGeometryReferenceSite,
   ModuleGeometrySourceTarget,
   ModuleInstanceSemantic,
   ModuleGeometryReferenceRole,
@@ -807,6 +810,47 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return resolution;
   };
 
+  // Root elements normally use the ordinary document NameIndex. Qualified
+  // module exports are the exception: retain their source-only semantic
+  // target here so the instance-aware lowering phase can resolve them without
+  // publishing materialized children into the root namespace.
+  const rootGeometryReferencesByStatementId = new Map<StatementIdentity, ModuleGeometryReferenceSite[]>();
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (statement.kind !== "element" || (!isGeometryDeclarationCategory(statement.category) && statement.category !== "mutation") || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
+    const spec = constructionFor(statement.category, statement.construction);
+    if (!spec || !statement.type) continue;
+    const definitionsByKey = new Map(getParameterDefinitions({ type: statement.type, intermediatePoints: [] } as never).map((definition) => [definition.key, definition]));
+    const sites: ModuleGeometryReferenceSite[] = [];
+    for (const arg of spec.args) {
+      if (arg.special || !arg.parameterKey && !definitionsByKey.has(arg.arg)) continue;
+      const parameterKey = arg.parameterKey ?? arg.arg;
+      const parameter = definitionsByKey.get(parameterKey);
+      const valueSpan = statement.payloadSpans[arg.arg] ?? statement.payloadSpans[parameterKey];
+      if (!parameter || !valueSpan || !["reference", "lineEndpointReference", "lineReference", "lineReferenceList"].includes(parameter.kind)) continue;
+      const raw = input.logicalTextByStatementIndex?.get(statementIndex)?.slice(valueSpan.start, valueSpan.end) ?? statement.attrs.find((attr) => attr.key === arg.arg)?.value ?? "";
+      if (!raw.includes("::")) continue;
+      const firstSegment = raw.trim().replace(/^@/, "").split("::", 1)[0];
+      const instanceLookup = sourceDeclarationResolution(sourceNamespace, statements, statementIndex, firstSegment);
+      if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") continue;
+      const expected = parameter.kind === "reference" || parameter.kind === "lineEndpointReference" ? "point" : "line";
+      if (parameter.kind === "lineReferenceList") {
+        let cursor = 0;
+        for (const token of splitDslList(raw)) {
+          const offset = raw.indexOf(token, cursor);
+          cursor = offset + token.length;
+          const reference = resolveGeometry(statementIndex, null, token, { start: valueSpan.start + Math.max(0, offset), end: valueSpan.start + Math.max(0, offset) + token.length }, expected, { role: "lineReferenceList" });
+          sites.push({ parameterKey, span: reference.span, reference });
+        }
+      } else {
+        const reference = resolveGeometry(statementIndex, null, raw, valueSpan, expected, {
+          role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference"
+        });
+        sites.push({ parameterKey, span: valueSpan, reference });
+      }
+    }
+    if (sites.length) rootGeometryReferencesByStatementId.set(statementIdAt(stableStatementIdByIndex, statementIndex), sites);
+  }
+
   const instances: ModuleInstanceSemantic[] = [];
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "moduleInstance") continue;
@@ -947,7 +991,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   }
   const definitionsByStatementId = new Map(semanticDefinitions.map((definition) => [definition.statementId, definition] as const));
   const instancesByStatementId = new Map(instances.map((instance) => [instance.statementId, instance] as const));
-  return { definitions: semanticDefinitions, instances, definitionsByStatementId, instancesByStatementId, callEdges, diagnostics };
+  return { definitions: semanticDefinitions, instances, definitionsByStatementId, instancesByStatementId, callEdges, rootGeometryReferencesByStatementId, diagnostics };
 };
 
 export const analyzeModuleSemantic = analyzeModuleSemantics;

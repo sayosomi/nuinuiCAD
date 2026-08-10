@@ -30,8 +30,39 @@ export type DslApplyArgsResult = {
   metadata: DslApplyArgsMetadata;
 };
 
+export type DslIdResolver = (
+  token: string,
+  index: NameIndex,
+  line: number,
+  diagnostics: DslDiagnostic[],
+  currentElement?: CadElement
+) => ElementId;
+
+export type DslAnchorResolver = (
+  token: string,
+  index: NameIndex,
+  line: number,
+  diagnostics: DslDiagnostic[],
+  numeric: (source: string) => NumericValue,
+  currentElement?: CadElement
+) => NonNullable<ReturnType<typeof resolveAnchorFromDsl>>;
+
+export type DslEndpointResolver = (
+  token: string,
+  index: NameIndex,
+  line: number,
+  diagnostics: DslDiagnostic[],
+  currentElement?: CadElement
+) => NonNullable<ReturnType<typeof resolveEndpointFromDsl>>;
+
+export type DslGeometryResolverOverrides = {
+  resolveId?: DslIdResolver;
+  resolveAnchor?: DslAnchorResolver;
+  resolveEndpoint?: DslEndpointResolver;
+};
+
 /** Dependencies supplied by the compiler skeleton when it connects P6 in C1. */
-export type DslApplyArgsResolvers = {
+export type DslApplyArgsResolvers = DslGeometryResolverOverrides & {
   index: NameIndex;
   line: number;
   elementsForExpressions: CadElement[];
@@ -39,9 +70,6 @@ export type DslApplyArgsResolvers = {
   visibilityRoles?: readonly VisibilityRole[];
   createIntermediateId: () => ElementId;
   normalizeNumeric?: (source: string, currentElement: CadElement) => NumericValue;
-  resolveId?: typeof resolveIdFromDsl;
-  resolveAnchor?: typeof resolveAnchorFromDsl;
-  resolveEndpoint?: typeof resolveEndpointFromDsl;
   majorVersion?: DslMajorVersion;
 };
 

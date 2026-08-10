@@ -10,6 +10,7 @@ import type {
 import type { DocumentRange, DslPhysicalSpan, LogicalStatement, LogicalStatementSourceMap, SourceRevision } from "./logicalStatementSourceMap";
 import type { DslMajorVersion } from "./dslVersion";
 import type { ModuleMaterialization } from "./moduleMaterialization";
+import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
 import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -267,6 +268,8 @@ export type CompileDslResult = {
   printLayoutIdsByStatementIndex?: Map<number, string>;
   /** Runtime-only module expansion and source-origin mapping. */
   moduleMaterialization?: ModuleMaterialization;
+  /** Compile-time lowered geometry aliases and export resolvers. */
+  moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
 };
 
 export type SerializeDslOptions = {
