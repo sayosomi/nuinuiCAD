@@ -129,7 +129,13 @@ export const InspectorPanel = ({
       isRuntimeFresh
         ? { propertyBindings: doc.propertyBindings, byElementId: doc.statementMap.byElementId, materializedPropertyBindings: doc.materializedPropertyBindings, materializedBindingsByElementId: doc.materializedGroupPrintEnabledBindings }
         : undefined,
-    [isRuntimeFresh, doc.propertyBindings, doc.statementMap],
+    [
+      isRuntimeFresh,
+      doc.propertyBindings,
+      doc.statementMap,
+      doc.materializedPropertyBindings,
+      doc.materializedGroupPrintEnabledBindings,
+    ],
   );
   const presentationStatusIndex = useMemo(
     () =>
