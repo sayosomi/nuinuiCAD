@@ -37,6 +37,11 @@ import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { isCompilableDslStatement, type DslStatementInclusion } from "./dslCompilationGuard";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
+import { isGeometryDeclarationCategory } from "./dslConstructions";
+import {
+  buildSourceLexicalNamespaceIndex,
+  type SourceLexicalNamespaceIndex
+} from "./sourceLexicalNamespaceIndex";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
@@ -211,6 +216,8 @@ export type CompiledDslDocument = {
   bindingVersions?: BindingVersionGraph;
   /** Task 36 static dependency graph for this exact compile attempt. */
   typedDependencyGraph?: TypedDependencyGraph;
+  /** Task 2 source-only lexical declarations, including inert module bodies. */
+  sourceLexicalNamespace?: SourceLexicalNamespaceIndex;
   /**
    * Task 48: `bindingAnalysis.issues` (duplicate-binding/binding-cycle/
    * self-initialization/undefined-binding/forward-binding-reference) adapted
@@ -954,10 +961,14 @@ export const compileDslDocument = (
   const hasPrintLayoutStatements = parsed.statements.some(
     (statement, statementIndex) => statement.kind === "printLayout" && includeStatement(statement, statementIndex)
   );
+  const hasModuleStatements = parsed.statements.some(
+    (statement) => statement.kind === "moduleDefinition" || statement.kind === "moduleInstance"
+  );
   const hasCompilableGeometryStatements = parsed.statements.some(
     (statement, statementIndex) => isElementDslStatement(statement) && includeStatement(statement, statementIndex)
   );
-  const stableStatementIdByIndex = (hasTypedDeclarations || hasSetStatements || hasPrintLayoutStatements)
+  const stableStatementIdByIndex =
+    (hasTypedDeclarations || hasSetStatements || hasPrintLayoutStatements || hasModuleStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
   if (stableStatementIdByIndex) {
@@ -965,7 +976,29 @@ export const compileDslDocument = (
       stableStatementIdByIndex.set(statementIndex, elementId);
     }
   }
-  const baseDiagnostics = [...versionValidation.diagnostics, ...printLayoutPlacementDiagnostics, ...compiled.diagnostics];
+  const sourceNamespaceRequiresIdentity = (statement: DslStatement) =>
+    statement.kind === "moduleDefinition" ||
+    statement.kind === "moduleInstance" ||
+    statement.kind === "group" ||
+    statement.kind === "typedDeclaration" ||
+    (statement.kind === "element" &&
+      (isGeometryDeclarationCategory(statement.category) ||
+        statement.type === "conditionalGroup" ||
+        statement.type === "forGroup"));
+  const sourceNamespaceHasCompleteIdentity =
+    stableStatementIdByIndex !== undefined &&
+    parsed.statements.every(
+      (statement, statementIndex) => !sourceNamespaceRequiresIdentity(statement) || stableStatementIdByIndex.has(statementIndex)
+    );
+  const sourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
+    ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
+    : undefined;
+  const baseDiagnostics = [
+    ...versionValidation.diagnostics,
+    ...printLayoutPlacementDiagnostics,
+    ...compiled.diagnostics,
+    ...(sourceLexicalNamespace?.diagnostics ?? [])
+  ];
 
   // Task 48: the one parse-time span index every typed-variable diagnostic
   // producer - including ones that run later, against this exact compiled
@@ -992,7 +1025,8 @@ export const compileDslDocument = (
       statementMap: null,
       sourceLines,
       diagnostics: baseDiagnostics,
-      spans
+      spans,
+      ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {})
     };
   }
 
@@ -1159,6 +1193,7 @@ export const compileDslDocument = (
       ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
       ...(bindingVersions ? { bindingVersions } : {}),
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
+      ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
       ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
     };
   }
@@ -1214,6 +1249,7 @@ export const compileDslDocument = (
     ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
     ...(bindingVersions ? { bindingVersions } : {}),
     ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
+    ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
     ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
   };
 };

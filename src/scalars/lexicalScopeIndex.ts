@@ -17,7 +17,7 @@
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { ScalarType } from "./types";
 
-export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup";
+export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module";
 export type ScopeId = string;
 
 export type LexicalScope = {
@@ -125,6 +125,8 @@ export const buildLexicalScopeIndex = (
         scopeId = `for:${resolveStatementId(enclosing.statementIndex, parent)}`;
       } else if (isConditionalGroup(parent)) {
         scopeId = `if:${resolveStatementId(enclosing.statementIndex, parent)}:${enclosing.branch}`;
+      } else if (parent.kind === "moduleDefinition") {
+        scopeId = `module:${resolveStatementId(enclosing.statementIndex, parent)}`;
       } else {
         // printLayout (or any other block-opening kind not tracked as a
         // lexical scope here): transparently delegate to the parent's own
@@ -171,6 +173,8 @@ export const buildLexicalScopeIndex = (
       const stableId = resolveStatementId(index, statement);
       registerScope(`if:${stableId}:then`, "then", parentId, index);
       if (conditionalGroupsWithElse.has(index)) registerScope(`if:${stableId}:else`, "else", parentId, index);
+    } else if (statement.kind === "moduleDefinition") {
+      registerScope(`module:${resolveStatementId(index, statement)}`, "module", parentId, index);
     }
     // Any other opensBlock kind (e.g. a malformed statement the real parser
     // also refused to push a frame for, or printLayout, which is not a

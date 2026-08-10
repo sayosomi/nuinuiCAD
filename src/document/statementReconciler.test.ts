@@ -80,6 +80,56 @@ const reconcileElements = (
 ) => reconcileSources(dslTextForElements(oldElements), dslTextForElements(newElements));
 
 describe("statementReconciler 仕様表", () => {
+  it("inherits opaque identities for renamed module definitions and instances across insertion", () => {
+    const oldSource = [
+      "nui 3",
+      "module M() {",
+      "  point Inner = coordinate(x: 0, y: 0)",
+      "}",
+      "module Instance = M()"
+    ].join("\n");
+    const newSource = [
+      "nui 3",
+      "point Unrelated = coordinate(x: 10, y: 10)",
+      "module Renamed() {",
+      "  point Inner = coordinate(x: 0, y: 0)",
+      "}",
+      "module RenamedInstance = Renamed()"
+    ].join("\n");
+    const oldStatements = parseDsl(oldSource).statements;
+    let nextId = 0;
+    const first = reconcileStatements(
+      {
+        oldStatements: [],
+        oldLines: [],
+        oldElementIds: new Map(),
+        oldStatementIds: new Map(),
+        newStatements: oldStatements,
+        newLines: oldSource.split("\n")
+      },
+      {
+        createId: (type) => `element:${type}:${++nextId}`,
+        createStatementId: (kind) => `statement:${kind}:${++nextId}`
+      }
+    );
+    const newStatements = parseDsl(newSource).statements;
+    const second = reconcileStatements({
+      oldStatements,
+      oldLines: oldSource.split("\n"),
+      oldElementIds: first.assignedIds,
+      oldStatementIds: first.assignedIds,
+      newStatements,
+      newLines: newSource.split("\n")
+    }, { createId: (type) => `new-element:${type}`, createStatementId: (kind) => `new-statement:${kind}` });
+
+    const oldModuleDefinitionIndex = oldStatements.findIndex((statement) => statement.kind === "moduleDefinition");
+    const oldModuleInstanceIndex = oldStatements.findIndex((statement) => statement.kind === "moduleInstance");
+    const newModuleDefinitionIndex = newStatements.findIndex((statement) => statement.kind === "moduleDefinition");
+    const newModuleInstanceIndex = newStatements.findIndex((statement) => statement.kind === "moduleInstance");
+    expect(second.assignedIds.get(newModuleDefinitionIndex)).toBe(first.assignedIds.get(oldModuleDefinitionIndex));
+    expect(second.assignedIds.get(newModuleInstanceIndex)).toBe(first.assignedIds.get(oldModuleInstanceIndex));
+  });
+
   it("属性編集(名前・型・位置不変)は段階2でID変化0", () => {
     const oldElements: DslDocumentData["elements"] = [
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },

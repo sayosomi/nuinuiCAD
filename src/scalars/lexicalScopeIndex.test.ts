@@ -138,6 +138,46 @@ describe("buildLexicalScopeIndex", () => {
     expect(scopeB?.openingStatementIndex).toBe(1);
   });
 
+  it("uses a module scope for direct bodies and inherits CAD group scope metadata", () => {
+    const statements = parse(
+      [
+        "group Outer {",
+        "  module M() {",
+        "    group Inner {",
+        "      const x: number = 1",
+        "    }",
+        "  }",
+        "}"
+      ].join("\n")
+    );
+    const index = buildLexicalScopeIndex(statements, byName);
+
+    expect(index.scopeOfStatement.get(1)).toBe("group:Outer");
+    expect(index.scopes.get("module:M")).toMatchObject({ kind: "module", parentId: "group:Outer" });
+    expect(index.scopes.get("group:Inner")).toMatchObject({ kind: "group", parentId: "module:M" });
+    expect(index.allDeclarations[0]).toMatchObject({ scopeId: "group:Inner", name: "x" });
+    expect(index.scopeMetadataById.get("module:M")?.effectiveGroupScopeId).toBe("group:Outer");
+  });
+
+  it("nests module scopes by stable opener identity, independent of statement position", () => {
+    const before = parse(["module Outer() {", "  module Inner() {", "    const x: number = 1", "  }", "}"].join("\n"));
+    const after = parse(
+      ["const unrelated: number = 99", "module Outer() {", "  module Inner() {", "    const x: number = 1", "  }", "}"].join("\n")
+    );
+    const idsBefore: ResolveStatementId = (index, statement) =>
+      statement.kind === "moduleDefinition" ? (statement.name === "Outer" ? "outer-id" : "inner-id") : `s${index}`;
+    const idsAfter: ResolveStatementId = (index, statement) =>
+      statement.kind === "moduleDefinition" ? (statement.name === "Outer" ? "outer-id" : "inner-id") : `s${index}`;
+
+    const beforeIndex = buildLexicalScopeIndex(before, idsBefore);
+    const afterIndex = buildLexicalScopeIndex(after, idsAfter);
+    expect(beforeIndex.scopes.has("module:outer-id")).toBe(true);
+    expect(beforeIndex.scopes.has("module:inner-id")).toBe(true);
+    expect(afterIndex.scopes.has("module:outer-id")).toBe(true);
+    expect(afterIndex.scopes.has("module:inner-id")).toBe(true);
+    expect(afterIndex.scopes.get("module:inner-id")?.parentId).toBe("module:outer-id");
+  });
+
   it("maps every statement to a scope across 1000 statements", () => {
     const lines: string[] = [];
     for (let i = 0; i < 250; i += 1) {
