@@ -15,6 +15,7 @@ import type {
 import { moduleMutationOwnershipDiagnostics } from "./moduleMutationOwnership";
 import {
   diagnosticForExport,
+  diagnosticForExportNamespace,
   geometryKindOfCategory,
   lowerReference,
   pathKey,
@@ -112,8 +113,8 @@ export const buildModuleGeometryRuntime = ({
     if (instance.callerModuleDefinitionStatementId === null) register(instance.statementId, []);
   }
 
-  const definitionForTarget = (target: Extract<ModuleGeometrySourceTarget, { kind: "deferredModuleExport" }>) => {
-    const childInstance = moduleSemanticAnalysis.instancesByStatementId.get(target.instanceStatementId);
+  const definitionForInstance = (instanceStatementId: string) => {
+    const childInstance = moduleSemanticAnalysis.instancesByStatementId.get(instanceStatementId);
     return childInstance?.callee
       ? moduleSemanticAnalysis.definitionsByStatementId.get(childInstance.callee.definitionStatementId)
       : undefined;
@@ -124,9 +125,20 @@ export const buildModuleGeometryRuntime = ({
     target: Extract<ModuleGeometrySourceTarget, { kind: "deferredModuleExport" }>,
     currentPath: readonly string[]
   ) => {
-    const definition = definitionForTarget(target);
+    const definition = definitionForInstance(target.instanceStatementId);
     const entry = exportsByPath.get(pathKey([...currentPath, target.instanceStatementId]))?.get(target.exportName);
     const diagnostic = diagnosticForExport(statement, target, definition, statements, entry);
+    if (diagnostic) diagnostics.push(diagnostic);
+  };
+
+  const validateDeferredNamespace = (
+    statement: DslStatement,
+    target: { instanceStatementId: string; exportName: string; memberSpan: { start: number; end: number } },
+    currentPath: readonly string[]
+  ) => {
+    const definition = definitionForInstance(target.instanceStatementId);
+    const entry = exportsByPath.get(pathKey([...currentPath, target.instanceStatementId]))?.get(target.exportName);
+    const diagnostic = diagnosticForExportNamespace(statement, target, definition, statements, entry);
     if (diagnostic) diagnostics.push(diagnostic);
   };
 
@@ -157,16 +169,7 @@ export const buildModuleGeometryRuntime = ({
       for (const site of body.scalarExpressions) {
         for (const property of site.expression.geometryProperties) {
           if (property.target?.kind === "deferredModuleExportProperty") {
-            validateDeferred(statement, {
-              kind: "deferredModuleExport",
-              instanceStatementId: property.target.instanceStatementId,
-              instanceStatementIndex: property.target.instanceStatementIndex,
-              instanceName: property.target.instanceName,
-              exportName: property.target.exportName,
-              expectedGeometryKind: "line",
-              referenceSpan: property.target.referenceSpan,
-              memberSpan: property.target.memberSpan
-            }, context.path);
+            validateDeferredNamespace(statement, property.target, context.path);
           }
         }
       }

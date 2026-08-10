@@ -1,5 +1,5 @@
 import { makeNumericExpression } from "../geometry/numericExpressions";
-import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
+import { derivedAnchor, isDerivedPointKeyForGeometryCategory, referenceAnchor } from "../model/pointAnchors";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import { resolveAnchor as resolveAnchorFromDsl, resolveEndpoint as resolveEndpointFromDsl, resolveId as resolveIdFromDsl } from "./dslReferences";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
@@ -83,6 +83,34 @@ export const diagnosticForExport = (
   statements: readonly DslStatement[],
   exportEntry: ExportEntry | undefined
 ): DslDiagnostic | null => {
+  const namespaceDiagnostic = diagnosticForExportNamespace(statement, target, definition, statements, exportEntry);
+  if (namespaceDiagnostic || !definition || !exportEntry) return namespaceDiagnostic;
+  const actualKind = geometryKindOfCategory(exportEntry.exported.category);
+  const validDerivedPoint = target.pointKey !== undefined &&
+    target.expectedGeometryKind === "point" &&
+    isDerivedPointKeyForGeometryCategory(exportEntry.exported.category, target.pointKey);
+  const typeCompatible = target.pointKey === undefined
+    ? actualKind === target.expectedGeometryKind
+    : validDerivedPoint;
+  if (!typeCompatible) {
+    return {
+      severity: "error",
+      line: statement.line,
+      column: target.memberSpan.start + 1,
+      code: "module-geometry-type-mismatch",
+      message: `module export「${target.exportName}」の型またはderived point accessorが一致しません。`
+    };
+  }
+  return null;
+};
+
+export const diagnosticForExportNamespace = (
+  statement: DslStatement,
+  target: Pick<Extract<ModuleGeometrySourceTarget, { kind: "deferredModuleExport" }>, "exportName" | "memberSpan">,
+  definition: ModuleDefinitionSemantic | undefined,
+  statements: readonly DslStatement[],
+  exportEntry: ExportEntry | undefined
+): DslDiagnostic | null => {
   if (!definition) return null;
   if (!exportEntry) {
     const privateMember = definition.bodyStatements.some((body) =>
@@ -96,17 +124,6 @@ export const diagnosticForExport = (
       message: privateMember
         ? `module member「${target.exportName}」はexportされていないため参照できません。`
         : `module export「${target.exportName}」が見つかりません。`
-    };
-  }
-  const actualKind = geometryKindOfCategory(exportEntry.exported.category);
-  const derivedPointFromLine = target.pointKey !== undefined && target.expectedGeometryKind === "point" && actualKind === "line";
-  if (actualKind !== target.expectedGeometryKind && !derivedPointFromLine) {
-    return {
-      severity: "error",
-      line: statement.line,
-      column: target.memberSpan.start + 1,
-      code: "module-geometry-type-mismatch",
-      message: `module export「${target.exportName}」の型が一致しません(期待: ${target.expectedGeometryKind})。`
     };
   }
   return null;

@@ -179,6 +179,55 @@ describe("module geometry runtime", () => {
     expect(result.computedGeometry.get(named(compiled, "Result").id)).toMatchObject({ kind: "point", x: 9 });
   });
 
+  it("validates exported point properties and category-aware derived points", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Inner() {",
+      "  export point P = coordinate(x: 3, y: 4)",
+      "  export line L = segment(start: (0, 0), end: (10, 0))",
+      "  export arc A = arc(center: (5, 6), radius: 2, start: 0, end: 90)",
+      "}",
+      "module Outer() {",
+      "  module Child = Inner()",
+      "  const px: number = @Child::P.x",
+      "  const py: number = @Child::P.y",
+      "  point PointProperty = coordinate(x: @px, y: @py)",
+      "  point LineStart = offset(from: Child::L.start, dx: 0, dy: 0)",
+      "  point LineEnd = offset(from: Child::L.end, dx: 0, dy: 0)",
+      "  point ArcCenter = offset(from: Child::A.center, dx: 0, dy: 0)",
+      "}",
+      "module X = Outer()"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(named(compiled, "PointProperty").id)).toMatchObject({ kind: "point", x: 3, y: 4 });
+    expect(result.computedGeometry.get(named(compiled, "LineStart").id)).toMatchObject({ kind: "point", x: 0, y: 0 });
+    expect(result.computedGeometry.get(named(compiled, "LineEnd").id)).toMatchObject({ kind: "point", x: 10, y: 0 });
+    expect(result.computedGeometry.get(named(compiled, "ArcCenter").id)).toMatchObject({ kind: "point", x: 5, y: 6 });
+  });
+
+  it.each([
+    ["ordinary line center", "export line L = segment(start: (0, 0), end: (10, 0))", "X::L.center"],
+    ["curve center", "export curve C = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 2, endAngle: 180, endLength: 2)", "X::C.center"],
+    ["point start", "export point P = coordinate(x: 3, y: 4)", "X::P.start"]
+  ])("rejects invalid exported derived point accessor: %s", (_label, exported, reference) => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      `  ${exported}`,
+      "}",
+      "module X = M()",
+      `point Root = offset(from: ${reference}, dx: 1, dy: 1)`
+    ].join("\n"));
+
+    expect(compiled.document).toBeNull();
+    expect(errorsOf(compiled)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+  });
+
   it("keeps module coordinate aliases on the existing numeric binding path", () => {
     const compiled = compileWithIds([
       "nui 3",
