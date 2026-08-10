@@ -16,6 +16,28 @@ export type SelectablePoint = {
   point: ComputedPoint;
 };
 
+export type PointAnchorGeometryCategory = "point" | "line" | "curve" | "arc" | "text" | "image";
+
+/** Canonical source-level derived-point accessor vocabulary. */
+export const isKnownDerivedPointKey = (pointKey: string): boolean =>
+  pointKey === "start" ||
+  pointKey === "end" ||
+  pointKey === "center" ||
+  (pointKey.startsWith("intermediate:") && pointKey.length > "intermediate:".length);
+
+export const isDerivedPointKeyForGeometryCategory = (
+  category: PointAnchorGeometryCategory,
+  pointKey: string
+): boolean => {
+  if (!isKnownDerivedPointKey(pointKey)) return false;
+  if (category === "line") return pointKey === "start" || pointKey === "end";
+  if (category === "curve") return pointKey === "start" || pointKey === "end" || pointKey.startsWith("intermediate:");
+  if (category === "arc") return pointKey === "start" || pointKey === "end" || pointKey === "center";
+  return false;
+};
+
+export const isLineEndpointPointKey = (pointKey: string): boolean => pointKey === "start" || pointKey === "end";
+
 export const referenceAnchor = (pointId: ElementId): PointAnchor => ({
   mode: "reference",
   pointId

@@ -35,6 +35,25 @@ export type ElementLocalRangeQuery = {
   order: number;
 };
 
+/** Source-order name lookup shared by source semantic analysis and the
+ * runtime-owned local namespace. The caller chooses how many entries are
+ * visible; no runtime identity or BindingCatalog entry is involved. */
+export type ElementLocalVariableNameEntry = {
+  name: string;
+  variableIndex: number;
+};
+
+export const elementLocalVariableAtSourceOrder = (
+  entries: readonly ElementLocalVariableNameEntry[],
+  name: string,
+  visibleCount = entries.length
+): ElementLocalVariableNameEntry | null => {
+  for (let index = Math.min(visibleCount, entries.length) - 1; index >= 0; index -= 1) {
+    if (entries[index].name === name) return entries[index];
+  }
+  return null;
+};
+
 export const assertElementLocalOrder = (order: number, label: string) => {
   if (!Number.isSafeInteger(order) || order < 0) {
     throw new Error(`bindingResolution: ${label} must be a non-negative safe integer, got ${order}`);

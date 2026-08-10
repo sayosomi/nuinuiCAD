@@ -2,7 +2,7 @@ import { isGeometryDeclarationCategory } from "./dslConstructions";
 import { isInUnloweredModuleSubtree } from "./dslCompilationGuard";
 import { buildLexicalScopeIndexFromStatements } from "./lexicalScopeIndexAdapter";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
-import type { IncludeStatement, LexicalScopeIndex, ScopeId } from "../scalars/lexicalScopeIndex";
+import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId } from "../scalars/lexicalScopeIndex";
 
 /** Named declarations that participate in the source-level lexical namespace. */
 export type SourceLexicalDeclarationKind =
@@ -38,6 +38,12 @@ export type SourceLexicalNamespaceIndex = {
   collisions: readonly SourceLexicalNamespaceCollision[];
   diagnostics: readonly DslDiagnostic[];
 };
+
+export type SourceLexicalLookup =
+  | { kind: "resolved"; declaration: SourceLexicalDeclaration }
+  | { kind: "forward"; scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] }
+  | { kind: "undefined" }
+  | { kind: "ambiguous"; scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] };
 
 export type BuildSourceLexicalNamespaceOptions = {
   includeStatement?: IncludeStatement;
@@ -174,3 +180,30 @@ export const buildSourceLexicalNamespaceIndex = (
 
 /** Short name for callers that already know this is a lexical namespace. */
 export const buildLexicalNamespaceIndex = buildSourceLexicalNamespaceIndex;
+
+/**
+ * Resolve one source declaration using the parser's document order and the
+ * shared lexical scope tree. A visible declaration in the nearest scope wins.
+ * A declaration that only appears later in that scope is not a shadowing
+ * declaration yet, so lookup continues through parent scopes before deciding
+ * that the name is forward.
+ */
+export const resolveSourceLexicalDeclaration = (
+  index: SourceLexicalNamespaceIndex,
+  statementIndex: number,
+  name: string
+): SourceLexicalLookup => {
+  const startScope = index.scopeIndex.scopeOfStatement.get(statementIndex);
+  if (!startScope) return { kind: "undefined" };
+  let firstFuture: { scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] } | null = null;
+  for (const scopeId of scopeChain(index.scopeIndex, startScope)) {
+    const declarations = index.declarationsByScopeAndName.get(scopeId)?.get(name) ?? [];
+    if (declarations.length === 0) continue;
+    const visible = declarations.filter((declaration) => declaration.statementIndex < statementIndex);
+    if (visible.length === 1) return { kind: "resolved", declaration: visible[0] };
+    if (visible.length > 1) return { kind: "ambiguous", scopeId, declarations: visible };
+    firstFuture ??= { scopeId, declarations };
+  }
+  if (firstFuture) return { kind: "forward", ...firstFuture };
+  return { kind: "undefined" };
+};

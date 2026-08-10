@@ -42,6 +42,8 @@ describe("module definition compilation guard", () => {
   it("keeps option-bearing module instances inert until module materialization exists", () => {
     const source = [
       "nui 3",
+      "module M(state: boolean) {",
+      "}",
       "module X(state: hidden) = M(state: true)",
       "point Root = coordinate(x: 1, y: 2)"
     ].join("\n");
@@ -49,7 +51,7 @@ describe("module definition compilation guard", () => {
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Root"]);
-    expect(parsed.statements[1]).toMatchObject({
+    expect(parsed.statements.find((statement) => statement.kind === "moduleInstance")).toMatchObject({
       kind: "moduleInstance",
       options: [{ name: "state", value: "hidden" }],
       arguments: [{ label: "state", value: "true" }]

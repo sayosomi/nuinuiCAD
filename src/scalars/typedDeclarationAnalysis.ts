@@ -10,6 +10,7 @@ import { analyzeBindings, type BindingAnalysis, type InitializerReference } from
 import { buildBindingCatalog, type BindingId } from "./bindingCatalog";
 import { resolveInitializerReferences, type BindingResolution, type InitializerResolutionRequest } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
+import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import type { ReconciledCadContainerInput } from "./containerIndex";
@@ -40,28 +41,7 @@ type ParsedInitializer = { ast: ScalarExpressionAst; references: ReturnType<type
  * source order), so there is exactly one reference-collecting traversal in
  * the scalar subsystem. */
 export const collectReferences = (ast: ScalarExpressionAst): readonly { name: string; span: { start: number; end: number } }[] => {
-  const references: { name: string; span: { start: number; end: number } }[] = [];
-  const visit = (node: ScalarExpressionAst): void => {
-    switch (node.kind) {
-      case "reference":
-        references.push({ name: node.name, span: node.span });
-        return;
-      case "unary":
-        visit(node.operand);
-        return;
-      case "binary":
-        visit(node.left);
-        visit(node.right);
-        return;
-      case "group":
-        visit(node.expression);
-        return;
-      default:
-        return;
-    }
-  };
-  visit(ast);
-  return references;
+  return collectScalarExpressionReferences(ast);
 };
 
 /** Whether an expression needs scalar-only syntax rather than the separate
