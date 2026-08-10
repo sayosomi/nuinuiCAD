@@ -711,13 +711,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     const pointTarget = pointKey && expected === "point" && isDerivedPointKeyForGeometryCategory(target.category, pointKey)
       ? { ...target, pointKey }
-      : target;
-    const compatible = pointKey
-      ? Boolean(pointTarget && expected === "point")
-      : target.geometryKind === expected;
+      : pointKey ? null : target;
+    const compatible = pointKey ? Boolean(pointTarget) : target.geometryKind === expected;
     if (!compatible) {
       addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expected})。`));
-      return semantic(target, "invalid", null, derivedRole);
+      return semantic(null, "invalid", null, derivedRole);
     }
     return semantic(pointTarget, "resolved", null, derivedRole);
   };

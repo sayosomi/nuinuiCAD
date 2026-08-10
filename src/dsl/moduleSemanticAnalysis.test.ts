@@ -645,6 +645,21 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("rejects known derived accessors that are invalid for the source geometry category", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "  point P = coordinate(x: 0, y: 0)",
+      "  point InvalidLineCenter = offset(from: L.center, dx: 1, dy: 0)",
+      "  point InvalidPointStart = offset(from: P.start, dx: 1, dy: 0)",
+      "}"
+    ].join("\n"));
+    expect(moduleBodyAt(compiled, 4).geometryReferences[0].reference).toMatchObject({ resolution: "invalid", target: null });
+    expect(moduleBodyAt(compiled, 5).geometryReferences[0].reference).toMatchObject({ resolution: "invalid", target: null });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "module-geometry-type-mismatch")).toHaveLength(2);
+  });
+
   it("rejects a line passed to a point position and preserves outer geometry capture", () => {
     const compiled = compileWithIds([
       "nui 3",
