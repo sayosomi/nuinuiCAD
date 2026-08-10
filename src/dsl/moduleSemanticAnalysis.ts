@@ -286,9 +286,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     name: string,
     boundaryOwnerIndex: number | null = ownerIndex
   ): ReferenceResolution => {
-    const lookup = ownerIndex === null
-      ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, name)
-      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
+    const lookup = resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
     if (lookup.kind === "parameter") {
       const type = scalarTypeOf(lookup.parameter.parameter.type);
       if (type) return { target: scalarParameterTarget(lookup.definition, lookup.parameter), type, resolution: "resolved" };

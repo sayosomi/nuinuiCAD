@@ -89,6 +89,7 @@ export const useEvaluationEngine = (
   const bindingVersions = options.bindingVersions;
   const statementInfoByElementId = options.statementInfoByElementId;
   const sourceExecutionPositionByElementId = options.sourceExecutionPositionByElementId;
+  const scalarExecutionPositionByElementId = options.scalarExecutionPositionByElementId;
   const statementIdByStatementIndex = options.statementIdByStatementIndex;
   const conditionalOwnerStatementIdByElementId = options.conditionalOwnerStatementIdByElementId;
   const forGroupMutationOwnerByElementId = options.forGroupMutationOwnerByElementId;
@@ -103,7 +104,7 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(bindingVersions ? {
-        bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, statementIdByStatementIndex,
+        bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, scalarExecutionPositionByElementId, statementIdByStatementIndex,
         conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId
       } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
@@ -119,6 +120,7 @@ export const useEvaluationEngine = (
       bindingVersions,
       statementInfoByElementId,
       sourceExecutionPositionByElementId,
+      scalarExecutionPositionByElementId,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnerByElementId,

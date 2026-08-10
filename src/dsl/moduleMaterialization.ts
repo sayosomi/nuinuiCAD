@@ -1,5 +1,6 @@
 import { isInUnloweredModuleSubtree } from "./dslCompilationGuard";
 import { isElementDslStatement } from "./dslParser";
+import { encodeIdentityTuple } from "../document/identityTuple";
 import type { DslStatement } from "./dslTypes";
 import type {
   ModuleInstanceSemantic,
@@ -58,6 +59,8 @@ export type ModuleMaterialization = {
   sourceExecutionPositionByRuntimeElementId: ReadonlyMap<ElementId, number>;
   originByRuntimeElementId: ReadonlyMap<ElementId, ModuleOrigin>;
   runtimeIdentityByElementId: ReadonlyMap<ElementId, MaterializedRuntimeIdentity>;
+  /** Scalar execution order is separate from the outer atomic call unit. */
+  scalarExecutionPositionByRuntimeElementId?: ReadonlyMap<ElementId, number>;
   evaluationLimitIndex: number | undefined;
 };
 
@@ -91,13 +94,10 @@ const requireStatementIdentity = (
   return identity;
 };
 
-/** Length-prefix each tuple member so identities cannot have ambiguous boundaries. */
-const encodeTuple = (parts: readonly string[]) => parts.map((part) => `${part.length}:${part}`).join("");
-
 export const materializedRuntimeIdentityKey = (
   kind: MaterializedRuntimeIdentity["kind"],
   path: readonly StatementIdentity[]
-) => encodeTuple([kind, ...path]);
+) => encodeIdentityTuple([kind, ...path]);
 
 export const materializedRuntimeElementId = (
   kind: MaterializedRuntimeIdentity["kind"],

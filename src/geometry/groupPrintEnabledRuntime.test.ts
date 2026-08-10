@@ -19,7 +19,8 @@ const compile = (statements: string[]): LastGoodDslDocument => {
 
 const lookupFor = (doc: LastGoodDslDocument): GroupPrintEnabledLookup => ({
   propertyBindings: doc.propertyBindings,
-  byElementId: doc.statementMap.byElementId
+  byElementId: doc.statementMap.byElementId,
+  materializedBindingsByElementId: doc.materializedGroupPrintEnabledBindings
 });
 
 const groupNamed = (doc: LastGoodDslDocument, name: string): Extract<CadElement, { type: "group" }> => {

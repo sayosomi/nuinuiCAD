@@ -28,7 +28,8 @@ type AddScalar = (
   bodySemantic: ModuleBodyStatementSemantic | null,
   parameterKey: string,
   span: DslSpan,
-  expression: ModuleScalarExpressionSemantic | null
+  expression: ModuleScalarExpressionSemantic | null,
+  elementLocalVariableIndex?: number
 ) => void;
 
 export const analyzeElementLocalVariables = ({
@@ -116,7 +117,7 @@ export const analyzeElementLocalVariables = ({
       resolveBodyBareScalar,
       resolveBodyGeometryProperty
     );
-    addScalar(bodySemantic, "vars", expressionSpan, expression);
+    addScalar(bodySemantic, "vars", expressionSpan, expression, variableIndex);
   });
   return bodySemantic ? resolveLocalOrBody : null;
 };

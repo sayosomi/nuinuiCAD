@@ -60,11 +60,16 @@ export type EvaluateElementsOptions = {
   statementInfoByElementId?: ReadonlyMap<ElementId, { statementIndex: number }>;
   /** Task 5 runtime-only source execution positions for materialized module elements. */
   sourceExecutionPositionByElementId?: ReadonlyMap<ElementId, number>;
+  /** Inner scalar execution order for materialized module occurrences. */
+  scalarExecutionPositionByElementId?: ReadonlyMap<ElementId, number>;
   statementIdByStatementIndex?: ReadonlyMap<number, string>;
   /** Task 33's completed static join from conditional element id to owner statement id. */
   conditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
   /** Task 35's compiled stable join; never inferred from element array order. */
   forGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
+  /** Explicit joins for materialized module control owners. */
+  moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
+  moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
   /**
    * Task 23's elementId-keyed standard property bindings (already re-keyed
    * from CompiledDslDocument.propertyBindings by
@@ -182,8 +187,10 @@ export const evaluateElements = (
   // Built whenever a scalarProgram is present, independent of whether any
   // property bindings exist - computedScalarBindings is Task 21's own
   // contract and must not depend on Task 23's property wiring.
-  const linearMutationEnabled = options.bindingVersions !== undefined && hasSetVersions(options.bindingVersions);
-  if (linearMutationEnabled && !options.statementInfoByElementId && !options.sourceExecutionPositionByElementId) {
+  const linearMutationEnabled = options.bindingVersions !== undefined &&
+    (hasSetVersions(options.bindingVersions) || options.bindingVersions.requiresExecutionOrdering === true);
+  if (linearMutationEnabled && !options.statementInfoByElementId &&
+    !options.sourceExecutionPositionByElementId && !options.scalarExecutionPositionByElementId) {
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
   const linearMutationResolver = linearMutationEnabled
@@ -227,7 +234,9 @@ export const evaluateElements = (
     if (!linearMutationEnabled) return;
     const sourceId = (sourceElement ?? element).id;
     const statement = options.statementInfoByElementId?.get(sourceId);
-    const sourceOrder = statement?.statementIndex ?? options.sourceExecutionPositionByElementId?.get(element.id);
+    const sourceOrder = options.scalarExecutionPositionByElementId?.get(sourceId) ??
+      options.scalarExecutionPositionByElementId?.get(element.id) ??
+      statement?.statementIndex ?? options.sourceExecutionPositionByElementId?.get(element.id);
     if (sourceOrder === undefined) {
       throw new Error(
         `evaluateElements: no compiled source execution position for ${sourceId}`
@@ -433,8 +442,9 @@ export const evaluateElements = (
         const ownedTemplateIds = new Set(templates.map((templateElement) => templateElement.id));
         const statements: ForGroupMutationStatement[] = templates.map((templateElement) => {
           const statement = options.statementInfoByElementId!.get(templateElement.id);
-          if (!statement) throw new Error(`evaluateElements: no compiled statement mapping for forGroup template ${templateElement.id}`);
-          return { kind: "element" as const, sourceOrder: statement.statementIndex, templateElementId: templateElement.id };
+          const sourceOrder = options.scalarExecutionPositionByElementId?.get(templateElement.id) ?? statement?.statementIndex;
+          if (sourceOrder === undefined) throw new Error(`evaluateElements: no compiled execution mapping for forGroup template ${templateElement.id}`);
+          return { kind: "element" as const, sourceOrder, templateElementId: templateElement.id };
         });
         statements.push({ kind: "exit", sourceOrder: mutationOwner.exitSourceOrder });
         let expandedIteration = -1;
@@ -446,7 +456,7 @@ export const evaluateElements = (
           ownerStatementId: mutationOwner.ownerStatementId,
           loopScopeId: mutationOwner.scopeId,
           // This is the compiler's established iteration binding identity.
-          iterationBindingId: `binding:iteration:${mutationOwner.ownerStatementId}`,
+          iterationBindingId: mutationOwner.iterationBindingId ?? `binding:iteration:${mutationOwner.ownerStatementId}`,
           iterationValues: Array.from({ length: count }, (_, iterationIndex) => start + iterationIndex * step),
           statements
         }, (statement, context) => {

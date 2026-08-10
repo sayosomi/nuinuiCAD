@@ -38,7 +38,10 @@ export const buildRustEvaluationInput = (
         elements,
         options.statementInfoByElementId,
         options.statementIdByStatementIndex,
-        options.sourceExecutionPositionByElementId
+        options.sourceExecutionPositionByElementId,
+        options.scalarExecutionPositionByElementId,
+        options.moduleConditionalOwnerStatementIdByElementId,
+        options.moduleForGroupMutationOwnerByElementId
       )
     : undefined;
   return {

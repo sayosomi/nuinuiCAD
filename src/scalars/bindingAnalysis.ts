@@ -133,6 +133,8 @@ export type BindingAnalysis = {
   compiledProgram: CompiledProgramBindingSelection;
   /** Ordered by (bindingRank, codeRank, originRank, occurrenceIndex); see module comment. */
   issues: readonly BindingIssue[];
+  /** The already-resolved initializer references used to build this graph. */
+  initializerReferences: readonly InitializerReference[];
 };
 
 export const selectCompiledProgramBindings = (analysis: BindingAnalysis): CompiledProgramBindingSelection => analysis.compiledProgram;
@@ -441,5 +443,5 @@ export const analyzeBindings = (input: AnalyzeBindingsInput): BindingAnalysis =>
   }
 
   const { entries, entriesById, compiledProgram } = buildBindingProgramEligibility(graph, directEntries);
-  return { catalog, graph, components, entries, entriesById, compiledProgram, issues };
+  return { catalog, graph, components, entries, entriesById, compiledProgram, issues, initializerReferences: [...initializerReferences] };
 };

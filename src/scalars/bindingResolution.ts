@@ -247,7 +247,7 @@ const runSweep = (
   const typedByStatement = new Map<number, Binding[]>();
   for (const binding of catalog.bindings) {
     if (observer) observer.registeredBindingCount += 1;
-    if (binding.kind !== "typed") continue;
+    if (binding.kind !== "typed" || binding.resolutionMode === "preResolvedOnly") continue;
     const bucket = typedByStatement.get(binding.statementIndex) ?? [];
     bucket.push(binding);
     typedByStatement.set(binding.statementIndex, bucket);
@@ -438,7 +438,7 @@ const visibleBindingsAtInternal = (
 
   const typedByStatement = new Map<number, Binding[]>();
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed") continue;
+    if (binding.kind !== "typed" || binding.resolutionMode === "preResolvedOnly") continue;
     const bucket = typedByStatement.get(binding.statementIndex) ?? [];
     bucket.push(binding);
     typedByStatement.set(binding.statementIndex, bucket);

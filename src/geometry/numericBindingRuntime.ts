@@ -29,6 +29,10 @@ export type NumericBindingRuntimeEntry = {
 export type NumericBindingRuntimeSource = {
   numericBindings: ReadonlyMap<string, CompiledNumericBinding>;
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  materializedNumericBindings?: readonly {
+    elementId: ElementId;
+    binding: CompiledNumericBinding;
+  }[];
 };
 
 /** Re-keys a source-statement occurrence exactly once.  The entry retains
@@ -56,6 +60,21 @@ export const buildNumericBindingRuntimeEntries = (
         }))
       });
     }
+  }
+  for (const occurrence of source.materializedNumericBindings ?? []) {
+    if (!elementsById.has(occurrence.elementId)) continue;
+    const binding = occurrence.binding;
+    entries.push({
+      elementId: occurrence.elementId,
+      parameterKey: binding.parameterKey,
+      expression: binding.expression,
+      references: binding.references.map((reference) => ({
+        bindingId: reference.bindingId,
+        name: reference.name,
+        expressionStart: reference.expressionStart,
+        expressionEnd: reference.expressionEnd
+      }))
+    });
   }
   return entries;
 };

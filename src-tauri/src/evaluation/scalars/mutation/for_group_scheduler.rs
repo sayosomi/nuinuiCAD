@@ -52,6 +52,13 @@ impl ScalarMutationResolver<'_> {
             .map(|owner| owner.exit_source_order)
     }
 
+    pub(crate) fn for_group_owner_statement_id(&self, element_id: &str) -> Option<&str> {
+        self.program
+            .for_group_owners_by_element_id
+            .get(element_id)
+            .map(|owner| owner.owner_statement_id.as_str())
+    }
+
     pub(crate) fn begin_for_group_environment(
         &self,
     ) -> ForGroupMutationEnvironment<ScalarEvaluation> {
@@ -65,10 +72,27 @@ impl ScalarMutationResolver<'_> {
         self.current = environment.final_slots();
     }
 
-    pub(crate) fn consume_for_group_source_range(&mut self, exit_source_order: usize) {
-        while self.next_version_index < self.program.versions.len()
-            && self.program.versions[self.next_version_index].source_order < exit_source_order
-        {
+    pub(crate) fn consume_for_group_source_range(
+        &mut self,
+        owner_statement_id: &str,
+        exit_source_order: usize,
+    ) {
+        while self.next_version_index < self.program.versions.len() {
+            let version = &self.program.versions[self.next_version_index];
+            let belongs_to_owner = version
+                .control
+                .get("ownerChain")
+                .and_then(Value::as_array)
+                .is_some_and(|chain| {
+                    chain.iter().any(|owner| {
+                        owner.get("kind").and_then(Value::as_str) == Some("forGroup")
+                            && owner.get("ownerStatementId").and_then(Value::as_str)
+                                == Some(owner_statement_id)
+                    })
+                });
+            if version.source_order >= exit_source_order && !belongs_to_owner {
+                break;
+            }
             self.next_version_index += 1;
         }
     }

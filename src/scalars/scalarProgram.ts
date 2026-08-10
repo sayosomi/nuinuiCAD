@@ -34,8 +34,13 @@ export type ScalarProgramPositionMap = {
 export const lowerScalarProgram = ({
   bindingAnalysis,
   typedInitializerByBindingId,
-  positionMap
-}: TypedDeclarationAnalysis): ScalarProgram => {
+  positionMap,
+  sourceOrderByBindingId,
+  evaluationLimitSourceOrder
+}: TypedDeclarationAnalysis & {
+  sourceOrderByBindingId?: ReadonlyMap<BindingId, number>;
+  evaluationLimitSourceOrder?: number;
+}): ScalarProgram => {
   const statements: ScalarProgramStatement[] = [];
   for (const bindingId of selectCompiledProgramBindings(bindingAnalysis).bindingIds) {
     const binding = bindingAnalysis.catalog.bindingsById.get(bindingId);
@@ -51,7 +56,7 @@ export const lowerScalarProgram = ({
       kind: "declare",
       bindingId,
       scopeId: binding.effectiveScopeId,
-      sourceOrder: binding.statementIndex,
+      sourceOrder: sourceOrderByBindingId?.get(bindingId) ?? binding.statementIndex,
       declaration: {
         bindingKind: binding.mutability as "const" | "let",
         declaredType: binding.declaredType,
@@ -61,6 +66,10 @@ export const lowerScalarProgram = ({
   }
   return {
     statements,
-    ...(positionMap.evaluationLimit ? { evaluationLimitSourceOrder: positionMap.evaluationLimit.sourceOrder } : {})
+    ...(evaluationLimitSourceOrder !== undefined
+      ? { evaluationLimitSourceOrder }
+      : positionMap.evaluationLimit
+        ? { evaluationLimitSourceOrder: positionMap.evaluationLimit.sourceOrder }
+        : {})
   };
 };

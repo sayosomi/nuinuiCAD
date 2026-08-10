@@ -58,13 +58,17 @@ export const buildRustBindingMutationPayload = (
   elements: readonly CadElement[],
   statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined,
   statementIdByStatementIndex: ReadonlyMap<number, string> | undefined,
-  sourceExecutionPositionByElementId?: ReadonlyMap<ElementId, number>
+  sourceExecutionPositionByElementId?: ReadonlyMap<ElementId, number>,
+  scalarExecutionPositionByElementId?: ReadonlyMap<ElementId, number>,
+  moduleConditionalOwners?: ReadonlyMap<ElementId, string>,
+  moduleForGroupOwners?: ReadonlyMap<ElementId, Extract<import("../scalars/bindingVersions").BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>
 ): RustBindingMutationPayload => {
-  if (!statementInfoByElementId && !sourceExecutionPositionByElementId) {
+  if (!statementInfoByElementId && !sourceExecutionPositionByElementId && !scalarExecutionPositionByElementId) {
     throw new Error("buildRustBindingMutationPayload: missing compiled source execution positions");
   }
   const elementSourceOrders = elements.map((element) => {
-    const sourceExecutionPosition = sourceExecutionPositionByElementId?.get(element.id);
+    const sourceExecutionPosition = scalarExecutionPositionByElementId?.get(element.id) ??
+      statementInfoByElementId?.get(element.id)?.statementIndex ?? sourceExecutionPositionByElementId?.get(element.id);
     const statement = statementInfoByElementId?.get(element.id);
     const sourceOrder = sourceExecutionPosition ?? statement?.statementIndex;
     if (sourceOrder === undefined) {
@@ -83,18 +87,42 @@ export const buildRustBindingMutationPayload = (
     : undefined;
   return {
     versions: graph.versions.map(versionPayload),
-    conditionalOwners: buildConditionalMutationOwners(
-      graph, elements, statementInfoByElementId, statementIdByStatementIndex
-    ),
-    forGroupOwners: buildForGroupMutationOwners(
-      graph, elements, statementInfoByElementId, statementIdByStatementIndex
-    ).map((owner) => ({
-      ownerStatementId: owner.ownerStatementId,
-      elementId: owner.elementId,
-      scopeId: owner.scopeId,
-      exitSourceOrder: owner.exitSourceOrder,
-      iterationBindingId: `binding:iteration:${owner.ownerStatementId}`
-    })),
+    conditionalOwners: [
+      ...buildConditionalMutationOwners(
+        graph,
+        elements,
+        statementInfoByElementId,
+        statementIdByStatementIndex,
+        new Set(moduleConditionalOwners?.values() ?? [])
+      ),
+      ...(moduleConditionalOwners
+        ? [...moduleConditionalOwners].map(([elementId, ownerStatementId]) => ({ elementId, ownerStatementId }))
+        : [])
+    ],
+    forGroupOwners: [
+      ...buildForGroupMutationOwners(
+        graph,
+        elements,
+        statementInfoByElementId,
+        statementIdByStatementIndex,
+        new Set(moduleForGroupOwners ? [...moduleForGroupOwners.values()].map((owner) => owner.ownerStatementId) : [])
+      ).map((owner) => ({
+        ownerStatementId: owner.ownerStatementId,
+        elementId: owner.elementId,
+        scopeId: owner.scopeId,
+        exitSourceOrder: owner.exitSourceOrder,
+        iterationBindingId: owner.iterationBindingId ?? `binding:iteration:${owner.ownerStatementId}`
+      })),
+      ...(moduleForGroupOwners
+        ? [...moduleForGroupOwners.values()].map((owner) => ({
+            ownerStatementId: owner.ownerStatementId,
+            elementId: owner.elementId,
+            scopeId: owner.scopeId,
+            exitSourceOrder: owner.exitSourceOrder,
+            iterationBindingId: owner.iterationBindingId ?? `binding:iteration:${owner.ownerStatementId}`
+          }))
+        : [])
+    ],
     elementSourceOrders,
     ...(elementSourceExecutionUnits ? { elementSourceExecutionUnits } : {}),
     ...(graph.evaluationLimitSourceOrder === undefined

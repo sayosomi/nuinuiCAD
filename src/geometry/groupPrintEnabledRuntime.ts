@@ -17,7 +17,7 @@
 import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
 import type { CompiledDslDocument, StatementMap } from "../dsl/dslDocument";
 import type { BindingId } from "../scalars/bindingCatalog";
-import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
+import { propertyBindingOccurrenceKey, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 
 /**
  * A thin alias bundling two already-compiled lookups for passing through
@@ -27,6 +27,8 @@ import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler
 export type GroupPrintEnabledLookup = {
   propertyBindings: CompiledDslDocument["propertyBindings"];
   byElementId: StatementMap["byElementId"];
+  materializedPropertyBindings?: CompiledDslDocument["materializedPropertyBindings"];
+  materializedBindingsByElementId?: ReadonlyMap<ElementId, ScalarValueSource>;
 };
 
 /** One statementIndex lookup + one occurrence-key lookup, both O(1). No scan. */
@@ -34,6 +36,12 @@ export const resolveGroupPrintEnabledBindingId = (
   groupId: ElementId,
   lookup: GroupPrintEnabledLookup
 ): BindingId | undefined => {
+  const materializedSource = lookup.materializedBindingsByElementId?.get(groupId);
+  if (materializedSource?.kind === "binding") return materializedSource.bindingId;
+  const materialized = lookup.materializedPropertyBindings?.find((entry) =>
+    entry.elementId === groupId && entry.parameterKey === "printEnabled"
+  );
+  if (materialized?.source.kind === "binding") return materialized.source.bindingId;
   if (!lookup.propertyBindings) return undefined;
   const statementIndex = lookup.byElementId.get(groupId)?.statementIndex;
   if (statementIndex === undefined) return undefined;

@@ -135,7 +135,11 @@ export const AppLayout = () => {
   const bindingVersions = useCadDocumentStore((state) => state.doc.bindingVersions);
   const propertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
   const numericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
+  const materializedPropertyBindings = useCadDocumentStore((state) => state.doc.materializedPropertyBindings);
+  const materializedNumericBindings = useCadDocumentStore((state) => state.doc.materializedNumericBindings);
+  const materializedTextTemplates = useCadDocumentStore((state) => state.doc.materializedTextTemplates);
   const conditionalGroupConditions = useCadDocumentStore((state) => state.doc.conditionalGroupConditions);
+  const materializedConditionalGroupConditions = useCadDocumentStore((state) => state.doc.materializedConditionalGroupConditions);
   // Task 27: textTemplates is read the same way as the other compiled-
   // document fields above (last-good doc.textTemplates, keyed against the
   // canonical elementIdByStatementIndex below) - unlike scalarProgram/
@@ -147,6 +151,15 @@ export const AppLayout = () => {
   const canonicalElements = useCadDocumentStore((state) => state.doc.document.elements);
   const sourceExecutionPositionByElementId = useCadDocumentStore(
     (state) => state.doc.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId
+  );
+  const scalarExecutionPositionByElementId = useCadDocumentStore(
+    (state) => state.doc.scalarExecutionPositionByRuntimeElementId
+  );
+  const moduleConditionalOwnerStatementIdByElementId = useCadDocumentStore(
+    (state) => state.doc.moduleConditionalOwnerStatementIdByElementId
+  );
+  const moduleForGroupMutationOwnerByElementId = useCadDocumentStore(
+    (state) => state.doc.moduleForGroupMutationOwnerByElementId
   );
   const elementIdByStatementIndex = useCadDocumentStore((state) => state.doc.statementMap.elementIdByStatementIndex);
   const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap.byElementId);
@@ -196,30 +209,35 @@ export const AppLayout = () => {
   const propertyBindingEntries = useMemo(
     () =>
       scalarProgram && propertyBindings
-        ? buildPropertyBindingRuntimeEntries({ propertyBindings, elementIdByStatementIndex }, canonicalElements)
+        ? buildPropertyBindingRuntimeEntries({ propertyBindings, elementIdByStatementIndex, materializedPropertyBindings }, canonicalElements)
         : undefined,
-    [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
+    [scalarProgram, propertyBindings, materializedPropertyBindings, elementIdByStatementIndex, canonicalElements]
   );
   const controlBooleanEntries = useMemo(
     () =>
       scalarProgram && propertyBindings
-        ? buildControlBooleanRuntimeEntries({ propertyBindings, elementIdByStatementIndex }, canonicalElements)
+        ? buildControlBooleanRuntimeEntries({ propertyBindings, elementIdByStatementIndex, materializedPropertyBindings }, canonicalElements)
         : undefined,
-    [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
+    [scalarProgram, propertyBindings, materializedPropertyBindings, elementIdByStatementIndex, canonicalElements]
   );
   const numericBindingEntries = useMemo(
     () =>
       scalarProgram && numericBindings
-        ? buildNumericBindingRuntimeEntries({ numericBindings, elementIdByStatementIndex }, canonicalElements)
+        ? buildNumericBindingRuntimeEntries({ numericBindings, elementIdByStatementIndex, materializedNumericBindings }, canonicalElements)
         : undefined,
-    [scalarProgram, numericBindings, elementIdByStatementIndex, canonicalElements]
+    [scalarProgram, numericBindings, materializedNumericBindings, elementIdByStatementIndex, canonicalElements]
   );
   const conditionalGroupConditionsByElementId = useMemo(
     () =>
-      scalarProgram && conditionalGroupConditions
-        ? buildConditionalGroupConditionsByElementId(conditionalGroupConditions, elementIdByStatementIndex)
+      scalarProgram && (conditionalGroupConditions || materializedConditionalGroupConditions)
+        ? new Map([
+            ...(conditionalGroupConditions
+              ? buildConditionalGroupConditionsByElementId(conditionalGroupConditions, elementIdByStatementIndex)
+              : new Map()),
+            ...(materializedConditionalGroupConditions ?? []).map((entry) => [entry.elementId, entry.expression] as const)
+          ])
         : undefined,
-    [scalarProgram, conditionalGroupConditions, elementIdByStatementIndex]
+    [scalarProgram, conditionalGroupConditions, materializedConditionalGroupConditions, elementIdByStatementIndex]
   );
   // Task 27: built once per compiled document (only re-runs when
   // doc.textTemplates/elementIdByStatementIndex change), never per render or
@@ -229,39 +247,58 @@ export const AppLayout = () => {
   // propertyBindingEntries/controlBooleanEntries, since a bound reference
   // always implies a typed declaration exists.
   const textTemplateEntriesByElementId = useMemo(
-    () => (textTemplates ? buildTextTemplateEntriesByElementId({ textTemplates, elementIdByStatementIndex }) : undefined),
-    [textTemplates, elementIdByStatementIndex]
+    () => (textTemplates || materializedTextTemplates
+      ? buildTextTemplateEntriesByElementId({ textTemplates: textTemplates ?? new Map(), elementIdByStatementIndex, materializedTextTemplates })
+      : undefined),
+    [textTemplates, materializedTextTemplates, elementIdByStatementIndex]
   );
   const textPropertyBindingEntries = useMemo(
     () =>
       scalarProgram && propertyBindings
-        ? buildTextPropertyBindingRuntimeEntries({ propertyBindings, elementIdByStatementIndex }, canonicalElements)
+      ? buildTextPropertyBindingRuntimeEntries({ propertyBindings, elementIdByStatementIndex, materializedPropertyBindings }, canonicalElements)
         : undefined,
-    [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
+    [scalarProgram, propertyBindings, materializedPropertyBindings, elementIdByStatementIndex, canonicalElements]
   );
   const conditionalOwnerStatementIdByElementId = useMemo(
     () => bindingVersions
-      ? conditionalOwnerIdByElementId(buildConditionalMutationOwners(
-          bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex
-        ))
+      ? new Map([
+          ...conditionalOwnerIdByElementId(buildConditionalMutationOwners(
+            bindingVersions,
+            canonicalElements,
+            statementInfoByElementId,
+            statementIdByStatementIndex,
+            new Set(moduleConditionalOwnerStatementIdByElementId?.values() ?? [])
+          )),
+          ...(moduleConditionalOwnerStatementIdByElementId ? [...moduleConditionalOwnerStatementIdByElementId] : [])
+        ])
       : undefined,
-    [bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex]
+    [bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex, moduleConditionalOwnerStatementIdByElementId]
   );
   const forGroupMutationOwnersByElementId = useMemo(
     () => bindingVersions
-      ? forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
-          bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex
-        ))
+      ? new Map([
+          ...forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+            bindingVersions,
+            canonicalElements,
+            statementInfoByElementId,
+            statementIdByStatementIndex,
+            new Set(moduleForGroupMutationOwnerByElementId
+              ? [...moduleForGroupMutationOwnerByElementId.values()].map((owner) => owner.ownerStatementId)
+              : [])
+          )),
+          ...(moduleForGroupMutationOwnerByElementId ? [...moduleForGroupMutationOwnerByElementId] : [])
+        ])
       : undefined,
-    [bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex]
+    [bindingVersions, canonicalElements, statementInfoByElementId, statementIdByStatementIndex, moduleForGroupMutationOwnerByElementId]
   );
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(bindingVersions ? {
-        bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, statementIdByStatementIndex,
-        conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId: forGroupMutationOwnersByElementId
+        bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, scalarExecutionPositionByElementId, statementIdByStatementIndex,
+        conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId: forGroupMutationOwnersByElementId,
+        moduleConditionalOwnerStatementIdByElementId, moduleForGroupMutationOwnerByElementId
       } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
@@ -276,9 +313,12 @@ export const AppLayout = () => {
       bindingVersions,
       statementInfoByElementId,
       sourceExecutionPositionByElementId,
+      scalarExecutionPositionByElementId,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnersByElementId,
+      moduleConditionalOwnerStatementIdByElementId,
+      moduleForGroupMutationOwnerByElementId,
       propertyBindingEntries,
       numericBindingEntries,
       controlBooleanEntries,

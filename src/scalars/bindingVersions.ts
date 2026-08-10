@@ -19,7 +19,14 @@ export type BindingControlOwner =
       /** Explicit lexical close from Task 30's scope metadata, never inferred at runtime. */
       exitSourceOrder: number;
     }
-  | { kind: "forGroup"; ownerStatementId: string; scopeId: ScopeId; exitSourceOrder: number };
+  | {
+      kind: "forGroup";
+      ownerStatementId: string;
+      scopeId: ScopeId;
+      exitSourceOrder: number;
+      /** Instance-qualified loop slots are supplied by module lowering. */
+      iterationBindingId?: BindingId;
+    };
 
 export type BindingControlMetadata = {
   scopeId: ScopeId;
@@ -81,6 +88,8 @@ export type BindingVersionGraph = {
   timelinesByBindingId: ReadonlyMap<BindingId, BindingVersionTimeline>;
   /** Statement-stream cutoff inherited from the compiled scalar program. */
   evaluationLimitSourceOrder?: number;
+  /** Module calls can require ordered execution even when no set exists. */
+  requiresExecutionOrdering?: boolean;
 };
 
 export type BindingVersionBuildInput = {
@@ -88,6 +97,7 @@ export type BindingVersionBuildInput = {
   bindingAnalysis: BindingAnalysis;
   setStatements: ReadonlyMap<number, SetStatementAnalysis> | undefined;
   controlByScopeId: ReadonlyMap<ScopeId, BindingControlMetadata>;
+  requiresExecutionOrdering?: boolean;
 };
 
 const stableStatementIdForBinding = (bindingId: BindingId): string => {
@@ -101,6 +111,9 @@ const stableStatementIdForBinding = (bindingId: BindingId): string => {
   }
   return statementId;
 };
+
+const declarationVersionIdForBinding = (binding: { id: BindingId; declarationVersionId?: string }): string =>
+  binding.declarationVersionId ?? stableStatementIdForBinding(binding.id);
 
 const controlFor = (controls: ReadonlyMap<ScopeId, BindingControlMetadata>, scopeId: ScopeId): BindingControlMetadata => {
   const control = controls.get(scopeId);
@@ -132,8 +145,10 @@ const declarationSeedFor = (
  */
 export const buildBindingControlMetadata = (
   scopeIndex: LexicalScopeIndex,
-  stableStatementIdByIndex: ReadonlyMap<number, string>
+  stableStatementIdByIndex: ReadonlyMap<number, string>,
+  sourceOrderByStatementIndex?: ReadonlyMap<number, number>
 ): ReadonlyMap<ScopeId, BindingControlMetadata> => {
+  const orderOf = (statementIndex: number) => sourceOrderByStatementIndex?.get(statementIndex) ?? statementIndex;
   const controls = new Map<ScopeId, BindingControlMetadata>();
   for (const [scopeId, scope] of scopeIndex.scopes) {
     const parentControl = scope.parentId === null
@@ -150,19 +165,19 @@ export const buildBindingControlMetadata = (
         throw new Error(`bindingVersions: control scope ${scopeId} has no stable owner statement identity`);
       }
       ownerChain.push(scope.kind === "forGroup"
-        ? { kind: "forGroup", ownerStatementId, scopeId, exitSourceOrder: scope.exitStatementIndex }
+        ? { kind: "forGroup", ownerStatementId, scopeId, exitSourceOrder: orderOf(scope.exitStatementIndex) }
         : {
             kind: "conditionalBranch",
             ownerStatementId,
             branch: scope.kind,
             scopeId,
-            exitSourceOrder: scope.exitStatementIndex
+            exitSourceOrder: orderOf(scope.exitStatementIndex)
           });
     }
     const owner = ownerChain[ownerChain.length - 1];
     controls.set(scopeId, {
       scopeId,
-      scopeExitSourceOrder: scope.exitStatementIndex,
+      scopeExitSourceOrder: orderOf(scope.exitStatementIndex),
       ownerChain,
       kind: owner?.kind ?? "linear"
     });
@@ -211,7 +226,8 @@ export const buildBindingVersionGraph = ({
   scalarProgram,
   bindingAnalysis,
   setStatements,
-  controlByScopeId
+  controlByScopeId,
+  requiresExecutionOrdering = false
 }: BindingVersionBuildInput): BindingVersionGraph => {
   const programByBindingId = new Map<BindingId, ScalarProgramStatement>();
   for (const statement of scalarProgram.statements) {
@@ -225,14 +241,14 @@ export const buildBindingVersionGraph = ({
     const entry = bindingAnalysis.entriesById.get(binding.id);
     if (!entry) throw new Error(`bindingVersions: missing analysis entry for ${binding.id}`);
     const seed = declarationSeedFor(binding.id, entry, programByBindingId);
-    const id = stableStatementIdForBinding(binding.id);
+    const id = declarationVersionIdForBinding(binding);
     declarations.push({
       id,
       kind: "declare",
       bindingId: binding.id,
-      bindingKind: binding.mutability as "const" | "let",
+      bindingKind: binding.mutability === "let" ? "let" : "const",
       declaredType: binding.declaredType,
-      sourceOrder: binding.statementIndex,
+      sourceOrder: programByBindingId.get(binding.id)?.sourceOrder ?? binding.statementIndex,
       scopeId: binding.effectiveScopeId,
       scopeExitSourceOrder: controlFor(controlByScopeId, binding.effectiveScopeId).scopeExitSourceOrder,
       control: controlFor(controlByScopeId, binding.effectiveScopeId),
@@ -240,8 +256,9 @@ export const buildBindingVersionGraph = ({
       ...(seed.initializer ? { initializer: seed.initializer } : {})
     });
   }
+  declarations.sort((left, right) => left.sourceOrder - right.sourceOrder);
 
-  const sets = setStatements ? [...setStatements.values()] : [];
+  const sets = setStatements ? [...setStatements.values()].sort((left, right) => left.sourceOrder - right.sourceOrder) : [];
   for (let index = 1; index < sets.length; index += 1) {
     if (sets[index - 1].sourceOrder >= sets[index].sourceOrder) {
       throw new Error("bindingVersions: set statements must be supplied in strict source order");
@@ -281,7 +298,7 @@ export const buildBindingVersionGraph = ({
       throw new Error(`bindingVersions: resolved set ${set.statementId} has no typed let target`);
     }
     append({
-      id: set.statementId,
+      id: set.versionId ?? set.statementId,
       kind: "set",
       bindingId: set.targetBindingId,
       bindingKind: "let",
@@ -291,7 +308,7 @@ export const buildBindingVersionGraph = ({
       scopeExitSourceOrder: controlFor(controlByScopeId, set.scopeId).scopeExitSourceOrder,
       control: controlFor(controlByScopeId, set.scopeId),
       expression: set.expression,
-      setStatementId: set.statementId,
+      setStatementId: set.versionId ?? set.statementId,
       initialState: { kind: "uncomputed" }
     });
     setIndex += 1;
@@ -313,6 +330,7 @@ export const buildBindingVersionGraph = ({
     timelinesByBindingId,
     ...(scalarProgram.evaluationLimitSourceOrder === undefined
       ? {}
-      : { evaluationLimitSourceOrder: scalarProgram.evaluationLimitSourceOrder })
+      : { evaluationLimitSourceOrder: scalarProgram.evaluationLimitSourceOrder }),
+    ...(requiresExecutionOrdering ? { requiresExecutionOrdering: true } : {})
   };
 };
