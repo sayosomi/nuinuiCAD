@@ -227,6 +227,8 @@ export type ModuleSemanticAnalysis = {
   definitionsByStatementId: ReadonlyMap<StatementIdentity, ModuleDefinitionSemantic>;
   instancesByStatementId: ReadonlyMap<StatementIdentity, ModuleInstanceSemantic>;
   callEdges: readonly ModuleCallEdge[];
+  /** Source-only qualified geometry references in the root document. */
+  rootGeometryReferencesByStatementId: ReadonlyMap<StatementIdentity, readonly ModuleGeometryReferenceSite[]>;
   diagnostics: readonly DslDiagnostic[];
 };
 
