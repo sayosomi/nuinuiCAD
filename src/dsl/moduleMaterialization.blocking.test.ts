@@ -115,22 +115,23 @@ describe("module materialization blocking regressions", () => {
     expect(bQ).toMatchObject({ fromPoint: { mode: "reference", pointId: bP.id } });
     expect(aQ).not.toMatchObject({ fromPoint: { pointId: bP.id } });
 
-    const caller = runtimeNames([
+    const caller = compileDslDocument([
       "nui 3",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}",
       "module A = M()",
       "point Q = offset(from: A::P, dx: 1, dy: 2)"
-    ].join("\n"));
-    const privatePoint = caller.document!.elements.find((element) => element.name === "P")!;
-    const callerPoint = caller.document!.elements.find((element) => element.name === "Q")!;
-    expect(callerPoint).toMatchObject({ fromPoint: { mode: "reference" } });
-    const callerFromPoint = callerPoint.type === "offsetPoint" ? callerPoint.fromPoint : undefined;
-    if (!callerFromPoint || callerFromPoint.mode !== "reference") {
-      throw new Error("expected an unresolved offset point reference");
-    }
-    expect(callerFromPoint.pointId).not.toBe(privatePoint.id);
+    ].join("\n"), { assignedStatementIds: stableIdsFor([
+      "nui 3",
+      "module M() {",
+      "  point P = coordinate(x: 10, y: 20)",
+      "}",
+      "module A = M()",
+      "point Q = offset(from: A::P, dx: 1, dy: 2)"
+    ].join("\n")) });
+    expect(caller.document).toBeNull();
+    expect(caller.diagnostics.some((diagnostic) => diagnostic.code === "module-private-member")).toBe(true);
   });
 
   it("retains ordinary group qualified lookup while nested module refs stay local", () => {
