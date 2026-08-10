@@ -27,7 +27,18 @@ export type ModuleGeometrySourceTarget =
       geometryKind: "point" | "line";
     };
 
-export type ModuleSourceTarget = ModuleScalarSourceTarget | ModuleGeometrySourceTarget;
+export type ModuleGeometryPropertySourceTarget =
+  | (ModuleParameterSlot & { kind: "parameterProperty"; geometryKind: "point" | "line"; property: string })
+  | {
+      kind: "sourceGeometryProperty";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      category: DslGeometryDeclarationCategory;
+      geometryKind: "point" | "line";
+      property: string;
+    };
+
+export type ModuleSourceTarget = ModuleScalarSourceTarget | ModuleGeometrySourceTarget | ModuleGeometryPropertySourceTarget;
 
 export type ModuleScalarReference = {
   name: string;
@@ -40,6 +51,15 @@ export type ModuleScalarExpressionSemantic = {
   ast: ScalarExpressionAst;
   type: ScalarType | null;
   references: readonly ModuleScalarReference[];
+  geometryProperties: readonly ModuleGeometryPropertyReference[];
+};
+
+export type ModuleGeometryPropertyReference = {
+  geometryName: string;
+  property: string;
+  span: DslSpan;
+  target: ModuleGeometryPropertySourceTarget | null;
+  resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid";
 };
 
 export type ModuleGeometryReferenceSemantic = {
@@ -90,6 +110,12 @@ export type ModuleScalarExpressionSite = {
   expression: ModuleScalarExpressionSemantic;
 };
 
+export type ModuleTextTemplateHoleSite = {
+  span: DslSpan;
+  contentSpan: DslSpan;
+  expression: ModuleScalarExpressionSemantic;
+};
+
 export type ModuleGeometryReferenceSite = {
   parameterKey: string | null;
   span: DslSpan;
@@ -103,6 +129,7 @@ export type ModuleBodyStatementSemantic = {
   statementKind: DslStatement["kind"];
   scalarExpressions: readonly ModuleScalarExpressionSite[];
   geometryReferences: readonly ModuleGeometryReferenceSite[];
+  textTemplateHoles: readonly ModuleTextTemplateHoleSite[];
   scalarTarget: ModuleScalarSourceTarget | null;
 };
 
@@ -116,6 +143,11 @@ export type ModuleDefinitionSemantic = {
   statementId: StatementIdentity;
   statementIndex: number;
   name: string;
+  /** Scope containing the module definition statement itself. */
+  declarationScopeId: ScopeId;
+  /** Synthetic lexical scope containing the module body and its parameters. */
+  bodyScopeId: ScopeId;
+  /** @deprecated Use declarationScopeId/bodyScopeId explicitly. */
   scopeId: ScopeId;
   parameters: readonly ResolvedModuleParameter[];
   localScalars: readonly {

@@ -7,7 +7,12 @@ import {
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
 import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
-import { parseAndCheckModuleScalarExpression, type ModuleScalarLocalDiagnostic, type ModuleScalarReferenceResolution } from "./moduleScalarExpression";
+import {
+  parseAndCheckModuleScalarExpression,
+  type ModuleGeometryPropertyReferenceResolution,
+  type ModuleScalarLocalDiagnostic,
+  type ModuleScalarReferenceResolution
+} from "./moduleScalarExpression";
 import { moduleCallEdges, recursiveModuleInstanceIds } from "./moduleCallGraph";
 import { analyzeModuleBody } from "./moduleBodySemantic";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -35,11 +40,16 @@ type DefinitionState = {
   statement: Extract<DslStatement, { kind: "moduleDefinition" }>;
   statementIndex: number;
   statementId: StatementIdentity;
-  scopeId: ScopeId;
+  declarationScopeId: ScopeId;
+  bodyScopeId: ScopeId;
   parameters: ResolvedModuleParameter[];
   parameterByName: Map<string, { parameter: ResolvedModuleParameter; index: number }>;
   bodyStatementIndexes: number[];
 };
+
+type ModuleLexicalLookup =
+  | { kind: "parameter"; definition: DefinitionState; parameter: { parameter: ResolvedModuleParameter; index: number } }
+  | SourceLexicalLookup;
 
 type ReferenceResolution = ModuleScalarReferenceResolution;
 
@@ -106,7 +116,7 @@ const statementIdAt = (
 const geometryParameterTarget = (
   definition: DefinitionState,
   parameter: { parameter: ResolvedModuleParameter; index: number }
-): ModuleGeometrySourceTarget | null => {
+): Extract<ModuleGeometrySourceTarget, { kind: "parameter" }> | null => {
   const geometryKind = geometryKindOf(parameter.parameter.type);
   return geometryKind
     ? {
@@ -137,7 +147,7 @@ const sourceDeclarationResolution = (
 const declarationGeometryTarget = (
   declaration: SourceLexicalDeclaration,
   stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>
-): ModuleGeometrySourceTarget | null => {
+): Extract<ModuleGeometrySourceTarget, { kind: "sourceGeometry" }> | null => {
   if (declaration.kind !== "geometry" || declaration.statement.kind !== "element" || !isGeometryDeclarationCategory(declaration.statement.category)) return null;
   const geometryKind = geometryKindOfCategory(declaration.statement.category);
   if (!geometryKind) return null;
@@ -148,6 +158,21 @@ const declarationGeometryTarget = (
     category: declaration.statement.category,
     geometryKind
   };
+};
+
+const geometryPropertyType = (property: string): ScalarType | null => {
+  const numericProperties = new Set([
+    "length",
+    "startAngleDeg",
+    "endAngleDeg",
+    "startTangentAngleDeg",
+    "endTangentAngleDeg",
+    "startHandleAngleDeg",
+    "startHandleLength",
+    "endHandleAngleDeg",
+    "endHandleLength"
+  ]);
+  return numericProperties.has(property) ? { kind: "number" } : null;
 };
 
 const moduleCalleeDiagnosticCode = (resolution: ModuleInstanceSemantic["calleeResolution"]): string => {
@@ -177,7 +202,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   for (const { statement, statementIndex } of definitions) {
     const statementId = statementIdAt(stableStatementIdByIndex, statementIndex);
-    const scopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceNamespace.scopeIndex.rootScopeId;
+    const declarationScopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceNamespace.scopeIndex.rootScopeId;
+    const bodyScopeId = `module:${statementId}`;
     const parameters: ResolvedModuleParameter[] = statement.parameters.map((parameter, parameterIndex) => ({
       definitionStatementId: statementId,
       parameterIndex,
@@ -200,13 +226,38 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
       .filter(({ candidate, candidateIndex }) => moduleOwnerIndexOf(statements, candidateIndex) === statementIndex && candidate.kind !== "blockEnd" && candidate.kind !== "blockElse")
       .map(({ candidateIndex }) => candidateIndex);
-    const state: DefinitionState = { statement, statementIndex, statementId, scopeId, parameters, parameterByName, bodyStatementIndexes };
+    const state: DefinitionState = { statement, statementIndex, statementId, declarationScopeId, bodyScopeId, parameters, parameterByName, bodyStatementIndexes };
     definitionStates.push(state);
     stateByIndex.set(statementIndex, state);
   }
 
   const ownerParams = (ownerIndex: number | null, name: string) => ownerIndex === null ? undefined : stateByIndex.get(ownerIndex)?.parameterByName.get(name);
   const ownerForDefinitionSite = (definitionIndex: number) => moduleOwnerIndexOf(statements, definitionIndex);
+
+  /**
+   * Walk the real source scopes and overlay a module's parameters only in its
+   * body scope. This keeps a child group declaration ahead of the parameter
+   * while still making the parameter visible to every body descendant.
+   */
+  const resolveModuleLexicalDeclaration = (statementIndex: number, ownerIndex: number | null, name: string): ModuleLexicalLookup => {
+    const startScope = sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex);
+    if (!startScope) return { kind: "undefined" };
+    const owner = ownerIndex === null ? undefined : stateByIndex.get(ownerIndex);
+    let firstFuture: ModuleLexicalLookup | null = null;
+    for (const scopeId of scopeChain(sourceNamespace.scopeIndex, startScope)) {
+      const declarations = sourceNamespace.declarationsByScopeAndName.get(scopeId)?.get(name) ?? [];
+      const visible = declarations.filter((declaration) => declaration.statementIndex < statementIndex);
+      const parameter = owner?.bodyScopeId === scopeId ? owner.parameterByName.get(name) : undefined;
+      if (visible.length === 1) return { kind: "resolved", declaration: visible[0] };
+      if (visible.length > 1) return { kind: "ambiguous", scopeId, declarations: visible };
+      if (parameter) {
+        if (visible.length === 0) return { kind: "parameter", definition: owner!, parameter };
+        return { kind: "ambiguous", scopeId, declarations };
+      }
+      if (declarations.length > 0 && !firstFuture) firstFuture = { kind: "forward", scopeId, declarations };
+    }
+    return firstFuture ?? { kind: "undefined" };
+  };
 
   const bindingByStatementIndex = new Map<number, { bindingId: BindingId; statementId: StatementIdentity }>(input.documentScalarBindings ?? []);
 
@@ -228,11 +279,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     name: string,
     boundaryOwnerIndex: number | null = ownerIndex
   ): ReferenceResolution => {
-    const parameter = ownerParams(ownerIndex, name);
-    if (parameter) {
-      const type = scalarTypeOf(parameter.parameter.type);
-      if (type) return { target: scalarParameterTarget(stateByIndex.get(ownerIndex!)!, parameter), type, resolution: "resolved" };
-      const geometryTarget = geometryParameterTarget(stateByIndex.get(ownerIndex!)!, parameter);
+    const lookup = ownerIndex === null
+      ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, name)
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
+    if (lookup.kind === "parameter") {
+      const type = scalarTypeOf(lookup.parameter.parameter.type);
+      if (type) return { target: scalarParameterTarget(lookup.definition, lookup.parameter), type, resolution: "resolved" };
+      const geometryTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       return { target: geometryTarget, type: null, resolution: "invalid", diagnostic: issue("module-scalar-geometry-reference", { start: 0, end: 0 }, `scalar expression では geometry parameter「${name}」を参照できません。`) };
     }
     const iteration = resolveIterationScalar(statementIndex, name);
@@ -243,7 +296,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }
       return { target: { kind: "iteration", ...iteration }, type: { kind: "number" }, resolution: "resolved" };
     }
-    const lookup = sourceDeclarationResolution(sourceNamespace, statements, statementIndex, name);
     if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", { start: 0, end: 0 }, `未定義のmodule scalar「${name}」を参照しています。`) };
     if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", { start: 0, end: 0 }, `module scalar「${name}」はこの位置より後で宣言されています。`) };
     if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-reference", { start: 0, end: 0 }, `module scalar「${name}」を一意に解決できません。`) };
@@ -337,7 +389,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     span: DslSpan,
     expectedType: ScalarType | null,
     resolver: (reference: { name: string; span: DslSpan }) => ReferenceResolution,
-    bareResolver?: (reference: { name: string; span: DslSpan }) => ReferenceResolution | null
+    bareResolver?: (reference: { name: string; span: DslSpan }) => ReferenceResolution | null,
+    geometryPropertyResolver?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution
   ) => {
     const local: LocalDiagnostic[] = [];
     const semantic = parseAndCheckModuleScalarExpression({
@@ -351,6 +404,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           : resolution;
       },
       resolveBareReference: bareResolver,
+      resolveGeometryProperty: geometryPropertyResolver,
       diagnostics: local
     });
     for (const diagnostic of local) addLocal(statementIndex, diagnostic);
@@ -376,7 +430,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       );
       parameter.defaultExpression = semantic;
     }
-    const directDeclarations = sourceNamespace.declarationsByScope.get(definition.scopeId) ?? [];
+    const directDeclarations = sourceNamespace.declarationsByScope.get(definition.bodyScopeId) ?? [];
     for (const declaration of directDeclarations) {
       const parameter = definition.parameterByName.get(declaration.name);
       if (parameter && declaration.statementIndex !== definition.statementIndex) {
@@ -411,16 +465,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const base = withoutSigil.split(".")[0].trim();
     const baseStart = span.start + Math.max(0, rawValue.indexOf(base));
     const baseSpan = { start: baseStart, end: baseStart + base.length };
-    const parameter = ownerIndex === null ? undefined : ownerParams(ownerIndex, base);
-    if (parameter) {
-      const parameterTarget = geometryParameterTarget(stateByIndex.get(ownerIndex!)!, parameter);
+    const lookup = ownerIndex === null
+      ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, base)
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, base);
+    if (lookup.kind === "parameter") {
+      const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       if (!parameterTarget || parameterTarget.geometryKind !== expected) {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expected})。`));
         return { source: rawValue, span, target: parameterTarget };
       }
       return { source: rawValue, span, target: parameterTarget };
     }
-    const lookup = sourceDeclarationResolution(sourceNamespace, statements, statementIndex, base);
     if (lookup.kind === "undefined") {
       addLocal(statementIndex, issue("module-undefined-geometry-reference", baseSpan, `未定義のgeometry「${base}」を参照しています。`));
       return { source: rawValue, span, target: null };
@@ -450,6 +505,63 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return { source: rawValue, span, target };
   };
 
+  const resolveGeometryProperty = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    reference: { elementName: string; property: string; span: DslSpan }
+  ): ModuleGeometryPropertyReferenceResolution => {
+    const type = geometryPropertyType(reference.property);
+    if (!type) {
+      return {
+        target: null,
+        type: null,
+        resolution: "invalid",
+        diagnostic: issue("module-unknown-geometry-property", reference.span, `geometry property「${reference.property}」を解決できません。`)
+      };
+    }
+    const lookup = ownerIndex === null
+      ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, reference.elementName)
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, reference.elementName);
+    if (lookup.kind === "parameter") {
+      const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
+      if (!parameterTarget) {
+        return {
+          target: null,
+          type: null,
+          resolution: "invalid",
+          diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometry parameterではありません。`)
+        };
+      }
+      return {
+        target: { ...parameterTarget, kind: "parameterProperty", property: reference.property },
+        type,
+        resolution: "resolved"
+      };
+    }
+    if (lookup.kind === "undefined") {
+      return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-geometry-reference", reference.span, `未定義のgeometry「${reference.elementName}」を参照しています。`) };
+    }
+    if (lookup.kind === "forward") {
+      return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-geometry-reference", reference.span, `geometry「${reference.elementName}」はこの位置より後で宣言されています。`) };
+    }
+    if (lookup.kind === "ambiguous") {
+      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-geometry-reference", reference.span, `geometry「${reference.elementName}」を一意に解決できません。`) };
+    }
+    const geometryTarget = declarationGeometryTarget(lookup.declaration, stableStatementIdByIndex);
+    if (!geometryTarget) {
+      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`) };
+    }
+    const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+    if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+      return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`) };
+    }
+    return {
+      target: { ...geometryTarget, kind: "sourceGeometryProperty", property: reference.property },
+      type,
+      resolution: "resolved"
+    };
+  };
+
   const resolvePlainScalarTarget = (statementIndex: number, ownerIndex: number | null, name: string): ReferenceResolution => {
     const resolution = resolveSourceScalar(statementIndex, ownerIndex, name, ownerIndex);
     if (resolution.diagnostic && resolution.diagnostic.span.start === 0 && resolution.diagnostic.span.end === 0) {
@@ -466,11 +578,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const owner = ownerIndex === null ? null : stateByIndex.get(ownerIndex) ?? null;
     let callee: ResolvedModuleCallee | null = null;
     let calleeResolution: ModuleInstanceSemantic["calleeResolution"] = "undefined";
-    const parameterShadow = owner?.parameterByName.get(statement.moduleName);
-    if (parameterShadow) {
+    const lookup = ownerIndex === null
+      ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, statement.moduleName)
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, statement.moduleName);
+    if (lookup.kind === "parameter") {
       calleeResolution = "notModule";
     } else {
-      const lookup = sourceDeclarationResolution(sourceNamespace, statements, statementIndex, statement.moduleName);
       if (lookup.kind === "resolved") {
         if (lookup.declaration.kind === "moduleDefinition" && lookup.declaration.statement.kind === "moduleDefinition") {
           callee = { definitionStatementId: statementIdAt(stableStatementIdByIndex, lookup.declaration.statementIndex), definitionStatementIndex: lookup.declaration.statementIndex, name: lookup.declaration.name };
@@ -525,7 +638,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             parameterScalarType,
             (reference) => ownerIndex === null
               ? resolveSourceScalar(statementIndex, null, reference.name, null)
-              : resolveBodyScalar(statementIndex, ownerIndex, reference)
+              : resolveBodyScalar(statementIndex, ownerIndex, reference),
+            undefined,
+            (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference)
           );
           value = expression ? { kind: "scalar", expression } : null;
         } else {
@@ -553,7 +668,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       resolveGeometry,
       resolvePlainScalarTarget,
       resolveBodyScalar: (statementIndex, reference) => resolveBodyScalar(statementIndex, definition.statementIndex, reference),
-      resolveBodyBareScalar: (statementIndex, reference) => resolveBodyBareScalar(statementIndex, definition.statementIndex, reference)
+      resolveBodyBareScalar: (statementIndex, reference) => resolveBodyBareScalar(statementIndex, definition.statementIndex, reference),
+      resolveBodyGeometryProperty: (statementIndex, reference) => resolveGeometryProperty(statementIndex, definition.statementIndex, reference)
     });
     localScalarsByDefinition.set(definition.statementIndex, body.localScalars);
     bodyStatementsByDefinition.set(definition.statementIndex, body.bodyStatements);
@@ -564,7 +680,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     statementId: definition.statementId,
     statementIndex: definition.statementIndex,
     name: definition.statement.name,
-    scopeId: definition.scopeId,
+    declarationScopeId: definition.declarationScopeId,
+    bodyScopeId: definition.bodyScopeId,
+    scopeId: definition.declarationScopeId,
     parameters: definition.parameters,
     localScalars: localScalarsByDefinition.get(definition.statementIndex) ?? [],
     bodyStatements: bodyStatementsByDefinition.get(definition.statementIndex) ?? [],

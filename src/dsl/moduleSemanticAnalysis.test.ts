@@ -8,6 +8,9 @@ const compileWithIds = (source: string) => {
   return compileDslDocument(source, { preparsed: parsed, assignedStatementIds });
 };
 
+const moduleBodyAt = (compiled: ReturnType<typeof compileWithIds>, statementIndex: number) =>
+  compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === statementIndex)!;
+
 describe("module semantic analysis", () => {
   it("resolves a callee by StatementIdentity and normalizes argument bindings by parameter order", () => {
     const compiled = compileWithIds([
@@ -36,6 +39,10 @@ describe("module semantic analysis", () => {
       ownerModuleDefinitionStatementId: "statement:test:2",
       exportedStatementId: "statement:test:4",
       category: "point"
+    });
+    expect(analysis.definitions[0]).toMatchObject({
+      declarationScopeId: "root",
+      bodyScopeId: "module:statement:test:2"
     });
     expect(analysis.definitions[0].localScalars[0].initializer?.references[0].target).toEqual({
       kind: "parameter",
@@ -160,5 +167,185 @@ describe("module semantic analysis", () => {
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("resolves a visible outer module before a later inner declaration", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Target() {",
+      "}",
+      "group G (printEnabled: true) {",
+      "  module x = Target()",
+      "  module Target() {",
+      "  }",
+      "}"
+    ].join("\n"));
+    expect(compiled.moduleSemanticAnalysis?.instances.find((instance) => instance.name === "x")).toMatchObject({
+      callee: { definitionStatementId: "statement:test:1", definitionStatementIndex: 1 },
+      calleeResolution: "resolved"
+    });
+  });
+
+  it("stops at a nearest visible wrong-kind declaration", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Target() {",
+      "}",
+      "group G (printEnabled: true) {",
+      "  point Target = coordinate(x: 0, y: 0)",
+      "  module x = Target()",
+      "}"
+    ].join("\n"));
+    expect(compiled.moduleSemanticAnalysis?.instances.find((instance) => instance.name === "x")).toMatchObject({
+      callee: null,
+      calleeResolution: "notModule"
+    });
+  });
+
+  it("reports a collision between a parameter and a direct body declaration", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(x: number) {",
+      "  const x: number = 1",
+      "}"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "module-parameter-collision" })]));
+  });
+
+  it("allows a child scope declaration to shadow a module parameter", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(x: number) {",
+      "  group G (printEnabled: true) {",
+      "    const x: number = 1",
+      "    const y: number = @x",
+      "  }",
+      "}"
+    ].join("\n"));
+    const y = compiled.moduleSemanticAnalysis?.definitions[0].localScalars.find((scalar) => scalar.name === "y");
+    expect(y?.initializer?.references[0].target).toEqual({
+      kind: "moduleLocal",
+      statementId: "statement:test:3",
+      statementIndex: 3
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("extracts an outer scalar capture from vars without runtime lowering", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "const outer: number = 10",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0, vars: [width: @outer])",
+      "}"
+    ].join("\n"));
+    const body = moduleBodyAt(compiled, 3);
+    expect(body.scalarExpressions.find((site) => site.parameterKey === "vars")?.expression.references[0]).toMatchObject({
+      name: "outer",
+      resolution: "outerCapture",
+      target: null
+    });
+    expect(compiled.document).toBeNull();
+    expect(compiled.statementMap?.elementIdByStatementIndex.has(3) ?? false).toBe(false);
+  });
+
+  it("extracts point and scalar captures from intermediates", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "point OuterPoint = coordinate(x: 0, y: 0)",
+      "const outer: number = 10",
+      "module M() {",
+      "  curve C = bezier(start: (0, 0), end: (10, 0), intermediates: [OuterPoint: @outer: 20: 20])",
+      "}"
+    ].join("\n"));
+    const body = moduleBodyAt(compiled, 4);
+    expect(body.geometryReferences[0].reference).toMatchObject({ target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
+    expect(body.scalarExpressions.find((site) => site.parameterKey === "intermediates:handleAngleDeg")?.expression.references[0]).toMatchObject({
+      name: "outer",
+      resolution: "outerCapture"
+    });
+  });
+
+  it("keeps text template hole references as module semantic targets", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "const outer: number = 10",
+      "module M() {",
+      "  text Label = label(text: \"width {@outer}\", anchor: (0, 0))",
+      "}"
+    ].join("\n"));
+    const body = moduleBodyAt(compiled, 3);
+    expect(body.textTemplateHoles[0]?.expression.references[0]).toMatchObject({
+      name: "outer",
+      resolution: "outerCapture",
+      target: null
+    });
+  });
+
+  it("keeps a geometry parameter property as a source semantic target", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(lineA: line) {",
+      "  const length: number = @lineA.length",
+      "}"
+    ].join("\n"));
+    const expression = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!;
+    expect(expression.geometryProperties[0]).toMatchObject({
+      geometryName: "lineA",
+      property: "length",
+      target: {
+        kind: "parameterProperty",
+        definitionStatementId: "statement:test:1",
+        parameterIndex: 0,
+        property: "length"
+      },
+      resolution: "resolved"
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "module-geometry-property-reference")).toEqual([]);
+  });
+
+  it("keeps a module local geometry property as a source semantic target", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  line A = segment(start: (0, 0), end: (10, 0))",
+      "  const length: number = @A.length",
+      "}"
+    ].join("\n"));
+    const expression = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!;
+    expect(expression.geometryProperties[0]).toMatchObject({
+      target: {
+        kind: "sourceGeometryProperty",
+        statementId: "statement:test:2",
+        statementIndex: 2,
+        property: "length"
+      },
+      resolution: "resolved"
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("does not create runtime CadElements or runtime IDs for module body statements", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "  const value: number = 1",
+      "  module Child() {",
+      "  }",
+      "}"
+    ].join("\n"));
+    const moduleDefinition = compiled.moduleSemanticAnalysis!.definitions[0];
+    expect(compiled.document?.elements).toEqual([]);
+    for (const statementId of moduleDefinition.bodyStatementIds) {
+      expect(statementId).toMatch(/^statement:/);
+      expect([...compiled.statementMap?.elementIdByStatementIndex.values() ?? []]).not.toContain(statementId);
+    }
+    expect(moduleDefinition.bodyStatements.flatMap((statement) => [statement.scalarTarget, ...statement.geometryReferences.map((site) => site.reference.target)])
+      .filter((target): target is NonNullable<typeof target> => Boolean(target))
+      .every((target) => !("bindingId" in target) && !("elementId" in target))).toBe(true);
   });
 });

@@ -183,9 +183,10 @@ export const buildLexicalNamespaceIndex = buildSourceLexicalNamespaceIndex;
 
 /**
  * Resolve one source declaration using the parser's document order and the
- * shared lexical scope tree. A declaration in the nearest scope wins even if
- * it is a non-module or a forward declaration; lookup never falls through to
- * an outer scope in that case.
+ * shared lexical scope tree. A visible declaration in the nearest scope wins.
+ * A declaration that only appears later in that scope is not a shadowing
+ * declaration yet, so lookup continues through parent scopes before deciding
+ * that the name is forward.
  */
 export const resolveSourceLexicalDeclaration = (
   index: SourceLexicalNamespaceIndex,
@@ -194,13 +195,15 @@ export const resolveSourceLexicalDeclaration = (
 ): SourceLexicalLookup => {
   const startScope = index.scopeIndex.scopeOfStatement.get(statementIndex);
   if (!startScope) return { kind: "undefined" };
+  let firstFuture: { scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] } | null = null;
   for (const scopeId of scopeChain(index.scopeIndex, startScope)) {
     const declarations = index.declarationsByScopeAndName.get(scopeId)?.get(name) ?? [];
     if (declarations.length === 0) continue;
     const visible = declarations.filter((declaration) => declaration.statementIndex < statementIndex);
     if (visible.length === 1) return { kind: "resolved", declaration: visible[0] };
     if (visible.length > 1) return { kind: "ambiguous", scopeId, declarations: visible };
-    return { kind: "forward", scopeId, declarations };
+    firstFuture ??= { scopeId, declarations };
   }
+  if (firstFuture) return { kind: "forward", ...firstFuture };
   return { kind: "undefined" };
 };

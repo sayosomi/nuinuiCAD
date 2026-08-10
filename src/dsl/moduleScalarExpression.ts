@@ -4,7 +4,13 @@ import { parseScalarExpression } from "../scalars/expressionParser";
 import { collectScalarExpressionReferences } from "../scalars/expressionReferenceCollector";
 import { isChoiceOptionMember, isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import { isChoiceScalarType, type ScalarType } from "../scalars/types";
-import type { ModuleScalarExpressionSemantic, ModuleScalarReference, ModuleSourceTarget } from "./moduleSemanticTypes";
+import type {
+  ModuleGeometryPropertyReference,
+  ModuleGeometryPropertySourceTarget,
+  ModuleScalarExpressionSemantic,
+  ModuleScalarReference,
+  ModuleSourceTarget
+} from "./moduleSemanticTypes";
 
 export type ModuleScalarLocalDiagnostic = {
   code: string;
@@ -18,6 +24,13 @@ export type ModuleScalarReferenceResolution = {
   target: ModuleSourceTarget | null;
   type: ScalarType | null;
   resolution: ModuleScalarReference["resolution"];
+  diagnostic?: ModuleScalarLocalDiagnostic;
+};
+
+export type ModuleGeometryPropertyReferenceResolution = {
+  target: ModuleGeometryPropertySourceTarget | null;
+  type: ScalarType | null;
+  resolution: ModuleGeometryPropertyReference["resolution"];
   diagnostic?: ModuleScalarLocalDiagnostic;
 };
 
@@ -41,16 +54,23 @@ const typecheck = ({
   references,
   expectedType,
   resolveReference,
-  resolveBareReference
+  resolveBareReference,
+  resolveGeometryProperty
 }: {
   ast: ScalarExpressionAst;
   references: readonly { name: string; span: DslSpan }[];
   expectedType: ScalarType | null;
   resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
+  resolveGeometryProperty?: (reference: {
+    elementName: string;
+    property: string;
+    span: DslSpan;
+  }) => ModuleGeometryPropertyReferenceResolution;
 }): { semantic: ModuleScalarExpressionSemantic; diagnostics: ModuleScalarLocalDiagnostic[] } => {
   const diagnostics: ModuleScalarLocalDiagnostic[] = [];
   const resolvedReferences: ModuleScalarReference[] = [];
+  const geometryProperties: ModuleGeometryPropertyReference[] = [];
   const referenceByStart = new Map(references.map((reference) => [reference.span.start, reference]));
   const resolveNodeReference = (node: Extract<ScalarExpressionAst, { kind: "reference" }>): ScalarType | null => {
     const found = referenceByStart.get(node.span.start) ?? { name: node.name, span: node.span };
@@ -86,8 +106,23 @@ const typecheck = ({
       }
       case "reference": return resolveNodeReference(node);
       case "geometryProperty":
-        diagnostics.push(localIssue("module-geometry-property-reference", node.span, "module の scalar expression では geometry property を参照できません。"));
-        return null;
+        if (!resolveGeometryProperty) {
+          diagnostics.push(localIssue("module-geometry-property-reference", node.span, "module の scalar expression では geometry property を解決できません。"));
+          geometryProperties.push({ geometryName: node.elementName, property: node.property, span: node.span, target: null, resolution: "invalid" });
+          return null;
+        }
+        {
+          const resolution = resolveGeometryProperty({ elementName: node.elementName, property: node.property, span: node.span });
+          geometryProperties.push({
+            geometryName: node.elementName,
+            property: node.property,
+            span: node.span,
+            target: resolution.target,
+            resolution: resolution.resolution
+          });
+          if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
+          return resolution.target ? resolution.type : null;
+        }
       case "group": return check(node.expression, expected);
       case "unary": {
         const required: ScalarType = node.operator === "!" ? { kind: "boolean" } : { kind: "number" };
@@ -132,7 +167,7 @@ const typecheck = ({
     diagnostics.push(localIssue("module-scalar-type-mismatch", ast.span, `宣言された型と一致しません(期待: ${describeType(expectedType)}、実際: ${describeType(type)})。`, { expectedType, actualType: type }));
     type = null;
   }
-  return { semantic: { ast, type, references: resolvedReferences }, diagnostics };
+  return { semantic: { ast, type, references: resolvedReferences, geometryProperties }, diagnostics };
 };
 
 export const parseAndCheckModuleScalarExpression = ({
@@ -141,6 +176,7 @@ export const parseAndCheckModuleScalarExpression = ({
   expectedType,
   resolveReference,
   resolveBareReference,
+  resolveGeometryProperty,
   diagnostics
 }: {
   raw: string;
@@ -148,6 +184,7 @@ export const parseAndCheckModuleScalarExpression = ({
   expectedType: ScalarType | null;
   resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
+  resolveGeometryProperty?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
   diagnostics: ModuleScalarLocalDiagnostic[];
 }): ModuleScalarExpressionSemantic | null => {
   const parsed = parseScalarExpression(`${" ".repeat(span.start)}${raw}`, span);
@@ -160,7 +197,8 @@ export const parseAndCheckModuleScalarExpression = ({
     references: collectScalarExpressionReferences(parsed.ast),
     expectedType,
     resolveReference,
-    resolveBareReference
+    resolveBareReference,
+    resolveGeometryProperty
   });
   diagnostics.push(...checked.diagnostics);
   return checked.semantic;
