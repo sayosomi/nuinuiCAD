@@ -61,6 +61,79 @@ describe("source lexical namespace index", () => {
     );
   });
 
+  it("reports duplicate geometry declarations inside an inert module body", () => {
+    const source = [
+      "nui 3",
+      "module M() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point A = coordinate(x: 1, y: 1)",
+      "}"
+    ].join("\n");
+    const { parsed, stableIds } = parseWithStableIds(source);
+    const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
+
+    expect(compiled.diagnostics).toEqual([expect.objectContaining({ code: "source-namespace-collision", line: 4 })]);
+  });
+
+  it("reports group/geometry collisions inside an inert module body", () => {
+    const source = [
+      "nui 3",
+      "module M() {",
+      "  group A {",
+      "  }",
+      "  point A = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n");
+    const { parsed, stableIds } = parseWithStableIds(source);
+    const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
+
+    expect(compiled.diagnostics).toEqual([expect.objectContaining({ code: "source-namespace-collision", line: 5 })]);
+  });
+
+  it("reports duplicate typed declarations inside an inert module body", () => {
+    const source = [
+      "nui 3",
+      "module M() {",
+      "  const A: number = 1",
+      "  let A: number = 2",
+      "}"
+    ].join("\n");
+    const { parsed, stableIds } = parseWithStableIds(source);
+    const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
+
+    expect(compiled.diagnostics).toEqual([expect.objectContaining({ code: "source-namespace-collision", line: 4 })]);
+    expect(compiled.bindingAnalysis).toBeUndefined();
+  });
+
+  it("includes named conditional and for containers in module collisions", () => {
+    const source = [
+      "nui 3",
+      "module A() {",
+      "}",
+      "if A (1) {",
+      "}",
+      "for A (i, from: 0, count: 1) {",
+      "}",
+      "module A = A()"
+    ].join("\n");
+    const { parsed, stableIds } = parseWithStableIds(source);
+    const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "source-namespace-collision")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ line: 4 }),
+        expect.objectContaining({ line: 6 }),
+        expect.objectContaining({ line: 8 })
+      ])
+    );
+    expect(compiled.sourceLexicalNamespace?.allDeclarations.map((declaration) => declaration.kind)).toEqual([
+      "moduleDefinition",
+      "conditionalGroup",
+      "forGroup",
+      "moduleInstance"
+    ]);
+  });
+
   it("allows equal names in different lexical scopes and exposes the index through document compilation", () => {
     const source = [
       "nui 3",
@@ -102,6 +175,45 @@ describe("source lexical namespace index", () => {
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.message.includes("同名の要素"))).toHaveLength(1);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "source-namespace-collision")).toEqual([]);
+  });
+
+  it("keeps regular root duplicates with their existing diagnostic owners", () => {
+    const source = [
+      "nui 3",
+      "point A = coordinate(x: 0, y: 0)",
+      "point A = coordinate(x: 1, y: 1)",
+      "const Scalar: number = 1",
+      "let Scalar: number = 2"
+    ].join("\n");
+    const { parsed, stableIds } = parseWithStableIds(source);
+    const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.message.includes("同名の要素"))).toHaveLength(1);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "source-namespace-collision")).toEqual([]);
+  });
+
+  it("keeps module source statements out of runtime geometry and scalar analysis", () => {
+    const source = [
+      "nui 3",
+      "module M() {",
+      "  point Hidden = coordinate(x: 0, y: 0)",
+      "  const hidden: number = 1",
+      "  set hidden = 2",
+      "}",
+      "point Root = coordinate(x: 1, y: 1)"
+    ].join("\n");
+    const { parsed, stableIds } = parseWithStableIds(source);
+    const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Root"]);
+    expect(compiled.bindingAnalysis).toBeUndefined();
+    expect(compiled.sourceLexicalNamespace?.allDeclarations.map((declaration) => declaration.name)).toEqual([
+      "M",
+      "Hidden",
+      "hidden",
+      "Root"
+    ]);
   });
 
   it("retains source-only identities for module const, set, and nested module statements", () => {

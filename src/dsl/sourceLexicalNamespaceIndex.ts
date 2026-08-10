@@ -1,4 +1,5 @@
 import { isGeometryDeclarationCategory } from "./dslConstructions";
+import { isInUnloweredModuleSubtree } from "./dslCompilationGuard";
 import { buildLexicalScopeIndexFromStatements } from "./lexicalScopeIndexAdapter";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import type { IncludeStatement, LexicalScopeIndex, ScopeId } from "../scalars/lexicalScopeIndex";
@@ -9,6 +10,8 @@ export type SourceLexicalDeclarationKind =
   | "moduleInstance"
   | "group"
   | "geometry"
+  | "conditionalGroup"
+  | "forGroup"
   | "typedDeclaration";
 
 export type SourceLexicalDeclaration = {
@@ -46,7 +49,11 @@ const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKin
   if (statement.kind === "moduleInstance") return "moduleInstance";
   if (statement.kind === "group") return "group";
   if (statement.kind === "typedDeclaration") return "typedDeclaration";
-  if (statement.kind === "element" && isGeometryDeclarationCategory(statement.category)) return "geometry";
+  if (statement.kind === "element") {
+    if (statement.type === "conditionalGroup") return "conditionalGroup";
+    if (statement.type === "forGroup") return "forGroup";
+    if (isGeometryDeclarationCategory(statement.category)) return "geometry";
+  }
   return null;
 };
 
@@ -54,7 +61,7 @@ const isModuleKind = (kind: SourceLexicalDeclarationKind) =>
   kind === "moduleDefinition" || kind === "moduleInstance";
 
 const isExistingCadNamespaceKind = (kind: SourceLexicalDeclarationKind) =>
-  kind === "group" || kind === "geometry";
+  kind === "group" || kind === "geometry" || kind === "conditionalGroup" || kind === "forGroup";
 
 /**
  * Build a source-only namespace index from parser-owned enclosing metadata.
@@ -108,12 +115,18 @@ export const buildSourceLexicalNamespaceIndex = (
 
   const collisions: SourceLexicalNamespaceCollision[] = [];
   const diagnostics: DslDiagnostic[] = [];
+  const isSourceOnlyDeclaration = (declaration: SourceLexicalDeclaration) =>
+    isInUnloweredModuleSubtree(statements, declaration.statementIndex);
   for (const [scopeId, names] of declarationsByScopeAndName) {
     for (const [name, declarations] of names) {
       const prior: SourceLexicalDeclaration[] = [];
       for (const declaration of declarations) {
         const conflicting = prior.find(
-          (candidate) => candidate.kind !== declaration.kind || isModuleKind(candidate.kind) || isModuleKind(declaration.kind)
+          (candidate) =>
+            candidate.kind !== declaration.kind ||
+            isModuleKind(candidate.kind) ||
+            isModuleKind(declaration.kind) ||
+            (isSourceOnlyDeclaration(candidate) && isSourceOnlyDeclaration(declaration))
         );
         if (!conflicting) {
           prior.push(declaration);
@@ -124,7 +137,12 @@ export const buildSourceLexicalNamespaceIndex = (
         // group/geometry namespace. Keep the collision record for consumers,
         // but leave that diagnostic to the existing owner so the two systems
         // do not report the same problem twice.
-        if (isExistingCadNamespaceKind(conflicting.kind) && isExistingCadNamespaceKind(declaration.kind)) {
+        if (
+          isExistingCadNamespaceKind(conflicting.kind) &&
+          isExistingCadNamespaceKind(declaration.kind) &&
+          !isSourceOnlyDeclaration(conflicting) &&
+          !isSourceOnlyDeclaration(declaration)
+        ) {
           prior.push(declaration);
           continue;
         }
