@@ -67,6 +67,9 @@ export type EvaluateElementsOptions = {
   conditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
   /** Task 35's compiled stable join; never inferred from element array order. */
   forGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
+  /** Explicit joins for materialized module control owners. */
+  moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
+  moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
   /**
    * Task 23's elementId-keyed standard property bindings (already re-keyed
    * from CompiledDslDocument.propertyBindings by
@@ -439,8 +442,9 @@ export const evaluateElements = (
         const ownedTemplateIds = new Set(templates.map((templateElement) => templateElement.id));
         const statements: ForGroupMutationStatement[] = templates.map((templateElement) => {
           const statement = options.statementInfoByElementId!.get(templateElement.id);
-          if (!statement) throw new Error(`evaluateElements: no compiled statement mapping for forGroup template ${templateElement.id}`);
-          return { kind: "element" as const, sourceOrder: statement.statementIndex, templateElementId: templateElement.id };
+          const sourceOrder = options.scalarExecutionPositionByElementId?.get(templateElement.id) ?? statement?.statementIndex;
+          if (sourceOrder === undefined) throw new Error(`evaluateElements: no compiled execution mapping for forGroup template ${templateElement.id}`);
+          return { kind: "element" as const, sourceOrder, templateElementId: templateElement.id };
         });
         statements.push({ kind: "exit", sourceOrder: mutationOwner.exitSourceOrder });
         let expandedIteration = -1;
@@ -452,7 +456,7 @@ export const evaluateElements = (
           ownerStatementId: mutationOwner.ownerStatementId,
           loopScopeId: mutationOwner.scopeId,
           // This is the compiler's established iteration binding identity.
-          iterationBindingId: `binding:iteration:${mutationOwner.ownerStatementId}`,
+          iterationBindingId: mutationOwner.iterationBindingId ?? `binding:iteration:${mutationOwner.ownerStatementId}`,
           iterationValues: Array.from({ length: count }, (_, iterationIndex) => start + iterationIndex * step),
           statements
         }, (statement, context) => {

@@ -1,0 +1,28 @@
+nui 3
+point Base = coordinate(x: 10, y: 0)
+module M() {
+  line A = segment(start: (0, 0), end: (10, 0))
+  const length: number = @A.length
+  point P = coordinate(x: @length, y: 0)
+}
+module X = M()
+module N(width: number) {
+  point Q = coordinate(x: @width, y: 0)
+}
+module Y = N(width: @Base.x)
+module LoopM() {
+  for Loop (i, from: 1, count: 2, step: 1) {
+    const local: number = @i
+    point P = coordinate(x: @local, y: 1)
+  }
+}
+module LoopInstance = LoopM()
+module Inner(width: number = 9) {
+  point NestedPoint = coordinate(x: @width, y: 2)
+}
+module Outer() {
+  for Loop (i, from: 1, count: 2, step: 1) {
+    module Nested = Inner(width: @i)
+  }
+}
+module OuterInstance = Outer()

@@ -234,7 +234,12 @@ export type CompiledDslDocument = {
   scalarExecutionPositionByRuntimeElementId?: ReadonlyMap<ElementId, number>;
   /** Direct materialized occurrences; runtime builders consume these without re-resolution. */
   materializedPropertyBindings?: readonly MaterializedPropertyBindingSource[];
+  materializedGroupPrintEnabledBindings?: ReadonlyMap<ElementId, ScalarValueSource>;
   materializedNumericBindings?: readonly MaterializedNumericBindingSource[];
+  materializedTextTemplates?: readonly import("../scalars/moduleScalarRuntime").MaterializedTextTemplateSource[];
+  moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
+  moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, Extract<import("../scalars/bindingVersions").BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>;
+  materializedConditionalGroupConditions?: readonly { elementId: ElementId; expression: TypedScalarExpression }[];
   /**
    * Task 48: `bindingAnalysis.issues` (duplicate-binding/binding-cycle/
    * self-initialization/undefined-binding/forward-binding-reference) adapted
@@ -1125,10 +1130,11 @@ export const compileDslDocument = (
         elements: compiled.elements
       },
       includeStatement,
-      elements: compiled.elements
+      elements: compiled.elements,
+      sourceScopeIndex: sourceLexicalNamespace?.scopeIndex
     });
     const hasModuleScalarBindings = moduleScalarCompilation.bindingAnalysis.catalog.bindings.some((binding) =>
-      binding.id.startsWith("module-binding:")
+      binding.resolutionMode === "preResolvedOnly"
     );
     if (documentScalarAnalysis || hasModuleScalarBindings) {
       scalarAnalysis = documentScalarAnalysis
@@ -1339,8 +1345,23 @@ export const compileDslDocument = (
       ...(moduleScalarCompilation?.materializedPropertyBindings.length
         ? { materializedPropertyBindings: moduleScalarCompilation.materializedPropertyBindings }
         : {}),
+      ...(moduleScalarCompilation?.materializedGroupPrintEnabledBindings.size
+        ? { materializedGroupPrintEnabledBindings: moduleScalarCompilation.materializedGroupPrintEnabledBindings }
+        : {}),
       ...(moduleScalarCompilation?.materializedNumericBindings.length
         ? { materializedNumericBindings: moduleScalarCompilation.materializedNumericBindings }
+        : {}),
+      ...(moduleScalarCompilation?.materializedTextTemplates.length
+        ? { materializedTextTemplates: moduleScalarCompilation.materializedTextTemplates }
+        : {}),
+      ...(moduleScalarCompilation?.conditionalOwnerStatementIdByElementId.size
+        ? { moduleConditionalOwnerStatementIdByElementId: moduleScalarCompilation.conditionalOwnerStatementIdByElementId }
+        : {}),
+      ...(moduleScalarCompilation?.forGroupMutationOwnerByElementId.size
+        ? { moduleForGroupMutationOwnerByElementId: moduleScalarCompilation.forGroupMutationOwnerByElementId }
+        : {}),
+      ...(moduleScalarCompilation?.materializedConditionalGroupConditions.length
+        ? { materializedConditionalGroupConditions: moduleScalarCompilation.materializedConditionalGroupConditions }
         : {}),
       ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
     };
@@ -1406,8 +1427,23 @@ export const compileDslDocument = (
     ...(moduleScalarCompilation?.materializedPropertyBindings.length
       ? { materializedPropertyBindings: moduleScalarCompilation.materializedPropertyBindings }
       : {}),
+    ...(moduleScalarCompilation?.materializedGroupPrintEnabledBindings.size
+      ? { materializedGroupPrintEnabledBindings: moduleScalarCompilation.materializedGroupPrintEnabledBindings }
+      : {}),
     ...(moduleScalarCompilation?.materializedNumericBindings.length
       ? { materializedNumericBindings: moduleScalarCompilation.materializedNumericBindings }
+      : {}),
+    ...(moduleScalarCompilation?.materializedTextTemplates.length
+      ? { materializedTextTemplates: moduleScalarCompilation.materializedTextTemplates }
+      : {}),
+    ...(moduleScalarCompilation?.conditionalOwnerStatementIdByElementId.size
+      ? { moduleConditionalOwnerStatementIdByElementId: moduleScalarCompilation.conditionalOwnerStatementIdByElementId }
+      : {}),
+    ...(moduleScalarCompilation?.forGroupMutationOwnerByElementId.size
+      ? { moduleForGroupMutationOwnerByElementId: moduleScalarCompilation.forGroupMutationOwnerByElementId }
+      : {}),
+    ...(moduleScalarCompilation?.materializedConditionalGroupConditions.length
+      ? { materializedConditionalGroupConditions: moduleScalarCompilation.materializedConditionalGroupConditions }
       : {}),
     ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
   };

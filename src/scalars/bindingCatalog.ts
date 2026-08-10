@@ -12,6 +12,8 @@ export type BindingMutability = "const" | "let" | "readonly";
 export type BindingVisibility =
   | { kind: "typed"; scopeId: ScopeId }
   | { kind: "iteration"; rootScopeId: ScopeId };
+/** Whether a binding participates in ordinary source-name resolution. */
+export type BindingResolutionMode = "sourceLookup" | "preResolvedOnly";
 
 export type BindingSeed = {
   id: BindingId;
@@ -27,6 +29,8 @@ export type BindingSeed = {
   declaredType?: ScalarType | null;
   /** Explicit declaration-version identity for non-document bindings. */
   declarationVersionId?: string;
+  /** Synthetic bindings can remain in the combined graph without entering source lookup. */
+  resolutionMode?: BindingResolutionMode;
 };
 
 export type Binding = {
@@ -43,6 +47,8 @@ export type Binding = {
   rank: number;
   /** Optional stable declaration-version identity for synthetic bindings. */
   declarationVersionId?: string;
+  /** Source-name candidates are explicitly separated from pre-resolved edges. */
+  resolutionMode?: BindingResolutionMode;
 };
 
 export type BuildBindingCatalogInput = {
@@ -120,13 +126,15 @@ export const buildBindingCatalog = ({
     enqueue({
       id: typedBindingId(stableStatementId), kind: "typed", name: declaration.name, nameSpan: declaration.nameSpan,
       statementIndex: declaration.statementIndex, sourceOrder: 0, effectiveScopeId: declaration.scopeId,
-      visibility: { kind: "typed", scopeId: declaration.scopeId }, mutability: declaration.bindingKind, declaredType: declaration.declaredType
+      visibility: { kind: "typed", scopeId: declaration.scopeId }, mutability: declaration.bindingKind,
+      declaredType: declaration.declaredType, resolutionMode: "sourceLookup"
     });
   }
   for (const seed of iterationBindings) {
     if (seed.kind !== "iteration") throw new Error(`bindingCatalog: iterationBindings must contain iteration seeds`);
     if (!Number.isInteger(seed.sourceOrder) || seed.sourceOrder < 0) throw new Error(`bindingCatalog: invalid sourceOrder for ${seed.id}`);
-    enqueue({ ...seed, mutability: seed.mutability ?? "readonly", declaredType: seed.declaredType ?? null });
+    enqueue({ ...seed, mutability: seed.mutability ?? "readonly", declaredType: seed.declaredType ?? null,
+      resolutionMode: seed.resolutionMode ?? "sourceLookup" });
   }
 
   const bindings: Binding[] = [];
@@ -147,12 +155,12 @@ export const buildBindingCatalog = ({
   // index. They are already ordered by the module execution planner and are
   // appended as an explicit catalog lane; no source name lookup uses them.
   for (const seed of additionalBindings) {
-    if (seed.kind !== "typed") throw new Error(`bindingCatalog: additionalBindings must contain typed seeds`);
     if (!Number.isInteger(seed.sourceOrder) || seed.sourceOrder < 0) throw new Error(`bindingCatalog: invalid sourceOrder for ${seed.id}`);
     bindings.push({
       ...seed,
       mutability: seed.mutability ?? "const",
       declaredType: seed.declaredType ?? null,
+      resolutionMode: seed.resolutionMode ?? "sourceLookup",
       visibility: seed.visibility,
       rank: bindings.length,
       ...(seed.declarationVersionId ? { declarationVersionId: seed.declarationVersionId } : {})
@@ -172,11 +180,13 @@ export const buildBindingCatalog = ({
   for (const binding of bindings) {
     if (bindingsById.has(binding.id)) throw new Error(`bindingCatalog: duplicate binding id ${binding.id}`);
     bindingsById.set(binding.id, binding);
-    const names = documentBuckets.get(binding.effectiveScopeId) ?? new Map<string, Binding[]>();
-    const bucket = names.get(binding.name) ?? [];
-    bucket.push(binding); names.set(binding.name, bucket); documentBuckets.set(binding.effectiveScopeId, names);
-    if (binding.visibility.kind === "iteration") {
-      addLookupBinding(iterationByScopeAndName, binding.visibility.rootScopeId, binding);
+    if (binding.resolutionMode !== "preResolvedOnly") {
+      const names = documentBuckets.get(binding.effectiveScopeId) ?? new Map<string, Binding[]>();
+      const bucket = names.get(binding.name) ?? [];
+      bucket.push(binding); names.set(binding.name, bucket); documentBuckets.set(binding.effectiveScopeId, names);
+      if (binding.visibility.kind === "iteration") {
+        addLookupBinding(iterationByScopeAndName, binding.visibility.rootScopeId, binding);
+      }
     }
   }
   const declarationDuplicateBuckets: (readonly Binding[])[] = [];

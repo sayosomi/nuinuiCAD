@@ -24,7 +24,7 @@ const printGroupIdsFor = (fixture: ReturnType<typeof readParityFixture>, payload
   if (!doc) return [];
   return printableGroups(
     doc.document.elements,
-    { propertyBindings: doc.propertyBindings, byElementId: doc.statementMap.byElementId },
+    { propertyBindings: doc.propertyBindings, byElementId: doc.statementMap.byElementId, materializedPropertyBindings: doc.materializedPropertyBindings },
     evaluationPayloadToResult(payload).computedScalarBindings
   ).map((group) => group.id);
 };

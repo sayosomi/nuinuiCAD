@@ -256,7 +256,10 @@ export const createIncrementalLinearMutationEvaluator = (
     conditionalResultByOwnerId.set(ownerStatementId, branch);
     if (branch === null) return;
     const owner = owners.find((candidate) => candidate.branch === branch);
-    if (!owner) throw new Error(`conditional mutation owner ${ownerStatementId} has no ${branch} branch metadata`);
+    // A conditional without an explicit else branch has no frame to open for
+    // the else result. The branch is still recorded so its guarded versions
+    // remain inactive; only the then frame needs lexical lifetime metadata.
+    if (!owner) return;
     frames.push({ scopeId: owner.scopeId, exitSourceOrder: owner.exitSourceOrder, localBindingIds: new Set() });
   };
 

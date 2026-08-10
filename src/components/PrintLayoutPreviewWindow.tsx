@@ -138,9 +138,11 @@ export const PrintLayoutPreviewWindow = ({
   const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
   const groupPrintEnabledPropertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
   const groupPrintEnabledByElementId = useCadDocumentStore((state) => state.doc.statementMap.byElementId);
+  const groupPrintEnabledMaterialized = useCadDocumentStore((state) => state.doc.materializedPropertyBindings);
+  const groupPrintEnabledMaterializedByElementId = useCadDocumentStore((state) => state.doc.materializedGroupPrintEnabledBindings);
   const groupPrintEnabledLookup: GroupPrintEnabledLookup = useMemo(
-    () => ({ propertyBindings: groupPrintEnabledPropertyBindings, byElementId: groupPrintEnabledByElementId }),
-    [groupPrintEnabledPropertyBindings, groupPrintEnabledByElementId]
+    () => ({ propertyBindings: groupPrintEnabledPropertyBindings, byElementId: groupPrintEnabledByElementId, materializedPropertyBindings: groupPrintEnabledMaterialized, materializedBindingsByElementId: groupPrintEnabledMaterializedByElementId }),
+    [groupPrintEnabledPropertyBindings, groupPrintEnabledByElementId, groupPrintEnabledMaterialized, groupPrintEnabledMaterializedByElementId]
   );
   const printLayoutNumericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
   const printLayoutByKey = useCadDocumentStore((state) => state.doc.statementMap.byKey);

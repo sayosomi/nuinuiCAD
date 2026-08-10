@@ -30,6 +30,10 @@ export type EvaluationFixture = {
   scalarExecutionPositionByElementId?: ReadonlyMap<string, number>;
   statementIdByStatementIndex?: ReadonlyMap<number, string>;
   conditionalGroupConditions?: ReadonlyMap<string, TypedScalarExpression>;
+  materializedConditionalGroupConditions?: readonly { elementId: ElementId; expression: TypedScalarExpression }[];
+  moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
+  moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, import("../src/scalars/forGroupMutationControl").ForGroupMutationOwner>;
+  materializedTextTemplates?: readonly { elementId: ElementId; template: TextTemplateAst }[];
   textTemplateEntriesByElementId?: ReadonlyMap<ElementId, TextTemplateAst>;
   propertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
   controlBooleanEntries?: readonly PropertyBindingRuntimeEntry[];
@@ -71,10 +75,11 @@ export const fixtureFromSource = (source: string): EvaluationFixture => {
         doc.document.elements
       )
     : undefined;
-  const textTemplateEntriesByElementId = doc.textTemplates
+  const textTemplateEntriesByElementId = doc.textTemplates || doc.materializedTextTemplates
     ? buildTextTemplateEntriesByElementId({
-        textTemplates: doc.textTemplates,
-        elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex
+        textTemplates: doc.textTemplates ?? new Map(),
+        elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex,
+        materializedTextTemplates: doc.materializedTextTemplates
       })
     : undefined;
   const textPropertyBindingEntries = doc.scalarProgram && doc.propertyBindings
@@ -107,6 +112,10 @@ export const fixtureFromSource = (source: string): EvaluationFixture => {
     scalarExecutionPositionByElementId: doc.scalarExecutionPositionByRuntimeElementId,
     statementIdByStatementIndex: doc.statementMap.statementIdByStatementIndex,
     conditionalGroupConditions: doc.conditionalGroupConditions,
+    materializedConditionalGroupConditions: doc.materializedConditionalGroupConditions,
+    moduleConditionalOwnerStatementIdByElementId: doc.moduleConditionalOwnerStatementIdByElementId,
+    moduleForGroupMutationOwnerByElementId: doc.moduleForGroupMutationOwnerByElementId,
+    materializedTextTemplates: doc.materializedTextTemplates,
     ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
     ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
     ...(textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId } : {}),
@@ -130,20 +139,37 @@ export const optionsFor = (fixture: EvaluationFixture): EvaluateElementsOptions 
     sourceExecutionPositionByElementId: fixture.sourceExecutionPositionByElementId,
     scalarExecutionPositionByElementId: fixture.scalarExecutionPositionByElementId,
     statementIdByStatementIndex: fixture.statementIdByStatementIndex,
-    conditionalOwnerStatementIdByElementId: conditionalOwnerIdByElementId(buildConditionalMutationOwners(
-      fixture.bindingVersions, fixture.elements, fixture.statementInfoByElementId, fixture.statementIdByStatementIndex
-    )),
-    forGroupMutationOwnerByElementId: forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
-      fixture.bindingVersions, fixture.elements, fixture.statementInfoByElementId, fixture.statementIdByStatementIndex
-    ))
+    conditionalOwnerStatementIdByElementId: new Map([
+      ...conditionalOwnerIdByElementId(buildConditionalMutationOwners(
+        fixture.bindingVersions, fixture.elements, fixture.statementInfoByElementId, fixture.statementIdByStatementIndex,
+        new Set(fixture.moduleConditionalOwnerStatementIdByElementId?.values() ?? [])
+      )),
+      ...(fixture.moduleConditionalOwnerStatementIdByElementId ? [...fixture.moduleConditionalOwnerStatementIdByElementId] : [])
+    ]),
+    forGroupMutationOwnerByElementId: new Map([
+      ...forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+        fixture.bindingVersions, fixture.elements, fixture.statementInfoByElementId, fixture.statementIdByStatementIndex,
+        new Set(fixture.moduleForGroupMutationOwnerByElementId
+          ? [...fixture.moduleForGroupMutationOwnerByElementId.values()].map((owner) => owner.ownerStatementId)
+          : [])
+      )),
+      ...(fixture.moduleForGroupMutationOwnerByElementId ? [...fixture.moduleForGroupMutationOwnerByElementId] : [])
+    ]),
+    moduleConditionalOwnerStatementIdByElementId: fixture.moduleConditionalOwnerStatementIdByElementId,
+    moduleForGroupMutationOwnerByElementId: fixture.moduleForGroupMutationOwnerByElementId
   } : {}),
   ...(fixture.propertyBindingEntries?.length ? { propertyBindingEntries: fixture.propertyBindingEntries } : {}),
   ...(fixture.controlBooleanEntries?.length ? { controlBooleanEntries: fixture.controlBooleanEntries } : {}),
-  ...(fixture.conditionalGroupConditions && fixture.statementInfoByElementId
-    ? { conditionalGroupConditionsByElementId: buildConditionalGroupConditionsByElementId(
-        fixture.conditionalGroupConditions,
-        new Map(Array.from(fixture.statementInfoByElementId, ([elementId, info]) => [info.statementIndex, elementId]))
-      ) }
+  ...(fixture.conditionalGroupConditions || fixture.materializedConditionalGroupConditions
+    ? { conditionalGroupConditionsByElementId: new Map([
+        ...(fixture.conditionalGroupConditions && fixture.statementInfoByElementId
+          ? buildConditionalGroupConditionsByElementId(
+              fixture.conditionalGroupConditions,
+              new Map(Array.from(fixture.statementInfoByElementId, ([elementId, info]) => [info.statementIndex, elementId]))
+            )
+          : []),
+        ...(fixture.materializedConditionalGroupConditions ?? []).map((entry) => [entry.elementId, entry.expression] as const)
+      ]) }
     : {}),
   ...(fixture.textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId: fixture.textTemplateEntriesByElementId } : {}),
   ...(fixture.textPropertyBindingEntries?.length ? { textPropertyBindingEntries: fixture.textPropertyBindingEntries } : {}),

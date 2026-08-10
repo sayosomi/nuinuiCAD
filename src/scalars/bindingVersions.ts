@@ -19,7 +19,14 @@ export type BindingControlOwner =
       /** Explicit lexical close from Task 30's scope metadata, never inferred at runtime. */
       exitSourceOrder: number;
     }
-  | { kind: "forGroup"; ownerStatementId: string; scopeId: ScopeId; exitSourceOrder: number };
+  | {
+      kind: "forGroup";
+      ownerStatementId: string;
+      scopeId: ScopeId;
+      exitSourceOrder: number;
+      /** Instance-qualified loop slots are supplied by module lowering. */
+      iterationBindingId?: BindingId;
+    };
 
 export type BindingControlMetadata = {
   scopeId: ScopeId;

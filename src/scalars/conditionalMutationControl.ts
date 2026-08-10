@@ -20,12 +20,13 @@ export const buildConditionalMutationOwners = (
   graph: BindingVersionGraph,
   elements: readonly CadElement[],
   statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined,
-  statementIdByStatementIndex: ReadonlyMap<number, string> | undefined
+  statementIdByStatementIndex: ReadonlyMap<number, string> | undefined,
+  prejoinedOwnerStatementIds: ReadonlySet<string> = new Set()
 ): readonly ConditionalMutationOwner[] => {
   const ownerIds = new Set<string>();
   for (const version of graph.versions) {
     for (const owner of version.control.ownerChain) {
-      if (owner.kind === "conditionalBranch") ownerIds.add(owner.ownerStatementId);
+      if (owner.kind === "conditionalBranch" && !prejoinedOwnerStatementIds.has(owner.ownerStatementId)) ownerIds.add(owner.ownerStatementId);
     }
   }
   if (!ownerIds.size) return [];

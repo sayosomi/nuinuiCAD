@@ -874,7 +874,11 @@ fn evaluate_document_input_with_scalar_program(
                 // Skip the loop's static range before running generated
                 // statements. This advances only the ordinary cursor; all
                 // evaluation and history remain scheduler-owned.
-                resolver.consume_for_group_source_range(exit_source_order);
+                let owner_statement_id = resolver
+                    .for_group_owner_statement_id(&id)
+                    .expect("validated forGroup owner must have an owner statement id")
+                    .to_owned();
+                resolver.consume_for_group_source_range(&owner_statement_id, exit_source_order);
                 let mut environment = resolver.begin_for_group_environment();
                 let mut runtime = ForGroupMutationRuntime::new(
                     &original_elements,

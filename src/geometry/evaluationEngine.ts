@@ -325,7 +325,8 @@ export const canUseRustEvaluationForElements = (
       elements,
       options.statementInfoByElementId,
       options.statementIdByStatementIndex,
-      options.forGroupMutationOwnerByElementId
+      options.forGroupMutationOwnerByElementId,
+      new Set(options.moduleForGroupMutationOwnerByElementId ? [...options.moduleForGroupMutationOwnerByElementId.values()].map((owner) => owner.ownerStatementId) : [])
     )) return false;
   const evaluationLimitIndex = Math.min(
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),

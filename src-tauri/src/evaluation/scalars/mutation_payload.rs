@@ -167,7 +167,13 @@ fn validate_control(json: &Value, scope_id: &str) -> Result<(), ScalarPayloadIss
             "forGroup" => {
                 reject_unexpected_fields(
                     owner,
-                    &["kind", "ownerStatementId", "scopeId", "exitSourceOrder"],
+                    &[
+                        "kind",
+                        "ownerStatementId",
+                        "scopeId",
+                        "exitSourceOrder",
+                        "iterationBindingId",
+                    ],
                     "forGroup control owner",
                 )?;
                 string(
@@ -182,6 +188,12 @@ fn validate_control(json: &Value, scope_id: &str) -> Result<(), ScalarPayloadIss
                     require_field(owner, "scopeId", "forGroup control owner")?,
                     "forGroup control scopeId",
                 )?;
+                if let Some(iteration_binding_id) = owner.get("iterationBindingId") {
+                    string(
+                        iteration_binding_id,
+                        "forGroup control owner iterationBindingId",
+                    )?;
+                }
             }
             _ => {
                 return Err(issue(
@@ -783,12 +795,6 @@ pub(crate) fn validate_binding_versions_payload(
             require_field(owner, "exitSourceOrder", "forGroup mutation owner")?,
             "forGroup exitSourceOrder",
         )?;
-        if iteration_binding_id != format!("binding:iteration:{owner_statement_id}") {
-            return Err(issue(
-                Code::InvalidControlOwner,
-                "forGroup owner iterationBindingId is not canonical",
-            ));
-        }
         if !for_group_elements.contains(element_id.as_str())
             || !for_group_owner_ids.insert(owner_statement_id.clone())
             || for_group_owners_by_element_id
@@ -831,9 +837,15 @@ pub(crate) fn validate_binding_versions_payload(
                     "forGroup owner chain has no matching forGroupOwners entry",
                 ));
             };
+            let expected_iteration_binding_id = owner
+                .get("iterationBindingId")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned)
+                .unwrap_or_else(|| format!("binding:iteration:{owner_statement_id}"));
             if owner.get("scopeId").and_then(Value::as_str) != Some(payload_owner.scope_id.as_str())
                 || owner.get("exitSourceOrder").and_then(Value::as_u64)
                     != Some(payload_owner.exit_source_order as u64)
+                || payload_owner.iteration_binding_id != expected_iteration_binding_id
             {
                 return Err(issue(
                     Code::InvalidControlOwner,

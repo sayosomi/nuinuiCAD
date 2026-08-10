@@ -13,13 +13,14 @@ export const buildForGroupMutationOwners = (
   graph: BindingVersionGraph,
   elements: readonly CadElement[],
   statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined,
-  statementIdByStatementIndex: ReadonlyMap<number, string> | undefined
+  statementIdByStatementIndex: ReadonlyMap<number, string> | undefined,
+  prejoinedOwnerStatementIds: ReadonlySet<string> = new Set()
 ): readonly ForGroupMutationOwner[] => {
   const owners = new Map<string, Extract<BindingControlOwner, { kind: "forGroup" }>>();
   for (const version of graph.versions) for (const owner of version.control.ownerChain) {
-    if (owner.kind !== "forGroup") continue;
+    if (owner.kind !== "forGroup" || prejoinedOwnerStatementIds.has(owner.ownerStatementId)) continue;
     const previous = owners.get(owner.ownerStatementId);
-    if (previous && (previous.scopeId !== owner.scopeId || previous.exitSourceOrder !== owner.exitSourceOrder)) {
+    if (previous && (previous.scopeId !== owner.scopeId || previous.exitSourceOrder !== owner.exitSourceOrder || previous.iterationBindingId !== owner.iterationBindingId)) {
       throw new Error(`forGroup mutation owner ${owner.ownerStatementId} has inconsistent control metadata`);
     }
     owners.set(owner.ownerStatementId, owner);
@@ -55,17 +56,38 @@ export const hasCanonicalForGroupMutationOwners = (
   elements: readonly CadElement[],
   statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined,
   statementIdByStatementIndex: ReadonlyMap<number, string> | undefined,
-  ownersByElementId: ReadonlyMap<ElementId, ForGroupMutationOwner> | undefined
+  ownersByElementId: ReadonlyMap<ElementId, ForGroupMutationOwner> | undefined,
+  prejoinedOwnerStatementIds: ReadonlySet<string> = new Set()
 ): boolean => {
   if (!ownersByElementId) return false;
   try {
     const expected = buildForGroupMutationOwners(
-      graph, elements, statementInfoByElementId, statementIdByStatementIndex
+      graph, elements, statementInfoByElementId, statementIdByStatementIndex, prejoinedOwnerStatementIds
     );
-    return expected.length === ownersByElementId.size && expected.every((owner) => {
+    const ordinaryActual = [...ownersByElementId.values()].filter((owner) =>
+      !prejoinedOwnerStatementIds.has(owner.ownerStatementId)
+    );
+    if (expected.length !== ordinaryActual.length || !expected.every((owner) => {
       const actual = ownersByElementId.get(owner.elementId);
       return actual?.ownerStatementId === owner.ownerStatementId &&
-        actual.scopeId === owner.scopeId && actual.exitSourceOrder === owner.exitSourceOrder;
+        actual.scopeId === owner.scopeId && actual.exitSourceOrder === owner.exitSourceOrder &&
+        actual.iterationBindingId === owner.iterationBindingId;
+    })) return false;
+
+    const prejoinedByOwnerId = new Map<string, Extract<BindingControlOwner, { kind: "forGroup" }>>();
+    for (const version of graph.versions) for (const owner of version.control.ownerChain) {
+      if (owner.kind !== "forGroup" || !prejoinedOwnerStatementIds.has(owner.ownerStatementId)) continue;
+      const previous = prejoinedByOwnerId.get(owner.ownerStatementId);
+      if (previous && (previous.scopeId !== owner.scopeId || previous.exitSourceOrder !== owner.exitSourceOrder || previous.iterationBindingId !== owner.iterationBindingId)) return false;
+      prejoinedByOwnerId.set(owner.ownerStatementId, owner);
+    }
+    const prejoinedActual = [...ownersByElementId.values()].filter((owner) =>
+      prejoinedOwnerStatementIds.has(owner.ownerStatementId)
+    );
+    return prejoinedActual.length === prejoinedByOwnerId.size && [...prejoinedByOwnerId].every(([ownerStatementId, owner]) => {
+      const actual = prejoinedActual.find((candidate) => candidate.ownerStatementId === ownerStatementId);
+      return actual?.scopeId === owner.scopeId && actual.exitSourceOrder === owner.exitSourceOrder &&
+        actual.iterationBindingId === owner.iterationBindingId;
     });
   } catch {
     return false;

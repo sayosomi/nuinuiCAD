@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { reconcileStatements } from "../document/statementReconciler";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
-import { buildTextPropertyBindingRuntimeEntries } from "../geometry/textTemplateRuntime";
+import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
 import { evaluateElements } from "../geometry/evaluate";
+import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
+import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
+import { isGroupPrintEnabled } from "../geometry/groupPrintEnabledRuntime";
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
 
@@ -47,6 +50,53 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
           materializedPropertyBindings: compiled.materializedPropertyBindings
         }, elements)
       : undefined
+    ,conditionalGroupConditionsByElementId: compiled.scalarProgram && (compiled.conditionalGroupConditions || compiled.materializedConditionalGroupConditions)
+      ? new Map([
+          ...(compiled.conditionalGroupConditions
+            ? [...compiled.conditionalGroupConditions].flatMap(([key, expression]) => {
+                const statementIndex = Number(key.split(":", 1)[0]);
+                const elementId = compiled.statementMap!.elementIdByStatementIndex.get(statementIndex);
+                return elementId ? [[elementId, expression] as const] : [];
+              })
+            : []),
+          ...(compiled.materializedConditionalGroupConditions ?? []).map((entry) => [entry.elementId, entry.expression] as const)
+        ])
+      : undefined
+    ,textTemplateEntriesByElementId: compiled.textTemplates || compiled.materializedTextTemplates
+      ? buildTextTemplateEntriesByElementId({
+          textTemplates: compiled.textTemplates ?? new Map(),
+          elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex,
+          materializedTextTemplates: compiled.materializedTextTemplates
+        })
+      : undefined
+    ,conditionalOwnerStatementIdByElementId: compiled.bindingVersions
+      ? new Map([
+          ...conditionalOwnerIdByElementId(buildConditionalMutationOwners(
+            compiled.bindingVersions,
+            elements,
+            compiled.statementMap.byElementId,
+            compiled.statementMap.statementIdByStatementIndex,
+            new Set(compiled.moduleConditionalOwnerStatementIdByElementId?.values() ?? [])
+          )),
+          ...(compiled.moduleConditionalOwnerStatementIdByElementId ? [...compiled.moduleConditionalOwnerStatementIdByElementId] : [])
+        ])
+      : undefined
+    ,forGroupMutationOwnerByElementId: compiled.bindingVersions
+      ? new Map([
+          ...forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
+            compiled.bindingVersions,
+            elements,
+            compiled.statementMap.byElementId,
+            compiled.statementMap.statementIdByStatementIndex,
+            new Set(compiled.moduleForGroupMutationOwnerByElementId
+              ? [...compiled.moduleForGroupMutationOwnerByElementId.values()].map((owner) => owner.ownerStatementId)
+              : [])
+          )),
+          ...(compiled.moduleForGroupMutationOwnerByElementId ? [...compiled.moduleForGroupMutationOwnerByElementId] : [])
+        ])
+      : undefined
+    ,moduleConditionalOwnerStatementIdByElementId: compiled.moduleConditionalOwnerStatementIdByElementId
+    ,moduleForGroupMutationOwnerByElementId: compiled.moduleForGroupMutationOwnerByElementId
   });
 };
 
@@ -270,5 +320,176 @@ describe("module scalar runtime integration", () => {
     expect(after.bindingVersions?.versions.filter((version) => version.kind === "set").map((version) => version.id)).toEqual(
       before.bindingVersions?.versions.filter((version) => version.kind === "set").map((version) => version.id)
     );
+  });
+
+  it("does not leak private module parameters into caller source lookup", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "module A = M(width: 10)",
+      "module B = M(width: 20)",
+      "point Q = coordinate(x: @width, y: 0)"
+    ].join("\n"));
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "numeric-binding-unresolved")).toBe(true);
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "duplicate-binding" && diagnostic.message.includes("module-binding:"))).toBe(false);
+    const moduleBindings = compiled.bindingAnalysis?.catalog.bindings.filter((binding) => binding.id.startsWith("module-binding:")) ?? [];
+    expect(moduleBindings).toHaveLength(2);
+    expect(compiled.bindingAnalysis?.catalog.declarationDuplicateBuckets.flat().some((binding) => binding.id.startsWith("module-binding:"))).toBe(false);
+    expect(moduleBindings.every((binding) => binding.resolutionMode === "preResolvedOnly")).toBe(true);
+  });
+
+  it("keeps child and sibling module lexical scopes independent", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  group First {",
+      "    const x: number = 1",
+      "    const y: number = @x",
+      "    point P = coordinate(x: @y, y: 0)",
+      "  }",
+      "  group Second {",
+      "    const x: number = 2",
+      "    const y: number = @x",
+      "    point Q = coordinate(x: @y, y: 0)",
+      "  }",
+      "}",
+      "module A = M()"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ x: 1 });
+    expect(result.computedGeometry.get(elementNamed(compiled, "Q").id)).toMatchObject({ x: 2 });
+  });
+
+  it("does not execute an inactive module conditional set", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(enabled: boolean) {",
+      "  let value: number = 1",
+      "  if Branch (@enabled) {",
+      "    set value = 2",
+      "  }",
+      "  point P = coordinate(x: @value, y: 0)",
+      "}",
+      "module A = M(enabled: false)",
+      "module B = M(enabled: true)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "P").map((element) => result.computedGeometry.get(element.id))).toEqual([
+      expect.objectContaining({ x: 1 }),
+      expect.objectContaining({ x: 2 })
+    ]);
+  });
+
+  it("runs module forGroup scalar locals per iteration", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  for Loop (i, from: 1, count: 2, step: 1) {",
+      "    const local: number = @i",
+      "    point P = coordinate(x: @local, y: 0)",
+      "  }",
+      "}",
+      "module A = M()"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.forGroupGeneratedRows).toHaveLength(2);
+    expect([...result.computedGeometry.values()].filter((value) => value.kind === "point").map((value) => value.x)).toEqual([1, 2]);
+  });
+
+  it("passes an iteration-local scalar into a nested module call", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Inner(width: number = 9) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "module Outer() {",
+      "  for Loop (i, from: 1, count: 2, step: 1) {",
+      "    module Nested = Inner(width: @i)",
+      "  }",
+      "}",
+      "module A = Outer()"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect([...result.computedGeometry.values()].filter((value) => value.kind === "point").map((value) => value.x)).toEqual([1, 2]);
+  });
+
+  it("lowers module geometry properties to fixed runtime targets", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  line A = segment(start: (0, 0), end: (10, 0))",
+      "  const length: number = @A.length",
+      "  point P = coordinate(x: @length, y: 0)",
+      "}",
+      "module X = M()"
+    ].join("\n"));
+    expectValid(compiled);
+    const initializer = compiled.scalarProgram?.statements.find((statement) => statement.bindingId.includes("module-binding"))?.declaration.initializer;
+    expect(initializer).toEqual(expect.objectContaining({ kind: "geometryProperty", elementId: expect.any(String), targetSourceOrder: expect.any(Number) }));
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ x: 10 });
+  });
+
+  it("lowers an ordinary document geometry property in a module argument", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "point Base = coordinate(x: 10, y: 0)",
+      "module M(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "module X = M(width: @Base.x)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ x: 10 });
+  });
+
+  it("materializes quoted module text templates from resolved semantic holes", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(label: string) {",
+      '  text T = label(text: "value={@label}", anchor: none, size: 3)',
+      "}",
+      'module A = M(label: "A")',
+      'module B = M(label: "B")'
+    ].join("\n"));
+    expectValid(compiled);
+    expect(compiled.materializedTextTemplates).toHaveLength(2);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "T").map((element) => result.computedGeometry.get(element.id))).toEqual([
+      expect.objectContaining({ kind: "text", text: "value=A" }),
+      expect.objectContaining({ kind: "text", text: "value=B" })
+    ]);
+  });
+
+  it("applies materialized group.printEnabled per module instance", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(enabled: boolean) {",
+      "  group G (printEnabled: @enabled) {",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "}",
+      "module A = M(enabled: false)",
+      "module B = M(enabled: true)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    const groups = compiled.document!.elements.filter((element): element is Extract<typeof element, { type: "group" }> => element.type === "group");
+    const lookup = { propertyBindings: compiled.propertyBindings, byElementId: compiled.statementMap!.byElementId, materializedPropertyBindings: compiled.materializedPropertyBindings, materializedBindingsByElementId: compiled.materializedGroupPrintEnabledBindings };
+    expect(groups.map((group) => isGroupPrintEnabled(group, lookup, result.computedScalarBindings))).toEqual([false, true]);
   });
 });

@@ -33,6 +33,7 @@ import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 export type TextTemplateRuntimeSource = {
   textTemplates: ReadonlyMap<string, TextTemplateAst>;
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  materializedTextTemplates?: readonly { elementId: ElementId; template: TextTemplateAst }[];
 };
 
 /**
@@ -51,6 +52,7 @@ export const buildTextTemplateEntriesByElementId = (
     const ast = source.textTemplates.get(propertyBindingOccurrenceKey(statementIndex, "text"));
     if (ast) byElementId.set(elementId, ast);
   }
+  for (const entry of source.materializedTextTemplates ?? []) byElementId.set(entry.elementId, entry.template);
   return byElementId;
 };
 

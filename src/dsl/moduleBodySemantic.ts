@@ -355,7 +355,9 @@ export const analyzeModuleBody = ({
               if (bodySemantic) bodySemantic.geometryReferences = [...bodySemantic.geometryReferences, { parameterKey, span: valueSpan, reference }];
             }
           } else {
-            const expectedType = scalarTypeFromParameterDefinition(parameter);
+            const expectedType = statement.kind === "element" && statement.type === "conditionalGroup" && parameterKey === "condition"
+              ? ({ kind: "boolean" } as const)
+              : scalarTypeFromParameterDefinition(parameter);
             if (!expectedType) continue;
             const template = parameter.kind === "text" ? analyzeTextTemplate(statementIndex, bodySemantic, valueSpan, localResolver) : false;
             const expression = template

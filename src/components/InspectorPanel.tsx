@@ -127,7 +127,7 @@ export const InspectorPanel = ({
   const groupPrintEnabledLookup: GroupPrintEnabledLookup | undefined = useMemo(
     () =>
       isRuntimeFresh
-        ? { propertyBindings: doc.propertyBindings, byElementId: doc.statementMap.byElementId }
+        ? { propertyBindings: doc.propertyBindings, byElementId: doc.statementMap.byElementId, materializedPropertyBindings: doc.materializedPropertyBindings, materializedBindingsByElementId: doc.materializedGroupPrintEnabledBindings }
         : undefined,
     [isRuntimeFresh, doc.propertyBindings, doc.statementMap],
   );
