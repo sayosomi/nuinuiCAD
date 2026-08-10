@@ -35,6 +35,7 @@ export type ModuleGeometrySourceTarget =
       instanceName: string;
       exportName: string;
       expectedGeometryKind: "point" | "line";
+      pointKey?: string;
       referenceSpan: DslSpan;
       memberSpan: DslSpan;
     };
@@ -46,7 +47,6 @@ export type ModuleGeometryPropertySourceTarget =
       statementId: StatementIdentity;
       statementIndex: number;
       category: DslGeometryDeclarationCategory;
-      geometryKind: "point" | "line";
       property: string;
     }
   | {
@@ -55,7 +55,6 @@ export type ModuleGeometryPropertySourceTarget =
       instanceStatementIndex: number;
       instanceName: string;
       exportName: string;
-      expectedGeometryKind: "point" | "line";
       property: string;
       referenceSpan: DslSpan;
       memberSpan: DslSpan;
@@ -91,10 +90,19 @@ export type ModulePointCoordinateSemantic = {
   y: ModuleScalarExpressionSemantic | null;
 };
 
+export type ModuleGeometryReferenceRole =
+  | "pointReference"
+  | "lineEndpointReference"
+  | "lineReference"
+  | "lineReferenceList"
+  | "coordinatePoint"
+  | "derivedPoint";
+
 export type ModuleGeometryReferenceSemantic = {
   source: string;
   span: DslSpan;
   expectedGeometryKind: "point" | "line";
+  role: ModuleGeometryReferenceRole;
   target: ModuleGeometrySourceTarget | null;
   coordinate: ModulePointCoordinateSemantic | null;
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";

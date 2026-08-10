@@ -20,15 +20,18 @@ import { lastIndexOfDslOutsideQuotes } from "./dslTokens";
 import { coordinateComponent } from "./dslParameterSpanScanner";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { isKnownNumericComputedGeometryProperty } from "../geometry/numericExpressions";
+import { isDerivedPointKeyForGeometryCategory, isKnownDerivedPointKey, isLineEndpointPointKey } from "../model/pointAnchors";
 import { scopeChain, type ScopeId } from "../scalars/lexicalScopeIndex";
 import type { ScalarType } from "../scalars/types";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
   ModuleArgumentSemantic,
   ModuleDefinitionSemantic,
+  ModuleGeometryPropertySourceTarget,
   ModuleGeometryReferenceSemantic,
   ModuleGeometrySourceTarget,
   ModuleInstanceSemantic,
+  ModuleGeometryReferenceRole,
   ModuleScalarExpressionSemantic,
   ModuleScalarSourceTarget,
   ModuleSemanticAnalysis,
@@ -163,6 +166,21 @@ const declarationGeometryTarget = (
     statementIndex: declaration.statementIndex,
     category: declaration.statement.category,
     geometryKind
+  };
+};
+
+const declarationGeometryPropertyTarget = (
+  declaration: SourceLexicalDeclaration,
+  stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>,
+  property: string
+): Extract<ModuleGeometryPropertySourceTarget, { kind: "sourceGeometryProperty" }> | null => {
+  if (declaration.kind !== "geometry" || declaration.statement.kind !== "element" || !isGeometryDeclarationCategory(declaration.statement.category)) return null;
+  return {
+    kind: "sourceGeometryProperty",
+    statementId: statementIdAt(stableStatementIdByIndex, declaration.statementIndex),
+    statementIndex: declaration.statementIndex,
+    category: declaration.statement.category,
+    property
   };
 };
 
@@ -437,11 +455,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     expectedGeometryKind: "point" | "line",
     target: ModuleGeometrySourceTarget | null,
     resolution: ModuleGeometryReferenceSemantic["resolution"],
-    coordinate: ModuleGeometryReferenceSemantic["coordinate"] = null
+    coordinate: ModuleGeometryReferenceSemantic["coordinate"] = null,
+    role: ModuleGeometryReferenceRole = expectedGeometryKind === "point" ? "pointReference" : "lineReference"
   ): ModuleGeometryReferenceSemantic => ({
     source,
     span,
     expectedGeometryKind,
+    role,
     target,
     coordinate,
     resolution
@@ -455,7 +475,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         exportName: string;
         memberSpan: DslSpan;
       }
-    | { kind: "undefined" | "forward" | "ambiguous" | "wrongKind"; instanceName: string; exportName: string; memberSpan: DslSpan };
+    | { kind: "undefined" | "forward" | "ambiguous" | "wrongKind" | "outerCapture"; instanceName: string; exportName: string; memberSpan: DslSpan };
 
   const resolveQualifiedModuleExport = (
     statementIndex: number,
@@ -474,9 +494,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, instanceName)
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, instanceName);
     if (lookup.kind === "resolved") {
-      return lookup.declaration.kind === "moduleInstance"
-        ? { kind: "deferred", instance: lookup.declaration, instanceName, exportName, memberSpan }
-        : { kind: "wrongKind", instanceName, exportName, memberSpan };
+      if (lookup.declaration.kind !== "moduleInstance") {
+        return { kind: "wrongKind", instanceName, exportName, memberSpan };
+      }
+      const instanceOwnerIndex = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+      if (ownerIndex !== null && instanceOwnerIndex !== ownerIndex) {
+        return { kind: "outerCapture", instanceName, exportName, memberSpan };
+      }
+      return { kind: "deferred", instance: lookup.declaration, instanceName, exportName, memberSpan };
     }
     if (lookup.kind === "forward") return { kind: "forward", instanceName, exportName, memberSpan };
     if (lookup.kind === "ambiguous") return { kind: "ambiguous", instanceName, exportName, memberSpan };
@@ -486,7 +511,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const deferredModuleExportTarget = (
     qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>,
     expectedGeometryKind: "point" | "line",
-    span: DslSpan
+    span: DslSpan,
+    pointKey: string | null
   ): Extract<ModuleGeometrySourceTarget, { kind: "deferredModuleExport" }> => ({
     kind: "deferredModuleExport",
     instanceStatementId: qualified.instance.statementId,
@@ -494,6 +520,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     instanceName: qualified.instanceName,
     exportName: qualified.exportName,
     expectedGeometryKind,
+    ...(pointKey ? { pointKey } : {}),
     referenceSpan: span,
     memberSpan: qualified.memberSpan
   });
@@ -502,7 +529,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     statementIndex: number,
     span: DslSpan,
     qualified: Exclude<QualifiedModuleExportLookup, { kind: "deferred" }>,
-    expected: "point" | "line"
+    expected: "point" | "line" | null
   ) => {
     const code = qualified.kind === "forward"
       ? "module-forward-instance-reference"
@@ -510,14 +537,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? "module-ambiguous-instance-reference"
         : qualified.kind === "wrongKind"
           ? "module-geometry-type-mismatch"
-          : "module-undefined-instance-reference";
+          : qualified.kind === "outerCapture"
+            ? "module-outer-capture"
+            : "module-undefined-instance-reference";
     const message = qualified.kind === "forward"
       ? `module instance「${qualified.instanceName}」はこの位置より後で宣言されています。`
       : qualified.kind === "ambiguous"
         ? `module instance「${qualified.instanceName}」を一意に解決できません。`
         : qualified.kind === "wrongKind"
-          ? `「${qualified.instanceName}」はmodule instanceではありません(期待: ${expected})。`
-          : `未定義のmodule instance「${qualified.instanceName}」を参照しています。`;
+          ? `「${qualified.instanceName}」はmodule instanceではありません${expected ? `(期待: ${expected})` : ""}。`
+          : qualified.kind === "outerCapture"
+            ? `module body から outer module instance「${qualified.instanceName}」を暗黙 capture できません。`
+            : `未定義のmodule instance「${qualified.instanceName}」を参照しています。`;
     addLocal(statementIndex, issue(code, qualified.memberSpan, message));
   };
 
@@ -555,6 +586,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     options: {
       allowCoordinate?: boolean;
       allowNone?: boolean;
+      role?: ModuleGeometryReferenceRole;
       scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
       bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
       geometryPropertyResolver?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
@@ -568,24 +600,37 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const semanticSpan = trimmedStart >= 0
       ? { start: trimmedStart, end: trimmedStart + trimmed.length }
       : span;
-    if (!trimmed) return geometryReference(rawValue, semanticSpan, expected, null, "undefined");
+    const role = options.role ?? (expected === "point" ? "pointReference" : "lineReference");
+    const semantic = (
+      target: ModuleGeometrySourceTarget | null,
+      resolution: ModuleGeometryReferenceSemantic["resolution"],
+      coordinate: ModuleGeometryReferenceSemantic["coordinate"] = null,
+      referenceRole: ModuleGeometryReferenceRole = role
+    ) => geometryReference(rawValue, semanticSpan, expected, target, resolution, coordinate, referenceRole);
+    if (!trimmed) return semantic(null, "undefined");
     if (trimmed === "none") {
-      if (options.allowNone) return geometryReference(rawValue, semanticSpan, expected, null, "resolved");
+      if (options.allowNone) return semantic(null, "resolved");
       addLocal(statementIndex, issue("module-geometry-none", semanticSpan, `geometry ${expected} reference に none は指定できません。`));
-      return geometryReference(rawValue, semanticSpan, expected, null, "invalid");
+      return semantic(null, "invalid");
     }
     if (trimmed.startsWith("(") || trimmed.startsWith("[")) {
       const coordinate = trimmed.startsWith("(") && trimmed.endsWith(")");
-      if (coordinate && expected === "point") {
+      if (coordinate && expected === "point" && (options.allowCoordinate ?? true)) {
         const coordinateSource = logicalSource ?? rawValue;
-        return geometryReference(rawValue, semanticSpan, expected, null, "resolved", {
+        return semantic(null, "resolved", {
           kind: "coordinate",
           x: coordinateScalar(statementIndex, ownerIndex, coordinateSource, "x", semanticSpan, options),
           y: coordinateScalar(statementIndex, ownerIndex, coordinateSource, "y", semanticSpan, options)
-        });
+        }, "coordinatePoint");
       }
-      addLocal(statementIndex, issue("module-geometry-type-mismatch", semanticSpan, `geometry reference の形式が一致しません(期待: ${expected})。`));
-      return geometryReference(rawValue, semanticSpan, expected, null, "invalid");
+      addLocal(statementIndex, issue(
+        "module-geometry-type-mismatch",
+        semanticSpan,
+        coordinate && expected === "point" && options.allowCoordinate === false
+          ? "このgeometry reference parameterではcoordinate形式を指定できません。"
+          : `geometry reference の形式が一致しません(期待: ${expected})。`
+      ));
+      return semantic(null, "invalid");
     }
     const sigilOffset = trimmed.startsWith("@") ? 1 : 0;
     const withoutSigil = trimmed.slice(sigilOffset);
@@ -595,68 +640,86 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const baseOffset = sigilOffset + Math.max(0, withoutSigil.indexOf(base));
     const baseStart = semanticSpan.start + baseOffset;
     const baseSpan = { start: baseStart, end: baseStart + base.length };
+    const derivedRole: ModuleGeometryReferenceRole = pointKey
+      ? role === "lineEndpointReference" ? "lineEndpointReference" : "derivedPoint"
+      : role;
+    const rejectAccessor = (message: string) => {
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, message));
+      return semantic(null, "invalid", null, derivedRole);
+    };
+    if (pointKey && !isKnownDerivedPointKey(pointKey)) {
+      return rejectAccessor(`geometry reference「${pointKey}」は既知のpoint anchorではありません。`);
+    }
+    if (pointKey && (role === "lineReference" || role === "lineReferenceList")) {
+      return rejectAccessor("plain line referenceにはderived point accessorを指定できません。");
+    }
+    if (pointKey && role === "lineEndpointReference" && !isLineEndpointPointKey(pointKey)) {
+      return rejectAccessor("line endpoint referenceにはstartまたはendを指定してください。");
+    }
     const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, base, semanticSpan, baseOffset);
     if (qualified?.kind === "deferred") {
-      return geometryReference(rawValue, semanticSpan, expected, deferredModuleExportTarget(qualified, expected, semanticSpan), "deferred");
+      return semantic(deferredModuleExportTarget(qualified, expected, semanticSpan, pointKey), "deferred", null, derivedRole);
     }
     if (qualified) {
       qualifiedDiagnostic(statementIndex, semanticSpan, qualified, expected);
-      return geometryReference(rawValue, semanticSpan, expected, null, qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : "invalid");
+      return semantic(null, qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid", null, derivedRole);
     }
     const lookup = ownerIndex === null
       ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, base)
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, base);
     if (lookup.kind === "parameter") {
       const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
-      const pointTarget = parameterTarget && pointKey && expected === "point" && parameterTarget.geometryKind === "line"
-        ? { ...parameterTarget, pointKey }
+      const pointTarget = pointKey
+        ? parameterTarget && expected === "point" && parameterTarget.geometryKind === "line" && isLineEndpointPointKey(pointKey)
+          ? { ...parameterTarget, pointKey }
+          : null
         : parameterTarget;
       const compatible = pointKey
-        ? Boolean(pointTarget)
+        ? Boolean(pointTarget && role !== "lineReference" && role !== "lineReferenceList")
         : parameterTarget?.geometryKind === expected;
       if (!parameterTarget || !compatible) {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expected})。`));
-        return geometryReference(rawValue, semanticSpan, expected, parameterTarget, "invalid");
+        return semantic(parameterTarget, "invalid", null, derivedRole);
       }
-      return geometryReference(rawValue, semanticSpan, expected, pointTarget, "resolved");
+      return semantic(pointTarget, "resolved", null, derivedRole);
     }
     if (lookup.kind === "undefined") {
       addLocal(statementIndex, issue("module-undefined-geometry-reference", baseSpan, `未定義のgeometry「${base}」を参照しています。`));
-      return geometryReference(rawValue, semanticSpan, expected, null, "undefined");
+      return semantic(null, "undefined", null, derivedRole);
     }
     if (lookup.kind === "iteration") {
       addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${base}」はgeometryではありません。`));
-      return geometryReference(rawValue, semanticSpan, expected, null, "invalid");
+      return semantic(null, "invalid", null, derivedRole);
     }
     if (lookup.kind === "forward") {
       addLocal(statementIndex, issue("module-forward-geometry-reference", baseSpan, `geometry「${base}」はこの位置より後で宣言されています。`));
-      return geometryReference(rawValue, semanticSpan, expected, null, "forward");
+      return semantic(null, "forward", null, derivedRole);
     }
     if (lookup.kind === "ambiguous") {
       addLocal(statementIndex, issue("module-ambiguous-geometry-reference", baseSpan, `geometry「${base}」を一意に解決できません。`));
-      return geometryReference(rawValue, semanticSpan, expected, null, "invalid");
+      return semantic(null, "invalid", null, derivedRole);
     }
     const target = declarationGeometryTarget(lookup.declaration, stableStatementIdByIndex);
     const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
     if (!target) {
       addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${base}」はgeometryではありません。`));
-      return geometryReference(rawValue, semanticSpan, expected, null, "invalid");
+      return semantic(null, "invalid", null, derivedRole);
     }
     if (ownerIndex !== null && declarationOwner !== ownerIndex) {
       addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer geometry「${base}」を暗黙 capture できません。`));
-      return geometryReference(rawValue, semanticSpan, expected, null, "outerCapture");
+      return semantic(null, "outerCapture", null, derivedRole);
     }
-    const pointTarget = pointKey && expected === "point" && target.geometryKind === "line"
+    const pointTarget = pointKey && expected === "point" && isDerivedPointKeyForGeometryCategory(target.category, pointKey)
       ? { ...target, pointKey }
       : target;
     const compatible = pointKey
-      ? Boolean(pointTarget && target.geometryKind === "line" && expected === "point")
+      ? Boolean(pointTarget && expected === "point")
       : target.geometryKind === expected;
     if (!compatible) {
       addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expected})。`));
-      return geometryReference(rawValue, semanticSpan, expected, target, "invalid");
+      return semantic(target, "invalid", null, derivedRole);
     }
-    return geometryReference(rawValue, semanticSpan, expected, pointTarget, "resolved");
+    return semantic(pointTarget, "resolved", null, derivedRole);
   };
 
   const resolveGeometryProperty = (
@@ -673,7 +736,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         diagnostic: issue("module-unknown-geometry-property", reference.span, `geometry property「${reference.property}」を解決できません。`)
       };
     }
-    const expectedGeometryKind = reference.property === "x" || reference.property === "y" ? "point" as const : "line" as const;
     const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.span, 1);
     if (qualified?.kind === "deferred") {
       return {
@@ -683,7 +745,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           instanceStatementIndex: qualified.instance.statementIndex,
           instanceName: qualified.instanceName,
           exportName: qualified.exportName,
-          expectedGeometryKind,
           property: reference.property,
           referenceSpan: reference.span,
           memberSpan: qualified.memberSpan
@@ -693,8 +754,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       };
     }
     if (qualified) {
-      qualifiedDiagnostic(statementIndex, reference.span, qualified, expectedGeometryKind);
-      return { target: null, type: null, resolution: qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : "invalid" };
+      qualifiedDiagnostic(statementIndex, reference.span, qualified, null);
+      return { target: null, type: null, resolution: qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid" };
     }
     const lookup = ownerIndex === null
       ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, reference.elementName)
@@ -727,7 +788,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (lookup.kind === "ambiguous") {
       return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-geometry-reference", reference.span, `geometry「${reference.elementName}」を一意に解決できません。`) };
     }
-    const geometryTarget = declarationGeometryTarget(lookup.declaration, stableStatementIdByIndex);
+    const geometryTarget = declarationGeometryPropertyTarget(lookup.declaration, stableStatementIdByIndex, reference.property);
     if (!geometryTarget) {
       return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`) };
     }

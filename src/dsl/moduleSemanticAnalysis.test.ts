@@ -521,7 +521,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 3",
       "module M() {",
-      "  point P = offset(from: (0, 0), dx: @d, dy: 0, vars: [d: 10])",
+      "  line L = polar(start: (0, 0), angle: @d, length: 10, vars: [d: 10])",
       "  text T = label(text: \"d={@d}\", anchor: none, size: @d, vars: [d: 10])",
       "  curve C = bezier(start: (0, 0), end: (10, 0), vars: [handle: 20], intermediates: [(0, 0): @handle: @handle: 5])",
       "}"
@@ -529,7 +529,7 @@ describe("module semantic analysis", () => {
     const point = moduleBodyAt(compiled, 2);
     const text = moduleBodyAt(compiled, 3);
     const curve = moduleBodyAt(compiled, 4);
-    expect(point.scalarExpressions.find((site) => site.parameterKey === "dx")?.expression.references[0].target).toMatchObject({
+    expect(point.scalarExpressions.find((site) => site.parameterKey === "angleDeg")?.expression.references[0].target).toMatchObject({
       kind: "elementLocalVariable",
       statementId: "statement:test:2",
       variableIndex: 0,
@@ -558,7 +558,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 3",
       "module M(dx: number, base: line) {",
-      "  point A = offset(from: (@dx, 0), dx: 10, dy: 0)",
+      "  line A = segment(start: (@dx, 0), end: (0, 0))",
       "  point B = offset(from: base.start, dx: 10, dy: 0)",
       "  line Local = segment(start: (0, 0), end: (10, 0))",
       "  point C = offset(from: Local.end, dx: 10, dy: 0)",
@@ -572,6 +572,7 @@ describe("module semantic analysis", () => {
       definitionStatementId: "statement:test:1",
       parameterIndex: 0
     });
+    expect(a.geometryReferences[0].reference.role).toBe("coordinatePoint");
     expect(a.geometryReferences[0].reference.coordinate?.y?.type).toEqual({ kind: "number" });
     expect(b.geometryReferences[0].reference.target).toEqual({
       kind: "parameter",
@@ -580,6 +581,7 @@ describe("module semantic analysis", () => {
       geometryKind: "line",
       pointKey: "start"
     });
+    expect(b.geometryReferences[0].reference.role).toBe("derivedPoint");
     expect(c.geometryReferences[0].reference.target).toEqual({
       kind: "sourceGeometry",
       statementId: "statement:test:4",
@@ -589,6 +591,58 @@ describe("module semantic analysis", () => {
       pointKey: "end"
     });
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("honors allowCoordinate and preserves allowNone behavior from parameter definitions", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(dx: number) {",
+      "  point Rejected = offset(from: (@dx, 0), dx: 5, dy: 5)",
+      "  line Allowed = segment(start: (@dx, 0), end: (0, 0))",
+      "  text Label = label(text: \"ok\", anchor: none, size: 3)",
+      "}"
+    ].join("\n"));
+    const rejected = moduleBodyAt(compiled, 2).geometryReferences[0].reference;
+    const allowed = moduleBodyAt(compiled, 3).geometryReferences[0].reference;
+    expect(rejected.coordinate).toBeNull();
+    expect(rejected.resolution).toBe("invalid");
+    expect(allowed.role).toBe("coordinatePoint");
+    expect(allowed.coordinate?.x?.references[0].target).toEqual({
+      kind: "parameter",
+      definitionStatementId: "statement:test:1",
+      parameterIndex: 0
+    });
+    expect(moduleBodyAt(compiled, 4).geometryReferences[0].reference.resolution).toBe("resolved");
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+  });
+
+  it("distinguishes point, line endpoint, plain line, and derived point references", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(lineParam: line, pointParam: point) {",
+      "  line Local = segment(start: (0, 0), end: (10, 0))",
+      "  arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
+      "  point FromLine = offset(from: Local.start, dx: 1, dy: 0)",
+      "  point FromArc = offset(from: Arc.center, dx: 1, dy: 0)",
+      "  point Endpoint = onLine(from: Local.end, distance: 1)",
+      "  point ParameterEndpoint = onLine(from: lineParam.end, distance: 1)",
+      "  line Plain = offset(sources: Local, distance: 1)",
+      "  point InvalidPointAccessor = offset(from: pointParam.start, dx: 1, dy: 0)",
+      "  point UnknownAccessor = offset(from: Local.foo, dx: 1, dy: 0)",
+      "}"
+    ].join("\n"));
+    expect(moduleBodyAt(compiled, 4).geometryReferences[0].reference).toMatchObject({ role: "derivedPoint", resolution: "resolved", target: { kind: "sourceGeometry", pointKey: "start" } });
+    expect(moduleBodyAt(compiled, 5).geometryReferences[0].reference).toMatchObject({ role: "derivedPoint", resolution: "resolved", target: { kind: "sourceGeometry", category: "arc", pointKey: "center" } });
+    expect(moduleBodyAt(compiled, 6).geometryReferences[0].reference).toMatchObject({ role: "lineEndpointReference", resolution: "resolved", target: { kind: "sourceGeometry", pointKey: "end" } });
+    expect(moduleBodyAt(compiled, 7).geometryReferences[0].reference).toMatchObject({ role: "lineEndpointReference", resolution: "resolved", target: { kind: "parameter", pointKey: "end" } });
+    expect(moduleBodyAt(compiled, 8).geometryReferences[0].reference).toMatchObject({ role: "lineReferenceList", resolution: "resolved", target: { kind: "sourceGeometry" } });
+    expect(moduleBodyAt(compiled, 9).geometryReferences[0].reference.resolution).toBe("invalid");
+    expect(moduleBodyAt(compiled, 10).geometryReferences[0].reference.resolution).toBe("invalid");
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
   });
 
   it("rejects a line passed to a point position and preserves outer geometry capture", () => {
@@ -669,11 +723,106 @@ describe("module semantic analysis", () => {
         kind: "deferredModuleExportProperty",
         instanceStatementId: "statement:test:4",
         exportName: "Output",
-        expectedGeometryKind: "line",
         property: "length"
       }
     });
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("keeps qualified export derived accessors in the deferred source target", () => {
+    const source = [
+      "nui 3",
+      "module Child() {",
+      "}",
+      "module M() {",
+      "  module SomeInstance = Child()",
+      "  point P = offset(from: SomeInstance::Output.start, dx: 10, dy: 0)",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const reference = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!.bodyStatements.find((statement) => statement.statementIndex === 5)!.geometryReferences[0].reference;
+    expect(reference).toMatchObject({ role: "derivedPoint", resolution: "deferred", target: {
+      kind: "deferredModuleExport",
+      instanceStatementId: "statement:test:4",
+      exportName: "Output",
+      expectedGeometryKind: "point",
+      pointKey: "start"
+    } });
+    expect(reference.target).not.toHaveProperty("elementId");
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("keeps text and image geometry properties source-semantic without a fake geometry kind", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  text T = label(text: \"ok\", anchor: (0, 0), size: 3)",
+      "  image I = image(source: \"image.png\", origin: (0, 0))",
+      "  const size: number = @T.fontSize",
+      "  const width: number = @I.widthMm",
+      "}"
+    ].join("\n"));
+    const locals = compiled.moduleSemanticAnalysis!.definitions[0].localScalars;
+    expect(locals[0].initializer?.geometryProperties[0]).toMatchObject({
+      property: "fontSize",
+      target: { kind: "sourceGeometryProperty", category: "text", property: "fontSize" },
+      resolution: "resolved"
+    });
+    expect(locals[1].initializer?.geometryProperties[0]).toMatchObject({
+      property: "widthMm",
+      target: { kind: "sourceGeometryProperty", category: "image", property: "widthMm" },
+      resolution: "resolved"
+    });
+    expect(locals[0].initializer?.geometryProperties[0].target).not.toHaveProperty("geometryKind");
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("defers qualified export properties without guessing the exported geometry category", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Child() {",
+      "}",
+      "module M() {",
+      "  module SomeInstance = Child()",
+      "  const size: number = @SomeInstance::TextExport.fontSize",
+      "}"
+    ].join("\n"));
+    const property = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!.localScalars[0].initializer!.geometryProperties[0];
+    expect(property).toMatchObject({
+      property: "fontSize",
+      resolution: "deferred",
+      target: {
+        kind: "deferredModuleExportProperty",
+        instanceStatementId: "statement:test:4",
+        exportName: "TextExport",
+        property: "fontSize"
+      }
+    });
+    expect(property.target).not.toHaveProperty("expectedGeometryKind");
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("applies the module owner boundary to qualified export geometry and properties", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Base() {",
+      "  export line L = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "module Outside = Base()",
+      "module M() {",
+      "  line X = offset(sources: Outside::L, distance: 1)",
+      "  const length: number = @Outside::L.length",
+      "  module A = Base()",
+      "  line Y = offset(sources: A::L, distance: 1)",
+      "}"
+    ].join("\n"));
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
+    expect(definition.bodyStatements.find((statement) => statement.statementIndex === 6)?.geometryReferences[0].reference.resolution).toBe("outerCapture");
+    expect(definition.localScalars[0].initializer?.geometryProperties[0].resolution).toBe("outerCapture");
+    expect(definition.bodyStatements.find((statement) => statement.statementIndex === 9)?.geometryReferences[0].reference).toMatchObject({ resolution: "deferred", target: { instanceName: "A" } });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
   });
 
   it("reports undefined, forward, and wrong-kind qualified module export instances", () => {
@@ -681,10 +830,10 @@ describe("module semantic analysis", () => {
       "nui 3",
       "module Child() {",
       "}",
-      "const Wrong: number = 1",
       "module M() {",
       "  point Missing = offset(from: MissingInstance::Output, dx: 0, dy: 0)",
       "  point Forward = offset(from: LaterInstance::Output, dx: 0, dy: 0)",
+      "  const Wrong: number = 1",
       "  point WrongKind = offset(from: Wrong::Output, dx: 0, dy: 0)",
       "  module LaterInstance = Child()",
       "}"

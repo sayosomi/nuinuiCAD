@@ -17,6 +17,7 @@ import type { StatementIdentity } from "../document/statementIdentity";
 import type {
   ModuleBodyStatementSemantic,
   ModuleDefinitionSemantic,
+  ModuleGeometryReferenceRole,
   ModuleGeometryReferenceSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarSourceTarget,
@@ -57,6 +58,7 @@ type ResolveGeometry = (
   options?: {
     allowCoordinate?: boolean;
     allowNone?: boolean;
+    role?: ModuleGeometryReferenceRole;
     scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
     bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
     geometryPropertyResolver?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
@@ -202,6 +204,8 @@ export const analyzeModuleBody = ({
           pointSpan,
           "point",
           {
+            allowCoordinate: true,
+            role: "pointReference",
             scalarResolver: localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
             bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
             geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
@@ -323,19 +327,27 @@ export const analyzeModuleBody = ({
           if (!parameter || !valueSpan) continue;
           const value = localTextValue(input, statementIndex, valueSpan, statement.attrs.find((attr) => attr.key === arg.arg)?.value ?? "");
           if (["reference", "lineEndpointReference", "lineReference", "lineReferenceList"].includes(parameter.kind)) {
-            const expected = parameter.kind === "reference" ? "point" : "line";
+            const expected = parameter.kind === "reference" || parameter.kind === "lineEndpointReference" ? "point" : "line";
             if (parameter.kind === "lineReferenceList") {
               let cursor = 0;
               for (const token of splitDslList(value)) {
                 const offset = value.indexOf(token, cursor);
                 cursor = offset + token.length;
-                const reference = resolveGeometry(statementIndex, definition.statementIndex, token, { start: valueSpan.start + Math.max(0, offset), end: valueSpan.start + Math.max(0, offset) + token.length }, "line");
+                const reference = resolveGeometry(
+                  statementIndex,
+                  definition.statementIndex,
+                  token,
+                  { start: valueSpan.start + Math.max(0, offset), end: valueSpan.start + Math.max(0, offset) + token.length },
+                  "line",
+                  { allowCoordinate: parameter.allowCoordinate === true, role: "lineReferenceList" }
+                );
                 if (bodySemantic) bodySemantic.geometryReferences = [...bodySemantic.geometryReferences, { parameterKey, span: reference.span, reference }];
               }
             } else {
               const reference = resolveGeometry(statementIndex, definition.statementIndex, value, valueSpan, expected, {
-                allowCoordinate: parameter.allowCoordinate,
+                allowCoordinate: parameter.allowCoordinate === true,
                 allowNone: parameter.allowNone,
+                role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference",
                 scalarResolver: localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
                 bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
                 geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
