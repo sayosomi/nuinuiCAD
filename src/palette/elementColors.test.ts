@@ -64,4 +64,23 @@ describe("resolvedElementColorMap", () => {
 
     expect(colors.get("p")).toBe("#aa0000");
   });
+
+  it("crosses a moduleInstance for ancestry but does not use its color as a group source", () => {
+    const elements = [
+      group("outer", { colorId: "red" }),
+      {
+        id: "module",
+        name: "module",
+        type: "moduleInstance" as const,
+        activity: "visible" as const,
+        parentGroupId: "outer",
+        colorId: "blue"
+      },
+      point("p", { parentGroupId: "module" })
+    ];
+
+    const colors = resolvedElementColorMap(elements, palette);
+
+    expect(colors.get("p")).toBe("#aa0000");
+  });
 });

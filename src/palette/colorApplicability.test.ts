@@ -48,4 +48,15 @@ describe("elementSupportsDisplayColor", () => {
 
     expect(elementSupportsDisplayColor(move)).toBe(false);
   });
+
+  it("does not expose display color for a non-drawing moduleInstance", () => {
+    const moduleInstance: CadElement = {
+      id: "module",
+      name: "module",
+      type: "moduleInstance",
+      activity: "visible"
+    };
+
+    expect(elementSupportsDisplayColor(moduleInstance)).toBe(false);
+  });
 });

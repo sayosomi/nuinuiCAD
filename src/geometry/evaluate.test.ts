@@ -50,6 +50,30 @@ const validElements: CadElement[] = [
 ];
 
 describe("evaluateElements", () => {
+  it("treats moduleInstance as a no-op container while evaluating its child normally", () => {
+    const result = evaluateElements([
+      {
+        id: "module",
+        name: "module",
+        type: "moduleInstance",
+        activity: "visible"
+      },
+      {
+        id: "child",
+        name: "child",
+        type: "freePoint",
+        activity: "visible",
+        parentGroupId: "module",
+        x: 10,
+        y: 20
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.computedGeometry.has("module")).toBe(false);
+    expect(result.computedGeometry.get("child")).toMatchObject({ kind: "point", x: 10, y: 20 });
+  });
+
   it("evaluates points and lines in valid top-to-bottom order", () => {
     const result = evaluateElements(validElements);
 

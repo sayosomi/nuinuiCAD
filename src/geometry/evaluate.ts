@@ -2,7 +2,7 @@ import type { CadElement, ComputedGeometry, DependencyError, ElementId, Evaluati
 import {
   isConditionalGroupElement,
   isForGroupElement,
-  isGroupElement
+  isContainerElement
 } from "../model/groups";
 import {
   activityAllowsEvaluation,
@@ -165,7 +165,7 @@ export const evaluateElements = (
     elements.flatMap((element) => {
       const disabledBy = effectiveElementActivity(element, activities).disabledByElementId;
       const disabledByElement = disabledBy ? elementsById.get(disabledBy) : undefined;
-      return disabledBy && disabledByElement && isGroupElement(disabledByElement)
+      return disabledBy && disabledByElement && isContainerElement(disabledByElement)
         ? [[element.id, disabledBy] as const]
         : [];
     })
@@ -528,7 +528,7 @@ export const evaluateElements = (
       return;
     }
 
-    if (isGroupElement(element)) {
+    if (isContainerElement(element)) {
       return;
     }
 

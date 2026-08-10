@@ -83,6 +83,7 @@ export const getDirectParentIds = (
   const numericExpressionParentIds = () => {
     switch (element.type) {
       case "group":
+      case "moduleInstance":
         return [];
       case "conditionalGroup":
         return [
@@ -263,6 +264,7 @@ export const getDirectParentIds = (
 
   switch (element.type) {
     case "group":
+    case "moduleInstance":
       return [];
     case "conditionalGroup":
       return numericExpressionParentIds();

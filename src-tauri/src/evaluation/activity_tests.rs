@@ -4,6 +4,8 @@ use super::activity::{
     activity_allows_drawing, activity_allows_evaluation, activity_from_element,
     effective_activity_by_element_id, ElementActivity,
 };
+use super::evaluate_document_input;
+use super::groups::group_state_by_element_id;
 
 #[test]
 fn activity_values_use_the_shared_three_state_truth_table() {
@@ -38,5 +40,53 @@ fn parent_disabled_takes_precedence_over_hidden() {
     assert_eq!(
         activities["child"].disabled_by_element_id.as_deref(),
         Some("nested")
+    );
+}
+
+#[test]
+fn module_instance_is_an_activity_container_and_a_geometry_noop() {
+    let elements = vec![
+        json!({ "id": "outer", "type": "group", "activity": "hidden" }),
+        json!({ "id": "module", "name": "module", "type": "moduleInstance", "parentGroupId": "outer", "activity": "visible" }),
+        json!({ "id": "child", "name": "child", "type": "freePoint", "parentGroupId": "module", "activity": "visible", "x": 10, "y": 20 }),
+    ];
+    let activities = effective_activity_by_element_id(&elements);
+    assert_eq!(activities["child"].activity, ElementActivity::Hidden);
+
+    let result = evaluate_document_input(super::types::EvaluationInput {
+        elements,
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+    });
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("module")));
+    assert!(result
+        .computed_geometry
+        .iter()
+        .any(|geometry| geometry["elementId"] == json!("child")));
+}
+
+#[test]
+fn module_instance_is_preserved_as_the_disabled_activity_source() {
+    let elements = vec![
+        json!({ "id": "module", "name": "module", "type": "moduleInstance", "activity": "disabled" }),
+        json!({ "id": "child", "name": "child", "type": "freePoint", "parentGroupId": "module", "activity": "visible", "x": 0, "y": 0 }),
+    ];
+    let activities = effective_activity_by_element_id(&elements);
+    let states = group_state_by_element_id(&elements, &activities);
+
+    assert_eq!(
+        states["child"].disabled_by_group_id.as_deref(),
+        Some("module")
     );
 }

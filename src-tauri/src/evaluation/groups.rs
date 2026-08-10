@@ -27,7 +27,7 @@ pub(crate) fn group_state_by_element_id(
                 .filter(|source_id| {
                     matches!(
                         types_by_id.get(*source_id).copied().flatten(),
-                        Some("group" | "conditionalGroup" | "forGroup")
+                        Some("group" | "conditionalGroup" | "forGroup" | "moduleInstance")
                     )
                 })
                 .cloned();

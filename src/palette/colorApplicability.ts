@@ -30,6 +30,7 @@ export const elementSupportsDisplayColor = (element: CadElement): boolean => {
     case "move":
     case "symmetricMove":
     case "image":
+    case "moduleInstance":
       return false;
   }
 };

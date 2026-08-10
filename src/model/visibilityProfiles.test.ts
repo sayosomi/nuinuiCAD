@@ -72,4 +72,23 @@ describe("visibility profiles", () => {
       profile: profile({ seam: false })
     })]).toEqual([]);
   });
+
+  it("crosses a moduleInstance when resolving an outer group visibility role", () => {
+    const elements = [
+      group("body", { visibilityRoleIds: ["seam"] }),
+      {
+        id: "module",
+        name: "module",
+        type: "moduleInstance" as const,
+        activity: "visible" as const,
+        parentGroupId: "body"
+      },
+      point("child", { parentGroupId: "module" })
+    ];
+
+    expect([...effectiveVisibleElementIdsForProfile({
+      elements,
+      profile: profile({ seam: false })
+    })]).toEqual([]);
+  });
 });

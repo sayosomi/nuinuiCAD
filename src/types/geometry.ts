@@ -330,10 +330,15 @@ export type ForGroupElement = CadElementBase & {
   showGenerated: boolean;
 };
 
+export type ModuleInstanceElement = CadElementBase & {
+  type: "moduleInstance";
+};
+
 export type CadElement =
   | GroupElement
   | ConditionalGroupElement
   | ForGroupElement
+  | ModuleInstanceElement
   | FreePointElement
   | OffsetPointElement
   | PolarOffsetPointElement
@@ -359,7 +364,10 @@ export type CadElement =
   | ImageElement
   | TextElement;
 export type CadElementType = CadElement["type"];
-export type CadElementCategory = "group" | "point" | "line" | "modification";
+export type CadElementCategory = "group" | "container" | "point" | "line" | "modification";
+
+/** Runtime-only elements do not have a nui 3 source construction yet. */
+export const runtimeOnlyElementTypes = new Set<CadElementType>(["moduleInstance"]);
 
 export type ComputedPoint = {
   kind: "point";
@@ -563,6 +571,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   group: "グループ",
   conditionalGroup: "ifブロック",
   forGroup: "forブロック",
+  moduleInstance: "module instance",
   freePoint: "free point",
   offsetPoint: "offset point",
   polarOffsetPoint: "polar offset point",
@@ -593,6 +602,7 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   group: "group",
   conditionalGroup: "group",
   forGroup: "group",
+  moduleInstance: "container",
   freePoint: "point",
   offsetPoint: "point",
   polarOffsetPoint: "point",
@@ -621,6 +631,7 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
 
 export const elementCategoryLabels: Record<CadElementCategory, string> = {
   group: "グループ",
+  container: "コンテナ",
   point: "点",
   line: "線",
   modification: "変更"

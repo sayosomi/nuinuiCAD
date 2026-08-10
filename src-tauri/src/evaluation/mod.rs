@@ -517,7 +517,7 @@ fn evaluate_element_by_type(
             };
             conditional_group_states.insert(id, active_branch);
         }
-        Some("group" | "forGroup") => {}
+        Some("group" | "forGroup" | "moduleInstance") => {}
         Some("freePoint") => evaluate_free_point(&element, &local_variables, state),
         Some("offsetPoint") => evaluate_offset_point(&element, &local_variables, state),
         Some("polarOffsetPoint") => evaluate_polar_offset_point(&element, &local_variables, state),

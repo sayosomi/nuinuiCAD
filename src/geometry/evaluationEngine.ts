@@ -52,6 +52,7 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "group",
   "conditionalGroup",
   "forGroup",
+  "moduleInstance",
   "freePoint",
   "offsetPoint",
   "polarOffsetPoint",

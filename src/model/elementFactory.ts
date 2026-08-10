@@ -90,6 +90,16 @@ export const createCadElement = (
         showGenerated: false
       };
     }
+    case "moduleInstance": {
+      const moduleInstanceCount = elements.filter((element) => element.type === "moduleInstance").length;
+      const id = createId(type);
+      return {
+        id,
+        name: uniqueName(id, `module instance${moduleInstanceCount + 1}`),
+        type,
+        activity: "visible"
+      };
+    }
     case "text": {
       const textCount = elements.filter((element) => element.type === "text").length;
       const id = createId(type);

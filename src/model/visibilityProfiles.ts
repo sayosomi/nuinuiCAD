@@ -1,4 +1,4 @@
-import { groupStateByElementId, isGroupElement } from "./groups";
+import { groupStateByElementId, isContainerElement } from "./groups";
 import type {
   CadElement,
   ElementId,
@@ -162,7 +162,7 @@ const hiddenByVisibilityRole = (
 
   let hidden = false;
   const parent = element.parentGroupId ? elementsById.get(element.parentGroupId) : null;
-  if (parent && isGroupElement(parent)) {
+  if (parent && isContainerElement(parent)) {
     hidden =
       hiddenByVisibilityRole(parent, elementsById, profile, cache, visiting) ||
       (parent.type === "group" && !groupVisibleByOwnRoles(parent, profile));

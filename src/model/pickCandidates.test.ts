@@ -129,6 +129,33 @@ const virtualCommandLineSession = (type: "line" | "lineDivisionPoint", insertion
   });
 
 describe("pickCandidates", () => {
+  it("does not expose a moduleInstance without computed geometry as a pick candidate", () => {
+    const moduleInstance: CadElement = {
+      id: "module",
+      name: "module",
+      type: "moduleInstance",
+      activity: "visible"
+    };
+    const target: CadElement = {
+      id: "target-module-child",
+      name: "target",
+      type: "offsetPoint",
+      activity: "visible",
+      fromPointId: "module",
+      dx: 0,
+      dy: 0
+    };
+    const moduleEvaluation = evaluateElements([moduleInstance, target]);
+
+    expect(moduleEvaluation.computedGeometry.has("module")).toBe(false);
+    expect(pickCandidates([moduleInstance, target], moduleEvaluation, {
+      activePointPickTarget: { elementId: "target-module-child", parameterKey: "fromPoint" },
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: null,
+      referenceElements: [moduleInstance]
+    })).toEqual([]);
+  });
+
   it("returns same-forGroup generated point, endpoint, and line instances in explicit iteration order", () => {
     const generatedElements: CadElement[] = [
       {

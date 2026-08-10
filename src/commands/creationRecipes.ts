@@ -58,7 +58,8 @@ export const creationRecipeExcludedTypes = [
   "image",
   "group",
   "conditionalGroup",
-  "forGroup"
+  "forGroup",
+  "moduleInstance"
 ] as const satisfies readonly CadElementType[];
 
 const excludedTypeSet = new Set<CadElementType>(creationRecipeExcludedTypes);

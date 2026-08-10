@@ -1,4 +1,5 @@
 import type { CadElementType, ElementId } from "../types/geometry";
+import { isContainerElementType } from "./containers";
 
 export type ElementActivity = "visible" | "hidden" | "disabled";
 
@@ -21,9 +22,6 @@ export const activityAllowsEvaluation = (activity: ElementActivity) => activity 
 
 export const activityAllowsDrawing = (activity: ElementActivity) => activity === "visible";
 
-const isActivityContainer = (elementType: string) =>
-  elementType === "group" || elementType === "conditionalGroup" || elementType === "forGroup";
-
 /**
  * Types whose evaluator never assigns computedGeometry under their own
  * element id: edge/extendTrim/move/symmetricMove/pathReverse mutate a
@@ -42,7 +40,7 @@ export const elementTypesWithoutOwnDrawableGeometry = new Set<CadElementType>([
 ]);
 
 export const elementTypeSupportsHiddenActivity = (elementType: CadElementType) =>
-  isActivityContainer(elementType) || !elementTypesWithoutOwnDrawableGeometry.has(elementType);
+  isContainerElementType(elementType) || !elementTypesWithoutOwnDrawableGeometry.has(elementType);
 
 export const nextElementActivity = (
   current: ElementActivity,
@@ -70,7 +68,7 @@ export const effectiveElementActivityById = <T extends ActivityElement>(
 
     const ownActivity = element.activity;
     const parent = element.parentGroupId ? byId.get(element.parentGroupId) : undefined;
-    const parentActivity = parent && isActivityContainer(parent.type) && !visiting.has(element.id)
+    const parentActivity = parent && isContainerElementType(parent.type) && !visiting.has(element.id)
       ? (() => {
           visiting.add(element.id);
           const resolved = resolve(parent, visiting);
