@@ -491,7 +491,8 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
 
 const reportDuplicateNames = (statements: DslStatement[], diagnostics: DslDiagnostic[]) => {
   const seen = new Map<string, { line: number; hasBareName: boolean; ids: Set<string> }>();
-  for (const statement of statements) {
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (!isCompilableDslStatement(statements, statementIndex)) continue;
     if (!isElementDslStatement(statement) || !statement.name) continue;
     const scope = statement.enclosing
       ? `block:${statement.enclosing.statementIndex}`

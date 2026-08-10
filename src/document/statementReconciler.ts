@@ -22,8 +22,9 @@ import { createStatementIdentity, type StatementIdentity } from "./statementIden
 //  6. 残りの追加は新規ID、削除は消滅。リネーム+移動の同時実行と型変更は
 //     対応不能で新規ID(許容制約)。
 //
-// 対象は要素文とtyped declaration。後者はCadElementにはしないが、binding IDの
-// ownerになるため、同じ照合規則でopaque statement identityを継承する。
+// 対象は要素文とsource-level identity-bearing文。typed declaration/set/module文は
+// CadElementにはしないが、binding・lexical scope・module namespaceのownerになるため、
+// 同じ照合規則でopaque statement identityを継承する。
 
 export type ReconcileInput = {
   oldStatements: readonly DslStatement[];
@@ -42,8 +43,10 @@ export type ReconcileStage = 1 | 2 | 3 | 4 | 5 | 6;
 export type ReconcileOptions = {
   /** 段階6の新規ID生成器。省略時は createCadElementId。テストでは決定論的生成器を注入する。 */
   createId?: (type: CadElementType) => ElementId;
-  /** typed declaration/set用のopaque identity生成器。 */
-  createStatementId?: (kind: "typedDeclaration" | "set") => StatementIdentity;
+  /** typed declaration/set/module用のopaque identity生成器。 */
+  createStatementId?: (
+    kind: "typedDeclaration" | "set" | "moduleDefinition" | "moduleInstance"
+  ) => StatementIdentity;
 };
 
 export type ReconcileResult = {
@@ -165,9 +168,18 @@ export const reconcileStatements = (
   const createdIds = new Map<number, StatementIdentity>();
 
   const isIdentityStatement = (statement: DslStatement) =>
-    isElementDslStatement(statement) || statement.kind === "typedDeclaration" || statement.kind === "set";
+    isElementDslStatement(statement) ||
+    statement.kind === "typedDeclaration" ||
+    statement.kind === "set" ||
+    statement.kind === "moduleDefinition" ||
+    statement.kind === "moduleInstance";
   const identityKindOf = (statement: DslStatement) =>
-    statement.kind === "typedDeclaration" || statement.kind === "set" ? statement.kind : statementTypeOf(statement);
+    statement.kind === "typedDeclaration" ||
+    statement.kind === "set" ||
+    statement.kind === "moduleDefinition" ||
+    statement.kind === "moduleInstance"
+      ? statement.kind
+      : statementTypeOf(statement);
 
   // 残余(未対応のidentity-bearing文index)。
   const oldResidue = new Set<number>();
@@ -361,7 +373,10 @@ export const reconcileStatements = (
   // ==== 段階6: 新規ID / 消滅 ====
   for (const index of residueList(newResidue)) {
     const statement = newStatements[index];
-    const id = statement.kind === "typedDeclaration" || statement.kind === "set"
+    const id = statement.kind === "typedDeclaration" ||
+      statement.kind === "set" ||
+      statement.kind === "moduleDefinition" ||
+      statement.kind === "moduleInstance"
       ? createStatementId(statement.kind)
       : createId(statementTypeOf(statement));
     assignedIds.set(index, id);
