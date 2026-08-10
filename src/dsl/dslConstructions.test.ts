@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createCadElement } from "../model/elementFactory";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
-import { elementTypeLabels, type CadElement, type CadElementType } from "../types/geometry";
+import {
+  elementTypeLabels,
+  runtimeOnlyElementTypes,
+  type CadElement,
+  type CadElementType
+} from "../types/geometry";
 import {
   argNameForParameter,
   commonArgSpecs,
@@ -60,7 +65,9 @@ describe("DSL nui 3 construction registry", () => {
       coveredTypes.add(type);
     }
 
-    expect(coveredTypes).toEqual(new Set(Object.keys(elementTypeLabels)));
+    expect(coveredTypes).toEqual(new Set(
+      Object.keys(elementTypeLabels).filter((type) => !runtimeOnlyElementTypes.has(type as CadElementType))
+    ));
   });
 
   it("keeps same-named constructions independent within their categories", () => {

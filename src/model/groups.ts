@@ -5,6 +5,9 @@ import type {
   ForGroupElement,
   GroupElement
 } from "../types/geometry";
+import { isContainerElement } from "./containers";
+export { isContainerElement } from "./containers";
+export type { ContainerElement } from "./containers";
 import {
   effectiveDrawElementIds,
   effectiveElementActivity,
@@ -136,7 +139,7 @@ export const groupStateByElementId = (elements: CadElement[], groupFoldById?: Gr
     }
 
     const parent = byId.get(element.parentGroupId);
-    if (!parent || !isGroupElement(parent)) {
+    if (!parent || !isContainerElement(parent)) {
       const state: ElementGroupState = {
         depth: 0,
         ancestorGroupIds: [],

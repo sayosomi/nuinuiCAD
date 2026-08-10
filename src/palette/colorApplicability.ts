@@ -5,6 +5,7 @@ export const elementSupportsDisplayColor = (element: CadElement): boolean => {
     case "group":
     case "conditionalGroup":
     case "forGroup":
+    case "moduleInstance":
     case "freePoint":
     case "offsetPoint":
     case "polarOffsetPoint":

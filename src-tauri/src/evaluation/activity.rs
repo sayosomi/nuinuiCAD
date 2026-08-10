@@ -47,7 +47,7 @@ pub(crate) fn activity_allows_drawing(activity: ElementActivity) -> bool {
 fn is_activity_container(element: &Value) -> bool {
     matches!(
         element_type(element),
-        Some("group" | "conditionalGroup" | "forGroup")
+        Some("group" | "conditionalGroup" | "forGroup" | "moduleInstance")
     )
 }
 

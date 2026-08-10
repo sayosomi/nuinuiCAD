@@ -6,6 +6,9 @@ import {
   elementTypeSupportsHiddenActivity,
   nextElementActivity
 } from "./elementActivity";
+import { isContainerElement } from "./containers";
+import { isGroupElement } from "./groups";
+import type { CadElement } from "../types/geometry";
 
 describe("element activity", () => {
   it.each([
@@ -30,10 +33,57 @@ describe("element activity", () => {
     expect(activities.get("visible-child")).toMatchObject({ activity: "hidden", hiddenByElementId: "hidden" });
   });
 
+  it("propagates activity through a moduleInstance without making it a group", () => {
+    const moduleInstance: CadElement = {
+      id: "module",
+      name: "module",
+      type: "moduleInstance",
+      activity: "visible",
+      parentGroupId: "outer"
+    };
+    const child: CadElement = {
+      id: "child",
+      name: "child",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "module",
+      x: 0,
+      y: 0
+    };
+
+    expect(isContainerElement(moduleInstance)).toBe(true);
+    expect(isGroupElement(moduleInstance)).toBe(false);
+
+    expect(effectiveElementActivityById([
+      { id: "outer", name: "outer", type: "group", activity: "hidden" },
+      moduleInstance,
+      child
+    ]).get("child")).toMatchObject({ activity: "hidden", hiddenByElementId: "outer" });
+
+    expect(effectiveElementActivityById([
+      { id: "outer", name: "outer", type: "group", activity: "disabled" },
+      moduleInstance,
+      child
+    ]).get("child")).toMatchObject({ activity: "disabled", disabledByElementId: "outer" });
+
+    expect(effectiveElementActivityById([
+      { id: "outer", name: "outer", type: "group", activity: "visible" },
+      { ...moduleInstance, activity: "hidden" },
+      child
+    ]).get("child")).toMatchObject({ activity: "hidden", hiddenByElementId: "module" });
+
+    expect(effectiveElementActivityById([
+      { id: "outer", name: "outer", type: "group", activity: "visible" },
+      { ...moduleInstance, activity: "disabled" },
+      child
+    ]).get("child")).toMatchObject({ activity: "disabled", disabledByElementId: "module" });
+  });
+
   it.each([
     ["group", true],
     ["conditionalGroup", true],
     ["forGroup", true],
+    ["moduleInstance", true],
     ["freePoint", true],
     ["line", true],
     ["image", true],

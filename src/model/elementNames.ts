@@ -5,6 +5,7 @@ const defaultNameBases: Record<CadElementType, string> = {
   group: "グループ",
   conditionalGroup: "ifブロック",
   forGroup: "forブロック",
+  moduleInstance: "module instance",
   freePoint: "点",
   offsetPoint: "オフセット点",
   polarOffsetPoint: "角度距離点",
