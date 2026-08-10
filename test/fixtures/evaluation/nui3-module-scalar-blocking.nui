@@ -26,3 +26,30 @@ module Outer() {
   }
 }
 module OuterInstance = Outer()
+module Caller(x: number) {
+  point CallerPoint = coordinate(x: @x, y: 3)
+}
+for CallerLoop (i, from: 1, count: 2, step: 1) {
+  module CallerInstance = Caller(x: @i)
+}
+if Disabled (false) {
+  module ConditionalFalse = Caller(x: 30)
+}
+if Enabled (true) {
+  module ConditionalTrue = Caller(x: 40)
+}
+module Mixed(base: number) {
+  for MixedLoop (i, from: 1, count: 2, step: 1) {
+    const local: number = @base
+    point MixedPoint = coordinate(x: @local + @i, y: 4)
+  }
+}
+module MixedInstance = Mixed(base: 10)
+module ElementLocal(width: number) {
+  point ElementLocalPoint = coordinate(x: @width + @local, y: 5, vars: [local: 5])
+}
+module ElementLocalInstance = ElementLocal(width: 10)
+module VariableInit(width: number) {
+  point VariableInitPoint = coordinate(x: @local, y: 6, vars: [local: @width + 5])
+}
+module VariableInitInstance = VariableInit(width: 10)

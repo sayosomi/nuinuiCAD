@@ -149,9 +149,19 @@ export const analyzeModuleBody = ({
     bodySemantic: ModuleBodyStatementSemantic | null,
     parameterKey: string,
     span: DslSpan,
-    expression: ModuleScalarExpressionSemantic | null
+    expression: ModuleScalarExpressionSemantic | null,
+    elementLocalVariableIndex?: number
   ) => {
-    if (bodySemantic && expression) bodySemantic.scalarExpressions = [...bodySemantic.scalarExpressions, { parameterKey, span, expression }];
+    if (!bodySemantic || !expression) return;
+    bodySemantic.scalarExpressions = [
+      ...bodySemantic.scalarExpressions,
+      {
+        parameterKey,
+        span,
+        expression,
+        ...(elementLocalVariableIndex === undefined ? {} : { elementLocalVariableIndex })
+      }
+    ];
   };
 
   const analyzeTextTemplate = (

@@ -13,9 +13,8 @@ import type {
 } from "../dsl/moduleSemanticTypes";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
-import type { CadElement, ElementId, NumericValue } from "../types/geometry";
+import type { CadElement, ElementId } from "../types/geometry";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
-import { getParameterValue } from "../parameters/parameterAccess";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
 import { analyzeBindings } from "./bindingAnalysis";
 import {
@@ -35,9 +34,8 @@ import { scanTextTemplateLiteral } from "./textTemplateScan";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import type { BindingResolution } from "./bindingResolution";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
-import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
-import { isNumericExpression } from "../geometry/numericExpressions";
 import type { CompiledNumericBinding } from "./numericBindingCompiler";
+import { numericSourceForModuleSite } from "./moduleNumericRuntime";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
 import { isAssignableToPropertyCapability } from "./scalarAssignability";
 import type { ReconciledCadContainerInput } from "./containerIndex";
@@ -217,11 +215,6 @@ const instanceElement = (
   entry.origin?.kind === "moduleInstance" && pathKey(entry.instancePath) === pathKey(path)
 )?.runtimeElementId;
 
-const scalarValueExpression = (element: CadElement, parameterKey: string): Extract<NumericValue, { kind: "expression" }> | undefined => {
-  const value = getParameterValue(element, parameterKey) as NumericValue | undefined;
-  return value !== undefined && isNumericExpression(value) ? value : undefined;
-};
-
 const propertySourceFor = (
   element: CadElement,
   parameterKey: string,
@@ -242,43 +235,6 @@ const propertySourceFor = (
     span: semantic.references[0].span,
     nameSpan: { start: semantic.references[0].span.start + 1, end: semantic.references[0].span.end },
     name: semantic.references[0].name
-  };
-};
-
-const numericSourceFor = (
-  element: CadElement,
-  parameterKey: string,
-  semantic: ModuleScalarExpressionSemantic,
-  bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined
-): CompiledNumericBinding | undefined => {
-  const value = scalarValueExpression(element, parameterKey);
-  if (!value || semantic.type?.kind !== "number") return undefined;
-  const matches = scanExpressionReferences(value.expression).filter((match) => match.kind === "binding");
-  const references = semanticReferencesUsedByAst(semantic);
-  if (matches.length !== references.length) return undefined;
-  const compiledReferences = matches.map((match, index) => {
-    const reference = references[index];
-    const target = reference.target;
-    const binding = target && ["parameter", "moduleLocal", "documentBinding"].includes(target.kind)
-      ? bindingForTarget(target as ModuleScalarSourceTarget, reference.name, reference.span.start)
-      : undefined;
-    if (!binding) return null;
-    return {
-      bindingId: binding.id,
-      name: reference.name,
-      span: reference.span,
-      nameSpan: { start: reference.span.start + 1, end: reference.span.end },
-      physicalNameSpan: null,
-      expressionStart: match.from,
-      expressionEnd: match.to,
-      site: { scopeId: "module-runtime", statementIndex: reference.span.start }
-    };
-  });
-  if (compiledReferences.some((reference) => reference === null)) return undefined;
-  return {
-    parameterKey,
-    expression: value.expression,
-    references: compiledReferences as NonNullable<typeof compiledReferences[number]>[]
   };
 };
 
@@ -566,10 +522,18 @@ export const compileModuleScalarRuntime = ({
     containerIndex: baseCatalog.containerIndex
   });
   const bindingsById = combinedCatalog.bindingsById;
+  const documentIterationBindingForTarget = (target: Extract<ModuleScalarSourceTarget, { kind: "iteration" }>) =>
+    baseCatalog.bindings.find((binding) =>
+      binding.kind === "iteration" &&
+      binding.statementIndex === target.statementIndex &&
+      binding.name === target.name
+    );
   const resolvedBindingForContext = (target: ModuleScalarSourceTarget, context: InstanceContext): Binding | undefined => {
     if (target.kind === "documentBinding") return bindingsById.get(target.bindingId);
     const info = bindingInfoForTarget(target, context);
-    return info ? bindingsById.get(info.id) : undefined;
+    if (info) return bindingsById.get(info.id);
+    if (target.kind === "iteration") return documentIterationBindingForTarget(target);
+    return undefined;
   };
   const resolvedGeometryPropertyForContext = (
     target: ModuleGeometryPropertySourceTarget,
@@ -736,7 +700,7 @@ export const compileModuleScalarRuntime = ({
           materializedPropertyBindings.push({ elementId: runtime.elementId, parameterKey: site.parameterKey, source: property });
           if (site.parameterKey === "printEnabled") materializedGroupPrintEnabledBindings.set(runtime.elementId, property);
         }
-        const numeric = numericSourceFor(element, site.parameterKey, site.expression, (target) => resolvedBindingForContext(target, context));
+        const numeric = numericSourceForModuleSite(element, site, (target) => resolvedBindingForContext(target, context));
         if (numeric) materializedNumericBindings.push({ elementId: runtime.elementId, binding: numeric });
       }
     }
@@ -808,11 +772,12 @@ export const compileModuleScalarRuntime = ({
       return { scopeId: moduleScopeIdFor(context.path, sourceScopeId), scopeExitSourceOrder: events.length, ownerChain: [], kind: "linear" };
     }
     const parentContext = context.parentKey ? contextsByKey.get(context.parentKey) : undefined;
-    const inherited = parentContext && sourceScopeOfInstance(context)
-      ? sourceControls.get(sourceScopeOfInstance(context)!)?.ownerChain.map((owner) =>
-          qualifyOwner(owner, parentContext.path, parentContext.iterations, true)
-        ) ?? []
+    const callSiteOwnerChain = sourceScopeOfInstance(context)
+      ? sourceControls.get(sourceScopeOfInstance(context)!)?.ownerChain ?? []
       : [];
+    const inherited = parentContext
+      ? callSiteOwnerChain.map((owner) => qualifyOwner(owner, parentContext.path, parentContext.iterations, true))
+      : callSiteOwnerChain;
     const ownerChain = [
       ...inherited,
       ...sourceControl.ownerChain.map((owner) => qualifyOwner(owner, context.path, context.iterations, true))

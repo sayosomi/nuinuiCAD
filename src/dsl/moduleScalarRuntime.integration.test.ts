@@ -404,6 +404,86 @@ describe("module scalar runtime integration", () => {
     expect([...result.computedGeometry.values()].filter((value) => value.kind === "point").map((value) => value.x)).toEqual([1, 2]);
   });
 
+  it("inherits a document forGroup caller and its iteration binding into a root module call", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(x: number) {",
+      "  point P = coordinate(x: @x, y: 0)",
+      "}",
+      "for Loop (i, from: 1, count: 2, step: 1) {",
+      "  module A = M(x: @i)",
+      "}"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect([...result.computedGeometry.values()].filter((value) => value.kind === "point").map((value) => value.x)).toEqual([1, 2]);
+  });
+
+  it("activates only the module call in the active document conditional", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(x: number) {",
+      "  point P = coordinate(x: @x, y: 0)",
+      "}",
+      "if Disabled (false) {",
+      "  module Off = M(x: 1)",
+      "}",
+      "if Enabled (true) {",
+      "  module On = M(x: 2)",
+      "}"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect([...result.computedGeometry.values()].filter((value) => value.kind === "point").map((value) => value.x)).toEqual([2]);
+  });
+
+  it("keeps typed module bindings in a mixed module numeric expression", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(base: number) {",
+      "  for Loop (i, from: 1, count: 2, step: 1) {",
+      "    const local: number = @base",
+      "    point P = coordinate(x: @local + @i, y: 0)",
+      "  }",
+      "}",
+      "module A = M(base: 10)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect([...result.computedGeometry.values()].filter((value) => value.kind === "point").map((value) => value.x)).toEqual([11, 12]);
+  });
+
+  it("maps a module scalar in a materialized element-local vars expression", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(width: number) {",
+      "  point P = coordinate(x: @width + @local, y: 0, vars: [local: 5])",
+      "}",
+      "module A = M(width: 10)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ kind: "point", x: 15 });
+  });
+
+  it("materializes a module scalar in an element-local vars initializer", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(width: number) {",
+      "  point P = coordinate(x: @local, y: 0, vars: [local: @width + 5])",
+      "}",
+      "module A = M(width: 10)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ kind: "point", x: 15 });
+  });
+
   it("passes an iteration-local scalar into a nested module call", () => {
     const compiled = compileWithIds([
       "nui 3",
