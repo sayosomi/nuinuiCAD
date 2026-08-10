@@ -19,13 +19,24 @@ export type ModuleScalarSourceTarget =
   | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number };
 
 export type ModuleGeometrySourceTarget =
-  | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line" })
+  | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string })
   | {
       kind: "sourceGeometry";
       statementId: StatementIdentity;
       statementIndex: number;
       category: DslGeometryDeclarationCategory;
       geometryKind: "point" | "line";
+      pointKey?: string;
+    }
+  | {
+      kind: "deferredModuleExport";
+      instanceStatementId: StatementIdentity;
+      instanceStatementIndex: number;
+      instanceName: string;
+      exportName: string;
+      expectedGeometryKind: "point" | "line";
+      referenceSpan: DslSpan;
+      memberSpan: DslSpan;
     };
 
 export type ModuleGeometryPropertySourceTarget =
@@ -37,6 +48,17 @@ export type ModuleGeometryPropertySourceTarget =
       category: DslGeometryDeclarationCategory;
       geometryKind: "point" | "line";
       property: string;
+    }
+  | {
+      kind: "deferredModuleExportProperty";
+      instanceStatementId: StatementIdentity;
+      instanceStatementIndex: number;
+      instanceName: string;
+      exportName: string;
+      expectedGeometryKind: "point" | "line";
+      property: string;
+      referenceSpan: DslSpan;
+      memberSpan: DslSpan;
     };
 
 export type ModuleSourceTarget = ModuleScalarSourceTarget | ModuleGeometrySourceTarget | ModuleGeometryPropertySourceTarget;
@@ -60,13 +82,22 @@ export type ModuleGeometryPropertyReference = {
   property: string;
   span: DslSpan;
   target: ModuleGeometryPropertySourceTarget | null;
-  resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid";
+  resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";
+};
+
+export type ModulePointCoordinateSemantic = {
+  kind: "coordinate";
+  x: ModuleScalarExpressionSemantic | null;
+  y: ModuleScalarExpressionSemantic | null;
 };
 
 export type ModuleGeometryReferenceSemantic = {
   source: string;
   span: DslSpan;
+  expectedGeometryKind: "point" | "line";
   target: ModuleGeometrySourceTarget | null;
+  coordinate: ModulePointCoordinateSemantic | null;
+  resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";
 };
 
 export type ResolvedModuleParameter = {

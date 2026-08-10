@@ -54,7 +54,13 @@ type ResolveGeometry = (
   rawValue: string,
   span: DslSpan,
   expected: "point" | "line",
-  options?: { allowCoordinate?: boolean; allowNone?: boolean }
+  options?: {
+    allowCoordinate?: boolean;
+    allowNone?: boolean;
+    scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+    bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
+    geometryPropertyResolver?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
+  }
 ) => ModuleGeometryReferenceSemantic;
 type ResolvePlainScalarTarget = (
   statementIndex: number,
@@ -189,7 +195,18 @@ export const analyzeModuleBody = ({
     for (const record of recordSpans(source, valueSpan) ?? []) {
       const pointSpan = recordField(source, record, 0);
       if (pointSpan) {
-        const reference = resolveGeometry(statementIndex, definition.statementIndex, source.slice(pointSpan.start, pointSpan.end), pointSpan, "point");
+        const reference = resolveGeometry(
+          statementIndex,
+          definition.statementIndex,
+          source.slice(pointSpan.start, pointSpan.end),
+          pointSpan,
+          "point",
+          {
+            scalarResolver: localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
+            bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
+            geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+          }
+        );
         if (bodySemantic) bodySemantic.geometryReferences = [...bodySemantic.geometryReferences, { parameterKey: "intermediates:point", span: pointSpan, reference }];
       }
       for (const [fieldIndex, parameterKey] of [[1, "intermediates:handleAngleDeg"], [2, "intermediates:incomingHandleLength"], [3, "intermediates:outgoingHandleLength"]] as const) {
@@ -318,7 +335,10 @@ export const analyzeModuleBody = ({
             } else {
               const reference = resolveGeometry(statementIndex, definition.statementIndex, value, valueSpan, expected, {
                 allowCoordinate: parameter.allowCoordinate,
-                allowNone: parameter.allowNone
+                allowNone: parameter.allowNone,
+                scalarResolver: localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
+                bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
+                geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
               });
               if (bodySemantic) bodySemantic.geometryReferences = [...bodySemantic.geometryReferences, { parameterKey, span: valueSpan, reference }];
             }
@@ -335,7 +355,7 @@ export const analyzeModuleBody = ({
                   value,
                   valueSpan,
                   expectedType,
-                  (reference) => resolveBodyScalar(statementIndex, reference),
+                  localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
                   (reference) => resolveBodyBareScalar(statementIndex, reference),
                   (reference) => resolveBodyGeometryProperty(statementIndex, reference)
                 );

@@ -10,6 +10,7 @@ import type {
   ModuleScalarReferenceResolution
 } from "./moduleScalarExpression";
 import type { ScalarType } from "../scalars/types";
+import { elementLocalVariableAtSourceOrder, type ElementLocalVariableNameEntry } from "../scalars/elementLocalRangeIndex";
 
 type AnalyzeExpression = (
   statementIndex: number,
@@ -52,15 +53,15 @@ export const analyzeElementLocalVariables = ({
   resolveBodyGeometryProperty: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
 }): ElementLocalVariableResolver | null => {
   const records = recordSpans(source, valueSpan) ?? [];
-  const variableNames = new Set(
-    records.flatMap((record) => {
+  const variableEntries: ElementLocalVariableNameEntry[] = records.flatMap((record, variableIndex) => {
       const nameSpan = recordField(source, record, 0);
-      return nameSpan ? [unquoteDslString(source.slice(nameSpan.start, nameSpan.end))] : [];
-    })
-  );
-  const visibleVariables = new Map<string, { variableIndex: number; name: string }>();
-  const resolveLocalOrBody: ElementLocalVariableResolver = (reference) => {
-    const local = visibleVariables.get(reference.name);
+      return nameSpan
+        ? [{ name: unquoteDslString(source.slice(nameSpan.start, nameSpan.end)), variableIndex }]
+        : [];
+    });
+  const variableNames = new Set(variableEntries.map((entry) => entry.name));
+  const sourceLocalResolver = (reference: { name: string; span: DslSpan }, visibleCount: number): ModuleScalarReferenceResolution | null => {
+    const local = elementLocalVariableAtSourceOrder(variableEntries, reference.name, visibleCount);
     if (local && bodySemantic) {
       return {
         target: {
@@ -74,38 +75,48 @@ export const analyzeElementLocalVariables = ({
         resolution: "resolved"
       };
     }
-    if (variableNames.has(reference.name)) {
-      return {
-        target: null,
-        type: null,
-        resolution: "forward",
-        diagnostic: {
-          code: "module-element-local-variable-forward",
-          span: reference.span,
-          message: `element-local variable「${reference.name}」はこの位置より後で宣言されています。`
-        }
-      };
-    }
-    return resolveBodyScalar(reference);
+    return null;
   };
+  const resolveLocalOrBody: ElementLocalVariableResolver = (reference) =>
+    sourceLocalResolver(reference, variableEntries.length) ?? resolveBodyScalar(reference);
+  const forwardLocalDiagnostic = (reference: { name: string; span: DslSpan }): ModuleScalarReferenceResolution => ({
+    target: null,
+    type: null,
+    resolution: "forward",
+    diagnostic: {
+      code: "module-element-local-variable-forward",
+      span: reference.span,
+      message: `element-local variable「${reference.name}」はこの位置より後で宣言されています。`
+    }
+  });
   records.forEach((record, variableIndex) => {
     const expressionSpan = recordRemainder(source, record, 1);
     if (!expressionSpan) return;
+    const currentName = variableEntries[variableIndex]?.name;
+    const resolveVarsReference: ElementLocalVariableResolver = (reference) => {
+      const local = sourceLocalResolver(reference, variableIndex);
+      if (local) return local;
+      // A variable's own name is not visible while its initializer is being
+      // checked, even when an outer binding has the same name.
+      if (currentName === reference.name) return forwardLocalDiagnostic(reference);
+      // A later local does not retroactively shadow an already-visible outer
+      // binding. Only turn an unresolved name into a local forward diagnostic
+      // after the ordinary module lexical resolver has had its say.
+      const bodyResolution = resolveBodyScalar(reference);
+      return bodyResolution.resolution === "undefined" && variableNames.has(reference.name)
+        ? forwardLocalDiagnostic(reference)
+        : bodyResolution;
+    };
     const expression = analyzeExpression(
       statementIndex,
       source.slice(expressionSpan.start, expressionSpan.end),
       expressionSpan,
       { kind: "number" },
-      resolveLocalOrBody,
+      resolveVarsReference,
       resolveBodyBareScalar,
       resolveBodyGeometryProperty
     );
     addScalar(bodySemantic, "vars", expressionSpan, expression);
-    const nameSpan = recordField(source, record, 0);
-    if (nameSpan) {
-      const name = unquoteDslString(source.slice(nameSpan.start, nameSpan.end));
-      if (name) visibleVariables.set(name, { variableIndex, name });
-    }
   });
   return bodySemantic ? resolveLocalOrBody : null;
 };
