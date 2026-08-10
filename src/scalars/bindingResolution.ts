@@ -83,6 +83,13 @@ const createLookupObserver = (): LookupObserver => ({
   candidateVisitsByVisibilityKind: new Map()
 });
 
+const sourceStatementAtOrBefore = (indices: readonly number[], target: number) => {
+  for (let index = indices.length - 1; index >= 0; index -= 1) {
+    if (indices[index] <= target) return indices[index];
+  }
+  return indices[0];
+};
+
 const recordCandidateInspection = (observer: LookupObserver | undefined, binding: Binding) => {
   if (!observer) return;
   observer.candidateInspectionCount += 1;
@@ -257,11 +264,13 @@ const runSweep = (
   const localCandidatesByRequestKey = localQueries.length
     ? resolveElementLocalRangeQueries(elementLocalRangeIndex, localQueries, () => recordLocalCandidateInspection(observer))
     : new Map<string, readonly ElementLocalBinding[]>();
-  const statementCount = catalog.scopeIndex.statementRankByIndex.size;
+  // The lexical index intentionally excludes inert module-body statements,
+  // so dense catalog ranks must not be mistaken for raw source indexes.
+  const sourceStatementIndices = [...catalog.scopeIndex.statementRankByIndex.keys()];
   const direct = new Map<string, BindingResolution>();
   const frames: ScopeFrame[] = [];
   const active = new Map<string, ScopeFrame[]>();
-  for (let statementIndex = 0; statementIndex < statementCount; statementIndex += 1) {
+  for (const statementIndex of sourceStatementIndices) {
     const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
     transitionScopeFrames(catalog, frames, active, scopeId, (frame) => activateFrameNames(frame, active));
     for (const request of byStatement.get(statementIndex) ?? []) {
@@ -276,7 +285,8 @@ const runSweep = (
   const future = new Map<string, readonly Binding[]>();
   const reverseFrames: ScopeFrame[] = [];
   const reverseActive = new Map<string, ScopeFrame[]>();
-  for (let statementIndex = statementCount - 1; statementIndex >= 0; statementIndex -= 1) {
+  for (let rank = sourceStatementIndices.length - 1; rank >= 0; rank -= 1) {
+    const statementIndex = sourceStatementIndices[rank];
     const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
     transitionScopeFrames(catalog, reverseFrames, reverseActive, scopeId, () => {});
     for (const request of byStatement.get(statementIndex) ?? []) {
@@ -375,8 +385,11 @@ const resolveAtSite = (
   site: BindingReferenceSite,
   elementLocalRangeIndex: ElementLocalRangeIndex
 ): BindingResolution => {
-  const statementCount = catalog.scopeIndex.statementRankByIndex.size;
-  const scheduledSite = site.statementIndex >= 0 && site.statementIndex < statementCount ? site : { ...site, statementIndex: Math.max(0, statementCount - 1) };
+  const sourceStatementIndices = [...catalog.scopeIndex.statementRankByIndex.keys()];
+  const scheduledStatementIndex = sourceStatementAtOrBefore(sourceStatementIndices, site.statementIndex) ?? 0;
+  const scheduledSite = sourceStatementIndices.includes(site.statementIndex)
+    ? site
+    : { ...site, statementIndex: scheduledStatementIndex };
   const key = "single";
   const resolution = runSweep(catalog, [{ name, site: scheduledSite, key, owner: null }], elementLocalRangeIndex).get(key);
   if (!resolution) return { kind: "undefined", name, scopeId: site.scopeId, statementIndex: site.statementIndex };
@@ -419,11 +432,9 @@ const visibleBindingsAtInternal = (
     observer.requestCount += 1;
     observer.siteTraversalCount += 1;
   }
-  const statementCount = catalog.scopeIndex.statementRankByIndex.size;
-  if (statementCount === 0) return [];
-  const scheduledStatementIndex = site.statementIndex >= 0 && site.statementIndex < statementCount
-    ? site.statementIndex
-    : Math.max(0, statementCount - 1);
+  const sourceStatementIndices = [...catalog.scopeIndex.statementRankByIndex.keys()];
+  if (sourceStatementIndices.length === 0) return [];
+  const scheduledStatementIndex = sourceStatementAtOrBefore(sourceStatementIndices, site.statementIndex)!;
 
   const typedByStatement = new Map<number, Binding[]>();
   for (const binding of catalog.bindings) {
@@ -435,7 +446,7 @@ const visibleBindingsAtInternal = (
 
   const frames: ScopeFrame[] = [];
   const activeByName = new Map<string, ScopeFrame[]>();
-  for (let statementIndex = 0; statementIndex <= scheduledStatementIndex; statementIndex += 1) {
+  for (const statementIndex of sourceStatementIndices) {
     const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
     transitionScopeFrames(catalog, frames, activeByName, scopeId, (frame) => activateFrameNames(frame, activeByName));
     if (statementIndex === scheduledStatementIndex) break;

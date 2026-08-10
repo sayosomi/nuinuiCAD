@@ -102,11 +102,42 @@ export const compileMaterializedExecution = ({
   };
 
   let placeholderElements = executionStatements.map(createBase);
-  const preliminaryIndex = createNameIndex([...existing, ...placeholderElements]);
+  const scopeKeyOf = (entry: MaterializedExecutionStatement) => {
+    // Root module instances are opaque containers in the caller namespace.
+    // Their body children belong only to the instance-local scope below.
+    if (entry.instancePath.length === 0 || (
+      entry.origin?.kind === "moduleInstance" &&
+      entry.origin.callerModuleDefinitionStatementId === null
+    )) return "root";
+    return `instance:${JSON.stringify(entry.instancePath)}`;
+  };
+  const entryScopeKeys = executionStatements.map(scopeKeyOf);
+  const entriesByScope = new Map<string, MaterializedExecutionStatement[]>();
+  executionStatements.forEach((entry, entryIndex) => {
+    const key = entryScopeKeys[entryIndex];
+    entriesByScope.set(key, [...(entriesByScope.get(key) ?? []), entry]);
+  });
+  const placeholderElementsByScope = new Map<string, CadElement[]>();
+  for (const [scopeKey, scopedEntries] of entriesByScope) {
+    const scopedEntryIds = new Set(scopedEntries.map((entry) => entry.runtimeElementId));
+    placeholderElementsByScope.set(
+      scopeKey,
+      placeholderElements.filter((element) => scopedEntryIds.has(element.id))
+    );
+  }
+  const scopeIndexOf = (scopeKey: string, elements: CadElement[]) => createNameIndex(
+    scopeKey === "root" ? [...existing, ...elements] : elements
+  );
+  const preliminaryIndexes = new Map<string, NameIndex>();
+  for (const [scopeKey, scopedElements] of placeholderElementsByScope) {
+    preliminaryIndexes.set(scopeKey, scopeIndexOf(scopeKey, scopedElements));
+  }
   placeholderElements = placeholderElements.map((element, entryIndex) => {
     const entry = executionStatements[entryIndex];
     if (entry.parentGroupId || entry.sourceBlockChild || entry.type === "moduleInstance") return element;
     const parentToken = attr(entry.statement.attrs, "parent");
+    const preliminaryIndex = preliminaryIndexes.get(entryScopeKeys[entryIndex]);
+    if (!preliminaryIndex) throw new Error(`compileMaterializedExecution: missing scope ${entryScopeKeys[entryIndex]}`);
     return parentToken
       ? {
           ...element,
@@ -115,11 +146,26 @@ export const compileMaterializedExecution = ({
       : element;
   });
 
-  const index = createNameIndex([...existing, ...placeholderElements]);
-  const elementsForExpressions = [...existing, ...placeholderElements];
+  const finalElementsByScope = new Map<string, CadElement[]>();
+  for (const [scopeKey, scopedEntries] of entriesByScope) {
+    const scopedEntryIds = new Set(scopedEntries.map((entry) => entry.runtimeElementId));
+    finalElementsByScope.set(
+      scopeKey,
+      placeholderElements.filter((element) => scopedEntryIds.has(element.id))
+    );
+  }
+  const indexesByScope = new Map<string, NameIndex>();
+  for (const [scopeKey, scopedElements] of finalElementsByScope) {
+    indexesByScope.set(scopeKey, scopeIndexOf(scopeKey, scopedElements));
+  }
+  if (!indexesByScope.has("root")) indexesByScope.set("root", scopeIndexOf("root", []));
+  const rootIndex = indexesByScope.get("root");
+  if (!rootIndex) throw new Error("compileMaterializedExecution: missing root name scope");
   const compiledElements = placeholderElements.map((base, entryIndex) => {
     const entry = executionStatements[entryIndex];
     if (entry.type === "moduleInstance") return base;
+    const index = indexesByScope.get(entryScopeKeys[entryIndex]);
+    if (!index) throw new Error(`compileMaterializedExecution: missing scope ${entryScopeKeys[entryIndex]}`);
 
     let effectiveStatement = entry.statement;
     if (entry.sourceBlockChild && attr(entry.statement.attrs, "parent")) {
@@ -131,7 +177,7 @@ export const compileMaterializedExecution = ({
       effectiveStatement,
       index,
       diagnostics,
-      elementsForExpressions,
+      index.elements,
       index.nameContext,
       visibilitySettings.visibilityRoles,
       context.majorVersion
@@ -158,7 +204,7 @@ export const compileMaterializedExecution = ({
     statements,
     layouts: visibilitySettings.printLayouts ?? (documentMode ? [] : undefined),
     elements,
-    nameIndex: createNameIndex(elements),
+    nameIndex: rootIndex,
     visibilityProfiles: visibilitySettings.visibilityProfiles,
     diagnostics,
     printLayoutIdsByStatementIndex,

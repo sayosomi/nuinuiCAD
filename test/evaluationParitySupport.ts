@@ -26,6 +26,7 @@ export type EvaluationFixture = {
   scalarProgram?: ScalarProgram;
   bindingVersions?: BindingVersionGraph;
   statementInfoByElementId?: ReadonlyMap<string, { statementIndex: number }>;
+  sourceExecutionPositionByElementId?: ReadonlyMap<string, number>;
   statementIdByStatementIndex?: ReadonlyMap<number, string>;
   conditionalGroupConditions?: ReadonlyMap<string, TypedScalarExpression>;
   textTemplateEntriesByElementId?: ReadonlyMap<ElementId, TextTemplateAst>;
@@ -85,6 +86,7 @@ export const fixtureFromSource = (source: string): EvaluationFixture => {
     scalarProgram: doc.scalarProgram,
     bindingVersions: doc.bindingVersions,
     statementInfoByElementId: doc.statementMap.byElementId,
+    sourceExecutionPositionByElementId: doc.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
     statementIdByStatementIndex: doc.statementMap.statementIdByStatementIndex,
     conditionalGroupConditions: doc.conditionalGroupConditions,
     ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
@@ -107,6 +109,7 @@ export const optionsFor = (fixture: EvaluationFixture): EvaluateElementsOptions 
   ...(fixture.bindingVersions ? {
     bindingVersions: fixture.bindingVersions,
     statementInfoByElementId: fixture.statementInfoByElementId,
+    sourceExecutionPositionByElementId: fixture.sourceExecutionPositionByElementId,
     statementIdByStatementIndex: fixture.statementIdByStatementIndex,
     conditionalOwnerStatementIdByElementId: conditionalOwnerIdByElementId(buildConditionalMutationOwners(
       fixture.bindingVersions, fixture.elements, fixture.statementInfoByElementId, fixture.statementIdByStatementIndex

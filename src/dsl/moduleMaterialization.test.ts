@@ -87,6 +87,16 @@ describe("module materialization", () => {
       kind: "moduleBody",
       sourceStatementIndex: 6
     });
+    const materialization = compiled.moduleMaterialization!;
+    for (const element of elements) {
+      expect(
+        compiled.statementMap!.byElementId.has(element.id) ||
+          materialization.sourceExecutionPositionByRuntimeElementId.has(element.id)
+      ).toBe(true);
+    }
+    expect(materialization.sourceExecutionPositionByRuntimeElementId.get(firstNested.id)).toBe(8);
+    expect(materialization.sourceExecutionPositionByRuntimeElementId.get(firstBody.id)).toBe(8);
+    expect(materialization.sourceExecutionPositionByRuntimeElementId.get(secondNested.id)).toBe(9);
   });
 
   it("preserves a materialized subtree when reconciliation carries statement identities", () => {

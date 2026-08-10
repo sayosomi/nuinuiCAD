@@ -54,6 +54,8 @@ export type ModuleMaterialization = {
   sourceExecutionUnits: readonly SourceExecutionUnit[];
   /** Root source statements only: ordinary source elements; module containers use origin mapping. */
   elementIdBySourceStatementIndex: ReadonlyMap<number, ElementId>;
+  /** Runtime element ID -> the source execution unit that evaluates it. */
+  sourceExecutionPositionByRuntimeElementId: ReadonlyMap<ElementId, number>;
   originByRuntimeElementId: ReadonlyMap<ElementId, ModuleOrigin>;
   runtimeIdentityByElementId: ReadonlyMap<ElementId, MaterializedRuntimeIdentity>;
   evaluationLimitIndex: number | undefined;
@@ -203,6 +205,7 @@ export const materializeModuleExecution = ({
 
   const executionStatements: MaterializedExecutionStatement[] = [];
   const sourceExecutionUnits: SourceExecutionUnit[] = [];
+  const sourceExecutionPositionByRuntimeElementId = new Map<ElementId, number>();
   const originByRuntimeElementId = new Map<ElementId, ModuleOrigin>();
   const runtimeIdentityByElementId = new Map<ElementId, MaterializedRuntimeIdentity>();
 
@@ -244,6 +247,7 @@ export const materializeModuleExecution = ({
     });
     originByRuntimeElementId.set(runtimeElementId, executionStatements.at(-1)!.origin!);
     runtimeIdentityByElementId.set(runtimeElementId, runtimeIdentity);
+    sourceExecutionPositionByRuntimeElementId.set(runtimeElementId, executionUnitStatementIndex);
 
     const localRuntimeIdBySourceIndex = new Map<number, ElementId>();
     for (const body of definition.bodyStatements) {
@@ -303,6 +307,7 @@ export const materializeModuleExecution = ({
       localRuntimeIdBySourceIndex.set(body.statementIndex, bodyRuntimeElementId);
       originByRuntimeElementId.set(bodyRuntimeElementId, bodyOrigin);
       runtimeIdentityByElementId.set(bodyRuntimeElementId, bodyIdentity);
+      sourceExecutionPositionByRuntimeElementId.set(bodyRuntimeElementId, executionUnitStatementIndex);
     }
     return runtimeElementId;
   };
@@ -357,6 +362,7 @@ export const materializeModuleExecution = ({
     executionStatements,
     sourceExecutionUnits,
     elementIdBySourceStatementIndex,
+    sourceExecutionPositionByRuntimeElementId,
     originByRuntimeElementId,
     runtimeIdentityByElementId,
     evaluationLimitIndex

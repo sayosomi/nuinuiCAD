@@ -58,6 +58,8 @@ export type EvaluateElementsOptions = {
   bindingVersions?: BindingVersionGraph;
   /** Existing compiled element ID -> source statement mapping; never inferred from element order. */
   statementInfoByElementId?: ReadonlyMap<ElementId, { statementIndex: number }>;
+  /** Task 5 runtime-only source execution positions for materialized module elements. */
+  sourceExecutionPositionByElementId?: ReadonlyMap<ElementId, number>;
   statementIdByStatementIndex?: ReadonlyMap<number, string>;
   /** Task 33's completed static join from conditional element id to owner statement id. */
   conditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
@@ -181,8 +183,8 @@ export const evaluateElements = (
   // property bindings exist - computedScalarBindings is Task 21's own
   // contract and must not depend on Task 23's property wiring.
   const linearMutationEnabled = options.bindingVersions !== undefined && hasSetVersions(options.bindingVersions);
-  if (linearMutationEnabled && !options.statementInfoByElementId) {
-    throw new Error("evaluateElements: binding mutation requires the compiled statementInfoByElementId mapping");
+  if (linearMutationEnabled && !options.statementInfoByElementId && !options.sourceExecutionPositionByElementId) {
+    throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
   const linearMutationResolver = linearMutationEnabled
     ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, elementsById })
@@ -223,14 +225,16 @@ export const evaluateElements = (
 
   const advanceLinearBindingsBefore = (element: CadElement, sourceElement?: CadElement) => {
     if (!linearMutationEnabled) return;
-    const statement = options.statementInfoByElementId!.get((sourceElement ?? element).id);
-    if (!statement) {
+    const sourceId = (sourceElement ?? element).id;
+    const statement = options.statementInfoByElementId?.get(sourceId);
+    const sourceOrder = statement?.statementIndex ?? options.sourceExecutionPositionByElementId?.get(element.id);
+    if (sourceOrder === undefined) {
       throw new Error(
-        `evaluateElements: no compiled statement mapping for linear binding lookup on ${(sourceElement ?? element).id}`
+        `evaluateElements: no compiled source execution position for ${sourceId}`
       );
     }
     // `beforeStatement` deliberately excludes a set on this same source line.
-    linearMutationResolver!.advanceTo({ kind: "beforeStatement", sourceOrder: statement.statementIndex });
+    linearMutationResolver!.advanceTo({ kind: "beforeStatement", sourceOrder });
   };
 
   const pushGeneratedVisibilityState = (

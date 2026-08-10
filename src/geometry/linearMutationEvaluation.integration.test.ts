@@ -32,6 +32,7 @@ const optionsFor = (compiled: LastGoodDslDocument): EvaluateElementsOptions => {
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
     statementInfoByElementId: compiled.statementMap.byElementId,
+    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
     statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
     conditionalOwnerStatementIdByElementId: compiled.bindingVersions
       ? conditionalOwnerIdByElementId(buildConditionalMutationOwners(

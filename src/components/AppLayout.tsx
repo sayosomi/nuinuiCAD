@@ -145,6 +145,9 @@ export const AppLayout = () => {
   // `scalarProgram` the way propertyBindingEntries/controlBooleanEntries are.
   const textTemplates = useCadDocumentStore((state) => state.doc.textTemplates);
   const canonicalElements = useCadDocumentStore((state) => state.doc.document.elements);
+  const sourceExecutionPositionByElementId = useCadDocumentStore(
+    (state) => state.doc.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId
+  );
   const elementIdByStatementIndex = useCadDocumentStore((state) => state.doc.statementMap.elementIdByStatementIndex);
   const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap.byElementId);
   const statementIdByStatementIndex = useCadDocumentStore((state) => state.doc.statementMap.statementIdByStatementIndex);
@@ -257,7 +260,7 @@ export const AppLayout = () => {
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(bindingVersions ? {
-        bindingVersions, statementInfoByElementId, statementIdByStatementIndex,
+        bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, statementIdByStatementIndex,
         conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId: forGroupMutationOwnersByElementId
       } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
@@ -272,6 +275,7 @@ export const AppLayout = () => {
       scalarProgram,
       bindingVersions,
       statementInfoByElementId,
+      sourceExecutionPositionByElementId,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnersByElementId,
