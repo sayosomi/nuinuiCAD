@@ -4,6 +4,17 @@ import type { ScalarType } from "../scalars/types";
 import { getParameterDefinitions, type ParameterDefinition } from "./parameterDefinitions";
 
 describe("parameterDefinitions propertyCapability", () => {
+  it("does not expose generic inspector parameters for a runtime-only moduleInstance", () => {
+    const moduleInstance: CadElement = {
+      id: "module",
+      name: "module",
+      type: "moduleInstance",
+      activity: "visible"
+    };
+
+    expect(getParameterDefinitions(moduleInstance)).toEqual([]);
+  });
+
   it("is optional and unused by existing consumers", () => {
     const point: CadElement = {
       id: "point-a",

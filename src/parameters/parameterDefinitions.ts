@@ -156,7 +156,7 @@ const parameterDefinitionsForElement = (
         { key: "showGenerated", label: "生成結果を表示", kind: "boolean" },
       ];
     case "moduleInstance":
-      return [...commonParameters];
+      return [];
     case "text":
       return [
         ...commonParameters,

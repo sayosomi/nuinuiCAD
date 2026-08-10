@@ -5,7 +5,6 @@ export const elementSupportsDisplayColor = (element: CadElement): boolean => {
     case "group":
     case "conditionalGroup":
     case "forGroup":
-    case "moduleInstance":
     case "freePoint":
     case "offsetPoint":
     case "polarOffsetPoint":
@@ -31,6 +30,7 @@ export const elementSupportsDisplayColor = (element: CadElement): boolean => {
     case "move":
     case "symmetricMove":
     case "image":
+    case "moduleInstance":
       return false;
   }
 };

@@ -1,5 +1,4 @@
-import { groupStateByElementId } from "../model/groups";
-import { isContainerElement } from "../model/containers";
+import { groupStateByElementId, isGroupElement } from "../model/groups";
 import type { CadElement, DocumentPalette, ElementId } from "../types/geometry";
 import { paletteColorById } from "./palette";
 
@@ -19,7 +18,7 @@ export const resolvedColorIdForElement = ({
 
   for (let index = ancestorGroupIds.length - 1; index >= 0; index -= 1) {
     const ancestor = elementsById.get(ancestorGroupIds[index]);
-    if (ancestor && isContainerElement(ancestor) && ancestor.colorId && colorsById.has(ancestor.colorId)) {
+    if (ancestor && isGroupElement(ancestor) && ancestor.colorId && colorsById.has(ancestor.colorId)) {
       return ancestor.colorId;
     }
   }
