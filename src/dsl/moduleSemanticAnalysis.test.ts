@@ -328,6 +328,180 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
+  it("uses the nearest group-local scalar for a nested module default", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Outer(x: number) {",
+      "  group G (printEnabled: true) {",
+      "    const x: number = 20",
+      "    module Inner(value: number = @x) {",
+      "    }",
+      "  }",
+      "}"
+    ].join("\n"));
+    const inner = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "Inner")!;
+    expect(inner.parameters[0].defaultExpression?.references[0].target).toEqual({
+      kind: "moduleLocal",
+      statementId: "statement:test:3",
+      statementIndex: 3
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("uses the nearest for iteration variable for a nested module default", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Outer(i: number) {",
+      "  for Loop (i, from: 0, count: 3) {",
+      "    module Inner(value: number = @i) {",
+      "    }",
+      "  }",
+      "}"
+    ].join("\n"));
+    const inner = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "Inner")!;
+    expect(inner.parameters[0].defaultExpression?.references[0].target).toEqual({
+      kind: "iteration",
+      statementId: "statement:test:2",
+      statementIndex: 2,
+      name: "i"
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("does not fall through to an outer binding for an own later or self parameter", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "const later: number = 99",
+      "module M(first: number = @later, later: number = @later) {",
+      "}"
+    ].join("\n"));
+    const parameters = compiled.moduleSemanticAnalysis!.definitions[0].parameters;
+    expect(parameters.map((parameter) => parameter.defaultExpression?.references[0])).toEqual([
+      expect.objectContaining({ resolution: "forward", target: null }),
+      expect.objectContaining({ resolution: "forward", target: null })
+    ]);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "module-default-parameter-order")).toHaveLength(2);
+  });
+
+  it("resolves earlier vars entries as element-local variable targets", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0, vars: [a: 10; b: @a * 2; c: @b + @a])",
+      "}"
+    ].join("\n"));
+    const body = moduleBodyAt(compiled, 2);
+    const varSites = body.scalarExpressions.filter((site) => site.parameterKey === "vars");
+    expect(varSites[1].expression.references.map((reference) => reference.target)).toEqual([
+      { kind: "elementLocalVariable", statementId: "statement:test:2", statementIndex: 2, variableIndex: 0, name: "a" }
+    ]);
+    expect(varSites[2].expression.references.map((reference) => reference.target)).toEqual([
+      { kind: "elementLocalVariable", statementId: "statement:test:2", statementIndex: 2, variableIndex: 1, name: "b" },
+      { kind: "elementLocalVariable", statementId: "statement:test:2", statementIndex: 2, variableIndex: 0, name: "a" }
+    ]);
+  });
+
+  it("rejects vars forward references", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0, vars: [a: @b; b: 10])",
+      "}"
+    ].join("\n"));
+    const body = moduleBodyAt(compiled, 2);
+    expect(body.scalarExpressions.find((site) => site.parameterKey === "vars")?.expression.references[0]).toMatchObject({
+      name: "b",
+      resolution: "forward",
+      target: null
+    });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-element-local-variable-forward" })
+    ]));
+  });
+
+  it("rejects vars self references", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0, vars: [a: @a])",
+      "}"
+    ].join("\n"));
+    const body = moduleBodyAt(compiled, 2);
+    expect(body.scalarExpressions.find((site) => site.parameterKey === "vars")?.expression.references[0]).toMatchObject({
+      name: "a",
+      resolution: "forward",
+      target: null
+    });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-element-local-variable-forward" })
+    ]));
+  });
+
+  it("resolves intermediates numeric fields from the same element vars", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  curve C = bezier(start: (0, 0), end: (10, 0), vars: [handle: 20], intermediates: [(0, 0): 45: @handle: @handle])",
+      "}"
+    ].join("\n"));
+    const body = moduleBodyAt(compiled, 2);
+    const intermediateSites = body.scalarExpressions.filter((site) => site.parameterKey?.startsWith("intermediates:") && site.expression.references.length > 0);
+    expect(intermediateSites.map((site) => site.expression.references[0].target)).toEqual([
+      { kind: "elementLocalVariable", statementId: "statement:test:2", statementIndex: 2, variableIndex: 0, name: "handle" },
+      { kind: "elementLocalVariable", statementId: "statement:test:2", statementIndex: 2, variableIndex: 0, name: "handle" }
+    ]);
+  });
+
+  it("does not leak an element-local variable to another statement", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0, vars: [width: 10])",
+      "  point Q = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n"));
+    const body = moduleBodyAt(compiled, 3);
+    expect(body.scalarExpressions[0].expression.references[0]).toMatchObject({
+      name: "width",
+      resolution: "undefined",
+      target: null
+    });
+  });
+
+  it("keeps outer capture errors distinct from element-local vars", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "const width: number = 10",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0, vars: [local: @width])",
+      "}"
+    ].join("\n"));
+    const body = moduleBodyAt(compiled, 3);
+    expect(body.scalarExpressions.find((site) => site.parameterKey === "vars")?.expression.references[0]).toMatchObject({
+      name: "width",
+      resolution: "outerCapture",
+      target: null
+    });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
+  });
+
+  it("keeps element-local variable targets source-only", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0, vars: [a: 10; b: @a])",
+      "}"
+    ].join("\n"));
+    const body = moduleBodyAt(compiled, 2);
+    const site = body.scalarExpressions.find((candidate) => candidate.parameterKey === "vars" && candidate.expression.references.length > 0)!;
+    const target = site.expression.references[0].target!;
+    expect(target).toMatchObject({ kind: "elementLocalVariable", variableIndex: 0, name: "a" });
+    expect(target).not.toHaveProperty("bindingId");
+    expect(target).not.toHaveProperty("elementId");
+  });
+
   it("does not create runtime CadElements or runtime IDs for module body statements", () => {
     const compiled = compileWithIds([
       "nui 3",

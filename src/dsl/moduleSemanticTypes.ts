@@ -14,6 +14,7 @@ export type ModuleParameterSlot = {
 export type ModuleScalarSourceTarget =
   | (ModuleParameterSlot & { kind: "parameter" })
   | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string }
+  | { kind: "elementLocalVariable"; statementId: StatementIdentity; statementIndex: number; variableIndex: number; name: string }
   | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number }
   | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number };
 

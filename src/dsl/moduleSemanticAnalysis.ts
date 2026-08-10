@@ -49,6 +49,7 @@ type DefinitionState = {
 
 type ModuleLexicalLookup =
   | { kind: "parameter"; definition: DefinitionState; parameter: { parameter: ResolvedModuleParameter; index: number } }
+  | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string }
   | SourceLexicalLookup;
 
 type ReferenceResolution = ModuleScalarReferenceResolution;
@@ -231,27 +232,37 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     stateByIndex.set(statementIndex, state);
   }
 
-  const ownerParams = (ownerIndex: number | null, name: string) => ownerIndex === null ? undefined : stateByIndex.get(ownerIndex)?.parameterByName.get(name);
-  const ownerForDefinitionSite = (definitionIndex: number) => moduleOwnerIndexOf(statements, definitionIndex);
-
   /**
-   * Walk the real source scopes and overlay a module's parameters only in its
-   * body scope. This keeps a child group declaration ahead of the parameter
-   * while still making the parameter visible to every body descendant.
+   * Walk the real source scopes and overlay synthetic bindings only in the
+   * scope where they are declared. This keeps a child declaration or loop
+   * variable ahead of an outer parameter while preserving non-hoisted lookup.
    */
-  const resolveModuleLexicalDeclaration = (statementIndex: number, ownerIndex: number | null, name: string): ModuleLexicalLookup => {
+  const resolveModuleLexicalDeclaration = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    name: string,
+    parameterOverlays: readonly DefinitionState[] = ownerIndex === null
+      ? []
+      : stateByIndex.get(ownerIndex)
+        ? [stateByIndex.get(ownerIndex)!]
+        : []
+  ): ModuleLexicalLookup => {
     const startScope = sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex);
     if (!startScope) return { kind: "undefined" };
-    const owner = ownerIndex === null ? undefined : stateByIndex.get(ownerIndex);
     let firstFuture: ModuleLexicalLookup | null = null;
     for (const scopeId of scopeChain(sourceNamespace.scopeIndex, startScope)) {
       const declarations = sourceNamespace.declarationsByScopeAndName.get(scopeId)?.get(name) ?? [];
       const visible = declarations.filter((declaration) => declaration.statementIndex < statementIndex);
-      const parameter = owner?.bodyScopeId === scopeId ? owner.parameterByName.get(name) : undefined;
       if (visible.length === 1) return { kind: "resolved", declaration: visible[0] };
       if (visible.length > 1) return { kind: "ambiguous", scopeId, declarations: visible };
+      const iteration = sourceNamespace.scopeIndex.forGroupIterationSlots.get(scopeId);
+      if (iteration?.name === name && iteration.statementIndex < statementIndex) {
+        return { kind: "iteration", statementId: statementIdAt(stableStatementIdByIndex, iteration.statementIndex), statementIndex: iteration.statementIndex, name };
+      }
+      const overlay = parameterOverlays.find((definition) => definition.bodyScopeId === scopeId);
+      const parameter = overlay?.parameterByName.get(name);
       if (parameter) {
-        if (visible.length === 0) return { kind: "parameter", definition: owner!, parameter };
+        if (visible.length === 0) return { kind: "parameter", definition: overlay!, parameter };
         return { kind: "ambiguous", scopeId, declarations };
       }
       if (declarations.length > 0 && !firstFuture) firstFuture = { kind: "forward", scopeId, declarations };
@@ -260,18 +271,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   };
 
   const bindingByStatementIndex = new Map<number, { bindingId: BindingId; statementId: StatementIdentity }>(input.documentScalarBindings ?? []);
-
-  const resolveIterationScalar = (statementIndex: number, name: string): { statementId: StatementIdentity; statementIndex: number; name: string } | null => {
-    const startScope = sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex);
-    if (!startScope) return null;
-    for (const scopeId of scopeChain(sourceNamespace.scopeIndex, startScope)) {
-      const slot = sourceNamespace.scopeIndex.forGroupIterationSlots.get(scopeId);
-      if (slot?.name === name && slot.statementIndex < statementIndex) {
-        return { statementId: statementIdAt(stableStatementIdByIndex, slot.statementIndex), statementIndex: slot.statementIndex, name };
-      }
-    }
-    return null;
-  };
 
   const resolveSourceScalar = (
     statementIndex: number,
@@ -288,13 +287,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const geometryTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       return { target: geometryTarget, type: null, resolution: "invalid", diagnostic: issue("module-scalar-geometry-reference", { start: 0, end: 0 }, `scalar expression では geometry parameter「${name}」を参照できません。`) };
     }
-    const iteration = resolveIterationScalar(statementIndex, name);
-    if (iteration) {
-      const iterationOwner = moduleOwnerIndexOf(statements, iteration.statementIndex);
+    if (lookup.kind === "iteration") {
+      const iterationOwner = moduleOwnerIndexOf(statements, lookup.statementIndex);
       if (boundaryOwnerIndex !== null && iterationOwner !== boundaryOwnerIndex) {
         return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", { start: 0, end: 0 }, `module body から outer scalar「${name}」を暗黙 capture できません。`) };
       }
-      return { target: { kind: "iteration", ...iteration }, type: { kind: "number" }, resolution: "resolved" };
+      return { target: { ...lookup }, type: { kind: "number" }, resolution: "resolved" };
     }
     if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", { start: 0, end: 0 }, `未定義のmodule scalar「${name}」を参照しています。`) };
     if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", { start: 0, end: 0 }, `module scalar「${name}」はこの位置より後で宣言されています。`) };
@@ -330,20 +328,24 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? { target: scalarParameterTarget(definition, ownParameter), type, resolution: "resolved" }
         : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalar parameterではありません。`) };
     }
-    let outerOwner = ownerForDefinitionSite(definition.statementIndex);
-    while (outerOwner !== null) {
-      const outerParameter = ownerParams(outerOwner, reference.name);
-      if (outerParameter) {
-        const outerDefinition = stateByIndex.get(outerOwner)!;
-        const type = scalarTypeOf(outerParameter.parameter.type);
-        if (type) return { target: scalarParameterTarget(outerDefinition, outerParameter), type, resolution: "resolved" };
-        return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalarではありません。`) };
-      }
-      outerOwner = moduleOwnerIndexOf(statements, outerOwner);
+    const definitionSiteScopes = scopeChain(
+      sourceNamespace.scopeIndex,
+      sourceNamespace.scopeIndex.scopeOfStatement.get(definition.statementIndex) ?? sourceNamespace.scopeIndex.rootScopeId
+    );
+    const enclosingDefinitions = definitionSiteScopes.flatMap((scopeId) => {
+      const enclosingDefinition = definitionStates.find((candidate) => candidate.bodyScopeId === scopeId);
+      return enclosingDefinition ? [enclosingDefinition] : [];
+    });
+    const lookup = resolveModuleLexicalDeclaration(definition.statementIndex, null, reference.name, enclosingDefinitions);
+    if (lookup.kind === "parameter") {
+      const type = scalarTypeOf(lookup.parameter.parameter.type);
+      return type
+        ? { target: scalarParameterTarget(lookup.definition, lookup.parameter), type, resolution: "resolved" }
+        : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalarではありません。`) };
     }
-    const iteration = resolveIterationScalar(definition.statementIndex, reference.name);
-    if (iteration) return { target: { kind: "iteration", ...iteration }, type: { kind: "number" }, resolution: "resolved" };
-    const lookup = sourceDeclarationResolution(sourceNamespace, statements, definition.statementIndex, reference.name);
+    if (lookup.kind === "iteration") {
+      return { target: { ...lookup }, type: { kind: "number" }, resolution: "resolved" };
+    }
     if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", reference.span, `未定義のmodule scalar「${reference.name}」を参照しています。`) };
     if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", reference.span, `module scalar「${reference.name}」はこの位置より後で宣言されています。`) };
     if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-reference", reference.span, `module scalar「${reference.name}」を一意に解決できません。`) };
@@ -374,13 +376,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   };
 
   const resolveBodyBareScalar = (statementIndex: number, ownerIndex: number, reference: { name: string; span: DslSpan }): ReferenceResolution | null => {
-    const iteration = resolveIterationScalar(statementIndex, reference.name);
-    if (!iteration) return null;
-    const iterationOwner = moduleOwnerIndexOf(statements, iteration.statementIndex);
+    const lookup = resolveModuleLexicalDeclaration(statementIndex, ownerIndex, reference.name);
+    if (lookup.kind !== "iteration") return null;
+    const iterationOwner = moduleOwnerIndexOf(statements, lookup.statementIndex);
     if (iterationOwner !== ownerIndex) {
       return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer scalar「${reference.name}」を暗黙 capture できません。`) };
     }
-    return { target: { kind: "iteration", ...iteration }, type: { kind: "number" }, resolution: "resolved" };
+    return { target: { ...lookup }, type: { kind: "number" }, resolution: "resolved" };
   };
 
   const analyzeExpression = (
@@ -480,6 +482,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       addLocal(statementIndex, issue("module-undefined-geometry-reference", baseSpan, `未定義のgeometry「${base}」を参照しています。`));
       return { source: rawValue, span, target: null };
     }
+    if (lookup.kind === "iteration") {
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${base}」はgeometryではありません。`));
+      return { source: rawValue, span, target: null };
+    }
     if (lookup.kind === "forward") {
       addLocal(statementIndex, issue("module-forward-geometry-reference", baseSpan, `geometry「${base}」はこの位置より後で宣言されています。`));
       return { source: rawValue, span, target: null };
@@ -541,6 +547,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (lookup.kind === "undefined") {
       return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-geometry-reference", reference.span, `未定義のgeometry「${reference.elementName}」を参照しています。`) };
     }
+    if (lookup.kind === "iteration") {
+      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`) };
+    }
     if (lookup.kind === "forward") {
       return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-geometry-reference", reference.span, `geometry「${reference.elementName}」はこの位置より後で宣言されています。`) };
     }
@@ -581,7 +590,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const lookup = ownerIndex === null
       ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, statement.moduleName)
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, statement.moduleName);
-    if (lookup.kind === "parameter") {
+    if (lookup.kind === "parameter" || lookup.kind === "iteration") {
       calleeResolution = "notModule";
     } else {
       if (lookup.kind === "resolved") {
