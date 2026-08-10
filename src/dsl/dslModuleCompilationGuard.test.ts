@@ -39,7 +39,7 @@ describe("module definition compilation guard", () => {
     });
   });
 
-  it("keeps option-bearing module instances inert until module materialization exists", () => {
+  it("materializes option-bearing module instances while keeping the definition source-only", () => {
     const source = [
       "nui 3",
       "module M(state: boolean) {",
@@ -50,7 +50,8 @@ describe("module definition compilation guard", () => {
     const { parsed, compiled } = compileWithStableIds(source);
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(compiled.document?.elements.map((element) => element.name)).toEqual(["Root"]);
+    expect(compiled.document?.elements.map((element) => element.name)).toEqual(["X", "Root"]);
+    expect(compiled.document?.elements[0]).toMatchObject({ type: "moduleInstance", activity: "hidden" });
     expect(parsed.statements.find((statement) => statement.kind === "moduleInstance")).toMatchObject({
       kind: "moduleInstance",
       options: [{ name: "state", value: "hidden" }],

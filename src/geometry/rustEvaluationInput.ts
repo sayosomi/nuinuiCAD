@@ -34,7 +34,11 @@ export const buildRustEvaluationInput = (
 ): EvaluateDocumentInput => {
   const mutationPayload = includeBindingVersions && options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions)
     ? buildRustBindingMutationPayload(
-        options.bindingVersions, elements, options.statementInfoByElementId, options.statementIdByStatementIndex
+        options.bindingVersions,
+        elements,
+        options.statementInfoByElementId,
+        options.statementIdByStatementIndex,
+        options.sourceExecutionPositionByElementId
       )
     : undefined;
   return {

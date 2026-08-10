@@ -433,6 +433,7 @@ pub(crate) fn validate_binding_versions_payload(
         &[
             "versions",
             "elementSourceOrders",
+            "elementSourceExecutionUnits",
             "conditionalOwners",
             "forGroupOwners",
             "evaluationLimitSourceOrder",
@@ -537,7 +538,68 @@ pub(crate) fn validate_binding_versions_payload(
         ));
     }
     let mut element_source_orders = HashMap::new();
+    let element_source_execution_units = object
+        .get("elementSourceExecutionUnits")
+        .map(|value| {
+            let unit_json = value.as_array().ok_or_else(|| {
+                issue(
+                    Code::InvalidElementSourceOrder,
+                    "elementSourceExecutionUnits must be an array",
+                )
+            })?;
+            if unit_json.len() != elements.len() {
+                return Err(issue(
+                    Code::InvalidElementSourceOrder,
+                    "elementSourceExecutionUnits must cover every input element",
+                ));
+            }
+            let mut units = HashMap::new();
+            for (index, item) in unit_json.iter().enumerate() {
+                let item = as_object(item, "element source execution unit")?;
+                reject_unexpected_fields(
+                    item,
+                    &["elementId", "executionUnit"],
+                    "element source execution unit",
+                )?;
+                let id = string(
+                    require_field(item, "elementId", "element source execution unit")?,
+                    "element source execution unit elementId",
+                )?;
+                let expected = elements[index]
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| {
+                        issue(
+                            Code::InvalidElementSourceOrder,
+                            "input element id is missing",
+                        )
+                    })?;
+                if id != expected
+                    || units
+                        .insert(
+                            id.to_owned(),
+                            integer(
+                                require_field(
+                                    item,
+                                    "executionUnit",
+                                    "element source execution unit",
+                                )?,
+                                "element source execution unit executionUnit",
+                            )?,
+                        )
+                        .is_some()
+                {
+                    return Err(issue(
+                        Code::InvalidElementSourceOrder,
+                        "elementSourceExecutionUnits contains an unknown or duplicate element id",
+                    ));
+                }
+            }
+            Ok(units)
+        })
+        .transpose()?;
     let mut prior_source_order = None;
+    let mut prior_execution_unit = None;
     for (index, item) in source_json.iter().enumerate() {
         let item = as_object(item, "element source order")?;
         reject_unexpected_fields(item, &["elementId", "sourceOrder"], "element source order")?;
@@ -571,12 +633,35 @@ pub(crate) fn validate_binding_versions_payload(
             ));
         }
         let order = element_source_orders[id];
-        if prior_source_order.is_some_and(|previous| previous >= order) {
+        if prior_source_order.is_some_and(|previous| previous > order) {
             return Err(issue(
                 Code::InvalidElementSourceOrder,
-                "elementSourceOrders must be strict source order",
+                "elementSourceOrders must not move backwards",
             ));
         }
+        if prior_source_order == Some(order) {
+            let Some(units) = element_source_execution_units.as_ref() else {
+                return Err(issue(
+                    Code::InvalidElementSourceOrder,
+                    "elementSourceOrders must be strict source order unless execution units are explicit",
+                ));
+            };
+            let execution_unit = units.get(id).copied().ok_or_else(|| {
+                issue(
+                    Code::InvalidElementSourceOrder,
+                    "elementSourceExecutionUnits is missing an element",
+                )
+            })?;
+            if prior_execution_unit != Some(execution_unit) {
+                return Err(issue(
+                    Code::InvalidElementSourceOrder,
+                    "equal element source positions must belong to one execution unit",
+                ));
+            }
+        }
+        prior_execution_unit = element_source_execution_units
+            .as_ref()
+            .and_then(|units| units.get(id).copied());
         prior_source_order = Some(order);
     }
     let empty_conditional_owners = Value::Array(Vec::new());

@@ -11,9 +11,16 @@ export type BindingMutationElementSourceOrder = {
   sourceOrder: number;
 };
 
+export type BindingMutationElementSourceExecutionUnit = {
+  elementId: ElementId;
+  executionUnit: number;
+};
+
 export type RustBindingMutationPayload = {
   versions: readonly Record<string, unknown>[];
   elementSourceOrders: readonly BindingMutationElementSourceOrder[];
+  /** Present when materialized runtime elements share a source execution unit. */
+  elementSourceExecutionUnits?: readonly BindingMutationElementSourceExecutionUnit[];
   conditionalOwners: readonly { ownerStatementId: string; elementId: ElementId }[];
   forGroupOwners: readonly {
     ownerStatementId: string; elementId: ElementId; scopeId: string;
@@ -50,18 +57,30 @@ export const buildRustBindingMutationPayload = (
   graph: BindingVersionGraph,
   elements: readonly CadElement[],
   statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined,
-  statementIdByStatementIndex: ReadonlyMap<number, string> | undefined
+  statementIdByStatementIndex: ReadonlyMap<number, string> | undefined,
+  sourceExecutionPositionByElementId?: ReadonlyMap<ElementId, number>
 ): RustBindingMutationPayload => {
-  if (!statementInfoByElementId) {
-    throw new Error("buildRustBindingMutationPayload: missing compiled element statement positions");
+  if (!statementInfoByElementId && !sourceExecutionPositionByElementId) {
+    throw new Error("buildRustBindingMutationPayload: missing compiled source execution positions");
   }
   const elementSourceOrders = elements.map((element) => {
-    const statement = statementInfoByElementId.get(element.id);
-    if (!statement) {
-      throw new Error(`buildRustBindingMutationPayload: no compiled statement position for ${element.id}`);
+    const sourceExecutionPosition = sourceExecutionPositionByElementId?.get(element.id);
+    const statement = statementInfoByElementId?.get(element.id);
+    const sourceOrder = sourceExecutionPosition ?? statement?.statementIndex;
+    if (sourceOrder === undefined) {
+      throw new Error(`buildRustBindingMutationPayload: no compiled source execution position for ${element.id}`);
     }
-    return { elementId: element.id, sourceOrder: statement.statementIndex };
+    return { elementId: element.id, sourceOrder };
   });
+  const elementSourceExecutionUnits = sourceExecutionPositionByElementId
+    ? elements.map((element) => {
+        const executionUnit = sourceExecutionPositionByElementId.get(element.id) ?? statementInfoByElementId?.get(element.id)?.statementIndex;
+        if (executionUnit === undefined) {
+          throw new Error(`buildRustBindingMutationPayload: no compiled execution unit for ${element.id}`);
+        }
+        return { elementId: element.id, executionUnit };
+      })
+    : undefined;
   return {
     versions: graph.versions.map(versionPayload),
     conditionalOwners: buildConditionalMutationOwners(
@@ -77,6 +96,7 @@ export const buildRustBindingMutationPayload = (
       iterationBindingId: `binding:iteration:${owner.ownerStatementId}`
     })),
     elementSourceOrders,
+    ...(elementSourceExecutionUnits ? { elementSourceExecutionUnits } : {}),
     ...(graph.evaluationLimitSourceOrder === undefined
       ? {}
       : { evaluationLimitSourceOrder: graph.evaluationLimitSourceOrder })
