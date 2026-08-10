@@ -60,6 +60,8 @@ export type EvaluateElementsOptions = {
   statementInfoByElementId?: ReadonlyMap<ElementId, { statementIndex: number }>;
   /** Task 5 runtime-only source execution positions for materialized module elements. */
   sourceExecutionPositionByElementId?: ReadonlyMap<ElementId, number>;
+  /** Inner scalar execution order for materialized module occurrences. */
+  scalarExecutionPositionByElementId?: ReadonlyMap<ElementId, number>;
   statementIdByStatementIndex?: ReadonlyMap<number, string>;
   /** Task 33's completed static join from conditional element id to owner statement id. */
   conditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
@@ -182,8 +184,10 @@ export const evaluateElements = (
   // Built whenever a scalarProgram is present, independent of whether any
   // property bindings exist - computedScalarBindings is Task 21's own
   // contract and must not depend on Task 23's property wiring.
-  const linearMutationEnabled = options.bindingVersions !== undefined && hasSetVersions(options.bindingVersions);
-  if (linearMutationEnabled && !options.statementInfoByElementId && !options.sourceExecutionPositionByElementId) {
+  const linearMutationEnabled = options.bindingVersions !== undefined &&
+    (hasSetVersions(options.bindingVersions) || options.bindingVersions.requiresExecutionOrdering === true);
+  if (linearMutationEnabled && !options.statementInfoByElementId &&
+    !options.sourceExecutionPositionByElementId && !options.scalarExecutionPositionByElementId) {
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
   const linearMutationResolver = linearMutationEnabled
@@ -227,7 +231,9 @@ export const evaluateElements = (
     if (!linearMutationEnabled) return;
     const sourceId = (sourceElement ?? element).id;
     const statement = options.statementInfoByElementId?.get(sourceId);
-    const sourceOrder = statement?.statementIndex ?? options.sourceExecutionPositionByElementId?.get(element.id);
+    const sourceOrder = options.scalarExecutionPositionByElementId?.get(sourceId) ??
+      options.scalarExecutionPositionByElementId?.get(element.id) ??
+      statement?.statementIndex ?? options.sourceExecutionPositionByElementId?.get(element.id);
     if (sourceOrder === undefined) {
       throw new Error(
         `evaluateElements: no compiled source execution position for ${sourceId}`

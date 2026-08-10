@@ -41,6 +41,11 @@ const CONTROL_BOOLEAN_PROPERTY_TARGETS: Readonly<Partial<Record<CadElementType, 
 export type ControlBooleanRuntimeSource = {
   propertyBindings: ReadonlyMap<string, ScalarValueSource>;
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  materializedPropertyBindings?: readonly {
+    elementId: ElementId;
+    parameterKey: string;
+    source: ScalarValueSource;
+  }[];
 };
 
 /** Re-keys Task 25's compiled `conditionalGroupConditions` (statementIndex-
@@ -83,6 +88,19 @@ export const buildControlBooleanRuntimeEntries = (
       if (!expectedType) continue;
       entries.push({ elementId, parameterKey, bindingId: value.bindingId, expectedType });
     }
+  }
+
+  for (const occurrence of source.materializedPropertyBindings ?? []) {
+    const element = elementsById.get(occurrence.elementId);
+    if (!element || !CONTROL_BOOLEAN_PROPERTY_TARGETS[element.type]?.includes(occurrence.parameterKey)) continue;
+    const expectedType = findParameterDefinition(element, occurrence.parameterKey)?.propertyCapability?.propertyType;
+    if (!expectedType || occurrence.source.kind !== "binding") continue;
+    entries.push({
+      elementId: occurrence.elementId,
+      parameterKey: occurrence.parameterKey,
+      bindingId: occurrence.source.bindingId,
+      expectedType
+    });
   }
 
   return entries;

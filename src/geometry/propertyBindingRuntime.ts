@@ -53,6 +53,11 @@ export type PropertyBindingRuntimeEntry = {
 export type PropertyBindingRuntimeSource = {
   propertyBindings: ReadonlyMap<string, ScalarValueSource>;
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  materializedPropertyBindings?: readonly {
+    elementId: ElementId;
+    parameterKey: string;
+    source: ScalarValueSource;
+  }[];
 };
 
 /**
@@ -82,6 +87,22 @@ export const buildPropertyBindingRuntimeEntries = (
       if (!expectedType) continue;
       entries.push({ elementId, parameterKey, bindingId: value.bindingId, expectedType });
     }
+  }
+
+  for (const occurrence of source.materializedPropertyBindings ?? []) {
+    const element = elementsById.get(occurrence.elementId);
+    if (!element) continue;
+    const parameterKeys = STANDARD_PROPERTY_TARGETS[element.type];
+    if (!parameterKeys?.includes(occurrence.parameterKey)) continue;
+    const expectedType = findParameterDefinition(element, occurrence.parameterKey)?.propertyCapability?.propertyType;
+    const value = occurrence.source;
+    if (!expectedType || value.kind !== "binding") continue;
+    entries.push({
+      elementId: occurrence.elementId,
+      parameterKey: occurrence.parameterKey,
+      bindingId: value.bindingId,
+      expectedType
+    });
   }
 
   return entries;

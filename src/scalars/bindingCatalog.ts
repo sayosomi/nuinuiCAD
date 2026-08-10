@@ -15,16 +15,18 @@ export type BindingVisibility =
 
 export type BindingSeed = {
   id: BindingId;
-  kind: Exclude<BindingKind, "typed">;
+  kind: BindingKind;
   name: string;
   nameSpan: DslSpan | null;
   statementIndex: number;
   /** Canonical tie-breaker for multiple adapter seeds on one statement. */
   sourceOrder: number;
   effectiveScopeId: ScopeId;
-  visibility: Exclude<BindingVisibility, { kind: "typed" }>;
+  visibility: BindingVisibility;
   mutability?: BindingMutability;
   declaredType?: ScalarType | null;
+  /** Explicit declaration-version identity for non-document bindings. */
+  declarationVersionId?: string;
 };
 
 export type Binding = {
@@ -39,12 +41,16 @@ export type Binding = {
   declaredType: ScalarType | null;
   /** Position in the canonical catalog; all downstream ordering uses this. */
   rank: number;
+  /** Optional stable declaration-version identity for synthetic bindings. */
+  declarationVersionId?: string;
 };
 
 export type BuildBindingCatalogInput = {
   scopeIndex: LexicalScopeIndex;
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   iterationBindings?: readonly BindingSeed[];
+  /** Additional already-resolved typed bindings, such as module instances. */
+  additionalBindings?: readonly BindingSeed[];
   containerIndex?: CadContainerIndex;
 };
 
@@ -92,6 +98,7 @@ export const buildBindingCatalog = ({
   scopeIndex,
   stableStatementIdByIndex,
   iterationBindings = [],
+  additionalBindings = [],
   containerIndex = emptyContainerIndex
 }: BuildBindingCatalogInput): BindingCatalog => {
   const statementCount = scopeIndex.statementRankByIndex.size;
@@ -117,6 +124,7 @@ export const buildBindingCatalog = ({
     });
   }
   for (const seed of iterationBindings) {
+    if (seed.kind !== "iteration") throw new Error(`bindingCatalog: iterationBindings must contain iteration seeds`);
     if (!Number.isInteger(seed.sourceOrder) || seed.sourceOrder < 0) throw new Error(`bindingCatalog: invalid sourceOrder for ${seed.id}`);
     enqueue({ ...seed, mutability: seed.mutability ?? "readonly", declaredType: seed.declaredType ?? null });
   }
@@ -133,6 +141,22 @@ export const buildBindingCatalog = ({
         bindings.push({ ...slot[0], rank: bindings.length });
       }
     }
+  }
+
+  // Synthetic module bindings have no entry in the document-only scope
+  // index. They are already ordered by the module execution planner and are
+  // appended as an explicit catalog lane; no source name lookup uses them.
+  for (const seed of additionalBindings) {
+    if (seed.kind !== "typed") throw new Error(`bindingCatalog: additionalBindings must contain typed seeds`);
+    if (!Number.isInteger(seed.sourceOrder) || seed.sourceOrder < 0) throw new Error(`bindingCatalog: invalid sourceOrder for ${seed.id}`);
+    bindings.push({
+      ...seed,
+      mutability: seed.mutability ?? "const",
+      declaredType: seed.declaredType ?? null,
+      visibility: seed.visibility,
+      rank: bindings.length,
+      ...(seed.declarationVersionId ? { declarationVersionId: seed.declarationVersionId } : {})
+    });
   }
 
   const bindingsById = new Map<BindingId, Binding>();

@@ -1,0 +1,274 @@
+import { describe, expect, it } from "vitest";
+import { reconcileStatements } from "../document/statementReconciler";
+import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
+import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
+import { buildTextPropertyBindingRuntimeEntries } from "../geometry/textTemplateRuntime";
+import { evaluateElements } from "../geometry/evaluate";
+import { compileDslDocument } from "./dslDocument";
+import { parseDsl } from "./dslParser";
+
+const compileWithIds = (source: string, prefix = "task6") => {
+  const parsed = parseDsl(source);
+  return compileDslDocument(source, {
+    preparsed: parsed,
+    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `${prefix}:${index}`] as const))
+  });
+};
+
+const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
+  if (!compiled.document || !compiled.statementMap) throw new Error("expected a compiled document");
+  const elements = compiled.document.elements;
+  return evaluateElements(elements, {
+    evaluationLimitIndex: compiled.document.evaluationLimitIndex,
+    scalarProgram: compiled.scalarProgram,
+    bindingVersions: compiled.bindingVersions,
+    statementInfoByElementId: compiled.statementMap.byElementId,
+    statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
+    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
+    scalarExecutionPositionByElementId: compiled.scalarExecutionPositionByRuntimeElementId,
+    propertyBindingEntries: compiled.scalarProgram && compiled.propertyBindings
+      ? buildPropertyBindingRuntimeEntries({
+          propertyBindings: compiled.propertyBindings,
+          elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex,
+          materializedPropertyBindings: compiled.materializedPropertyBindings
+        }, elements)
+      : undefined,
+    numericBindingEntries: compiled.scalarProgram
+      ? buildNumericBindingRuntimeEntries({
+          numericBindings: compiled.numericBindings ?? new Map(),
+          elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex,
+          materializedNumericBindings: compiled.materializedNumericBindings
+        }, elements)
+      : undefined
+    ,textPropertyBindingEntries: compiled.scalarProgram
+      ? buildTextPropertyBindingRuntimeEntries({
+          propertyBindings: compiled.propertyBindings ?? new Map(),
+          elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex,
+          materializedPropertyBindings: compiled.materializedPropertyBindings
+        }, elements)
+      : undefined
+  });
+};
+
+const elementNamed = (compiled: ReturnType<typeof compileWithIds>, name: string) => {
+  const element = compiled.document?.elements.find((candidate) => candidate.name === name);
+  if (!element) throw new Error(`missing element ${name}`);
+  return element;
+};
+
+const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
+  expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  expect(compiled.document).not.toBeNull();
+};
+
+describe("module scalar runtime integration", () => {
+  it("materializes parameter and local numeric bindings independently for repeated instances", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(width: number) {",
+      "  const doubled: number = @width + 1",
+      "  point P = coordinate(x: @doubled, y: 0)",
+      "}",
+      "module A = M(width: 10)",
+      "module B = M(width: 20)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ kind: "point" });
+    const points = compiled.document!.elements
+      .filter((element) => element.name === "P")
+      .map((element) => result.computedGeometry.get(element.id));
+    expect(points).toEqual([
+      expect.objectContaining({ kind: "point", x: 11, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 21, y: 0 })
+    ]);
+
+    const moduleBindings = compiled.bindingAnalysis!.catalog.bindings.filter((binding) => binding.id.startsWith("module-binding:"));
+    expect(moduleBindings).toHaveLength(4);
+    expect(new Set(moduleBindings.map((binding) => binding.id)).size).toBe(4);
+  });
+
+  it("uses a default scalar parameter and connects a materialized choice property", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(side: choice(right, left) = left) {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
+      "  line AB = segment(start: A, end: B)",
+      "  line Off = offset(sources: [AB], distance: 5, side: @side, closed: false, suppressTrimWarnings: false)",
+      "}",
+      "module Instance = M()"
+    ].join("\n"));
+    expectValid(compiled);
+    expect(compiled.materializedPropertyBindings).toHaveLength(1);
+
+    const result = evaluateCompiled(compiled);
+    const offset = elementNamed(compiled, "Off");
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(offset.id)).toBeDefined();
+  });
+
+  it("evaluates instance-local let/set chains in body source order", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(value: number) {",
+      "  let local: number = @value",
+      "  point Before = coordinate(x: @local, y: 0)",
+      "  set local = @local + 1",
+      "  point After = coordinate(x: @local, y: 0)",
+      "}",
+      "module A = M(value: 10)",
+      "module B = M(value: 20)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "Before").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ x: 10 }),
+      expect.objectContaining({ x: 20 })
+    ]);
+    expect(compiled.document!.elements.filter((element) => element.name === "After").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ x: 11 }),
+      expect.objectContaining({ x: 21 })
+    ]);
+    expect(compiled.bindingVersions?.versions.filter((version) => version.kind === "set")).toHaveLength(2);
+  });
+
+  it("connects a materialized string property through the text binding runtime", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(label: string) {",
+      "  text T = label(text: @label, anchor: none, size: 3)",
+      "}",
+      'module A = M(label: "A")',
+      'module B = M(label: "B")'
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "T").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ kind: "text", text: "A" }),
+      expect.objectContaining({ kind: "text", text: "B" })
+    ]);
+  });
+
+  it("captures caller scalar state at each call position", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "let value: number = 1",
+      "module M(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "module First = M(width: @value)",
+      "set value = 10",
+      "module Second = M(width: @value)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "P").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ x: 1 }),
+      expect.objectContaining({ x: 10 })
+    ]);
+  });
+
+  it("keeps nested module instances independent and stops at the outer call boundary", () => {
+    const source = [
+      "nui 3",
+      "module Inner(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "module Outer(width: number) {",
+      "  module Nested = Inner(width: @width)",
+      "}",
+      "module First = Outer(width: 3)",
+      "@stop",
+      "module Second = Outer(width: 7)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    const points = compiled.document!.elements.filter((element) => element.name === "P");
+    expect(points).toHaveLength(2);
+    expect(result.computedGeometry.get(points[0].id)).toMatchObject({ x: 3 });
+    expect(result.computedGeometry.has(points[1].id)).toBe(false);
+    expect(compiled.bindingVersions?.requiresExecutionOrdering).toBe(true);
+  });
+
+  it("lowers an outer module local directly into a nested call argument", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Inner(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "module Outer(width: number) {",
+      "  let local: number = @width + 2",
+      "  module Nested = Inner(width: @local)",
+      "}",
+      "module First = Outer(width: 3)",
+      "module Second = Outer(width: 7)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "P").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ x: 5 }),
+      expect.objectContaining({ x: 9 })
+    ]);
+  });
+
+  it("preserves module binding identities through a reconciled body edit", () => {
+    const beforeSource = [
+      "nui 3",
+      "module M(width: number) {",
+      "  let local: number = @width",
+      "  set local = @local + 1",
+      "  point P = coordinate(x: @local, y: 0)",
+      "}",
+      "module Instance = M(width: 10)"
+    ].join("\n");
+    const before = compileWithIds(beforeSource, "stable");
+    expectValid(before);
+    const parsed = parseDsl(beforeSource.replace("+ 1", "+ 2"));
+    const reconciled = reconcileStatements({
+      oldStatements: before.statements,
+      oldLines: before.sourceLines,
+      oldElementIds: before.statementMap!.elementIdByStatementIndex,
+      oldStatementIds: before.statementMap!.statementIdByStatementIndex,
+      newStatements: parsed.statements,
+      newLines: beforeSource.replace("+ 1", "+ 2").split("\n")
+    });
+    const after = compileDslDocument(beforeSource.replace("+ 1", "+ 2"), {
+      preparsed: parsed,
+      assignedStatementIds: reconciled.assignedIds
+    });
+    expectValid(after);
+
+    const beforeIds = before.bindingAnalysis!.catalog.bindings
+      .filter((binding) => binding.id.startsWith("module-binding:"))
+      .map((binding) => binding.id);
+    const afterIds = after.bindingAnalysis!.catalog.bindings
+      .filter((binding) => binding.id.startsWith("module-binding:"))
+      .map((binding) => binding.id);
+    expect(afterIds).toEqual(beforeIds);
+    expect(after.bindingVersions?.versions.filter((version) => version.kind === "set").map((version) => version.id)).toEqual(
+      before.bindingVersions?.versions.filter((version) => version.kind === "set").map((version) => version.id)
+    );
+  });
+});

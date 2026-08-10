@@ -58,13 +58,15 @@ export const buildRustBindingMutationPayload = (
   elements: readonly CadElement[],
   statementInfoByElementId: ReadonlyMap<ElementId, StatementInfo> | undefined,
   statementIdByStatementIndex: ReadonlyMap<number, string> | undefined,
-  sourceExecutionPositionByElementId?: ReadonlyMap<ElementId, number>
+  sourceExecutionPositionByElementId?: ReadonlyMap<ElementId, number>,
+  scalarExecutionPositionByElementId?: ReadonlyMap<ElementId, number>
 ): RustBindingMutationPayload => {
-  if (!statementInfoByElementId && !sourceExecutionPositionByElementId) {
+  if (!statementInfoByElementId && !sourceExecutionPositionByElementId && !scalarExecutionPositionByElementId) {
     throw new Error("buildRustBindingMutationPayload: missing compiled source execution positions");
   }
   const elementSourceOrders = elements.map((element) => {
-    const sourceExecutionPosition = sourceExecutionPositionByElementId?.get(element.id);
+    const sourceExecutionPosition = scalarExecutionPositionByElementId?.get(element.id) ??
+      statementInfoByElementId?.get(element.id)?.statementIndex ?? sourceExecutionPositionByElementId?.get(element.id);
     const statement = statementInfoByElementId?.get(element.id);
     const sourceOrder = sourceExecutionPosition ?? statement?.statementIndex;
     if (sourceOrder === undefined) {

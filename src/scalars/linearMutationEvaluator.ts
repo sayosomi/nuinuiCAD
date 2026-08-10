@@ -84,7 +84,8 @@ export const hasSetVersions = (graph: BindingVersionGraph): boolean => graph.ver
  * compiled element-owner metadata is canonical before it sends the graph to
  * Rust. This helper deliberately says nothing about that payload join.
  */
-export const isRustLinearMutationEligible = (graph: BindingVersionGraph): boolean => hasSetVersions(graph) &&
+export const isRustLinearMutationEligible = (graph: BindingVersionGraph): boolean =>
+  (hasSetVersions(graph) || graph.requiresExecutionOrdering === true) &&
   graph.versions.every((version) => version.control.ownerChain.every((owner) =>
     owner.kind === "conditionalBranch" || owner.kind === "forGroup"
   ));

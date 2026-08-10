@@ -135,6 +135,8 @@ export const AppLayout = () => {
   const bindingVersions = useCadDocumentStore((state) => state.doc.bindingVersions);
   const propertyBindings = useCadDocumentStore((state) => state.doc.propertyBindings);
   const numericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
+  const materializedPropertyBindings = useCadDocumentStore((state) => state.doc.materializedPropertyBindings);
+  const materializedNumericBindings = useCadDocumentStore((state) => state.doc.materializedNumericBindings);
   const conditionalGroupConditions = useCadDocumentStore((state) => state.doc.conditionalGroupConditions);
   // Task 27: textTemplates is read the same way as the other compiled-
   // document fields above (last-good doc.textTemplates, keyed against the
@@ -147,6 +149,9 @@ export const AppLayout = () => {
   const canonicalElements = useCadDocumentStore((state) => state.doc.document.elements);
   const sourceExecutionPositionByElementId = useCadDocumentStore(
     (state) => state.doc.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId
+  );
+  const scalarExecutionPositionByElementId = useCadDocumentStore(
+    (state) => state.doc.scalarExecutionPositionByRuntimeElementId
   );
   const elementIdByStatementIndex = useCadDocumentStore((state) => state.doc.statementMap.elementIdByStatementIndex);
   const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap.byElementId);
@@ -196,23 +201,23 @@ export const AppLayout = () => {
   const propertyBindingEntries = useMemo(
     () =>
       scalarProgram && propertyBindings
-        ? buildPropertyBindingRuntimeEntries({ propertyBindings, elementIdByStatementIndex }, canonicalElements)
+        ? buildPropertyBindingRuntimeEntries({ propertyBindings, elementIdByStatementIndex, materializedPropertyBindings }, canonicalElements)
         : undefined,
-    [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
+    [scalarProgram, propertyBindings, materializedPropertyBindings, elementIdByStatementIndex, canonicalElements]
   );
   const controlBooleanEntries = useMemo(
     () =>
       scalarProgram && propertyBindings
-        ? buildControlBooleanRuntimeEntries({ propertyBindings, elementIdByStatementIndex }, canonicalElements)
+        ? buildControlBooleanRuntimeEntries({ propertyBindings, elementIdByStatementIndex, materializedPropertyBindings }, canonicalElements)
         : undefined,
-    [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
+    [scalarProgram, propertyBindings, materializedPropertyBindings, elementIdByStatementIndex, canonicalElements]
   );
   const numericBindingEntries = useMemo(
     () =>
       scalarProgram && numericBindings
-        ? buildNumericBindingRuntimeEntries({ numericBindings, elementIdByStatementIndex }, canonicalElements)
+        ? buildNumericBindingRuntimeEntries({ numericBindings, elementIdByStatementIndex, materializedNumericBindings }, canonicalElements)
         : undefined,
-    [scalarProgram, numericBindings, elementIdByStatementIndex, canonicalElements]
+    [scalarProgram, numericBindings, materializedNumericBindings, elementIdByStatementIndex, canonicalElements]
   );
   const conditionalGroupConditionsByElementId = useMemo(
     () =>
@@ -235,9 +240,9 @@ export const AppLayout = () => {
   const textPropertyBindingEntries = useMemo(
     () =>
       scalarProgram && propertyBindings
-        ? buildTextPropertyBindingRuntimeEntries({ propertyBindings, elementIdByStatementIndex }, canonicalElements)
+      ? buildTextPropertyBindingRuntimeEntries({ propertyBindings, elementIdByStatementIndex, materializedPropertyBindings }, canonicalElements)
         : undefined,
-    [scalarProgram, propertyBindings, elementIdByStatementIndex, canonicalElements]
+    [scalarProgram, propertyBindings, materializedPropertyBindings, elementIdByStatementIndex, canonicalElements]
   );
   const conditionalOwnerStatementIdByElementId = useMemo(
     () => bindingVersions
@@ -260,7 +265,7 @@ export const AppLayout = () => {
       evaluationLimitIndex,
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(bindingVersions ? {
-        bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, statementIdByStatementIndex,
+        bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, scalarExecutionPositionByElementId, statementIdByStatementIndex,
         conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId: forGroupMutationOwnersByElementId
       } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
@@ -276,6 +281,7 @@ export const AppLayout = () => {
       bindingVersions,
       statementInfoByElementId,
       sourceExecutionPositionByElementId,
+      scalarExecutionPositionByElementId,
       statementIdByStatementIndex,
       conditionalOwnerStatementIdByElementId,
       forGroupMutationOwnersByElementId,

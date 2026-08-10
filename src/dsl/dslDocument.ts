@@ -45,12 +45,17 @@ import {
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleMaterialization } from "./moduleMaterialization";
+import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarProgram, ScalarProgramPositionMap } from "../scalars/scalarProgram";
+import type {
+  MaterializedNumericBindingSource,
+  MaterializedPropertyBindingSource
+} from "../scalars/moduleScalarRuntime";
 import {
   documentDslRefs,
   flatRefs,
@@ -225,6 +230,11 @@ export type CompiledDslDocument = {
   moduleSemanticAnalysis?: ModuleSemanticAnalysis;
   /** Task 5 runtime expansion and source-origin mapping; never persisted as source. */
   moduleMaterialization?: ModuleMaterialization;
+  /** Source-derived scalar order for materialized runtime occurrences. */
+  scalarExecutionPositionByRuntimeElementId?: ReadonlyMap<ElementId, number>;
+  /** Direct materialized occurrences; runtime builders consume these without re-resolution. */
+  materializedPropertyBindings?: readonly MaterializedPropertyBindingSource[];
+  materializedNumericBindings?: readonly MaterializedNumericBindingSource[];
   /**
    * Task 48: `bindingAnalysis.issues` (duplicate-binding/binding-cycle/
    * self-initialization/undefined-binding/forward-binding-reference) adapted
@@ -1049,16 +1059,16 @@ export const compileDslDocument = (
         includeStatement
       })
     : { diagnostics: [] };
-  const scalarAnalysis = scalarAnalysisCompilation.analysis;
-  const scalarProgram = scalarAnalysis ? lowerScalarProgram(scalarAnalysis) : undefined;
+  const documentScalarAnalysis = scalarAnalysisCompilation.analysis;
+  const documentScalarProgram = documentScalarAnalysis ? lowerScalarProgram(documentScalarAnalysis) : undefined;
   const logicalTextByStatementIndex = new Map<number, string>();
   for (const [statementIndex, statement] of parsed.statements.entries()) {
     const logical = parsed.logicalStatementByRangeFrom.get(statement.documentRange.from);
     if (logical) logicalTextByStatementIndex.set(statementIndex, logical.logicalText);
   }
-  const documentScalarBindings = scalarAnalysis
+  const documentScalarBindings = documentScalarAnalysis
     ? new Map(
-        scalarAnalysis.bindingAnalysis.catalog.bindings
+        documentScalarAnalysis.bindingAnalysis.catalog.bindings
           .filter((binding) => binding.kind === "typed")
           .map((binding) => [
             binding.statementIndex,
@@ -1093,6 +1103,53 @@ export const compileDslDocument = (
       moduleSemanticAnalysis: moduleSemanticCompilation,
       majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
     });
+  }
+  let scalarAnalysis = documentScalarAnalysis;
+  let scalarProgram = documentScalarProgram;
+  let moduleScalarCompilation: ModuleScalarRuntimeCompilation | undefined;
+  if (
+    moduleSemanticCompilation &&
+    !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
+    compiled.moduleMaterialization &&
+    stableStatementIdByIndex
+  ) {
+    moduleScalarCompilation = compileModuleScalarRuntime({
+      statements: parsed.statements,
+      stableStatementIdByIndex,
+      moduleSemanticAnalysis: moduleSemanticCompilation,
+      moduleMaterialization: compiled.moduleMaterialization,
+      documentBindingAnalysis: documentScalarAnalysis?.bindingAnalysis,
+      documentScalarProgram,
+      reconciledContainers: {
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+        elements: compiled.elements
+      },
+      includeStatement,
+      elements: compiled.elements
+    });
+    const hasModuleScalarBindings = moduleScalarCompilation.bindingAnalysis.catalog.bindings.some((binding) =>
+      binding.id.startsWith("module-binding:")
+    );
+    if (documentScalarAnalysis || hasModuleScalarBindings) {
+      scalarAnalysis = documentScalarAnalysis
+        ? { ...documentScalarAnalysis, bindingAnalysis: moduleScalarCompilation.bindingAnalysis }
+        : {
+            bindingAnalysis: moduleScalarCompilation.bindingAnalysis,
+            typedInitializerByBindingId: new Map(),
+            positionMap: { sourceOrderByElementIndex: [] }
+          };
+      scalarProgram = moduleScalarCompilation.scalarProgram;
+    } else {
+      scalarAnalysis = undefined;
+      scalarProgram = undefined;
+    }
+    compiled = {
+      ...compiled,
+      moduleMaterialization: {
+        ...compiled.moduleMaterialization,
+        scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId
+      }
+    };
   }
   const allDiagnostics = [
     ...versionValidation.diagnostics,
@@ -1201,15 +1258,38 @@ export const compileDslDocument = (
   // It intentionally remains available for a recoverable invalid let: the
   // compiled document is still erroneous, but Task 31 needs the poisoned
   // version 0 and its validated recovery set chain without reparsing source.
-  const bindingVersions = scalarAnalysis && stableStatementIdByIndex
-    ? buildBindingVersionGraph({
-        scalarProgram: scalarProgram!,
-        bindingAnalysis: scalarAnalysis.bindingAnalysis,
-        setStatements: setStatementCompilation?.setsByStatementIndex,
-        controlByScopeId: buildBindingControlMetadata(
+  const bindingControlMetadata = scalarAnalysis && stableStatementIdByIndex
+    ? new Map([
+        ...buildBindingControlMetadata(
           scalarAnalysis.bindingAnalysis.catalog.scopeIndex,
-          stableStatementIdByIndex
-        )
+          stableStatementIdByIndex,
+          moduleScalarCompilation?.scalarExecutionPositionByStatementIndex
+        ),
+        ...(moduleScalarCompilation?.controlByScopeId ?? new Map())
+      ])
+    : undefined;
+  const documentSetStatements = setStatementCompilation?.setsByStatementIndex && moduleScalarCompilation
+    ? new Map(Array.from(setStatementCompilation.setsByStatementIndex, ([statementIndex, set]) => [
+        statementIndex,
+        {
+          ...set,
+          sourceOrder: moduleScalarCompilation.scalarExecutionPositionByStatementIndex.get(statementIndex) ?? set.sourceOrder
+        }
+      ] as const))
+    : setStatementCompilation?.setsByStatementIndex;
+  const allSetStatements = scalarAnalysis && stableStatementIdByIndex
+    ? new Map<number, SetStatementAnalysis>([
+        ...(documentSetStatements ?? new Map()),
+        ...(moduleScalarCompilation?.moduleSetStatements.map((set, index) => [-(index + 1), set] as const) ?? [])
+      ])
+    : undefined;
+  const bindingVersions = scalarAnalysis && stableStatementIdByIndex && scalarProgram && bindingControlMetadata
+    ? buildBindingVersionGraph({
+        scalarProgram,
+        bindingAnalysis: scalarAnalysis.bindingAnalysis,
+        setStatements: allSetStatements,
+        controlByScopeId: bindingControlMetadata,
+        requiresExecutionOrdering: moduleScalarCompilation !== undefined
       })
     : undefined;
   // This is intentionally built before the final diagnostic gate. It is a
@@ -1245,7 +1325,7 @@ export const compileDslDocument = (
       spans,
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
-      ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {}),
+      ...(documentScalarAnalysis ? { scalarProgramPositionMap: documentScalarAnalysis.positionMap } : {}),
       ...(numericBindingCompilation ? { numericBindings: numericBindingCompilation.sourcesByOccurrenceKey } : {}),
       ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
       ...(bindingVersions ? { bindingVersions } : {}),
@@ -1253,6 +1333,15 @@ export const compileDslDocument = (
       ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
       ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
       ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
+      ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
+        ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
+        : {}),
+      ...(moduleScalarCompilation?.materializedPropertyBindings.length
+        ? { materializedPropertyBindings: moduleScalarCompilation.materializedPropertyBindings }
+        : {}),
+      ...(moduleScalarCompilation?.materializedNumericBindings.length
+        ? { materializedNumericBindings: moduleScalarCompilation.materializedNumericBindings }
+        : {}),
       ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
     };
   }
@@ -1293,7 +1382,7 @@ export const compileDslDocument = (
     spans,
     ...(scalarProgram ? { scalarProgram } : {}),
     ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
-    ...(scalarAnalysis ? { scalarProgramPositionMap: scalarAnalysis.positionMap } : {}),
+    ...(documentScalarAnalysis ? { scalarProgramPositionMap: documentScalarAnalysis.positionMap } : {}),
     ...(propertyBindingCompilation
       ? {
           propertyBindings: propertyBindingCompilation.sourcesByOccurrenceKey,
@@ -1311,6 +1400,15 @@ export const compileDslDocument = (
     ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
     ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
     ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
+    ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
+      ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
+      : {}),
+    ...(moduleScalarCompilation?.materializedPropertyBindings.length
+      ? { materializedPropertyBindings: moduleScalarCompilation.materializedPropertyBindings }
+      : {}),
+    ...(moduleScalarCompilation?.materializedNumericBindings.length
+      ? { materializedNumericBindings: moduleScalarCompilation.materializedNumericBindings }
+      : {}),
     ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
   };
 };

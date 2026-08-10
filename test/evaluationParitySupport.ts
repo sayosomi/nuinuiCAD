@@ -27,6 +27,7 @@ export type EvaluationFixture = {
   bindingVersions?: BindingVersionGraph;
   statementInfoByElementId?: ReadonlyMap<string, { statementIndex: number }>;
   sourceExecutionPositionByElementId?: ReadonlyMap<string, number>;
+  scalarExecutionPositionByElementId?: ReadonlyMap<string, number>;
   statementIdByStatementIndex?: ReadonlyMap<number, string>;
   conditionalGroupConditions?: ReadonlyMap<string, TypedScalarExpression>;
   textTemplateEntriesByElementId?: ReadonlyMap<ElementId, TextTemplateAst>;
@@ -52,13 +53,21 @@ export const fixtureFromSource = (source: string): EvaluationFixture => {
   const doc = compiled.doc;
   const propertyBindingEntries = doc.scalarProgram && doc.propertyBindings
     ? buildPropertyBindingRuntimeEntries(
-        { propertyBindings: doc.propertyBindings, elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex },
+        {
+          propertyBindings: doc.propertyBindings,
+          elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex,
+          materializedPropertyBindings: doc.materializedPropertyBindings
+        },
         doc.document.elements
       )
     : undefined;
   const controlBooleanEntries = doc.scalarProgram && doc.propertyBindings
     ? buildControlBooleanRuntimeEntries(
-        { propertyBindings: doc.propertyBindings, elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex },
+      {
+        propertyBindings: doc.propertyBindings,
+        elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex,
+        materializedPropertyBindings: doc.materializedPropertyBindings
+      },
         doc.document.elements
       )
     : undefined;
@@ -69,14 +78,22 @@ export const fixtureFromSource = (source: string): EvaluationFixture => {
       })
     : undefined;
   const textPropertyBindingEntries = doc.scalarProgram && doc.propertyBindings
-    ? buildTextPropertyBindingRuntimeEntries(
-        { propertyBindings: doc.propertyBindings, elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex },
+      ? buildTextPropertyBindingRuntimeEntries(
+        {
+          propertyBindings: doc.propertyBindings,
+          elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex,
+          materializedPropertyBindings: doc.materializedPropertyBindings
+        },
         doc.document.elements
       )
     : undefined;
   const numericBindingEntries = doc.scalarProgram && doc.numericBindings
-    ? buildNumericBindingRuntimeEntries(
-        { numericBindings: doc.numericBindings, elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex },
+      ? buildNumericBindingRuntimeEntries(
+        {
+          numericBindings: doc.numericBindings,
+          elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex,
+          materializedNumericBindings: doc.materializedNumericBindings
+        },
         doc.document.elements
       )
     : undefined;
@@ -87,6 +104,7 @@ export const fixtureFromSource = (source: string): EvaluationFixture => {
     bindingVersions: doc.bindingVersions,
     statementInfoByElementId: doc.statementMap.byElementId,
     sourceExecutionPositionByElementId: doc.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
+    scalarExecutionPositionByElementId: doc.scalarExecutionPositionByRuntimeElementId,
     statementIdByStatementIndex: doc.statementMap.statementIdByStatementIndex,
     conditionalGroupConditions: doc.conditionalGroupConditions,
     ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
@@ -110,6 +128,7 @@ export const optionsFor = (fixture: EvaluationFixture): EvaluateElementsOptions 
     bindingVersions: fixture.bindingVersions,
     statementInfoByElementId: fixture.statementInfoByElementId,
     sourceExecutionPositionByElementId: fixture.sourceExecutionPositionByElementId,
+    scalarExecutionPositionByElementId: fixture.scalarExecutionPositionByElementId,
     statementIdByStatementIndex: fixture.statementIdByStatementIndex,
     conditionalOwnerStatementIdByElementId: conditionalOwnerIdByElementId(buildConditionalMutationOwners(
       fixture.bindingVersions, fixture.elements, fixture.statementInfoByElementId, fixture.statementIdByStatementIndex

@@ -51,6 +51,8 @@ export const SET_RHS_INVALID_REFERENCE_CODE = "set-rhs-invalid-reference";
 export type SetStatementAnalysis = {
   /** Reconciler-issued stable identity - Task 30's stable version-ID source. Never a fabricated/derived value. */
   statementId: string;
+  /** Instance-qualified version identity for materialized module sets. */
+  versionId?: string;
   /** statementIndex - matches ScalarProgramStatement's sourceOrder convention. */
   sourceOrder: number;
   /** Opaque lexical scope identity captured during Task 29 resolution. */
