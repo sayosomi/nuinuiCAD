@@ -42,6 +42,8 @@ import {
   buildSourceLexicalNamespaceIndex,
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
+import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
+import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
@@ -218,6 +220,8 @@ export type CompiledDslDocument = {
   typedDependencyGraph?: TypedDependencyGraph;
   /** Task 2 source-only lexical declarations, including inert module bodies. */
   sourceLexicalNamespace?: SourceLexicalNamespaceIndex;
+  /** Task 3 source-only module semantic result; never contains runtime geometry or instance IDs. */
+  moduleSemanticAnalysis?: ModuleSemanticAnalysis;
   /**
    * Task 48: `bindingAnalysis.issues` (duplicate-binding/binding-cycle/
    * self-initialization/undefined-binding/forward-binding-reference) adapted
@@ -1042,9 +1046,41 @@ export const compileDslDocument = (
         includeStatement
       })
     : { diagnostics: [] };
-  const allDiagnostics = [...baseDiagnostics, ...scalarAnalysisCompilation.diagnostics];
   const scalarAnalysis = scalarAnalysisCompilation.analysis;
   const scalarProgram = scalarAnalysis ? lowerScalarProgram(scalarAnalysis) : undefined;
+  const logicalTextByStatementIndex = new Map<number, string>();
+  for (const [statementIndex, statement] of parsed.statements.entries()) {
+    const logical = parsed.logicalStatementByRangeFrom.get(statement.documentRange.from);
+    if (logical) logicalTextByStatementIndex.set(statementIndex, logical.logicalText);
+  }
+  const documentScalarBindings = scalarAnalysis
+    ? new Map(
+        scalarAnalysis.bindingAnalysis.catalog.bindings
+          .filter((binding) => binding.kind === "typed")
+          .map((binding) => [
+            binding.statementIndex,
+            {
+              bindingId: binding.id,
+              statementId: stableStatementIdByIndex!.get(binding.statementIndex)!
+            }
+          ] as const)
+      )
+    : undefined;
+  const moduleSemanticCompilation = sourceLexicalNamespace && stableStatementIdByIndex && hasModuleStatements
+    ? analyzeModuleSemantics({
+        statements: parsed.statements,
+        stableStatementIdByIndex,
+        sourceNamespace: sourceLexicalNamespace,
+        spans,
+        logicalTextByStatementIndex,
+        documentScalarBindings
+      })
+    : undefined;
+  const allDiagnostics = [
+    ...baseDiagnostics,
+    ...scalarAnalysisCompilation.diagnostics,
+    ...(moduleSemanticCompilation?.diagnostics ?? [])
+  ];
   // Task 48: see CompiledDslDocument.bindingIssueDiagnostics for why this is
   // never concatenated into allDiagnostics/finalDiagnostics below.
   const bindingIssueDiagnostics = scalarAnalysis
@@ -1194,6 +1230,7 @@ export const compileDslDocument = (
       ...(bindingVersions ? { bindingVersions } : {}),
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
       ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
+      ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
       ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
     };
   }
@@ -1250,6 +1287,7 @@ export const compileDslDocument = (
     ...(bindingVersions ? { bindingVersions } : {}),
     ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
     ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
+    ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
     ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
   };
 };
