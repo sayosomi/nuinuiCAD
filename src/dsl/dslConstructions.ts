@@ -18,17 +18,26 @@ export type DslArgSpec = {
   special?: DslArgSpecial;
 };
 
+export const DSL_GEOMETRY_DECLARATION_CATEGORIES = [
+  "point",
+  "line",
+  "curve",
+  "arc",
+  "text",
+  "image",
+] as const;
+
+export type DslGeometryDeclarationCategory = typeof DSL_GEOMETRY_DECLARATION_CATEGORIES[number];
+
+export const DSL_CONTAINER_CATEGORIES = ["group", "if", "for"] as const;
+
 export type DslConstructionCategory =
-  | "point"
-  | "line"
-  | "curve"
-  | "arc"
-  | "text"
-  | "image"
-  | "group"
-  | "if"
-  | "for"
-  | "mutation";
+  | DslGeometryDeclarationCategory
+  | typeof DSL_CONTAINER_CATEGORIES[number]
+  | typeof MUTATION_CATEGORY;
+
+export const isGeometryDeclarationCategory = (category: string): category is DslGeometryDeclarationCategory =>
+  DSL_GEOMETRY_DECLARATION_CATEGORIES.some((candidate) => candidate === category);
 
 /**
  * The category for a bare mutation statement - a statement that rewrites an
@@ -38,7 +47,7 @@ export type DslConstructionCategory =
  * compiled element's name is always "" (see dslCallParser.ts's bare-call
  * branch and elementActivity.ts's elementTypesWithoutOwnDrawableGeometry).
  */
-export const MUTATION_CATEGORY = "mutation" satisfies DslConstructionCategory;
+export const MUTATION_CATEGORY = "mutation" as const;
 
 export type DslConstructionSpec = {
   category: DslConstructionCategory;

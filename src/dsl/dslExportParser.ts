@@ -1,5 +1,6 @@
 import type { DslCallParseResult, DslCallStatement, ParseDslCallOptions } from "./dslCallParser";
 import { parseDslCallStatement } from "./dslCallParser";
+import { isGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslSpan } from "./dslTypes";
 
 export type DslExportedGeometryParseResult = {
@@ -9,7 +10,6 @@ export type DslExportedGeometryParseResult = {
 
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 const whitespace = /\s/;
-const exportedGeometryCategories = new Set(["point", "line", "curve", "arc", "text", "image"]);
 
 const trimSpan = (source: string, start: number, end: number): DslSpan => {
   while (start < end && whitespace.test(source[start])) start += 1;
@@ -48,7 +48,7 @@ export const parseDslExportedGeometryStatement = (
   const exportSpan = { start: 0, end: "export".length };
   const afterExport = trimSpan(logicalText, exportSpan.end, logicalText.length);
   const category = logicalText.slice(afterExport.start).match(identifier)?.[0] ?? "";
-  if (!exportedGeometryCategories.has(category)) {
+  if (!isGeometryDeclarationCategory(category)) {
     return {
       exportSpan,
       call: {

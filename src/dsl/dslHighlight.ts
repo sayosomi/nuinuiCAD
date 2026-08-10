@@ -1,4 +1,4 @@
-import { constructionCandidatesFor, type DslConstructionCategory } from "./dslConstructions";
+import { constructionCandidatesFor, isGeometryDeclarationCategory } from "./dslConstructions";
 import { dslStatementKeywords } from "./dslParser";
 import type { DslHighlightLine, DslHighlightToken, DslTokenKind } from "./dslTypes";
 
@@ -8,10 +8,6 @@ import type { DslHighlightLine, DslHighlightToken, DslTokenKind } from "./dslTyp
 const keywords = new Set<string>(Object.values(dslStatementKeywords));
 
 const stopKeyword = "@stop";
-
-const constructionCategories = new Set<DslConstructionCategory>([
-  "point", "line", "curve", "arc", "text", "image"
-]);
 
 // Task 51: `@name` and the pre-migration bare `Element.property` collapse
 // into one `@?name(.property)?` shape here (matching
@@ -55,8 +51,8 @@ const headKeywordSpan = (code: string) => {
 
 const constructionSpan = (code: string, head: { start: number; end: number } | null) => {
   if (!head) return null;
-  const category = code.slice(head.start, head.end) as DslConstructionCategory;
-  if (!constructionCategories.has(category)) return null;
+  const category = code.slice(head.start, head.end);
+  if (!isGeometryDeclarationCategory(category)) return null;
   const match = code.slice(head.end).match(/=\s*([A-Za-z_][\w-]*)/);
   if (!match) return null;
   const construction = match[1];
