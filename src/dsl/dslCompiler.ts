@@ -22,6 +22,8 @@ import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 import type { DslMajorVersion } from "./dslVersion";
+import { materializeModuleExecution } from "./moduleMaterialization";
+import { compileMaterializedExecution } from "./moduleExecutionCompiler";
 import {
   placeAngleAttrKey,
   placeAtAttrKey,
@@ -103,7 +105,7 @@ const constructionSpecFor = (statement: DslStatement): DslConstructionSpec | nul
   return null;
 };
 
-const applyStatement = (
+export const applyStatement = (
   element: CadElement,
   statement: DslStatement,
   index: NameIndex,
@@ -189,7 +191,7 @@ const applyPaletteStatements = ({
   };
 };
 
-const applyVisibilitySettings = ({
+export const applyVisibilitySettings = ({
   statements,
   context,
   diagnostics,
@@ -305,7 +307,7 @@ const applyVisibilitySettings = ({
   };
 };
 
-const buildBlockPrintLayouts = ({
+export const buildBlockPrintLayouts = ({
   statements,
   layouts,
   elements,
@@ -456,6 +458,24 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     includeStatement
   });
   const documentMode = context.mode === "document";
+  if (documentMode && context.moduleSemanticAnalysis && context.stableStatementIdByIndex) {
+    const moduleMaterialization = materializeModuleExecution({
+      statements: parsed.statements,
+      stableStatementIdByIndex: context.stableStatementIdByIndex,
+      assignedElementIds: context.assignedElementIds ?? new Map(),
+      moduleSemanticAnalysis: context.moduleSemanticAnalysis
+    });
+    return compileMaterializedExecution({
+      statements: parsed.statements,
+      context,
+      diagnostics,
+      visibilitySettings,
+      printLayoutIdsByStatementIndex,
+      materialization: moduleMaterialization,
+      applyStatement,
+      buildBlockPrintLayouts
+    });
+  }
   const existing = documentMode ? [] : context.elements;
   const statementIndexOf = new Map<DslStatement, number>(
     parsed.statements.map((statement, index) => [statement, index])

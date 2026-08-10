@@ -9,6 +9,8 @@ import type {
 } from "../types/geometry";
 import type { DocumentRange, DslPhysicalSpan, LogicalStatement, LogicalStatementSourceMap, SourceRevision } from "./logicalStatementSourceMap";
 import type { DslMajorVersion } from "./dslVersion";
+import type { ModuleMaterialization } from "./moduleMaterialization";
+import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
@@ -240,6 +242,10 @@ export type CompileDslContext = {
    * 再コンパイルへ引き渡すための注入口。`id=` 属性 > 本マップ > 新規生成 の優先順。
    */
   assignedElementIds?: ReadonlyMap<number, ElementId>;
+  /** Task 5 materialization input; only the document facade supplies this. */
+  moduleSemanticAnalysis?: ModuleSemanticAnalysis;
+  /** Reconciler-owned source identities used to derive materialized runtime IDs. */
+  stableStatementIdByIndex?: ReadonlyMap<number, string>;
 };
 
 export type CompileDslResult = {
@@ -259,6 +265,8 @@ export type CompileDslResult = {
   elementIdsByStatementIndex?: Map<number, ElementId>;
   /** printLayout文のindex(全文配列基準)→ 解決後の PrintLayout.id。 */
   printLayoutIdsByStatementIndex?: Map<number, string>;
+  /** Runtime-only module expansion and source-origin mapping. */
+  moduleMaterialization?: ModuleMaterialization;
 };
 
 export type SerializeDslOptions = {

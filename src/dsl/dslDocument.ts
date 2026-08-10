@@ -44,6 +44,7 @@ import {
 } from "./sourceLexicalNamespaceIndex";
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
+import type { ModuleMaterialization } from "./moduleMaterialization";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
@@ -222,6 +223,8 @@ export type CompiledDslDocument = {
   sourceLexicalNamespace?: SourceLexicalNamespaceIndex;
   /** Task 3 source-only module semantic result; never contains runtime geometry or instance IDs. */
   moduleSemanticAnalysis?: ModuleSemanticAnalysis;
+  /** Task 5 runtime expansion and source-origin mapping; never persisted as source. */
+  moduleMaterialization?: ModuleMaterialization;
   /**
    * Task 48: `bindingAnalysis.issues` (duplicate-binding/binding-cycle/
    * self-initialization/undefined-binding/forward-binding-reference) adapted
@@ -936,7 +939,7 @@ export const compileDslDocument = (
   const versionValidation = validateVersionStatements(parsed.statements, includeStatement);
   const printLayoutPlacementDiagnostics = validatePrintLayoutPlacement(parsed.statements, includeStatement);
 
-  const compiled = compileDslToElements(normalized, {
+  let compiled = compileDslToElements(normalized, {
     elements: [],
     mode: "document",
     preparsed: parsed,
@@ -1076,8 +1079,26 @@ export const compileDslDocument = (
         documentScalarBindings
       })
     : undefined;
+  if (
+    moduleSemanticCompilation &&
+    !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
+    stableStatementIdByIndex
+  ) {
+    compiled = compileDslToElements(normalized, {
+      elements: [],
+      mode: "document",
+      preparsed: parsed,
+      assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds ?? compiled.elementIdsByStatementIndex,
+      stableStatementIdByIndex,
+      moduleSemanticAnalysis: moduleSemanticCompilation,
+      majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
+    });
+  }
   const allDiagnostics = [
-    ...baseDiagnostics,
+    ...versionValidation.diagnostics,
+    ...printLayoutPlacementDiagnostics,
+    ...compiled.diagnostics,
+    ...(sourceLexicalNamespace?.diagnostics ?? []),
     ...scalarAnalysisCompilation.diagnostics,
     ...(moduleSemanticCompilation?.diagnostics ?? [])
   ];
@@ -1231,6 +1252,7 @@ export const compileDslDocument = (
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
       ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
       ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
+      ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
       ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
     };
   }
@@ -1288,6 +1310,7 @@ export const compileDslDocument = (
     ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
     ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
     ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
+    ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
     ...(bindingIssueDiagnostics.length > 0 ? { bindingIssueDiagnostics } : {})
   };
 };
