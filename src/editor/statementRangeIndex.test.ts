@@ -235,6 +235,37 @@ describe("module definition fold range mapping", () => {
     expect(mapped.foldFrom).toBe(original.foldFrom);
     expect(mapped.foldTo).toBeGreaterThan(original.foldTo);
   });
+
+  it("maps parameter folds through interior edits and drops them on delimiter edits", () => {
+    const multilineSource = [
+      "nui 3",
+      "module M(",
+      "  a: number,",
+      "  b: number",
+      ") {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n");
+    const result = compiledWithStableIds(multilineSource);
+    const index = createModuleSemanticRangeIndex(result);
+    const definition = result.moduleSemanticAnalysis!.definitions[0]!;
+    const original = index.moduleDefinitionParameterFoldRanges!.get(definition.statementId)!;
+    const insertion = multilineSource.indexOf("  b: number");
+    const mapped = mapModuleSemanticRangeIndex(
+      index,
+      ChangeSet.of({ from: insertion, insert: "  # parameter interior\n" }, multilineSource.length)
+    );
+
+    expect(mapped.moduleDefinitionParameterFoldRanges!.get(definition.statementId)!.foldTo)
+      .toBeGreaterThan(original.foldTo);
+    const openParen = multilineSource.indexOf("(");
+    const dirty = mapModuleSemanticRangeIndex(
+      index,
+      ChangeSet.of({ from: openParen, to: openParen + 1, insert: "[" }, multilineSource.length)
+    );
+    expect(dirty.moduleDefinitionParameterFoldRanges?.size).toBe(0);
+    expect(dirty.moduleDefinitionFoldRanges?.has(definition.statementId)).toBe(true);
+  });
 });
 
 describe("printLayoutRangeIndex", () => {

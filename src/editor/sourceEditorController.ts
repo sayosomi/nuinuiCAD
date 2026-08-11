@@ -247,6 +247,8 @@ export class SourceEditorController implements SourceEditorHandle {
   private moduleSemanticRanges: ModuleSemanticRangeIndex = { tokens: [], declarationByTarget: new Map() };
   /** Source-only presentation state; never enters groupFoldById or hierarchy state. */
   private collapsedModuleDefinitionIds = new Set<StatementIdentity>();
+  /** Parameter-list folding is independent from module-body folding. */
+  private collapsedModuleDefinitionParameterIds = new Set<StatementIdentity>();
   /**
    * True only while `doc.bindingAnalysis`/`doc.setStatements` are proven to
    * describe the exact live CM buffer (i.e. a compile just landed and
@@ -1969,6 +1971,10 @@ export class SourceEditorController implements SourceEditorHandle {
     for (const statementId of this.collapsedModuleDefinitionIds) {
       if (!liveModuleDefinitionIds.has(statementId)) this.collapsedModuleDefinitionIds.delete(statementId);
     }
+    const liveModuleDefinitionParameterIds = new Set(this.moduleSemanticRanges.moduleDefinitionParameterFoldRanges?.keys() ?? []);
+    for (const statementId of this.collapsedModuleDefinitionParameterIds) {
+      if (!liveModuleDefinitionParameterIds.has(statementId)) this.collapsedModuleDefinitionParameterIds.delete(statementId);
+    }
     this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
     // doc.bindingAnalysis/doc.setStatements were just rebuilt from exactly this
     // live buffer's text - proven current until the next doc-changing transaction.
@@ -2199,7 +2205,11 @@ export class SourceEditorController implements SourceEditorHandle {
     const state = this.store.getState();
     const desired = [
       ...foldTargets(this.statementRanges, state.elements, this.uiStore.getState().groupFoldById),
-      ...moduleDefinitionFoldTargets(this.moduleSemanticRanges, this.collapsedModuleDefinitionIds)
+      ...moduleDefinitionFoldTargets(
+        this.moduleSemanticRanges,
+        this.collapsedModuleDefinitionIds,
+        this.collapsedModuleDefinitionParameterIds
+      )
     ]
       .sort((left, right) => left.from - right.from || right.to - left.to);
     const projection = foldProjectionTransaction(this.view.state, desired);
@@ -2229,7 +2239,8 @@ export class SourceEditorController implements SourceEditorHandle {
       else {
         const moduleTarget = moduleDefinitionFoldTargets(
           this.moduleSemanticRanges,
-          this.collapsedModuleDefinitionIds
+          this.collapsedModuleDefinitionIds,
+          this.collapsedModuleDefinitionParameterIds
         ).find((candidate) => candidate.from === position);
         if (moduleTarget) this.changeModuleDefinitionFold(moduleTarget, "unfold");
       }
@@ -2285,10 +2296,13 @@ export class SourceEditorController implements SourceEditorHandle {
     mode: "fold" | "unfold" | "toggle"
   ) {
     if (this.protocol.composing) return true;
-    const currentlyExpanded = !this.collapsedModuleDefinitionIds.has(target.statementId);
-    const expanded = mode === "toggle" ? !currentlyExpanded : mode === "unfold";
-    if (expanded) this.collapsedModuleDefinitionIds.delete(target.statementId);
-    else this.collapsedModuleDefinitionIds.add(target.statementId);
+    const collapsedIds = target.branch === "parameters"
+      ? this.collapsedModuleDefinitionParameterIds
+      : this.collapsedModuleDefinitionIds;
+    const branchCurrentlyExpanded = !collapsedIds.has(target.statementId);
+    const expanded = mode === "toggle" ? !branchCurrentlyExpanded : mode === "unfold";
+    if (expanded) collapsedIds.delete(target.statementId);
+    else collapsedIds.add(target.statementId);
     this.pendingFoldProjection = true;
     this.applyPendingUiSync();
     return true;
@@ -2300,6 +2314,11 @@ export class SourceEditorController implements SourceEditorHandle {
     for (const statementId of moduleTargets) {
       if (expanded) this.collapsedModuleDefinitionIds.delete(statementId);
       else this.collapsedModuleDefinitionIds.add(statementId);
+    }
+    const moduleParameterTargets = [...(this.moduleSemanticRanges.moduleDefinitionParameterFoldRanges?.keys() ?? [])];
+    for (const statementId of moduleParameterTargets) {
+      if (expanded) this.collapsedModuleDefinitionParameterIds.delete(statementId);
+      else this.collapsedModuleDefinitionParameterIds.add(statementId);
     }
     const targets = [...this.statementRanges.values()].flatMap((range) => range.foldTargets);
     this.uiStore.getState().setFoldTargetsExpanded(targets, expanded);

@@ -78,6 +78,12 @@ type ControllerInternals = {
       foldFrom: number;
       foldTo: number;
     }>;
+    moduleDefinitionParameterFoldRanges?: ReadonlyMap<string, {
+      statementId: string;
+      gutterLineFrom: number;
+      foldFrom: number;
+      foldTo: number;
+    }>;
   };
   view: {
     state: {
@@ -1363,6 +1369,43 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(foldedRanges(internals.view.state as never).size).toBe(2);
     expect(useCadUiStore.getState().groupFoldById.size).toBe(1);
     expect(useCadUiStore.getState().groupFoldById.has(definitionId)).toBe(false);
+    expect(internals.changeAllFolds(true)).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+  });
+
+  it("folds a multiline parameter list independently from the module body", () => {
+    const source = [
+      "nui 3",
+      "module M(",
+      "  a: number,",
+      "  b: number",
+      ") {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}",
+      "module I = M(a: 10, b: 20)"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const definitionId = useCadDocumentStore.getState().doc.moduleSemanticAnalysis!.definitions[0]!.statementId;
+    const body = internals.moduleSemanticRanges.moduleDefinitionFoldRanges!.get(definitionId)!;
+    const parameters = internals.moduleSemanticRanges.moduleDefinitionParameterFoldRanges!.get(definitionId)!;
+
+    expect(parameters.gutterLineFrom).toBeLessThan(body.gutterLineFrom);
+    internals.handleFoldGutterClick(parameters.gutterLineFrom, new MouseEvent("mousedown"));
+    expect(foldedRanges(internals.view.state as never).size).toBe(1);
+    expect(internals.view.state.doc.sliceString(parameters.gutterLineFrom, parameters.foldFrom)).toContain("module M(");
+
+    internals.handleFoldGutterClick(body.gutterLineFrom, new MouseEvent("mousedown"));
+    expect(foldedRanges(internals.view.state as never).size).toBe(2);
+    internals.handleFoldGutterClick(parameters.gutterLineFrom, new MouseEvent("mousedown"));
+    expect(foldedRanges(internals.view.state as never).size).toBe(1);
+
+    expect(internals.changeAllFolds(false)).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(2);
+    expect([...useCadUiStore.getState().groupFoldById]).toEqual([]);
     expect(internals.changeAllFolds(true)).toBe(true);
     expect(foldedRanges(internals.view.state as never).size).toBe(0);
     controller.destroy();

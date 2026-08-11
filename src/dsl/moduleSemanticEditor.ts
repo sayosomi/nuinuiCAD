@@ -31,6 +31,8 @@ export type ModuleSemanticToken = {
 
 export type ModuleSemanticStatementRange = { from: number; to: number };
 
+export type ModuleDefinitionFoldBranch = "body" | "parameters";
+
 /**
  * Source-only folding range for a compiled module definition. The stable
  * statement identity is deliberately separate from runtime ElementId state.
@@ -39,6 +41,7 @@ export type ModuleSemanticStatementRange = { from: number; to: number };
  */
 export type ModuleDefinitionFoldRange = {
   statementId: StatementIdentity;
+  branch: ModuleDefinitionFoldBranch;
   gutterLineFrom: number;
   foldFrom: number;
   foldTo: number;
@@ -73,6 +76,8 @@ export type ModuleSemanticRangeIndex = {
   moduleStructureStable?: boolean;
   /** Source-only fold ranges for module definitions, keyed by stable identity. */
   moduleDefinitionFoldRanges?: ReadonlyMap<StatementIdentity, ModuleDefinitionFoldRange>;
+  /** Source-only parameter-list fold ranges, keyed by the same stable identity. */
+  moduleDefinitionParameterFoldRanges?: ReadonlyMap<StatementIdentity, ModuleDefinitionFoldRange>;
 };
 
 export const moduleSemanticTargetKey = (target: ModuleSemanticTarget): string => {
@@ -154,6 +159,43 @@ const structuralBraceAnchor = (compiled: CompiledDslDocument, statement: Compile
   return { from: statement.documentRange.from, to: statement.documentRange.to };
 };
 
+const projectedSingleSegment = (compiled: CompiledDslDocument, statementIndex: number, span: DslSpan) => {
+  const physical = projectedSpan(compiled, statementIndex, span);
+  return physical?.segments.length === 1 ? physical.segments[0] : null;
+};
+
+const moduleDefinitionParameterFoldRange = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  statementId: StatementIdentity
+): ModuleDefinitionFoldRange | null => {
+  const statement = compiled.statements[statementIndex];
+  if (!statement || statement.kind !== "moduleDefinition" || statement.parameters.length === 0) return null;
+  const parameters = statement.payloadSpans.parameters;
+  const logical = compiled.spans.sourceMap.statements.find((candidate) => candidate.range.from === statement.documentRange.from);
+  if (
+    !parameters || !logical || !Number.isInteger(parameters.start) || !Number.isInteger(parameters.end) ||
+    parameters.start < 1 || parameters.end < parameters.start || parameters.end + 1 > logical.logicalText.length
+  ) return null;
+
+  const open = projectedSingleSegment(compiled, statementIndex, { start: parameters.start - 1, end: parameters.start });
+  const close = projectedSingleSegment(compiled, statementIndex, { start: parameters.end, end: parameters.end + 1 });
+  if (!open || !close) return null;
+  const source = compiled.spans.sourceMap.source;
+  if (source.slice(open.from, open.to) !== "(" || source.slice(close.from, close.to) !== ")") return null;
+  if (lineStartForPosition(source, open.from) === lineStartForPosition(source, close.from)) return null;
+  if (close.from <= open.to) return null;
+
+  return {
+    statementId,
+    branch: "parameters",
+    gutterLineFrom: lineStartForPosition(source, open.from),
+    foldFrom: open.to,
+    foldTo: close.from,
+    anchors: [open, close]
+  };
+};
+
 /** Build the editor view of the already-compiled module semantics. */
 export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): ModuleSemanticRangeIndex => {
   const analysis = compiled.moduleSemanticAnalysis;
@@ -162,6 +204,7 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
   const statementRanges = new Map<number, { from: number; to: number }>();
   const staleStatementRanges = new Map<number, { from: number; to: number }>();
   const moduleDefinitionFoldRanges = new Map<StatementIdentity, ModuleDefinitionFoldRange>();
+  const moduleDefinitionParameterFoldRanges = new Map<StatementIdentity, ModuleDefinitionFoldRange>();
   const statementAnchors = new Map<number, { from: number; to: number; scopeId: ScopeId }>();
   const lexicalScopeRanges: ModuleSemanticScopeRange[] = [];
   const moduleBodyScopeIds = new Set<ScopeId>();
@@ -171,6 +214,7 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     statementRanges,
     staleStatementRanges,
     moduleDefinitionFoldRanges,
+    moduleDefinitionParameterFoldRanges,
     statementAnchors,
     lexicalScopeRanges,
     moduleBodyScopeIds,
@@ -214,11 +258,14 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     if (closeAnchor.from <= openAnchor.to) continue;
     moduleDefinitionFoldRanges.set(definition.statementId, {
       statementId: definition.statementId,
+      branch: "body",
       gutterLineFrom: lineStartForPosition(source, openAnchor.from),
       foldFrom: openAnchor.to,
       foldTo: closeAnchor.from,
       anchors: [openAnchor, closeAnchor]
     });
+    const parameterRange = moduleDefinitionParameterFoldRange(compiled, statementIndex, definition.statementId);
+    if (parameterRange) moduleDefinitionParameterFoldRanges.set(definition.statementId, parameterRange);
   }
   const add = (statementIndex: number, span: DslSpan | null | undefined, target: ModuleSemanticTarget, declaration = false) => {
     if (!span) return;
@@ -321,7 +368,8 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     lexicalScopeRanges,
     moduleBodyScopeIds,
     moduleStructureStable: true,
-    moduleDefinitionFoldRanges
+    moduleDefinitionFoldRanges,
+    moduleDefinitionParameterFoldRanges
   };
 };
 

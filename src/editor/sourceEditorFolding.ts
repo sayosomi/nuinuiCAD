@@ -105,6 +105,7 @@ export const collapsedFoldTargetAtLine = (
 const moduleDefinitionFoldTarget = (range: ModuleDefinitionFoldRange): ModuleDefinitionFoldTarget => ({
   kind: "moduleDefinition",
   statementId: range.statementId,
+  branch: range.branch,
   gutterLineFrom: range.gutterLineFrom,
   from: range.foldFrom,
   to: range.foldTo,
@@ -113,16 +114,25 @@ const moduleDefinitionFoldTarget = (range: ModuleDefinitionFoldRange): ModuleDef
 
 export const moduleDefinitionFoldTargets = (
   ranges: ModuleSemanticRangeIndex,
-  collapsedStatementIds: ReadonlySet<StatementIdentity>
-): ModuleDefinitionFoldTarget[] => [...(ranges.moduleDefinitionFoldRanges ?? [])]
-  .filter(([statementId]) => collapsedStatementIds.has(statementId))
-  .map(([, range]) => moduleDefinitionFoldTarget(range));
+  collapsedStatementIds: ReadonlySet<StatementIdentity>,
+  collapsedParameterStatementIds: ReadonlySet<StatementIdentity> = new Set()
+): ModuleDefinitionFoldTarget[] => [
+  ...[...(ranges.moduleDefinitionFoldRanges ?? [])]
+    .filter(([statementId]) => collapsedStatementIds.has(statementId))
+    .map(([, range]) => moduleDefinitionFoldTarget(range)),
+  ...[...(ranges.moduleDefinitionParameterFoldRanges ?? [])]
+    .filter(([statementId]) => collapsedParameterStatementIds.has(statementId))
+    .map(([, range]) => moduleDefinitionFoldTarget(range))
+];
 
 export const moduleDefinitionFoldTargetAtLine = (
   ranges: ModuleSemanticRangeIndex,
   lineFrom: number
 ): ModuleDefinitionFoldTarget | null => {
   for (const range of ranges.moduleDefinitionFoldRanges?.values() ?? []) {
+    if (range.gutterLineFrom === lineFrom) return moduleDefinitionFoldTarget(range);
+  }
+  for (const range of ranges.moduleDefinitionParameterFoldRanges?.values() ?? []) {
     if (range.gutterLineFrom === lineFrom) return moduleDefinitionFoldTarget(range);
   }
   return null;

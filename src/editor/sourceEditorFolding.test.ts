@@ -187,4 +187,48 @@ describe("sourceEditorFolding module definitions", () => {
       expect(source.slice(range.gutterLineFrom, source.indexOf("\n", range.gutterLineFrom))).toContain("{");
     }
   });
+
+  it("creates an independent parameter-list target only for multiline non-empty lists", () => {
+    const source = [
+      "nui 3",
+      "module M(",
+      "  a: choice(通常, 反転),",
+      "  b: number",
+      ") {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module I = M(a: 通常, b: 10)"
+    ].join("\n");
+    const compiled = compileModule(source);
+    const definition = compiled.moduleSemanticAnalysis!.definitions[0]!;
+    const index = createModuleSemanticRangeIndex(compiled);
+    const body = index.moduleDefinitionFoldRanges!.get(definition.statementId)!;
+    const parameters = index.moduleDefinitionParameterFoldRanges!.get(definition.statementId)!;
+    const open = source.indexOf("(", source.indexOf("module M"));
+    const close = source.indexOf(") {", open);
+
+    expect(parameters).toMatchObject({
+      statementId: definition.statementId,
+      branch: "parameters",
+      gutterLineFrom: source.lastIndexOf("\n", open) + 1,
+      foldFrom: open + 1,
+      foldTo: close
+    });
+    expect(source.slice(parameters.anchors[0].from, parameters.anchors[0].to)).toBe("(");
+    expect(source.slice(parameters.anchors[1].from, parameters.anchors[1].to)).toBe(")");
+    expect(body.branch).toBe("body");
+    expect(moduleDefinitionFoldTargets(index, new Set(), new Set([definition.statementId]))).toEqual([
+      expect.objectContaining({ branch: "parameters", statementId: definition.statementId })
+    ]);
+
+    for (const singleLineSource of [
+      "nui 3\nmodule M(a: number, b: number) {\n}",
+      "nui 3\nmodule M() {\n}"
+    ]) {
+      const singleLine = compileModule(singleLineSource);
+      const singleDefinition = singleLine.moduleSemanticAnalysis!.definitions[0]!;
+      const singleIndex = createModuleSemanticRangeIndex(singleLine);
+      expect(singleIndex.moduleDefinitionParameterFoldRanges!.has(singleDefinition.statementId)).toBe(false);
+    }
+  });
 });
