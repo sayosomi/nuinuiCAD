@@ -1,14 +1,12 @@
-import { DSL_INDENT } from "../dsl/dslTokens";
-import { documentDslRefs } from "../dsl/dslSerializer";
-import { serializeElementStatementBlock, type SerializedStatement } from "../dsl/dslSerializeElement";
+import { argNameForParameter } from "../dsl/dslConstructions";
 import type { CompiledDslDocument, DslDocumentData, StatementInfo } from "../dsl/dslDocument";
 import type { DslStatement } from "../dsl/dslTypes";
-import {
-  sourceOwnerForRuntimeElementId,
-  type SourceOwner
-} from "../dsl/sourceOwnership";
+import { coordinateComponent } from "../dsl/dslParameterSpanScanner";
+import { formatDslName, quoteDslString } from "../dsl/dslTokens";
+import { getParameterValue } from "../parameters/parameterAccess";
+import { findParameterDefinition, getParameterDefinitions, type ParameterValueKind } from "../parameters/parameterDefinitions";
+import { sourceOwnerForRuntimeElementId, type SourceOwner } from "../dsl/sourceOwnership";
 import { applyLineSplices, buildTextPatch, UnappliedTextPatchError, type LineSplice } from "./textPatch";
-import { mergeStatementComments } from "./statementCommentMerge";
 import type { CanonicalDocumentValue } from "./canonicalDocument";
 import type { CadElement } from "../types/geometry";
 
@@ -19,21 +17,61 @@ export type ModuleModelBridgeResult =
 
 type ChangedElement = { before: CadElement; after: CadElement; owner: SourceOwner };
 type CharacterEdit = { from: number; to: number; replacement: string };
+type ParameterEditResult =
+  | { status: "ready"; edit: CharacterEdit }
+  | { status: "unapplied"; reason: string };
 
 const unapplied = (reason: string): ModuleModelBridgeResult => ({ status: "unapplied", reason });
 const statementUnapplied = (reason: string): { status: "unapplied"; reason: string } => ({ status: "unapplied", reason });
 
-const hasKeyForStatement = (map: ReadonlyMap<string, unknown> | undefined, statementIndex: number) => {
-  const prefix = `${statementIndex}:`;
-  return [...(map?.keys() ?? [])].some((key) => key.startsWith(prefix));
+const sameParameterValue = (left: unknown, right: unknown) =>
+  Object.is(left, right) || JSON.stringify(left) === JSON.stringify(right);
+
+const parameterKeysChanged = (before: CadElement, after: CadElement) => {
+  const keys = new Set([
+    ...getParameterDefinitions(before).map((definition) => definition.key),
+    ...getParameterDefinitions(after).map((definition) => definition.key),
+  ]);
+  return [...keys].filter((key) => !sameParameterValue(getParameterValue(before, key), getParameterValue(after, key)));
 };
 
-/** Source-owned scalar expressions have no reverse runtime serializer. */
-const hasSourceOwnedScalarValue = (compiled: CompiledDslDocument, statementIndex: number) =>
-  hasKeyForStatement(compiled.propertyBindings, statementIndex) ||
-  hasKeyForStatement(compiled.numericBindings, statementIndex) ||
-  hasKeyForStatement(compiled.conditionalGroupConditions, statementIndex) ||
-  hasKeyForStatement(compiled.textTemplates, statementIndex);
+const numericLiteral = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+const booleanLiteral = /^(?:true|false)$/;
+const nameLiteral = /^(?:[A-Za-z_][A-Za-z0-9_]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')$/;
+
+const safeLiteralFor = (
+  kind: ParameterValueKind,
+  value: unknown,
+  sourceValue: string
+): string | null => {
+  switch (kind) {
+    case "number":
+      return typeof value === "number" && Number.isFinite(value) && numericLiteral.test(sourceValue)
+        ? `${value}`
+        : null;
+    case "boolean":
+      return typeof value === "boolean" && booleanLiteral.test(sourceValue) ? `${value}` : null;
+    case "choice":
+    case "color":
+      return typeof value === "string" && nameLiteral.test(sourceValue) && !sourceValue.includes("@")
+        ? formatDslName(value)
+        : null;
+    case "text":
+      return typeof value === "string" && /^(["']).*\1$/.test(sourceValue) && !sourceValue.includes("@")
+        ? quoteDslString(value)
+        : null;
+    case "reference":
+    case "lineEndpointReference":
+    case "lineReference":
+    case "lineReferenceList":
+      return null;
+    default:
+      return null;
+  }
+};
+
+const singlePhysicalSegment = (span: { segments: readonly { from: number; to: number }[] } | null | undefined) =>
+  span?.segments.length === 1 ? span.segments[0] : null;
 
 const lineStartOffsets = (sourceLines: readonly string[]) => {
   const starts: number[] = [];
@@ -45,92 +83,8 @@ const lineStartOffsets = (sourceLines: readonly string[]) => {
   return starts;
 };
 
-const oldArgLineByKeyFor = (
-  statement: DslStatement,
-  sourceLines: readonly string[],
-  firstLine: number
-): Map<string, number> => {
-  const starts = lineStartOffsets(sourceLines);
-  const map = new Map<string, number>();
-  for (const attr of statement.attrs) {
-    const offset = attr.physicalSpan?.segments[0]?.from;
-    if (offset === undefined) continue;
-    let line = 1;
-    for (let index = 0; index < starts.length; index += 1) {
-      if (starts[index] > offset) break;
-      line = index + 1;
-    }
-    map.set(attr.key, line - firstLine);
-  }
-  return map;
-};
-
-const sourceStatementLines = (
-  sourceLines: readonly string[],
-  info: StatementInfo
-) => sourceLines.slice(info.line - 1, info.endLine);
-
-const withStatementIndent = (statement: SerializedStatement, info: StatementInfo, source: DslStatement) => {
-  let next = statement;
-  if (source.kind === "element" && source.exported) {
-    next = { ...next, header: `export ${next.header}` };
-  }
-  if (source.opensBlock && next.close === null && info.openBraceLine === undefined) {
-    next = { ...next, header: `${next.header} {` };
-  }
-  return next;
-};
-
-const serializeOwnedElement = (
-  compiled: CompiledDslDocument,
-  owner: SourceOwner,
-  before: CadElement,
-  after: CadElement,
-  elements: readonly CadElement[]
-): { status: "ready"; splice: LineSplice } | { status: "unapplied"; reason: string } | { status: "noop" } => {
-  const source = compiled.statements[owner.sourceStatementIndex];
-  if (!source || (source.kind !== "element" && source.kind !== "group")) {
-    return { status: "unapplied", reason: `要素 ${after.id} のsource ownerがgeometry statementではありません。` };
-  }
-  if (before.type !== after.type || before.name !== after.name || before.parentGroupId !== after.parentGroupId ||
-      before.conditionalBranch !== after.conditionalBranch) {
-    return { status: "unapplied", reason: `要素 ${after.name || after.id} の構造変更はModule source bridgeで扱えません。` };
-  }
-  if (hasSourceOwnedScalarValue(compiled, owner.sourceStatementIndex)) {
-    return { status: "unapplied", reason: `要素 ${after.name || after.id} はsource-owned scalarを持つためmodel mutationを適用できません。` };
-  }
-
-  const info = owner.statement;
-  const refs = documentDslRefs([...elements], compiled.majorVersion ?? 3);
-  const serialized = withStatementIndent(serializeElementStatementBlock(after, refs), info, source);
-  const indent = DSL_INDENT.repeat(info.indentDepth);
-  const nextLines = serialized.close === null
-    ? [`${indent}${serialized.header}`]
-    : serialized.close === ")"
-      ? [
-          `${indent}${serialized.header}`,
-          ...serialized.args.map((arg, index) =>
-            `${indent}${DSL_INDENT}${arg.text}${serialized.argumentSeparator === "comma" && index < serialized.args.length - 1 ? "," : ""}`
-          ),
-          `${indent}${serialized.close}`
-        ]
-      : [];
-  if (nextLines.length === 0) return { status: "unapplied", reason: `要素 ${after.name || after.id} をserializeできません。` };
-
-  const oldLines = sourceStatementLines(compiled.sourceLines, info);
-  const oldArgLineByKey = oldArgLineByKeyFor(source, compiled.sourceLines, info.line);
-  const mergedLines = mergeStatementComments({ oldLines, oldArgLineByKey, next: serialized, indent });
-  if (mergedLines.length === oldLines.length && mergedLines.every((line, index) => line === oldLines[index])) {
-    return { status: "noop" };
-  }
-  return {
-    status: "ready",
-    splice: { startLine: info.line, endLine: info.endLine, replacementLines: mergedLines }
-  };
-};
-
-const singleSegment = (span: { segments: readonly { from: number; to: number }[] } | null | undefined) =>
-  span?.segments.length === 1 ? span.segments[0] : null;
+const sourceStatementLines = (sourceLines: readonly string[], info: StatementInfo) =>
+  sourceLines.slice(info.line - 1, info.endLine);
 
 const applyCharacterEdits = (
   sourceLines: readonly string[],
@@ -160,6 +114,91 @@ const applyCharacterEdits = (
   };
 };
 
+const sourceArgumentName = (element: CadElement, parameterKey: string) => {
+  if (parameterKey === "activity") return "state";
+  const coordinate = parameterKey.match(/^(.+):(x|y)$/);
+  return argNameForParameter(element.type, coordinate?.[1] ?? parameterKey);
+};
+
+const parameterEditFor = (
+  source: DslStatement,
+  after: CadElement,
+  parameterKey: string
+): ParameterEditResult => {
+  const argumentName = sourceArgumentName(after, parameterKey);
+  if (!argumentName) {
+    return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${parameterKey} はsourceへ安全に戻せません。` };
+  }
+  const attribute = source.attrs.find((candidate) => candidate.key === argumentName);
+  const physical = attribute?.physicalSpan;
+  const segment = singlePhysicalSegment(physical);
+  if (!attribute || !physical || !segment || physical.sourceRevision !== source.sourceRevision) {
+    return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${argumentName} source spanを解決できません。` };
+  }
+
+  const coordinate = parameterKey.match(/^(.+):(x|y)$/);
+  if (coordinate) {
+    const coordinateSpan = coordinateComponent(attribute.value, { start: 0, end: attribute.value.length }, coordinate[2] as "x" | "y");
+    if (!coordinateSpan) {
+      return { status: "unapplied", reason: `要素 ${after.name || after.id} のgeometry referenceをsourceへ逆変換しません。` };
+    }
+    const value = getParameterValue(after, parameterKey);
+    const replacement = safeLiteralFor("number", value, attribute.value.slice(coordinateSpan.start, coordinateSpan.end));
+    if (replacement === null) {
+      return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${parameterKey} はliteral source valueではありません。` };
+    }
+    return {
+      status: "ready",
+      edit: {
+        from: segment.from + coordinateSpan.start,
+        to: segment.from + coordinateSpan.end,
+        replacement
+      }
+    };
+  }
+
+  const definition = parameterKey === "activity"
+    ? { kind: "boolean" as const }
+    : findParameterDefinition(after, parameterKey);
+  if (!definition) {
+    return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${parameterKey} source parameter定義を解決できません。` };
+  }
+  const replacement = safeLiteralFor(definition.kind, getParameterValue(after, parameterKey), attribute.value);
+  if (replacement === null) {
+    return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${parameterKey} はgeometry referenceまたはsource-owned expressionです。` };
+  }
+  return { status: "ready", edit: { from: segment.from, to: segment.to, replacement } };
+};
+
+const serializeOwnedElement = (
+  compiled: CompiledDslDocument,
+  owner: SourceOwner,
+  before: CadElement,
+  after: CadElement
+): { status: "ready"; splice: LineSplice } | { status: "unapplied"; reason: string } | { status: "noop" } => {
+  const source = compiled.statements[owner.sourceStatementIndex];
+  if (!source || (source.kind !== "element" && source.kind !== "group")) {
+    return { status: "unapplied", reason: `要素 ${after.id} のsource ownerがgeometry statementではありません。` };
+  }
+  if (before.type !== after.type || before.name !== after.name || before.parentGroupId !== after.parentGroupId ||
+      before.conditionalBranch !== after.conditionalBranch) {
+    return { status: "unapplied", reason: `要素 ${after.name || after.id} の構造変更はModule source bridgeで扱えません。` };
+  }
+
+  const changedKeys = parameterKeysChanged(before, after);
+  if (before.activity !== after.activity) changedKeys.push("activity");
+  if (changedKeys.length === 0) return { status: "noop" };
+
+  const edits: CharacterEdit[] = [];
+  for (const parameterKey of changedKeys) {
+    const result = parameterEditFor(source, after, parameterKey);
+    if (result.status === "unapplied") return result;
+    edits.push(result.edit);
+  }
+  const patched = applyCharacterEdits(compiled.sourceLines, owner.statement, edits);
+  return patched;
+};
+
 const moduleInstanceActivitySplice = (
   compiled: CompiledDslDocument,
   owner: SourceOwner,
@@ -172,12 +211,12 @@ const moduleInstanceActivitySplice = (
   const option = source.options.find((candidate) => candidate.name === "state");
   const nextActivity = after.activity;
   if (option) {
-    const value = singleSegment(option.valuePhysicalSpan);
+    const value = singlePhysicalSegment(option.valuePhysicalSpan);
     if (!value) return statementUnapplied("module instance stateのsource spanを解決できません。");
     if (nextActivity !== "visible") {
       return applyCharacterEdits(compiled.sourceLines, owner.statement, [{ from: value.from, to: value.to, replacement: nextActivity }]);
     }
-    const options = singleSegment(source.payloadPhysicalSpans?.options);
+    const options = singlePhysicalSegment(source.payloadPhysicalSpans?.options);
     if (!options) return statementUnapplied("module instance option listのsource spanを解決できません。");
     const sourceText = compiled.sourceLines.join("\n");
     const open = options.from > 0 && sourceText[options.from - 1] === "(" ? options.from - 1 : -1;
@@ -186,7 +225,7 @@ const moduleInstanceActivitySplice = (
     return applyCharacterEdits(compiled.sourceLines, owner.statement, [{ from: open, to: close, replacement: "" }]);
   }
   if (nextActivity === "visible") return { status: "noop" as const };
-  const name = singleSegment(source.namePhysicalSpan);
+  const name = singlePhysicalSegment(source.namePhysicalSpan);
   if (!name) return statementUnapplied("module instance nameのsource spanを解決できません。");
   return applyCharacterEdits(compiled.sourceLines, owner.statement, [{
     from: name.to,
@@ -237,8 +276,8 @@ export const buildModuleModelPatch = (
     }
     const existing = elementBySourceStatementId.get(entry.owner.sourceStatementId);
     if (existing && existing.after !== entry.after) {
-      const first = serializeOwnedElement(compiled, existing.owner, existing.before, existing.after, afterDocument.elements);
-      const second = serializeOwnedElement(compiled, entry.owner, entry.before, entry.after, afterDocument.elements);
+      const first = serializeOwnedElement(compiled, existing.owner, existing.before, existing.after);
+      const second = serializeOwnedElement(compiled, entry.owner, entry.before, entry.after);
       if (first.status === "unapplied" || second.status === "unapplied") return unapplied("同一definition source ownerへのruntime変更が競合しています。");
       if (first.status === "ready" && second.status === "ready" &&
           JSON.stringify(first.splice.replacementLines) !== JSON.stringify(second.splice.replacementLines)) {
@@ -249,7 +288,7 @@ export const buildModuleModelPatch = (
     elementBySourceStatementId.set(entry.owner.sourceStatementId, entry);
   }
   for (const entry of elementBySourceStatementId.values()) {
-    const result = serializeOwnedElement(compiled, entry.owner, entry.before, entry.after, afterDocument.elements);
+    const result = serializeOwnedElement(compiled, entry.owner, entry.before, entry.after);
     if (result.status === "unapplied") return result;
     if (result.status === "ready") splices.push(result.splice);
   }

@@ -12,6 +12,35 @@ const moduleSource = [
   "module Second = M()"
 ].join("\n");
 
+const geometryParameterModuleSource = [
+  "nui 3",
+  "line Base = segment(start: (0, 0), end: (10, 0))",
+  "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
+  "module M(path: line, side: choice(right, left) = left) {",
+  "  point P = onLine(from: path.end, ratio: 0.5)",
+  "  line Copy = offset(",
+  "    sources: [path],",
+  "    distance: 1,",
+  "    side: @side,",
+  "    closed: false,",
+  "    suppressTrimWarnings: false",
+  "  )",
+  "}",
+  "module BaseInstance = M(path: Base)",
+  "module ArcInstance = M(path: A)"
+].join("\n");
+
+const pointParameterModuleSource = [
+  "nui 3",
+  "point BasePoint = coordinate(x: 0, y: 0)",
+  "point OtherPoint = coordinate(x: 10, y: 0)",
+  "module PointModule(p: point) {",
+  "  point P = offset(from: p, dx: 1, dy: 2)",
+  "}",
+  "module FirstPoint = PointModule(p: BasePoint)",
+  "module SecondPoint = PointModule(p: OtherPoint)"
+].join("\n");
+
 const seed = (source: string) => {
   useCadDocumentStore.getState().commitText(source, "test");
   useCadDocumentStore.setState({ past: [], future: [] });
@@ -44,6 +73,58 @@ describe("module source-owned model mutation", () => {
       (element): element is Extract<CadElement, { type: "freePoint" }> => element.name === "P" && element.type === "freePoint"
     );
     expect(points.map((element) => element.x)).toEqual([7, 7]);
+  });
+
+  it("patches only a literal line parameter while preserving a lowered geometry parameter reference", () => {
+    seed(geometryParameterModuleSource);
+    const baseInstance = elementNamed("BaseInstance")!;
+    const arcInstance = elementNamed("ArcInstance")!;
+    const baseCopy = elementNamed("Copy", baseInstance.id) as Extract<CadElement, { type: "offsetLine" }>;
+    const arcCopy = elementNamed("Copy", arcInstance.id) as Extract<CadElement, { type: "offsetLine" }>;
+
+    useCadDocumentStore.getState().updateElement(baseCopy.id, { offset: 7 });
+
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("module M(path: line, side: choice(right, left) = left) {");
+    expect(state.sourceText).toContain("sources: [path]");
+    expect(state.sourceText).toContain("side: @side");
+    expect(state.sourceText).not.toContain("sources: [Base]");
+    expect(state.sourceText).not.toContain("sources: [A]");
+    expect(state.sourceText).toContain("distance: 7");
+    expect(state.sourceText).toContain("module BaseInstance = M(path: Base)");
+    expect(state.sourceText).toContain("module ArcInstance = M(path: A)");
+    expect(state.sourceText.match(/line Copy/g)).toHaveLength(1);
+    expect((state.elements.find((element) => element.id === baseCopy.id) as Extract<CadElement, { type: "offsetLine" }>).baseLineIds).toEqual([
+      state.elements.find((element) => element.name === "Base")!.id
+    ]);
+    expect((state.elements.find((element) => element.id === arcCopy.id) as Extract<CadElement, { type: "offsetLine" }>).baseLineIds).toEqual([
+      state.elements.find((element) => element.name === "A")!.id
+    ]);
+    expect((state.elements.find((element) => element.id === baseCopy.id) as Extract<CadElement, { type: "offsetLine" }>).offset).toBe(7);
+    expect((state.elements.find((element) => element.id === arcCopy.id) as Extract<CadElement, { type: "offsetLine" }>).offset).toBe(7);
+  });
+
+  it("patches a literal point parameter while preserving the authored geometry parameter token", () => {
+    seed(pointParameterModuleSource);
+    const firstInstance = elementNamed("FirstPoint")!;
+    const firstPoint = elementNamed("P", firstInstance.id) as Extract<CadElement, { type: "offsetPoint" }>;
+
+    useCadDocumentStore.getState().updateElement(firstPoint.id, { dy: 9 });
+
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("point P = offset(from: p, dx: 1, dy: 9)");
+    expect(state.sourceText).not.toContain("from: BasePoint");
+    expect(state.sourceText).not.toContain("from: OtherPoint");
+    expect(state.sourceText).toContain("module FirstPoint = PointModule(p: BasePoint)");
+    expect(state.sourceText).toContain("module SecondPoint = PointModule(p: OtherPoint)");
+    const points = state.elements.filter(
+      (element): element is Extract<CadElement, { type: "offsetPoint" }> => element.name === "P" && element.type === "offsetPoint"
+    );
+    expect(points.map((element) => element.dy)).toEqual([9, 9]);
+    expect(points.map((element) => element.fromPoint)).toEqual([
+      { mode: "reference", pointId: state.elements.find((element) => element.name === "BasePoint")!.id },
+      { mode: "reference", pointId: state.elements.find((element) => element.name === "OtherPoint")!.id }
+    ]);
   });
 
   it("keeps module syntax while editing an ordinary geometry outside the module", () => {
