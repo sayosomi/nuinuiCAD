@@ -160,6 +160,56 @@ const sourceDeclarationResolution = (
   name: string
 ): SourceLexicalLookup => resolveSourceLexicalDeclaration(sourceNamespace, statementIndex, name);
 
+const sourceNamespaceScopeIdFor = (
+  declaration: SourceLexicalDeclaration
+): ScopeId | null => {
+  if (declaration.kind === "group") return `group:${declaration.statementId}`;
+  if (declaration.kind === "forGroup") return `for:${declaration.statementId}`;
+  if (declaration.kind === "conditionalGroup") return `if:${declaration.statementId}:then`;
+  return null;
+};
+
+/** Resolve normal CAD namespace paths such as `Front::Seam::Point`.
+ * Module export namespaces are handled separately, so this remains entirely
+ * source-derived and does not introduce runtime name resolution. */
+const qualifiedSourceDeclarationResolution = (
+  sourceNamespace: SourceLexicalNamespaceIndex,
+  statements: readonly DslStatement[],
+  stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>,
+  statementIndex: number,
+  ownerIndex: number | null,
+  name: string
+): SourceLexicalLookup | null => {
+  const segments = parseDslReferenceToken(name).segments;
+  if (segments.length < 2) return null;
+
+  if (ownerIndex !== null) return null;
+  const first = sourceDeclarationResolution(sourceNamespace, statements, statementIndex, segments[0]);
+  if (first.kind !== "resolved") return first;
+  if (!sourceNamespaceScopeIdFor(first.declaration)) return null;
+
+  let declaration = first.declaration;
+  for (const segment of segments.slice(1)) {
+    const scopeId = sourceNamespaceScopeIdFor(declaration);
+    if (!scopeId) return { kind: "undefined" };
+    const declarations = sourceNamespace.declarationsByScopeAndName.get(scopeId)?.get(segment) ?? [];
+    const visible = declarations.filter((candidate) => candidate.statementIndex < statementIndex);
+    if (visible.length === 1) {
+      declaration = visible[0];
+      continue;
+    }
+    if (visible.length > 1) return { kind: "ambiguous", scopeId, declarations: visible };
+    const future = declarations.filter((candidate) => candidate.statementIndex >= statementIndex);
+    if (future.length > 0) return { kind: "forward", scopeId, declarations: future };
+    return { kind: "undefined" };
+  }
+
+  // Qualified source targets still need the reconciler-owned identity used by
+  // module lowering. Never synthesize one from the qualified text.
+  if (!stableStatementIdByIndex.has(declaration.statementIndex)) return { kind: "undefined" };
+  return { kind: "resolved", declaration };
+};
+
 const declarationGeometryTarget = (
   declaration: SourceLexicalDeclaration,
   stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>
@@ -504,7 +554,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, instanceName)
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, instanceName);
     if (lookup.kind === "resolved") {
+      // A qualified ordinary CAD namespace (for example
+      // `前身頃::縫い代::先に縫う`) is not a module export. Let the normal
+      // source-namespace path resolver handle it below. Other declaration
+      // kinds retain the established wrong-kind diagnostic.
       if (lookup.declaration.kind !== "moduleInstance") {
+        if (["group", "conditionalGroup", "forGroup"].includes(lookup.declaration.kind)) return null;
         return { kind: "wrongKind", instanceName, instanceSpan, exportName, memberSpan };
       }
       const instanceOwnerIndex = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
@@ -677,9 +732,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       qualifiedDiagnostic(statementIndex, semanticSpan, qualified, expected);
       return semantic(null, qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid", null, derivedRole);
     }
-    const lookup = ownerIndex === null
+    const lookup = qualifiedSourceDeclarationResolution(
+      sourceNamespace,
+      statements,
+      stableStatementIdByIndex,
+      statementIndex,
+      ownerIndex,
+      base
+    ) ?? (ownerIndex === null
       ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, base)
-      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, base);
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, base));
     if (lookup.kind === "parameter") {
       const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       const pointTarget = pointKey
@@ -769,9 +831,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       qualifiedDiagnostic(statementIndex, reference.span, qualified, null);
       return { target: null, type: null, resolution: qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid" };
     }
-    const lookup = ownerIndex === null
+    const lookup = qualifiedSourceDeclarationResolution(
+      sourceNamespace,
+      statements,
+      stableStatementIdByIndex,
+      statementIndex,
+      ownerIndex,
+      reference.elementName
+    ) ?? (ownerIndex === null
       ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, reference.elementName)
-      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, reference.elementName);
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, reference.elementName));
     if (lookup.kind === "parameter") {
       const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       if (!parameterTarget) {

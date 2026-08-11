@@ -1,14 +1,15 @@
 import { createDependencyIndex } from "../model/dependencies";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
-import type {
-  CadElement,
-  ComputedGeometry,
-  ComputedPoint,
-  ElementId,
-  EvaluationResult,
-  NumericValue,
-  PointAnchor
+import {
+  runtimeOnlyElementTypes,
+  type CadElement,
+  type ComputedGeometry,
+  type ComputedPoint,
+  type ElementId,
+  type EvaluationResult,
+  type NumericValue,
+  type PointAnchor
 } from "../types/geometry";
 import { evaluateNumericValue, isNumericExpression } from "./numericExpressions";
 
@@ -306,8 +307,12 @@ const candidatesForElement = ({
   disabledReason?: string;
   displayPrefix?: string;
 }) => [
-  ...computedPathsForGeometry(context.evaluation.computedGeometry.get(element.id)),
-  ...parameterPathsForElement(element),
+  ...(runtimeOnlyElementTypes.has(element.type)
+    ? []
+    : [
+        ...computedPathsForGeometry(context.evaluation.computedGeometry.get(element.id)),
+        ...parameterPathsForElement(element)
+      ]),
 ].flatMap((path) => {
   const candidate = candidateForPath({
     element,

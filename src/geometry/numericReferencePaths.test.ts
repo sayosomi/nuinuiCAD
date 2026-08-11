@@ -141,4 +141,31 @@ describe("numericReferencePaths", () => {
       expect.arrayContaining(["params.dx", "params.dy"])
     );
   });
+
+  it("does not offer stale computed geometry from a moduleInstance", () => {
+    const moduleInstance: CadElement = {
+      id: "module1",
+      name: "モジュール",
+      type: "moduleInstance",
+      activity: "visible"
+    };
+    const moduleElements = [elements[0], moduleInstance, elements[2]];
+    const staleModuleGeometry = { ...curveGeometry, elementId: "module1", name: "モジュール" };
+    const staleEvaluation: EvaluationResult = {
+      ...evaluation,
+      computedGeometry: new Map<string, ComputedGeometry>([
+        ["a", point("a", 0, 0)],
+        ["module1", staleModuleGeometry],
+        ["target", point("target", 0, 0)]
+      ])
+    };
+    const candidates = numericReferenceCandidates({
+      elements: moduleElements,
+      evaluation: staleEvaluation,
+      currentElement: elements[2],
+      currentParameterKey: "dx"
+    });
+
+    expect(candidates.some((candidate) => candidate.expression.startsWith("module1."))).toBe(false);
+  });
 });

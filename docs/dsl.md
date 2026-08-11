@@ -192,6 +192,46 @@ let 使用する: boolean = @見返し有 && (@ゆとり > 10)
 let 除外する: boolean = !@使用する || @ゆとり == 0
 ```
 
+## Module v1
+
+`module` は、point/line の入力と scalar の入力を受け取り、同じ構成を独立した runtime instance として生成する再利用可能な構成です。定義本体はその行では評価されず、呼び出しだけが文書順に materialize されます。Module は一般的な制約ソルバーではなく、入力を明示して順に評価する決定的な構成単位です。
+
+```text
+nui 3
+const 高さ: number = 9
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+line AB = segment(start: A, end: B)
+
+module ノッチ(高さ: number, 縫い線: line, 反転: boolean = false) {
+  let 方向: number = 270
+  if 反転判定 (@反転 == true) {
+    set 方向 = 90
+  }
+  point 頭 = tangentOffset(
+    line: 縫い線,
+    base: 縫い線.start,
+    angle: @方向,
+    distance: @高さ
+  )
+  export line 結果 = segment(start: 頭, end: 縫い線.end)
+}
+
+module 通常 = ノッチ(
+  高さ: @高さ,
+  縫い線: AB,
+  反転: false
+)
+```
+
+Module parameter は `number`、`string`、`boolean`、`choice(...)`、geometry の `point` / `line` を使えます。呼び出しは named argument を使い、scalar は `@parameter`、geometry は通常の geometry reference として本体から参照します。default 値は定義側に書けます。Module 本体から外側の document/group の binding や geometry を暗黙に capture することはできません。必要な値は parameter として渡してください。
+
+本体の geometry は通常 private です。外側から `instance::名前` で参照できるのは `export` を付けた geometry だけです。private geometry は instance 内では後続要素の入力、copy、move、extend、intersection、Bezier、nested group の構成に使えますが、呼び出し元からの参照は診断エラーになります。caller から渡した `point` / `line` parameter は読み取り専用の入力で、module 内の `edge`、`extend`、`move`、`mirrorMove`、`reverse` の書き込み対象にはできません。必要なら module 所有の `copy` を作って変更してください。
+
+`module Instance = Definition(...)` は geometry を直接持たない `moduleInstance` container です。Canvas の通常 geometry、point/line pick、数値参照、mutation target にはなりません。一方、その instance の materialized child は通常の computed geometry として描画・選択でき、child の `private` / `export` は構成階層 UI で区別されます。nested module は instance の子として同じ階層に現れ、instance 名と module 定義名は別に表示されます。
+
+Module の呼び出し、export の参照、通常の `group::要素` 参照はいずれも source の文書順と lexical scope に従います。依存関係の自動並べ替え、名前の自動再解決、module の flattening は行いません。定義名・instance 名・export 名が不明、後方、private、disabled、invalid の場合は診断として表示されます。
+
 ## text template
 
 型付きのstring/numberは `label(text: "...")` のテキスト埋め込みで使えます(このconstructionが唯一の正準なテキスト作成方法です)。

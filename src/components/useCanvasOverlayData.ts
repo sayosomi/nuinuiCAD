@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { CanvasViewport } from "../state/cadUiStore";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { runtimeOnlyElementTypes } from "../types/geometry";
 import type {
   CadElement,
   ComputedArcLine,
@@ -110,8 +111,14 @@ export const useCanvasOverlayData = ({
     ]
   );
   const geometries = useMemo(
-    () => Array.from(evaluation.computedGeometry.values()),
-    [evaluation.computedGeometry]
+    () => {
+      const elementById = new Map(elements.map((element) => [element.id, element]));
+      return Array.from(evaluation.computedGeometry.values()).filter((geometry) => {
+        const element = elementById.get(geometry.elementId);
+        return !element || !runtimeOnlyElementTypes.has(element.type);
+      });
+    },
+    [elements, evaluation.computedGeometry]
   );
   const lines = useMemo(() => geometries.filter(isLine), [geometries]);
   const arcs = useMemo(() => geometries.filter(isArcLine), [geometries]);

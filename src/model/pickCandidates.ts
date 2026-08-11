@@ -5,12 +5,13 @@ import {
 } from "../geometry/numericReferenceProperties";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
-import type {
-  CadElement,
-  ComputedGeometry,
-  ElementId,
-  EvaluationResult,
-  PointAnchor
+import {
+  runtimeOnlyElementTypes,
+  type CadElement,
+  type ComputedGeometry,
+  type ElementId,
+  type EvaluationResult,
+  type PointAnchor
 } from "../types/geometry";
 import {
   isLineLikeElement,
@@ -275,6 +276,7 @@ const numericReferenceCandidates = (
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget
 ): PickCandidate[] => {
   return elements
+    .filter((element) => !runtimeOnlyElementTypes.has(element.type))
     .filter((element) =>
       pickSourcePrecedesTarget(
         elements,

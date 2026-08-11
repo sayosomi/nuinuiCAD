@@ -1,11 +1,12 @@
 import {
   generatedElementIdForTargetForGroup
 } from "./forGroupGeneratedReferences";
-import type {
-  CadElement,
-  ComputedGeometry,
-  ElementId,
-  EvaluationResult
+import {
+  runtimeOnlyElementTypes,
+  type CadElement,
+  type ComputedGeometry,
+  type ElementId,
+  type EvaluationResult
 } from "../types/geometry";
 
 export type PickCandidateGeometry = {
@@ -31,30 +32,32 @@ export const pickCandidateGeometries = ({
   referenceElements: readonly CadElement[];
   normalizationTargetElementId: ElementId;
 }): PickCandidateGeometry[] => {
-  return referenceElements.flatMap((templateElement) => {
-    const direct = evaluation.computedGeometry.get(templateElement.id);
-    const generated = (evaluation.forGroupGeneratedRows ?? [])
-      // `forGroupGeneratedRows` is evaluator-owned metadata, not a traversal
-      // of `computedGeometry`; iterationIndex is the explicit runtime order.
-      // A template belongs to one forGroup, so equal iteration indexes cannot
-      // occur for this filtered source.
-      .filter((row) => row.templateElementId === templateElement.id)
-      .filter((row) => generatedElementIdForTargetForGroup({
-        elements,
-        targetElementId: normalizationTargetElementId,
-        pickedElementId: row.generatedElementId
-      }) === templateElement.id)
-      .sort((left, right) => left.iterationIndex - right.iterationIndex)
-      .flatMap((row) => {
-        const geometry = evaluation.computedGeometry.get(row.generatedElementId);
-        return geometry ? [{ templateElement, geometry, referenceElementId: templateElement.id }] : [];
-      });
+  return referenceElements
+    .filter((templateElement) => !runtimeOnlyElementTypes.has(templateElement.type))
+    .flatMap((templateElement) => {
+      const direct = evaluation.computedGeometry.get(templateElement.id);
+      const generated = (evaluation.forGroupGeneratedRows ?? [])
+        // `forGroupGeneratedRows` is evaluator-owned metadata, not a traversal
+        // of `computedGeometry`; iterationIndex is the explicit runtime order.
+        // A template belongs to one forGroup, so equal iteration indexes cannot
+        // occur for this filtered source.
+        .filter((row) => row.templateElementId === templateElement.id)
+        .filter((row) => generatedElementIdForTargetForGroup({
+          elements,
+          targetElementId: normalizationTargetElementId,
+          pickedElementId: row.generatedElementId
+        }) === templateElement.id)
+        .sort((left, right) => left.iterationIndex - right.iterationIndex)
+        .flatMap((row) => {
+          const geometry = evaluation.computedGeometry.get(row.generatedElementId);
+          return geometry ? [{ templateElement, geometry, referenceElementId: templateElement.id }] : [];
+        });
 
-    return [
-      ...(direct ? [{ templateElement, geometry: direct }] : []),
-      ...generated
-    ];
-  });
+      return [
+        ...(direct ? [{ templateElement, geometry: direct }] : []),
+        ...generated
+      ];
+      });
 };
 
 /** `selectablePointsForGeometry` needs element metadata for Bezier intermediates.

@@ -9,6 +9,7 @@ import {
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
 import { InspectorPanel } from "./InspectorPanel";
+import { ModuleHierarchyPanel } from "./ModuleHierarchyPanel";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 
 type RightPanelProps = {
@@ -40,6 +41,8 @@ export const RightPanel = ({
 }: RightPanelProps) => {
   const rightPanelRef = useRef<HTMLElement | null>(null);
   const elements = useCadDocumentStore(effectiveElements);
+  const moduleMaterialization = useCadDocumentStore((state) => state.doc.moduleMaterialization);
+  const moduleSemanticAnalysis = useCadDocumentStore((state) => state.doc.moduleSemanticAnalysis);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const selectedElement =
     elements.find((element) => element.id === selectedElementId) ?? null;
@@ -47,6 +50,11 @@ export const RightPanel = ({
   return (
     <aside className="right-panel" ref={rightPanelRef} inert={inert || undefined}>
       <div className="right-panel-scroll">
+        <ModuleHierarchyPanel
+          elements={elements}
+          moduleMaterialization={moduleMaterialization}
+          moduleSemanticAnalysis={moduleSemanticAnalysis}
+        />
         <InspectorPanel
           element={selectedElement}
           elements={elements}

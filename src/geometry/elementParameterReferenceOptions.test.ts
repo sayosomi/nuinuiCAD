@@ -91,6 +91,25 @@ describe("referenceablePathsForElement", () => {
     expect(paths).toContain("params.step");
   });
 
+  it("never exposes a moduleInstance's stale geometry as an element-property reference", () => {
+    const element: CadElement = {
+      id: "module1",
+      name: "モジュール",
+      type: "moduleInstance",
+      activity: "visible"
+    };
+    const evaluation = baseEvaluation({
+      computedGeometry: new Map([["module1", lineGeometry("module1")]]),
+      effectiveEnabledElementIds: new Set(["module1"])
+    });
+    expect(referenceablePathsForElement(element, [element], evaluation)).toEqual([]);
+    expect(elementParameterReferenceOptionsForPosition({
+      referenceElements: [element],
+      elementToken: "モジュール",
+      evaluation
+    })).toEqual([]);
+  });
+
   it("excludes an enabled-but-erroring element's params, even though the raw value would trivially evaluate", () => {
     const element = forGroupElement("fg1", "forブロック1");
     const errors: DependencyError[] = [

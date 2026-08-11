@@ -7,7 +7,7 @@ import { evaluateElements } from "../geometry/evaluate";
 import { pickCandidates } from "../model/pickCandidates";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { DEFAULT_CANVAS_VIEWPORT } from "../state/cadUiStore";
-import type { CadElement } from "../types/geometry";
+import type { CadElement, ComputedLine, ComputedPoint, EvaluationResult } from "../types/geometry";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
 
 describe("useCanvasOverlayData", () => {
@@ -91,6 +91,47 @@ describe("useCanvasOverlayData", () => {
       documentPath: null
     }));
     expect(result.current.overlayPointPickCandidates).toEqual([]);
+  });
+
+  it("does not draw a moduleInstance even when stale computed geometry is present", () => {
+    const elements: CadElement[] = [{
+      id: "module",
+      name: "Module",
+      type: "moduleInstance",
+      activity: "visible"
+    }];
+    const point: ComputedPoint = { kind: "point", elementId: "module", name: "Module", x: 10, y: 20 };
+    const line: ComputedLine = {
+      kind: "line",
+      elementId: "module",
+      name: "Module",
+      startPointId: null,
+      endPointId: null,
+      start: point,
+      end: { ...point, x: 30 },
+      length: 20,
+      startAngleDeg: 0,
+      endAngleDeg: 0,
+      startTangentAngleDeg: 0,
+      endTangentAngleDeg: 0
+    };
+    const evaluation: EvaluationResult = {
+      computedGeometry: new Map([["module", line]]),
+      errors: [],
+      warnings: []
+    };
+    const { result } = renderHook(() => useCanvasOverlayData({
+      evaluation,
+      elements,
+      selectedElementId: null,
+      pointPickCandidates: [],
+      viewportSize: { width: 500, height: 400 },
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      documentPath: null
+    }));
+
+    expect(result.current.lines).toEqual([]);
+    expect(result.current.overlayLines).toEqual([]);
   });
 
   it("keeps showGenerated=false loop geometry out of Canvas and pick overlays while retaining evaluation metadata", () => {

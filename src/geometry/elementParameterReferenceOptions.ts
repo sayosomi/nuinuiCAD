@@ -1,5 +1,5 @@
 import { resolveElementName } from "../model/elementNames";
-import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
+import { runtimeOnlyElementTypes, type CadElement, type ElementId, type EvaluationResult } from "../types/geometry";
 import {
   computedPathsForGeometry,
   formatValue,
@@ -56,6 +56,7 @@ export const referenceablePathsForElement = (
   elements: readonly CadElement[],
   evaluation: Pick<EvaluationResult, "computedGeometry" | "effectiveEnabledElementIds" | "errors">
 ): ReferenceablePath[] => {
+  if (runtimeOnlyElementTypes.has(element.type)) return [];
   if (!elementIsCurrentlyReferenceable(element.id, evaluation)) return [];
 
   const context = {
