@@ -175,31 +175,22 @@ compatibility with earlier local drafts. Breaking saved-format changes are
 acceptable unless the user explicitly asks for a migration path or compatibility
 layer.
 
-The final supported saved-document format is `nui 3` only. Parsers,
-serializers, importers, adapters, fallbacks, bridges, fixtures, and conditional
-branches that exist only for `nui 2` or earlier are temporary migration aids,
-not product contracts. Do not proactively extend legacy compatibility, re-audit
-old formats outside the assigned task, add compatibility fixtures or automatic
-migration, or preserve an old shape "just in case." Prefer precise diagnostics
-and a manually repairable source file. After the existing documents have been
-manually updated and verified through the `nui 3` path, remove all legacy-only
-code and tests.
+The target final saved-document format is `nui 4`. Until the nui4 migration is
+complete, the current production implementation and current document format
+remain `nui 3`. nui4 is a destructive replacement. Do not add a nui3-to-nui4
+compatibility layer, converter, importer, or migration wizard. Compatibility
+with old local documents must not distort the nui4 architecture; prefer precise
+diagnostics and a manually repairable `.nui` source file during the transition.
 
-For pre-`nui 3` documents, do not stop unrelated work for evaluation failure,
-round-trip differences, semantic or visibility differences, compiled/IPC shape
-changes, legacy-only performance regressions, missing automatic migration, or
-the need for manual source edits. A legacy-only problem is blocking only when
-the application crashes or cannot expose the source, source is destroyed or
-lost, diagnostics lack enough position information to locate the repair, or
-the pre-save source cannot be restored so manual repair is impractical. Data
-loss, wrong evaluation, and scope/type/runtime parity failures in the current
-`nui 3` specification remain blocking.
+The nui4 migration does not preserve legacy-only parser, serializer, importer,
+adapter, fallback, bridge, fixture, or conditional branches. Do not proactively
+extend old-format compatibility or add automatic migration.
 
 The persisted document is one `.nui` DSL text file. `sourceText` is the
-canonical, durable state. During the temporary `nui 3` migration period,
-existing `.nuinui.json` and pre-`nui 3` import paths may remain only long enough
-to inspect and manually repair the small set of existing documents; they are
-never save targets and must be deleted before `nui 3` is considered complete.
+canonical, durable state. Document-order deterministic evaluation, no automatic
+dependency sorting, Rust-first evaluation, and statement-level source editing
+remain in force throughout the migration. Existing local drafts are not a
+reason to preserve obsolete language shapes or create a second save target.
 Keep document edits on the central `sourceEditSession`/`commitText` boundary.
 Canvas and command changes must use statement-level text splices through the
 document bridge: do not add whole-file reserialization as a mutation path
