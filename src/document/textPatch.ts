@@ -65,6 +65,8 @@ export type TextPatchInput = {
   /** 直前コンパイル結果。document / statementMap が非null であること。 */
   old: CompiledDslDocument;
   newDocument: DslDocumentData;
+  /** Module source bridges patch authored element statements separately. */
+  skipElements?: boolean;
 };
 
 /** A structural patch must never guess where a continuation/comment belongs. */
@@ -910,7 +912,7 @@ export const buildTextPatch = (input: TextPatchInput): LineSplice[] => {
     throw new Error("buildTextPatch: 旧コンパイル結果が不完全です(document/statementMapがnull)。");
   }
   const ops: PatchOps = { lineOps: new Map(), insertsBefore: new Map() };
-  patchElements(input, ops);
+  if (!input.skipElements) patchElements(input, ops);
   patchPalette(input, ops);
   patchVisibility(input, ops);
   patchPrintLayouts(input, ops);

@@ -1,4 +1,5 @@
 import type { StatementMap } from "../dsl/dslDocument";
+import type { SourceOwner } from "../dsl/sourceOwnership";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import type { TextTemplateAst } from "../scalars/textTemplate";
 import type { CadElement, EvaluationResult } from "../types/geometry";
@@ -12,12 +13,14 @@ export const textInspectorSource = ({
   element,
   textTemplates,
   statementMap,
+  sourceOwners,
 }: {
   element: Extract<CadElement, { type: "text" }>;
   textTemplates: ReadonlyMap<string, TextTemplateAst> | undefined;
   statementMap: StatementMap;
+  sourceOwners?: ReadonlyMap<string, SourceOwner>;
 }): string => {
-  const statementIndex = statementMap.byElementId.get(element.id)?.statementIndex;
+  const statementIndex = sourceOwners?.get(element.id)?.sourceStatementIndex ?? statementMap.byElementId.get(element.id)?.statementIndex;
   const template = statementIndex === undefined
     ? undefined
     : textTemplates?.get(propertyBindingOccurrenceKey(statementIndex, "text"));
@@ -38,16 +41,18 @@ export const textInspectorPresentation = ({
   element,
   textTemplates,
   statementMap,
+  sourceOwners,
   evaluation,
   isRuntimeFresh,
 }: {
   element: Extract<CadElement, { type: "text" }>;
   textTemplates: ReadonlyMap<string, TextTemplateAst> | undefined;
   statementMap: StatementMap;
+  sourceOwners?: ReadonlyMap<string, SourceOwner>;
   evaluation: EvaluationResult;
   isRuntimeFresh: boolean;
 }): TextInspectorPresentation => {
-  const source = textInspectorSource({ element, textTemplates, statementMap });
+  const source = textInspectorSource({ element, textTemplates, statementMap, sourceOwners });
   const geometry = evaluation.computedGeometry.get(element.id);
   const evaluatedText = isRuntimeFresh && geometry?.kind === "text" ? geometry.text : null;
   return { source, evaluatedText };

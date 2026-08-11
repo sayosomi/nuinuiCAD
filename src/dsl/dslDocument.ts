@@ -49,6 +49,7 @@ import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from 
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
+import type { StatementIdentity } from "../document/statementIdentity";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarProgram, ScalarProgramPositionMap } from "../scalars/scalarProgram";
@@ -145,6 +146,8 @@ export type StatementMap = {
   statementIdByStatementIndex?: Map<number, string>;
   /** Reverse lookup for a current reconciler-owned statement identity. */
   statementIndexByStatementId?: Map<string, number>;
+  /** Current physical statement range by reconciler-owned source identity. */
+  statementRangeById: Map<StatementIdentity, StatementInfo>;
   /**
    * 非要素文のキー: `color:<id>` / `role:<id>` / `view:<id>` / `printLayout:<id>` /
    * `version` / `atStop` / `activeView` / `activePrintLayout`。
@@ -901,6 +904,11 @@ const buildStatementMap = (
         return indexes;
       })()
     : undefined;
+  const statementRangeById = new Map<StatementIdentity, StatementInfo>();
+  for (const [statementIndex, statementId] of statementIdByStatementIndex ?? []) {
+    const info = infos[statementIndex];
+    if (info && !statementRangeById.has(statementId)) statementRangeById.set(statementId, info);
+  }
 
   const sectionEnds: StatementMap["sectionEnds"] = {};
   for (const info of infos) {
@@ -935,6 +943,7 @@ const buildStatementMap = (
     elementIdByStatementIndex,
     ...(statementIdByStatementIndex ? { statementIdByStatementIndex } : {}),
     ...(statementIndexByStatementId ? { statementIndexByStatementId } : {}),
+    statementRangeById,
     byKey,
     sectionEnds
   };

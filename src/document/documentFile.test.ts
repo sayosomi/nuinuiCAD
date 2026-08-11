@@ -3,6 +3,7 @@ import {
   initialCadDocumentState,
   useCadDocumentStore
 } from "../state/cadDocumentStore";
+import type { CadElement } from "../types/geometry";
 import { initialCadUiState } from "../state/cadUiStore";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import {
@@ -138,6 +139,51 @@ describe("document file lifecycle", () => {
     expect(reopened.sourceText).toBe(content);
     expect(reopened.doc.scalarProgram?.statements).toHaveLength(2);
     expect(reopened.doc.setStatements).toHaveLength(1);
+  });
+
+  it("saves and reloads source-owned module mutations without flattening instances", async () => {
+    const content = [
+      "nui 3",
+      "module M() {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}",
+      "module First = M()",
+      "module Second = M()"
+    ].join("\n");
+    useCadDocumentStore.getState().replaceTextDocument(content, {
+      currentFilePath: "/tmp/module.nui",
+      dirtySinceSave: false
+    });
+    const first = useCadDocumentStore.getState().elements.find((element) => element.name === "First")!;
+    const firstPoint = useCadDocumentStore.getState().elements.find(
+      (element) => element.name === "P" && element.parentGroupId === first.id
+    )!;
+    useCadDocumentStore.getState().updateElement(firstPoint.id, { x: 7 });
+    const edited = useCadDocumentStore.getState().sourceText;
+    tauriCoreMock.invoke.mockResolvedValue(undefined);
+
+    await saveDocument();
+
+    expect(tauriCoreMock.invoke).toHaveBeenCalledWith("write_document_file", {
+      path: "/tmp/module.nui",
+      content: edited
+    });
+    expect(edited.match(/point P/g)).toHaveLength(1);
+    expect(edited.match(/module (First|Second) = M\(\)/g)).toHaveLength(2);
+
+    dialogMock.open.mockResolvedValue("/tmp/module.nui");
+    tauriCoreMock.invoke.mockResolvedValue(edited);
+    await openDocument();
+
+    const reopened = useCadDocumentStore.getState();
+    expect(reopened.sourceText).toBe(edited);
+    const reopenedPoints = reopened.elements.filter(
+      (element): element is Extract<CadElement, { type: "freePoint" }> => element.name === "P" && element.type === "freePoint"
+    );
+    expect(reopenedPoints.map((element) => element.x)).toEqual([7, 7]);
+    expect(reopened.sourceText).toContain("module M() {");
+    expect(reopened.sourceText).toContain("module First = M()");
+    expect(reopened.sourceText).toContain("module Second = M()");
   });
 
   it("preserves escaped literal braces through open, save, and reopen", async () => {

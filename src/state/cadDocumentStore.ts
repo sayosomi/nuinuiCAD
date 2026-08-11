@@ -293,6 +293,12 @@ const modelCommit = (
   let current = state;
   let rebased = false;
   if (!compatibilityViewMatchesDoc(state)) {
+    if (state.doc.moduleMaterialization) {
+      console.error("[canonicalDocument] Module runtime view is not source-compatible; refusing model rebase.");
+      useCadUiStore.getState().clearPickMode();
+      useCadUiStore.getState().setCommandErrorMessage("Module文書のsourceとruntimeが同期していないため操作を適用できません。");
+      return { state: clearedPreviewState(), result: { status: "rejected", reason: "invalid-change" } };
+    }
     // Legacy tests and transitional facade callers may seed the derived view directly.
     // Rebase that setup into canonical text before creating the real history entry.
     const regenerated = regenerateCanonicalFromModel(documentOf(state), state.doc.majorVersion);
@@ -334,6 +340,12 @@ const modelCommit = (
   let updateKind: SourceUpdate["kind"] = "model-patch";
   let splices: readonly LineSplice[] = [];
   if (result.status === "failed") {
+    if (current.doc.moduleMaterialization) {
+      console.error(`[canonicalDocument] Module source patchを適用できないため変更を破棄します: ${result.reason}`);
+      useCadUiStore.getState().clearPickMode();
+      useCadUiStore.getState().setCommandErrorMessage("Module文書のsourceを安全に更新できないため操作を適用できません。");
+      return { state: clearedPreviewState(), result: { status: "rejected", reason: "invalid-change" } };
+    }
     updateKind = "reset";
     if (shadowAssertEnabled) {
       console.error(`[canonicalDocument] 行パッチを適用できないため全体再生成します: ${result.reason}`);
@@ -351,7 +363,7 @@ const modelCommit = (
     splices = result.splices;
   }
 
-  if (shadowAssertEnabled) {
+  if (shadowAssertEnabled && !current.doc.moduleMaterialization) {
     if (!assertShadowEquivalent(afterDocument, value.doc.document, current.doc.majorVersion)) {
       updateKind = "reset";
       try {

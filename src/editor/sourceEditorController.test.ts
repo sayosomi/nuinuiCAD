@@ -43,6 +43,15 @@ const numericValueSource = () => dslTextForElements([
   { id: "b", name: "B", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 0, dy: 120 }
 ]);
 
+const moduleSource = [
+  "nui 3",
+  "module M() {",
+  "  point P = coordinate(x: 1, y: 2)",
+  "}",
+  "module First = M()",
+  "module Second = M()"
+].join("\n");
+
 type ControllerInternals = {
   statementRanges: ReadonlyMap<string, {
     from: number;
@@ -106,6 +115,31 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(undoDepth(internals.view.state as never)).toBe(undoBefore);
     expect(useCadDocumentStore.getState().past).toHaveLength(storeHistoryBefore);
     expect(parent.contains(document.activeElement)).toBe(true);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("navigates materialized module children to definition and instances to calls", () => {
+    useCadDocumentStore.getState().commitText(moduleSource, "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const first = useCadDocumentStore.getState().elements.find((element) => element.name === "First")!;
+    const firstPoint = useCadDocumentStore.getState().elements.find(
+      (element) => element.name === "P" && element.parentGroupId === first.id
+    )!;
+
+    controller.jumpToElement(firstPoint.id);
+    expect(internals.view.state.doc.lineAt(internals.view.state.selection.main.head).number).toBe(3);
+
+    expect(controller.jumpToParameterValue(firstPoint.id, "x")).toBe(true);
+    const parameterSelection = internals.view.state.selection.main;
+    expect(internals.view.state.doc.toString().slice(parameterSelection.from, parameterSelection.to)).toBe("1");
+
+    controller.jumpToElement(first.id);
+    expect(internals.view.state.doc.lineAt(internals.view.state.selection.main.head).number).toBe(5);
+
     controller.destroy();
     parent.remove();
   });

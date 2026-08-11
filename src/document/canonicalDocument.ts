@@ -16,6 +16,7 @@ import type { TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import { applyLineSplices, buildTextPatch, UnappliedTextPatchError, type LineSplice } from "./textPatch";
 import { reconcileStatements } from "./statementReconciler";
 import { zipAssignedElementIds } from "./shadowText";
+import { buildModuleModelPatch } from "./moduleModelBridge";
 
 export type LastGoodDslDocument = Omit<CompiledDslDocument, "document" | "statementMap" | "majorVersion"> & {
   document: DslDocumentData;
@@ -187,6 +188,47 @@ export const commitModelBridge = (
   }
   if (current.docText !== current.sourceText) {
     return { status: "rejected", reason: "fatalな編集中テキストがあるためモデル編集を適用できません。" };
+  }
+
+  if (current.doc.moduleMaterialization) {
+    const modulePatch = buildModuleModelPatch(current, afterDocument);
+    if (modulePatch.status === "noop") return { status: "noop" };
+    if (modulePatch.status === "unapplied") {
+      return {
+        status: "unapplied",
+        reason: modulePatch.reason,
+        diagnostic: {
+          severity: "error",
+          line: 1,
+          column: 1,
+          message: modulePatch.reason,
+          sourceRevision: current.doc.statementMap.sourceRevision
+        }
+      };
+    }
+    let patchedText: string;
+    try {
+      patchedText = applyLineSplices(current.sourceText, modulePatch.splices);
+    } catch (error) {
+      return { status: "failed", reason: error instanceof Error ? error.message : String(error) };
+    }
+    if (patchedText === current.sourceText) return { status: "noop" };
+    const compiled = compileCanonicalText(current, patchedText);
+    if (compiled.status === "fatal") {
+      return { status: "failed", reason: "Module source patch後のテキストをコンパイルできませんでした。" };
+    }
+    return {
+      status: "committed",
+      value: {
+        sourceText: compiled.sourceText,
+        doc: compiled.doc,
+        docText: compiled.docText,
+        diagnostics: compiled.diagnostics,
+        bindingIssueDiagnostics: compiled.bindingIssueDiagnostics,
+        typedDependencyGraph: compiled.typedDependencyGraph
+      },
+      splices: modulePatch.splices
+    };
   }
 
   let patchedText: string;
