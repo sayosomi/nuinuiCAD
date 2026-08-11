@@ -4,6 +4,7 @@ import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import type { SourceCreationCursor } from "../commands/sourceCreationInsertion";
+import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
 
 /** Evaluation identity is deliberately separate from the source notification revision.
  * `compiledDocumentRevision` identifies the last-good document that was evaluated. */
@@ -57,6 +58,7 @@ export type SourceEditorHandle = {
    * primary cursor, if any - see typedRenameTargetAtCursor.ts. Null whenever
    * the cursor is not on a typed construct at all. */
   currentCursorTypedRenameTargetBindingId?: () => BindingId | null;
+  currentCursorModuleSemanticTarget?: () => ModuleSemanticTarget | null;
   /** Current editor text serialized with its uniform source line ending, when one exists. */
   getText: () => string;
   /** Publishes a result together with the compiled-document revision captured when its
@@ -79,6 +81,8 @@ export type SourceEditorHandle = {
    * (Task 43) and focuses the editor. False if the binding, or that specific field's
    * span, does not currently resolve - callers may fall back to jumpToBindingDeclaration. */
   jumpToBindingDeclarationPart: (bindingId: BindingId, part: "type" | "initializer") => boolean;
+  jumpToModuleSemanticTarget?: (target: ModuleSemanticTarget) => boolean;
+  goToSourceDefinitionAtCursor?: () => boolean;
   /** Selects a resolved property/control-flow binding's own `@name` value span
    * (Task 45 Inspector consumer rows). `occurrenceKey` is Task 22's
    * `propertyBindingOccurrenceKey(statementIndex, parameterKey)`. False, without

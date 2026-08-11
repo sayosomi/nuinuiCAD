@@ -127,6 +127,13 @@ import {
   type SourceEditorValueStepGesture
 } from "./sourceEditorValueStepGesture";
 import { typedRenameTargetBindingIdAtCursor } from "./typedRenameTargetAtCursor";
+import {
+  createModuleSemanticRangeIndex,
+  moduleSemanticDeclarationRange,
+  moduleSemanticTargetAt,
+  type ModuleSemanticRangeIndex,
+  type ModuleSemanticTarget
+} from "../dsl/moduleSemanticEditor";
 
 type SourceStore = {
   getState: () => CadDocumentState;
@@ -189,6 +196,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private propertyBindingRanges: PropertyBindingRangeIndex = new Map();
   private scopeBodyRanges: ScopeBodyRangeIndex = [];
   private atStopRange: AtStopRange | null = null;
+  private moduleSemanticRanges: ModuleSemanticRangeIndex = { tokens: [], declarationByTarget: new Map() };
   /**
    * True only while `doc.bindingAnalysis`/`doc.setStatements` are proven to
    * describe the exact live CM buffer (i.e. a compile just landed and
@@ -233,7 +241,9 @@ export class SourceEditorController implements SourceEditorHandle {
     scopeBodyRanges: () => this.scopeBodyRanges,
     statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId,
     statementInfoByKey: () => this.store.getState().doc.statementMap.byKey,
-    majorVersion: () => this.store.getState().doc.majorVersion ?? undefined
+    majorVersion: () => this.store.getState().doc.majorVersion ?? undefined,
+    moduleSemanticMetadata: () => this.store.getState().doc,
+    semanticMetadataFresh: () => this.typedSemanticMetadataFresh
   });
   private decorationIndex: EvaluationDecorationIndex = emptyDecorationIndex();
   private pendingDecorationRefresh = false;
@@ -457,6 +467,29 @@ export class SourceEditorController implements SourceEditorHandle {
       },
       this.view.state.selection.main.head
     );
+  };
+
+  currentCursorModuleSemanticTarget = (): ModuleSemanticTarget | null => {
+    if (!this.typedSemanticMetadataFresh) return null;
+    return moduleSemanticTargetAt(this.moduleSemanticRanges, this.view.state.selection.main.head);
+  };
+
+  jumpToModuleSemanticTarget = (target: ModuleSemanticTarget): boolean => {
+    if (this.protocol.composing || !this.typedSemanticMetadataFresh) return false;
+    const range = moduleSemanticDeclarationRange(this.moduleSemanticRanges, target);
+    if (!range) return false;
+    this.view.dispatch({
+      selection: EditorSelection.single(range.from, range.to),
+      scrollIntoView: true,
+      annotations: [canvasCursorOrigin.of("canvas-cursor"), Transaction.addToHistory.of(false)]
+    });
+    this.view.focus();
+    return true;
+  };
+
+  goToSourceDefinitionAtCursor = (): boolean => {
+    const target = this.currentCursorModuleSemanticTarget();
+    return target ? this.jumpToModuleSemanticTarget(target) : false;
   };
 
   getText = () => serializeEditorText(this.view.state.doc.toString(), this.format);
@@ -1457,7 +1490,8 @@ export class SourceEditorController implements SourceEditorHandle {
             const handled = dispatchCommand(binding.commandId, {
               currentCursorElementId: this.currentCursorElementId,
               currentSourceCursor: this.currentSourceCursor,
-              currentCursorTypedRenameTargetBindingId: this.currentCursorTypedRenameTargetBindingId
+              currentCursorTypedRenameTargetBindingId: this.currentCursorTypedRenameTargetBindingId,
+              currentCursorModuleSemanticTarget: this.currentCursorModuleSemanticTarget
             }) !== false;
             return binding.owner === "editorTransaction" ? handled : true;
           }
@@ -1557,6 +1591,7 @@ export class SourceEditorController implements SourceEditorHandle {
       // metadata currency immediately; only a fresh compile (refreshStatementRanges)
       // proves doc.bindingAnalysis/doc.setStatements describe this exact buffer again.
       this.typedSemanticMetadataFresh = false;
+      this.moduleSemanticRanges = { tokens: [], declarationByTarget: new Map() };
       if (!this.applyingTypedInitializerStep) this.repeatingTypedInitializerStep = null;
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
       this.printLayoutRanges = mapPrintLayoutRangeIndex(this.printLayoutRanges, update.changes);
@@ -1812,11 +1847,13 @@ export class SourceEditorController implements SourceEditorHandle {
       // sourceText currently has fatal diagnostics; doc is last-good from before
       // it, so its bindingAnalysis/setStatements no longer describe sourceText.
       this.typedSemanticMetadataFresh = false;
+      this.moduleSemanticRanges = { tokens: [], declarationByTarget: new Map() };
       return;
     }
     if (this.view.state.doc.toString() !== normalizeSourceTextForEditor(state.sourceText)) {
       // Never project a stale committed statement/span into another CM state.
       this.statementRanges = new Map();
+      this.moduleSemanticRanges = { tokens: [], declarationByTarget: new Map() };
       this.printLayoutRanges = new Map();
       this.typedDeclarationRanges = new Map();
       this.typedDeclarationFieldRanges = new Map();
@@ -1846,6 +1883,7 @@ export class SourceEditorController implements SourceEditorHandle {
       ? createScopeBodyRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.bindingAnalysis.catalog.scopeIndex)
       : [];
     this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);
+    this.moduleSemanticRanges = createModuleSemanticRangeIndex(state.doc);
     this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
     // doc.bindingAnalysis/doc.setStatements were just rebuilt from exactly this
     // live buffer's text - proven current until the next doc-changing transaction.

@@ -7,6 +7,7 @@ import type {
 } from "../state/cadUiStore";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { BindingId } from "../scalars/bindingCatalog";
+import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
 import type { GroupTemplate } from "../templates/groupTemplate";
 import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
@@ -152,6 +153,7 @@ export type CommandId =
   | "closeSelectionColorPicker"
   | "applyDisplayColorToSelection"
   | "renameSelectedElement"
+  | "goToSourceDefinition"
   | "focusCanvas"
   | "focusSourceEditor"
   | "focusElementSearch"
@@ -175,6 +177,8 @@ export type CommandContext = {
    * Source Editor cursor, if any - see typedRenameTargetAtCursor.ts. Null
    * whenever the cursor is not on a typed construct at all. */
   currentCursorTypedRenameTargetBindingId?: () => BindingId | null;
+  currentCursorModuleSemanticTarget?: () => ModuleSemanticTarget | null;
+  goToSourceDefinitionAtCursor?: () => boolean;
   /** Focuses the Source Editor at the end of a newly generated element statement. */
   focusSourceEditorAtElementEnd?: (elementId: ElementId) => void;
   /** Focuses the Source Editor at the end of a physical line, without touching
