@@ -6,6 +6,7 @@ import { activePrintLayout, DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import { isGroupElement, isGroupExpanded } from "../model/groups";
 import {
+  effectiveCompiledDocument,
   effectiveElements,
   effectiveEvaluationLimitIndex,
   initialCadDocumentState,
@@ -244,8 +245,12 @@ describe("cadDocumentStore file state", () => {
     expect(during.compiledDocumentRevision).toBe(before.compiledDocumentRevision);
     expect(during.past).toBe(before.past);
     expect(effectiveElements(during).find((element) => element.name === "A")).toMatchObject({ x: 15 });
+    expect(during.previewCompiledDocument?.document.elements).toBe(during.previewElements);
+    expect(effectiveCompiledDocument(during)).toBe(during.previewCompiledDocument);
     useCadDocumentStore.getState().setSourceEditorPreviewText(null);
     expect(useCadDocumentStore.getState().previewElements).toBeNull();
+    expect(useCadDocumentStore.getState().previewCompiledDocument).toBeNull();
+    expect(effectiveCompiledDocument(useCadDocumentStore.getState())).toBe(useCadDocumentStore.getState().doc);
   });
 
   it("clears previews after every completion path, including a no-op commit", () => {

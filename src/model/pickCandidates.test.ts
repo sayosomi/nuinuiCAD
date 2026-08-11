@@ -156,6 +156,80 @@ describe("pickCandidates", () => {
     })).toEqual([]);
   });
 
+  it("keeps a moduleInstance out of point and numeric candidates even if stale geometry is present", () => {
+    const moduleInstance: CadElement = {
+      id: "module-stale",
+      name: "module",
+      type: "moduleInstance",
+      activity: "visible"
+    };
+    const target: CadElement = {
+      id: "target-stale-module",
+      name: "target",
+      type: "offsetPoint",
+      activity: "visible",
+      fromPointId: "a",
+      dx: 0,
+      dy: 0
+    };
+    const sourceElements = [elements[0], moduleInstance, target];
+    const staleEvaluation: EvaluationResult = {
+      computedGeometry: new Map<string, ComputedGeometry>([
+        ["a", point("a", 0, 0)],
+        ["module-stale", point("module-stale", 99, 99)],
+        ["target-stale-module", point("target-stale-module", 0, 0)]
+      ]),
+      errors: [],
+      warnings: []
+    };
+
+    expect(pickCandidates(sourceElements, staleEvaluation, {
+      activePointPickTarget: { elementId: "target-stale-module", parameterKey: "fromPoint" },
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: null,
+      referenceElements: [moduleInstance]
+    })).toEqual([]);
+
+    const staleLine = { ...line, elementId: "module-stale", name: "module" };
+    expect(pickCandidates(sourceElements, {
+      ...staleEvaluation,
+      computedGeometry: new Map<string, ComputedGeometry>([
+        ["a", point("a", 0, 0)],
+        ["module-stale", staleLine],
+        ["target-stale-module", point("target-stale-module", 0, 0)]
+      ])
+    }, {
+      activePointPickTarget: null,
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: {
+        elementId: "target-stale-module",
+        parameterKey: "dx",
+        mode: "replace",
+        property: "length"
+      }
+    })).toEqual([]);
+
+    const lineTarget: CadElement = {
+      id: "line-target-stale-module",
+      name: "line target",
+      type: "offsetLine",
+      activity: "visible",
+      baseLineIds: [],
+      offset: 1,
+      side: "right",
+      closed: false
+    };
+    expect(pickCandidates([elements[0], moduleInstance, lineTarget], {
+      ...staleEvaluation,
+      computedGeometry: new Map<string, ComputedGeometry>([["module-stale", staleLine]])
+    }, {
+      activePointPickTarget: null,
+      activeLinePickTarget: { elementId: lineTarget.id, parameterKey: "baseLineIds" },
+      activeNumericReferencePickTarget: null,
+      referenceElements: [moduleInstance]
+    })).toEqual([]);
+  });
+
   it("returns same-forGroup generated point, endpoint, and line instances in explicit iteration order", () => {
     const generatedElements: CadElement[] = [
       {

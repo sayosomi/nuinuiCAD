@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { CanvasViewport } from "../state/cadUiStore";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { runtimeOnlyElementTypes } from "../types/geometry";
 import type {
   CadElement,
   ComputedArcLine,
@@ -110,8 +111,14 @@ export const useCanvasOverlayData = ({
     ]
   );
   const geometries = useMemo(
-    () => Array.from(evaluation.computedGeometry.values()),
-    [evaluation.computedGeometry]
+    () => {
+      const elementById = new Map(elements.map((element) => [element.id, element]));
+      return Array.from(evaluation.computedGeometry.values()).filter((geometry) => {
+        const element = elementById.get(geometry.elementId);
+        return !element || !runtimeOnlyElementTypes.has(element.type);
+      });
+    },
+    [elements, evaluation.computedGeometry]
   );
   const lines = useMemo(() => geometries.filter(isLine), [geometries]);
   const arcs = useMemo(() => geometries.filter(isArcLine), [geometries]);
@@ -212,6 +219,13 @@ export const useCanvasOverlayData = ({
           : []
       )
     ));
+    const sourceReferenceByPickRef = new Map(pointPickCandidates.flatMap((candidate) =>
+      candidate.options.flatMap((option) =>
+        option.kind === "point" && option.anchor.mode !== "coordinate" && option.sourceReference
+          ? [[pickRefKey(pickRefForOption(candidate.elementId, option)), option.sourceReference] as const]
+          : []
+      )
+    ));
     return geometries
       .filter((geometry) => !excludedInteractionElementIds?.has(geometry.elementId))
       .filter((geometry) => visibleElementIds.has(geometry.elementId))
@@ -227,7 +241,18 @@ export const useCanvasOverlayData = ({
           .map((candidate) => ({
             anchor: candidate.anchor,
             label: candidate.label,
-            screen: worldToScreen(candidate.point, viewportSize, canvasViewport)
+            screen: worldToScreen(candidate.point, viewportSize, canvasViewport),
+            ...(sourceReferenceByPickRef.get(pickRefKey(pickRefForOption(geometry.elementId, {
+              kind: "point",
+              label: candidate.label,
+              anchor: candidate.anchor
+            }))) ? {
+              sourceReference: sourceReferenceByPickRef.get(pickRefKey(pickRefForOption(geometry.elementId, {
+                kind: "point",
+                label: candidate.label,
+                anchor: candidate.anchor
+              })))
+            } : {})
           }))
       );
   }, [

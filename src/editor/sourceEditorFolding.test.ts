@@ -1,7 +1,9 @@
 import { Text } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
-import { collapsedFoldTargetAtLine, foldTargetAtLine, foldTargets } from "./sourceEditorFolding";
+import { parseDslSnapshot } from "../dsl/dslParser";
+import { createModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
+import { collapsedFoldTargetAtLine, foldTargetAtLine, foldTargets, moduleDefinitionFoldTargetAtLine, moduleDefinitionFoldTargets } from "./sourceEditorFolding";
 import { createStatementRangeIndex } from "./statementRangeIndex";
 
 describe("sourceEditorFolding structural rows", () => {
@@ -120,5 +122,113 @@ describe("sourceEditorFolding structural rows", () => {
 
     expect(targets.map((target) => target.branch)).toEqual(["primary", "else"]);
     expect(targets[0]!.to).toBeLessThan(targets[1]!.from);
+  });
+});
+
+describe("sourceEditorFolding module definitions", () => {
+  const compileModule = (source: string) => {
+    const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 4 });
+    const compiled = compileDslDocument(source, {
+      sourceRevision: 4,
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:test:${index}`]))
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    return compiled;
+  };
+
+  it("creates a source-only target keyed by the compiled StatementIdentity", () => {
+    const source = [
+      "nui 3",
+      "module M(a: number) {",
+      "  let x: number = @a",
+      "  point P = coordinate(x: @x, y: 0)",
+      "}",
+      "module I = M(a: 10)"
+    ].join("\n");
+    const compiled = compileModule(source);
+    const definition = compiled.moduleSemanticAnalysis!.definitions[0]!;
+    const index = createModuleSemanticRangeIndex(compiled);
+    const target = index.moduleDefinitionFoldRanges!.get(definition.statementId)!;
+
+    expect(compiled.document!.elements.some((element) => element.id === definition.statementId)).toBe(false);
+    expect(target).toMatchObject({
+      statementId: definition.statementId,
+      gutterLineFrom: source.indexOf("module M"),
+      foldFrom: source.indexOf("{", source.indexOf("module M")) + 1,
+      foldTo: source.lastIndexOf("}")
+    });
+    expect(moduleDefinitionFoldTargets(index, new Set())).toEqual([]);
+    expect(moduleDefinitionFoldTargets(index, new Set([definition.statementId]))).toEqual([
+      expect.objectContaining({ kind: "moduleDefinition", statementId: definition.statementId })
+    ]);
+    expect(foldTargets(createStatementRangeIndex(Text.of(source.split("\n")), compiled.statementMap!), compiled.document!.elements, new Map())).toEqual([]);
+  });
+
+  it("uses the opening brace row for multiline headers and standalone braces", () => {
+    for (const source of [
+      ["nui 3", "module M(", "  a: number", ") {", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n"),
+      ["nui 3", "module M(a: number)", "{", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n")
+    ]) {
+      const compiled = compileModule(source);
+      const definition = compiled.moduleSemanticAnalysis!.definitions[0]!;
+      const index = createModuleSemanticRangeIndex(compiled);
+      const openingBrace = source.indexOf("{", source.indexOf("module M"));
+      const openingLineFrom = source.lastIndexOf("\n", openingBrace) + 1;
+      const target = moduleDefinitionFoldTargetAtLine(index, openingLineFrom);
+      const range = index.moduleDefinitionFoldRanges!.get(definition.statementId)!;
+
+      expect(target).toMatchObject({
+        statementId: definition.statementId,
+        gutterLineFrom: range.gutterLineFrom,
+        from: range.foldFrom,
+        to: range.foldTo
+      });
+      expect(source.slice(range.gutterLineFrom, source.indexOf("\n", range.gutterLineFrom))).toContain("{");
+    }
+  });
+
+  it("creates an independent parameter-list target only for multiline non-empty lists", () => {
+    const source = [
+      "nui 3",
+      "module M(",
+      "  a: choice(通常, 反転),",
+      "  b: number",
+      ") {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module I = M(a: 通常, b: 10)"
+    ].join("\n");
+    const compiled = compileModule(source);
+    const definition = compiled.moduleSemanticAnalysis!.definitions[0]!;
+    const index = createModuleSemanticRangeIndex(compiled);
+    const body = index.moduleDefinitionFoldRanges!.get(definition.statementId)!;
+    const parameters = index.moduleDefinitionParameterFoldRanges!.get(definition.statementId)!;
+    const open = source.indexOf("(", source.indexOf("module M"));
+    const close = source.indexOf(") {", open);
+
+    expect(parameters).toMatchObject({
+      statementId: definition.statementId,
+      branch: "parameters",
+      gutterLineFrom: source.lastIndexOf("\n", open) + 1,
+      foldFrom: open + 1,
+      foldTo: close
+    });
+    expect(source.slice(parameters.anchors[0].from, parameters.anchors[0].to)).toBe("(");
+    expect(source.slice(parameters.anchors[1].from, parameters.anchors[1].to)).toBe(")");
+    expect(body.branch).toBe("body");
+    expect(moduleDefinitionFoldTargets(index, new Set(), new Set([definition.statementId]))).toEqual([
+      expect.objectContaining({ branch: "parameters", statementId: definition.statementId })
+    ]);
+
+    for (const singleLineSource of [
+      "nui 3\nmodule M(a: number, b: number) {\n}",
+      "nui 3\nmodule M() {\n}"
+    ]) {
+      const singleLine = compileModule(singleLineSource);
+      const singleDefinition = singleLine.moduleSemanticAnalysis!.definitions[0]!;
+      const singleIndex = createModuleSemanticRangeIndex(singleLine);
+      expect(singleIndex.moduleDefinitionParameterFoldRanges!.has(singleDefinition.statementId)).toBe(false);
+    }
   });
 });

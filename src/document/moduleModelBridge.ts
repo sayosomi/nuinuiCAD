@@ -3,6 +3,7 @@ import type { CompiledDslDocument, DslDocumentData, StatementInfo } from "../dsl
 import type { DslStatement } from "../dsl/dslTypes";
 import { coordinateComponent } from "../dsl/dslParameterSpanScanner";
 import { formatDslName, quoteDslString } from "../dsl/dslTokens";
+import { formatDslReferenceToken } from "../dsl/dslReferenceTokens";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { findParameterDefinition, getParameterDefinitions, type ParameterValueKind } from "../parameters/parameterDefinitions";
 import { sourceOwnerForRuntimeElementId, type SourceOwner } from "../dsl/sourceOwnership";
@@ -115,6 +116,36 @@ const safeLiteralFor = (
     default:
       return null;
   }
+};
+
+/** A semantic Module pick carries this canonical token explicitly. Raw
+ * materialized IDs are intentionally rejected here so source adoption cannot
+ * persist a private/runtime identity by accident. */
+const moduleReferenceLiteralFor = (kind: ParameterValueKind, value: unknown): string | null => {
+  const qualified = (token: unknown) =>
+    typeof token === "string" && !token.startsWith("module-runtime:")
+      ? formatDslReferenceToken(token)
+      : null;
+  if (kind === "reference" && value && typeof value === "object" && "mode" in value) {
+    const anchor = value as { mode?: string; pointId?: unknown; elementId?: unknown; pointKey?: unknown };
+    if (anchor.mode === "reference") return qualified(anchor.pointId);
+    if (anchor.mode === "derived") {
+      const base = qualified(anchor.elementId);
+      return base && typeof anchor.pointKey === "string" ? `${base}.${anchor.pointKey}` : null;
+    }
+    return null;
+  }
+  if (kind === "lineEndpointReference" && value && typeof value === "object") {
+    const endpoint = value as { lineId?: unknown; endpointKey?: unknown };
+    const line = qualified(endpoint.lineId);
+    return line && typeof endpoint.endpointKey === "string" ? `${line}.${endpoint.endpointKey}` : null;
+  }
+  if (kind === "lineReference") return qualified(value);
+  if (kind === "lineReferenceList" && Array.isArray(value)) {
+    const tokens = value.map(qualified);
+    return tokens.every((token): token is string => token !== null) ? `[${tokens.join(", ")}]` : null;
+  }
+  return null;
 };
 
 const singlePhysicalSegment = (span: { segments: readonly { from: number; to: number }[] } | null | undefined) =>
@@ -287,6 +318,13 @@ const parameterEditFor = (
     return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${parameterKey} source parameter定義を解決できません。` };
   }
   const value = getParameterValue(after, parameterKey);
+  const moduleReference = moduleReferenceLiteralFor(definition.kind, value);
+  if (moduleReference !== null) {
+    if (!attribute || !physical || !segment || physical.sourceRevision !== source.sourceRevision) {
+      return insertArgumentEdit(sourceLines, source, argumentName, moduleReference);
+    }
+    return { status: "ready", edit: { from: segment.from, to: segment.to, replacement: moduleReference } };
+  }
   if (!attribute || !physical || !segment || physical.sourceRevision !== source.sourceRevision) {
     const replacement = literalForValue(definition.kind, value);
     if (replacement === null) {
@@ -316,7 +354,19 @@ const serializeOwnedElement = (
     return { status: "unapplied", reason: `要素 ${after.name || after.id} の構造変更はModule source bridgeで扱えません。` };
   }
 
-  const changedKeys = parameterKeysChanged(before, after);
+  const rawChangedKeys = parameterKeysChanged(before, after);
+  // A coordinate anchor exposes synthetic `:x`/`:y` inspector parameters.
+  // When a pick adopts a canonical Module reference, the anchor root changes
+  // from coordinate to reference and only that root source span is authored;
+  // attempting to patch the now-nonexistent coordinate children would reject
+  // the otherwise valid semantic reference adoption.
+  const changedKeys = rawChangedKeys.filter((key) => {
+    const coordinate = key.match(/^(.+):(x|y)$/);
+    if (!coordinate || !rawChangedKeys.includes(coordinate[1])) return true;
+    const nextAnchor = getParameterValue(after, coordinate[1]);
+    return !nextAnchor || typeof nextAnchor !== "object" || !("mode" in nextAnchor) ||
+      (nextAnchor as { mode?: unknown }).mode === "coordinate";
+  });
   if (before.activity !== after.activity) changedKeys.push("activity");
   if (changedKeys.length === 0) {
     if (!sameParameterValue(before, after)) {

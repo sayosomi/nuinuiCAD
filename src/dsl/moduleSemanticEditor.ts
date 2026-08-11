@@ -31,6 +31,23 @@ export type ModuleSemanticToken = {
 
 export type ModuleSemanticStatementRange = { from: number; to: number };
 
+export type ModuleDefinitionFoldBranch = "body" | "parameters";
+
+/**
+ * Source-only folding range for a compiled module definition. The stable
+ * statement identity is deliberately separate from runtime ElementId state.
+ * `anchors` are the compiled opening/closing delimiters used to fail closed
+ * while a dirty edit changes the module structure.
+ */
+export type ModuleDefinitionFoldRange = {
+  statementId: StatementIdentity;
+  branch: ModuleDefinitionFoldBranch;
+  gutterLineFrom: number;
+  foldFrom: number;
+  foldTo: number;
+  anchors: readonly { from: number; to: number }[];
+};
+
 export type ModuleSemanticScopeRange = {
   scopeId: ScopeId;
   from: number;
@@ -57,6 +74,10 @@ export type ModuleSemanticRangeIndex = {
   moduleBodyScopeIds?: ReadonlySet<ScopeId>;
   /** False after an edit touches a Module/group structural delimiter. */
   moduleStructureStable?: boolean;
+  /** Source-only fold ranges for module definitions, keyed by stable identity. */
+  moduleDefinitionFoldRanges?: ReadonlyMap<StatementIdentity, ModuleDefinitionFoldRange>;
+  /** Source-only parameter-list fold ranges, keyed by the same stable identity. */
+  moduleDefinitionParameterFoldRanges?: ReadonlyMap<StatementIdentity, ModuleDefinitionFoldRange>;
 };
 
 export const moduleSemanticTargetKey = (target: ModuleSemanticTarget): string => {
@@ -118,6 +139,11 @@ const lineStartAt = (source: string, line: number) => {
   return offset;
 };
 
+const lineStartForPosition = (source: string, position: number) => {
+  const lineStart = source.lastIndexOf("\n", Math.max(0, position - 1));
+  return lineStart < 0 ? 0 : lineStart + 1;
+};
+
 const structuralBraceAnchor = (compiled: CompiledDslDocument, statement: CompiledDslDocument["statements"][number], brace: "{" | "}") => {
   const source = compiled.spans.sourceMap.source;
   const inStatement = source.indexOf(brace, statement.documentRange.from);
@@ -133,6 +159,43 @@ const structuralBraceAnchor = (compiled: CompiledDslDocument, statement: Compile
   return { from: statement.documentRange.from, to: statement.documentRange.to };
 };
 
+const projectedSingleSegment = (compiled: CompiledDslDocument, statementIndex: number, span: DslSpan) => {
+  const physical = projectedSpan(compiled, statementIndex, span);
+  return physical?.segments.length === 1 ? physical.segments[0] : null;
+};
+
+const moduleDefinitionParameterFoldRange = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  statementId: StatementIdentity
+): ModuleDefinitionFoldRange | null => {
+  const statement = compiled.statements[statementIndex];
+  if (!statement || statement.kind !== "moduleDefinition" || statement.parameters.length === 0) return null;
+  const parameters = statement.payloadSpans.parameters;
+  const logical = compiled.spans.sourceMap.statements.find((candidate) => candidate.range.from === statement.documentRange.from);
+  if (
+    !parameters || !logical || !Number.isInteger(parameters.start) || !Number.isInteger(parameters.end) ||
+    parameters.start < 1 || parameters.end < parameters.start || parameters.end + 1 > logical.logicalText.length
+  ) return null;
+
+  const open = projectedSingleSegment(compiled, statementIndex, { start: parameters.start - 1, end: parameters.start });
+  const close = projectedSingleSegment(compiled, statementIndex, { start: parameters.end, end: parameters.end + 1 });
+  if (!open || !close) return null;
+  const source = compiled.spans.sourceMap.source;
+  if (source.slice(open.from, open.to) !== "(" || source.slice(close.from, close.to) !== ")") return null;
+  if (lineStartForPosition(source, open.from) === lineStartForPosition(source, close.from)) return null;
+  if (close.from <= open.to) return null;
+
+  return {
+    statementId,
+    branch: "parameters",
+    gutterLineFrom: lineStartForPosition(source, open.from),
+    foldFrom: open.to,
+    foldTo: close.from,
+    anchors: [open, close]
+  };
+};
+
 /** Build the editor view of the already-compiled module semantics. */
 export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): ModuleSemanticRangeIndex => {
   const analysis = compiled.moduleSemanticAnalysis;
@@ -140,6 +203,8 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
   const declarations = new Map<string, ModuleSemanticToken>();
   const statementRanges = new Map<number, { from: number; to: number }>();
   const staleStatementRanges = new Map<number, { from: number; to: number }>();
+  const moduleDefinitionFoldRanges = new Map<StatementIdentity, ModuleDefinitionFoldRange>();
+  const moduleDefinitionParameterFoldRanges = new Map<StatementIdentity, ModuleDefinitionFoldRange>();
   const statementAnchors = new Map<number, { from: number; to: number; scopeId: ScopeId }>();
   const lexicalScopeRanges: ModuleSemanticScopeRange[] = [];
   const moduleBodyScopeIds = new Set<ScopeId>();
@@ -148,6 +213,8 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     declarationByTarget: declarations,
     statementRanges,
     staleStatementRanges,
+    moduleDefinitionFoldRanges,
+    moduleDefinitionParameterFoldRanges,
     statementAnchors,
     lexicalScopeRanges,
     moduleBodyScopeIds,
@@ -174,6 +241,32 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     });
   }
   const indexById = statementIndexById(compiled);
+  for (const definition of analysis.definitions) {
+    const statementIndex = indexById.get(definition.statementId);
+    const scope = compiled.sourceLexicalNamespace?.scopeIndex.scopes.get(definition.bodyScopeId);
+    const opening = scope?.openingStatementIndex === null || scope?.openingStatementIndex === undefined
+      ? undefined
+      : compiled.statements[scope.openingStatementIndex];
+    const closing = scope && scope.exitStatementIndex < compiled.statements.length
+      ? compiled.statements[scope.exitStatementIndex]
+      : undefined;
+    if (statementIndex === undefined || !opening || !closing) continue;
+    const openAnchor = structuralBraceAnchor(compiled, opening, "{");
+    const closeAnchor = structuralBraceAnchor(compiled, closing, "}");
+    const source = compiled.spans.sourceMap.source;
+    if (source.slice(openAnchor.from, openAnchor.to) !== "{" || source.slice(closeAnchor.from, closeAnchor.to) !== "}") continue;
+    if (closeAnchor.from <= openAnchor.to) continue;
+    moduleDefinitionFoldRanges.set(definition.statementId, {
+      statementId: definition.statementId,
+      branch: "body",
+      gutterLineFrom: lineStartForPosition(source, openAnchor.from),
+      foldFrom: openAnchor.to,
+      foldTo: closeAnchor.from,
+      anchors: [openAnchor, closeAnchor]
+    });
+    const parameterRange = moduleDefinitionParameterFoldRange(compiled, statementIndex, definition.statementId);
+    if (parameterRange) moduleDefinitionParameterFoldRanges.set(definition.statementId, parameterRange);
+  }
   const add = (statementIndex: number, span: DslSpan | null | undefined, target: ModuleSemanticTarget, declaration = false) => {
     if (!span) return;
     const physical = projectedSpan(compiled, statementIndex, span);
@@ -266,7 +359,18 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     for (const site of references) addGeometryReference(compiled, statementIndex, site.reference, add, addSourceTarget);
   }
   tokens.sort((a, b) => a.from - b.from || b.to - a.to);
-  return { tokens, declarationByTarget: declarations, statementRanges, staleStatementRanges, statementAnchors, lexicalScopeRanges, moduleBodyScopeIds, moduleStructureStable: true };
+  return {
+    tokens,
+    declarationByTarget: declarations,
+    statementRanges,
+    staleStatementRanges,
+    statementAnchors,
+    lexicalScopeRanges,
+    moduleBodyScopeIds,
+    moduleStructureStable: true,
+    moduleDefinitionFoldRanges,
+    moduleDefinitionParameterFoldRanges
+  };
 };
 
 const isModuleBodyStatementId = (analysis: ModuleSemanticAnalysis, statementId: StatementIdentity) =>

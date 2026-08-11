@@ -23,6 +23,10 @@ import {
   selectedPickOption,
   type PickOption
 } from "../model/pickCandidates";
+import {
+  pointAnchorForSourceReference,
+  sourceReferenceText
+} from "../model/moduleSemanticCandidateBoundary";
 import { findPickOptionByRef, type PickRef } from "../model/pickReferences";
 import { referenceAnchor } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
@@ -442,7 +446,7 @@ export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
     activeNumericReferencePickTarget,
     activeLinePickTarget
   } = ui;
-  const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
+  const { elements, evaluationLimitIndex, doc } = useCadDocumentStore.getState();
   const commandLinePlacement = ui.commandLineSession
     ? creationPlacementForTarget(
         elements,
@@ -456,17 +460,29 @@ export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
     activeLinePickTarget,
     commandLineSession: ui.commandLineSession,
     commandLinePickParentGroupId: commandLinePlacement?.parentGroupId,
-    referenceElements: commandLinePlacement?.referenceElements
+    referenceElements: commandLinePlacement?.referenceElements,
+    moduleSemanticContext: {
+      moduleMaterialization: doc.moduleMaterialization,
+      moduleSemanticAnalysis: doc.moduleSemanticAnalysis,
+      sourceLexicalNamespace: doc.sourceLexicalNamespace,
+      statementInfoByElementId: doc.statementMap?.byElementId
+    }
   });
 };
 
 const applyPickOption = (option: PickOption) => {
   if (option.kind === "point") {
-    applyPickedPoint({ pickedPointAnchor: option.anchor });
+    applyPickedPoint({
+      pickedPointAnchor: option.anchor,
+      ...(option.sourceReference ? { pickedPointSourceReference: option.sourceReference } : {})
+    });
     return;
   }
   if (option.kind === "line") {
-    applyPickedLine({ pickedLineId: option.lineId });
+    applyPickedLine({
+      pickedLineId: option.lineId,
+      ...(option.sourceReference ? { pickedLineSourceReference: option.sourceReference } : {})
+    });
     return;
   }
   applyPickedNumericReference({ numericReferenceExpression: option.expression });
@@ -636,9 +652,11 @@ export const startEndpointAndPointPick = (
   });
 };
 
-export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pickedPointAnchor">) => {
+export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pickedPointAnchor" | "pickedPointSourceReference">) => {
   const anchor = context?.pickedPointAnchor ?? (context?.pickedPointId ? referenceAnchor(context.pickedPointId) : null);
   if (!anchor) return;
+  const sourceReference = context?.pickedPointSourceReference;
+  const sourceAnchor = sourceReference ? pointAnchorForSourceReference(sourceReference) : anchor;
   if (applyTemplatePickedPoint(anchor)) return;
   const { activePointPickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
@@ -680,7 +698,10 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
         targetElementId: normalizationTargetId,
         anchor
       });
-      if (endpoint) fillCommandLineCurrentStep(endpoint);
+      if (endpoint) {
+        const sourceLineId = context?.pickedPointSourceReference?.base;
+        fillCommandLineCurrentStep(sourceLineId ? { ...endpoint, lineId: sourceLineId } : endpoint);
+      }
       return;
     }
     if (pickedAnchor.mode === "reference") {
@@ -699,7 +720,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) {
       return;
     }
-    fillCommandLineCurrentStep(pickedAnchor);
+    fillCommandLineCurrentStep(context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor);
     return;
   }
   if (activePointPickTarget.measurementSlot) {
@@ -707,7 +728,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     if (!current) return;
     const nextTarget = {
       ...current,
-      [activePointPickTarget.measurementSlot === "point1" ? "point1Anchor" : "point2Anchor"]: anchor
+      [activePointPickTarget.measurementSlot === "point1" ? "point1Anchor" : "point2Anchor"]: sourceAnchor
     };
     useCadUiStore.getState().setActiveMeasurementInsertTarget(nextTarget);
     if (activePointPickTarget.measurementSlot === "point1") {
@@ -767,7 +788,16 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     commitDocumentChangeAndSelect({
       elements: elements.map((element) =>
         element.id === activePointPickTarget.elementId
-          ? setParameterValue(element, activePointPickTarget.parameterKey, endpoint)
+          ? setParameterValue(
+              element,
+              activePointPickTarget.parameterKey,
+              context?.pickedPointSourceReference
+                ? {
+                    ...endpoint,
+                    lineId: context.pickedPointSourceReference.base
+                  }
+                : endpoint
+            )
           : element
       )
     }, {
@@ -815,7 +845,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
   commitDocumentChangeAndSelect({
     elements: elements.map((element) =>
       element.id === activePointPickTarget.elementId
-        ? setParameterValue(element, activePointPickTarget.parameterKey, pickedAnchor)
+        ? setParameterValue(element, activePointPickTarget.parameterKey, sourceAnchor)
         : element
     )
   }, {
@@ -902,9 +932,10 @@ export const startLineAndPointPick = (
   });
 };
 
-export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) => {
+export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | "pickedLineSourceReference">) => {
   const pickedLineId = context?.pickedLineId;
   if (!pickedLineId) return;
+  const sourceReference = sourceReferenceText(context?.pickedLineSourceReference ?? null);
   if (applyTemplatePickedLine(pickedLineId)) return;
   const { activeLinePickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
@@ -936,15 +967,15 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
       : null;
     if (!normalizedPickedLineId || !pickedLine || !isLineLikeElement(pickedLine)) return;
     if (commandLineStep.kind === "line") {
-      fillCommandLineCurrentStep(normalizedPickedLineId);
+      fillCommandLineCurrentStep(sourceReference ?? normalizedPickedLineId);
       return;
     }
     const draftLineIds = activeLinePickTarget.draftLineIds ?? [];
     useCadUiStore.getState().setActiveLinePickTarget({
       ...activeLinePickTarget,
-      draftLineIds: draftLineIds.includes(normalizedPickedLineId)
-        ? draftLineIds.filter((id) => id !== normalizedPickedLineId)
-        : [...draftLineIds, normalizedPickedLineId]
+      draftLineIds: draftLineIds.includes(sourceReference ?? normalizedPickedLineId)
+        ? draftLineIds.filter((id) => id !== (sourceReference ?? normalizedPickedLineId))
+        : [...draftLineIds, sourceReference ?? normalizedPickedLineId]
     });
     return;
   }
@@ -959,7 +990,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
     ) return;
     useCadUiStore.getState().setActiveMeasurementInsertTarget({
       ...current,
-      lineId: pickedLine.id
+      lineId: sourceReference ?? pickedLine.id
     });
     useCadUiStore.getState().setActiveLinePickTarget(null);
     insertSelectedMeasurement({
@@ -1001,7 +1032,11 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
     commitDocumentChangeAndSelect({
       elements: elements.map((element) =>
         element.id === targetElement.id
-          ? setParameterValue(targetElement, activeLinePickTarget.parameterKey, normalizedPickedLineId)
+          ? setParameterValue(
+              targetElement,
+              activeLinePickTarget.parameterKey,
+              sourceReference ?? normalizedPickedLineId
+            )
           : element
       )
     }, {
@@ -1030,11 +1065,12 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId">) 
 
   if (!currentLineIds) return;
   const draftLineIds = activeLinePickTarget.draftLineIds ?? currentLineIds;
+  const adoptedLineId = sourceReference ?? normalizedPickedLineId;
   useCadUiStore.getState().setActiveLinePickTarget({
     ...activeLinePickTarget,
-    draftLineIds: draftLineIds.includes(normalizedPickedLineId)
-      ? draftLineIds.filter((id) => id !== normalizedPickedLineId)
-      : [...draftLineIds, normalizedPickedLineId]
+    draftLineIds: draftLineIds.includes(adoptedLineId)
+      ? draftLineIds.filter((id) => id !== adoptedLineId)
+      : [...draftLineIds, adoptedLineId]
   });
 };
 

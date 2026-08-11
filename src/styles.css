@@ -455,6 +455,122 @@ textarea {
   min-width: 0;
 }
 
+.module-hierarchy-panel {
+  min-width: 0;
+}
+
+.module-hierarchy-count {
+  color: #666a61;
+  white-space: nowrap;
+}
+
+.module-hierarchy-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  border: 1px solid #c8cec2;
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: #ffffff;
+  color: #252622;
+  font: inherit;
+  font-size: 12px;
+}
+
+.module-hierarchy-tree,
+.module-hierarchy-children {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.module-hierarchy-children {
+  margin-left: 12px;
+}
+
+.module-hierarchy-row {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  min-width: 0;
+  padding-left: calc(var(--module-hierarchy-depth, 0) * 4px);
+}
+
+.module-hierarchy-toggle,
+.module-hierarchy-toggle-placeholder {
+  display: grid;
+  flex: 0 0 22px;
+  place-items: center;
+  min-height: 31px;
+}
+
+.module-hierarchy-toggle {
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #5b6358;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.module-hierarchy-toggle:hover,
+.module-hierarchy-toggle:focus-visible {
+  border-color: #a8cec4;
+  background: #e3f1ec;
+}
+
+.module-hierarchy-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 7px;
+  margin: 0;
+  border: 1px solid #d7d9d2;
+  border-radius: 5px;
+  padding: 6px 7px;
+  background: #ffffff;
+  color: #252622;
+  cursor: pointer;
+  text-align: left;
+}
+
+.module-hierarchy-select:hover,
+.module-hierarchy-select:focus-visible,
+.module-hierarchy-select.is-selected {
+  border-color: #6fa89d;
+  background: #edf8f5;
+}
+
+.module-hierarchy-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-hierarchy-badge {
+  flex: 0 0 auto;
+  overflow: hidden;
+  color: #666a61;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-hierarchy-badge.moduleInstance {
+  color: #17645b;
+  font-weight: 700;
+}
+
+.module-hierarchy-badge.materializedChild {
+  color: #71510b;
+}
+
 @container right-panel (max-width: 360px) {
   .right-panel .section-header {
     align-items: flex-start;

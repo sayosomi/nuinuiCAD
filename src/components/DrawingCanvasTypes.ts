@@ -1,4 +1,5 @@
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
+import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type {
   ComputedArcLine,
@@ -71,6 +72,7 @@ export type PointPickCandidate = {
   anchor: PointAnchor;
   label: string;
   screen: ScreenPoint;
+  sourceReference?: CanonicalGeometrySourceReference;
 };
 
 export type PointPickCandidateMenu = {
@@ -80,6 +82,7 @@ export type PointPickCandidateMenu = {
 
 export type LinePickCandidate = {
   line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
+  sourceReference?: CanonicalGeometrySourceReference;
 };
 
 export type LinePickCandidateMenu = {

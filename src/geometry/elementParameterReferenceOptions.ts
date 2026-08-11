@@ -1,11 +1,15 @@
 import { resolveElementName } from "../model/elementNames";
-import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
+import { runtimeOnlyElementTypes, type CadElement, type ElementId, type EvaluationResult } from "../types/geometry";
 import {
   computedPathsForGeometry,
   formatValue,
   numericReferenceValueForPath,
   parameterPathsForElement
 } from "./numericReferencePaths";
+import {
+  isSemanticGeometryCandidateAllowed,
+  type ModuleSemanticCandidateContext
+} from "../model/moduleSemanticCandidateBoundary";
 
 /**
  * Own type for element-parameter (`ElementName.parameterKey`) candidates, kept
@@ -56,6 +60,7 @@ export const referenceablePathsForElement = (
   elements: readonly CadElement[],
   evaluation: Pick<EvaluationResult, "computedGeometry" | "effectiveEnabledElementIds" | "errors">
 ): ReferenceablePath[] => {
+  if (runtimeOnlyElementTypes.has(element.type)) return [];
   if (!elementIsCurrentlyReferenceable(element.id, evaluation)) return [];
 
   const context = {
@@ -79,6 +84,8 @@ export type ElementParameterReferencePosition = {
   /** The "ElementName" text typed immediately before the dot. */
   elementToken: string;
   currentElement?: Pick<CadElement, "parentGroupId">;
+  currentElementId?: ElementId;
+  moduleSemanticContext?: ModuleSemanticCandidateContext;
   evaluation: Pick<EvaluationResult, "computedGeometry" | "effectiveEnabledElementIds" | "errors">;
 };
 
@@ -93,6 +100,8 @@ export const elementParameterReferenceOptionsForPosition = ({
   referenceElements,
   elementToken,
   currentElement,
+  currentElementId,
+  moduleSemanticContext,
   evaluation
 }: ElementParameterReferencePosition): ElementParameterReferenceOption[] => {
   const resolution = resolveElementName({
@@ -101,6 +110,16 @@ export const elementParameterReferenceOptionsForPosition = ({
     currentElement
   });
   if (resolution.status !== "resolved") return [];
+  if (moduleSemanticContext && currentElementId && !isSemanticGeometryCandidateAllowed({
+    candidateElementId: resolution.element.id,
+    targetElementId: currentElementId,
+    context: moduleSemanticContext
+  })) return [];
+  if (moduleSemanticContext && !currentElementId && !isSemanticGeometryCandidateAllowed({
+    candidateElementId: resolution.element.id,
+    targetElementId: "",
+    context: moduleSemanticContext
+  })) return [];
 
   return referenceablePathsForElement(resolution.element, referenceElements, evaluation).map(({ path, valueLabel }) => ({
     path,

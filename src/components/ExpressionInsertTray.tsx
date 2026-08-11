@@ -10,6 +10,7 @@ import {
   DEFAULT_REFERENCE_HELPER_POSITION,
   useCadUiStore
 } from "../state/cadUiStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 
 type InsertTargetInput = {
@@ -87,6 +88,16 @@ export const ExpressionInsertTray = ({
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const referenceHelperPosition = useCadUiStore((state) => state.referenceHelperPosition);
   const setReferenceHelperPosition = useCadUiStore((state) => state.setReferenceHelperPosition);
+  const moduleMaterialization = useCadDocumentStore((state) => state.doc.moduleMaterialization);
+  const moduleSemanticAnalysis = useCadDocumentStore((state) => state.doc.moduleSemanticAnalysis);
+  const sourceLexicalNamespace = useCadDocumentStore((state) => state.doc.sourceLexicalNamespace);
+  const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap?.byElementId);
+  const moduleSemanticContext = useMemo(() => ({
+    moduleMaterialization,
+    moduleSemanticAnalysis,
+    sourceLexicalNamespace,
+    statementInfoByElementId
+  }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
   const [dragState, setDragState] = useState<{
     pointerId: number;
     startX: number;
@@ -101,9 +112,10 @@ export const ExpressionInsertTray = ({
         evaluation,
         currentElement: element,
         currentParameterKey: parameterKey,
+        moduleSemanticContext,
         query
       }),
-    [element, elements, evaluation, parameterKey, query]
+    [element, elements, evaluation, moduleSemanticContext, parameterKey, query]
   );
   const variableOptions = useMemo(
     () =>

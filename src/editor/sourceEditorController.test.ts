@@ -52,6 +52,18 @@ const moduleSource = [
   "module Second = M()"
 ].join("\n");
 
+const moduleDefinitionFoldSource = [
+  "nui 3",
+  "module M(a: number) {",
+  "  let x: number = @a",
+  "  point P = coordinate(x: @x, y: 0)",
+  "}",
+  "module I = M(a: 10)",
+  "group G {",
+  "  point Q = coordinate(x: 0, y: 0)",
+  "}"
+].join("\n");
+
 type ControllerInternals = {
   statementRanges: ReadonlyMap<string, {
     from: number;
@@ -59,6 +71,20 @@ type ControllerInternals = {
     statement: { closeBraceLine?: number };
     foldTargets: Array<{ branch: "statement" | "primary" | "else"; gutterLineFrom: number; foldFrom: number; foldTo: number }>;
   }>;
+  moduleSemanticRanges: {
+    moduleDefinitionFoldRanges?: ReadonlyMap<string, {
+      statementId: string;
+      gutterLineFrom: number;
+      foldFrom: number;
+      foldTo: number;
+    }>;
+    moduleDefinitionParameterFoldRanges?: ReadonlyMap<string, {
+      statementId: string;
+      gutterLineFrom: number;
+      foldFrom: number;
+      foldTo: number;
+    }>;
+  };
   view: {
     state: {
       doc: {
@@ -66,6 +92,7 @@ type ControllerInternals = {
         lines: number;
         line: (number: number) => { number: number; from: number; to: number; text: string };
         lineAt: (position: number) => { number: number; from: number; to: number; text: string };
+        sliceString: (from: number, to: number) => string;
         toString: () => string;
       };
       selection: { main: { head: number; from: number; to: number; empty: boolean }; ranges: readonly unknown[] };
@@ -75,6 +102,7 @@ type ControllerInternals = {
   runUndo: () => boolean;
   runRedo: () => boolean;
   changeAllFolds: (expanded: boolean) => boolean;
+  changeFoldAtCursor: (mode: "fold" | "unfold") => boolean;
   handleFoldGutterClick: (lineFrom: number, event: MouseEvent) => boolean;
   handleValueClick: (event: MouseEvent, view: ControllerInternals["view"]) => boolean;
   navigateValueSpan: (direction: "next" | "previous") => boolean;
@@ -1292,6 +1320,142 @@ describe("SourceEditorController commit and history boundaries", () => {
       elseExpanded: true
     });
     expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+  });
+
+  it("folds a module definition through source-only state and keeps its header visible", () => {
+    useCadDocumentStore.getState().commitText(moduleDefinitionFoldSource, "test");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const definitionId = useCadDocumentStore.getState().doc.moduleSemanticAnalysis!.definitions[0]!.statementId;
+    const target = internals.moduleSemanticRanges.moduleDefinitionFoldRanges!.get(definitionId)!;
+    const event = new MouseEvent("mousedown", { cancelable: true });
+
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    expect(internals.handleFoldGutterClick(target.gutterLineFrom, event)).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(1);
+    expect(foldedRanges(internals.view.state as never).size).toBeGreaterThan(0);
+    expect([...useCadUiStore.getState().groupFoldById]).toEqual([]);
+    expect(internals.view.state.doc.sliceString(target.gutterLineFrom, target.foldFrom)).toContain("module M");
+
+    const placeholder = parent.querySelector<HTMLElement>(".cm-foldPlaceholder");
+    expect(placeholder).not.toBeNull();
+    placeholder!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("supports cursor fold/unfold and fold-all without writing module state into groupFoldById", () => {
+    useCadDocumentStore.getState().commitText(moduleDefinitionFoldSource, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const definitionId = useCadDocumentStore.getState().doc.moduleSemanticAnalysis!.definitions[0]!.statementId;
+    const target = internals.moduleSemanticRanges.moduleDefinitionFoldRanges!.get(definitionId)!;
+    const header = internals.view.state.doc.lineAt(target.gutterLineFrom);
+
+    internals.view.dispatch({ selection: EditorSelection.cursor(header.from) });
+    expect(internals.changeFoldAtCursor("fold")).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(1);
+    expect([...useCadUiStore.getState().groupFoldById]).toEqual([]);
+    expect(internals.changeFoldAtCursor("unfold")).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+
+    expect(internals.changeAllFolds(false)).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(2);
+    expect(useCadUiStore.getState().groupFoldById.size).toBe(1);
+    expect(useCadUiStore.getState().groupFoldById.has(definitionId)).toBe(false);
+    expect(internals.changeAllFolds(true)).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+  });
+
+  it("folds a multiline parameter list independently from the module body", () => {
+    const source = [
+      "nui 3",
+      "module M(",
+      "  a: number,",
+      "  b: number",
+      ") {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}",
+      "module I = M(a: 10, b: 20)"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const definitionId = useCadDocumentStore.getState().doc.moduleSemanticAnalysis!.definitions[0]!.statementId;
+    const body = internals.moduleSemanticRanges.moduleDefinitionFoldRanges!.get(definitionId)!;
+    const parameters = internals.moduleSemanticRanges.moduleDefinitionParameterFoldRanges!.get(definitionId)!;
+
+    expect(parameters.gutterLineFrom).toBeLessThan(body.gutterLineFrom);
+    internals.handleFoldGutterClick(parameters.gutterLineFrom, new MouseEvent("mousedown"));
+    expect(foldedRanges(internals.view.state as never).size).toBe(1);
+    expect(internals.view.state.doc.sliceString(parameters.gutterLineFrom, parameters.foldFrom)).toContain("module M(");
+
+    internals.handleFoldGutterClick(body.gutterLineFrom, new MouseEvent("mousedown"));
+    expect(foldedRanges(internals.view.state as never).size).toBe(2);
+    internals.handleFoldGutterClick(parameters.gutterLineFrom, new MouseEvent("mousedown"));
+    expect(foldedRanges(internals.view.state as never).size).toBe(1);
+
+    expect(internals.changeAllFolds(false)).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(2);
+    expect([...useCadUiStore.getState().groupFoldById]).toEqual([]);
+    expect(internals.changeAllFolds(true)).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    controller.destroy();
+  });
+
+  it("keeps a collapsed module definition through element fold projection and drops stale delimiter ranges", () => {
+    useCadDocumentStore.getState().commitText(moduleDefinitionFoldSource, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const definitionId = useCadDocumentStore.getState().doc.moduleSemanticAnalysis!.definitions[0]!.statementId;
+    const target = internals.moduleSemanticRanges.moduleDefinitionFoldRanges!.get(definitionId)!;
+    const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
+    const groupTarget = internals.statementRanges.get(group.id)!.foldTargets[0]!;
+
+    internals.handleFoldGutterClick(target.gutterLineFrom, new MouseEvent("mousedown"));
+    expect(foldedRanges(internals.view.state as never).size).toBe(1);
+    useCadUiStore.getState().setFoldTargetExpanded({ elementId: group.id, branch: "primary" }, false);
+    expect(foldedRanges(internals.view.state as never).size).toBe(2);
+    useCadUiStore.getState().setFoldTargetExpanded({ elementId: group.id, branch: "primary" }, true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(1);
+    expect(groupTarget.foldTo).toBeGreaterThan(groupTarget.foldFrom);
+
+    const openBrace = internals.view.state.doc.toString().indexOf("{");
+    internals.view.dispatch({ changes: { from: openBrace, to: openBrace + 1, insert: "[" } });
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    expect(internals.moduleSemanticRanges.moduleDefinitionFoldRanges?.has(definitionId)).toBe(false);
+    controller.destroy();
+  });
+
+  it("rebuilds a dropped module fold target after the valid source is restored", () => {
+    useCadDocumentStore.getState().commitText(moduleDefinitionFoldSource, "test");
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const definitionId = useCadDocumentStore.getState().doc.moduleSemanticAnalysis!.definitions[0]!.statementId;
+    const originalTarget = internals.moduleSemanticRanges.moduleDefinitionFoldRanges!.get(definitionId)!;
+    const openBrace = internals.view.state.doc.toString().indexOf("{");
+
+    internals.handleFoldGutterClick(originalTarget.gutterLineFrom, new MouseEvent("mousedown"));
+    expect(foldedRanges(internals.view.state as never).size).toBe(1);
+    internals.view.dispatch({ changes: { from: openBrace, to: openBrace + 1, insert: "[" } });
+    expect(foldedRanges(internals.view.state as never).size).toBe(0);
+    expect(internals.runUndo()).toBe(true);
+    const restoredText = internals.view.state.doc.toString();
+
+    useCadDocumentStore.getState().commitText(`${restoredText}\n`, "test");
+
+    expect(internals.moduleSemanticRanges.moduleDefinitionFoldRanges?.has(definitionId)).toBe(true);
+    expect(foldedRanges(internals.view.state as never).size).toBe(1);
     controller.destroy();
   });
 });

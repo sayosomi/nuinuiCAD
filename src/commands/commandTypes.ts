@@ -13,6 +13,7 @@ import type { GroupTemplate } from "../templates/groupTemplate";
 import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
 import type { SourceCreationCursor } from "./sourceCreationInsertion";
+import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 
 export type { BezierHandleRole };
 
@@ -225,7 +226,11 @@ export type CommandContext = {
   pointAnchorMode?: "reference" | "coordinate";
   pickedPointId?: ElementId;
   pickedPointAnchor?: PointAnchor;
+  /** Structured canonical source reference supplied by a semantic Module pick candidate. */
+  pickedPointSourceReference?: CanonicalGeometrySourceReference;
   pickedLineId?: ElementId;
+  /** Canonical source reference supplied by a semantic Module pick candidate. */
+  pickedLineSourceReference?: CanonicalGeometrySourceReference;
   groupTemplate?: GroupTemplate;
   templateInputId?: string;
   numericValue?: NumericValue;
