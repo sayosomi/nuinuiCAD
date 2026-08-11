@@ -36,6 +36,7 @@ import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ElementId, EvaluationResult } from "../types/geometry";
+import type { StatementIdentity } from "../document/statementIdentity";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
@@ -104,7 +105,10 @@ import {
   collapsedFoldTargetAtLine,
   foldProjectionTransaction,
   foldTargetAtLine,
-  foldTargets
+  foldTargets,
+  moduleDefinitionFoldTargetAtLine,
+  moduleDefinitionFoldTargets,
+  type ModuleDefinitionFoldTarget
 } from "./sourceEditorFolding";
 import { secondarySelectionEffect, sourceEditorSelectionExtension } from "./sourceEditorSelection";
 import { patchHighlightPayloadForChanges, setPatchHighlight, sourceEditorPatchHighlightExtension } from "./sourceEditorPatchHighlight";
@@ -241,6 +245,8 @@ export class SourceEditorController implements SourceEditorHandle {
   private scopeBodyRanges: ScopeBodyRangeIndex = [];
   private atStopRange: AtStopRange | null = null;
   private moduleSemanticRanges: ModuleSemanticRangeIndex = { tokens: [], declarationByTarget: new Map() };
+  /** Source-only presentation state; never enters groupFoldById or hierarchy state. */
+  private collapsedModuleDefinitionIds = new Set<StatementIdentity>();
   /**
    * True only while `doc.bindingAnalysis`/`doc.setStatements` are proven to
    * describe the exact live CM buffer (i.e. a compile just landed and
@@ -353,7 +359,8 @@ export class SourceEditorController implements SourceEditorHandle {
             placeholderDOM: (view) => this.createFoldPlaceholder(view)
           }),
           foldService.of((state, lineStart) => {
-            const target = foldTargetAtLine(this.statementRanges, this.store.getState().elements, lineStart);
+            const target = foldTargetAtLine(this.statementRanges, this.store.getState().elements, lineStart) ??
+              moduleDefinitionFoldTargetAtLine(this.moduleSemanticRanges, lineStart);
             return target ? { from: target.from, to: target.to } : null;
           }),
           foldGutter({
@@ -1958,6 +1965,10 @@ export class SourceEditorController implements SourceEditorHandle {
       : [];
     this.atStopRange = createAtStopRange(this.view.state.doc, state.doc.statementMap);
     this.moduleSemanticRanges = createModuleSemanticRangeIndex(state.doc);
+    const liveModuleDefinitionIds = new Set(this.moduleSemanticRanges.moduleDefinitionFoldRanges?.keys() ?? []);
+    for (const statementId of this.collapsedModuleDefinitionIds) {
+      if (!liveModuleDefinitionIds.has(statementId)) this.collapsedModuleDefinitionIds.delete(statementId);
+    }
     this.staleDiagnosticBaseline = toStaleDiagnostics(this.view.state.doc, state.diagnostics);
     // doc.bindingAnalysis/doc.setStatements were just rebuilt from exactly this
     // live buffer's text - proven current until the next doc-changing transaction.
@@ -2186,7 +2197,10 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private projectFolds() {
     const state = this.store.getState();
-    const desired = foldTargets(this.statementRanges, state.elements, this.uiStore.getState().groupFoldById)
+    const desired = [
+      ...foldTargets(this.statementRanges, state.elements, this.uiStore.getState().groupFoldById),
+      ...moduleDefinitionFoldTargets(this.moduleSemanticRanges, this.collapsedModuleDefinitionIds)
+    ]
       .sort((left, right) => left.from - right.from || right.to - left.to);
     const projection = foldProjectionTransaction(this.view.state, desired);
     if (!projection) return;
@@ -2212,6 +2226,13 @@ export class SourceEditorController implements SourceEditorHandle {
         this.uiStore.getState().groupFoldById
       ).find((candidate) => candidate.from === position);
       if (target) this.changeFold(target, "unfold");
+      else {
+        const moduleTarget = moduleDefinitionFoldTargets(
+          this.moduleSemanticRanges,
+          this.collapsedModuleDefinitionIds
+        ).find((candidate) => candidate.from === position);
+        if (moduleTarget) this.changeModuleDefinitionFold(moduleTarget, "unfold");
+      }
       event.preventDefault();
     };
     return placeholder;
@@ -2236,13 +2257,19 @@ export class SourceEditorController implements SourceEditorHandle {
     event.preventDefault();
     const target = foldTargetAtLine(this.statementRanges, this.store.getState().elements, lineFrom);
     if (target) this.changeFold(target, "toggle");
+    else {
+      const moduleTarget = moduleDefinitionFoldTargetAtLine(this.moduleSemanticRanges, lineFrom);
+      if (moduleTarget) this.changeModuleDefinitionFold(moduleTarget, "toggle");
+    }
     return true;
   }
 
   private changeFoldAtCursor(mode: "fold" | "unfold") {
     const lineFrom = this.view.state.doc.lineAt(this.view.state.selection.main.head).from;
     const target = foldTargetAtLine(this.statementRanges, this.store.getState().elements, lineFrom);
-    return target ? this.changeFold(target, mode) : false;
+    if (target) return this.changeFold(target, mode);
+    const moduleTarget = moduleDefinitionFoldTargetAtLine(this.moduleSemanticRanges, lineFrom);
+    return moduleTarget ? this.changeModuleDefinitionFold(moduleTarget, mode) : false;
   }
 
   private changeFold(target: { elementId: string; branch: "statement" | "primary" | "else" }, mode: "fold" | "unfold" | "toggle") {
@@ -2253,10 +2280,31 @@ export class SourceEditorController implements SourceEditorHandle {
     return true;
   }
 
+  private changeModuleDefinitionFold(
+    target: ModuleDefinitionFoldTarget,
+    mode: "fold" | "unfold" | "toggle"
+  ) {
+    if (this.protocol.composing) return true;
+    const currentlyExpanded = !this.collapsedModuleDefinitionIds.has(target.statementId);
+    const expanded = mode === "toggle" ? !currentlyExpanded : mode === "unfold";
+    if (expanded) this.collapsedModuleDefinitionIds.delete(target.statementId);
+    else this.collapsedModuleDefinitionIds.add(target.statementId);
+    this.pendingFoldProjection = true;
+    this.applyPendingUiSync();
+    return true;
+  }
+
   private changeAllFolds(expanded: boolean) {
     if (this.protocol.composing) return true;
+    const moduleTargets = [...(this.moduleSemanticRanges.moduleDefinitionFoldRanges?.keys() ?? [])];
+    for (const statementId of moduleTargets) {
+      if (expanded) this.collapsedModuleDefinitionIds.delete(statementId);
+      else this.collapsedModuleDefinitionIds.add(statementId);
+    }
     const targets = [...this.statementRanges.values()].flatMap((range) => range.foldTargets);
     this.uiStore.getState().setFoldTargetsExpanded(targets, expanded);
+    this.pendingFoldProjection = true;
+    this.applyPendingUiSync();
     return true;
   }
 

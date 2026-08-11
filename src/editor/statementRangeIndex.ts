@@ -10,8 +10,9 @@ import { bindingIdForStableStatementId, type BindingId } from "../scalars/bindin
 import type { LexicalScopeIndex, ScopeId } from "../scalars/lexicalScopeIndex";
 import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import type { TextTemplateAst } from "../scalars/textTemplate";
-import type { ModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
+import type { ModuleDefinitionFoldRange, ModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
 import { moduleSemanticTargetKey } from "../dsl/moduleSemanticEditor";
+import type { StatementIdentity } from "../document/statementIdentity";
 
 type FoldAnchor = { from: number; to: number };
 
@@ -856,6 +857,23 @@ export const mapModuleSemanticRangeIndex = (ranges: ModuleSemanticRangeIndex, ch
     });
     return anchors.length === range.anchors.length ? [{ ...mapped, scopeId: range.scopeId, anchors }] : [];
   });
+  const moduleDefinitionFoldRanges = new Map<StatementIdentity, ModuleDefinitionFoldRange>();
+  for (const [statementId, range] of ranges.moduleDefinitionFoldRanges ?? []) {
+    if (range.anchors.some(structuralAnchorTouched)) continue;
+    const foldFrom = changes.mapPos(range.foldFrom, 1, MapMode.TrackAfter);
+    const foldTo = changes.mapPos(range.foldTo, -1, MapMode.TrackBefore);
+    const gutterLineFrom = changes.mapPos(range.gutterLineFrom, 1, MapMode.TrackAfter);
+    const anchors = range.anchors.flatMap((anchor) => {
+      const from = changes.mapPos(anchor.from, 1, MapMode.TrackAfter);
+      const to = changes.mapPos(anchor.to, -1, MapMode.TrackBefore);
+      return from === null || to === null || to < from ? [] : [{ from, to }];
+    });
+    if (
+      foldFrom === null || foldTo === null || foldTo <= foldFrom || gutterLineFrom === null ||
+      anchors.length !== range.anchors.length
+    ) continue;
+    moduleDefinitionFoldRanges.set(statementId, { ...range, foldFrom, foldTo, gutterLineFrom, anchors });
+  }
   const moduleStructureStable = (ranges.moduleStructureStable ?? true) &&
     !(ranges.lexicalScopeRanges ?? []).some((range) => range.anchors.some(structuralAnchorTouched));
   return {
@@ -866,7 +884,8 @@ export const mapModuleSemanticRangeIndex = (ranges: ModuleSemanticRangeIndex, ch
     statementAnchors,
     lexicalScopeRanges,
     moduleBodyScopeIds: ranges.moduleBodyScopeIds,
-    moduleStructureStable
+    moduleStructureStable,
+    moduleDefinitionFoldRanges
   };
 };
 

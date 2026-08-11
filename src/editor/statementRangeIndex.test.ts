@@ -2,6 +2,7 @@ import { ChangeSet, Text } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { parseDsl } from "../dsl/dslParser";
 import { compileDslDocument } from "../dsl/dslDocument";
+import { createModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import {
   createPrintLayoutRangeIndex,
@@ -24,6 +25,7 @@ import {
   mapTemplateHoleRangeIndex,
   mapTypedDeclarationFieldRangeIndex,
   mapTypedDeclarationRangeIndex,
+  mapModuleSemanticRangeIndex,
   propertyBindingSpanAt,
   setStatementIdAtCursor,
   templateHoleAtPosition,
@@ -191,6 +193,47 @@ describe("statementRangeIndex", () => {
     expect(elementIdAtCursor(mapped, valueStart)).toBe(pointA.id);
     expect(elementIdAtCursor(mapped, valueStart + 1)).toBe(pointA.id);
     expect(mapped.get(pointA.id)?.to).toBe(range.to + 1);
+  });
+});
+
+describe("module definition fold range mapping", () => {
+  const source = [
+    "nui 3",
+    "module M(a: number) {",
+    "  let x: number = @a",
+    "  point P = coordinate(x: @x, y: 0)",
+    "}"
+  ].join("\n");
+
+  it("fails closed on delimiter edits and rebuilds from a valid compile", () => {
+    const result = compiledWithStableIds(source);
+    const index = createModuleSemanticRangeIndex(result);
+    const definition = result.moduleSemanticAnalysis!.definitions[0]!;
+    const range = index.moduleDefinitionFoldRanges!.get(definition.statementId)!;
+    const openBrace = source.indexOf("{");
+    const dirty = mapModuleSemanticRangeIndex(
+      index,
+      ChangeSet.of({ from: openBrace, to: openBrace + 1, insert: "[" }, source.length)
+    );
+
+    expect(dirty.moduleDefinitionFoldRanges?.size).toBe(0);
+    expect(createModuleSemanticRangeIndex(result).moduleDefinitionFoldRanges?.get(definition.statementId)).toEqual(range);
+  });
+
+  it("maps a clean module fold through interior edits without consulting stale lines", () => {
+    const result = compiledWithStableIds(source);
+    const index = createModuleSemanticRangeIndex(result);
+    const definition = result.moduleSemanticAnalysis!.definitions[0]!;
+    const original = index.moduleDefinitionFoldRanges!.get(definition.statementId)!;
+    const insertion = source.indexOf("  point P");
+    const mapped = mapModuleSemanticRangeIndex(
+      index,
+      ChangeSet.of({ from: insertion, insert: "  # interior\n" }, source.length)
+    ).moduleDefinitionFoldRanges!.get(definition.statementId)!;
+
+    expect(mapped.gutterLineFrom).toBe(original.gutterLineFrom);
+    expect(mapped.foldFrom).toBe(original.foldFrom);
+    expect(mapped.foldTo).toBeGreaterThan(original.foldTo);
   });
 });
 

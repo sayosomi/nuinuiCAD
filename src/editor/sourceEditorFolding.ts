@@ -4,11 +4,19 @@ import type { ElementId } from "../types/geometry";
 import { isFoldTargetExpanded, type FoldTargetBranch, type GroupFoldById } from "../model/groups";
 import type { CadElement } from "../types/geometry";
 import type { StatementRangeIndex } from "./statementRangeIndex";
+import type { ModuleSemanticRangeIndex, ModuleDefinitionFoldRange } from "../dsl/moduleSemanticEditor";
+import type { StatementIdentity } from "../document/statementIdentity";
 
 export type FoldTarget = {
   elementId: ElementId;
   branch: FoldTargetBranch;
   gutterLineFrom: number;
+  from: number;
+  to: number;
+};
+
+export type ModuleDefinitionFoldTarget = Omit<ModuleDefinitionFoldRange, "foldFrom" | "foldTo"> & {
+  kind: "moduleDefinition";
   from: number;
   to: number;
 };
@@ -94,10 +102,36 @@ export const collapsedFoldTargetAtLine = (
   return null;
 };
 
+const moduleDefinitionFoldTarget = (range: ModuleDefinitionFoldRange): ModuleDefinitionFoldTarget => ({
+  kind: "moduleDefinition",
+  statementId: range.statementId,
+  gutterLineFrom: range.gutterLineFrom,
+  from: range.foldFrom,
+  to: range.foldTo,
+  anchors: range.anchors
+});
+
+export const moduleDefinitionFoldTargets = (
+  ranges: ModuleSemanticRangeIndex,
+  collapsedStatementIds: ReadonlySet<StatementIdentity>
+): ModuleDefinitionFoldTarget[] => [...(ranges.moduleDefinitionFoldRanges ?? [])]
+  .filter(([statementId]) => collapsedStatementIds.has(statementId))
+  .map(([, range]) => moduleDefinitionFoldTarget(range));
+
+export const moduleDefinitionFoldTargetAtLine = (
+  ranges: ModuleSemanticRangeIndex,
+  lineFrom: number
+): ModuleDefinitionFoldTarget | null => {
+  for (const range of ranges.moduleDefinitionFoldRanges?.values() ?? []) {
+    if (range.gutterLineFrom === lineFrom) return moduleDefinitionFoldTarget(range);
+  }
+  return null;
+};
+
 /** This module's final range resolution is deliberately supplied by the controller's current CM doc. */
 export const foldProjectionTransaction = (
   state: EditorState,
-  desired: readonly FoldTarget[]
+  desired: readonly { from: number; to: number }[]
 ): TransactionSpec | null => {
   const existing: { from: number; to: number }[] = [];
   foldedRanges(state).between(0, state.doc.length, (from, to) => {
