@@ -3,6 +3,7 @@ import { evaluateElements } from "./evaluate";
 import { makeNumericExpression, normalizeNumericExpressionInput } from "./numericExpressions";
 import { forGroupGeneratedElementId } from "./forGroupExpansion";
 import { compileDslDocument } from "../dsl/dslDocument";
+import { cubicDerivativeAt, cubicPointAt } from "./bezierMath";
 import type { CadElement } from "../types/geometry";
 
 const compileAndEvaluate = (source: string) => {
@@ -3792,6 +3793,79 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(point).toMatchObject({ kind: "point", x: 100 });
     if (point?.kind !== "point") throw new Error("Expected a point");
     expect(point.y).toBeCloseTo(-97.5);
+  });
+
+  it("uses the exact tangent of the selected interior offset Bezier segment", () => {
+    const curve: CadElement = {
+      id: "curve",
+      name: "曲線",
+      type: "bezierCurve",
+      activity: "visible",
+      startPoint: { mode: "coordinate", x: 0, y: 0 },
+      startHandleAngleDeg: 45,
+      startHandleLength: 80,
+      intermediatePoints: [],
+      endPoint: { mode: "coordinate", x: 120, y: 20 },
+      endHandleAngleDeg: 145,
+      endHandleLength: 60
+    };
+    const offset: CadElement = {
+      id: "offset-line",
+      name: "オフセット線",
+      type: "offsetLine",
+      activity: "visible",
+      baseLineIds: [curve.id],
+      offset: 8,
+      side: "right",
+      closed: false
+    };
+    const firstEvaluation = evaluateElements([curve, offset]);
+    const offsetGeometry = firstEvaluation.computedGeometry.get(offset.id);
+    expect(firstEvaluation.errors).toHaveLength(0);
+    expect(offsetGeometry?.kind).toBe("offsetLine");
+    if (offsetGeometry?.kind !== "offsetLine") throw new Error("Expected an offset line");
+    const segment = offsetGeometry.segments.find((candidate) => candidate.kind === "bezier");
+    expect(segment).toBeDefined();
+    if (!segment || segment.kind !== "bezier") throw new Error("Expected an offset Bezier segment");
+
+    const localT = 0.37;
+    const basePoint = cubicPointAt(segment, localT);
+    const derivative = cubicDerivativeAt(segment, localT);
+    const derivativeLength = Math.hypot(derivative.x, derivative.y);
+    const distance = 12;
+    const expected = {
+      x: basePoint.x + (derivative.x / derivativeLength) * distance,
+      y: basePoint.y + (derivative.y / derivativeLength) * distance
+    };
+    const result = evaluateElements([
+      {
+        id: "base-point",
+        name: "基準点",
+        type: "freePoint",
+        activity: "visible",
+        x: basePoint.x,
+        y: basePoint.y
+      },
+      curve,
+      offset,
+      {
+        id: "tangent-offset",
+        name: "接線オフセット点",
+        type: "lineTangentOffsetPoint",
+        activity: "visible",
+        baseLineId: offset.id,
+        basePoint: { mode: "reference", pointId: "base-point" },
+        tangentAngleDeg: 0,
+        distance
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const tangentPoint = result.computedGeometry.get("tangent-offset");
+    expect(tangentPoint).toMatchObject({ kind: "point" });
+    if (tangentPoint?.kind !== "point") throw new Error("Expected a point");
+    expect(tangentPoint.x).toBeCloseTo(expected.x, 9);
+    expect(tangentPoint.y).toBeCloseTo(expected.y, 9);
   });
 
   it("reports a line tangent offset point dependency that appears too late", () => {

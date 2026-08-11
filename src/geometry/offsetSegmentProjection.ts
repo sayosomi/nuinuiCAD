@@ -10,6 +10,10 @@ export type OffsetSegmentProjection = {
   distance: number;
 };
 
+export type OffsetLineProjection = OffsetSegmentProjection & {
+  segmentIndex: number;
+};
+
 const projectLine = (point: Point, start: Point, end: Point): OffsetSegmentProjection | null => {
   const vector = { x: end.x - start.x, y: end.y - start.y };
   const lengthSquared = vector.x * vector.x + vector.y * vector.y;
@@ -71,9 +75,9 @@ const samplePoint = (segment: ComputedOffsetLineSegment, t: number): Point => {
 export const projectPointOntoOffsetLine = (
   point: Point,
   segments: ComputedOffsetLineSegment[]
-): OffsetSegmentProjection | null => {
-  let best: OffsetSegmentProjection | null = null;
-  for (const segment of segments) {
+): OffsetLineProjection | null => {
+  let best: OffsetLineProjection | null = null;
+  for (const [segmentIndex, segment] of segments.entries()) {
     let seedT = 0;
     let seedDistance = Infinity;
     for (let index = 0; index <= 32; index += 1) {
@@ -85,7 +89,9 @@ export const projectPointOntoOffsetLine = (
       }
     }
     const projected = projectPointOntoOffsetSegment(point, segment, seedT);
-    if (projected && (!best || projected.distance < best.distance)) best = projected;
+    if (projected && (!best || projected.distance < best.distance)) {
+      best = { ...projected, segmentIndex };
+    }
   }
   return best;
 };

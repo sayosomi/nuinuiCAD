@@ -13,6 +13,11 @@ pub(crate) struct OffsetSegmentProjection {
     pub(crate) distance: f64,
 }
 
+pub(crate) struct OffsetLineProjection {
+    pub(crate) segment_index: usize,
+    pub(crate) projection: OffsetSegmentProjection,
+}
+
 fn project_line(point: Point, start: Point, end: Point) -> Option<OffsetSegmentProjection> {
     let vector = Point {
         x: end.x - start.x,
@@ -119,9 +124,9 @@ fn sample_point(segment: &Value, t: f64) -> Option<Point> {
 pub(crate) fn project_point_onto_offset_line(
     point: Point,
     segments: &[Value],
-) -> Option<OffsetSegmentProjection> {
-    let mut best: Option<OffsetSegmentProjection> = None;
-    for segment in segments {
+) -> Option<OffsetLineProjection> {
+    let mut best: Option<OffsetLineProjection> = None;
+    for (segment_index, segment) in segments.iter().enumerate() {
         let mut seed_t = 0.0;
         let mut seed_distance = f64::INFINITY;
         for index in 0..=32 {
@@ -138,11 +143,13 @@ pub(crate) fn project_point_onto_offset_line(
         let Some(projected) = project_point_onto_offset_segment(point, segment, seed_t) else {
             continue;
         };
-        if best
-            .as_ref()
-            .map_or(true, |current| projected.distance < current.distance)
-        {
-            best = Some(projected);
+        if best.as_ref().map_or(true, |current| {
+            projected.distance < current.projection.distance
+        }) {
+            best = Some(OffsetLineProjection {
+                segment_index,
+                projection: projected,
+            });
         }
     }
     best
