@@ -177,29 +177,55 @@ const statementCallClose = (sourceLines: readonly string[], source: DslStatement
   return close >= from ? close : null;
 };
 
+const statementOpenBrace = (sourceLines: readonly string[], source: DslStatement): number | null => {
+  const segments = source.physicalSpan.segments;
+  if (segments.length === 0) return null;
+  const sourceText = sourceLines.join("\n");
+  const from = segments[0].from;
+  const to = segments[segments.length - 1].to;
+  const open = sourceText.indexOf("{", from);
+  return open >= from && open < to ? open : null;
+};
+
 const insertArgumentEdit = (
   sourceLines: readonly string[],
   source: DslStatement,
   argumentName: string,
   replacement: string
 ): ParameterEditResult => {
-  // Keep insertion conservative for positional payloads: attrs do not carry
-  // enough construction-specific delimiter information to edit those safely.
+  const supportsPositionalContainer = source.kind === "element" && source.type === "forGroup";
   const hasPositionalPayload = Object.keys(source.payloadSpans)
     .some((key) => !source.attrs.some((attribute) => attribute.key === key));
-  if (source.kind !== "element" || hasPositionalPayload) {
+  if (source.kind !== "element" && source.kind !== "group") {
+    return { status: "unapplied", reason: `要素 ${source.name || ""} の省略引数 ${argumentName} は安全に追加できません。` };
+  }
+  if (hasPositionalPayload && !supportsPositionalContainer) {
     return { status: "unapplied", reason: `要素 ${source.name || ""} の省略引数 ${argumentName} は安全に追加できません。` };
   }
   const close = statementCallClose(sourceLines, source);
-  if (close === null) {
+  if (close !== null) {
+    return {
+      status: "ready",
+      edit: {
+        from: close,
+        to: close,
+        replacement: `${source.attrs.length > 0 ? ", " : ""}${argumentName}: ${replacement}`
+      }
+    };
+  }
+  if (source.kind !== "group") {
     return { status: "unapplied", reason: `要素 ${source.name || ""} の引数リスト終端を解決できません。` };
+  }
+  const open = statementOpenBrace(sourceLines, source);
+  if (open === null) {
+    return { status: "unapplied", reason: `要素 ${source.name || ""} のgroup argument insertion位置を解決できません。` };
   }
   return {
     status: "ready",
     edit: {
-      from: close,
-      to: close,
-      replacement: `${source.attrs.length > 0 ? ", " : ""}${argumentName}: ${replacement}`
+      from: open,
+      to: open,
+      replacement: `(${argumentName}: ${replacement}) `
     }
   };
 };
@@ -304,18 +330,25 @@ const serializeOwnedElement = (
     edits.push(result.edit);
   }
   const close = statementCallClose(compiled.sourceLines, source);
-  const insertions = close === null
+  const insertionAnchor = close ?? (source.kind === "group" ? statementOpenBrace(compiled.sourceLines, source) : null);
+  const insertions = insertionAnchor === null
     ? []
-    : edits.filter((edit) => edit.from === close && edit.to === close);
-  if (close !== null && insertions.length > 1) {
-    const insertionText = insertions
-      .map((edit) => source.attrs.length > 0 ? edit.replacement.replace(/^,\s*/, "") : edit.replacement)
-      .join(", ");
-    const nonInsertions = edits.filter((edit) => edit.from !== close || edit.to !== close);
+    : edits.filter((edit) => edit.from === insertionAnchor && edit.to === insertionAnchor);
+  if (insertionAnchor !== null && insertions.length > 1) {
+    const insertionText = close !== null
+      ? insertions
+        .map((edit) => source.attrs.length > 0 ? edit.replacement.replace(/^,\s*/, "") : edit.replacement)
+        .join(", ")
+      : insertions
+        .map((edit) => edit.replacement.replace(/^\(|\)\s*$/g, ""))
+        .join(", ");
+    const nonInsertions = edits.filter((edit) => edit.from !== insertionAnchor || edit.to !== insertionAnchor);
     edits.splice(0, edits.length, ...nonInsertions, {
-      from: close,
-      to: close,
-      replacement: `${source.attrs.length > 0 ? ", " : ""}${insertionText}`
+      from: insertionAnchor,
+      to: insertionAnchor,
+      replacement: close !== null
+        ? `${source.attrs.length > 0 ? ", " : ""}${insertionText}`
+        : `(${insertionText}) `
     });
   }
   const patched = applyCharacterEdits(compiled.sourceLines, owner.statement, edits);
