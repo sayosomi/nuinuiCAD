@@ -47,6 +47,8 @@ import { visibleTypedBindingsAtLivePosition } from "../scalars/liveTypedBindingV
 import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
 import { cmDeleteCompletionRetry } from "./cmDeleteCompletionRetry";
 import { elementPropertyCompletions } from "./elementPropertyCompletions";
+import { isInsideModuleSemanticStatement, moduleCompletionCandidates } from "../dsl/moduleCompletionCandidates";
+import type { CompiledDslDocument } from "../dsl/dslDocument";
 
 export type DslAutocompleteDocumentInput = {
   source: string;
@@ -114,6 +116,10 @@ export type DslAutocompleteOptions = {
    * (dslPropertyReferenceSyntax.ts) and offering it as a completion target
    * would guide the user toward text that fails on commit. */
   majorVersion?: () => 2 | 3;
+  /** Last-good source-semantic module metadata. It is never consulted while
+   * semanticMetadataFresh is false, so completion cannot leak stale names. */
+  moduleSemanticMetadata?: () => CompiledDslDocument | undefined;
+  semanticMetadataFresh?: () => boolean;
 };
 
 /** A logical-projection pairing kept alongside the document input so the
@@ -582,8 +588,47 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     completions = constructionCompletionCandidates(completionContext.category)
       .map((candidate) => ({ ...candidate, type: "function" }));
   } else if (completionContext.kind === "argument") {
-    completions = argumentCompletionCandidates(completionContext.spec, completionContext.usedArgumentNames)
-      .map((candidate) => ({ ...candidate, type: "property" }));
+    const moduleMetadata = options.semanticMetadataFresh?.() === false ? undefined : options.moduleSemanticMetadata?.();
+    const moduleCandidates = moduleMetadata
+      ? moduleCompletionCandidates({ compiled: moduleMetadata, cursorPosition: context.pos, kind: "reference" })
+      : [];
+    completions = moduleCandidates.length > 0
+      ? moduleCandidates
+      : argumentCompletionCandidates(completionContext.spec, completionContext.usedArgumentNames)
+        .map((candidate) => ({ ...candidate, type: "property" }));
+  } else if (
+    completionContext.kind === "moduleCallee" ||
+    completionContext.kind === "moduleArgumentLabel" ||
+    completionContext.kind === "moduleArgumentValue" ||
+    completionContext.kind === "moduleQualifiedMember" ||
+    completionContext.kind === "moduleReference"
+  ) {
+    const availableMetadata = options.moduleSemanticMetadata?.();
+    const metadata = options.semanticMetadataFresh?.() === false ? undefined : availableMetadata;
+    const kind = completionContext.kind === "moduleCallee"
+      ? "callee"
+      : completionContext.kind === "moduleArgumentLabel"
+        ? "label"
+        : completionContext.kind === "moduleArgumentValue"
+          ? "value"
+          : completionContext.kind === "moduleQualifiedMember"
+            ? "qualifiedMember"
+            : "reference";
+    completions = metadata
+      ? moduleCompletionCandidates({ compiled: metadata, cursorPosition: context.pos, kind,
+        ...(completionContext.kind === "moduleArgumentLabel" || completionContext.kind === "moduleArgumentValue"
+          ? { argumentIndex: completionContext.argumentIndex } : {}) })
+      : [];
+    if (completions.length === 0 && completionContext.kind === "moduleReference" && !availableMetadata) {
+      const query = input.lineText.slice(completionContext.from, input.localPos);
+      completions = dslReferenceCompletionOptions({
+        source: input.source, cursorLine: input.cursorLineNumber, kind: "reference", parameterKey: "reference", query,
+        replacementFrom: completionContext.from, statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
+        elements: options.elements(), computedGeometry: options.computedGeometry(), forGroupGeneratedRows: options.forGroupGeneratedRows?.(),
+        effectiveEnabledElementIds: options.effectiveEnabledElementIds(), errors: options.evaluationErrors()
+      }).map((option) => ({ label: option.displayLabel, apply: option.label, type: "constant" }));
+    }
+    disablesCompletionFiltering = true;
   } else if (completionContext.kind === "declaredType") {
     completions = declaredTypeCompletions();
   } else if (completionContext.kind === "numericTypeOption") {
@@ -686,13 +731,19 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       printLayoutTypedBindingReferenceOptions(layoutId, options.statementInfoByKey?.(), bindingAnalysis)
     );
   } else if (completionContext.parameter.definition.kind === "number") {
+    const availableMetadata = options.moduleSemanticMetadata?.();
+    const moduleMetadata = options.semanticMetadataFresh?.() === false ? undefined : availableMetadata;
+    const moduleCandidates = moduleMetadata
+      ? moduleCompletionCandidates({ compiled: moduleMetadata, cursorPosition: context.pos, kind: "reference" })
+      : [];
     const elements = options.elements();
     const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());
     const currentElement = currentLiveElement(input.source, context.pos, statementElementIds.get(input.cursorLineNumber), elements);
     const localOptions = currentElement
       ? localNumericReferenceOptions({ element: currentElement, localVariableLimit: currentElement.numericVariables?.length ?? 0 })
       : [];
-    completions = [
+    const staleModuleBody = availableMetadata && options.semanticMetadataFresh?.() === false && isInsideModuleSemanticStatement(availableMetadata, context.pos);
+    completions = moduleCandidates.length > 0 ? moduleCandidates : staleModuleBody ? [] : [
       ...typedNumberBindingCompletions(options, input, context),
       ...asVariableCompletions(localOptions)
     ];
@@ -700,7 +751,15 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     const query = input.lineText.slice(completionContext.from, input.localPos);
     if (!query.trim()) return null;
     preservesSharedReferenceRanking = true;
-    completions = dslReferenceCompletionOptions({
+    const availableMetadata = options.moduleSemanticMetadata?.();
+    const moduleMetadata = options.semanticMetadataFresh?.() === false ? undefined : availableMetadata;
+    const moduleCandidates = moduleMetadata
+      ? moduleCompletionCandidates({ compiled: moduleMetadata, cursorPosition: context.pos, kind: "reference" })
+      : [];
+    const staleModuleBody = moduleMetadata === undefined && availableMetadata && options.semanticMetadataFresh?.() === false && isInsideModuleSemanticStatement(availableMetadata, context.pos);
+    completions = moduleCandidates.length > 0
+      ? moduleCandidates
+      : staleModuleBody ? [] : dslReferenceCompletionOptions({
       source: input.source,
       cursorLine: input.cursorLineNumber,
       kind: completionContext.parameter.definition.kind,
