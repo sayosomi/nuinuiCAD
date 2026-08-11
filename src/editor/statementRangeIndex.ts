@@ -1,5 +1,6 @@
 import { MapMode, Text, type ChangeDesc } from "@codemirror/state";
 import type { StatementInfo, StatementMap } from "../dsl/dslDocument";
+import type { SourceOwner } from "../dsl/sourceOwnership";
 import { argNameForParameter } from "../dsl/dslConstructions";
 import type { DslPhysicalSegment } from "../dsl/logicalStatementSourceMap";
 import type { DslStatement } from "../dsl/dslTypes";
@@ -35,9 +36,15 @@ export type StatementRange = {
 export type StatementRangeIndex = ReadonlyMap<ElementId, StatementRange>;
 
 /** Builds CM logical-document positions only while the matching statementMap is current. */
-export const createStatementRangeIndex = (doc: Text, statementMap: StatementMap): StatementRangeIndex => {
+export const createStatementRangeIndex = (
+  doc: Text,
+  statementMap: StatementMap,
+  sourceOwners?: ReadonlyMap<ElementId, SourceOwner>
+): StatementRangeIndex => {
   const ranges = new Map<ElementId, StatementRange>();
-  for (const [elementId, statement] of statementMap.byElementId) {
+  const statementsByRuntimeElementId = new Map<ElementId, StatementInfo>(statementMap.byElementId);
+  for (const [elementId, owner] of sourceOwners ?? []) statementsByRuntimeElementId.set(elementId, owner.statement);
+  for (const [elementId, statement] of statementsByRuntimeElementId) {
     if (statement.line < 1 || statement.line > doc.lines) continue;
     const line = doc.line(statement.line);
     const statementEndLine = statement.endLine <= doc.lines ? doc.line(statement.endLine) : null;

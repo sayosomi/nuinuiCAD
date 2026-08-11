@@ -36,6 +36,7 @@ import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ElementId, EvaluationResult } from "../types/geometry";
+import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
@@ -1829,7 +1830,11 @@ export class SourceEditorController implements SourceEditorHandle {
       this.refreshFoldGutter();
       return;
     }
-    this.statementRanges = createStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
+    this.statementRanges = createStatementRangeIndex(
+      this.view.state.doc,
+      state.doc.statementMap,
+      sourceOwnerByRuntimeElementId(state.doc)
+    );
     this.printLayoutRanges = createPrintLayoutRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.typedDeclarationRanges = createTypedDeclarationRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.typedDeclarationFieldRanges = createTypedDeclarationFieldRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.statements);

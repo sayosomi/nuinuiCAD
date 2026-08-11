@@ -16,6 +16,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
+import { sourceOwnerByRuntimeElementId, sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
 import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { elementTypeLabels } from "../types/geometry";
@@ -88,6 +89,7 @@ export const InspectorPanel = ({
   const doc = useCadDocumentStore((state) => state.doc);
   const docText = useCadDocumentStore((state) => state.docText);
   const sourceText = useCadDocumentStore((state) => state.sourceText);
+  const sourceOwners = useMemo(() => sourceOwnerByRuntimeElementId(doc), [doc]);
   const isLastGood = docText !== sourceText;
   const isRuntimeFresh = isRuntimeBindingDisplayFresh({ isSourceDirty: isLastGood, isEvaluationStale });
   const textTemplatesByElementId = useMemo(
@@ -105,11 +107,12 @@ export const InspectorPanel = ({
           element,
           textTemplates: doc.textTemplates,
           statementMap: doc.statementMap,
+          sourceOwners,
           evaluation,
           isRuntimeFresh,
         })
       : null,
-    [doc.statementMap, doc.textTemplates, element, evaluation, isRuntimeFresh],
+    [doc.statementMap, doc.textTemplates, element, evaluation, isRuntimeFresh, sourceOwners],
   );
   const dependencyIndex = useMemo(
     () => createDependencyIndex(elements, { textTemplatesByElementId }),
@@ -223,9 +226,9 @@ export const InspectorPanel = ({
   );
   const parseIssues = useMemo(() => {
     if (!element || isLastGood) return [];
-    const line = doc.statementMap.byElementId.get(element.id)?.line;
+    const line = sourceOwnerForRuntimeElementId(doc, element.id)?.statement.line;
     return line ? diagnostics.filter((item) => item.line === line) : [];
-  }, [diagnostics, doc.statementMap, element, isLastGood]);
+  }, [diagnostics, doc, element, isLastGood]);
   const infoRows = element ? geometryInfoRows(evaluation.computedGeometry.get(element.id)) : [];
   const jumpToTypedDeclaration = (bindingId: BindingId): boolean =>
     sourceEditorRef.current?.jumpToBindingDeclaration(bindingId) ?? false;
