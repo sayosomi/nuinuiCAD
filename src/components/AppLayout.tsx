@@ -57,6 +57,7 @@ import { creationRecipeForLegacyCommand, legacyCreationCommandIds } from "../com
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ElementId } from "../types/geometry";
+import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
 
 const commandLineCreationCommandIds = new Set(legacyCreationCommandIds);
 
@@ -107,6 +108,9 @@ const RenameElementDialog = lazy(() =>
 );
 const RenameTypedBindingDialog = lazy(() =>
   import("./RenameTypedBindingDialog").then((module) => ({ default: module.RenameTypedBindingDialog }))
+);
+const RenameModuleSemanticDialog = lazy(() =>
+  import("./RenameModuleSemanticDialog").then((module) => ({ default: module.RenameModuleSemanticDialog }))
 );
 const TemplateInsertionPanel = lazy(() =>
   import("./TemplateInsertionPanel").then((module) => ({
@@ -177,6 +181,7 @@ export const AppLayout = () => {
   const showSelectionColorPicker = useCadUiStore((state) => state.showSelectionColorPicker);
   const renameElementPromptTargetId = useCadUiStore((state) => state.renameElementPromptTargetId);
   const renameTypedBindingPromptTargetId = useCadUiStore((state) => state.renameTypedBindingPromptTargetId);
+  const renameModuleSemanticPromptTarget = useCadUiStore((state) => state.renameModuleSemanticPromptTarget);
   const pendingImageImport = useCadUiStore((state) => state.pendingImageImport);
   const imageImportError = useCadUiStore((state) => state.imageImportError);
   const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
@@ -369,6 +374,8 @@ export const AppLayout = () => {
     currentCursorElementId: () => sourceEditorRef.current?.currentCursorElementId?.() ?? null,
     currentSourceCursor: () => sourceEditorRef.current?.currentSourceCursor?.() ?? null,
     currentCursorTypedRenameTargetBindingId: () => sourceEditorRef.current?.currentCursorTypedRenameTargetBindingId?.() ?? null,
+    currentCursorModuleSemanticTarget: () => sourceEditorRef.current?.currentCursorModuleSemanticTarget?.() ?? null,
+    goToSourceDefinitionAtCursor: () => sourceEditorRef.current?.goToSourceDefinitionAtCursor?.() ?? false,
     focusSourceEditorAtElementEnd: (elementId: ElementId) => sourceEditorRef.current?.jumpToElementEnd(elementId),
     focusSourceEditorAtLineEnd: (line: number) => sourceEditorRef.current?.jumpToLineEnd(line),
     clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
@@ -382,6 +389,10 @@ export const AppLayout = () => {
   }, [commandContext]);
   const handleRenameTypedBindingConfirmed = useCallback((bindingId: BindingId) => {
     sourceEditorRef.current?.jumpToBindingDeclaration(bindingId);
+    commandContext.focusSourceEditor?.();
+  }, [commandContext]);
+  const handleRenameModuleSemanticConfirmed = useCallback((target: ModuleSemanticTarget) => {
+    sourceEditorRef.current?.jumpToModuleSemanticTarget?.(target);
     commandContext.focusSourceEditor?.();
   }, [commandContext]);
 
@@ -482,6 +493,7 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().showSelectionColorPicker) return;
       if (useCadUiStore.getState().renameElementPromptTargetId) return;
       if (useCadUiStore.getState().renameTypedBindingPromptTargetId) return;
+      if (useCadUiStore.getState().renameModuleSemanticPromptTarget) return;
       if (useCadUiStore.getState().pendingImageImport || useCadUiStore.getState().imageImportError) return;
       const commandLineSession = useCadUiStore.getState().commandLineSession;
       const keyboardOptions = {
@@ -677,6 +689,11 @@ export const AppLayout = () => {
       {renameTypedBindingPromptTargetId ? (
         <Suspense fallback={null}>
           <RenameTypedBindingDialog onConfirmed={handleRenameTypedBindingConfirmed} />
+        </Suspense>
+      ) : null}
+      {renameModuleSemanticPromptTarget ? (
+        <Suspense fallback={null}>
+          <RenameModuleSemanticDialog onConfirmed={handleRenameModuleSemanticConfirmed} />
         </Suspense>
       ) : null}
       {pendingImageImport || imageImportError ? (

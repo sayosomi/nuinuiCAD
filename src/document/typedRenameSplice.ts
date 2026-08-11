@@ -27,6 +27,12 @@ export type TypedRenameSpliceResult =
   | { ok: true; splices: LineSplice[] }
   | { ok: false; reason: string };
 
+/** Neutral source-semantic names used by module rename. Keeping the original
+ * typed aliases preserves the reviewed typed-rename API while both paths share
+ * exactly the same projection, overlap, and atomic LineSplice implementation. */
+export type SourceSemanticRenameSpliceEntry = TypedRenameSpliceEntry;
+export type SourceSemanticRenameSpliceResult = TypedRenameSpliceResult;
+
 type PhysicalReplacement = { from: number; to: number; text: string };
 
 const lineStartOffsets = (sourceText: string): number[] => {
@@ -121,3 +127,5 @@ export const buildTypedRenameSplices = (
 
   return { ok: true, splices };
 };
+
+export const buildSourceSemanticRenameSplices = buildTypedRenameSplices;

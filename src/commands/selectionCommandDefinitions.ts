@@ -162,6 +162,15 @@ const openRenameElementPrompt = () => {
  * cursor parked on an element statement) is completely unaffected.
  */
 const openRenameSelectedElementPrompt = (context?: CommandContext) => {
+  const moduleTarget = context?.currentCursorModuleSemanticTarget?.();
+  if (moduleTarget) {
+    useCadUiStore.setState({
+      renameModuleSemanticPromptTarget: moduleTarget,
+      commandErrorMessage: null,
+      showCommandPalette: false
+    });
+    return true;
+  }
   const typedBindingId = context?.currentCursorTypedRenameTargetBindingId?.();
   if (typedBindingId) {
     useCadUiStore.setState({
