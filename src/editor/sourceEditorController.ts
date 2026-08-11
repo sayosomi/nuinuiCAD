@@ -177,22 +177,35 @@ const moduleCompletionSiteAt = (
   position: number,
   purpose: "moduleCall" | "moduleBody"
 ): ModuleCompletionSite | null => {
-  if (purpose === "moduleCall" && ranges.moduleStructureStable === false) return null;
+  if (ranges.moduleStructureStable === false) return null;
   const anchors = ranges.statementAnchors;
   if (!anchors) return null;
-  const exact = [...(ranges.statementRanges ?? [])].find(([, range]) => position >= range.from && position <= range.to);
-  if (exact) {
-    const [statementIndex] = exact;
-    const anchor = anchors.get(statementIndex);
-    return anchor ? { statementIndex, scopeId: anchor.scopeId, sourceOrderIndex: statementIndex } : null;
-  }
-  if (purpose !== "moduleCall") return null;
   const containingScopes = (ranges.lexicalScopeRanges ?? [])
     .filter((range) => position >= range.from && position <= range.to)
     .sort((left, right) => (left.to - left.from) - (right.to - right.from));
   const scopeId = containingScopes[0]?.scopeId ?? "root";
+  const moduleBodyRange = containingScopes.find((range) => ranges.moduleBodyScopeIds?.has(range.scopeId));
+  const exact = [...(ranges.statementRanges ?? [])]
+    .filter(([, range]) => position >= range.from && position <= range.to)
+    .sort((left, right) => (left[1].to - left[1].from) - (right[1].to - right[1].from))[0];
+  if (exact) {
+    const [statementIndex, range] = exact;
+    const statementAnchor = anchors.get(statementIndex);
+    const isScopeContainer = containingScopes.some((scope) =>
+      scope.from === range.from && statementAnchor?.scopeId !== scope.scopeId &&
+      position > (scope.anchors[0]?.to ?? scope.from) &&
+      !scope.anchors.some((anchor) => position >= anchor.from && position <= anchor.to)
+    );
+    if (!isScopeContainer) {
+      const anchor = anchors.get(statementIndex);
+      return anchor ? { statementIndex, scopeId: anchor.scopeId, sourceOrderIndex: statementIndex } : null;
+    }
+  }
+  if (purpose === "moduleBody" && (!moduleBodyRange || moduleBodyRange.anchors.some((anchor) => position >= anchor.from && position <= anchor.to))) return null;
+  if (purpose === "moduleCall" && moduleBodyRange?.anchors.some((anchor) => position >= anchor.from && position <= anchor.to)) return null;
+  const anchorRange = purpose === "moduleBody" ? moduleBodyRange : containingScopes[0];
   const scopedAnchors = [...anchors.entries()]
-    .filter(([, anchor]) => anchor.scopeId === scopeId)
+    .filter(([, anchor]) => !anchorRange || (anchor.from >= anchorRange.from && anchor.to <= anchorRange.to))
     .sort((left, right) => left[1].from - right[1].from);
   const next = scopedAnchors.find(([, anchor]) => anchor.from >= position);
   if (next) return { statementIndex: next[0], scopeId, sourceOrderIndex: next[0] };

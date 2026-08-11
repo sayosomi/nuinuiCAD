@@ -83,6 +83,10 @@ const isDescendantOrSelf = (index: SourceLexicalNamespaceIndex, child: ScopeId, 
   return false;
 };
 
+/** Shared scope ancestry proof used by Module semantic completion to classify
+ * a nested dirty site without reimplementing lexical declaration lookup. */
+export const isScopeWithin = isDescendantOrSelf;
+
 /** Module bodies may resolve declarations only inside their own body scope.
  * Keep this boundary check beside the shared lookup so completion cannot
  * accidentally publish a document declaration that semantic analysis rejects. */

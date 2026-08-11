@@ -49,6 +49,7 @@ import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
 import { cmDeleteCompletionRetry } from "./cmDeleteCompletionRetry";
 import { elementPropertyCompletions } from "./elementPropertyCompletions";
 import { isInsideModuleSemanticStatement, moduleCompletionCandidates, type ModuleCompletionSite } from "../dsl/moduleCompletionCandidates";
+import { isScopeWithin } from "../dsl/moduleLexicalResolution";
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 
 export type DslAutocompleteDocumentInput = {
@@ -362,7 +363,10 @@ const isModuleBodySite = (compiled: CompiledDslDocument, site: ModuleCompletionS
   if (!site) return false;
   const id = compiled.statementMap?.statementIdByStatementIndex?.get(site.statementIndex);
   if (id && compiled.moduleSemanticAnalysis?.definitions.some((definition) => definition.bodyStatementIds.includes(id))) return true;
-  return Boolean(compiled.moduleSemanticAnalysis?.definitions.some((definition) => definition.bodyScopeId === site.scopeId));
+  const namespace = compiled.sourceLexicalNamespace;
+  return Boolean(namespace && site.scopeId && compiled.moduleSemanticAnalysis?.definitions.some((definition) =>
+    isScopeWithin(namespace, site.scopeId!, definition.bodyScopeId)
+  ));
 };
 
 const moduleScalarCompletions = (

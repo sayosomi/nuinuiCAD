@@ -793,6 +793,17 @@ export const mapScopeBodyRangeIndex = (ranges: ScopeBodyRangeIndex, changes: Cha
  * rename/navigation until semantic refresh, but completion/F2 can now
  * distinguish a stale module site from an ordinary element cursor. */
 export const mapModuleSemanticRangeIndex = (ranges: ModuleSemanticRangeIndex, changes: ChangeDesc): ModuleSemanticRangeIndex => {
+  const structuralAnchorTouched = (anchor: { from: number; to: number }) => {
+    let touched = false;
+    changes.iterChangedRanges((from, to) => {
+      if (from === to) {
+        if (from === anchor.from) touched = true;
+        return;
+      }
+      if (from < anchor.to && to > anchor.from) touched = true;
+    });
+    return touched;
+  };
   const mapToken = (token: ModuleSemanticRangeIndex["tokens"][number]) => {
     if (changes.touchesRange(token.from, token.to) === "cover") return null;
     const from = changes.mapPos(token.from, 1, MapMode.TrackAfter);
@@ -812,7 +823,7 @@ export const mapModuleSemanticRangeIndex = (ranges: ModuleSemanticRangeIndex, ch
   for (const [statementIndex, range] of ranges.statementRanges ?? []) {
     if (changes.touchesRange(range.from, range.to) === "cover") continue;
     const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
-    const to = changes.mapPos(range.to, 1, MapMode.Simple);
+    const to = changes.mapPos(range.to, -1, MapMode.TrackBefore);
     if (from !== null && to !== null && to >= from) statementRanges.set(statementIndex, { from, to });
   }
   const mapRange = (range: { from: number; to: number }) => {
@@ -828,22 +839,35 @@ export const mapModuleSemanticRangeIndex = (ranges: ModuleSemanticRangeIndex, ch
   }
   const statementAnchors = new Map<number, { from: number; to: number; scopeId: ScopeId }>();
   for (const [statementIndex, range] of ranges.statementAnchors ?? []) {
-    const mapped = mapRange(range);
+    const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
+    const to = changes.mapPos(range.to, -1, MapMode.TrackBefore);
+    const mapped = from === null || to === null || to < from ? null : { from, to };
     if (mapped) statementAnchors.set(statementIndex, { ...mapped, scopeId: range.scopeId });
   }
   const lexicalScopeRanges = (ranges.lexicalScopeRanges ?? []).flatMap((range) => {
-    if (range.anchors.some((anchor) => changes.touchesRange(anchor.from, anchor.to) !== false)) return [];
+    if (range.anchors.some(structuralAnchorTouched)) return [];
     const mapped = mapRange(range);
     if (!mapped) return [];
     const anchors = range.anchors.flatMap((anchor) => {
-      const mappedAnchor = mapRange(anchor);
+      const from = changes.mapPos(anchor.from, 1, MapMode.TrackAfter);
+      const to = changes.mapPos(anchor.to, -1, MapMode.TrackBefore);
+      const mappedAnchor = from === null || to === null || to < from ? null : { from, to };
       return mappedAnchor ? [mappedAnchor] : [];
     });
     return anchors.length === range.anchors.length ? [{ ...mapped, scopeId: range.scopeId, anchors }] : [];
   });
   const moduleStructureStable = (ranges.moduleStructureStable ?? true) &&
-    !(ranges.lexicalScopeRanges ?? []).some((range) => range.anchors.some((anchor) => changes.touchesRange(anchor.from, anchor.to) !== false));
-  return { tokens, declarationByTarget, statementRanges, staleStatementRanges, statementAnchors, lexicalScopeRanges, moduleStructureStable };
+    !(ranges.lexicalScopeRanges ?? []).some((range) => range.anchors.some(structuralAnchorTouched));
+  return {
+    tokens,
+    declarationByTarget,
+    statementRanges,
+    staleStatementRanges,
+    statementAnchors,
+    lexicalScopeRanges,
+    moduleBodyScopeIds: ranges.moduleBodyScopeIds,
+    moduleStructureStable
+  };
 };
 
 /**

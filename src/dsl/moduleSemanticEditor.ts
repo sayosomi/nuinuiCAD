@@ -52,6 +52,9 @@ export type ModuleSemanticRangeIndex = {
   statementAnchors?: ReadonlyMap<number, ModuleSemanticStatementRange & { scopeId: ScopeId }>;
   /** Structural lexical scope ranges used only for safe live call-site proof. */
   lexicalScopeRanges?: readonly ModuleSemanticScopeRange[];
+  /** Stable Module definition body scopes used to distinguish Module-owned
+   * dirty statements from ordinary document/group statements. */
+  moduleBodyScopeIds?: ReadonlySet<ScopeId>;
   /** False after an edit touches a Module/group structural delimiter. */
   moduleStructureStable?: boolean;
 };
@@ -103,6 +106,33 @@ const nameSpanFor = (compiled: CompiledDslDocument, statementIndex: number): Dsl
   return statement.namePhysicalSpan ?? projectedSpan(compiled, statementIndex, statement.nameSpan);
 };
 
+const lineStartAt = (source: string, line: number) => {
+  let currentLine = 1;
+  let offset = 0;
+  while (currentLine < line) {
+    const newline = source.indexOf("\n", offset);
+    if (newline < 0) return source.length;
+    offset = newline + 1;
+    currentLine += 1;
+  }
+  return offset;
+};
+
+const structuralBraceAnchor = (compiled: CompiledDslDocument, statement: CompiledDslDocument["statements"][number], brace: "{" | "}") => {
+  const source = compiled.spans.sourceMap.source;
+  const inStatement = source.indexOf(brace, statement.documentRange.from);
+  if (inStatement >= statement.documentRange.from && inStatement < statement.documentRange.to) {
+    return { from: inStatement, to: inStatement + 1 };
+  }
+  if (brace === "{" && statement.openBraceLine !== undefined) {
+    const lineFrom = lineStartAt(source, statement.openBraceLine);
+    const lineTo = source.indexOf("\n", lineFrom);
+    const open = source.indexOf("{", lineFrom);
+    if (open >= lineFrom && (lineTo < 0 || open < lineTo)) return { from: open, to: open + 1 };
+  }
+  return { from: statement.documentRange.from, to: statement.documentRange.to };
+};
+
 /** Build the editor view of the already-compiled module semantics. */
 export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): ModuleSemanticRangeIndex => {
   const analysis = compiled.moduleSemanticAnalysis;
@@ -112,6 +142,7 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
   const staleStatementRanges = new Map<number, { from: number; to: number }>();
   const statementAnchors = new Map<number, { from: number; to: number; scopeId: ScopeId }>();
   const lexicalScopeRanges: ModuleSemanticScopeRange[] = [];
+  const moduleBodyScopeIds = new Set<ScopeId>();
   if (!analysis || !compiled.statementMap) return {
     tokens,
     declarationByTarget: declarations,
@@ -119,8 +150,10 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     staleStatementRanges,
     statementAnchors,
     lexicalScopeRanges,
+    moduleBodyScopeIds,
     moduleStructureStable: true
   };
+  for (const definition of analysis.definitions) moduleBodyScopeIds.add(definition.bodyScopeId);
   for (const [statementIndex, statement] of compiled.statements.entries()) {
     const scopeId = compiled.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(statementIndex);
     if (scopeId) statementAnchors.set(statementIndex, { from: statement.documentRange.from, to: statement.documentRange.to, scopeId });
@@ -135,8 +168,8 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
       from: opening.documentRange.from,
       to: closing?.documentRange.to ?? compiled.spans.sourceMap.source.length,
       anchors: [
-        { from: opening.documentRange.from, to: opening.documentRange.to },
-        ...(closing ? [{ from: closing.documentRange.from, to: closing.documentRange.to }] : [])
+        structuralBraceAnchor(compiled, opening, "{"),
+        ...(closing ? [structuralBraceAnchor(compiled, closing, "}")] : [])
       ]
     });
   }
@@ -233,7 +266,7 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     for (const site of references) addGeometryReference(compiled, statementIndex, site.reference, add, addSourceTarget);
   }
   tokens.sort((a, b) => a.from - b.from || b.to - a.to);
-  return { tokens, declarationByTarget: declarations, statementRanges, staleStatementRanges, statementAnchors, lexicalScopeRanges, moduleStructureStable: true };
+  return { tokens, declarationByTarget: declarations, statementRanges, staleStatementRanges, statementAnchors, lexicalScopeRanges, moduleBodyScopeIds, moduleStructureStable: true };
 };
 
 const isModuleBodyStatementId = (analysis: ModuleSemanticAnalysis, statementId: StatementIdentity) =>
