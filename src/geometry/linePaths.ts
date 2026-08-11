@@ -352,14 +352,6 @@ export const tangentAtPointOnLineLikeGeometry = (
       tolerance
     );
     if (tangent) return tangent;
-    const analyticTangent = analyticBezierTangentAtPoint(
-      geometry.segments.filter((segment): segment is Extract<ComputedOffsetLineSegment, { kind: "bezier" }> =>
-        segment.kind === "bezier"
-      ),
-      point,
-      tolerance
-    );
-    if (analyticTangent) return analyticTangent;
   }
 
   const segments = segmentsForLineLikeGeometry(geometry);
