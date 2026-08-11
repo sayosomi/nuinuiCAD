@@ -3750,6 +3750,50 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(point.y).toBeCloseTo(18.019869897572224);
   });
 
+  it("uses the analytic tangent for an interior Bezier point", () => {
+    const result = evaluateElements([
+      { id: "start", name: "始点", type: "freePoint", activity: "visible", x: 50, y: -50 },
+      { id: "end", name: "終点", type: "freePoint", activity: "visible", x: 150, y: -50 },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "start" },
+        startHandleAngleDeg: 270,
+        startHandleLength: 50,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "end" },
+        endHandleAngleDeg: 90,
+        endHandleLength: 50
+      },
+      {
+        id: "middle",
+        name: "中間点",
+        type: "lineDivisionPoint",
+        activity: "visible",
+        endpoint: { lineId: "curve", endpointKey: "start" },
+        placement: { kind: "ratio", value: 0.5 }
+      },
+      {
+        id: "offset",
+        name: "線上オフセット点",
+        type: "lineTangentOffsetPoint",
+        activity: "visible",
+        baseLineId: "curve",
+        basePoint: { mode: "reference", pointId: "middle" },
+        tangentAngleDeg: 270,
+        distance: 10
+      }
+    ]);
+
+    expect(result.errors).toHaveLength(0);
+    const point = result.computedGeometry.get("offset");
+    expect(point).toMatchObject({ kind: "point", x: 100 });
+    if (point?.kind !== "point") throw new Error("Expected a point");
+    expect(point.y).toBeCloseTo(-97.5);
+  });
+
   it("reports a line tangent offset point dependency that appears too late", () => {
     const result = evaluateElements([
       {

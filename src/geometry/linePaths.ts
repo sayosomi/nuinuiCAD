@@ -6,7 +6,7 @@ import type {
   ComputedOffsetLine,
   ComputedOffsetLineSegment
 } from "../types/geometry";
-import { projectPointOntoCurve } from "./bezierMath";
+import { cubicDerivativeAt, projectPointOntoCurve } from "./bezierMath";
 import { projectPointOntoOffsetLine } from "./offsetSegmentProjection";
 
 type Point = { x: number; y: number };
@@ -270,6 +270,21 @@ const snapOntoGeometry = (geometry: LineLikeGeometry, point: Point): Point | nul
   return null;
 };
 
+const analyticBezierTangentAtPoint = (
+  segments: BezierLikeSegment[],
+  point: Point,
+  tolerance: number
+): { angleDeg: number; distanceFromLine: number } | null => {
+  const projection = projectPointOntoCurve(segments, point);
+  if (!projection || projection.distance > tolerance) return null;
+  const derivative = cubicDerivativeAt(segments[projection.segmentIndex], projection.localT);
+  if (Math.hypot(derivative.x, derivative.y) <= EPSILON) return null;
+  return {
+    angleDeg: angleFromDirection(derivative),
+    distanceFromLine: projection.distance
+  };
+};
+
 export const pointAtDistanceFromEndpoint = (
   geometry: LineLikeGeometry,
   endpointKey: "start" | "end",
@@ -325,6 +340,8 @@ export const tangentAtPointOnLineLikeGeometry = (
   if (geometry.kind === "bezierCurve") {
     const tangent = bestBezierEndpointTangent(geometry.segments, point, tolerance);
     if (tangent) return tangent;
+    const analyticTangent = analyticBezierTangentAtPoint(geometry.segments, point, tolerance);
+    if (analyticTangent) return analyticTangent;
   }
   if (geometry.kind === "offsetLine") {
     const tangent = bestBezierEndpointTangent(
@@ -335,6 +352,14 @@ export const tangentAtPointOnLineLikeGeometry = (
       tolerance
     );
     if (tangent) return tangent;
+    const analyticTangent = analyticBezierTangentAtPoint(
+      geometry.segments.filter((segment): segment is Extract<ComputedOffsetLineSegment, { kind: "bezier" }> =>
+        segment.kind === "bezier"
+      ),
+      point,
+      tolerance
+    );
+    if (analyticTangent) return analyticTangent;
   }
 
   const segments = segmentsForLineLikeGeometry(geometry);
