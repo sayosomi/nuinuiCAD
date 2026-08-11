@@ -264,17 +264,44 @@ Important scenarios include:
 * parameter definition and keyboard edit behavior
 * geometry measurement behavior when relevant
 
-Run the relevant checks before handing work back:
+Choose verification based on the surface actually changed. Use the smallest
+check that can meaningfully detect regressions caused by the change. Do not run
+an expensive full suite merely by habit when the change cannot be meaningfully
+verified by it. Task-specific gates and gates explicitly requested by the user
+take precedence.
 
-* `npm test`
-* `npm run test:parity` when evaluation behavior, payload conversion, or Rust
-  eligibility changed
-* `npm run build`
-* `npm run lint`
-* `cargo fmt --check` in `src-tauri` when Rust code changed
-* `cargo test` in `src-tauri` when Rust code changed
-* `cargo clippy --all-targets -- -D warnings` in `src-tauri` when Rust code changed
-* `npm run desktop:build` when Tauri packaging, commands, or Rust evaluation changed
+For documentation, comments, or policy-only changes that do not change source
+code, configuration, generated artifacts, or runtime behavior, `git diff --check`
+and diff review are sufficient. Do not routinely run `npm run build`, `npm run
+lint`, `npm test`, `npm run test:parity`, `cargo check`, `cargo test`, `cargo
+clippy`, or `npm run desktop:build` for such changes; run them only when the task
+explicitly requires them.
+
+For TypeScript, TSX, JavaScript, or executable DSL implementation changes, first
+run focused tests that directly cover the changed behavior. When production
+TypeScript, types, or bundle/build inputs change, run `npm run build`. When
+linted source or lint configuration changes, run `npm run lint`. Run the full
+`npm test` suite for broad or cross-cutting changes, shared parser/compiler/
+document/runtime infrastructure changes, an explicitly requested full
+regression gate, or a final cutover/regression milestone. Do not require the
+full suite by habit for a small isolated change with sufficient focused
+coverage.
+
+Run `npm run test:parity` when evaluation semantics, evaluation payload
+conversion, Rust eligibility, or behavior shared by the TypeScript reference
+evaluator and Rust evaluator changes. Do not run it for docs-only, UI-only, or
+unrelated source changes.
+
+For Rust changes, first run `cargo fmt --check`, `cargo check`, and focused Rust
+tests covering the changed code. Run `cargo test` and
+`cargo clippy --all-targets -- -D warnings` for broad Rust changes, shared
+evaluation/runtime infrastructure changes, a final regression gate, or when the
+task explicitly requires them.
+
+Run `npm run desktop:build` when Tauri packaging, app configuration, native
+command registration or boundaries, release-build behavior, or an explicit task
+gate requires it. It is not a routine gate for documentation, pure logic, or
+unrelated frontend changes.
 
 If a check cannot be run or fails for unrelated existing reasons, report that
 clearly.
@@ -299,6 +326,13 @@ than hiding the issue.
 ## Git / GitHub workflow
 
 * In plan mode, only plan Git/GitHub actions; execute them after approval.
-* Start each task by merge-committing the previous PR into `main`, then branch from the latest `origin/main`.
-* Finish by committing, pushing, and opening a draft PR to `main`.
-* Never merge the new draft PR without explicit approval.
+* Follow the branch and worktree workflow specified by the task.
+* Do not require a new branch or worktree for every task as a repository-wide
+  rule.
+* A long-running migration or multi-task plan may continue using the same branch
+  and worktree when the task specifies that workflow.
+* Do not switch the current worktree to `main` without instruction.
+* Do not delete unrelated worktrees or branches without instruction.
+* Do not create a PR or merge without the user's explicit request.
+* Follow the task or user instruction for branch/worktree cleanup.
+* Never merge a PR without explicit approval.
