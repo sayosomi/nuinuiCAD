@@ -3,7 +3,7 @@ use serde_json::Value;
 use super::bezier_math::{cubic_derivative, project_point_onto_curve, Point as BezierPoint};
 use super::bezier_path;
 use super::math::{normalize_degrees, CIRCLE_EPSILON};
-use super::offset_projection::project_point_onto_offset_line;
+use super::offset_projection::{project_point_onto_offset_line, OffsetSegmentProjection};
 
 const CURVE_PATH_STEPS: f64 = 32.0;
 
@@ -136,6 +136,42 @@ fn bezier_endpoint_tangent_on_geometry(
             .filter(|segment| segment.get("kind").and_then(Value::as_str) == Some("bezier"))
             .filter_map(|segment| bezier_endpoint_tangent_at_point(segment, point, tolerance))
             .min_by(|(_, left), (_, right)| left.total_cmp(right)),
+        _ => None,
+    }
+}
+
+fn offset_segment_tangent(
+    segment: &Value,
+    projection: &OffsetSegmentProjection,
+) -> Option<PathPoint> {
+    match segment.get("kind")?.as_str()? {
+        "line" => unit_vector(
+            segment.get("start").and_then(value_point)?,
+            segment.get("end").and_then(value_point)?,
+        ),
+        "bezier" => {
+            let derivative = cubic_derivative(segment, projection.local_t)?;
+            (derivative.x.hypot(derivative.y) > CIRCLE_EPSILON).then_some(PathPoint {
+                x: derivative.x,
+                y: derivative.y,
+            })
+        }
+        "arc" => {
+            let center = segment.get("center").and_then(value_point)?;
+            let sweep_angle_deg = segment.get("sweepAngleDeg")?.as_f64()?;
+            let radial = unit_vector(
+                center,
+                PathPoint {
+                    x: projection.point.x,
+                    y: projection.point.y,
+                },
+            )?;
+            let sign = if sweep_angle_deg >= 0.0 { 1.0 } else { -1.0 };
+            Some(PathPoint {
+                x: -radial.y * sign,
+                y: radial.x * sign,
+            })
+        }
         _ => None,
     }
 }
@@ -299,8 +335,8 @@ fn snap_onto_geometry(geometry: &Value, point: PathPoint) -> Option<PathPoint> {
                 segments,
             )?;
             Some(PathPoint {
-                x: projection.point.x,
-                y: projection.point.y,
+                x: projection.projection.point.x,
+                y: projection.projection.point.y,
             })
         }
         _ => None,
@@ -428,6 +464,25 @@ pub(crate) fn tangent_at_point_on_geometry(
                 y: radial.x * sign,
             };
             return Some((angle_from_direction(tangent), distance_from_line));
+        }
+        Some("offsetLine") => {
+            let segments = geometry.get("segments")?.as_array()?;
+            let projection = project_point_onto_offset_line(
+                BezierPoint {
+                    x: point.x,
+                    y: point.y,
+                },
+                segments,
+            )?;
+            if projection.projection.distance > tolerance {
+                return None;
+            }
+            let segment = segments.get(projection.segment_index)?;
+            let tangent = offset_segment_tangent(segment, &projection.projection)?;
+            return Some((
+                angle_from_direction(tangent),
+                projection.projection.distance,
+            ));
         }
         _ => {}
     }

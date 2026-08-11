@@ -285,6 +285,27 @@ const analyticBezierTangentAtPoint = (
   };
 };
 
+const offsetSegmentTangent = (
+  segment: ComputedOffsetLineSegment,
+  projection: { localT: number; point: Point }
+): Point | null => {
+  if (segment.kind === "line") return unitVector(segment.start, segment.end);
+
+  if (segment.kind === "bezier") {
+    const derivative = cubicDerivativeAt(segment, projection.localT);
+    return Math.hypot(derivative.x, derivative.y) <= EPSILON ? null : derivative;
+  }
+
+  const radial = {
+    x: projection.point.x - segment.center.x,
+    y: projection.point.y - segment.center.y
+  };
+  const radialLength = Math.hypot(radial.x, radial.y);
+  if (radialLength <= EPSILON) return null;
+  const sign = segment.sweepAngleDeg >= 0 ? 1 : -1;
+  return { x: -radial.y * sign, y: radial.x * sign };
+};
+
 export const pointAtDistanceFromEndpoint = (
   geometry: LineLikeGeometry,
   endpointKey: "start" | "end",
@@ -352,6 +373,16 @@ export const tangentAtPointOnLineLikeGeometry = (
       tolerance
     );
     if (tangent) return tangent;
+
+    const projection = projectPointOntoOffsetLine(point, geometry.segments);
+    if (!projection || projection.distance > tolerance) return null;
+    const segment = geometry.segments[projection.segmentIndex];
+    const direction = segment ? offsetSegmentTangent(segment, projection) : null;
+    if (!direction) return null;
+    return {
+      angleDeg: angleFromDirection(direction),
+      distanceFromLine: projection.distance
+    };
   }
 
   const segments = segmentsForLineLikeGeometry(geometry);
