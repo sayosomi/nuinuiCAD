@@ -39,17 +39,25 @@ import {
   commandLinePickNormalizationTargetId,
   commandLineStepForPickTarget
 } from "../commands/commandLinePickRouting";
+import {
+  isSemanticGeometryCandidateAllowed,
+  sourceReferenceForAnchor,
+  sourceReferenceForElement,
+  type ModuleSemanticCandidateContext
+} from "./moduleSemanticCandidateBoundary";
 
 export type PickOption =
   | {
       kind: "point";
       label: string;
       anchor: PointAnchor;
+      sourceReference?: string;
     }
   | {
       kind: "line";
       label: string;
       lineId: ElementId;
+      sourceReference?: string;
     }
   | {
       kind: "numericReference";
@@ -81,6 +89,7 @@ type PickTargets = {
   commandLinePickParentGroupId?: ElementId;
   /** Creation placement / live DSL scope is authoritative when supplied. */
   referenceElements?: readonly CadElement[];
+  moduleSemanticContext?: ModuleSemanticCandidateContext;
 };
 
 const eligibleReferenceElements = (
@@ -136,7 +145,8 @@ const pointCandidates = (
   activePointPickTarget: ActivePointPickTarget,
   commandLineSession?: CommandLineSession | null,
   commandLinePickParentGroupId?: ElementId,
-  referenceElements?: readonly CadElement[]
+  referenceElements?: readonly CadElement[],
+  moduleSemanticContext?: ModuleSemanticCandidateContext
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activePointPickTarget.elementId);
   const targetDefinition = targetElement
@@ -176,6 +186,11 @@ const pointCandidates = (
     });
 
   return geometryCandidates
+    .filter((candidate) => !moduleSemanticContext || isSemanticGeometryCandidateAllowed({
+      candidateElementId: candidate.geometry.elementId,
+      targetElementId: activePointPickTarget.elementId,
+      context: moduleSemanticContext
+    }))
     .filter((candidate) => isEnabledPickSource(evaluation, candidate.geometry.elementId))
     .map((candidate) => {
       const selectablePoints = selectablePointsForGeometry(
@@ -190,18 +205,38 @@ const pointCandidates = (
         candidate.geometry.kind === "point" &&
         isValidPointCandidate(referenceAnchor(candidate.geometry.elementId))
       ) {
+        const sourceReference = moduleSemanticContext
+          ? sourceReferenceForAnchor({
+              anchor: referenceAnchor(candidate.geometry.elementId),
+              targetElementId: activePointPickTarget.elementId,
+              context: moduleSemanticContext,
+              fallbackSourceName: candidate.templateElement.name
+            })
+          : null;
         options.push({
           kind: "point",
           label: candidate.geometry.name,
-          anchor: referenceAnchor(candidate.geometry.elementId)
+          anchor: referenceAnchor(candidate.geometry.elementId),
+          ...(sourceReference ? { sourceReference } : {})
         });
       } else {
         options.push(
-          ...selectablePoints.map((point) => ({
-            kind: "point" as const,
-            label: point.label,
-            anchor: point.anchor
-          }))
+          ...selectablePoints.map((point) => {
+            const sourceReference = moduleSemanticContext
+              ? sourceReferenceForAnchor({
+                  anchor: point.anchor,
+                  targetElementId: activePointPickTarget.elementId,
+                  context: moduleSemanticContext,
+                  fallbackSourceName: candidate.templateElement.name
+                })
+              : null;
+            return {
+              kind: "point" as const,
+              label: point.label,
+              anchor: point.anchor,
+              ...(sourceReference ? { sourceReference } : {})
+            };
+          })
         );
       }
 
@@ -220,7 +255,8 @@ const lineCandidates = (
   activeLinePickTarget: ActiveLinePickTarget,
   referenceElements?: readonly CadElement[],
   commandLineSession?: CommandLineSession | null,
-  commandLinePickParentGroupId?: ElementId
+  commandLinePickParentGroupId?: ElementId,
+  moduleSemanticContext?: ModuleSemanticCandidateContext
 ): PickCandidate[] => {
   const targetElement = elements.find((element) => element.id === activeLinePickTarget.elementId);
   const parameterValue = activeLinePickTarget.draftLineIds ?? (targetElement
@@ -252,31 +288,58 @@ const lineCandidates = (
   })
     .filter(
       (candidate) =>
+        (!moduleSemanticContext || isSemanticGeometryCandidateAllowed({
+          candidateElementId: candidate.geometry.elementId,
+          targetElementId: activeLinePickTarget.elementId,
+          context: moduleSemanticContext
+        })) &&
         isLineLikeElement(candidate.templateElement) &&
         candidate.geometry.kind !== "point" &&
         candidate.geometry.kind !== "image" &&
         candidate.geometry.kind !== "text" &&
         isEnabledPickSource(evaluation, candidate.geometry.elementId) &&
-        (activeLinePickTarget.draftLineIds !== undefined || !selectedLineIds.has(candidate.templateElement.id))
+        (activeLinePickTarget.draftLineIds !== undefined ||
+          (!selectedLineIds.has(candidate.templateElement.id) &&
+            !selectedLineIds.has(sourceReferenceForElement({
+              element: candidate.templateElement,
+              targetElementId: activeLinePickTarget.elementId,
+              context: moduleSemanticContext ?? {}
+            }) ?? "")))
     )
-    .map((candidate) => ({
-      elementId: candidate.geometry.elementId,
-      ...(candidate.referenceElementId ? { referenceElementId: candidate.referenceElementId } : {}),
-      options: [{
-        kind: "line" as const,
-        label: candidate.geometry.name,
-        lineId: candidate.geometry.elementId
-      }]
-    }));
+    .map((candidate) => {
+      const sourceReference = moduleSemanticContext
+        ? sourceReferenceForElement({
+            element: candidate.templateElement,
+            targetElementId: activeLinePickTarget.elementId,
+            context: moduleSemanticContext
+          })
+        : null;
+      return {
+        elementId: candidate.geometry.elementId,
+        ...(candidate.referenceElementId ? { referenceElementId: candidate.referenceElementId } : {}),
+        options: [{
+          kind: "line" as const,
+          label: candidate.geometry.name,
+          lineId: candidate.geometry.elementId,
+          ...(sourceReference ? { sourceReference } : {})
+        }]
+      };
+    });
 };
 
 const numericReferenceCandidates = (
   elements: CadElement[],
   evaluation: EvaluationResult,
-  activeNumericReferencePickTarget: ActiveNumericReferencePickTarget
+  activeNumericReferencePickTarget: ActiveNumericReferencePickTarget,
+  moduleSemanticContext?: ModuleSemanticCandidateContext
 ): PickCandidate[] => {
   return elements
     .filter((element) => !runtimeOnlyElementTypes.has(element.type))
+    .filter((element) => !moduleSemanticContext || isSemanticGeometryCandidateAllowed({
+      candidateElementId: element.id,
+      targetElementId: activeNumericReferencePickTarget.elementId,
+      context: moduleSemanticContext
+    }))
     .filter((element) =>
       pickSourcePrecedesTarget(
         elements,
@@ -297,7 +360,12 @@ const numericReferenceCandidates = (
                 kind: "numericReference" as const,
                 label: property,
                 property,
-                expression: numericReferenceExpression(geometry, property)
+                expression: sourceReferenceForElement({
+                  element,
+                  targetElementId: activeNumericReferencePickTarget.elementId,
+                  context: moduleSemanticContext ?? {},
+                  property
+                }) ?? numericReferenceExpression(geometry, property)
               }
             ]
           : [];
@@ -318,7 +386,8 @@ export const pickCandidates = (
       targets.activePointPickTarget,
       targets.commandLineSession,
       targets.commandLinePickParentGroupId,
-      targets.referenceElements
+      targets.referenceElements,
+      targets.moduleSemanticContext
     );
   }
   if (targets.activeLinePickTarget) {
@@ -328,14 +397,16 @@ export const pickCandidates = (
       targets.activeLinePickTarget,
       targets.referenceElements,
       targets.commandLineSession,
-      targets.commandLinePickParentGroupId
+      targets.commandLinePickParentGroupId,
+      targets.moduleSemanticContext
     );
   }
   if (targets.activeNumericReferencePickTarget) {
     return numericReferenceCandidates(
       elements,
       evaluation,
-      targets.activeNumericReferencePickTarget
+      targets.activeNumericReferencePickTarget,
+      targets.moduleSemanticContext
     );
   }
   return [];

@@ -10,6 +10,7 @@ import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
 import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidates";
+import { isSemanticGeometryCandidateAllowed } from "../model/moduleSemanticCandidateBoundary";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
 import { resolvedElementColorMap } from "../palette/elementColors";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
@@ -143,6 +144,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     useState<LinePickCandidateMenu | null>(null);
   const elements = useCadDocumentStore(effectiveElements);
   const documentElements = useCadDocumentStore((state) => state.elements);
+  const moduleMaterialization = useCadDocumentStore((state) => state.doc.moduleMaterialization);
+  const moduleSemanticAnalysis = useCadDocumentStore((state) => state.doc.moduleSemanticAnalysis);
+  const moduleSemanticContext = useMemo(() => ({
+    moduleMaterialization,
+    moduleSemanticAnalysis
+  }), [moduleMaterialization, moduleSemanticAnalysis]);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const palette = useCadDocumentStore((state) => state.palette);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
@@ -180,7 +187,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activeLinePickTarget,
     commandLineSession,
     commandLinePickParentGroupId,
-    referenceElements: commandLinePlacement?.referenceElements
+    referenceElements: commandLinePlacement?.referenceElements,
+    moduleSemanticContext
   }), [
     activeLinePickTarget,
     activePointPickTarget,
@@ -188,11 +196,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     commandLinePlacement?.referenceElements,
     commandLineSession,
     documentElements,
-    evaluation
+    evaluation,
+    moduleSemanticContext
   ]);
   const sharedLinePickRefKeys = useMemo(() => new Set(sharedPickCandidates.flatMap((candidate) =>
     candidate.options.flatMap((option) => option.kind === "line"
       ? [pickRefKey(pickRefForOption(candidate.elementId, option))]
+      : [])
+  )), [sharedPickCandidates]);
+  const sharedLineSourceReferences = useMemo(() => new Map(sharedPickCandidates.flatMap((candidate) =>
+    candidate.options.flatMap((option) => option.kind === "line" && option.sourceReference
+      ? [[option.lineId, option.sourceReference] as const]
       : [])
   )), [sharedPickCandidates]);
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
@@ -431,13 +445,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   }, [activeNumericReferencePickTarget, measurementCandidateMenu]);
   const applyLinePickCandidate = useCallback((candidate: LinePickCandidate) => {
     dispatchCommand("applyPickedLine", {
-      pickedLineId: candidate.line.elementId
+      pickedLineId: candidate.line.elementId,
+      ...(candidate.sourceReference ? { pickedLineSourceReference: candidate.sourceReference } : {})
     });
     setLinePickCandidateMenu(null);
   }, []);
   const applyPointPickCandidate = useCallback((candidate: PointPickCandidate) => {
     dispatchCommand("applyPickedPoint", {
-      pickedPointAnchor: candidate.anchor
+      pickedPointAnchor: candidate.anchor,
+      ...(candidate.sourceReference ? { pickedPointSourceReference: candidate.sourceReference } : {})
     });
     setPointPickCandidateMenu(null);
   }, []);
@@ -456,11 +472,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const isPickableForNumericReference = useCallback((lineElementId: ElementId) => {
     const activeTarget = activeNumericReferencePickTarget;
     if (!activeTarget) return false;
+    if (!isSemanticGeometryCandidateAllowed({
+      candidateElementId: lineElementId,
+      targetElementId: activeTarget.elementId,
+      context: moduleSemanticContext
+    })) return false;
     return (
       lineElementId !== activeTarget.elementId &&
       pickSourcePrecedesTarget(elements, activeTarget.elementId, lineElementId, activeTarget.insertionIndex)
     );
-  }, [activeNumericReferencePickTarget, elements]);
+  }, [activeNumericReferencePickTarget, elements, moduleSemanticContext]);
   const pickCandidateLineIds = useMemo(() => {
     const ids = new Set<ElementId>();
     if (!activeLinePickTarget && !activeNumericReferencePickTarget) return ids;
@@ -491,10 +512,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     })) {
       const lineId = pickableLineIdForLinePick(candidate.line.elementId);
       if (!lineId) continue;
-      uniqueCandidates.set(lineId, { line: candidate.line });
+      uniqueCandidates.set(lineId, {
+        line: candidate.line,
+        ...(sharedLineSourceReferences.get(lineId) ? {
+          sourceReference: sharedLineSourceReferences.get(lineId)
+        } : {})
+      });
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeLinePickTarget, overlayNumericReferenceCandidates, pickableLineIdForLinePick, previewElementIds]);
+  }, [activeLinePickTarget, overlayNumericReferenceCandidates, pickableLineIdForLinePick, previewElementIds, sharedLineSourceReferences]);
   const numericReferenceCandidatesAt = useCallback((screen: ScreenPoint) => {
     if (!activeNumericReferencePickTarget) return [];
 

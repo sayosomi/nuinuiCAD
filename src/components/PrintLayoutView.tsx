@@ -132,6 +132,12 @@ const PrintNumberInput = ({
   onChange: (value: NumericValue) => void;
 }) => {
   const [drag, setDrag] = useState<PrintNumberDragState | null>(null);
+  const moduleMaterialization = useCadDocumentStore((state) => state.doc.moduleMaterialization);
+  const moduleSemanticAnalysis = useCadDocumentStore((state) => state.doc.moduleSemanticAnalysis);
+  const moduleSemanticContext = useMemo(() => ({
+    moduleMaterialization,
+    moduleSemanticAnalysis
+  }), [moduleMaterialization, moduleSemanticAnalysis]);
   const [draft, setDraft] = useState<string | null>(null);
   const [inputSelection, setInputSelection] = useState<PrintNumberInputSelection>({ start: null, end: null });
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
@@ -172,6 +178,7 @@ const PrintNumberInput = ({
         referenceElements: elements,
         elementToken: elementParamMatch.elementToken,
         currentElement: undefined,
+        moduleSemanticContext,
         evaluation: {
           computedGeometry: evaluation.computedGeometry,
           effectiveEnabledElementIds: evaluation.effectiveEnabledElementIds,

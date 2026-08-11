@@ -12,6 +12,11 @@ import {
   type PointAnchor
 } from "../types/geometry";
 import { evaluateNumericValue, isNumericExpression } from "./numericExpressions";
+import {
+  isSemanticGeometryCandidateAllowed,
+  sourceReferenceForElement,
+  type ModuleSemanticCandidateContext
+} from "../model/moduleSemanticCandidateBoundary";
 
 export type NumericReferenceCandidate = {
   id: string;
@@ -32,6 +37,7 @@ type ResolveContext = {
   evaluation: EvaluationResult;
   currentElement?: CadElement;
   currentParameterKey?: string;
+  moduleSemanticContext?: ModuleSemanticCandidateContext;
 };
 
 const formatNumber = (value: number) =>
@@ -47,7 +53,13 @@ export const formatValue = (value: number, path: string) =>
 const elementIndex = (elements: CadElement[], elementId: ElementId) =>
   elements.findIndex((element) => element.id === elementId);
 
-const concreteExpression = (element: CadElement, path: string) => `${element.id}.${path}`;
+const concreteExpression = (element: CadElement, path: string, context: ResolveContext) =>
+  `${sourceReferenceForElement({
+    element,
+    targetElementId: context.currentElement?.id ?? "",
+    context: context.moduleSemanticContext ?? {},
+    property: path
+  }) ?? `${element.id}.${path}`}`;
 const displayExpression = (element: CadElement, path: string) => `${element.name}.${path}`;
 
 const pointPathValue = (point: ComputedPoint | null | undefined, path: string) => {
@@ -276,7 +288,7 @@ const candidateForPath = ({
 }): NumericReferenceCandidate | null => {
   const value = numericReferenceValueForPath(element, path, context);
   if (value === undefined) return null;
-  const expression = concreteExpression(element, path);
+  const expression = concreteExpression(element, path, context);
   const shown = displayPrefix ? `${displayPrefix}.${path}` : displayExpression(element, path);
   return {
     id: `${relation}:${expression}`,
@@ -307,7 +319,12 @@ const candidatesForElement = ({
   disabledReason?: string;
   displayPrefix?: string;
 }) => [
-  ...(runtimeOnlyElementTypes.has(element.type)
+  ...(runtimeOnlyElementTypes.has(element.type) ||
+    (context.currentElement && context.moduleSemanticContext && !isSemanticGeometryCandidateAllowed({
+      candidateElementId: element.id,
+      targetElementId: context.currentElement.id,
+      context: context.moduleSemanticContext
+    }))
     ? []
     : [
         ...computedPathsForGeometry(context.evaluation.computedGeometry.get(element.id)),

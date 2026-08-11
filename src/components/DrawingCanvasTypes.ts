@@ -71,6 +71,7 @@ export type PointPickCandidate = {
   anchor: PointAnchor;
   label: string;
   screen: ScreenPoint;
+  sourceReference?: string;
 };
 
 export type PointPickCandidateMenu = {
@@ -80,6 +81,7 @@ export type PointPickCandidateMenu = {
 
 export type LinePickCandidate = {
   line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
+  sourceReference?: string;
 };
 
 export type LinePickCandidateMenu = {

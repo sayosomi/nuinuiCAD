@@ -225,7 +225,11 @@ export type CommandContext = {
   pointAnchorMode?: "reference" | "coordinate";
   pickedPointId?: ElementId;
   pickedPointAnchor?: PointAnchor;
+  /** Canonical source token supplied by a semantic Module pick candidate. */
+  pickedPointSourceReference?: string;
   pickedLineId?: ElementId;
+  /** Canonical source token supplied by a semantic Module pick candidate. */
+  pickedLineSourceReference?: string;
   groupTemplate?: GroupTemplate;
   templateInputId?: string;
   numericValue?: NumericValue;

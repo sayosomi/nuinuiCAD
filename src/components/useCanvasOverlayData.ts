@@ -219,6 +219,13 @@ export const useCanvasOverlayData = ({
           : []
       )
     ));
+    const sourceReferenceByPickRef = new Map(pointPickCandidates.flatMap((candidate) =>
+      candidate.options.flatMap((option) =>
+        option.kind === "point" && option.anchor.mode !== "coordinate" && option.sourceReference
+          ? [[pickRefKey(pickRefForOption(candidate.elementId, option)), option.sourceReference] as const]
+          : []
+      )
+    ));
     return geometries
       .filter((geometry) => !excludedInteractionElementIds?.has(geometry.elementId))
       .filter((geometry) => visibleElementIds.has(geometry.elementId))
@@ -234,7 +241,18 @@ export const useCanvasOverlayData = ({
           .map((candidate) => ({
             anchor: candidate.anchor,
             label: candidate.label,
-            screen: worldToScreen(candidate.point, viewportSize, canvasViewport)
+            screen: worldToScreen(candidate.point, viewportSize, canvasViewport),
+            ...(sourceReferenceByPickRef.get(pickRefKey(pickRefForOption(geometry.elementId, {
+              kind: "point",
+              label: candidate.label,
+              anchor: candidate.anchor
+            }))) ? {
+              sourceReference: sourceReferenceByPickRef.get(pickRefKey(pickRefForOption(geometry.elementId, {
+                kind: "point",
+                label: candidate.label,
+                anchor: candidate.anchor
+              })))
+            } : {})
           }))
       );
   }, [

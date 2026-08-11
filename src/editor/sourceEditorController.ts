@@ -1228,20 +1228,25 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private currentPickCandidates() {
     const ui = this.uiStore.getState();
+    const documentState = this.store.getState();
     const evaluation = this.appliedEvaluation?.evaluation;
     if (!evaluation) return [];
-    return pickCandidates(this.store.getState().elements, evaluation, {
+    return pickCandidates(documentState.elements, evaluation, {
       activePointPickTarget: ui.activePointPickTarget,
       activeNumericReferencePickTarget: ui.activeNumericReferencePickTarget,
       activeLinePickTarget: ui.activeLinePickTarget,
       commandLineSession: ui.commandLineSession,
       commandLinePickParentGroupId: ui.commandLineSession
         ? creationPlacementForTarget(
-            this.store.getState().elements,
+            documentState.elements,
             ui.commandLineSession.insertionTarget,
-            this.store.getState().evaluationLimitIndex
+            documentState.evaluationLimitIndex
           ).parentGroupId
-        : undefined
+        : undefined,
+      moduleSemanticContext: {
+        moduleMaterialization: documentState.doc.moduleMaterialization,
+        moduleSemanticAnalysis: documentState.doc.moduleSemanticAnalysis
+      }
     });
   }
 
