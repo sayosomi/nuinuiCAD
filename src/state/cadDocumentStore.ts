@@ -94,6 +94,8 @@ export type CadDocumentState = {
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   evaluationLimitIndex: number | undefined;
   previewElements: CadElement[] | null;
+  /** Matching compiled metadata for a valid Source Editor preview. */
+  previewCompiledDocument: LastGoodDslDocument | null;
   /** Evaluation divider paired with previewElements when a preview changes insertion order. */
   previewEvaluationLimitIndex: number | undefined | null;
   past: TextSnapshot[];
@@ -188,6 +190,11 @@ export const effectiveElements = (
   state: Pick<CadDocumentState, "elements" | "previewElements">
 ) => state.previewElements ?? state.elements;
 
+/** Compiled metadata paired with a valid Source Editor element preview. */
+export const effectiveCompiledDocument = (
+  state: Pick<CadDocumentState, "doc" | "previewCompiledDocument">
+) => state.previewCompiledDocument ?? state.doc;
+
 /** Keeps preview-only insertion/removal evaluation semantics out of canonical document state. */
 export const effectiveEvaluationLimitIndex = (
   state: Pick<CadDocumentState, "evaluationLimitIndex" | "previewEvaluationLimitIndex" | "previewElements">
@@ -199,6 +206,7 @@ export const effectiveEvaluationLimitIndex = (
 
 const clearedPreviewState = () => ({
   previewElements: null,
+  previewCompiledDocument: null,
   previewEvaluationLimitIndex: null
 });
 
@@ -560,7 +568,11 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       // Preserve the last-good canonical document for invalid live text, matching
       // the normal editor behavior. Value stepping itself always produces valid DSL.
       return result.docText === result.sourceText
-        ? { previewElements: result.doc.document.elements, previewEvaluationLimitIndex: null }
+        ? {
+            previewElements: result.doc.document.elements,
+            previewCompiledDocument: result.doc,
+            previewEvaluationLimitIndex: null
+          }
         : clearedPreviewState();
     });
   },
@@ -573,6 +585,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     if (change.elements === undefined) return { status: "noop" };
     set({
       previewElements: change.elements,
+      previewCompiledDocument: null,
       previewEvaluationLimitIndex: Object.hasOwn(change, "evaluationLimitIndex")
         ? change.evaluationLimitIndex
         : null
