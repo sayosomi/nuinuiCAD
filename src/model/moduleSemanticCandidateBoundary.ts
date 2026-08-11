@@ -164,9 +164,13 @@ const isExportVisible = (
   // module instance was authored. It must not leak through materialization to
   // the root document or to a sibling/outer Module body.
   if (!targetOrigin || !targetPosition) return false;
-  if (candidatePath.length <= targetOrigin.instancePath.length) return false;
+  // Only the instance authored directly in the target Module body may expose
+  // one of its callee's exports. A deeper runtime path is transitive and must
+  // first be re-exported by each intermediate Module definition.
+  if (candidatePath.length !== targetOrigin.instancePath.length + 1) return false;
   if (!targetOrigin.instancePath.every((id, index) => candidatePath[index] === id)) return false;
-  const nestedInstanceId = candidatePath[targetOrigin.instancePath.length];
+  const nestedInstanceId = candidatePath.at(-1);
+  if (!nestedInstanceId) return false;
   const nestedInstance = context.moduleSemanticAnalysis?.instancesByStatementId.get(nestedInstanceId);
   if (!nestedInstance || nestedInstance.callerModuleDefinitionStatementId !== targetOrigin.moduleDefinitionStatementId) return false;
   const declaration = sourcePositionForStatementIndex(
