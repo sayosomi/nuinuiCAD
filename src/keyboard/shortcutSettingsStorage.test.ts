@@ -150,7 +150,7 @@ describe("shortcutSettingsStorage", () => {
     });
   });
 
-  it("keeps retired and unknown bindings in normalized browser settings", async () => {
+  it("keeps retired, deleted, and unknown bindings in normalized browser settings", async () => {
     window.localStorage.setItem(
       "nuinuiCAD.shortcutSettings.v1",
       JSON.stringify({
@@ -159,6 +159,8 @@ describe("shortcutSettingsStorage", () => {
           { bindingId: "parameter.toggleSelectedParameterValue", chords: [chord(" ")] },
           { bindingId: "global.openDslPanel", chords: [chord("d")] },
           { bindingId: "global.focusInspectorParameterRows", chords: [chord("e")] },
+          { bindingId: "global.openGroupTemplateLibrary", chords: [chord("g")] },
+          { bindingId: "normal.startTemplateInsertion", chords: [chord("t")] },
           { bindingId: "normal.noLongerExists", chords: [chord("x")] },
           { bindingId: "normal.addFreePoint", chords: [chord("p")] }
         ]
@@ -171,6 +173,8 @@ describe("shortcutSettingsStorage", () => {
       "parameter.toggleSelectedParameterValue",
       "global.openDslPanel",
       "global.focusInspectorParameterRows",
+      "global.openGroupTemplateLibrary",
+      "normal.startTemplateInsertion",
       "normal.noLongerExists"
     ]);
     expect(JSON.parse(window.localStorage.getItem("nuinuiCAD.shortcutSettings.v1") ?? "")).toEqual(settings);
