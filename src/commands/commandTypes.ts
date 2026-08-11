@@ -8,6 +8,7 @@ import type {
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
+import type { ModuleSemanticCursorResolution } from "../editor/sourceEditorTypes";
 import type { GroupTemplate } from "../templates/groupTemplate";
 import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
@@ -178,6 +179,7 @@ export type CommandContext = {
    * whenever the cursor is not on a typed construct at all. */
   currentCursorTypedRenameTargetBindingId?: () => BindingId | null;
   currentCursorModuleSemanticTarget?: () => ModuleSemanticTarget | null;
+  currentCursorModuleSemanticResolution?: () => ModuleSemanticCursorResolution;
   goToSourceDefinitionAtCursor?: () => boolean;
   /** Focuses the Source Editor at the end of a newly generated element statement. */
   focusSourceEditorAtElementEnd?: (elementId: ElementId) => void;

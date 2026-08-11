@@ -7,6 +7,7 @@ import type {
 } from "./moduleSemanticTypes";
 import type {
   ModuleGeometryPropertyReferenceResolution,
+  ModuleGeometryPropertyReferenceInput,
   ModuleScalarReferenceResolution
 } from "./moduleScalarExpression";
 import type { ScalarType } from "../scalars/types";
@@ -19,7 +20,7 @@ type AnalyzeExpression = (
   expectedType: ScalarType | null,
   resolver: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution,
   bareResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null,
-  geometryPropertyResolver?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution
+  geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution
 ) => ModuleScalarExpressionSemantic | null;
 
 export type ElementLocalVariableResolver = (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
@@ -51,7 +52,7 @@ export const analyzeElementLocalVariables = ({
   addScalar: AddScalar;
   resolveBodyScalar: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBodyBareScalar: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
-  resolveBodyGeometryProperty: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
+  resolveBodyGeometryProperty: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
 }): ElementLocalVariableResolver | null => {
   const records = recordSpans(source, valueSpan) ?? [];
   const variableEntries: ElementLocalVariableNameEntry[] = records.flatMap((record, variableIndex) => {

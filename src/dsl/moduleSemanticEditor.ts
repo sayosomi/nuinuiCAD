@@ -9,6 +9,7 @@ import type {
 } from "./moduleSemanticTypes";
 import type { DslSpan } from "./dslTypes";
 import type { StatementIdentity } from "../document/statementIdentity";
+import type { BindingId } from "../scalars/bindingCatalog";
 
 /** Source identity used by editor operations. It deliberately contains no
  * runtime element id and no name-derived registry key. */
@@ -16,7 +17,10 @@ export type ModuleSemanticTarget =
   | { kind: "moduleDefinition"; statementId: StatementIdentity }
   | { kind: "moduleParameter"; slot: ModuleParameterSlot }
   | { kind: "moduleInstance"; statementId: StatementIdentity }
-  | { kind: "moduleSource"; statementId: StatementIdentity };
+  | { kind: "moduleSource"; statementId: StatementIdentity }
+  | { kind: "moduleElementLocalVariable"; statementId: StatementIdentity; variableIndex: number }
+  | { kind: "moduleIteration"; statementId: StatementIdentity }
+  | { kind: "documentBinding"; bindingId: BindingId };
 
 export type ModuleSemanticToken = {
   from: number;
@@ -27,12 +31,15 @@ export type ModuleSemanticToken = {
 export type ModuleSemanticRangeIndex = {
   tokens: readonly ModuleSemanticToken[];
   declarationByTarget: ReadonlyMap<string, ModuleSemanticToken>;
+  statementRanges?: ReadonlyMap<number, { from: number; to: number }>;
 };
 
 export const moduleSemanticTargetKey = (target: ModuleSemanticTarget): string => {
   if (target.kind === "moduleParameter") {
     return `parameter:${target.slot.definitionStatementId}:${target.slot.parameterIndex}`;
   }
+  if (target.kind === "documentBinding") return `documentBinding:${target.bindingId}`;
+  if (target.kind === "moduleElementLocalVariable") return `elementLocal:${target.statementId}:${target.variableIndex}`;
   return `${target.kind}:${target.statementId}`;
 };
 
@@ -47,15 +54,13 @@ const sourceTarget = (target: ModuleSourceTarget | null): ModuleSemanticTarget |
   if (target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty" || target.kind === "moduleLocal") {
     return { kind: "moduleSource", statementId: target.statementId };
   }
-  if (target.kind === "elementLocalVariable" || target.kind === "iteration") return { kind: "moduleSource", statementId: target.statementId };
+  if (target.kind === "elementLocalVariable") return { kind: "moduleElementLocalVariable", statementId: target.statementId, variableIndex: target.variableIndex };
+  if (target.kind === "iteration") return { kind: "moduleIteration", statementId: target.statementId };
+  if (target.kind === "documentBinding") return { kind: "documentBinding", bindingId: target.bindingId };
   return null;
 };
 
-const scalarReferenceSpan = (span: DslSpan, name: string): DslSpan => ({ start: span.end - name.length, end: span.end });
-const geometryPropertyReferenceSpan = (span: DslSpan, geometryName: string, property: string): DslSpan => ({
-  start: span.end - property.length - geometryName.length,
-  end: span.end - property.length
-});
+const scalarReferenceSpan = (reference: { nameSpan: DslSpan }): DslSpan => reference.nameSpan;
 
 const projectedSpan = (compiled: CompiledDslDocument, statementIndex: number, span: DslSpan): DslPhysicalSpan | null => {
   const statement = compiled.statements[statementIndex];
@@ -81,7 +86,8 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
   const analysis = compiled.moduleSemanticAnalysis;
   const tokens: ModuleSemanticToken[] = [];
   const declarations = new Map<string, ModuleSemanticToken>();
-  if (!analysis || !compiled.statementMap) return { tokens, declarationByTarget: declarations };
+  const statementRanges = new Map<number, { from: number; to: number }>();
+  if (!analysis || !compiled.statementMap) return { tokens, declarationByTarget: declarations, statementRanges };
   const indexById = statementIndexById(compiled);
   const add = (statementIndex: number, span: DslSpan | null | undefined, target: ModuleSemanticTarget, declaration = false) => {
     if (!span) return;
@@ -101,12 +107,18 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
   };
   const addSourceTarget = (statementIndex: number, target: ModuleSourceTarget | null, span: DslSpan | null | undefined) => {
     const editorTarget = sourceTarget(target);
-    if (editorTarget) add(statementIndex, span, editorTarget);
+    if (!editorTarget) return;
+    if (editorTarget.kind === "documentBinding" && target?.kind === "documentBinding") {
+      addPhysical(nameSpanFor(compiled, target.statementIndex), editorTarget, true);
+    }
+    add(statementIndex, span, editorTarget);
   };
 
   for (const definition of analysis.definitions) {
     const statementIndex = indexById.get(definition.statementId);
     if (statementIndex === undefined) continue;
+    const definitionStatement = compiled.statements[statementIndex];
+    if (definitionStatement) statementRanges.set(statementIndex, { from: definitionStatement.documentRange.from, to: definitionStatement.documentRange.to });
     addPhysical(nameSpanFor(compiled, statementIndex), { kind: "moduleDefinition", statementId: definition.statementId }, true);
     const statement = compiled.statements[statementIndex];
     if (statement.kind === "moduleDefinition") {
@@ -117,12 +129,16 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
           parameterIndex
         }}, true);
         if (parameter.defaultExpression) {
-          for (const reference of parameter.defaultExpression.references) addSourceTarget(statementIndex, reference.target, scalarReferenceSpan(reference.span, reference.name));
-          for (const reference of parameter.defaultExpression.geometryProperties) addSourceTarget(statementIndex, reference.target, geometryPropertyReferenceSpan(reference.span, reference.geometryName, reference.property));
+          for (const reference of parameter.defaultExpression.references) addSourceTarget(statementIndex, reference.target, scalarReferenceSpan(reference));
+          for (const reference of parameter.defaultExpression.geometryProperties) addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);
         }
       });
     }
-    for (const body of definition.bodyStatements) addBodyReferences(compiled, body.statementIndex, body, add, addSourceTarget);
+    for (const body of definition.bodyStatements) {
+      const bodyStatement = compiled.statements[body.statementIndex];
+      if (bodyStatement) statementRanges.set(body.statementIndex, { from: bodyStatement.documentRange.from, to: bodyStatement.documentRange.to });
+      addBodyReferences(compiled, body.statementIndex, body, add, addSourceTarget);
+    }
   }
   for (const declaration of compiled.sourceLexicalNamespace?.allDeclarations ?? []) {
     if (declaration.kind !== "geometry" && declaration.kind !== "typedDeclaration") continue;
@@ -135,6 +151,8 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
   for (const instance of analysis.instances) {
     const statementIndex = indexById.get(instance.statementId);
     if (statementIndex === undefined) continue;
+    const instanceStatement = compiled.statements[statementIndex];
+    if (instanceStatement) statementRanges.set(statementIndex, { from: instanceStatement.documentRange.from, to: instanceStatement.documentRange.to });
     addPhysical(nameSpanFor(compiled, statementIndex), { kind: "moduleInstance", statementId: instance.statementId }, true);
     const statement = compiled.statements[statementIndex];
     if (statement.kind !== "moduleInstance") continue;
@@ -147,10 +165,10 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
         definitionStatementId: instance.callee.definitionStatementId,
         parameterIndex: binding.parameterIndex
       }});
-      if (binding.value?.kind === "scalar") {
-        for (const reference of binding.value.expression.references) addSourceTarget(statementIndex, reference.target, scalarReferenceSpan(reference.span, reference.name));
-        for (const reference of binding.value.expression.geometryProperties) addSourceTarget(statementIndex, reference.target, geometryPropertyReferenceSpan(reference.span, reference.geometryName, reference.property));
-      } else if (binding.value?.kind === "geometry") {
+      if (binding.argumentIndex !== null && binding.value?.kind === "scalar") {
+        for (const reference of binding.value.expression.references) addSourceTarget(statementIndex, reference.target, scalarReferenceSpan(reference));
+        for (const reference of binding.value.expression.geometryProperties) addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);
+      } else if (binding.argumentIndex !== null && binding.value?.kind === "geometry") {
         addGeometryReference(compiled, statementIndex, binding.value.reference, add, addSourceTarget);
       }
     }
@@ -161,7 +179,7 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     for (const site of references) addGeometryReference(compiled, statementIndex, site.reference, add, addSourceTarget);
   }
   tokens.sort((a, b) => a.from - b.from || b.to - a.to);
-  return { tokens, declarationByTarget: declarations };
+  return { tokens, declarationByTarget: declarations, statementRanges };
 };
 
 const isModuleBodyStatementId = (analysis: ModuleSemanticAnalysis, statementId: StatementIdentity) =>
@@ -170,7 +188,7 @@ const isModuleBodyStatementId = (analysis: ModuleSemanticAnalysis, statementId: 
 const addGeometryReference = (
   compiled: CompiledDslDocument,
   statementIndex: number,
-  reference: { span: DslSpan; target: ModuleGeometrySourceTarget | null },
+  reference: { span: DslSpan; nameSpan?: DslSpan; target: ModuleGeometrySourceTarget | null },
   add: (statementIndex: number, span: DslSpan | null | undefined, target: ModuleSemanticTarget, declaration?: boolean) => void,
   addSourceTarget: (statementIndex: number, target: ModuleSourceTarget | null, span: DslSpan | null | undefined) => void
 ) => {
@@ -182,18 +200,34 @@ const addGeometryReference = (
     const exportTarget = target?.callee && analysis.definitionsByStatementId
       .get(target.callee.definitionStatementId)?.exports.find((item) => item.name === deferred.exportName);
     if (exportTarget) add(statementIndex, deferred.memberSpan, { kind: "moduleSource", statementId: exportTarget.exportedStatementId });
-    const instanceStart = deferred.memberSpan.start - deferred.instanceName.length - 2;
-    if (instanceStart >= 0) add(statementIndex, { start: instanceStart, end: instanceStart + deferred.instanceName.length }, {
-      kind: "moduleInstance", statementId: deferred.instanceStatementId
-    });
+    add(statementIndex, deferred.instanceSpan, { kind: "moduleInstance", statementId: deferred.instanceStatementId });
     return;
   }
   if (reference.target?.kind === "parameter") {
     const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(reference.target.definitionStatementId);
     const name = definition?.parameters[reference.target.parameterIndex]?.name;
-    if (name) return addSourceTarget(statementIndex, reference.target, scalarReferenceSpan(reference.span, name));
+    if (name) return addSourceTarget(statementIndex, reference.target, reference.nameSpan ?? reference.span);
   }
-  addSourceTarget(statementIndex, reference.target, reference.span);
+  addSourceTarget(statementIndex, reference.target, reference.nameSpan ?? reference.span);
+};
+
+const addGeometryPropertyReference = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  reference: { elementNameSpan: DslSpan; target: ModuleSourceTarget | null },
+  add: (statementIndex: number, span: DslSpan | null | undefined, target: ModuleSemanticTarget, declaration?: boolean) => void,
+  addSourceTarget: (statementIndex: number, target: ModuleSourceTarget | null, span: DslSpan | null | undefined) => void
+) => {
+  const target = reference.target;
+  if (target?.kind !== "deferredModuleExportProperty") {
+    addSourceTarget(statementIndex, target, reference.elementNameSpan);
+    return;
+  }
+  const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(target.instanceStatementId);
+  const exportTarget = instance?.callee && compiled.moduleSemanticAnalysis?.definitionsByStatementId
+    .get(instance.callee.definitionStatementId)?.exports.find((item) => item.name === target.exportName);
+  if (exportTarget) add(statementIndex, target.memberSpan, { kind: "moduleSource", statementId: exportTarget.exportedStatementId });
+  add(statementIndex, target.instanceSpan, { kind: "moduleInstance", statementId: target.instanceStatementId });
 };
 
 const addBodyReferences = (
@@ -206,15 +240,15 @@ const addBodyReferences = (
   for (const site of body.scalarExpressions) {
     for (const reference of site.expression.references) {
       const target = sourceTarget(reference.target);
-      if (target?.kind === "moduleParameter") add(statementIndex, { start: reference.span.end - reference.name.length, end: reference.span.end }, target);
-      else addSourceTarget(statementIndex, reference.target, { start: reference.span.end - reference.name.length, end: reference.span.end });
+      if (target?.kind === "moduleParameter") add(statementIndex, reference.nameSpan, target);
+      else addSourceTarget(statementIndex, reference.target, reference.nameSpan);
     }
-    for (const reference of site.expression.geometryProperties) addSourceTarget(statementIndex, reference.target, geometryPropertyReferenceSpan(reference.span, reference.geometryName, reference.property));
+    for (const reference of site.expression.geometryProperties) addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);
   }
   for (const site of body.geometryReferences) addGeometryReference(compiled, statementIndex, site.reference, add, addSourceTarget);
   for (const site of body.textTemplateHoles) for (const reference of site.expression.references) {
     const target = sourceTarget(reference.target);
-    const span = { start: reference.span.end - reference.name.length, end: reference.span.end };
+    const span = reference.nameSpan;
     if (target?.kind === "moduleParameter") add(statementIndex, span, target); else addSourceTarget(statementIndex, reference.target, span);
   }
   if (body.scalarTarget) {

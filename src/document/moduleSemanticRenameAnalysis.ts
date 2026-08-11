@@ -29,6 +29,7 @@ const sameScopeCollision = (compiled: CompiledDslDocument, target: ModuleSemanti
   const analysis = compiled.moduleSemanticAnalysis;
   const namespace = compiled.sourceLexicalNamespace;
   if (!analysis || !namespace) return true;
+  if (target.kind === "documentBinding") return true;
   if (target.kind === "moduleParameter") {
     const definition = analysis.definitionsByStatementId.get(target.slot.definitionStatementId);
     if (!definition) return true;
@@ -41,35 +42,66 @@ const sameScopeCollision = (compiled: CompiledDslDocument, target: ModuleSemanti
     .some((candidate) => candidate.statementId !== target.statementId);
 };
 
-const semanticFingerprint = (compiled: CompiledDslDocument) => {
+/** Stable-resolution snapshot used by both module rename safety and its
+ * compile-after-splice boundary. Names and export labels are intentionally
+ * absent; source statement/parameter identities are the comparison keys. */
+export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) => {
   const analysis = compiled.moduleSemanticAnalysis;
   if (!analysis) return null;
   const targetFingerprint = (target: unknown): unknown => {
     if (!target || typeof target !== "object") return target;
     const value = target as Record<string, unknown>;
-    if (value.kind === "parameter") return { kind: value.kind, definitionStatementId: value.definitionStatementId, parameterIndex: value.parameterIndex };
-    if (value.kind === "sourceGeometry" || value.kind === "sourceGeometryProperty" || value.kind === "moduleLocal" || value.kind === "elementLocalVariable" || value.kind === "iteration") {
-      return { kind: value.kind, statementId: value.statementId };
-    }
+    if (value.kind === "parameter" || value.kind === "parameterProperty") return { kind: value.kind, definitionStatementId: value.definitionStatementId, parameterIndex: value.parameterIndex };
+    if (value.kind === "sourceGeometry" || value.kind === "sourceGeometryProperty" || value.kind === "moduleLocal" || value.kind === "elementLocalVariable" || value.kind === "iteration") return { kind: value.kind, statementId: value.statementId, variableIndex: value.variableIndex ?? null };
+    if (value.kind === "documentBinding") return { kind: value.kind, bindingId: value.bindingId };
     if (value.kind === "deferredModuleExport" || value.kind === "deferredModuleExportProperty") {
-      return { kind: value.kind, instanceStatementId: value.instanceStatementId };
+      const instance = analysis.instancesByStatementId.get(value.instanceStatementId as string);
+      const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+      const exported = definition?.exports.find((entry) => entry.name === value.exportName);
+      return { kind: value.kind, instanceStatementId: value.instanceStatementId, exportedStatementId: exported?.exportedStatementId ?? null, property: value.property ?? null };
     }
     return value.kind;
   };
+  const expressionFingerprint = (expression: { references: readonly { resolution: string; target: unknown }[]; geometryProperties: readonly { resolution: string; target: unknown }[] } | null) => expression && {
+    references: expression.references.map((reference) => [reference.resolution, targetFingerprint(reference.target)]),
+    geometryProperties: expression.geometryProperties.map((reference) => [reference.resolution, targetFingerprint(reference.target)])
+  };
+  const geometryFingerprint = (reference: { resolution: string; target: unknown; coordinate: { x: Parameters<typeof expressionFingerprint>[0]; y: Parameters<typeof expressionFingerprint>[0] } | null }) => ({
+    resolution: reference.resolution,
+    target: targetFingerprint(reference.target),
+    coordinate: reference.coordinate ? { x: expressionFingerprint(reference.coordinate.x), y: expressionFingerprint(reference.coordinate.y) } : null
+  });
   return JSON.stringify({
-    definitions: analysis.definitions.map((definition) => ({ id: definition.statementId, body: definition.bodyStatementIds })),
+    definitions: analysis.definitions.map((definition) => ({
+      id: definition.statementId,
+      body: definition.bodyStatementIds,
+      parameters: definition.parameters.map((parameter) => ({ index: parameter.parameterIndex, type: parameter.type, default: expressionFingerprint(parameter.defaultExpression) })),
+      locals: definition.localScalars.map((local) => ({ id: local.statementId, type: local.type, initializer: expressionFingerprint(local.initializer) })),
+      exports: definition.exports.map((entry) => ({ id: entry.exportedStatementId, category: entry.category }))
+    })),
     instances: analysis.instances.map((instance) => ({
       id: instance.statementId,
       callee: instance.callee?.definitionStatementId ?? null,
-      bindings: instance.parameterBindings.map((binding) => ({ index: binding.parameterIndex, argument: binding.argumentIndex, target: targetFingerprint(binding.value) }))
+      resolution: instance.calleeResolution,
+      bindings: instance.parameterBindings.map((binding) => ({
+        index: binding.parameterIndex,
+        argument: binding.argumentIndex,
+        default: binding.usesDefault,
+        value: binding.value?.kind === "scalar"
+          ? { kind: "scalar", expression: expressionFingerprint(binding.value.expression) }
+          : binding.value?.kind === "geometry"
+            ? { kind: "geometry", reference: geometryFingerprint(binding.value.reference) }
+            : null
+      }))
     })),
-    exports: analysis.definitions.flatMap((definition) => definition.exports.map((entry) => ({ owner: definition.statementId, id: entry.exportedStatementId, category: entry.category }))),
     bodies: analysis.definitions.flatMap((definition) => definition.bodyStatements.map((body) => ({
       id: body.statementId,
-      scalar: body.scalarExpressions.flatMap((site) => site.expression.references.map((reference) => [reference.resolution, targetFingerprint(reference.target)])),
-      geometry: body.geometryReferences.map((site) => [site.reference.resolution, targetFingerprint(site.reference.target)])
+      scalar: body.scalarExpressions.map((site) => [site.parameterKey, expressionFingerprint(site.expression)]),
+      geometry: body.geometryReferences.map((site) => [site.parameterKey, geometryFingerprint(site.reference)]),
+      templates: body.textTemplateHoles.map((site) => expressionFingerprint(site.expression)),
+      scalarTarget: targetFingerprint(body.scalarTarget)
     }))),
-    roots: [...analysis.rootGeometryReferencesByStatementId].map(([id, refs]) => [id, refs.map((site) => [site.reference.resolution, targetFingerprint(site.reference.target)])])
+    roots: [...analysis.rootGeometryReferencesByStatementId].map(([id, refs]) => [id, refs.map((site) => geometryFingerprint(site.reference))])
   });
 };
 
@@ -120,7 +152,7 @@ export const analyzeModuleSemanticRename = (
     return `${text.slice(0, span.from)}${entry.newName}${text.slice(span.to)}`;
   }, candidate);
   const after = compileWithStableIds(edited, compiled);
-  if (after.diagnostics.length > 0 || !after.moduleSemanticAnalysis || semanticFingerprint(after) !== semanticFingerprint(compiled)) {
+  if (after.diagnostics.length > 0 || !after.moduleSemanticAnalysis || moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled)) {
     return { verdict: "rejected", reason: "capture" };
   }
   return { verdict: "ok", target, oldName, newName, entries };

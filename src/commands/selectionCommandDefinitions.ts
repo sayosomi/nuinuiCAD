@@ -162,8 +162,38 @@ const openRenameElementPrompt = () => {
  * cursor parked on an element statement) is completely unaffected.
  */
 const openRenameSelectedElementPrompt = (context?: CommandContext) => {
+  const moduleResolution = context?.currentCursorModuleSemanticResolution?.();
+  if (moduleResolution?.kind === "stale") {
+    useCadUiStore.getState().setCommandErrorMessage(moduleResolution.message);
+    return true;
+  }
+  const resolvedModuleTarget = moduleResolution?.kind === "target" ? moduleResolution.target : null;
+  if (resolvedModuleTarget) {
+    if (resolvedModuleTarget.kind === "documentBinding") {
+      useCadUiStore.setState({ renameTypedBindingPromptTargetId: resolvedModuleTarget.bindingId, commandErrorMessage: null, showCommandPalette: false });
+      return true;
+    }
+    if (resolvedModuleTarget.kind === "moduleElementLocalVariable" || resolvedModuleTarget.kind === "moduleIteration") {
+      useCadUiStore.getState().setCommandErrorMessage("このModuleのlocal/iteration symbolは安全なリネーム対象として確定できません。");
+      return true;
+    }
+    useCadUiStore.setState({ renameModuleSemanticPromptTarget: resolvedModuleTarget, commandErrorMessage: null, showCommandPalette: false });
+    return true;
+  }
   const moduleTarget = context?.currentCursorModuleSemanticTarget?.();
   if (moduleTarget) {
+    if (moduleTarget.kind === "documentBinding") {
+      useCadUiStore.setState({
+        renameTypedBindingPromptTargetId: moduleTarget.bindingId,
+        commandErrorMessage: null,
+        showCommandPalette: false
+      });
+      return true;
+    }
+    if (moduleTarget.kind === "moduleElementLocalVariable" || moduleTarget.kind === "moduleIteration") {
+      useCadUiStore.getState().setCommandErrorMessage("このModuleのlocal/iteration symbolは安全なリネーム対象として確定できません。");
+      return true;
+    }
     useCadUiStore.setState({
       renameModuleSemanticPromptTarget: moduleTarget,
       commandErrorMessage: null,

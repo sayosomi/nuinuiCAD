@@ -375,6 +375,7 @@ export const AppLayout = () => {
     currentSourceCursor: () => sourceEditorRef.current?.currentSourceCursor?.() ?? null,
     currentCursorTypedRenameTargetBindingId: () => sourceEditorRef.current?.currentCursorTypedRenameTargetBindingId?.() ?? null,
     currentCursorModuleSemanticTarget: () => sourceEditorRef.current?.currentCursorModuleSemanticTarget?.() ?? null,
+    currentCursorModuleSemanticResolution: () => sourceEditorRef.current?.currentCursorModuleSemanticResolution?.() ?? { kind: "none" },
     goToSourceDefinitionAtCursor: () => sourceEditorRef.current?.goToSourceDefinitionAtCursor?.() ?? false,
     focusSourceEditorAtElementEnd: (elementId: ElementId) => sourceEditorRef.current?.jumpToElementEnd(elementId),
     focusSourceEditorAtLineEnd: (line: number) => sourceEditorRef.current?.jumpToLineEnd(line),

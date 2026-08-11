@@ -12,7 +12,7 @@ const compileWithIds = (source: string) => {
   });
 };
 
-const completionFor = async (source: string, cursor: number, fresh = true) => {
+const completionFor = async (source: string, cursor: number, fresh = true, mappedStatementIndex?: number) => {
   const compiled = compileWithIds(source);
   const state = EditorState.create({ doc: source, selection: { anchor: cursor } });
   const sourceFn = createDslCompletionSource({
@@ -22,7 +22,8 @@ const completionFor = async (source: string, cursor: number, fresh = true) => {
     effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
     bindingAnalysis: () => compiled.bindingAnalysis,
     typedDeclarationRanges: () => new Map(), scopeBodyRanges: () => [], statementInfoByElementId: () => undefined,
-    moduleSemanticMetadata: () => compiled, semanticMetadataFresh: () => fresh
+    moduleSemanticMetadata: () => compiled, semanticMetadataFresh: () => fresh,
+    moduleCompletionStatementIndexAt: () => mappedStatementIndex ?? null
   });
   return sourceFn({ state, pos: cursor, explicit: true } as never);
 };
@@ -101,5 +102,34 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const source = ["nui 3", "module M() {", "}", "module I = M()"].join("\n");
     const result = await completionFor(source, source.indexOf("M()", source.indexOf("module I")) + 1, false);
     expect(result?.options ?? []).toEqual([]);
+  });
+
+  it("keeps a mapped last-good module site completable during dirty authoring", async () => {
+    const source = [
+      "nui 3",
+      "module M(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "module I = M(width: 1)"
+    ].join("\n");
+    const cursor = source.indexOf("@width") + "@width".length;
+    const compiled = compileWithIds(source);
+    const statementIndex = compiled.statements.findIndex((statement) => cursor >= statement.documentRange.from && cursor <= statement.documentRange.to);
+    const result = await completionFor(source, cursor, false, statementIndex);
+    expect(result?.options.map((option) => option.label)).toContain("@width");
+  });
+
+  it("uses the shared DSL identifier grammar for Japanese module names, parameters, instances, and exports", async () => {
+    const source = [
+      "nui 3",
+      "module 凸ノッチ(縫い代写し: number) {",
+      "  export point 縫い代線 = coordinate(x: @縫い代写し, y: 0)",
+      "}",
+      "module 日本語インスタンス = 凸ノッチ(縫い代写し: 1)",
+      "point X = offset(from: 日本語インスタンス::縫い代線, dx: 1, dy: 0)"
+    ].join("\n");
+    const cursor = source.indexOf("日本語インスタンス::") + "日本語インスタンス::".length;
+    const result = await completionFor(source, cursor);
+    expect(result?.options.map((option) => option.label)).toEqual(["縫い代線"]);
   });
 });

@@ -1,11 +1,12 @@
 import { scanCallArgs } from "./dslArgScanner";
+import { isBareDslIdentifierChar } from "./dslTokens";
 import type { DslCompletionContext } from "./dslCompletionContext";
 
-const identifierPart = /[A-Za-z0-9_-]/;
+const identifierPart = (value: string | undefined) => Boolean(value && isBareDslIdentifierChar(value));
 
 const tokenStart = (source: string, pos: number, floor: number) => {
   let start = pos;
-  while (start > floor && identifierPart.test(source[start - 1])) start -= 1;
+  while (start > floor && identifierPart(source[start - 1])) start -= 1;
   return start;
 };
 
@@ -34,9 +35,19 @@ const topLevelComma = (source: string, from: number, to: number) => {
  * only a cursor-shape adapter; semantic visibility and types stay in the
  * compiled ModuleSemanticAnalysis completion adapter. */
 export const dslModuleCompletionContextAt = (code: string, pos: number): DslCompletionContext => {
-  const head = code.match(/^\s*module\s+[A-Za-z_][A-Za-z0-9_-]*\s*=\s*/);
-  if (!head) return null;
-  const calleeStart = head[0].length;
+  let cursor = 0;
+  while (/\s/.test(code[cursor] ?? "")) cursor += 1;
+  if (code.slice(cursor, cursor + 6) !== "module" || identifierPart(code[cursor - 1]) || identifierPart(code[cursor + 6])) return null;
+  cursor += 6;
+  while (/\s/.test(code[cursor] ?? "")) cursor += 1;
+  const instanceStart = cursor;
+  while (identifierPart(code[cursor])) cursor += 1;
+  if (cursor === instanceStart) return null;
+  while (/\s/.test(code[cursor] ?? "")) cursor += 1;
+  if (code[cursor] !== "=") return null;
+  cursor += 1;
+  while (/\s/.test(code[cursor] ?? "")) cursor += 1;
+  const calleeStart = cursor;
   const open = topLevelOpenParen(code, calleeStart);
   if (open < 0 || pos <= open) {
     const from = tokenStart(code, pos, calleeStart);

@@ -8,7 +8,7 @@ import {
   dslLinePrintLayoutValueSpans,
   type DslLabeledValueSpan
 } from "./dslValueSpans";
-import { splitDslComment, splitDslTerms } from "./dslTokens";
+import { isBareDslIdentifierChar, splitDslComment, splitDslTerms } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
 import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
 import { coordinateComponent, recordField, recordRemainder, recordSpans, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
@@ -321,7 +321,7 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
   const moduleContext = dslModuleCompletionContextAt(code, pos);
   if (moduleContext) return moduleContext;
 
-  const qualified = code.slice(0, pos).match(/[A-Za-z_][A-Za-z0-9_-]*::[A-Za-z0-9_-]*$/);
+  const qualified = code.slice(0, pos).match(new RegExp(`[^\\s"'#=()[\\]{},;:.]+::[^\\s"'#=()[\\]{},;:.]*$`));
   if (qualified) return { kind: "moduleQualifiedMember", from: pos - qualified[0].length + qualified[0].indexOf("::") + 2, to: pos };
 
   const callContext = dslCallCompletionContextAt(code, pos);
@@ -410,7 +410,10 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
       parameter
     };
   }
-  const moduleReference = code.slice(0, pos).match(/@[A-Za-z_][A-Za-z0-9_-]*$/);
-  if (moduleReference) return { kind: "moduleReference", from: pos - moduleReference[0].length, to: pos };
+  let moduleReferenceStart = pos;
+  while (moduleReferenceStart > 0 && isBareDslIdentifierChar(code[moduleReferenceStart - 1]) && code[moduleReferenceStart - 1] !== "@") moduleReferenceStart -= 1;
+  if (moduleReferenceStart > 0 && code[moduleReferenceStart - 1] === "@") {
+    return { kind: "moduleReference", from: moduleReferenceStart - 1, to: pos };
+  }
   return null;
 };

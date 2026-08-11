@@ -6,6 +6,11 @@ import type { ElementId, EvaluationResult } from "../types/geometry";
 import type { SourceCreationCursor } from "../commands/sourceCreationInsertion";
 import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
 
+export type ModuleSemanticCursorResolution =
+  | { kind: "none" }
+  | { kind: "target"; target: ModuleSemanticTarget }
+  | { kind: "stale"; message: string };
+
 /** Evaluation identity is deliberately separate from the source notification revision.
  * `compiledDocumentRevision` identifies the last-good document that was evaluated. */
 export type SourceEvaluationPublication = {
@@ -59,6 +64,7 @@ export type SourceEditorHandle = {
    * the cursor is not on a typed construct at all. */
   currentCursorTypedRenameTargetBindingId?: () => BindingId | null;
   currentCursorModuleSemanticTarget?: () => ModuleSemanticTarget | null;
+  currentCursorModuleSemanticResolution?: () => ModuleSemanticCursorResolution;
   /** Current editor text serialized with its uniform source line ending, when one exists. */
   getText: () => string;
   /** Publishes a result together with the compiled-document revision captured when its

@@ -35,6 +35,13 @@ describe("SourceEditorController module semantic target priority", () => {
     useCadUiStore.getState().setRenameModuleSemanticPromptTarget(null);
     internals.view.dispatch({ changes: { from: 0, to: 0, insert: "# " }, annotations: Transaction.addToHistory.of(false) });
     expect(controller.currentCursorModuleSemanticTarget()).toBeNull();
+    expect(dispatchCommand("renameSelectedElement", {
+      currentCursorModuleSemanticResolution: controller.currentCursorModuleSemanticResolution,
+      currentCursorModuleSemanticTarget: controller.currentCursorModuleSemanticTarget,
+      currentCursorTypedRenameTargetBindingId: controller.currentCursorTypedRenameTargetBindingId
+    })).toBe(true);
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("semantic metadata");
+    expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull();
     controller.destroy();
   });
 
@@ -69,6 +76,26 @@ describe("SourceEditorController module semantic target priority", () => {
     expect(exported?.kind).toBe("moduleSource");
     expect(controller.jumpToModuleSemanticTarget(exported!)).toBe(true);
     expect(internals.view.state.doc.sliceString(internals.view.state.selection.main.from, internals.view.state.selection.main.to)).toBe("Public");
+    controller.destroy();
+  });
+
+  it("bridges a module default document binding back to the existing BindingId declaration", () => {
+    const source = [
+      "nui 3",
+      "const outer: number = 10",
+      "module M(width: number = @outer) {",
+      "}",
+      "module I = M()"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const controller = new SourceEditorController(document.createElement("div"));
+    const internals = controller as unknown as { view: { dispatch: (spec: unknown) => void; state: { doc: { sliceString: (from: number, to: number) => string }; selection: { main: { from: number; to: number } } } } };
+    const reference = source.indexOf("@outer") + 1;
+    internals.view.dispatch({ selection: EditorSelection.cursor(reference), annotations: Transaction.addToHistory.of(false) });
+    const target = controller.currentCursorModuleSemanticTarget();
+    expect(target?.kind).toBe("documentBinding");
+    expect(controller.jumpToModuleSemanticTarget(target!)).toBe(true);
+    expect(internals.view.state.selection.main.from).toBe(source.indexOf("const outer"));
     controller.destroy();
   });
 });

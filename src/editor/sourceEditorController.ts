@@ -60,7 +60,7 @@ import {
   type SourceUpdateProtocolState
 } from "./sourceUpdateProtocol";
 import { normalizeSourceTextForEditor, serializeEditorText, sourceTextFormat } from "./sourceTextFormat";
-import type { SourceEditorControllerOptions, SourceEditorHandle, SourceEvaluationPublication, SourceTextFormat } from "./sourceEditorTypes";
+import type { ModuleSemanticCursorResolution, SourceEditorControllerOptions, SourceEditorHandle, SourceEvaluationPublication, SourceTextFormat } from "./sourceEditorTypes";
 import {
   elementIdAtCursor,
   createAtStopRange,
@@ -76,6 +76,7 @@ import {
   mapAtStopRange,
   mapPrintLayoutRangeIndex,
   mapPropertyBindingRangeIndex,
+  mapModuleSemanticRangeIndex,
   mapScopeBodyRangeIndex,
   mapSetStatementFieldRangeIndex,
   mapSetStatementRangeIndex,
@@ -243,7 +244,13 @@ export class SourceEditorController implements SourceEditorHandle {
     statementInfoByKey: () => this.store.getState().doc.statementMap.byKey,
     majorVersion: () => this.store.getState().doc.majorVersion ?? undefined,
     moduleSemanticMetadata: () => this.store.getState().doc,
-    semanticMetadataFresh: () => this.typedSemanticMetadataFresh
+    semanticMetadataFresh: () => this.typedSemanticMetadataFresh,
+    moduleCompletionStatementIndexAt: (position) => {
+      for (const [statementIndex, range] of this.moduleSemanticRanges.statementRanges ?? []) {
+        if (position >= range.from && position <= range.to) return statementIndex;
+      }
+      return null;
+    }
   });
   private decorationIndex: EvaluationDecorationIndex = emptyDecorationIndex();
   private pendingDecorationRefresh = false;
@@ -474,8 +481,22 @@ export class SourceEditorController implements SourceEditorHandle {
     return moduleSemanticTargetAt(this.moduleSemanticRanges, this.view.state.selection.main.head);
   };
 
+  currentCursorModuleSemanticResolution = (): ModuleSemanticCursorResolution => {
+    const target = moduleSemanticTargetAt(this.moduleSemanticRanges, this.view.state.selection.main.head);
+    if (!this.typedSemanticMetadataFresh) {
+      const position = this.view.state.selection.main.head;
+      const staleModuleSite = [...this.moduleSemanticRanges.statementRanges?.values() ?? []]
+        .some((range) => position >= range.from && position <= range.to);
+      if (target || staleModuleSite) return { kind: "stale", message: "Moduleのsemantic metadataが古いため、安全な対象を確定できません。compile完了後に再実行してください。" };
+      return { kind: "none" };
+    }
+    if (!target) return { kind: "none" };
+    return { kind: "target", target };
+  };
+
   jumpToModuleSemanticTarget = (target: ModuleSemanticTarget): boolean => {
     if (this.protocol.composing || !this.typedSemanticMetadataFresh) return false;
+    if (target.kind === "documentBinding") return this.jumpToBindingDeclaration(target.bindingId);
     const range = moduleSemanticDeclarationRange(this.moduleSemanticRanges, target);
     if (!range) return false;
     this.view.dispatch({
@@ -1591,7 +1612,7 @@ export class SourceEditorController implements SourceEditorHandle {
       // metadata currency immediately; only a fresh compile (refreshStatementRanges)
       // proves doc.bindingAnalysis/doc.setStatements describe this exact buffer again.
       this.typedSemanticMetadataFresh = false;
-      this.moduleSemanticRanges = { tokens: [], declarationByTarget: new Map() };
+      this.moduleSemanticRanges = mapModuleSemanticRangeIndex(this.moduleSemanticRanges, update.changes);
       if (!this.applyingTypedInitializerStep) this.repeatingTypedInitializerStep = null;
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
       this.printLayoutRanges = mapPrintLayoutRangeIndex(this.printLayoutRanges, update.changes);
@@ -1847,7 +1868,6 @@ export class SourceEditorController implements SourceEditorHandle {
       // sourceText currently has fatal diagnostics; doc is last-good from before
       // it, so its bindingAnalysis/setStatements no longer describe sourceText.
       this.typedSemanticMetadataFresh = false;
-      this.moduleSemanticRanges = { tokens: [], declarationByTarget: new Map() };
       return;
     }
     if (this.view.state.doc.toString() !== normalizeSourceTextForEditor(state.sourceText)) {

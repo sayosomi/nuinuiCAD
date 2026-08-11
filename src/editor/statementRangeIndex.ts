@@ -10,6 +10,8 @@ import { bindingIdForStableStatementId, type BindingId } from "../scalars/bindin
 import type { LexicalScopeIndex, ScopeId } from "../scalars/lexicalScopeIndex";
 import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import type { TextTemplateAst } from "../scalars/textTemplate";
+import type { ModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
+import { moduleSemanticTargetKey } from "../dsl/moduleSemanticEditor";
 
 type FoldAnchor = { from: number; to: number };
 
@@ -784,6 +786,36 @@ export const mapScopeBodyRangeIndex = (ranges: ScopeBodyRangeIndex, changes: Cha
     mapped.push({ ...range, from, to });
   }
   return mapped;
+};
+
+/** Keeps last-good module semantic tokens available as a dirty-site marker.
+ * The targets remain last-good stable identities; callers must gate them from
+ * rename/navigation until semantic refresh, but completion/F2 can now
+ * distinguish a stale module site from an ordinary element cursor. */
+export const mapModuleSemanticRangeIndex = (ranges: ModuleSemanticRangeIndex, changes: ChangeDesc): ModuleSemanticRangeIndex => {
+  const mapToken = (token: ModuleSemanticRangeIndex["tokens"][number]) => {
+    if (changes.touchesRange(token.from, token.to) === "cover") return null;
+    const from = changes.mapPos(token.from, 1, MapMode.TrackAfter);
+    const to = changes.mapPos(token.to, -1, MapMode.TrackBefore);
+    return from === null || to === null || to < from ? null : { ...token, from, to };
+  };
+  const tokens = ranges.tokens.flatMap((token) => {
+    const mapped = mapToken(token);
+    return mapped ? [mapped] : [];
+  });
+  const declarationByTarget = new Map<string, ModuleSemanticRangeIndex["tokens"][number]>();
+  for (const [key, token] of ranges.declarationByTarget) {
+    const mapped = tokens.find((candidate) => moduleSemanticTargetKey(candidate.target) === key && candidate.target === token.target);
+    if (mapped) declarationByTarget.set(key, mapped);
+  }
+  const statementRanges = new Map<number, { from: number; to: number }>();
+  for (const [statementIndex, range] of ranges.statementRanges ?? []) {
+    if (changes.touchesRange(range.from, range.to) === "cover") continue;
+    const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
+    const to = changes.mapPos(range.to, 1, MapMode.Simple);
+    if (from !== null && to !== null && to >= from) statementRanges.set(statementIndex, { from, to });
+  }
+  return { tokens, declarationByTarget, statementRanges };
 };
 
 /**

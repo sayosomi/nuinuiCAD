@@ -28,6 +28,7 @@ import type {
 } from "./moduleSemanticTypes";
 import type {
   ModuleGeometryPropertyReferenceResolution,
+  ModuleGeometryPropertyReferenceInput,
   ModuleScalarLocalDiagnostic,
   ModuleScalarReferenceResolution
 } from "./moduleScalarExpression";
@@ -47,7 +48,7 @@ type AnalyzeExpression = (
   expectedType: ScalarType | null,
   resolver: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution,
   bareResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null,
-  geometryPropertyResolver?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution
+  geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution
 ) => ModuleScalarExpressionSemantic | null;
 type ResolveGeometry = (
   statementIndex: number,
@@ -61,7 +62,7 @@ type ResolveGeometry = (
     role?: ModuleGeometryReferenceRole;
     scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
     bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
-    geometryPropertyResolver?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
+    geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
   }
 ) => ModuleGeometryReferenceSemantic;
 type ResolvePlainScalarTarget = (
@@ -138,7 +139,7 @@ export const analyzeModuleBody = ({
   resolvePlainScalarTarget: ResolvePlainScalarTarget;
   resolveBodyScalar: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBodyBareScalar: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
-  resolveBodyGeometryProperty: (statementIndex: number, reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
+  resolveBodyGeometryProperty: (statementIndex: number, reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
 }): ModuleBodySemanticResult => {
   const localScalars: NonNullable<ModuleDefinitionSemantic["localScalars"]>[number][] = [];
   const bodyStatements: ModuleBodyStatementSemantic[] = [];

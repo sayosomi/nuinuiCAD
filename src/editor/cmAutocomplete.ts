@@ -120,6 +120,9 @@ export type DslAutocompleteOptions = {
    * semanticMetadataFresh is false, so completion cannot leak stale names. */
   moduleSemanticMetadata?: () => CompiledDslDocument | undefined;
   semanticMetadataFresh?: () => boolean;
+  /** Maps a live cursor to a last-good module statement identity. Completion
+   * may use stale semantic identities only through this proof-carrying map. */
+  moduleCompletionStatementIndexAt?: (position: number) => number | null;
 };
 
 /** A logical-projection pairing kept alongside the document input so the
@@ -604,7 +607,10 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     completionContext.kind === "moduleReference"
   ) {
     const availableMetadata = options.moduleSemanticMetadata?.();
-    const metadata = options.semanticMetadataFresh?.() === false ? undefined : availableMetadata;
+    const mappedStatementIndex = options.moduleCompletionStatementIndexAt?.(context.pos) ?? null;
+    const metadata = availableMetadata && (options.semanticMetadataFresh?.() !== false || mappedStatementIndex !== null)
+      ? availableMetadata
+      : undefined;
     const kind = completionContext.kind === "moduleCallee"
       ? "callee"
       : completionContext.kind === "moduleArgumentLabel"
@@ -616,6 +622,9 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
             : "reference";
     completions = metadata
       ? moduleCompletionCandidates({ compiled: metadata, cursorPosition: context.pos, kind,
+        sourceText: input.source,
+        logicalCursorPosition: input.localPos,
+        ...(mappedStatementIndex === null ? {} : { statementIndex: mappedStatementIndex }),
         ...(completionContext.kind === "moduleArgumentLabel" || completionContext.kind === "moduleArgumentValue"
           ? { argumentIndex: completionContext.argumentIndex } : {}) })
       : [];
@@ -732,9 +741,19 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     );
   } else if (completionContext.parameter.definition.kind === "number") {
     const availableMetadata = options.moduleSemanticMetadata?.();
-    const moduleMetadata = options.semanticMetadataFresh?.() === false ? undefined : availableMetadata;
+    const mappedStatementIndex = options.moduleCompletionStatementIndexAt?.(context.pos) ?? null;
+    const moduleMetadata = availableMetadata && (options.semanticMetadataFresh?.() !== false || mappedStatementIndex !== null)
+      ? availableMetadata
+      : undefined;
     const moduleCandidates = moduleMetadata
-      ? moduleCompletionCandidates({ compiled: moduleMetadata, cursorPosition: context.pos, kind: "reference" })
+      ? moduleCompletionCandidates({
+        compiled: moduleMetadata,
+        cursorPosition: context.pos,
+        kind: "reference",
+        sourceText: input.source,
+        logicalCursorPosition: input.localPos,
+        ...(mappedStatementIndex === null ? {} : { statementIndex: mappedStatementIndex })
+      })
       : [];
     const elements = options.elements();
     const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());
@@ -742,7 +761,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     const localOptions = currentElement
       ? localNumericReferenceOptions({ element: currentElement, localVariableLimit: currentElement.numericVariables?.length ?? 0 })
       : [];
-    const staleModuleBody = availableMetadata && options.semanticMetadataFresh?.() === false && isInsideModuleSemanticStatement(availableMetadata, context.pos);
+    const staleModuleBody = availableMetadata && options.semanticMetadataFresh?.() === false &&
+      (mappedStatementIndex !== null || isInsideModuleSemanticStatement(availableMetadata, context.pos));
     completions = moduleCandidates.length > 0 ? moduleCandidates : staleModuleBody ? [] : [
       ...typedNumberBindingCompletions(options, input, context),
       ...asVariableCompletions(localOptions)
@@ -752,11 +772,22 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     if (!query.trim()) return null;
     preservesSharedReferenceRanking = true;
     const availableMetadata = options.moduleSemanticMetadata?.();
-    const moduleMetadata = options.semanticMetadataFresh?.() === false ? undefined : availableMetadata;
+    const mappedStatementIndex = options.moduleCompletionStatementIndexAt?.(context.pos) ?? null;
+    const moduleMetadata = availableMetadata && (options.semanticMetadataFresh?.() !== false || mappedStatementIndex !== null)
+      ? availableMetadata
+      : undefined;
     const moduleCandidates = moduleMetadata
-      ? moduleCompletionCandidates({ compiled: moduleMetadata, cursorPosition: context.pos, kind: "reference" })
+      ? moduleCompletionCandidates({
+        compiled: moduleMetadata,
+        cursorPosition: context.pos,
+        kind: "reference",
+        sourceText: input.source,
+        logicalCursorPosition: input.localPos,
+        ...(mappedStatementIndex === null ? {} : { statementIndex: mappedStatementIndex })
+      })
       : [];
-    const staleModuleBody = moduleMetadata === undefined && availableMetadata && options.semanticMetadataFresh?.() === false && isInsideModuleSemanticStatement(availableMetadata, context.pos);
+    const staleModuleBody = moduleMetadata === undefined && availableMetadata && options.semanticMetadataFresh?.() === false &&
+      (mappedStatementIndex !== null || isInsideModuleSemanticStatement(availableMetadata, context.pos));
     completions = moduleCandidates.length > 0
       ? moduleCandidates
       : staleModuleBody ? [] : dslReferenceCompletionOptions({

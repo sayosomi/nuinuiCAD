@@ -224,7 +224,12 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
 
   const virtualCatalog = buildVirtualRenamedCatalog(input.catalog, target, newName);
 
-  const initializerOccurrences = collectInitializerOccurrences(input.scalarProgram);
+  // The scalar program may also contain materialized module bindings. Those
+  // identities are intentionally outside the document BindingCatalog and
+  // must not be replayed through the document-only Binding resolver; module
+  // source occurrences are added by the CompiledDslDocument adapter below.
+  const initializerOccurrences = collectInitializerOccurrences(input.scalarProgram)
+    .filter((occurrence) => input.catalog.bindingsById.has(occurrence.initializerOwner!.fromBindingId) && input.catalog.scopeIndex.scopes.has(occurrence.site.scopeId));
   const siteOccurrences = collectSiteBatchOccurrences({
     scopeIndex: input.catalog.scopeIndex,
     statements: input.statements,
@@ -232,7 +237,7 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
     propertyBindings: input.propertyBindings,
     textTemplates: input.textTemplates
     , numericBindings: input.numericBindings
-  });
+  }).filter((occurrence) => input.catalog.scopeIndex.scopes.has(occurrence.site.scopeId));
   const setTargetOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind === "set-target");
   const otherSiteOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind !== "set-target");
 

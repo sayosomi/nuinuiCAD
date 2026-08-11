@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import { createModuleSemanticRangeIndex, moduleSemanticTargetAt } from "../dsl/moduleSemanticEditor";
+import { analyzeModuleSemanticRename } from "../document/moduleSemanticRenameAnalysis";
 
 const source = [
   "nui 3",
@@ -29,5 +30,42 @@ describe("module semantic editor range view", () => {
     const qualifiedMember = index.tokens.find((candidate) => candidate.from === source.indexOf("Public", source.indexOf("I::")));
     expect(qualifiedMember?.to).toBe(qualifiedMember!.from + "Public".length);
     expect(moduleSemanticTargetAt(index, source.indexOf("Private"))).toEqual({ kind: "moduleSource", statementId: "statement:test:3" });
+  });
+
+  it("uses tokenizer-owned element/property spans for geometry property source targets", () => {
+    const propertySource = [
+      "nui 3",
+      "module M() {",
+      "  line lineA = segment(start: (0, 0), end: (10, 0))",
+      "  const length: number = @lineA.length",
+      "}"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: propertySource, sourceRevision: 0 });
+    const document = compileDslDocument(propertySource, { preparsed: parsed, assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:property:${index}`])) });
+    const index = createModuleSemanticRangeIndex(document);
+    const lineReference = index.tokens.find((token) => token.from === propertySource.indexOf("lineA", propertySource.indexOf("@lineA")));
+    expect(lineReference && propertySource.slice(lineReference.from, lineReference.to)).toBe("lineA");
+    expect(moduleSemanticTargetAt(index, lineReference!.from)?.kind).toBe("moduleSource");
+    const rename = analyzeModuleSemanticRename(propertySource, document, { kind: "moduleSource", statementId: "statement:property:2" }, "renamedLine");
+    expect(rename.verdict).toBe("ok");
+    if (rename.verdict === "ok") expect(rename.entries.map((entry) => entry.oldName)).toEqual(["lineA", "lineA"]);
+  });
+
+  it("connects deferred export property instance and member tokens to stable source targets", () => {
+    const deferredSource = [
+      "nui 3",
+      "module Child() {",
+      "  export line Output = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "module M() {",
+      "  module SomeInstance = Child()",
+      "  const length: number = @SomeInstance::Output.length",
+      "}"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: deferredSource, sourceRevision: 0 });
+    const document = compileDslDocument(deferredSource, { preparsed: parsed, assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:deferred:${index}`])) });
+    const index = createModuleSemanticRangeIndex(document);
+    expect(index.tokens.find((token) => deferredSource.slice(token.from, token.to) === "SomeInstance" && token.from > deferredSource.indexOf("@"))?.target).toEqual({ kind: "moduleInstance", statementId: "statement:deferred:5" });
+    expect(index.tokens.find((token) => deferredSource.slice(token.from, token.to) === "Output" && token.from > deferredSource.indexOf("@"))?.target).toEqual({ kind: "moduleSource", statementId: "statement:deferred:2" });
   });
 });
