@@ -25,6 +25,17 @@ const forModuleSource = [
   "module Second = M()"
 ].join("\n");
 
+const conditionalModuleSource = [
+  "nui 3",
+  "module M() {",
+  "  if C (true) {",
+  "    point P = coordinate(x: 0, y: 0)",
+  "  }",
+  "}",
+  "module First = M()",
+  "module Second = M()"
+].join("\n");
+
 const seed = (source: string) => {
   useCadDocumentStore.getState().commitText(source, "test");
   useCadDocumentStore.setState({ past: [], future: [] });
@@ -99,5 +110,33 @@ describe("module source-owned container argument insertion", () => {
     expect(state.sourceText).toContain("module Second = M()");
     expect(state.sourceText.match(/for Loop/g)).toHaveLength(1);
     expect(state.elements.filter((element) => element.name === "Loop").map((element) => (element as Extract<CadElement, { type: "forGroup" }>).step)).toEqual([2, 2]);
+  });
+
+  it("adds omitted conditional state while preserving the positional condition", () => {
+    seed(conditionalModuleSource);
+    const first = elementNamed("First")!;
+    const conditional = elementNamed("C", first.id)!;
+
+    useCadDocumentStore.getState().updateElement(conditional.id, { activity: "hidden" });
+
+    let state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("if C (true, state: hidden) {");
+    expect(state.sourceText).toContain("point P = coordinate(x: 0, y: 0)");
+    expect(state.sourceText).toContain("module First = M()");
+    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.sourceText.match(/if C/g)).toHaveLength(1);
+    expect(state.elements.filter((element) => element.name === "C").map((element) => element.activity)).toEqual(["hidden", "hidden"]);
+
+    const hiddenConditional = elementNamed("C", first.id)!;
+    useCadDocumentStore.getState().updateElement(hiddenConditional.id, { activity: "disabled" });
+    state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("if C (true, state: disabled) {");
+    expect(state.elements.filter((element) => element.name === "C").map((element) => element.activity)).toEqual(["disabled", "disabled"]);
+
+    const disabledConditional = elementNamed("C", first.id)!;
+    useCadDocumentStore.getState().updateElement(disabledConditional.id, { activity: "visible" });
+    state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("if C (true, state: visible) {");
+    expect(state.elements.filter((element) => element.name === "C").map((element) => element.activity)).toEqual(["visible", "visible"]);
   });
 });

@@ -1,4 +1,4 @@
-import { argNameForParameter } from "../dsl/dslConstructions";
+import { argNameForParameter, constructionFor } from "../dsl/dslConstructions";
 import type { CompiledDslDocument, DslDocumentData, StatementInfo } from "../dsl/dslDocument";
 import type { DslStatement } from "../dsl/dslTypes";
 import { coordinateComponent } from "../dsl/dslParameterSpanScanner";
@@ -193,9 +193,11 @@ const insertArgumentEdit = (
   argumentName: string,
   replacement: string
 ): ParameterEditResult => {
-  const supportsPositionalContainer = source.kind === "element" && source.type === "forGroup";
-  const hasPositionalPayload = Object.keys(source.payloadSpans)
-    .some((key) => !source.attrs.some((attribute) => attribute.key === key));
+  const construction = source.kind === "element"
+    ? constructionFor(source.category, source.construction)
+    : null;
+  const supportsPositionalContainer = construction?.category === "if" || construction?.category === "for";
+  const hasPositionalPayload = construction?.args.some((argument) => argument.positional) ?? false;
   if (source.kind !== "element" && source.kind !== "group") {
     return { status: "unapplied", reason: `要素 ${source.name || ""} の省略引数 ${argumentName} は安全に追加できません。` };
   }
