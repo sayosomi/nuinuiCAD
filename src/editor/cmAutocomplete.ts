@@ -40,6 +40,7 @@ import {
   typedBindingReferenceCandidates,
   type ScalarCompletionCandidate
 } from "../scalars/typedValueCandidates";
+import type { ScalarType } from "../scalars/types";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "../scalars/setCompletionCandidates";
 import { printLayoutTypedBindingReferenceOptions } from "../scalars/printLayoutTypedBindingCandidates";
 import { mergeSetTargetCandidates, recoverLiveSetTargetCandidates, type SetTargetCompletionCandidate } from "../scalars/setTargetRecoveryCandidates";
@@ -47,7 +48,7 @@ import { visibleTypedBindingsAtLivePosition } from "../scalars/liveTypedBindingV
 import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
 import { cmDeleteCompletionRetry } from "./cmDeleteCompletionRetry";
 import { elementPropertyCompletions } from "./elementPropertyCompletions";
-import { isInsideModuleSemanticStatement, moduleCompletionCandidates } from "../dsl/moduleCompletionCandidates";
+import { isInsideModuleSemanticStatement, moduleCompletionCandidates, type ModuleCompletionSite } from "../dsl/moduleCompletionCandidates";
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 
 export type DslAutocompleteDocumentInput = {
@@ -123,6 +124,10 @@ export type DslAutocompleteOptions = {
   /** Maps a live cursor to a last-good module statement identity. Completion
    * may use stale semantic identities only through this proof-carrying map. */
   moduleCompletionStatementIndexAt?: (position: number) => number | null;
+  /** Structural live-site proof for Module call completion. A returned site
+   * may use an existing lexical scope and source-order anchor without inventing
+   * a StatementIdentity for a newly typed call. */
+  moduleCompletionSiteAt?: (position: number, purpose: "moduleCall" | "moduleBody") => ModuleCompletionSite | null;
 };
 
 /** A logical-projection pairing kept alongside the document input so the
@@ -332,6 +337,83 @@ type TypedReferenceCompletionContext = Extract<DslCompletionContext, {
   kind: "typedInitializer" | "propertyScalarValue" | "templateHole";
 }>;
 
+const moduleSiteAt = (
+  options: DslAutocompleteOptions,
+  position: number,
+  purpose: "moduleCall" | "moduleBody"
+): ModuleCompletionSite | null => {
+  if (options.moduleCompletionSiteAt) return options.moduleCompletionSiteAt(position, purpose);
+  const statementIndex = options.moduleCompletionStatementIndexAt?.(position) ?? null;
+  return statementIndex === null ? null : { statementIndex, sourceOrderIndex: statementIndex };
+};
+
+const moduleMetadataAt = (
+  options: DslAutocompleteOptions,
+  position: number,
+  purpose: "moduleCall" | "moduleBody"
+) => {
+  const compiled = options.moduleSemanticMetadata?.();
+  const site = moduleSiteAt(options, position, purpose);
+  const fresh = options.semanticMetadataFresh?.() !== false;
+  return compiled && (fresh || site) ? { compiled, site, fresh } : null;
+};
+
+const isModuleBodySite = (compiled: CompiledDslDocument, site: ModuleCompletionSite | null) => {
+  if (!site) return false;
+  const id = compiled.statementMap?.statementIdByStatementIndex?.get(site.statementIndex);
+  if (id && compiled.moduleSemanticAnalysis?.definitions.some((definition) => definition.bodyStatementIds.includes(id))) return true;
+  return Boolean(compiled.moduleSemanticAnalysis?.definitions.some((definition) => definition.bodyScopeId === site.scopeId));
+};
+
+const moduleScalarCompletions = (
+  options: DslAutocompleteOptions,
+  input: DslAutocompleteDocumentInput,
+  context: CompletionContext,
+  expectedScalarType: ScalarType | null,
+  purpose: "moduleCall" | "moduleBody" = "moduleBody"
+) => {
+  const metadata = moduleMetadataAt(options, context.pos, purpose);
+  if (!metadata) return { candidates: [] as Completion[], body: false };
+  return {
+    candidates: moduleCompletionCandidates({
+      compiled: metadata.compiled,
+      cursorPosition: context.pos,
+      kind: "reference",
+      sourceText: input.source,
+      logicalCursorPosition: input.localPos,
+      liveStatementText: input.lineText,
+      expectedScalarType,
+      ...(metadata.site ? {
+        statementIndex: metadata.site.statementIndex,
+        scopeId: metadata.site.scopeId,
+        sourceOrderIndex: metadata.site.sourceOrderIndex
+      } : {})
+    }),
+    body: isModuleBodySite(metadata.compiled, metadata.site) || (metadata.site === null && isInsideModuleSemanticStatement(metadata.compiled, context.pos))
+  };
+};
+
+const completionKey = (completion: Completion) => `${completion.label}\u0000${typeof completion.apply === "string" ? completion.apply : ""}`;
+
+const mergeCompletionCandidates = (...lists: readonly Completion[][]): Completion[] => {
+  const seen = new Set<string>();
+  return lists.flat().filter((candidate) => {
+    const key = completionKey(candidate);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const normalizeModuleScalarCompletions = (candidates: readonly Completion[]): Completion[] => candidates.map((candidate) =>
+  typeof candidate.apply === "string" && candidate.apply.startsWith("@") && candidate.label.startsWith("@")
+    ? { ...candidate, label: candidate.label.slice(1) }
+    : candidate
+);
+
+const scalarCandidatesWithoutReferences = (candidates: readonly ScalarCompletionCandidate[]) =>
+  candidates.filter((candidate) => candidate.kind !== "reference");
+
 /** Keeps source lookup and composition-end eligibility on the identical
  * freshness/type-filtered candidate calculation. This stays in the editor:
  * scalar helpers receive only catalog, scope, and offset data. */
@@ -345,23 +427,26 @@ const typedReferenceCompletions = (
     const bindingAnalysis = options.bindingAnalysis();
     const bindingId = bindingAnalysis ? typedDeclarationBindingIdAtCursor(options.typedDeclarationRanges(), context.pos) : null;
     const binding = bindingAnalysis && bindingId ? bindingAnalysis.catalog.bindingsById.get(bindingId) : undefined;
-    return bindingAnalysis && bindingId && !binding
+    const scalarCandidates = bindingAnalysis && bindingId && !binding
       ? []
       : bindingAnalysis && binding
-      ? asScalarCompletions(scalarExpressionCandidates(completionContext.positionContext, {
+      ? scalarExpressionCandidates(completionContext.positionContext, {
         catalog: bindingAnalysis.catalog,
         entriesById: bindingAnalysis.entriesById,
         site: { scopeId: binding.effectiveScopeId, statementIndex: binding.statementIndex },
         includeOperators: true
-      }))
+      })
       : bindingAnalysis
-        ? asScalarCompletions(scalarExpressionCandidates(completionContext.positionContext, {
+        ? scalarExpressionCandidates(completionContext.positionContext, {
           catalog: bindingAnalysis.catalog,
           entriesById: bindingAnalysis.entriesById,
           liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos),
           includeOperators: true
-        }))
+        })
       : [];
+    const module = moduleScalarCompletions(options, input, context, completionContext.declaredType);
+    const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
+    return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
   }
 
   const bindingAnalysis = options.bindingAnalysis();
@@ -370,27 +455,43 @@ const typedReferenceCompletions = (
   if (completionContext.kind === "propertyScalarValue") {
     const propertyContext = completionContext.propertyContext;
     if (propertyContext.kind === "booleanLiteral") {
-      return scalarLiteralCandidates({ kind: "boolean" }).map((candidate) => ({ label: candidate.label, type: "enum" }));
+      const module = moduleScalarCompletions(options, input, context, { kind: "boolean" });
+      return mergeCompletionCandidates(
+        scalarLiteralCandidates({ kind: "boolean" }).map((candidate) => ({ label: candidate.label, type: "enum" })),
+        normalizeModuleScalarCompletions(module.candidates)
+      );
     }
     const capability = propertyContext.capability;
-    return bindingAnalysis
-      ? asScalarCompletions(typedBindingReferenceCandidates({
+    const scalarCandidates = bindingAnalysis
+      ? typedBindingReferenceCandidates({
         catalog: bindingAnalysis.catalog,
         entriesById: bindingAnalysis.entriesById,
         ...(site ? { site } : { liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos) }),
         accepts: (type) => type !== null && isAssignableToPropertyCapability(type, capability)
-      }).map((candidate): ScalarCompletionCandidate => ({ kind: "reference", name: candidate.name, bindingId: candidate.bindingId })))
+      }).map((candidate): ScalarCompletionCandidate => ({ kind: "reference", name: candidate.name, bindingId: candidate.bindingId }))
       : [];
+    const module = moduleScalarCompletions(options, input, context, capability.propertyType);
+    const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
+    return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
   }
 
-  return bindingAnalysis
-    ? asScalarCompletions(templateHoleScalarCandidates(input.lineText, completionContext.contentSpan, input.localPos, {
+  const scalarCandidates = bindingAnalysis
+    ? templateHoleScalarCandidates(input.lineText, completionContext.contentSpan, input.localPos, {
       catalog: bindingAnalysis.catalog,
       entriesById: bindingAnalysis.entriesById,
       ...(site ? { site } : { liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos) }),
       includeOperators: true
-    }))
+    })
     : [];
+  const moduleString = moduleScalarCompletions(options, input, context, { kind: "string" });
+  const moduleNumber = moduleScalarCompletions(options, input, context, { kind: "number" });
+  const moduleBody = moduleString.body || moduleNumber.body;
+  const existing = moduleBody ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
+  return mergeCompletionCandidates(
+    asScalarCompletions(existing),
+    normalizeModuleScalarCompletions(moduleString.candidates),
+    normalizeModuleScalarCompletions(moduleNumber.candidates)
+  );
 };
 
 /**
@@ -607,8 +708,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     completionContext.kind === "moduleReference"
   ) {
     const availableMetadata = options.moduleSemanticMetadata?.();
-    const mappedStatementIndex = options.moduleCompletionStatementIndexAt?.(context.pos) ?? null;
-    const metadata = availableMetadata && (options.semanticMetadataFresh?.() !== false || mappedStatementIndex !== null)
+    const site = moduleSiteAt(options, context.pos, "moduleCall");
+    const metadata = availableMetadata && (options.semanticMetadataFresh?.() !== false || site !== null)
       ? availableMetadata
       : undefined;
     const kind = completionContext.kind === "moduleCallee"
@@ -624,7 +725,12 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       ? moduleCompletionCandidates({ compiled: metadata, cursorPosition: context.pos, kind,
         sourceText: input.source,
         logicalCursorPosition: input.localPos,
-        ...(mappedStatementIndex === null ? {} : { statementIndex: mappedStatementIndex }),
+        liveStatementText: input.lineText,
+        ...(site ? {
+          statementIndex: site.statementIndex,
+          scopeId: site.scopeId,
+          sourceOrderIndex: site.sourceOrderIndex
+        } : {}),
         ...(completionContext.kind === "moduleArgumentLabel" || completionContext.kind === "moduleArgumentValue"
           ? { argumentIndex: completionContext.argumentIndex } : {}) })
       : [];
@@ -703,9 +809,14 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
           evaluationIsCurrent: options.evaluationIsCurrent?.() ?? true
         })
         : []
-      : deps && target
-        ? asScalarCompletions(setRhsScalarCandidates(input.lineText, completionContext.expressionSpan, input.localPos, target.type, deps))
-        : [];
+      : (() => {
+        const existingCandidates = deps && target
+          ? setRhsScalarCandidates(input.lineText, completionContext.expressionSpan, input.localPos, target.type, deps)
+          : [];
+        const module = moduleScalarCompletions(options, input, context, target?.type ?? null);
+        const existing = module.body ? scalarCandidatesWithoutReferences(existingCandidates) : existingCandidates;
+        return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
+      })();
   } else if (completionContext.parameter.definition.kind === "choice") {
     // `sortText` only breaks ties among equally-scored matches (CodeMirror's
     // default compareCompletions falls back to alphabetical-by-label
@@ -719,12 +830,14 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     }));
   } else if (completionContext.parameter.key === dslVarsAttributeParameterKey) {
     const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());
-    completions = asVariableCompletions(dslLocalVariableCompletionOptions({
+    const localCandidates = asVariableCompletions(dslLocalVariableCompletionOptions({
       lineText: input.lineText,
       pos: input.localPos,
       elementId: statementElementIds.get(input.cursorLineNumber),
       elements: options.elements()
     }));
+    const module = moduleScalarCompletions(options, input, context, { kind: "number" });
+    completions = mergeCompletionCandidates(localCandidates, module.candidates);
   } else if (completionContext.parameter.key === dslIntermediatesAttributeParameterKey) {
     // intermediates=' angle/incoming/outgoing are evaluated with the element's
     // local vars= pool hardcoded to [] (verified in dslCompiler.ts) — bypass
@@ -741,8 +854,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     );
   } else if (completionContext.parameter.definition.kind === "number") {
     const availableMetadata = options.moduleSemanticMetadata?.();
-    const mappedStatementIndex = options.moduleCompletionStatementIndexAt?.(context.pos) ?? null;
-    const moduleMetadata = availableMetadata && (options.semanticMetadataFresh?.() !== false || mappedStatementIndex !== null)
+    const site = moduleSiteAt(options, context.pos, "moduleBody");
+    const moduleMetadata = availableMetadata && (options.semanticMetadataFresh?.() !== false || site !== null)
       ? availableMetadata
       : undefined;
     const moduleCandidates = moduleMetadata
@@ -752,7 +865,13 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         kind: "reference",
         sourceText: input.source,
         logicalCursorPosition: input.localPos,
-        ...(mappedStatementIndex === null ? {} : { statementIndex: mappedStatementIndex })
+        liveStatementText: input.lineText,
+        expectedScalarType: { kind: "number" },
+        ...(site ? {
+          statementIndex: site.statementIndex,
+          scopeId: site.scopeId,
+          sourceOrderIndex: site.sourceOrderIndex
+        } : {})
       })
       : [];
     const elements = options.elements();
@@ -761,9 +880,12 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     const localOptions = currentElement
       ? localNumericReferenceOptions({ element: currentElement, localVariableLimit: currentElement.numericVariables?.length ?? 0 })
       : [];
+    const moduleBodySite = Boolean(availableMetadata && ((site && isModuleBodySite(availableMetadata, site)) || isInsideModuleSemanticStatement(availableMetadata, context.pos)));
     const staleModuleBody = availableMetadata && options.semanticMetadataFresh?.() === false &&
-      (mappedStatementIndex !== null || isInsideModuleSemanticStatement(availableMetadata, context.pos));
-    completions = moduleCandidates.length > 0 ? moduleCandidates : staleModuleBody ? [] : [
+      (moduleBodySite || isInsideModuleSemanticStatement(availableMetadata, context.pos));
+    completions = moduleBodySite
+      ? mergeCompletionCandidates(moduleCandidates, asVariableCompletions(localOptions))
+      : moduleCandidates.length > 0 ? moduleCandidates : staleModuleBody ? [] : [
       ...typedNumberBindingCompletions(options, input, context),
       ...asVariableCompletions(localOptions)
     ];
@@ -772,8 +894,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     if (!query.trim()) return null;
     preservesSharedReferenceRanking = true;
     const availableMetadata = options.moduleSemanticMetadata?.();
-    const mappedStatementIndex = options.moduleCompletionStatementIndexAt?.(context.pos) ?? null;
-    const moduleMetadata = availableMetadata && (options.semanticMetadataFresh?.() !== false || mappedStatementIndex !== null)
+    const site = moduleSiteAt(options, context.pos, "moduleBody");
+    const moduleMetadata = availableMetadata && (options.semanticMetadataFresh?.() !== false || site !== null)
       ? availableMetadata
       : undefined;
     const moduleCandidates = moduleMetadata
@@ -783,12 +905,20 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         kind: "reference",
         sourceText: input.source,
         logicalCursorPosition: input.localPos,
-        ...(mappedStatementIndex === null ? {} : { statementIndex: mappedStatementIndex })
+        liveStatementText: input.lineText,
+        ...(site ? {
+          statementIndex: site.statementIndex,
+          scopeId: site.scopeId,
+          sourceOrderIndex: site.sourceOrderIndex
+        } : {})
       })
       : [];
+    const moduleBodySite = Boolean(availableMetadata && ((site && isModuleBodySite(availableMetadata, site)) || isInsideModuleSemanticStatement(availableMetadata, context.pos)));
     const staleModuleBody = moduleMetadata === undefined && availableMetadata && options.semanticMetadataFresh?.() === false &&
-      (mappedStatementIndex !== null || isInsideModuleSemanticStatement(availableMetadata, context.pos));
-    completions = moduleCandidates.length > 0
+      (moduleBodySite || isInsideModuleSemanticStatement(availableMetadata, context.pos));
+    completions = moduleBodySite
+      ? moduleCandidates
+      : moduleCandidates.length > 0
       ? moduleCandidates
       : staleModuleBody ? [] : dslReferenceCompletionOptions({
       source: input.source,

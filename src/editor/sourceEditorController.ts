@@ -41,6 +41,7 @@ import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocument
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
 import { dslCmLanguageExtension } from "./cmLanguage";
 import { dslAutocompleteExtension, isElementParameterRetryContext, type DslAutocompleteOptions } from "./cmAutocomplete";
+import type { ModuleCompletionSite } from "../dsl/moduleCompletionCandidates";
 import {
   captureSourceEditorViewport,
   cursorAtSnapshotLocation,
@@ -171,6 +172,35 @@ const codeMirrorKeyForChord = (chord: KeyChord): string | null => {
   return [...prefixes, key].join("-");
 };
 
+const moduleCompletionSiteAt = (
+  ranges: ModuleSemanticRangeIndex,
+  position: number,
+  purpose: "moduleCall" | "moduleBody"
+): ModuleCompletionSite | null => {
+  if (purpose === "moduleCall" && ranges.moduleStructureStable === false) return null;
+  const anchors = ranges.statementAnchors;
+  if (!anchors) return null;
+  const exact = [...(ranges.statementRanges ?? [])].find(([, range]) => position >= range.from && position <= range.to);
+  if (exact) {
+    const [statementIndex] = exact;
+    const anchor = anchors.get(statementIndex);
+    return anchor ? { statementIndex, scopeId: anchor.scopeId, sourceOrderIndex: statementIndex } : null;
+  }
+  if (purpose !== "moduleCall") return null;
+  const containingScopes = (ranges.lexicalScopeRanges ?? [])
+    .filter((range) => position >= range.from && position <= range.to)
+    .sort((left, right) => (left.to - left.from) - (right.to - right.from));
+  const scopeId = containingScopes[0]?.scopeId ?? "root";
+  const scopedAnchors = [...anchors.entries()]
+    .filter(([, anchor]) => anchor.scopeId === scopeId)
+    .sort((left, right) => left[1].from - right[1].from);
+  const next = scopedAnchors.find(([, anchor]) => anchor.from >= position);
+  if (next) return { statementIndex: next[0], scopeId, sourceOrderIndex: next[0] };
+  const previous = [...scopedAnchors].reverse().find(([, anchor]) => anchor.to <= position);
+  if (previous) return { statementIndex: previous[0], scopeId, sourceOrderIndex: previous[0] + 1 };
+  return null;
+};
+
 export class SourceEditorController implements SourceEditorHandle {
   private readonly store: SourceStore;
   private readonly unsubscribe: () => void;
@@ -250,7 +280,8 @@ export class SourceEditorController implements SourceEditorHandle {
         if (position >= range.from && position <= range.to) return statementIndex;
       }
       return null;
-    }
+    },
+    moduleCompletionSiteAt: (position, purpose) => moduleCompletionSiteAt(this.moduleSemanticRanges, position, purpose)
   });
   private decorationIndex: EvaluationDecorationIndex = emptyDecorationIndex();
   private pendingDecorationRefresh = false;
@@ -485,7 +516,10 @@ export class SourceEditorController implements SourceEditorHandle {
     const target = moduleSemanticTargetAt(this.moduleSemanticRanges, this.view.state.selection.main.head);
     if (!this.typedSemanticMetadataFresh) {
       const position = this.view.state.selection.main.head;
-      const staleModuleSite = [...this.moduleSemanticRanges.statementRanges?.values() ?? []]
+      const staleModuleSite = [
+        ...this.moduleSemanticRanges.statementRanges?.values() ?? [],
+        ...this.moduleSemanticRanges.staleStatementRanges?.values() ?? []
+      ]
         .some((range) => position >= range.from && position <= range.to);
       if (target || staleModuleSite) return { kind: "stale", message: "Moduleのsemantic metadataが古いため、安全な対象を確定できません。compile完了後に再実行してください。" };
       return { kind: "none" };

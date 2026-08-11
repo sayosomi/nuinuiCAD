@@ -815,7 +815,35 @@ export const mapModuleSemanticRangeIndex = (ranges: ModuleSemanticRangeIndex, ch
     const to = changes.mapPos(range.to, 1, MapMode.Simple);
     if (from !== null && to !== null && to >= from) statementRanges.set(statementIndex, { from, to });
   }
-  return { tokens, declarationByTarget, statementRanges };
+  const mapRange = (range: { from: number; to: number }) => {
+    if (changes.touchesRange(range.from, range.to) === "cover") return null;
+    const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
+    const to = changes.mapPos(range.to, 1, MapMode.Simple);
+    return from === null || to === null || to < from ? null : { from, to };
+  };
+  const staleStatementRanges = new Map<number, { from: number; to: number }>();
+  for (const [statementIndex, range] of ranges.staleStatementRanges ?? []) {
+    const mapped = mapRange(range);
+    if (mapped) staleStatementRanges.set(statementIndex, mapped);
+  }
+  const statementAnchors = new Map<number, { from: number; to: number; scopeId: ScopeId }>();
+  for (const [statementIndex, range] of ranges.statementAnchors ?? []) {
+    const mapped = mapRange(range);
+    if (mapped) statementAnchors.set(statementIndex, { ...mapped, scopeId: range.scopeId });
+  }
+  const lexicalScopeRanges = (ranges.lexicalScopeRanges ?? []).flatMap((range) => {
+    if (range.anchors.some((anchor) => changes.touchesRange(anchor.from, anchor.to) !== false)) return [];
+    const mapped = mapRange(range);
+    if (!mapped) return [];
+    const anchors = range.anchors.flatMap((anchor) => {
+      const mappedAnchor = mapRange(anchor);
+      return mappedAnchor ? [mappedAnchor] : [];
+    });
+    return anchors.length === range.anchors.length ? [{ ...mapped, scopeId: range.scopeId, anchors }] : [];
+  });
+  const moduleStructureStable = (ranges.moduleStructureStable ?? true) &&
+    !(ranges.lexicalScopeRanges ?? []).some((range) => range.anchors.some((anchor) => changes.touchesRange(anchor.from, anchor.to) !== false));
+  return { tokens, declarationByTarget, statementRanges, staleStatementRanges, statementAnchors, lexicalScopeRanges, moduleStructureStable };
 };
 
 /**

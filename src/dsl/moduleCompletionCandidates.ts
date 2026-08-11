@@ -2,12 +2,21 @@ import type { Completion } from "@codemirror/autocomplete";
 import type { CompiledDslDocument } from "./dslDocument";
 import { physicalToLogicalOffset } from "./logicalStatementSourceMap";
 import { resolveModuleLexicalDeclaration, isModuleLookupVisibleWithinBody } from "./moduleLexicalResolution";
-import { isBareDslIdentifierChar } from "./dslTokens";
 import { scalarLiteralCandidates } from "../scalars/typedValueCandidates";
 import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import type { ScalarType } from "../scalars/types";
 import type { DslModuleParameterType } from "./dslTypes";
-import type { ModuleDefinitionSemantic, ModuleInstanceSemantic } from "./moduleSemanticTypes";
+import type { ModuleDefinitionSemantic, ModuleGeometryPropertySourceTarget, ModuleGeometrySourceTarget, ModuleInstanceSemantic } from "./moduleSemanticTypes";
+import { sourceLocalVariableNamesBefore } from "./dslLocalVariableCompletionCandidates";
+import type { ScopeId } from "../scalars/lexicalScopeIndex";
+import { scanCallArgs } from "./dslArgScanner";
+
+export type ModuleCompletionSite = {
+  statementIndex: number;
+  scopeId?: ScopeId;
+  /** Source-order anchor; it may be one past the last last-good statement. */
+  sourceOrderIndex: number;
+};
 
 export type ModuleCompletionRequest = {
   compiled: CompiledDslDocument;
@@ -20,6 +29,10 @@ export type ModuleCompletionRequest = {
   sourceText?: string;
   logicalCursorPosition?: number;
   qualifiedInstanceName?: string;
+  liveStatementText?: string;
+  expectedScalarType?: ScalarType | null;
+  scopeId?: ScopeId;
+  sourceOrderIndex?: number;
 };
 
 const geometryKindOfCategory = (category: string): "point" | "line" | null =>
@@ -45,10 +58,27 @@ export const isInsideModuleSemanticStatement = (compiled: CompiledDslDocument, p
   return index >= 0 && Boolean(id && compiled.moduleSemanticAnalysis?.definitions.some((definition) => definition.bodyStatementIds.includes(id)));
 };
 
-const currentModuleDefinition = (compiled: CompiledDslDocument, statementIndex: number): ModuleDefinitionSemantic | null => {
+const moduleDefinitionForScope = (compiled: CompiledDslDocument, scopeId: ScopeId | undefined): ModuleDefinitionSemantic | null => {
+  const analysis = compiled.moduleSemanticAnalysis;
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!analysis || !namespace || !scopeId) return null;
+  let current: ScopeId | null = scopeId;
+  while (current) {
+    const definition = analysis.definitions.find((candidate) => candidate.bodyScopeId === current);
+    if (definition) return definition;
+    current = namespace.scopeIndex.scopes.get(current)?.parentId ?? null;
+  }
+  return null;
+};
+
+const currentModuleDefinition = (compiled: CompiledDslDocument, statementIndex: number, scopeId?: ScopeId): ModuleDefinitionSemantic | null => {
   const id = compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex);
-  if (!id || !compiled.moduleSemanticAnalysis) return null;
-  return compiled.moduleSemanticAnalysis.definitions.find((definition) => definition.bodyStatementIds.includes(id)) ?? null;
+  if (id && compiled.moduleSemanticAnalysis) {
+    const direct = compiled.moduleSemanticAnalysis.definitions.find((definition) => definition.bodyStatementIds.includes(id));
+    if (direct) return direct;
+  }
+  const actualScope = scopeId ?? compiled.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(statementIndex);
+  return moduleDefinitionForScope(compiled, actualScope);
 };
 
 const currentInstance = (compiled: CompiledDslDocument, statementIndex: number): ModuleInstanceSemantic | null =>
@@ -71,31 +101,32 @@ const lexicalInput = (compiled: CompiledDslDocument, owner: ModuleDefinitionSema
   };
 };
 
-const lookupFor = (compiled: CompiledDslDocument, statementIndex: number, name: string) => {
-  const owner = currentModuleDefinition(compiled, statementIndex);
+const lookupFor = (compiled: CompiledDslDocument, statementIndex: number, name: string, scopeId?: ScopeId, sourceOrderIndex?: number) => {
+  const owner = currentModuleDefinition(compiled, statementIndex, scopeId);
   const input = lexicalInput(compiled, owner);
-  return input ? { owner, lookup: resolveModuleLexicalDeclaration(input, statementIndex, name) } : null;
+  return input ? { owner, lookup: resolveModuleLexicalDeclaration(input, statementIndex, name, { scopeId, sourceOrderIndex }) } : null;
 };
 
-const visibleLookup = (compiled: CompiledDslDocument, statementIndex: number, name: string) => {
-  const resolved = lookupFor(compiled, statementIndex, name);
+const visibleLookup = (compiled: CompiledDslDocument, statementIndex: number, name: string, scopeId?: ScopeId, sourceOrderIndex?: number) => {
+  const resolved = lookupFor(compiled, statementIndex, name, scopeId, sourceOrderIndex);
   if (!resolved) return null;
   return resolved.owner && compiled.sourceLexicalNamespace
     ? (isModuleLookupVisibleWithinBody(compiled.sourceLexicalNamespace, resolved.lookup, resolved.owner.bodyScopeId) ? resolved : null)
     : resolved;
 };
 
-const bodyNames = (compiled: CompiledDslDocument, statementIndex: number): string[] => {
-  const owner = currentModuleDefinition(compiled, statementIndex);
+const bodyNames = (compiled: CompiledDslDocument, statementIndex: number, scopeId?: ScopeId): string[] => {
+  const owner = currentModuleDefinition(compiled, statementIndex, scopeId);
   const namespace = compiled.sourceLexicalNamespace;
   if (!namespace) return [];
   return [...new Set([
     ...namespace.allDeclarations.map((declaration) => declaration.name),
+    ...[...namespace.scopeIndex.forGroupIterationSlots.values()].map((slot) => slot.name).filter(Boolean),
     ...(owner?.parameters.map((parameter) => parameter.name) ?? [])
   ])];
 };
 
-const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: DslModuleParameterType | null | undefined): Completion[] => {
+const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: DslModuleParameterType | ScalarType | null | undefined, request?: ModuleCompletionRequest): Completion[] => {
   const expectedType = scalarTypeOf(expected);
   const result: Completion[] = [];
   if (!expectedType || expectedType.kind === "number") {
@@ -106,8 +137,8 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
   } else if (expectedType && expectedType.kind !== "number") {
     result.push(...scalarLiteralCandidates(expectedType).map((literal) => ({ label: literal.label, type: "enum" as const })));
   }
-  for (const name of bodyNames(compiled, statementIndex)) {
-    const resolved = visibleLookup(compiled, statementIndex, name);
+  for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
+    const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);
     if (!resolved) continue;
     const { lookup } = resolved;
     if (lookup.kind === "iteration") {
@@ -125,14 +156,20 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
     if (!expectedType) result.push({ label: `@${name}`, apply: `@${name}`, type: "constant" });
     else if (isScalarTypeAssignable(type, expectedType)) result.push({ label: `@${name}`, apply: `@${name}`, type: "constant" });
   }
+  const localText = request?.liveStatementText ?? compiled.spans.sourceMap.statements.find((candidate) => candidate.range.from === compiled.statements[statementIndex]?.documentRange.from)?.logicalText;
+  if ((!expectedType || expectedType.kind === "number") && localText && request?.logicalCursorPosition !== undefined) {
+    for (const name of sourceLocalVariableNamesBefore(localText, request.logicalCursorPosition)) {
+      result.push({ label: `@${name}`, apply: `@${name}`, type: "constant" });
+    }
+  }
   return result;
 };
 
-const geometryCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: "point" | "line" | null): Completion[] => {
+const geometryCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: "point" | "line" | null, request?: ModuleCompletionRequest): Completion[] => {
   if (!expected) return [];
   const result: Completion[] = [];
-  for (const name of bodyNames(compiled, statementIndex)) {
-    const resolved = visibleLookup(compiled, statementIndex, name);
+  for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
+    const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);
     if (!resolved) continue;
     const { lookup } = resolved;
     if (lookup.kind === "parameter") {
@@ -151,59 +188,90 @@ const geometryCompletions = (compiled: CompiledDslDocument, statementIndex: numb
   return result;
 };
 
-const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: number): Completion[] => {
+const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): Completion[] => {
   const namespace = compiled.sourceLexicalNamespace;
-  const input = lexicalInput(compiled, currentModuleDefinition(compiled, statementIndex));
+  const owner = currentModuleDefinition(compiled, statementIndex, request.scopeId);
+  const input = lexicalInput(compiled, owner);
   if (!namespace || !input) return [];
   return namespace.allDeclarations
-    .filter((declaration) => declaration.kind === "moduleDefinition" && declaration.statementIndex < statementIndex)
+    .filter((declaration) => declaration.kind === "moduleDefinition" && declaration.statementIndex < (request.sourceOrderIndex ?? statementIndex))
     .filter((declaration) => {
-      const lookup = resolveModuleLexicalDeclaration(input, statementIndex, declaration.name);
+      const lookup = resolveModuleLexicalDeclaration(input, statementIndex, declaration.name, { scopeId: request.scopeId, sourceOrderIndex: request.sourceOrderIndex });
       return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;
     })
     .map((declaration) => ({ label: declaration.name, type: "class" as const }));
 };
 
-const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: number): Completion[] => {
+const liveArguments = (request: ModuleCompletionRequest) => {
+  const source = request.liveStatementText;
+  if (!source) return null;
+  const open = source.indexOf("(");
+  if (open < 0) return null;
+  return scanCallArgs(source, { start: open + 1, end: source.length }).args;
+};
+
+const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): Completion[] => {
   const instance = currentInstance(compiled, statementIndex);
   const statement = compiled.statements[statementIndex];
   if (!instance?.callee || statement?.kind !== "moduleInstance") return [];
   const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
   if (!definition) return [];
-  const used = new Set(statement.arguments.map((argument) => argument.label).filter((label): label is string => Boolean(label)));
+  const used = new Set((liveArguments(request)?.map((argument) => argument.key) ?? statement.arguments.map((argument) => argument.label)).filter((label): label is string => Boolean(label)));
   return definition.parameters.filter((parameter) => !used.has(parameter.name)).map((parameter) => ({ label: parameter.name, apply: `${parameter.name}: `, type: "property" as const }));
 };
 
-const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number): Completion[] => {
+const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): Completion[] => {
   const instance = currentInstance(compiled, statementIndex);
+  const definition = instance?.callee && compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  if (!definition) return [];
+  const liveArgument = liveArguments(request)?.[argumentIndex];
   const binding = instance?.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
-  if (!binding) return [];
-  const geometryKind = parameterGeometryKind(binding.parameterType);
-  return geometryKind ? geometryCompletions(compiled, statementIndex, geometryKind) : scalarCompletions(compiled, statementIndex, binding.parameterType);
+  const parameter = liveArgument?.key
+    ? definition.parameters.find((candidate) => candidate.name === liveArgument.key)
+    : binding && definition.parameters[binding.parameterIndex];
+  const parameterType = parameter?.type ?? binding?.parameterType;
+  const geometryKind = parameterGeometryKind(parameterType);
+  return geometryKind ? geometryCompletions(compiled, statementIndex, geometryKind, request) : scalarCompletions(compiled, statementIndex, parameterType, request);
 };
 
-const isIdentifierChar = (value: string | undefined) => Boolean(value && isBareDslIdentifierChar(value));
+const deferredInstanceIdOf = (target: ModuleGeometrySourceTarget | ModuleGeometryPropertySourceTarget | null) =>
+  target?.kind === "deferredModuleExport" || target?.kind === "deferredModuleExportProperty" ? target.instanceStatementId : null;
 
-const qualifiedInstanceFrom = (source: string, position: number): string | null => {
-  const before = source.slice(0, position);
-  let memberStart = before.length;
-  while (memberStart > 0 && isIdentifierChar(before[memberStart - 1])) memberStart -= 1;
-  if (before.slice(Math.max(0, memberStart - 2), memberStart) !== "::") return null;
-  const instanceEnd = memberStart - 2;
-  let instanceStart = instanceEnd;
-  while (instanceStart > 0 && isIdentifierChar(before[instanceStart - 1])) instanceStart -= 1;
-  return instanceStart < instanceEnd ? before.slice(instanceStart, instanceEnd) : null;
+const stableQualifiedInstanceIdAt = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest) => {
+  const logicalPosition = request.logicalCursorPosition;
+  if (logicalPosition === undefined) return null;
+  const body = currentModuleDefinition(compiled, statementIndex, request.scopeId)?.bodyStatements.find((candidate) => candidate.statementIndex === statementIndex);
+  for (const site of body?.geometryReferences ?? []) {
+    if (logicalPosition >= site.reference.span.start && logicalPosition <= site.reference.span.end) {
+      const id = deferredInstanceIdOf(site.reference.target);
+      if (id) return id;
+    }
+  }
+  for (const site of body?.scalarExpressions ?? []) {
+    for (const reference of site.expression.geometryProperties) {
+      if (logicalPosition >= reference.span.start && logicalPosition <= reference.span.end) {
+        const id = deferredInstanceIdOf(reference.target);
+        if (id) return id;
+      }
+    }
+  }
+  const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex);
+  if (!statementId) return null;
+  for (const site of compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(statementId) ?? []) {
+    if (logicalPosition >= site.reference.span.start && logicalPosition <= site.reference.span.end) {
+      const id = deferredInstanceIdOf(site.reference.target);
+      if (id) return id;
+    }
+  }
+  return null;
 };
 
 const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): Completion[] => {
-  const source = request.sourceText ?? compiled.spans.sourceMap.source;
-  const instanceName = request.qualifiedInstanceName ?? qualifiedInstanceFrom(source, request.cursorPosition);
-  const input = lexicalInput(compiled, currentModuleDefinition(compiled, statementIndex));
   const analysis = compiled.moduleSemanticAnalysis;
-  if (!instanceName || !input || !analysis) return [];
-  const lookup = resolveModuleLexicalDeclaration(input, statementIndex, instanceName);
-  if (lookup.kind !== "resolved" || lookup.declaration.kind !== "moduleInstance") return [];
-  const instance = analysis.instancesByStatementId.get(lookup.declaration.statementId);
+  if (!analysis) return [];
+  const instanceStatementId = stableQualifiedInstanceIdAt(compiled, statementIndex, request);
+  if (!instanceStatementId) return [];
+  const instance = analysis.instancesByStatementId.get(instanceStatementId);
   const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
   return definition?.exports.map((entry) => ({ label: entry.name, type: "constant" as const })) ?? [];
 };
@@ -214,12 +282,12 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
 export const moduleCompletionCandidates = (request: ModuleCompletionRequest): Completion[] => {
   const statementIndex = stableStatementIndex(request);
   if (statementIndex < 0 || !request.compiled.sourceLexicalNamespace) return [];
-  if (request.kind === "callee") return moduleCalleeCompletions(request.compiled, statementIndex);
+  if (request.kind === "callee") return moduleCalleeCompletions(request.compiled, statementIndex, request);
   if (!request.compiled.moduleSemanticAnalysis) return [];
-  if (request.kind === "label") return moduleArgumentLabels(request.compiled, statementIndex);
-  if (request.kind === "value") return moduleArgumentValues(request.compiled, statementIndex, request.argumentIndex ?? 0);
+  if (request.kind === "label") return moduleArgumentLabels(request.compiled, statementIndex, request);
+  if (request.kind === "value") return moduleArgumentValues(request.compiled, statementIndex, request.argumentIndex ?? 0, request);
   if (request.kind === "qualifiedMember") return qualifiedMemberCompletions(request.compiled, statementIndex, request);
-  const owner = currentModuleDefinition(request.compiled, statementIndex);
+  const owner = currentModuleDefinition(request.compiled, statementIndex, request.scopeId);
   if (!owner) return [];
   const bodyStatement = owner.bodyStatements.find((candidate) => candidate.statementIndex === statementIndex);
   const statement = request.compiled.statements[statementIndex];
@@ -228,5 +296,7 @@ export const moduleCompletionCandidates = (request: ModuleCompletionRequest): Co
     : undefined;
   const logicalPosition = request.logicalCursorPosition ?? (logical ? physicalToLogicalOffset(request.compiled.spans.sourceMap, logical, request.cursorPosition) : null);
   const geometry = logicalPosition === null ? undefined : bodyStatement?.geometryReferences.find((site) => logicalPosition >= site.span.start && logicalPosition <= site.span.end);
-  return geometry ? geometryCompletions(request.compiled, statementIndex, geometry.reference.expectedGeometryKind) : scalarCompletions(request.compiled, statementIndex, null);
+  return geometry
+    ? geometryCompletions(request.compiled, statementIndex, geometry.reference.expectedGeometryKind, request)
+    : scalarCompletions(request.compiled, statementIndex, request.expectedScalarType ?? null, request);
 };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDslSnapshot } from "../dsl/dslParser";
-import { createModuleSemanticRangeIndex, moduleSemanticTargetAt } from "../dsl/moduleSemanticEditor";
+import { createModuleSemanticRangeIndex, moduleSemanticDeclarationRange, moduleSemanticTargetAt } from "../dsl/moduleSemanticEditor";
 import { analyzeModuleSemanticRename } from "../document/moduleSemanticRenameAnalysis";
 
 const source = [
@@ -67,5 +67,45 @@ describe("module semantic editor range view", () => {
     const index = createModuleSemanticRangeIndex(document);
     expect(index.tokens.find((token) => deferredSource.slice(token.from, token.to) === "SomeInstance" && token.from > deferredSource.indexOf("@"))?.target).toEqual({ kind: "moduleInstance", statementId: "statement:deferred:5" });
     expect(index.tokens.find((token) => deferredSource.slice(token.from, token.to) === "Output" && token.from > deferredSource.indexOf("@"))?.target).toEqual({ kind: "moduleSource", statementId: "statement:deferred:2" });
+  });
+
+  it("collects scalar and geometry-property occurrences from text-template holes", () => {
+    const templateSource = [
+      "nui 3",
+      "module Child() {",
+      "  export line Export = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "module M(lineParam: line) {",
+      "  line lineA = segment(start: (0, 0), end: (10, 0))",
+      "  module instance = Child()",
+      "  text Label = label(text: \"private={@lineA.length} parameter={@lineParam.length} export={@instance::Export.length}\", anchor: (0, 0))",
+      "}"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: templateSource, sourceRevision: 0 });
+    const document = compileDslDocument(templateSource, { preparsed: parsed, assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:template:${index}`])) });
+    const index = createModuleSemanticRangeIndex(document);
+    const token = (name: string, from = 0) => index.tokens.find((candidate) => templateSource.slice(candidate.from, candidate.to) === name && candidate.from >= from);
+    const privateReference = token("lineA", templateSource.indexOf("private="));
+    const parameterReference = token("lineParam", templateSource.indexOf("parameter="));
+    const exportInstance = token("instance", templateSource.indexOf("export="));
+    const exportMember = token("Export", templateSource.indexOf("export="));
+    expect(privateReference?.target).toEqual({ kind: "moduleSource", statementId: "statement:template:5" });
+    expect(parameterReference?.target).toEqual({ kind: "moduleParameter", slot: { definitionStatementId: "statement:template:4", parameterIndex: 0 } });
+    expect(exportInstance?.target).toEqual({ kind: "moduleInstance", statementId: "statement:template:6" });
+    expect(exportMember?.target).toEqual({ kind: "moduleSource", statementId: "statement:template:2" });
+    const privateRange = index.tokens.find((candidate) => candidate.target.kind === "moduleSource" && candidate.target.statementId === "statement:template:5" && candidate.from === privateReference?.from);
+    expect(privateRange && templateSource.slice(privateRange.from, privateRange.to)).toBe("lineA");
+    expect(moduleSemanticTargetAt(index, privateReference!.from)).toEqual({ kind: "moduleSource", statementId: "statement:template:5" });
+    const declaration = moduleSemanticDeclarationRange(index, privateReference!.target);
+    expect(declaration && templateSource.slice(declaration.from, declaration.to)).toBe("lineA");
+    const privateRename = analyzeModuleSemanticRename(templateSource, document, { kind: "moduleSource", statementId: "statement:template:5" }, "renamedLine");
+    expect(privateRename.verdict).toBe("ok");
+    if (privateRename.verdict === "ok") expect(privateRename.entries.map((entry) => entry.oldName)).toEqual(["lineA", "lineA"]);
+    const parameterRename = analyzeModuleSemanticRename(templateSource, document, { kind: "moduleParameter", slot: { definitionStatementId: "statement:template:4", parameterIndex: 0 } }, "path");
+    expect(parameterRename.verdict).toBe("ok");
+    if (parameterRename.verdict === "ok") expect(parameterRename.entries.map((entry) => entry.oldName)).toEqual(["lineParam", "lineParam"]);
+    const exportRename = analyzeModuleSemanticRename(templateSource, document, { kind: "moduleSource", statementId: "statement:template:2" }, "renamedExport");
+    expect(exportRename.verdict).toBe("ok");
+    if (exportRename.verdict === "ok") expect(exportRename.entries.map((entry) => entry.oldName)).toEqual(["Export", "Export"]);
   });
 });

@@ -10,6 +10,7 @@ import type {
 import type { DslSpan } from "./dslTypes";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { BindingId } from "../scalars/bindingCatalog";
+import type { ScopeId } from "../scalars/lexicalScopeIndex";
 
 /** Source identity used by editor operations. It deliberately contains no
  * runtime element id and no name-derived registry key. */
@@ -28,10 +29,31 @@ export type ModuleSemanticToken = {
   target: ModuleSemanticTarget;
 };
 
+export type ModuleSemanticStatementRange = { from: number; to: number };
+
+export type ModuleSemanticScopeRange = {
+  scopeId: ScopeId;
+  from: number;
+  to: number;
+  /** Header/closing anchors; edits touching them invalidate live call-site proof. */
+  anchors: readonly { from: number; to: number }[];
+};
+
 export type ModuleSemanticRangeIndex = {
   tokens: readonly ModuleSemanticToken[];
   declarationByTarget: ReadonlyMap<string, ModuleSemanticToken>;
-  statementRanges?: ReadonlyMap<number, { from: number; to: number }>;
+  /** Existing compiled Module statements usable for completion identity mapping. */
+  statementRanges?: ReadonlyMap<number, ModuleSemanticStatementRange>;
+  /** Stale-site markers. These survive token replacement/deletion and never
+   * authorize completion or semantic identity reuse. */
+  staleStatementRanges?: ReadonlyMap<number, ModuleSemanticStatementRange>;
+  /** All last-good statement positions, including non-Module anchors used to
+   * place a brand-new Module call without fabricating a StatementIdentity. */
+  statementAnchors?: ReadonlyMap<number, ModuleSemanticStatementRange & { scopeId: ScopeId }>;
+  /** Structural lexical scope ranges used only for safe live call-site proof. */
+  lexicalScopeRanges?: readonly ModuleSemanticScopeRange[];
+  /** False after an edit touches a Module/group structural delimiter. */
+  moduleStructureStable?: boolean;
 };
 
 export const moduleSemanticTargetKey = (target: ModuleSemanticTarget): string => {
@@ -87,7 +109,37 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
   const tokens: ModuleSemanticToken[] = [];
   const declarations = new Map<string, ModuleSemanticToken>();
   const statementRanges = new Map<number, { from: number; to: number }>();
-  if (!analysis || !compiled.statementMap) return { tokens, declarationByTarget: declarations, statementRanges };
+  const staleStatementRanges = new Map<number, { from: number; to: number }>();
+  const statementAnchors = new Map<number, { from: number; to: number; scopeId: ScopeId }>();
+  const lexicalScopeRanges: ModuleSemanticScopeRange[] = [];
+  if (!analysis || !compiled.statementMap) return {
+    tokens,
+    declarationByTarget: declarations,
+    statementRanges,
+    staleStatementRanges,
+    statementAnchors,
+    lexicalScopeRanges,
+    moduleStructureStable: true
+  };
+  for (const [statementIndex, statement] of compiled.statements.entries()) {
+    const scopeId = compiled.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(statementIndex);
+    if (scopeId) statementAnchors.set(statementIndex, { from: statement.documentRange.from, to: statement.documentRange.to, scopeId });
+  }
+  for (const [scopeId, scope] of compiled.sourceLexicalNamespace?.scopeIndex.scopes ?? []) {
+    if (scopeId === compiled.sourceLexicalNamespace?.scopeIndex.rootScopeId || scope.openingStatementIndex === null) continue;
+    const opening = compiled.statements[scope.openingStatementIndex];
+    const closing = scope.exitStatementIndex < compiled.statements.length ? compiled.statements[scope.exitStatementIndex] : null;
+    if (!opening) continue;
+    lexicalScopeRanges.push({
+      scopeId,
+      from: opening.documentRange.from,
+      to: closing?.documentRange.to ?? compiled.spans.sourceMap.source.length,
+      anchors: [
+        { from: opening.documentRange.from, to: opening.documentRange.to },
+        ...(closing ? [{ from: closing.documentRange.from, to: closing.documentRange.to }] : [])
+      ]
+    });
+  }
   const indexById = statementIndexById(compiled);
   const add = (statementIndex: number, span: DslSpan | null | undefined, target: ModuleSemanticTarget, declaration = false) => {
     if (!span) return;
@@ -176,10 +228,12 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
   for (const [statementId, references] of analysis.rootGeometryReferencesByStatementId) {
     const statementIndex = indexById.get(statementId);
     if (statementIndex === undefined) continue;
+    const statement = compiled.statements[statementIndex];
+    if (statement) staleStatementRanges.set(statementIndex, { from: statement.documentRange.from, to: statement.documentRange.to });
     for (const site of references) addGeometryReference(compiled, statementIndex, site.reference, add, addSourceTarget);
   }
   tokens.sort((a, b) => a.from - b.from || b.to - a.to);
-  return { tokens, declarationByTarget: declarations, statementRanges };
+  return { tokens, declarationByTarget: declarations, statementRanges, staleStatementRanges, statementAnchors, lexicalScopeRanges, moduleStructureStable: true };
 };
 
 const isModuleBodyStatementId = (analysis: ModuleSemanticAnalysis, statementId: StatementIdentity) =>
@@ -250,6 +304,9 @@ const addBodyReferences = (
     const target = sourceTarget(reference.target);
     const span = reference.nameSpan;
     if (target?.kind === "moduleParameter") add(statementIndex, span, target); else addSourceTarget(statementIndex, reference.target, span);
+  }
+  for (const site of body.textTemplateHoles) {
+    for (const reference of site.expression.geometryProperties) addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);
   }
   if (body.scalarTarget) {
     const target = sourceTarget(body.scalarTarget);

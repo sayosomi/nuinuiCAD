@@ -26,6 +26,13 @@ export type ModuleLexicalResolutionInput<T, D = unknown> = {
   parameterOverlays?: readonly ModuleLexicalParameterOverlay<T, D>[];
 };
 
+export type ModuleLexicalResolutionPosition = {
+  /** An existing lexical scope from the last-good namespace. */
+  scopeId?: ScopeId;
+  /** Source-order position; may be one past the last compiled statement. */
+  sourceOrderIndex?: number;
+};
+
 const statementIdAt = (ids: ReadonlyMap<number, StatementIdentity>, index: number): StatementIdentity => {
   const id = ids.get(index);
   if (id === undefined) throw new Error(`moduleLexicalResolution: no stable statement identity for index ${index}`);
@@ -38,18 +45,20 @@ const statementIdAt = (ids: ReadonlyMap<number, StatementIdentity>, index: numbe
 export const resolveModuleLexicalDeclaration = <T, D = unknown>(
   input: ModuleLexicalResolutionInput<T, D>,
   statementIndex: number,
-  name: string
+  name: string,
+  position: ModuleLexicalResolutionPosition = {}
 ): ModuleLexicalLookup<T, D> => {
-  const startScope = input.sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex);
+  const startScope = position.scopeId ?? input.sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex);
   if (!startScope) return { kind: "undefined" };
+  const sourceOrderIndex = position.sourceOrderIndex ?? statementIndex;
   let firstFuture: { scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] } | null = null;
   for (const scopeId of scopeChain(input.sourceNamespace.scopeIndex, startScope)) {
     const declarations = input.sourceNamespace.declarationsByScopeAndName.get(scopeId)?.get(name) ?? [];
-    const visible = declarations.filter((declaration) => declaration.statementIndex < statementIndex);
+    const visible = declarations.filter((declaration) => declaration.statementIndex < sourceOrderIndex);
     if (visible.length === 1) return { kind: "resolved", declaration: visible[0] };
     if (visible.length > 1) return { kind: "ambiguous", scopeId, declarations: visible };
     const iteration = input.sourceNamespace.scopeIndex.forGroupIterationSlots.get(scopeId);
-    if (iteration?.name === name && iteration.statementIndex < statementIndex) {
+    if (iteration?.name === name && iteration.statementIndex < sourceOrderIndex) {
       return {
         kind: "iteration",
         statementId: statementIdAt(input.stableStatementIdByIndex, iteration.statementIndex),

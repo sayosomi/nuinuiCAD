@@ -2,6 +2,7 @@ import { dslLineLabeledValueSpans } from "./dslValueSpans";
 import { recordFields, recordRemainder, recordSpans } from "./dslParameterSpanScanner";
 import { unquoteDslString } from "./dslTokens";
 import { localNumericReferenceOptions, type NumericReferenceOption } from "../geometry/numericReferenceOptions";
+import { elementLocalVariableAtSourceOrder } from "../scalars/elementLocalRangeIndex";
 import type { CadElement, ElementId } from "../types/geometry";
 
 const recordNameText = (lineText: string, record: { start: number; end: number }) => {
@@ -66,4 +67,27 @@ export const dslLocalVariableCompletionOptions = ({
     : localVariables.length;
 
   return localNumericReferenceOptions({ element, localVariableLimit });
+};
+
+/** Source-only companion used by Module semantic completion. It keeps the
+ * same vars record scanner and source-order lookup as the semantic local
+ * variable resolver, while deliberately returning names rather than runtime
+ * numeric-variable ids (module bodies have no materialized element ids). */
+export const sourceLocalVariableNamesBefore = (lineText: string, pos: number): readonly string[] => {
+  const varsSpan = dslLineLabeledValueSpans(lineText).find((span) => span.source === "attr" && span.key === "vars");
+  if (!varsSpan) return [];
+  const records = recordSpans(lineText, varsSpan);
+  if (!records) return [];
+  const currentIndex = records.findIndex((record) => {
+    const expressionSpan = recordRemainder(lineText, record, 1);
+    return expressionSpan && pos >= expressionSpan.start && pos <= expressionSpan.end;
+  });
+  if (currentIndex < 0) return [];
+  const entries = records.flatMap((record, variableIndex): { name: string; variableIndex: number }[] => {
+    const nameField = recordFields(lineText, record)[0];
+    return nameField ? [{ name: unquoteDslString(lineText.slice(nameField.start, nameField.end)), variableIndex }] : [];
+  });
+  return [...new Set(entries
+    .filter((entry) => elementLocalVariableAtSourceOrder(entries, entry.name, currentIndex)?.variableIndex === entry.variableIndex)
+    .map((entry) => entry.name))];
 };

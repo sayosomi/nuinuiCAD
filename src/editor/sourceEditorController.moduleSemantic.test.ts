@@ -98,4 +98,45 @@ describe("SourceEditorController module semantic target priority", () => {
     expect(internals.view.state.selection.main.from).toBe(source.indexOf("const outer"));
     controller.destroy();
   });
+
+  it("keeps root qualified references stale-safe when their token is replaced", () => {
+    const source = [
+      "nui 3",
+      "module M() {",
+      "  export point Public = coordinate(x: 0, y: 0)",
+      "}",
+      "module I = M()",
+      "point X = offset(from: I::Public, dx: 1, dy: 0)"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const controller = new SourceEditorController(document.createElement("div"));
+    const internals = controller as unknown as { view: { dispatch: (spec: unknown) => void; state: { selection: { main: { from: number; to: number } } } } };
+    const publicOffset = source.indexOf("Public", source.indexOf("I::"));
+    internals.view.dispatch({ selection: EditorSelection.cursor(publicOffset), annotations: Transaction.addToHistory.of(false) });
+    const cleanTarget = controller.currentCursorModuleSemanticTarget();
+    expect(cleanTarget?.kind).toBe("moduleSource");
+    expect(dispatchCommand("renameSelectedElement", {
+      currentCursorModuleSemanticResolution: controller.currentCursorModuleSemanticResolution,
+      currentCursorModuleSemanticTarget: controller.currentCursorModuleSemanticTarget,
+      currentCursorTypedRenameTargetBindingId: controller.currentCursorTypedRenameTargetBindingId
+    })).toBe(true);
+    expect(useCadUiStore.getState().renameModuleSemanticPromptTarget).toEqual(cleanTarget);
+    useCadUiStore.getState().setRenameModuleSemanticPromptTarget(null);
+
+    internals.view.dispatch({
+      changes: { from: publicOffset, to: publicOffset + "Public".length, insert: "Replaced" },
+      selection: EditorSelection.cursor(publicOffset + "Replaced".length),
+      annotations: Transaction.addToHistory.of(false)
+    });
+    expect(controller.currentCursorModuleSemanticTarget()).toBeNull();
+    expect(controller.currentCursorModuleSemanticResolution().kind).toBe("stale");
+    expect(dispatchCommand("renameSelectedElement", {
+      currentCursorModuleSemanticResolution: controller.currentCursorModuleSemanticResolution,
+      currentCursorModuleSemanticTarget: controller.currentCursorModuleSemanticTarget,
+      currentCursorTypedRenameTargetBindingId: controller.currentCursorTypedRenameTargetBindingId
+    })).toBe(true);
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("semantic metadata");
+    expect(useCadUiStore.getState().renameElementPromptTargetId).toBeNull();
+    controller.destroy();
+  });
 });
