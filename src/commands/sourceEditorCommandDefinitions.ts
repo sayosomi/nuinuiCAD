@@ -21,5 +21,12 @@ export const sourceEditorCommandDefinitions = {
     label: "選択中の値をCanvasで選択",
     palette: { order: 17, keywords: ["source", "canvas", "pick", "value", "参照", "選択", "キャンバス"] },
     run: () => sourceEditSession.startPickFromSelection()
+  },
+  goToSourceDefinition: {
+    id: "goToSourceDefinition",
+    label: "Source Editorの定義へ移動",
+    palette: { order: 25.5, keywords: ["definition", "go to", "source", "定義", "移動"] },
+    flushPolicy: "editor-owned",
+    run: (context) => context?.goToSourceDefinitionAtCursor?.() ?? false
   }
 } satisfies Partial<Record<CommandId, Command>>;

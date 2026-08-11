@@ -9,6 +9,7 @@ import {
 import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
 import {
   parseAndCheckModuleScalarExpression,
+  type ModuleGeometryPropertyReferenceInput,
   type ModuleGeometryPropertyReferenceResolution,
   type ModuleScalarLocalDiagnostic,
   type ModuleScalarReferenceResolution
@@ -24,6 +25,9 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import { isKnownNumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import { isDerivedPointKeyForGeometryCategory, isKnownDerivedPointKey, isLineEndpointPointKey } from "../model/pointAnchors";
 import { scopeChain, type ScopeId } from "../scalars/lexicalScopeIndex";
+import {
+  resolveModuleLexicalDeclaration as resolveSharedModuleLexicalDeclaration
+} from "./moduleLexicalResolution";
 import type { ScalarType } from "../scalars/types";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
@@ -243,11 +247,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     stateByIndex.set(statementIndex, state);
   }
 
-  /**
-   * Walk the real source scopes and overlay synthetic bindings only in the
-   * scope where they are declared. This keeps a child declaration or loop
-   * variable ahead of an outer parameter while preserving non-hoisted lookup.
-   */
   const resolveModuleLexicalDeclaration = (
     statementIndex: number,
     ownerIndex: number | null,
@@ -258,27 +257,32 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? [stateByIndex.get(ownerIndex)!]
         : []
   ): ModuleLexicalLookup => {
-    const startScope = sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex);
-    if (!startScope) return { kind: "undefined" };
-    let firstFuture: ModuleLexicalLookup | null = null;
-    for (const scopeId of scopeChain(sourceNamespace.scopeIndex, startScope)) {
-      const declarations = sourceNamespace.declarationsByScopeAndName.get(scopeId)?.get(name) ?? [];
-      const visible = declarations.filter((declaration) => declaration.statementIndex < statementIndex);
-      if (visible.length === 1) return { kind: "resolved", declaration: visible[0] };
-      if (visible.length > 1) return { kind: "ambiguous", scopeId, declarations: visible };
-      const iteration = sourceNamespace.scopeIndex.forGroupIterationSlots.get(scopeId);
-      if (iteration?.name === name && iteration.statementIndex < statementIndex) {
-        return { kind: "iteration", statementId: statementIdAt(stableStatementIdByIndex, iteration.statementIndex), statementIndex: iteration.statementIndex, name };
-      }
-      const overlay = parameterOverlays.find((definition) => definition.bodyScopeId === scopeId);
-      const parameter = overlay?.parameterByName.get(name);
-      if (parameter) {
-        if (visible.length === 0) return { kind: "parameter", definition: overlay!, parameter };
-        return { kind: "ambiguous", scopeId, declarations };
-      }
-      if (declarations.length > 0 && !firstFuture) firstFuture = { kind: "forward", scopeId, declarations };
-    }
-    return firstFuture ?? { kind: "undefined" };
+    const shared = resolveSharedModuleLexicalDeclaration<
+      { parameter: ResolvedModuleParameter; index: number },
+      DefinitionState
+    >(
+      {
+        sourceNamespace,
+        stableStatementIdByIndex,
+        parameterOverlays: parameterOverlays.map((definition) => ({
+          bodyScopeId: definition.bodyScopeId,
+          value: definition,
+          parameters: definition.parameters.map((parameter, index) => ({
+            index,
+            name: parameter.name,
+            value: { parameter, index }
+          }))
+        }))
+      },
+      statementIndex,
+      name
+    );
+    if (shared.kind !== "parameter") return shared;
+    return {
+      kind: "parameter",
+      definition: shared.definition.value,
+      parameter: shared.parameter.value
+    };
   };
 
   const bindingByStatementIndex = new Map<number, { bindingId: BindingId; statementId: StatementIdentity }>(input.documentScalarBindings ?? []);
@@ -401,7 +405,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     expectedType: ScalarType | null,
     resolver: (reference: { name: string; span: DslSpan }) => ReferenceResolution,
     bareResolver?: (reference: { name: string; span: DslSpan }) => ReferenceResolution | null,
-    geometryPropertyResolver?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution
+    geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution
   ) => {
     const local: LocalDiagnostic[] = [];
     const semantic = parseAndCheckModuleScalarExpression({
@@ -457,7 +461,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     target: ModuleGeometrySourceTarget | null,
     resolution: ModuleGeometryReferenceSemantic["resolution"],
     coordinate: ModuleGeometryReferenceSemantic["coordinate"] = null,
-    role: ModuleGeometryReferenceRole = expectedGeometryKind === "point" ? "pointReference" : "lineReference"
+    role: ModuleGeometryReferenceRole = expectedGeometryKind === "point" ? "pointReference" : "lineReference",
+    nameSpan: DslSpan | null = null
   ): ModuleGeometryReferenceSemantic => ({
     source,
     span,
@@ -465,6 +470,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     role,
     target,
     coordinate,
+    ...(nameSpan ? { nameSpan } : {}),
     resolution
   });
 
@@ -473,10 +479,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         kind: "deferred";
         instance: SourceLexicalDeclaration;
         instanceName: string;
+        instanceSpan: DslSpan;
         exportName: string;
         memberSpan: DslSpan;
       }
-    | { kind: "undefined" | "forward" | "ambiguous" | "wrongKind" | "outerCapture"; instanceName: string; exportName: string; memberSpan: DslSpan };
+    | { kind: "undefined" | "forward" | "ambiguous" | "wrongKind" | "outerCapture"; instanceName: string; instanceSpan: DslSpan; exportName: string; memberSpan: DslSpan };
 
   const resolveQualifiedModuleExport = (
     statementIndex: number,
@@ -489,24 +496,26 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (segments.length < 2) return null;
     const instanceName = segments[0];
     const exportName = segments.at(-1)!;
+    const instanceStart = referenceSpan.start + referenceTextStart + Math.max(0, referenceName.indexOf(instanceName));
     const memberStart = referenceSpan.start + referenceTextStart + Math.max(0, referenceName.lastIndexOf(exportName));
+    const instanceSpan = { start: instanceStart, end: instanceStart + instanceName.length };
     const memberSpan = { start: memberStart, end: memberStart + exportName.length };
     const lookup = ownerIndex === null
       ? sourceDeclarationResolution(sourceNamespace, statements, statementIndex, instanceName)
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, instanceName);
     if (lookup.kind === "resolved") {
       if (lookup.declaration.kind !== "moduleInstance") {
-        return { kind: "wrongKind", instanceName, exportName, memberSpan };
+        return { kind: "wrongKind", instanceName, instanceSpan, exportName, memberSpan };
       }
       const instanceOwnerIndex = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
       if (ownerIndex !== null && instanceOwnerIndex !== ownerIndex) {
-        return { kind: "outerCapture", instanceName, exportName, memberSpan };
+        return { kind: "outerCapture", instanceName, instanceSpan, exportName, memberSpan };
       }
-      return { kind: "deferred", instance: lookup.declaration, instanceName, exportName, memberSpan };
+      return { kind: "deferred", instance: lookup.declaration, instanceName, instanceSpan, exportName, memberSpan };
     }
-    if (lookup.kind === "forward") return { kind: "forward", instanceName, exportName, memberSpan };
-    if (lookup.kind === "ambiguous") return { kind: "ambiguous", instanceName, exportName, memberSpan };
-    return { kind: "undefined", instanceName, exportName, memberSpan };
+    if (lookup.kind === "forward") return { kind: "forward", instanceName, instanceSpan, exportName, memberSpan };
+    if (lookup.kind === "ambiguous") return { kind: "ambiguous", instanceName, instanceSpan, exportName, memberSpan };
+    return { kind: "undefined", instanceName, instanceSpan, exportName, memberSpan };
   };
 
   const deferredModuleExportTarget = (
@@ -523,6 +532,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     expectedGeometryKind,
     ...(pointKey ? { pointKey } : {}),
     referenceSpan: span,
+    instanceSpan: qualified.instanceSpan,
     memberSpan: qualified.memberSpan
   });
 
@@ -562,7 +572,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     options: {
       scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
       bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
-      geometryPropertyResolver?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
+      geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
     }
   ): ModuleScalarExpressionSemantic | null => {
     const componentSpan = coordinateComponent(source, span, component);
@@ -590,7 +600,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       role?: ModuleGeometryReferenceRole;
       scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
       bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
-      geometryPropertyResolver?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
+      geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
     } = {}
   ): ModuleGeometryReferenceSemantic => {
     const trimmed = rawValue.trim();
@@ -602,12 +612,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ? { start: trimmedStart, end: trimmedStart + trimmed.length }
       : span;
     const role = options.role ?? (expected === "point" ? "pointReference" : "lineReference");
+    let referenceNameSpan: DslSpan | null = null;
     const semantic = (
       target: ModuleGeometrySourceTarget | null,
       resolution: ModuleGeometryReferenceSemantic["resolution"],
       coordinate: ModuleGeometryReferenceSemantic["coordinate"] = null,
       referenceRole: ModuleGeometryReferenceRole = role
-    ) => geometryReference(rawValue, semanticSpan, expected, target, resolution, coordinate, referenceRole);
+    ) => geometryReference(rawValue, semanticSpan, expected, target, resolution, coordinate, referenceRole, referenceNameSpan);
     if (!trimmed) return semantic(null, "undefined");
     if (trimmed === "none") {
       if (options.allowNone) return semantic(null, "resolved");
@@ -641,6 +652,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const baseOffset = sigilOffset + Math.max(0, withoutSigil.indexOf(base));
     const baseStart = semanticSpan.start + baseOffset;
     const baseSpan = { start: baseStart, end: baseStart + base.length };
+    referenceNameSpan = baseSpan;
     const derivedRole: ModuleGeometryReferenceRole = pointKey
       ? role === "lineEndpointReference" ? "lineEndpointReference" : "derivedPoint"
       : role;
@@ -724,7 +736,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const resolveGeometryProperty = (
     statementIndex: number,
     ownerIndex: number | null,
-    reference: { elementName: string; property: string; span: DslSpan }
+    reference: ModuleGeometryPropertyReferenceInput
   ): ModuleGeometryPropertyReferenceResolution => {
     const type = isKnownNumericComputedGeometryProperty(reference.property) ? { kind: "number" as const } : null;
     if (!type) {
@@ -735,7 +747,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         diagnostic: issue("module-unknown-geometry-property", reference.span, `geometry property「${reference.property}」を解決できません。`)
       };
     }
-    const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.span, 1);
+    const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
     if (qualified?.kind === "deferred") {
       return {
         target: {
@@ -746,6 +758,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           exportName: qualified.exportName,
           property: reference.property,
           referenceSpan: reference.span,
+          instanceSpan: qualified.instanceSpan,
           memberSpan: qualified.memberSpan
         },
         type,

@@ -37,6 +37,7 @@ export type ModuleGeometrySourceTarget =
       expectedGeometryKind: "point" | "line";
       pointKey?: string;
       referenceSpan: DslSpan;
+      instanceSpan: DslSpan;
       memberSpan: DslSpan;
     };
 
@@ -57,6 +58,7 @@ export type ModuleGeometryPropertySourceTarget =
       exportName: string;
       property: string;
       referenceSpan: DslSpan;
+      instanceSpan: DslSpan;
       memberSpan: DslSpan;
     };
 
@@ -64,6 +66,8 @@ export type ModuleSourceTarget = ModuleScalarSourceTarget | ModuleGeometrySource
 
 export type ModuleScalarReference = {
   name: string;
+  /** Exact identifier token, excluding `@`, from the scalar AST. */
+  nameSpan: DslSpan;
   span: DslSpan;
   target: ModuleSourceTarget | null;
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid";
@@ -79,6 +83,9 @@ export type ModuleScalarExpressionSemantic = {
 export type ModuleGeometryPropertyReference = {
   geometryName: string;
   property: string;
+  /** Exact tokens supplied by the scalar tokenizer. `span` includes `@` and the property path. */
+  elementNameSpan: DslSpan;
+  propertySpan: DslSpan;
   span: DslSpan;
   target: ModuleGeometryPropertySourceTarget | null;
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";
@@ -101,6 +108,8 @@ export type ModuleGeometryReferenceRole =
 export type ModuleGeometryReferenceSemantic = {
   source: string;
   span: DslSpan;
+  /** Exact base geometry token when the reference has one (excludes @ and point accessor). */
+  nameSpan?: DslSpan;
   expectedGeometryKind: "point" | "line";
   role: ModuleGeometryReferenceRole;
   target: ModuleGeometrySourceTarget | null;

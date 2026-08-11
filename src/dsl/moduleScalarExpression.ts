@@ -12,6 +12,14 @@ import type {
   ModuleSourceTarget
 } from "./moduleSemanticTypes";
 
+export type ModuleGeometryPropertyReferenceInput = {
+  elementName: string;
+  property: string;
+  elementNameSpan: DslSpan;
+  propertySpan: DslSpan;
+  span: DslSpan;
+};
+
 export type ModuleScalarLocalDiagnostic = {
   code: string;
   span: DslSpan;
@@ -65,6 +73,8 @@ const typecheck = ({
   resolveGeometryProperty?: (reference: {
     elementName: string;
     property: string;
+    elementNameSpan: DslSpan;
+    propertySpan: DslSpan;
     span: DslSpan;
   }) => ModuleGeometryPropertyReferenceResolution;
 }): { semantic: ModuleScalarExpressionSemantic; diagnostics: ModuleScalarLocalDiagnostic[] } => {
@@ -75,7 +85,7 @@ const typecheck = ({
   const resolveNodeReference = (node: Extract<ScalarExpressionAst, { kind: "reference" }>): ScalarType | null => {
     const found = referenceByStart.get(node.span.start) ?? { name: node.name, span: node.span };
     const resolution = resolveReference(found);
-    resolvedReferences.push({ ...found, target: resolution.target, resolution: resolution.resolution });
+    resolvedReferences.push({ ...found, nameSpan: node.nameSpan, target: resolution.target, resolution: resolution.resolution });
     if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
     return resolution.target ? scalarTypeFromTarget(resolution.target, resolution) : null;
   };
@@ -89,7 +99,7 @@ const typecheck = ({
         const bareReference = resolveBareReference?.({ name: node.raw, span: node.span });
         if (bareReference?.diagnostic) diagnostics.push(bareReference.diagnostic);
         if (bareReference?.target && bareReference.type) {
-          resolvedReferences.push({ name: node.raw, span: node.span, target: bareReference.target, resolution: bareReference.resolution });
+          resolvedReferences.push({ name: node.raw, nameSpan: node.span, span: node.span, target: bareReference.target, resolution: bareReference.resolution });
           return bareReference.type;
         }
         if (bareReference) return null;
@@ -108,14 +118,22 @@ const typecheck = ({
       case "geometryProperty":
         if (!resolveGeometryProperty) {
           diagnostics.push(localIssue("module-geometry-property-reference", node.span, "module の scalar expression では geometry property を解決できません。"));
-          geometryProperties.push({ geometryName: node.elementName, property: node.property, span: node.span, target: null, resolution: "invalid" });
+          geometryProperties.push({ geometryName: node.elementName, property: node.property, elementNameSpan: node.elementNameSpan, propertySpan: node.propertySpan, span: node.span, target: null, resolution: "invalid" });
           return null;
         }
         {
-          const resolution = resolveGeometryProperty({ elementName: node.elementName, property: node.property, span: node.span });
+          const resolution = resolveGeometryProperty({
+            elementName: node.elementName,
+            property: node.property,
+            elementNameSpan: node.elementNameSpan,
+            propertySpan: node.propertySpan,
+            span: node.span
+          });
           geometryProperties.push({
             geometryName: node.elementName,
             property: node.property,
+            elementNameSpan: node.elementNameSpan,
+            propertySpan: node.propertySpan,
             span: node.span,
             target: resolution.target,
             resolution: resolution.resolution
@@ -184,7 +202,7 @@ export const parseAndCheckModuleScalarExpression = ({
   expectedType: ScalarType | null;
   resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
-  resolveGeometryProperty?: (reference: { elementName: string; property: string; span: DslSpan }) => ModuleGeometryPropertyReferenceResolution;
+  resolveGeometryProperty?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
   diagnostics: ModuleScalarLocalDiagnostic[];
 }): ModuleScalarExpressionSemantic | null => {
   const parsed = parseScalarExpression(`${" ".repeat(span.start)}${raw}`, span);

@@ -8,7 +8,7 @@ import {
   dslLinePrintLayoutValueSpans,
   type DslLabeledValueSpan
 } from "./dslValueSpans";
-import { splitDslComment, splitDslTerms } from "./dslTokens";
+import { isBareDslIdentifierChar, splitDslComment, splitDslTerms } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
 import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
 import { coordinateComponent, recordField, recordRemainder, recordSpans, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
@@ -24,6 +24,7 @@ import { numericTypeOptionCompletionContextAt } from "./dslNumericTypeOptionsCom
 import { propertyScalarValueCompletionContext, type PropertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
 import { templateHoleContentSpanAt } from "./dslTemplateHoleCompletionContext";
 import { setCompletionContextAt } from "./dslSetCompletionContext";
+import { dslModuleCompletionContextAt } from "./dslModuleCompletionContext";
 import type { TypedGeometryPropertyCompletionContext } from "./dslTypedGeometryPropertyCompletionContext";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { DslSpan } from "./dslTypes";
@@ -42,6 +43,11 @@ export type DslCompletionContext =
   | { kind: "templateHole"; from: number; to: number; contentSpan: DslSpan }
   | { kind: "setTarget"; from: number; to: number }
   | { kind: "setRhs"; from: number; to: number; expressionSpan: DslSpan; targetName: string; geometryProperty?: TypedGeometryPropertyCompletionContext }
+  | { kind: "moduleCallee"; from: number; to: number }
+  | { kind: "moduleArgumentLabel"; from: number; to: number; argumentIndex: number }
+  | { kind: "moduleArgumentValue"; from: number; to: number; argumentIndex: number }
+  | { kind: "moduleQualifiedMember"; from: number; to: number }
+  | { kind: "moduleReference"; from: number; to: number }
   | null;
 
 /**
@@ -312,6 +318,12 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
   const head = lineHeadContext(code, pos);
   if (head) return head;
 
+  const moduleContext = dslModuleCompletionContextAt(code, pos);
+  if (moduleContext) return moduleContext;
+
+  const qualified = code.slice(0, pos).match(new RegExp(`[^\\s"'#=()[\\]{},;:.]+::[^\\s"'#=()[\\]{},;:.]*$`));
+  if (qualified) return { kind: "moduleQualifiedMember", from: pos - qualified[0].length + qualified[0].indexOf("::") + 2, to: pos };
+
   const callContext = dslCallCompletionContextAt(code, pos);
   if (callContext) return callContext;
 
@@ -398,6 +410,10 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
       parameter
     };
   }
-
+  let moduleReferenceStart = pos;
+  while (moduleReferenceStart > 0 && isBareDslIdentifierChar(code[moduleReferenceStart - 1]) && code[moduleReferenceStart - 1] !== "@") moduleReferenceStart -= 1;
+  if (moduleReferenceStart > 0 && code[moduleReferenceStart - 1] === "@") {
+    return { kind: "moduleReference", from: moduleReferenceStart - 1, to: pos };
+  }
   return null;
 };

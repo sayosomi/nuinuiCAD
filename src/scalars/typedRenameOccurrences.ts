@@ -31,7 +31,8 @@ export type TypedRenameOccurrenceKind =
   | "set-target"
   | "property-binding"
   | "numeric-expression"
-  | "template-hole";
+  | "template-hole"
+  | "module-semantic";
 
 export type TypedRenameOccurrence = {
   readonly kind: TypedRenameOccurrenceKind;

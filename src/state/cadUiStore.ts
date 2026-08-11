@@ -13,6 +13,7 @@ import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import { isGroupExpanded } from "../model/groups";
 import type { FoldTarget, GroupFoldById, GroupFoldState } from "../model/groups";
 import type { BindingId } from "../scalars/bindingCatalog";
+import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
 export type MeasurementPointSlot = "point1" | "point2";
@@ -208,6 +209,7 @@ export type CadUiState = CadElementSelection & {
   showSelectionColorPicker: boolean;
   renameElementPromptTargetId: ElementId | null;
   renameTypedBindingPromptTargetId: BindingId | null;
+  renameModuleSemanticPromptTarget: ModuleSemanticTarget | null;
   showPrintLayout: boolean;
   showPrintPreviewWindow: boolean;
   commandErrorMessage: string | null;
@@ -260,6 +262,7 @@ export type CadUiState = CadElementSelection & {
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
   setRenameElementPromptTargetId: (renameElementPromptTargetId: ElementId | null) => void;
   setRenameTypedBindingPromptTargetId: (renameTypedBindingPromptTargetId: BindingId | null) => void;
+  setRenameModuleSemanticPromptTarget: (target: ModuleSemanticTarget | null) => void;
   setShowPrintLayout: (showPrintLayout: boolean) => void;
   setShowPrintPreviewWindow: (showPrintPreviewWindow: boolean) => void;
   setCommandErrorMessage: (commandErrorMessage: string | null) => void;
@@ -339,6 +342,7 @@ export const initialCadUiState = (): Omit<
   | "setShowSelectionColorPicker"
   | "setRenameElementPromptTargetId"
   | "setRenameTypedBindingPromptTargetId"
+  | "setRenameModuleSemanticPromptTarget"
   | "setShowPrintLayout"
   | "setShowPrintPreviewWindow"
   | "setCommandErrorMessage"
@@ -409,6 +413,7 @@ export const initialCadUiState = (): Omit<
   showSelectionColorPicker: false,
   renameElementPromptTargetId: null,
   renameTypedBindingPromptTargetId: null,
+  renameModuleSemanticPromptTarget: null,
   showPrintLayout: false,
   showPrintPreviewWindow: false,
   commandErrorMessage: null,
@@ -542,6 +547,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),
   setRenameElementPromptTargetId: (renameElementPromptTargetId) => set({ renameElementPromptTargetId }),
   setRenameTypedBindingPromptTargetId: (renameTypedBindingPromptTargetId) => set({ renameTypedBindingPromptTargetId }),
+  setRenameModuleSemanticPromptTarget: (renameModuleSemanticPromptTarget) => set({ renameModuleSemanticPromptTarget }),
   setShowPrintLayout: (showPrintLayout) => set({ showPrintLayout }),
   setShowPrintPreviewWindow: (showPrintPreviewWindow) => set({ showPrintPreviewWindow }),
   setCommandErrorMessage: (commandErrorMessage) => set({ commandErrorMessage }),
