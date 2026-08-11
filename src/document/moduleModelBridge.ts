@@ -27,35 +27,82 @@ const statementUnapplied = (reason: string): { status: "unapplied"; reason: stri
 const sameParameterValue = (left: unknown, right: unknown) =>
   Object.is(left, right) || JSON.stringify(left) === JSON.stringify(right);
 
+const anchorSourceShape = (value: unknown): unknown => {
+  if (!value || typeof value !== "object" || !("mode" in value)) return value;
+  const anchor = value as Record<string, unknown>;
+  switch (anchor.mode) {
+    case "coordinate":
+      return { mode: "coordinate" };
+    case "reference":
+      return { mode: "reference", pointId: anchor.pointId };
+    case "derived":
+      return { mode: "derived", elementId: anchor.elementId, pointKey: anchor.pointKey };
+    case "none":
+      return { mode: "none" };
+    default:
+      return value;
+  }
+};
+
 const parameterKeysChanged = (before: CadElement, after: CadElement) => {
   const keys = new Set([
     ...getParameterDefinitions(before).map((definition) => definition.key),
     ...getParameterDefinitions(after).map((definition) => definition.key),
   ]);
-  return [...keys].filter((key) => !sameParameterValue(getParameterValue(before, key), getParameterValue(after, key)));
+  const changed = [...keys].filter((key) => !sameParameterValue(getParameterValue(before, key), getParameterValue(after, key)));
+  const changedSet = new Set(changed);
+  const syntheticCoordinateParents = new Set(
+    changed
+      .filter((key) => !key.endsWith(":x") && !key.endsWith(":y"))
+      .filter((key) => changedSet.has(`${key}:x`) || changedSet.has(`${key}:y`))
+      .filter((key) => sameParameterValue(
+        anchorSourceShape(getParameterValue(before, key)),
+        anchorSourceShape(getParameterValue(after, key))
+      ))
+  );
+  return changed.filter((key) => !syntheticCoordinateParents.has(key));
 };
 
 const numericLiteral = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const booleanLiteral = /^(?:true|false)$/;
 const nameLiteral = /^(?:[A-Za-z_][A-Za-z0-9_]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')$/;
 
+const literalForValue = (kind: ParameterValueKind, value: unknown): string | null => {
+  switch (kind) {
+    case "number":
+      return typeof value === "number" && Number.isFinite(value) ? `${value}` : null;
+    case "boolean":
+      return typeof value === "boolean" ? `${value}` : null;
+    case "choice":
+    case "color":
+      return typeof value === "string" ? formatDslName(value) : null;
+    case "text":
+      return typeof value === "string" ? quoteDslString(value) : null;
+    case "reference":
+    case "lineEndpointReference":
+    case "lineReference":
+    case "lineReferenceList":
+      return null;
+    default:
+      return null;
+  }
+};
+
 const safeLiteralFor = (
   kind: ParameterValueKind,
   value: unknown,
   sourceValue: string
 ): string | null => {
+  const replacement = literalForValue(kind, value);
+  if (replacement === null) return null;
   switch (kind) {
     case "number":
-      return typeof value === "number" && Number.isFinite(value) && numericLiteral.test(sourceValue)
-        ? `${value}`
-        : null;
+      return numericLiteral.test(sourceValue) ? replacement : null;
     case "boolean":
-      return typeof value === "boolean" && booleanLiteral.test(sourceValue) ? `${value}` : null;
+      return booleanLiteral.test(sourceValue) ? replacement : null;
     case "choice":
     case "color":
-      return typeof value === "string" && nameLiteral.test(sourceValue) && !sourceValue.includes("@")
-        ? formatDslName(value)
-        : null;
+      return nameLiteral.test(sourceValue) && !sourceValue.includes("@") ? replacement : null;
     case "text":
       return typeof value === "string" && /^(["']).*\1$/.test(sourceValue) && !sourceValue.includes("@")
         ? quoteDslString(value)
@@ -120,7 +167,45 @@ const sourceArgumentName = (element: CadElement, parameterKey: string) => {
   return argNameForParameter(element.type, coordinate?.[1] ?? parameterKey);
 };
 
+const statementCallClose = (sourceLines: readonly string[], source: DslStatement): number | null => {
+  const segments = source.physicalSpan.segments;
+  if (segments.length === 0) return null;
+  const sourceText = sourceLines.join("\n");
+  const from = segments[0].from;
+  const to = segments[segments.length - 1].to;
+  const close = sourceText.lastIndexOf(")", to);
+  return close >= from ? close : null;
+};
+
+const insertArgumentEdit = (
+  sourceLines: readonly string[],
+  source: DslStatement,
+  argumentName: string,
+  replacement: string
+): ParameterEditResult => {
+  // Keep insertion conservative for positional payloads: attrs do not carry
+  // enough construction-specific delimiter information to edit those safely.
+  const hasPositionalPayload = Object.keys(source.payloadSpans)
+    .some((key) => !source.attrs.some((attribute) => attribute.key === key));
+  if (source.kind !== "element" || hasPositionalPayload) {
+    return { status: "unapplied", reason: `要素 ${source.name || ""} の省略引数 ${argumentName} は安全に追加できません。` };
+  }
+  const close = statementCallClose(sourceLines, source);
+  if (close === null) {
+    return { status: "unapplied", reason: `要素 ${source.name || ""} の引数リスト終端を解決できません。` };
+  }
+  return {
+    status: "ready",
+    edit: {
+      from: close,
+      to: close,
+      replacement: `${source.attrs.length > 0 ? ", " : ""}${argumentName}: ${replacement}`
+    }
+  };
+};
+
 const parameterEditFor = (
+  sourceLines: readonly string[],
   source: DslStatement,
   after: CadElement,
   parameterKey: string
@@ -132,12 +217,22 @@ const parameterEditFor = (
   const attribute = source.attrs.find((candidate) => candidate.key === argumentName);
   const physical = attribute?.physicalSpan;
   const segment = singlePhysicalSegment(physical);
-  if (!attribute || !physical || !segment || physical.sourceRevision !== source.sourceRevision) {
-    return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${argumentName} source spanを解決できません。` };
+
+  if (parameterKey === "activity") {
+    if (!attribute || !physical || !segment || physical.sourceRevision !== source.sourceRevision) {
+      return insertArgumentEdit(sourceLines, source, argumentName, after.activity);
+    }
+    if (!/^(?:visible|hidden|disabled)$/.test(attribute.value)) {
+      return { status: "unapplied", reason: `要素 ${after.name || after.id} のstateはsource-owned expressionです。` };
+    }
+    return { status: "ready", edit: { from: segment.from, to: segment.to, replacement: after.activity } };
   }
 
   const coordinate = parameterKey.match(/^(.+):(x|y)$/);
   if (coordinate) {
+    if (!attribute || !physical || !segment || physical.sourceRevision !== source.sourceRevision) {
+      return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${argumentName} source spanを解決できません。` };
+    }
     const coordinateSpan = coordinateComponent(attribute.value, { start: 0, end: attribute.value.length }, coordinate[2] as "x" | "y");
     if (!coordinateSpan) {
       return { status: "unapplied", reason: `要素 ${after.name || after.id} のgeometry referenceをsourceへ逆変換しません。` };
@@ -163,7 +258,15 @@ const parameterEditFor = (
   if (!definition) {
     return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${parameterKey} source parameter定義を解決できません。` };
   }
-  const replacement = safeLiteralFor(definition.kind, getParameterValue(after, parameterKey), attribute.value);
+  const value = getParameterValue(after, parameterKey);
+  if (!attribute || !physical || !segment || physical.sourceRevision !== source.sourceRevision) {
+    const replacement = literalForValue(definition.kind, value);
+    if (replacement === null) {
+      return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${parameterKey} は省略引数として安全に追加できません。` };
+    }
+    return insertArgumentEdit(sourceLines, source, argumentName, replacement);
+  }
+  const replacement = safeLiteralFor(definition.kind, value, attribute.value);
   if (replacement === null) {
     return { status: "unapplied", reason: `要素 ${after.name || after.id} の ${parameterKey} はgeometry referenceまたはsource-owned expressionです。` };
   }
@@ -187,13 +290,33 @@ const serializeOwnedElement = (
 
   const changedKeys = parameterKeysChanged(before, after);
   if (before.activity !== after.activity) changedKeys.push("activity");
-  if (changedKeys.length === 0) return { status: "noop" };
+  if (changedKeys.length === 0) {
+    if (!sameParameterValue(before, after)) {
+      return { status: "unapplied", reason: `要素 ${after.name || after.id} の未対応model差分をsourceへ適用できません。` };
+    }
+    return { status: "noop" };
+  }
 
   const edits: CharacterEdit[] = [];
   for (const parameterKey of changedKeys) {
-    const result = parameterEditFor(source, after, parameterKey);
+    const result = parameterEditFor(compiled.sourceLines, source, after, parameterKey);
     if (result.status === "unapplied") return result;
     edits.push(result.edit);
+  }
+  const close = statementCallClose(compiled.sourceLines, source);
+  const insertions = close === null
+    ? []
+    : edits.filter((edit) => edit.from === close && edit.to === close);
+  if (close !== null && insertions.length > 1) {
+    const insertionText = insertions
+      .map((edit) => source.attrs.length > 0 ? edit.replacement.replace(/^,\s*/, "") : edit.replacement)
+      .join(", ");
+    const nonInsertions = edits.filter((edit) => edit.from !== close || edit.to !== close);
+    edits.splice(0, edits.length, ...nonInsertions, {
+      from: close,
+      to: close,
+      replacement: `${source.attrs.length > 0 ? ", " : ""}${insertionText}`
+    });
   }
   const patched = applyCharacterEdits(compiled.sourceLines, owner.statement, edits);
   return patched;

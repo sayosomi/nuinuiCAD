@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
 import { effectiveElementActivityById } from "../model/elementActivity";
+import { setParameterValue } from "../parameters/parameterAccess";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 
 const moduleSource = [
@@ -39,6 +40,46 @@ const pointParameterModuleSource = [
   "}",
   "module FirstPoint = PointModule(p: BasePoint)",
   "module SecondPoint = PointModule(p: OtherPoint)"
+].join("\n");
+
+const omittedLiteralModuleSource = [
+  "nui 3",
+  "module M() {",
+  "  point P = coordinate()",
+  "}",
+  "module First = M()",
+  "module Second = M()"
+].join("\n");
+
+const multilineOmittedLiteralModuleSource = [
+  "nui 3",
+  "module M() {",
+  "  point P = coordinate(",
+  "    # keep this source comment",
+  "  )",
+  "}",
+  "module First = M()",
+  "module Second = M()"
+].join("\n");
+
+const coordinateAnchorModuleSource = [
+  "nui 3",
+  "module M() {",
+  "  line L = segment(start: (0, 0), end: (10, 0))",
+  "}",
+  "module First = M()",
+  "module Second = M()"
+].join("\n");
+
+const placementModuleSource = [
+  "nui 3",
+  "module M() {",
+  "  point A = coordinate(x: 0, y: 0)",
+  "  point B = coordinate(x: 10, y: 0)",
+  "  point D = between(start: A, end: B, ratio: 0.5)",
+  "}",
+  "module First = M()",
+  "module Second = M()"
 ].join("\n");
 
 const seed = (source: string) => {
@@ -125,6 +166,116 @@ describe("module source-owned model mutation", () => {
       { mode: "reference", pointId: state.elements.find((element) => element.name === "BasePoint")!.id },
       { mode: "reference", pointId: state.elements.find((element) => element.name === "OtherPoint")!.id }
     ]);
+  });
+
+  it("inserts an omitted safe literal argument without flattening the module", () => {
+    seed(omittedLiteralModuleSource);
+    const first = elementNamed("First")!;
+    const firstPoint = elementNamed("P", first.id)! as Extract<CadElement, { type: "freePoint" }>;
+
+    useCadDocumentStore.getState().updateElement(firstPoint.id, { x: 7 });
+
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("point P = coordinate(x: 7)");
+    expect(state.sourceText).toContain("module First = M()");
+    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.sourceText.match(/point P/g)).toHaveLength(1);
+    expect(state.elements.filter((element) => element.name === "P").map((element) => (element as Extract<CadElement, { type: "freePoint" }>).x)).toEqual([7, 7]);
+  });
+
+  it("inserts an omitted argument in a multiline call while preserving comments", () => {
+    seed(multilineOmittedLiteralModuleSource);
+    const first = elementNamed("First")!;
+    const firstPoint = elementNamed("P", first.id)!;
+
+    useCadDocumentStore.getState().updateElement(firstPoint.id, { x: 7 });
+
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("# keep this source comment");
+    expect(state.sourceText).toContain("x: 7");
+    expect(state.sourceText).toContain("module First = M()");
+    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.elements.filter((element) => element.name === "P").map((element) => (element as Extract<CadElement, { type: "freePoint" }>).x)).toEqual([7, 7]);
+  });
+
+  it("patches module-body activity in the definition and rematerializes every call", () => {
+    seed(moduleSource);
+    const first = elementNamed("First")!;
+    const firstPoint = elementNamed("P", first.id)!;
+
+    useCadDocumentStore.getState().updateElement(firstPoint.id, { activity: "hidden" });
+    let state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("point P = coordinate(x: 1, y: 2, state: hidden)");
+    expect(state.sourceText).toContain("module First = M()");
+    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.elements.filter((element) => element.name === "P").map((element) => element.activity)).toEqual(["hidden", "hidden"]);
+
+    const hiddenPoint = elementNamed("P", first.id)!;
+    useCadDocumentStore.getState().updateElement(hiddenPoint.id, { activity: "disabled" });
+    state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("state: disabled");
+    expect(state.elements.filter((element) => element.name === "P").map((element) => element.activity)).toEqual(["disabled", "disabled"]);
+
+    const disabledPoint = elementNamed("P", first.id)!;
+    useCadDocumentStore.getState().updateElement(disabledPoint.id, { activity: "visible" });
+    state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("state: visible");
+    expect(state.elements.filter((element) => element.name === "P").map((element) => element.activity)).toEqual(["visible", "visible"]);
+  });
+
+  it("patches only a coordinate component when the anchor parent is synthetic", () => {
+    seed(coordinateAnchorModuleSource);
+    const first = elementNamed("First")!;
+    const firstLine = elementNamed("L", first.id)!;
+    const edited = setParameterValue(firstLine, "startPoint:x", 5);
+    const result = useCadDocumentStore.getState().commitDocumentChange({
+      elements: useCadDocumentStore.getState().elements.map((element) => element.id === firstLine.id ? edited : element)
+    });
+
+    expect(result).toEqual({ status: "applied" });
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("start: (5, 0)");
+    expect(state.sourceText).toContain("end: (10, 0)");
+    expect(state.sourceText.match(/line L/g)).toHaveLength(1);
+    expect(state.sourceText).toContain("module First = M()");
+    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.elements.filter((element) => element.name === "L").map((element) => (element as Extract<CadElement, { type: "line" }>).startPoint)).toEqual([
+      { mode: "coordinate", x: 5, y: 0 },
+      { mode: "coordinate", x: 5, y: 0 }
+    ]);
+  });
+
+  it("keeps safe synthetic placement edits source-owned", () => {
+    seed(placementModuleSource);
+    const first = elementNamed("First")!;
+    const firstDivision = elementNamed("D", first.id)!;
+    useCadDocumentStore.getState().updateElement(firstDivision.id, { placement: { kind: "ratio", value: 0.75 } } as Partial<CadElement>);
+
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText).toContain("point D = between(start: A, end: B, ratio: 0.75)");
+    expect(state.sourceText).toContain("module First = M()");
+    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.elements.filter((element) => element.name === "D").map((element) => (element as Extract<CadElement, { type: "divisionPoint" }>).placement)).toEqual([
+      { kind: "ratio", value: 0.75 },
+      { kind: "ratio", value: 0.75 }
+    ]);
+  });
+
+  it("rejects a module geometry reference change without flattening source", () => {
+    seed(geometryParameterModuleSource);
+    const before = useCadDocumentStore.getState().sourceText;
+    const first = elementNamed("BaseInstance")!;
+    const copy = elementNamed("Copy", first.id)!;
+    const replacement = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
+    const edited = setParameterValue(copy, "baseLineIds", [replacement.id]);
+    const result = useCadDocumentStore.getState().commitDocumentChange({
+      elements: useCadDocumentStore.getState().elements.map((element) => element.id === copy.id ? edited : element)
+    });
+
+    expect(result).toEqual({ status: "rejected", reason: "invalid-change" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(before);
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("sources: [Base]");
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
   });
 
   it("keeps module syntax while editing an ordinary geometry outside the module", () => {
