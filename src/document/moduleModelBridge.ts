@@ -354,7 +354,19 @@ const serializeOwnedElement = (
     return { status: "unapplied", reason: `要素 ${after.name || after.id} の構造変更はModule source bridgeで扱えません。` };
   }
 
-  const changedKeys = parameterKeysChanged(before, after);
+  const rawChangedKeys = parameterKeysChanged(before, after);
+  // A coordinate anchor exposes synthetic `:x`/`:y` inspector parameters.
+  // When a pick adopts a canonical Module reference, the anchor root changes
+  // from coordinate to reference and only that root source span is authored;
+  // attempting to patch the now-nonexistent coordinate children would reject
+  // the otherwise valid semantic reference adoption.
+  const changedKeys = rawChangedKeys.filter((key) => {
+    const coordinate = key.match(/^(.+):(x|y)$/);
+    if (!coordinate || !rawChangedKeys.includes(coordinate[1])) return true;
+    const nextAnchor = getParameterValue(after, coordinate[1]);
+    return !nextAnchor || typeof nextAnchor !== "object" || !("mode" in nextAnchor) ||
+      (nextAnchor as { mode?: unknown }).mode === "coordinate";
+  });
   if (before.activity !== after.activity) changedKeys.push("activity");
   if (changedKeys.length === 0) {
     if (!sameParameterValue(before, after)) {

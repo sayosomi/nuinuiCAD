@@ -90,10 +90,14 @@ export const ExpressionInsertTray = ({
   const setReferenceHelperPosition = useCadUiStore((state) => state.setReferenceHelperPosition);
   const moduleMaterialization = useCadDocumentStore((state) => state.doc.moduleMaterialization);
   const moduleSemanticAnalysis = useCadDocumentStore((state) => state.doc.moduleSemanticAnalysis);
+  const sourceLexicalNamespace = useCadDocumentStore((state) => state.doc.sourceLexicalNamespace);
+  const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap?.byElementId);
   const moduleSemanticContext = useMemo(() => ({
     moduleMaterialization,
-    moduleSemanticAnalysis
-  }), [moduleMaterialization, moduleSemanticAnalysis]);
+    moduleSemanticAnalysis,
+    sourceLexicalNamespace,
+    statementInfoByElementId
+  }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
   const [dragState, setDragState] = useState<{
     pointerId: number;
     startX: number;

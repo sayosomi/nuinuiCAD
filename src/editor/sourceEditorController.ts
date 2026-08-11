@@ -1245,7 +1245,9 @@ export class SourceEditorController implements SourceEditorHandle {
         : undefined,
       moduleSemanticContext: {
         moduleMaterialization: documentState.doc.moduleMaterialization,
-        moduleSemanticAnalysis: documentState.doc.moduleSemanticAnalysis
+        moduleSemanticAnalysis: documentState.doc.moduleSemanticAnalysis,
+        sourceLexicalNamespace: documentState.doc.sourceLexicalNamespace,
+        statementInfoByElementId: documentState.doc.statementMap?.byElementId
       }
     });
   }

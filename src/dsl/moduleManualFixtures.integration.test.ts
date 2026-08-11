@@ -179,15 +179,17 @@ describe("Module v1 manual fixtures", () => {
       referenceElements: children,
       moduleSemanticContext: {
         moduleMaterialization: compiled.moduleMaterialization,
-        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis
+        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+        sourceLexicalNamespace: compiled.sourceLexicalNamespace,
+        statementInfoByElementId: compiled.statementMap!.byElementId
       }
     });
     expect(lineCandidates.map((candidate) => candidate.elementId)).toEqual(
       exportedChildren.map((element) => element.id)
     );
     expect(lineCandidates.flatMap((candidate) => candidate.options)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sourceReference: "写し::先に縫う" }),
-      expect.objectContaining({ sourceReference: "写し::後で縫う" })
+      expect.objectContaining({ sourceReference: { base: "写し::先に縫う" } }),
+      expect.objectContaining({ sourceReference: { base: "写し::後で縫う" } })
     ]));
 
     useCadDocumentStore.setState(initialCadDocumentState());
@@ -208,8 +210,8 @@ describe("Module v1 manual fixtures", () => {
     const storePrivateId = storeCompiled.document!.elements.find((element) => element.name === "脇コピー")!.id;
     expect(commandCandidates.some((candidate) => candidate.elementId === storePrivateId)).toBe(false);
     expect(commandCandidates.flatMap((candidate) => candidate.options)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sourceReference: "写し::先に縫う" }),
-      expect.objectContaining({ sourceReference: "写し::後で縫う" })
+      expect.objectContaining({ sourceReference: { base: "写し::先に縫う" } }),
+      expect.objectContaining({ sourceReference: { base: "写し::後で縫う" } })
     ]));
 
     const privateId = children.find((element) => element.name === "脇コピー")!.id;
@@ -243,7 +245,9 @@ describe("Module v1 manual fixtures", () => {
       referenceElements: children,
       moduleSemanticContext: {
         moduleMaterialization: compiled.moduleMaterialization,
-        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis
+        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+        sourceLexicalNamespace: compiled.sourceLexicalNamespace,
+        statementInfoByElementId: compiled.statementMap!.byElementId
       }
     });
     expect(pointCandidates.map((candidate) => candidate.elementId)).toEqual(
@@ -262,7 +266,9 @@ describe("Module v1 manual fixtures", () => {
       },
       moduleSemanticContext: {
         moduleMaterialization: compiled.moduleMaterialization,
-        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis
+        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+        sourceLexicalNamespace: compiled.sourceLexicalNamespace,
+        statementInfoByElementId: compiled.statementMap!.byElementId
       }
     });
     expect(numericCandidates.some((candidate) => candidate.elementId === privateId)).toBe(false);
@@ -276,7 +282,9 @@ describe("Module v1 manual fixtures", () => {
       evaluation: result,
       moduleSemanticContext: {
         moduleMaterialization: compiled.moduleMaterialization,
-        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis
+        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+        sourceLexicalNamespace: compiled.sourceLexicalNamespace,
+        statementInfoByElementId: compiled.statementMap!.byElementId
       }
     });
     expect(propertyOptions).toEqual([]);
@@ -291,7 +299,9 @@ describe("Module v1 manual fixtures", () => {
       activeNumericReferencePickTarget: null,
       moduleSemanticContext: {
         moduleMaterialization: compiled.moduleMaterialization,
-        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis
+        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+        sourceLexicalNamespace: compiled.sourceLexicalNamespace,
+        statementInfoByElementId: compiled.statementMap!.byElementId
       }
     });
     expect(allCandidates.some((candidate) => candidate.elementId === instance!.id)).toBe(false);
@@ -317,6 +327,107 @@ describe("Module v1 manual fixtures", () => {
       "point Root = offset(from: Call::Private, dx: 1, dy: 1)"
     ].join("\n"));
     expect(errorsOf(privateReference).some((diagnostic) => diagnostic.code === "module-private-member")).toBe(true);
+  });
+
+  it("uses source lexical scope for private geometry and nested export candidates", () => {
+    const source = [
+      "nui 3",
+      "module Inner() {",
+      "  export line \"Out.dot\" = segment(start: (0, 0), end: (10, 0))",
+      "  export point \"Point.dot\" = coordinate(x: 0, y: 0)",
+      "  point \"PrivateStart.dot\" = coordinate(x: 0, y: 0)",
+      "  point \"PrivateEnd.dot\" = coordinate(x: 5, y: 0)",
+      "  line ForwardTarget = segment(start: (0, 0), end: (3, 0))",
+      "  line \"Private.dot\" = segment(start: (0, 0), end: (5, 0))",
+      "  line PrivateUse = segment(start: (0, 0), end: (3, 0))",
+      "  group OuterScope {",
+      "    line ScopedPrivate = segment(start: (0, 0), end: (5, 0))",
+      "    group InnerScope {",
+      "      line ScopedUse = segment(start: (0, 0), end: (3, 0))",
+      "    }",
+      "  }",
+      "  group SiblingScope {",
+      "    line SiblingPrivate = segment(start: (0, 0), end: (5, 0))",
+      "    line SiblingUse = segment(start: (0, 0), end: (3, 0))",
+      "  }",
+      "}",
+      "module Outer() {",
+      "  module \"First.dot\" = Inner()",
+      "  module \"Second.dot\" = Inner()",
+      "  line OuterTarget = segment(start: (0, 0), end: (3, 0))",
+      "}",
+      "module OuterCall = Outer()",
+      "module \"RootInst.dot\" = Inner()",
+      "line RootTarget = segment(start: (0, 0), end: (3, 0))"
+    ].join("\n");
+    const compiled = compileSource(source);
+    expect(errorsOf(compiled)).toEqual([]);
+    const result = evaluateFixture(compiled);
+    expect(result.errors).toEqual([]);
+    const elements = compiled.document!.elements;
+    const context = {
+      moduleMaterialization: compiled.moduleMaterialization,
+      moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+      sourceLexicalNamespace: compiled.sourceLexicalNamespace,
+      statementInfoByElementId: compiled.statementMap!.byElementId
+    };
+    const byNameAndParent = (name: string, parentName: string) => {
+      const parent = elements.find((element) => element.name === parentName && element.type === "moduleInstance");
+      return elements.find((element) => element.name === name && element.parentGroupId === parent?.id)!;
+    };
+    const firstPrivate = byNameAndParent("Private.dot", "First.dot");
+    const secondPrivate = byNameAndParent("Private.dot", "Second.dot");
+    const firstPrivateUse = byNameAndParent("PrivateUse", "First.dot");
+    const ancestry = (element: typeof elements[number]) => {
+      const names: string[] = [];
+      let parentId = element.parentGroupId;
+      while (parentId) {
+        const parent = elements.find((candidate) => candidate.id === parentId);
+        if (!parent) break;
+        names.push(parent.name);
+        parentId = parent.parentGroupId;
+      }
+      return names;
+    };
+    const firstScopedPrivate = elements.find((element) => element.name === "ScopedPrivate" && ancestry(element).includes("First.dot"))!;
+    const firstScopedUse = elements.find((element) => element.name === "ScopedUse" && ancestry(element).includes("First.dot"))!;
+    const firstSiblingPrivate = elements.find((element) => element.name === "SiblingPrivate" && ancestry(element).includes("First.dot"))!;
+    const firstSiblingUse = elements.find((element) => element.name === "SiblingUse" && ancestry(element).includes("First.dot"))!;
+    const outerTarget = elements.find((element) => element.name === "OuterTarget")!;
+    const rootTarget = elements.find((element) => element.name === "RootTarget")!;
+    const lineCandidatesFor = (targetElementId: string) => pickCandidates(elements, result, {
+      activePointPickTarget: null,
+      activeLinePickTarget: { elementId: targetElementId, parameterKey: "baseLines" },
+      activeNumericReferencePickTarget: null,
+      referenceElements: elements,
+      moduleSemanticContext: context
+    });
+    const candidateIdsFor = (targetElementId: string) => new Set(lineCandidatesFor(targetElementId).map((candidate) => candidate.elementId));
+
+    // Same materialized instance is not sufficient: a forward private source
+    // is not visible, while the authored private source is visible afterwards.
+    const firstCandidates = candidateIdsFor(firstPrivateUse.id);
+    expect(firstCandidates.has(firstPrivate.id)).toBe(true);
+    const forwardCandidates = candidateIdsFor(byNameAndParent("ForwardTarget", "RootInst.dot").id);
+    expect(forwardCandidates.has(byNameAndParent("Private.dot", "RootInst.dot").id)).toBe(false);
+    const siblingCandidates = candidateIdsFor(secondPrivate.id);
+    expect(siblingCandidates.has(firstPrivate.id)).toBe(false);
+    expect(candidateIdsFor(firstScopedUse.id).has(firstScopedPrivate.id)).toBe(true);
+    expect(candidateIdsFor(firstSiblingUse.id).has(firstScopedPrivate.id)).toBe(false);
+    expect(candidateIdsFor(firstSiblingUse.id).has(firstSiblingPrivate.id)).toBe(true);
+
+    // Nested export is visible in the caller Module body, but neither nested
+    // child nor private geometry leaks to the root document.
+    const outerCandidates = candidateIdsFor(outerTarget.id);
+    const firstExport = byNameAndParent("Out.dot", "First.dot");
+    const rootExport = byNameAndParent("Out.dot", "RootInst.dot");
+    expect(outerCandidates.has(firstExport.id)).toBe(true);
+    expect(outerCandidates.has(firstPrivate.id)).toBe(false);
+    expect(outerCandidates.has(rootExport.id)).toBe(false);
+    const rootCandidates = candidateIdsFor(rootTarget.id);
+    expect(rootCandidates.has(rootExport.id)).toBe(true);
+    expect(rootCandidates.has(firstExport.id)).toBe(false);
+    expect(rootCandidates.has(firstPrivate.id)).toBe(false);
   });
 
   it("adopts an exported line from the command pick path as canonical source syntax", () => {
@@ -346,12 +457,74 @@ describe("Module v1 manual fixtures", () => {
     const candidates = activePickCandidates(result);
     const exported = candidates.flatMap((candidate) => candidate.options
       .map((option) => ({ candidate, option }))
-      .filter(({ option }) => option.kind === "line" && option.sourceReference === "I::Out"))[0];
+      .filter(({ option }) => option.kind === "line" && option.sourceReference?.base === "I::Out"))[0];
     expect(exported?.option).toBeDefined();
     if (!exported) return;
     expect(applyPickReference(pickRefForOption(exported.candidate.elementId, exported.option), result)).toBe(true);
     finishLinePick();
     expect(useCadDocumentStore.getState().sourceText).toContain("I::Out");
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
+    expect(errorsOf(compileSource(useCadDocumentStore.getState().sourceText))).toEqual([]);
+  });
+
+  it("adopts quoted Module exports without splitting dots in source references", () => {
+    const source = [
+      "nui 3",
+      "module \"M.dot\"() {",
+      "  export line \"Out.dot\" = segment(start: (0, 0), end: (10, 0))",
+      "  export point \"Point.dot\" = coordinate(x: 0, y: 0)",
+      "}",
+      "module \"I.dot\" = \"M.dot\"()",
+      "line Base = segment(start: (0, 0), end: (5, 0))",
+      "line LineUse = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])",
+      "line PointUse = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])"
+    ].join("\n");
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.getState().commitText(source, "test");
+    const compiled = useCadDocumentStore.getState().doc as ReturnType<typeof compileFixture>;
+    expect(errorsOf(compiled)).toEqual([]);
+    const result = evaluateFixture(compiled);
+    const lineUse = compiled.document!.elements.find((element) => element.name === "LineUse")!;
+    const pointUse = compiled.document!.elements.find((element) => element.name === "PointUse")!;
+
+    useCadUiStore.setState({
+      activePointPickTarget: null,
+      activeNumericReferencePickTarget: null,
+      activeLinePickTarget: { elementId: lineUse.id, parameterKey: "baseLineIds" }
+    });
+    const lineCandidates = activePickCandidates(result);
+    const quotedExportBase = '"I.dot"::"Out.dot"';
+    const quotedLine = lineCandidates.flatMap((candidate) => candidate.options
+      .map((option) => ({ candidate, option }))
+      .filter(({ option }) => option.kind === "line" && option.sourceReference?.base === quotedExportBase))[0];
+    expect(quotedLine?.option).toBeDefined();
+    if (!quotedLine) return;
+    expect(applyPickReference(pickRefForOption(quotedLine.candidate.elementId, quotedLine.option), result)).toBe(true);
+    finishLinePick();
+    expect(useCadDocumentStore.getState().sourceText).toContain('"I.dot"::"Out.dot"');
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
+
+    const afterLine = useCadDocumentStore.getState().doc as ReturnType<typeof compileFixture>;
+    expect(errorsOf(afterLine)).toEqual([]);
+    useCadUiStore.setState({
+      activePointPickTarget: { elementId: pointUse.id, parameterKey: "startPoint" },
+      activeNumericReferencePickTarget: null,
+      activeLinePickTarget: null
+    });
+    const pointCandidates = activePickCandidates(evaluateFixture(afterLine));
+    const quotedEndpoint = pointCandidates.flatMap((candidate) => candidate.options
+      .map((option) => ({ candidate, option }))
+      .filter(({ option }) => option.kind === "point" &&
+        option.sourceReference?.base === quotedExportBase &&
+        option.sourceReference.pointKey === "start"))[0];
+    expect(quotedEndpoint?.option).toBeDefined();
+    if (!quotedEndpoint) return;
+    expect(applyPickReference(
+      pickRefForOption(quotedEndpoint.candidate.elementId, quotedEndpoint.option),
+      evaluateFixture(afterLine)
+    )).toBe(true);
+    expect(useCadDocumentStore.getState().sourceText).toContain('startPoint: "I.dot"::"Out.dot".start');
     expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
     expect(errorsOf(compileSource(useCadDocumentStore.getState().sourceText))).toEqual([]);
   });

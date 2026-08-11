@@ -23,8 +23,12 @@ import {
   selectedPickOption,
   type PickOption
 } from "../model/pickCandidates";
+import {
+  pointAnchorForSourceReference,
+  sourceReferenceText
+} from "../model/moduleSemanticCandidateBoundary";
 import { findPickOptionByRef, type PickRef } from "../model/pickReferences";
-import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
+import { referenceAnchor } from "../model/pointAnchors";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -459,7 +463,9 @@ export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
     referenceElements: commandLinePlacement?.referenceElements,
     moduleSemanticContext: {
       moduleMaterialization: doc.moduleMaterialization,
-      moduleSemanticAnalysis: doc.moduleSemanticAnalysis
+      moduleSemanticAnalysis: doc.moduleSemanticAnalysis,
+      sourceLexicalNamespace: doc.sourceLexicalNamespace,
+      statementInfoByElementId: doc.statementMap?.byElementId
     }
   });
 };
@@ -649,17 +655,8 @@ export const startEndpointAndPointPick = (
 export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pickedPointAnchor" | "pickedPointSourceReference">) => {
   const anchor = context?.pickedPointAnchor ?? (context?.pickedPointId ? referenceAnchor(context.pickedPointId) : null);
   if (!anchor) return;
-  const sourceAnchor = context?.pickedPointSourceReference
-    ? context.pickedPointSourceReference.includes(".")
-      ? (() => {
-          const separator = context.pickedPointSourceReference!.lastIndexOf(".");
-          return derivedAnchor(
-            context.pickedPointSourceReference!.slice(0, separator),
-            context.pickedPointSourceReference!.slice(separator + 1)
-          );
-        })()
-      : referenceAnchor(context.pickedPointSourceReference)
-    : anchor;
+  const sourceReference = context?.pickedPointSourceReference;
+  const sourceAnchor = sourceReference ? pointAnchorForSourceReference(sourceReference) : anchor;
   if (applyTemplatePickedPoint(anchor)) return;
   const { activePointPickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
@@ -702,9 +699,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
         anchor
       });
       if (endpoint) {
-        const sourceLineId = context?.pickedPointSourceReference?.includes(".")
-          ? context.pickedPointSourceReference.slice(0, context.pickedPointSourceReference.lastIndexOf("."))
-          : context?.pickedPointSourceReference;
+        const sourceLineId = context?.pickedPointSourceReference?.base;
         fillCommandLineCurrentStep(sourceLineId ? { ...endpoint, lineId: sourceLineId } : endpoint);
       }
       return;
@@ -799,9 +794,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
               context?.pickedPointSourceReference
                 ? {
                     ...endpoint,
-                    lineId: context.pickedPointSourceReference.includes(".")
-                      ? context.pickedPointSourceReference.slice(0, context.pickedPointSourceReference.lastIndexOf("."))
-                      : context.pickedPointSourceReference
+                    lineId: context.pickedPointSourceReference.base
                   }
                 : endpoint
             )
@@ -942,6 +935,7 @@ export const startLineAndPointPick = (
 export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | "pickedLineSourceReference">) => {
   const pickedLineId = context?.pickedLineId;
   if (!pickedLineId) return;
+  const sourceReference = sourceReferenceText(context?.pickedLineSourceReference ?? null);
   if (applyTemplatePickedLine(pickedLineId)) return;
   const { activeLinePickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
@@ -973,15 +967,15 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | 
       : null;
     if (!normalizedPickedLineId || !pickedLine || !isLineLikeElement(pickedLine)) return;
     if (commandLineStep.kind === "line") {
-      fillCommandLineCurrentStep(context?.pickedLineSourceReference ?? normalizedPickedLineId);
+      fillCommandLineCurrentStep(sourceReference ?? normalizedPickedLineId);
       return;
     }
     const draftLineIds = activeLinePickTarget.draftLineIds ?? [];
     useCadUiStore.getState().setActiveLinePickTarget({
       ...activeLinePickTarget,
-      draftLineIds: draftLineIds.includes(context?.pickedLineSourceReference ?? normalizedPickedLineId)
-        ? draftLineIds.filter((id) => id !== (context?.pickedLineSourceReference ?? normalizedPickedLineId))
-        : [...draftLineIds, context?.pickedLineSourceReference ?? normalizedPickedLineId]
+      draftLineIds: draftLineIds.includes(sourceReference ?? normalizedPickedLineId)
+        ? draftLineIds.filter((id) => id !== (sourceReference ?? normalizedPickedLineId))
+        : [...draftLineIds, sourceReference ?? normalizedPickedLineId]
     });
     return;
   }
@@ -996,7 +990,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | 
     ) return;
     useCadUiStore.getState().setActiveMeasurementInsertTarget({
       ...current,
-      lineId: context?.pickedLineSourceReference ?? pickedLine.id
+      lineId: sourceReference ?? pickedLine.id
     });
     useCadUiStore.getState().setActiveLinePickTarget(null);
     insertSelectedMeasurement({
@@ -1041,7 +1035,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | 
           ? setParameterValue(
               targetElement,
               activeLinePickTarget.parameterKey,
-              context?.pickedLineSourceReference ?? normalizedPickedLineId
+              sourceReference ?? normalizedPickedLineId
             )
           : element
       )
@@ -1071,7 +1065,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | 
 
   if (!currentLineIds) return;
   const draftLineIds = activeLinePickTarget.draftLineIds ?? currentLineIds;
-  const adoptedLineId = context?.pickedLineSourceReference ?? normalizedPickedLineId;
+  const adoptedLineId = sourceReference ?? normalizedPickedLineId;
   useCadUiStore.getState().setActiveLinePickTarget({
     ...activeLinePickTarget,
     draftLineIds: draftLineIds.includes(adoptedLineId)

@@ -146,10 +146,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const documentElements = useCadDocumentStore((state) => state.elements);
   const moduleMaterialization = useCadDocumentStore((state) => state.doc.moduleMaterialization);
   const moduleSemanticAnalysis = useCadDocumentStore((state) => state.doc.moduleSemanticAnalysis);
+  const sourceLexicalNamespace = useCadDocumentStore((state) => state.doc.sourceLexicalNamespace);
+  const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap?.byElementId);
   const moduleSemanticContext = useMemo(() => ({
     moduleMaterialization,
-    moduleSemanticAnalysis
-  }), [moduleMaterialization, moduleSemanticAnalysis]);
+    moduleSemanticAnalysis,
+    sourceLexicalNamespace,
+    statementInfoByElementId
+  }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
   const palette = useCadDocumentStore((state) => state.palette);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);

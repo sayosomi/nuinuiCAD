@@ -43,6 +43,9 @@ import {
   isSemanticGeometryCandidateAllowed,
   sourceReferenceForAnchor,
   sourceReferenceForElement,
+  sourceReferenceForRuntimeElement,
+  sourceReferenceText,
+  type CanonicalGeometrySourceReference,
   type ModuleSemanticCandidateContext
 } from "./moduleSemanticCandidateBoundary";
 
@@ -51,13 +54,13 @@ export type PickOption =
       kind: "point";
       label: string;
       anchor: PointAnchor;
-      sourceReference?: string;
+      sourceReference?: CanonicalGeometrySourceReference;
     }
   | {
       kind: "line";
       label: string;
       lineId: ElementId;
-      sourceReference?: string;
+      sourceReference?: CanonicalGeometrySourceReference;
     }
   | {
       kind: "numericReference";
@@ -209,8 +212,7 @@ const pointCandidates = (
           ? sourceReferenceForAnchor({
               anchor: referenceAnchor(candidate.geometry.elementId),
               targetElementId: activePointPickTarget.elementId,
-              context: moduleSemanticContext,
-              fallbackSourceName: candidate.templateElement.name
+              context: moduleSemanticContext
             })
           : null;
         options.push({
@@ -226,8 +228,7 @@ const pointCandidates = (
               ? sourceReferenceForAnchor({
                   anchor: point.anchor,
                   targetElementId: activePointPickTarget.elementId,
-                  context: moduleSemanticContext,
-                  fallbackSourceName: candidate.templateElement.name
+                  context: moduleSemanticContext
                 })
               : null;
             return {
@@ -300,16 +301,16 @@ const lineCandidates = (
         isEnabledPickSource(evaluation, candidate.geometry.elementId) &&
         (activeLinePickTarget.draftLineIds !== undefined ||
           (!selectedLineIds.has(candidate.templateElement.id) &&
-            !selectedLineIds.has(sourceReferenceForElement({
-              element: candidate.templateElement,
+            !selectedLineIds.has(sourceReferenceText(sourceReferenceForRuntimeElement({
+              runtimeElementId: candidate.templateElement.id,
               targetElementId: activeLinePickTarget.elementId,
               context: moduleSemanticContext ?? {}
-            }) ?? "")))
+            })) ?? "")))
     )
     .map((candidate) => {
       const sourceReference = moduleSemanticContext
-        ? sourceReferenceForElement({
-            element: candidate.templateElement,
+        ? sourceReferenceForRuntimeElement({
+            runtimeElementId: candidate.templateElement.id,
             targetElementId: activeLinePickTarget.elementId,
             context: moduleSemanticContext
           })
