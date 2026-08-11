@@ -8,7 +8,6 @@ import { useCadDocumentStore } from "./cadDocumentStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import type { CommandLineSession } from "../commands/commandLineSession";
 import type { SourceCreationInsertion } from "../commands/sourceCreationInsertion";
-import type { ActiveTemplateInsertion } from "../templates/templateInsertionMode";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import { isGroupExpanded } from "../model/groups";
 import type { FoldTarget, GroupFoldById, GroupFoldState } from "../model/groups";
@@ -23,8 +22,8 @@ export type ActivePointPickTarget = {
   elementId: ElementId;
   parameterKey: ParameterKey;
   /** Document index the picked reference will be inserted at when `elementId`
-   * is a virtual target that is not in the document yet (template insertion,
-   * future command-line creation). Candidates must precede this index. */
+   * is a virtual target that is not in the document yet (future command-line
+   * creation). Candidates must precede this index. */
   insertionIndex?: number;
   measurementSlot?: MeasurementPointSlot;
   nextParameterKey?: ParameterKey;
@@ -189,7 +188,6 @@ export type CadUiState = CadElementSelection & {
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
   activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null;
-  activeTemplateInsertion: ActiveTemplateInsertion | null;
   commandLineSession: CommandLineSession | null;
   activePickCursor: ActivePickCursor | null;
   elementSearchQuery: string;
@@ -202,9 +200,6 @@ export type CadUiState = CadElementSelection & {
   showShortcutSettings: boolean;
   showPaletteSettings: boolean;
   showVisibilityProfileSettings: boolean;
-  showGroupTemplateLibrary: boolean;
-  groupTemplateLibraryMode: "manage" | "insert";
-  templateInsertionSourceInsertion: SourceCreationInsertion | null;
   showCommandRibbonSettings: boolean;
   showSelectionColorPicker: boolean;
   renameElementPromptTargetId: ElementId | null;
@@ -236,7 +231,6 @@ export type CadUiState = CadElementSelection & {
   setActiveMeasurementInsertTarget: (
     activeMeasurementInsertTarget: ActiveMeasurementInsertTarget | null
   ) => void;
-  setActiveTemplateInsertion: (activeTemplateInsertion: ActiveTemplateInsertion | null) => void;
   setCommandLineSession: (commandLineSession: CommandLineSession | null) => void;
   /**
    * Replaces a creation session and all in-store pick state atomically. The 4c
@@ -256,8 +250,6 @@ export type CadUiState = CadElementSelection & {
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
   setShowPaletteSettings: (showPaletteSettings: boolean) => void;
   setShowVisibilityProfileSettings: (showVisibilityProfileSettings: boolean) => void;
-  setShowGroupTemplateLibrary: (showGroupTemplateLibrary: boolean) => void;
-  setGroupTemplateLibraryMode: (groupTemplateLibraryMode: "manage" | "insert") => void;
   setShowCommandRibbonSettings: (showCommandRibbonSettings: boolean) => void;
   setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
   setRenameElementPromptTargetId: (renameElementPromptTargetId: ElementId | null) => void;
@@ -321,7 +313,6 @@ export const initialCadUiState = (): Omit<
   | "setActiveNumericReferencePickTarget"
   | "setActiveLinePickTarget"
   | "setActiveMeasurementInsertTarget"
-  | "setActiveTemplateInsertion"
   | "setCommandLineSession"
   | "startCommandLineSession"
   | "setActivePickCursor"
@@ -336,8 +327,6 @@ export const initialCadUiState = (): Omit<
   | "setShowShortcutSettings"
   | "setShowPaletteSettings"
   | "setShowVisibilityProfileSettings"
-  | "setShowGroupTemplateLibrary"
-  | "setGroupTemplateLibraryMode"
   | "setShowCommandRibbonSettings"
   | "setShowSelectionColorPicker"
   | "setRenameElementPromptTargetId"
@@ -393,7 +382,6 @@ export const initialCadUiState = (): Omit<
   activeNumericReferencePickTarget: null,
   activeLinePickTarget: null,
   activeMeasurementInsertTarget: null,
-  activeTemplateInsertion: null,
   commandLineSession: null,
   activePickCursor: null,
   elementSearchQuery: "",
@@ -406,9 +394,6 @@ export const initialCadUiState = (): Omit<
   showShortcutSettings: false,
   showPaletteSettings: false,
   showVisibilityProfileSettings: false,
-  showGroupTemplateLibrary: false,
-  groupTemplateLibraryMode: "manage",
-  templateInsertionSourceInsertion: null,
   showCommandRibbonSettings: false,
   showSelectionColorPicker: false,
   renameElementPromptTargetId: null,
@@ -484,8 +469,6 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     set({ activeLinePickTarget, activePickCursor: null }),
   setActiveMeasurementInsertTarget: (activeMeasurementInsertTarget) =>
     set({ activeMeasurementInsertTarget }),
-  setActiveTemplateInsertion: (activeTemplateInsertion) =>
-    set({ activeTemplateInsertion, activePickCursor: null }),
   setCommandLineSession: (commandLineSession) => {
     if (commandLineSession === null && get().commandLineSession) {
       useCadDocumentStore.getState().clearPreviewDocumentChange();
@@ -499,7 +482,6 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
       activeMeasurementInsertTarget: null,
-      activeTemplateInsertion: null,
       activePickCursor: null,
       commandLineSession
     });
@@ -516,7 +498,6 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       activePointPickTarget: null,
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
-      activeTemplateInsertion: null,
       activePickCursor: null,
       commandLineSession: null
     });
@@ -535,13 +516,6 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   setShowPaletteSettings: (showPaletteSettings) => set({ showPaletteSettings }),
   setShowVisibilityProfileSettings: (showVisibilityProfileSettings) =>
     set({ showVisibilityProfileSettings }),
-  setShowGroupTemplateLibrary: (showGroupTemplateLibrary) =>
-    set({
-      showGroupTemplateLibrary,
-      ...(showGroupTemplateLibrary ? {} : { templateInsertionSourceInsertion: null })
-    }),
-  setGroupTemplateLibraryMode: (groupTemplateLibraryMode) =>
-    set({ groupTemplateLibraryMode }),
   setShowCommandRibbonSettings: (showCommandRibbonSettings) =>
     set({ showCommandRibbonSettings }),
   setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),

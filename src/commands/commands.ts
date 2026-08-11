@@ -4,7 +4,6 @@ import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
 import { documentCommandDefinitions } from "./documentCommandDefinitions";
 import { pickCommandDefinitions } from "./pickCommandDefinitions";
 import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
-import { templateCommandDefinitions } from "./templateCommandDefinitions";
 import { viewModeCommandDefinitions } from "./viewModeCommandDefinitions";
 import { sourceEditorCommandDefinitions } from "./sourceEditorCommandDefinitions";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
@@ -19,7 +18,6 @@ export const commands: Record<CommandId, Command> = {
   ...pickCommandDefinitions,
   ...creationCommandDefinitions,
   ...commandLineCommandDefinitions,
-  ...templateCommandDefinitions,
   ...sourceEditorCommandDefinitions
 };
 

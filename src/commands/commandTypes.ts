@@ -9,7 +9,6 @@ import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
 import type { ModuleSemanticCursorResolution } from "../editor/sourceEditorTypes";
-import type { GroupTemplate } from "../templates/groupTemplate";
 import type { CadElement, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
 import type { SourceCreationCursor } from "./sourceCreationInsertion";
@@ -140,15 +139,6 @@ export type CommandId =
   | "closePaletteSettings"
   | "openVisibilityProfileSettings"
   | "closeVisibilityProfileSettings"
-  | "openGroupTemplateLibrary"
-  | "openGroupTemplateInsertion"
-  | "closeGroupTemplateLibrary"
-  | "startTemplateInsertion"
-  | "cancelTemplateInsertion"
-  | "selectNextTemplateInsertionInput"
-  | "selectPreviousTemplateInsertionInput"
-  | "selectTemplateInsertionInput"
-  | "confirmTemplateInsertion"
   | "openCommandRibbonSettings"
   | "closeCommandRibbonSettings"
   | "openSelectionColorPicker"
@@ -231,8 +221,6 @@ export type CommandContext = {
   pickedLineId?: ElementId;
   /** Canonical source reference supplied by a semantic Module pick candidate. */
   pickedLineSourceReference?: CanonicalGeometrySourceReference;
-  groupTemplate?: GroupTemplate;
-  templateInputId?: string;
   numericValue?: NumericValue;
   colorId?: string;
   activity?: ElementActivity;

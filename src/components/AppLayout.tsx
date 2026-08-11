@@ -62,11 +62,6 @@ import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
 
 const commandLineCreationCommandIds = new Set(legacyCreationCommandIds);
 
-const GroupTemplateLibraryDialog = lazy(() =>
-  import("./GroupTemplateLibraryDialog").then((module) => ({
-    default: module.GroupTemplateLibraryDialog
-  }))
-);
 const ImageImportDialog = lazy(() =>
   import("./ImageImportDialog").then((module) => ({ default: module.ImageImportDialog }))
 );
@@ -113,11 +108,6 @@ const RenameTypedBindingDialog = lazy(() =>
 const RenameModuleSemanticDialog = lazy(() =>
   import("./RenameModuleSemanticDialog").then((module) => ({ default: module.RenameModuleSemanticDialog }))
 );
-const TemplateInsertionPanel = lazy(() =>
-  import("./TemplateInsertionPanel").then((module) => ({
-    default: module.TemplateInsertionPanel
-  }))
-);
 
 const saveLeftPanelWidth = (leftPanelWidth: number) => {
   void loadLayoutSettings()
@@ -160,7 +150,6 @@ export const AppLayout = () => {
   const showVisibilityProfileSettings = useCadUiStore(
     (state) => state.showVisibilityProfileSettings
   );
-  const showGroupTemplateLibrary = useCadUiStore((state) => state.showGroupTemplateLibrary);
   const showShortcutSettings = useCadUiStore((state) => state.showShortcutSettings);
   const showCommandRibbonSettings = useCadUiStore((state) => state.showCommandRibbonSettings);
   const showSelectionColorPicker = useCadUiStore((state) => state.showSelectionColorPicker);
@@ -170,15 +159,13 @@ export const AppLayout = () => {
   const pendingImageImport = useCadUiStore((state) => state.pendingImageImport);
   const imageImportError = useCadUiStore((state) => state.imageImportError);
   const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
-  const activeTemplateInsertion = useCadUiStore((state) => state.activeTemplateInsertion);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const commandLineSession = useCadUiStore((state) => state.commandLineSession);
   const isPickMode = useCadUiStore(
     (state) =>
       Boolean(state.activePointPickTarget) ||
       Boolean(state.activeNumericReferencePickTarget) ||
-      Boolean(state.activeLinePickTarget) ||
-      Boolean(state.activeTemplateInsertion)
+      Boolean(state.activeLinePickTarget)
   );
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const appShellRef = useRef<HTMLElement>(null);
@@ -474,7 +461,6 @@ export const AppLayout = () => {
       if (isImeComposingKeyEvent(event) || isCommandLineInputComposing()) return;
       if (useCadUiStore.getState().showShortcutSettings) return;
       if (useCadUiStore.getState().showPaletteSettings) return;
-      if (useCadUiStore.getState().showGroupTemplateLibrary) return;
       if (useCadUiStore.getState().showCommandRibbonSettings) return;
       if (useCadUiStore.getState().showSelectionColorPicker) return;
       if (useCadUiStore.getState().renameElementPromptTargetId) return;
@@ -486,9 +472,8 @@ export const AppLayout = () => {
         settings: useCadUiStore.getState().shortcutSettings,
         isPickMode: Boolean(
           useCadUiStore.getState().activePointPickTarget ||
-            useCadUiStore.getState().activeNumericReferencePickTarget ||
-            useCadUiStore.getState().activeLinePickTarget ||
-            useCadUiStore.getState().activeTemplateInsertion
+          useCadUiStore.getState().activeNumericReferencePickTarget ||
+          useCadUiStore.getState().activeLinePickTarget
         ),
         allowModifiedEditableCommandIds: commandLineSession
           ? commandLineCreationCommandIds
@@ -510,11 +495,6 @@ export const AppLayout = () => {
       if (useCadUiStore.getState().commandLineSession && event.key === "Escape") {
         event.preventDefault();
         cancelCommandLineEscape();
-        return;
-      }
-      if (useCadUiStore.getState().activeTemplateInsertion && event.key === "Escape") {
-        event.preventDefault();
-        dispatchCommand("cancelTemplateInsertion");
         return;
       }
       if (useCadUiStore.getState().activePointPickTarget && event.key === "Escape") {
@@ -641,11 +621,6 @@ export const AppLayout = () => {
       )}
       <CommandPalette commandContext={commandContext} />
       <PickModeStatus />
-      {activeTemplateInsertion ? (
-        <Suspense fallback={null}>
-          <TemplateInsertionPanel />
-        </Suspense>
-      ) : null}
       <ShortcutHelpOverlay isPickMode={isPickMode} />
       {showPaletteSettings ? (
         <Suspense fallback={null}>
@@ -655,11 +630,6 @@ export const AppLayout = () => {
       {showVisibilityProfileSettings ? (
         <Suspense fallback={null}>
           <VisibilityProfileSettingsDialog />
-        </Suspense>
-      ) : null}
-      {showGroupTemplateLibrary ? (
-        <Suspense fallback={null}>
-          <GroupTemplateLibraryDialog />
         </Suspense>
       ) : null}
       {showSelectionColorPicker ? (

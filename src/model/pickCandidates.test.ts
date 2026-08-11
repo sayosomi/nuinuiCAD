@@ -374,11 +374,11 @@ describe("pickCandidates", () => {
       },
       commandLineSession: session
     });
-    const templateCandidates = pickCandidates(withUnnamed, withUnnamedEvaluation, {
+    const virtualCandidates = pickCandidates(withUnnamed, withUnnamedEvaluation, {
       activePointPickTarget: null,
       activeLinePickTarget: null,
       activeNumericReferencePickTarget: {
-        elementId: "__template-insertion-numeric__",
+        elementId: "__virtual-numeric__",
         parameterKey: "sleeve",
         insertionIndex: withUnnamed.length,
         mode: "insert",
@@ -387,7 +387,7 @@ describe("pickCandidates", () => {
     });
 
     expect(commandLineCandidates.map((candidate) => candidate.elementId)).toContain("unnamed-line");
-    expect(templateCandidates.map((candidate) => candidate.elementId)).toContain("unnamed-line");
+    expect(virtualCandidates.map((candidate) => candidate.elementId)).toContain("unnamed-line");
   });
 
   it("excludes later and unevaluated geometry from numeric candidates", () => {
@@ -420,7 +420,7 @@ describe("pickCandidates", () => {
         activePointPickTarget: null,
         activeLinePickTarget: null,
         activeNumericReferencePickTarget: {
-          elementId: "__template-insertion-numeric__",
+          elementId: "__virtual-numeric__",
           parameterKey: "sleeve",
           ...(insertionIndex === undefined ? {} : { insertionIndex }),
           mode: "insert",
@@ -435,7 +435,7 @@ describe("pickCandidates", () => {
 
     const pointCandidates = pickCandidates(elements, evaluation, {
       activePointPickTarget: {
-        elementId: "__template-insertion-pick__",
+        elementId: "__virtual-pick__",
         parameterKey: "point:p",
         insertionIndex: elements.length
       },
@@ -447,7 +447,7 @@ describe("pickCandidates", () => {
     const lineCandidates = pickCandidates(elements, evaluation, {
       activePointPickTarget: null,
       activeLinePickTarget: {
-        elementId: "__template-insertion-pick__",
+        elementId: "__virtual-pick__",
         parameterKey: "line:l",
         insertionIndex: elements.length
       },
