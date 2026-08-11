@@ -160,7 +160,6 @@ describe("cadUiStore group fold state", () => {
         selectionStart: null,
         selectionEnd: null
       },
-      activeTemplateInsertion: {} as never,
       activePickCursor: { elementId: "line-a", optionIndex: 0 }
     });
     const observed: Array<ReturnType<typeof useCadUiStore.getState>> = [];
@@ -176,7 +175,6 @@ describe("cadUiStore group fold state", () => {
       activeNumericReferencePickTarget: null,
       activeLinePickTarget: null,
       activeMeasurementInsertTarget: null,
-      activeTemplateInsertion: null,
       activePickCursor: null
     });
     expect(useCadUiStore.getState().activeLinePickTarget).toBeNull();

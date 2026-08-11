@@ -275,7 +275,7 @@ describe("SourceEditor editor-native value step commands", () => {
     parent.remove();
   });
 
-  it("does not step while any editor pick or template insertion is active", () => {
+  it("does not step while any editor pick is active", () => {
     const { controller, parent, view } = openEditor();
     const activatePickModes = [
       () => useCadUiStore.getState().setActivePointPickTarget({
@@ -292,7 +292,6 @@ describe("SourceEditor editor-native value step commands", () => {
         elementId: "missing",
         parameterKey: "baseLineId" as never
       }),
-      () => useCadUiStore.getState().setActiveTemplateInsertion({} as never)
     ];
 
     for (const activatePickMode of activatePickModes) {

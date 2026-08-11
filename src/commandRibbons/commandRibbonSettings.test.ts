@@ -98,6 +98,7 @@ describe("commandRibbonSettings", () => {
           orientation: "sideways",
           buttons: [
             { id: "line", commandId: "addLine", icon: "slash", label: "Line", showLabel: true },
+            { id: "deleted-template", commandId: "openGroupTemplateLibrary", icon: "slash", label: "Deleted template", showLabel: true },
             { id: "bad", commandId: "missing", icon: "slash", label: "Bad", showLabel: true }
           ]
         }

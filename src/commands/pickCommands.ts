@@ -34,10 +34,6 @@ import { getParameterValue, setParameterValue } from "../parameters/parameterAcc
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
-import {
-  applyTemplatePickedLine,
-  applyTemplatePickedPoint
-} from "../templates/templateInsertionCommands";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import type { NumericValue } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
@@ -657,7 +653,6 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
   if (!anchor) return;
   const sourceReference = context?.pickedPointSourceReference;
   const sourceAnchor = sourceReference ? pointAnchorForSourceReference(sourceReference) : anchor;
-  if (applyTemplatePickedPoint(anchor)) return;
   const { activePointPickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activePointPickTarget) return;
@@ -936,7 +931,6 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | 
   const pickedLineId = context?.pickedLineId;
   if (!pickedLineId) return;
   const sourceReference = sourceReferenceText(context?.pickedLineSourceReference ?? null);
-  if (applyTemplatePickedLine(pickedLineId)) return;
   const { activeLinePickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activeLinePickTarget) return;

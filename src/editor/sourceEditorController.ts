@@ -874,7 +874,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private stepSourceValue(direction: DslValueStepDirection) {
     if (this.protocol.composing) return false;
     const ui = this.uiStore.getState();
-    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget || ui.activeTemplateInsertion) return false;
+    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
     const selection = this.view.state.selection;
     if (selection.ranges.length !== 1) return false;
     const main = selection.main;
@@ -1089,8 +1089,7 @@ export class SourceEditorController implements SourceEditorHandle {
     if (
       ui.activePointPickTarget ||
       ui.activeNumericReferencePickTarget ||
-      ui.activeLinePickTarget ||
-      ui.activeTemplateInsertion
+      ui.activeLinePickTarget
     ) return false;
 
     const selection = this.view.state.selection;
@@ -1124,7 +1123,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private observeValueStepKeydown(event: KeyboardEvent, view: EditorView) {
     if (this.destroyed || this.protocol.composing || view.compositionStarted) return;
     const ui = this.uiStore.getState();
-    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget || ui.activeTemplateInsertion) return;
+    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return;
     const binding = sourceEditorShortcutBindings(ui.shortcutSettings).find((candidate) => {
       const direction = valueStepDirectionForCommand(candidate.commandId);
       return direction !== null && bindingMatchesEvent(candidate, event) &&
@@ -1313,10 +1312,6 @@ export class SourceEditorController implements SourceEditorHandle {
       dispatchCommand("cancelLinePick");
       return true;
     }
-    if (ui.activeTemplateInsertion) {
-      dispatchCommand("cancelTemplateInsertion");
-      return true;
-    }
     this.flush("command");
     this.options.onRequestCanvasFocus?.();
     return true;
@@ -1473,7 +1468,7 @@ export class SourceEditorController implements SourceEditorHandle {
   private autoContinueAtTermBoundary(view: EditorView): boolean {
     if (this.protocol.composing || view.compositionStarted) return false;
     const ui = this.uiStore.getState();
-    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget || ui.activeTemplateInsertion) return true;
+    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return true;
     const selection = view.state.selection;
     if (selection.ranges.length !== 1 || !selection.main.empty) return false;
     const pos = selection.main.head;
@@ -1647,7 +1642,7 @@ export class SourceEditorController implements SourceEditorHandle {
   ) {
     if (this.protocol.composing || view.compositionStarted || view.state.selection.ranges.length !== 1) return false;
     const ui = this.uiStore.getState();
-    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget || ui.activeTemplateInsertion) return false;
+    if (ui.activePointPickTarget || ui.activeNumericReferencePickTarget || ui.activeLinePickTarget) return false;
     const lineFrom = view.state.doc.lineAt(view.state.selection.main.head).from;
     const target = collapsedFoldTargetAtLine(
       this.statementRanges,
@@ -1793,7 +1788,6 @@ export class SourceEditorController implements SourceEditorHandle {
     if (ui.activePointPickTarget) return dispatchCommand("cancelPointPick") !== false;
     if (ui.activeNumericReferencePickTarget) return dispatchCommand("cancelNumericReferencePick") !== false;
     if (ui.activeLinePickTarget) return dispatchCommand("cancelLinePick") !== false;
-    if (ui.activeTemplateInsertion) return dispatchCommand("cancelTemplateInsertion") !== false;
     return false;
   }
 
