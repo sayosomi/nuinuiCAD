@@ -112,11 +112,53 @@ const scalarTypeOf = (type: ModuleDefinitionSemantic["parameters"][number]["type
 
 const pathKey = (path: readonly string[]) => encodeIdentityTuple(["instance", ...path]);
 
+export const moduleScalarBindingIdFor = (
+  path: readonly string[],
+  definitionStatementId: string,
+  localStatementId: string
+) => `module-binding:${encodeIdentityTuple(["local", ...path, definitionStatementId, localStatementId])}`;
+
+export const moduleScalarDeclarationVersionIdFor = (
+  path: readonly string[],
+  definitionStatementId: string,
+  localStatementId: string
+) => `module-declaration:${encodeIdentityTuple(["local", ...path, definitionStatementId, localStatementId])}`;
+
+export const moduleScalarExportBindingSeeds = (
+  moduleSemanticAnalysis: ModuleSemanticAnalysis,
+  rootScopeId: string
+): readonly BindingSeed[] => moduleSemanticAnalysis.instances
+  .filter((instance) => instance.callerModuleDefinitionStatementId === null && instance.callee)
+  .flatMap((instance) => {
+    const definition = moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee!.definitionStatementId);
+    if (!definition) return [];
+    return definition.exports.flatMap((exported) => exported.kind === "scalar"
+      ? [{
+          id: moduleScalarBindingIdFor([instance.statementId], definition.statementId, exported.exportedStatementId),
+          kind: "typed" as const,
+          name: `${instance.name}::${exported.name}`,
+          nameSpan: null,
+          statementIndex: instance.statementIndex,
+          sourceOrder: 0,
+          effectiveScopeId: rootScopeId,
+          visibility: { kind: "typed" as const, scopeId: rootScopeId },
+          mutability: exported.bindingKind,
+          declaredType: exported.declaredType,
+          declarationVersionId: moduleScalarDeclarationVersionIdFor([instance.statementId], definition.statementId, exported.exportedStatementId),
+          resolutionMode: "preResolvedOnly" as const
+        }]
+      : []);
+  });
+
 const bindingIdFor = (kind: "parameter" | "local", context: InstanceContext, discriminator: string) =>
-  `module-binding:${encodeIdentityTuple([kind, ...context.path, context.definition.statementId, discriminator])}`;
+  kind === "local"
+    ? moduleScalarBindingIdFor(context.path, context.definition.statementId, discriminator)
+    : `module-binding:${encodeIdentityTuple([kind, ...context.path, context.definition.statementId, discriminator])}`;
 
 const declarationVersionIdFor = (kind: "parameter" | "local", context: InstanceContext, discriminator: string) =>
-  `module-declaration:${encodeIdentityTuple([kind, ...context.path, context.definition.statementId, discriminator])}`;
+  kind === "local"
+    ? moduleScalarDeclarationVersionIdFor(context.path, context.definition.statementId, discriminator)
+    : `module-declaration:${encodeIdentityTuple([kind, ...context.path, context.definition.statementId, discriminator])}`;
 
 const setVersionIdFor = (context: InstanceContext, statementId: string) =>
   `module-set:${encodeIdentityTuple([...context.path, context.definition.statementId, statementId])}`;
@@ -157,7 +199,7 @@ const lowerExpression = (
 ): { expression: TypedScalarExpression; references: InitializerReference[] } => {
   const references = semanticReferencesUsedByAst(semantic);
   const resolutions = references.map((reference) => bindingResolutionFor(
-    reference.target && ["parameter", "moduleLocal", "documentBinding", "iteration"].includes(reference.target.kind)
+    reference.target && ["parameter", "moduleLocal", "documentBinding", "iteration", "deferredModuleScalarExport"].includes(reference.target.kind)
       ? bindingForTarget(reference.target as ModuleScalarSourceTarget, reference.name, reference.span.start)
       : undefined,
     reference.name,
@@ -395,6 +437,13 @@ export const compileModuleScalarRuntime = ({
   const bindingInfoById = new Map(allBindingInfos.map((info) => [info.id, info] as const));
   const bindingInfoForTarget = (target: ModuleScalarSourceTarget, current: InstanceContext): BindingInfo | undefined => {
     if (target.kind === "documentBinding") return bindingInfoById.get(target.bindingId);
+    if (target.kind === "deferredModuleScalarExport") {
+      const child = contextsByKey.get(pathKey([...current.path, target.instanceStatementId]));
+      const exported = child?.definition.exports.find((candidate) => candidate.name === target.exportName);
+      return exported?.kind === "scalar" && exported.exportedStatementId === target.exportedStatementId
+        ? child?.locals.get(exported.exportedStatementId)
+        : undefined;
+    }
     const contextCandidates: InstanceContext[] = [];
     let cursor: InstanceContext | undefined = current;
     while (cursor) {
@@ -540,11 +589,34 @@ export const compileModuleScalarRuntime = ({
       resolutionMode: "preResolvedOnly" as const
     }))
   );
+  const basePreResolvedSeeds: BindingSeed[] = baseCatalog.bindings
+    .filter((binding) => binding.resolutionMode === "preResolvedOnly")
+    .map((binding) => ({
+      id: binding.id,
+      kind: binding.kind,
+      name: binding.name,
+      nameSpan: binding.nameSpan,
+      statementIndex: binding.statementIndex,
+      sourceOrder: 0,
+      effectiveScopeId: binding.effectiveScopeId,
+      visibility: binding.visibility,
+      mutability: binding.mutability,
+      declaredType: binding.declaredType,
+      ...(binding.declarationVersionId ? { declarationVersionId: binding.declarationVersionId } : {}),
+      resolutionMode: "preResolvedOnly" as const
+    }));
+  const additionalSeeds: BindingSeed[] = [];
+  const additionalSeedIds = new Set<BindingId>();
+  for (const seed of [...basePreResolvedSeeds, ...moduleSeeds, ...moduleIterationSeeds]) {
+    if (additionalSeedIds.has(seed.id)) continue;
+    additionalSeedIds.add(seed.id);
+    additionalSeeds.push(seed);
+  }
   const combinedCatalog = buildBindingCatalog({
     scopeIndex: baseCatalog.scopeIndex,
     stableStatementIdByIndex,
     iterationBindings: iterationSeeds,
-    additionalBindings: [...moduleSeeds, ...moduleIterationSeeds],
+    additionalBindings: additionalSeeds,
     containerIndex: baseCatalog.containerIndex
   });
   const bindingsById = combinedCatalog.bindingsById;

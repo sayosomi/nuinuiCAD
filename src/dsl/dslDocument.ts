@@ -45,13 +45,13 @@ import {
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleMaterialization } from "./moduleMaterialization";
-import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
+import { compileModuleScalarRuntime, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
-import type { BindingId } from "../scalars/bindingCatalog";
+import type { BindingId, SourceNamespaceBindingResolver } from "../scalars/bindingCatalog";
 import type { ScalarProgram, ScalarProgramPositionMap } from "../scalars/scalarProgram";
 import type {
   MaterializedNumericBindingSource,
@@ -1104,7 +1104,7 @@ export const compileDslDocument = (
     };
   }
 
-  const scalarAnalysisCompilation = versionValidation.majorVersion === 3 && stableStatementIdByIndex
+  let scalarAnalysisCompilation = versionValidation.majorVersion === 3 && stableStatementIdByIndex
     ? analyzeTypedDeclarations({
         statements: parsed.statements,
         stableStatementIdByIndex,
@@ -1117,8 +1117,8 @@ export const compileDslDocument = (
         sourceNamespace: sourceLexicalNamespace
       })
     : { diagnostics: [] };
-  const documentScalarAnalysis = scalarAnalysisCompilation.analysis;
-  const documentScalarProgram = documentScalarAnalysis ? lowerScalarProgram(documentScalarAnalysis) : undefined;
+  let documentScalarAnalysis = scalarAnalysisCompilation.analysis;
+  let documentScalarProgram = documentScalarAnalysis ? lowerScalarProgram(documentScalarAnalysis) : undefined;
   const logicalTextByStatementIndex = new Map<number, string>();
   for (const [statementIndex, statement] of parsed.statements.entries()) {
     const logical = parsed.logicalStatementByRangeFrom.get(statement.documentRange.from);
@@ -1147,6 +1147,43 @@ export const compileDslDocument = (
         documentScalarBindings
       })
     : undefined;
+  if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
+    const exportBindingSeeds = moduleScalarExportBindingSeeds(
+      moduleSemanticCompilation,
+      sourceLexicalNamespace.scopeIndex.rootScopeId
+    );
+    if (exportBindingSeeds.length > 0) {
+      const seedByName = new Map(exportBindingSeeds.map((seed) => [seed.name, seed] as const));
+      const additionalBindingResolver: SourceNamespaceBindingResolver = (name, statementIndex) => {
+        const seed = seedByName.get(name);
+        if (!seed) return null;
+        if (statementIndex <= seed.statementIndex) {
+          return {
+            kind: "blocked",
+            reason: "forward",
+            declarationKind: "moduleInstance",
+            statementId: stableStatementIdByIndex.get(seed.statementIndex)
+          };
+        }
+        return { kind: "resolved", bindingId: seed.id };
+      };
+      scalarAnalysisCompilation = analyzeTypedDeclarations({
+        statements: parsed.statements,
+        stableStatementIdByIndex,
+        reconciledContainers: {
+          elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+          elements: compiled.elements
+        },
+        spans,
+        includeStatement,
+        sourceNamespace: sourceLexicalNamespace,
+        additionalBindings: exportBindingSeeds,
+        additionalBindingResolver
+      });
+      documentScalarAnalysis = scalarAnalysisCompilation.analysis;
+      documentScalarProgram = documentScalarAnalysis ? lowerScalarProgram(documentScalarAnalysis) : undefined;
+    }
+  }
   if (
     moduleSemanticCompilation &&
     !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&

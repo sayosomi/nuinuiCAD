@@ -55,6 +55,40 @@ describe("module semantic analysis", () => {
     });
   });
 
+  it("registers exported typed declarations in the shared module member namespace", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  const privateValue: number = 1",
+      "  export const result: number = @privateValue + 1",
+      "  export let state: number = @result + 1",
+      "}"
+    ].join("\n"));
+    const definition = compiled.moduleSemanticAnalysis!.definitions[0];
+
+    expect(definition.localScalars.map((local) => local.name)).toEqual(["privateValue", "result", "state"]);
+    expect(definition.exports).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "scalar", name: "result", exportedStatementIndex: 3, declaredType: { kind: "number" }, bindingKind: "const" }),
+      expect.objectContaining({ kind: "scalar", name: "state", exportedStatementIndex: 4, declaredType: { kind: "number" }, bindingKind: "let" })
+    ]));
+    expect(definition.exports.some((entry) => entry.name === "privateValue")).toBe(false);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("checks scalar and geometry exports together for duplicate public member names", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  export const Output: number = 1",
+      "  export point Output = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "source-namespace-collision" })
+    ]));
+  });
+
   it("keeps definition-site document scalar defaults on the existing binding identity", () => {
     const compiled = compileWithIds([
       "nui 3",

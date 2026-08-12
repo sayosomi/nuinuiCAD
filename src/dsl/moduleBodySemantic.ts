@@ -144,6 +144,20 @@ export const analyzeModuleBody = ({
   const localScalars: NonNullable<ModuleDefinitionSemantic["localScalars"]>[number][] = [];
   const bodyStatements: ModuleBodyStatementSemantic[] = [];
   const exports: ResolvedModuleExport[] = [];
+  const exportByName = new Map<string, ResolvedModuleExport>();
+
+  const registerExport = (entry: ResolvedModuleExport, span: DslSpan) => {
+    if (exportByName.has(entry.name)) {
+      addLocal(entry.exportedStatementIndex, {
+        code: "module-duplicate-export",
+        span,
+        message: `module export「${entry.name}」が重複しています。`
+      });
+      return;
+    }
+    exportByName.set(entry.name, entry);
+    exports.push(entry);
+  };
 
   const sourceTextFor = (statementIndex: number) => input.logicalTextByStatementIndex?.get(statementIndex) ?? "";
   const addScalar = (
@@ -288,6 +302,26 @@ export const analyzeModuleBody = ({
         : null;
       localScalars.push({ statementId, statementIndex, name: statement.name, type: statement.declaredType, bindingKind: statement.bindingKind, initializer });
       if (initializer && initializerSpan) bodySemantic.scalarExpressions = [{ parameterKey: null, span: initializerSpan, expression: initializer }];
+      if (statement.exported) {
+        if (!isDirectModuleChild(statement, definition.statementIndex) || !statement.name || !statement.declaredType) {
+          addLocal(statementIndex, {
+            code: "module-invalid-export",
+            span: statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan,
+            message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。"
+          });
+        } else if (statementId) {
+          registerExport({
+            kind: "scalar",
+            ownerModuleDefinitionStatementId: definition.statementId,
+            exportedStatementId: statementId,
+            exportedStatementIndex: statementIndex,
+            sourceOrder: statementIndex,
+            name: statement.name,
+            declaredType: statement.declaredType,
+            bindingKind: statement.bindingKind
+          }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
+        }
+      }
     } else if (statement.kind === "set") {
       const target = resolvePlainScalarTarget(statementIndex, definition.statementIndex, statement.name);
       const expressionSpan = statement.payloadSpans.expression ?? statement.keywordSpan;
@@ -316,17 +350,18 @@ export const analyzeModuleBody = ({
           addLocal(statementIndex, {
             code: "module-invalid-export",
             span: statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan,
-            message: "export は module 直下の名前付き geometry declaration にのみ指定できます。"
+            message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。"
           });
         } else if (statementId) {
-          exports.push({
+          registerExport({
+            kind: "geometry",
             ownerModuleDefinitionStatementId: definition.statementId,
             exportedStatementId: statementId,
             exportedStatementIndex: statementIndex,
             sourceOrder: statementIndex,
             name: statement.name,
             category
-          });
+          }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
         }
       }
       const spec = statement.kind === "group" ? constructionFor("group", "") : constructionFor(statement.category, statement.construction);

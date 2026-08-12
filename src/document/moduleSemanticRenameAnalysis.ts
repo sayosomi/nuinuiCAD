@@ -77,7 +77,9 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
       body: definition.bodyStatementIds,
       parameters: definition.parameters.map((parameter) => ({ index: parameter.parameterIndex, type: parameter.type, default: expressionFingerprint(parameter.defaultExpression) })),
       locals: definition.localScalars.map((local) => ({ id: local.statementId, type: local.type, initializer: expressionFingerprint(local.initializer) })),
-      exports: definition.exports.map((entry) => ({ id: entry.exportedStatementId, category: entry.category }))
+      exports: definition.exports.map((entry) => entry.kind === "geometry"
+        ? { id: entry.exportedStatementId, kind: entry.kind, category: entry.category }
+        : { id: entry.exportedStatementId, kind: entry.kind, declaredType: entry.declaredType, bindingKind: entry.bindingKind })
     })),
     instances: analysis.instances.map((instance) => ({
       id: instance.statementId,

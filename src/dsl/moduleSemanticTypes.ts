@@ -16,7 +16,20 @@ export type ModuleScalarSourceTarget =
   | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string }
   | { kind: "elementLocalVariable"; statementId: StatementIdentity; statementIndex: number; variableIndex: number; name: string }
   | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number }
-  | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number };
+  | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number }
+  | {
+      kind: "deferredModuleScalarExport";
+      instanceStatementId: StatementIdentity;
+      instanceStatementIndex: number;
+      instanceName: string;
+      exportName: string;
+      exportedStatementId: StatementIdentity;
+      exportedStatementIndex: number;
+      declaredType: ScalarType;
+      referenceSpan: DslSpan;
+      instanceSpan: DslSpan;
+      memberSpan: DslSpan;
+    };
 
 export type ModuleGeometrySourceTarget =
   | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string })
@@ -144,14 +157,26 @@ export type ResolvedModuleParameterBinding = {
   value: ModuleArgumentSemantic | null;
 };
 
-export type ResolvedModuleExport = {
+type ResolvedModuleExportBase = {
   ownerModuleDefinitionStatementId: StatementIdentity;
   exportedStatementId: StatementIdentity;
   exportedStatementIndex: number;
   sourceOrder: number;
   name: string;
+};
+
+export type ResolvedModuleGeometryExport = ResolvedModuleExportBase & {
+  kind: "geometry";
   category: DslGeometryDeclarationCategory;
 };
+
+export type ResolvedModuleScalarExport = ResolvedModuleExportBase & {
+  kind: "scalar";
+  declaredType: ScalarType;
+  bindingKind: "const" | "let";
+};
+
+export type ResolvedModuleExport = ResolvedModuleGeometryExport | ResolvedModuleScalarExport;
 
 export type ModuleScalarExpressionSite = {
   parameterKey: string | null;

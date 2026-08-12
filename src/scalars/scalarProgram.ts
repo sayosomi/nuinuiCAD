@@ -47,6 +47,7 @@ export const lowerScalarProgram = ({
     // Program eligibility has one shared owner (Task 13R). This type filter
     // only separates iteration bindings from typed declarations.
     if (!binding || binding.kind !== "typed") continue;
+    if (binding.resolutionMode === "preResolvedOnly" && !typedInitializerByBindingId.has(bindingId)) continue;
     if (binding.declaredType === null) {
       throw new Error(`scalarProgram: eligible typed binding ${bindingId} has no declared type`);
     }

@@ -29,7 +29,7 @@ export type InstanceContext = {
 };
 
 export type ExportEntry = {
-  exported: ResolvedModuleExport;
+  exported: Extract<ResolvedModuleExport, { kind: "geometry" }>;
   alias: GeometryAlias;
 };
 
@@ -39,7 +39,7 @@ export type ModuleGeometryPropertyRuntimeTarget =
 
 export const pathKey = (path: readonly string[]) => encodeIdentityTuple(["instance", ...path]);
 
-export const geometryKindOfCategory = (category: ResolvedModuleExport["category"]): "point" | "line" | null =>
+export const geometryKindOfCategory = (category: Extract<ResolvedModuleExport, { kind: "geometry" }>["category"]): "point" | "line" | null =>
   category === "point" ? "point" : category === "line" || category === "curve" || category === "arc" ? "line" : null;
 
 const sourceForStatement = (statement: DslStatement): string => {

@@ -112,6 +112,67 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("publishes one instance-local scalar export binding for each module call", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Child(input: number) {",
+      "  const twice: number = @input * 2",
+      "  export const value: number = @twice + 1",
+      "}",
+      "module Consumer(seed: number) {",
+      "  instance child = Child(input: @seed)",
+      "  const exported: number = @child::value",
+      "  point Result = coordinate(x: @exported, y: 0)",
+      "}",
+      "instance A = Consumer(seed: 10)",
+      "instance B = Consumer(seed: 20)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "Result").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ kind: "point", x: 21, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 41, y: 0 })
+    ]);
+
+    const exported = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "Consumer")!.localScalars
+      .find((local) => local.name === "exported");
+    expect(exported?.initializer?.references[0]).toMatchObject({
+      name: "child::value",
+      resolution: "resolved",
+      target: {
+        kind: "deferredModuleScalarExport",
+        exportName: "value",
+        declaredType: { kind: "number" }
+      }
+    });
+  });
+
+  it("resolves an exported scalar from a module instance in a root scalar initializer", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(input: number) {",
+      "  export let result: number = 0",
+      "  set result = @input * 2",
+      "}",
+      "instance A = M(input: 10)",
+      "instance B = M(input: 20)",
+      "const valueA: number = @A::result",
+      "const valueB: number = @B::result",
+      "point ResultA = coordinate(x: @valueA, y: 0)",
+      "point ResultB = coordinate(x: @valueB, y: 0)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "ResultA").id)).toMatchObject({ kind: "point", x: 20, y: 0 });
+    expect(result.computedGeometry.get(elementNamed(compiled, "ResultB").id)).toMatchObject({ kind: "point", x: 40, y: 0 });
+  });
+
   it("materializes parameter and local numeric bindings independently for repeated instances", () => {
     const compiled = compileWithIds([
       "nui 3",

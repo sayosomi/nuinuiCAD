@@ -62,7 +62,7 @@ export const buildModuleGeometryRuntime = ({
   const exportsByPath = new Map<string, ReadonlyMap<string, ExportEntry>>();
   const resolversByRuntimeElementId = new Map<ElementId, DslGeometryResolverOverrides>();
 
-  const exportAliasFor = (path: readonly string[], exported: ResolvedModuleExport): GeometryAlias | undefined => {
+  const exportAliasFor = (path: readonly string[], exported: Extract<ResolvedModuleExport, { kind: "geometry" }>): GeometryAlias | undefined => {
     const entry = runtimeEntryForBody(moduleMaterialization, path, exported.exportedStatementId);
     const kind = geometryKindOfCategory(exported.category);
     if (!entry || !kind) return undefined;
@@ -90,6 +90,7 @@ export const buildModuleGeometryRuntime = ({
     contextsByPath.set(key, context);
     const exportEntries = new Map<string, ExportEntry>();
     for (const exported of definition.exports) {
+      if (exported.kind !== "geometry") continue;
       const alias = exportAliasFor(path, exported);
       if (alias) exportEntries.set(exported.name, { exported, alias });
     }

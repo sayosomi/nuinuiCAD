@@ -121,6 +121,9 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
   return null;
 };
 
+const isDirectModuleChild = (statement: DslStatement, moduleIndex: number) =>
+  statement.enclosing?.statementIndex === moduleIndex;
+
 const statementIdAt = (
   stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>,
   statementIndex: number
@@ -326,8 +329,69 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     statementIndex: number,
     ownerIndex: number | null,
     name: string,
-    boundaryOwnerIndex: number | null = ownerIndex
+    boundaryOwnerIndex: number | null = ownerIndex,
+    referenceSpan: DslSpan = { start: 0, end: name.length }
   ): ReferenceResolution => {
+    const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, name, referenceSpan);
+    if (qualified?.kind === "deferred") {
+      const scalarExport = qualifiedScalarExportFor(qualified);
+      if (scalarExport?.kind === "scalar") {
+        return {
+          target: {
+            kind: "deferredModuleScalarExport",
+            instanceStatementId: qualified.instance.statementId,
+            instanceStatementIndex: qualified.instance.statementIndex,
+            instanceName: qualified.instanceName,
+            exportName: qualified.exportName,
+            exportedStatementId: scalarExport.exportedStatementId,
+            exportedStatementIndex: scalarExport.exportedStatementIndex,
+            declaredType: scalarExport.declaredType,
+            referenceSpan,
+            instanceSpan: qualified.instanceSpan,
+            memberSpan: qualified.memberSpan
+          },
+          type: scalarExport.declaredType,
+          resolution: "resolved"
+        };
+      }
+      return scalarExport?.kind === "geometry"
+        ? {
+            target: null,
+            type: null,
+            resolution: "invalid",
+            diagnostic: issue("module-geometry-reference-in-scalar", qualified.memberSpan, `scalar expression ではgeometry export「${qualified.exportName}」を参照できません。`)
+          }
+        : {
+            target: null,
+            type: null,
+            resolution: "invalid",
+            diagnostic: issue(
+              scalarExport?.kind === "private" ? "module-private-member" : "module-undefined-export",
+              qualified.memberSpan,
+              scalarExport?.kind === "private"
+                ? `module member「${qualified.exportName}」はexportされていないため参照できません。`
+                : `module export「${qualified.exportName}」が見つかりません。`
+            )
+          };
+    }
+    if (qualified) {
+      const resolution = qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid";
+      const code = qualified.kind === "forward"
+        ? "module-forward-instance-reference"
+        : qualified.kind === "ambiguous"
+          ? "module-ambiguous-instance-reference"
+          : qualified.kind === "outerCapture"
+            ? "module-outer-capture"
+            : "module-undefined-instance-reference";
+      const message = qualified.kind === "forward"
+        ? `module instance「${qualified.instanceName}」はこの位置より後で宣言されています。`
+        : qualified.kind === "ambiguous"
+          ? `module instance「${qualified.instanceName}」を一意に解決できません。`
+          : qualified.kind === "outerCapture"
+            ? `module body から outer module instance「${qualified.instanceName}」を暗黙 capture できません。`
+            : `未定義のmodule instance「${qualified.instanceName}」を参照しています。`;
+      return { target: null, type: null, resolution, diagnostic: issue(code, qualified.memberSpan, message) };
+    }
     const path = parseDslReferenceToken(name);
     const lookup = path.segments.length > 1
       ? resolveModuleLexicalPath(statementIndex, ownerIndex, path)
@@ -426,7 +490,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   };
 
   const resolveBodyScalar = (statementIndex: number, ownerIndex: number, reference: { name: string; span: DslSpan }): ReferenceResolution => {
-    const resolution = resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex);
+    const resolution = resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span);
     if (resolution.diagnostic && resolution.diagnostic.span.start === 0 && resolution.diagnostic.span.end === 0) {
       return { ...resolution, diagnostic: { ...resolution.diagnostic, span: reference.span } };
     }
@@ -590,6 +654,38 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     memberSpan: qualified.memberSpan
   });
 
+  const qualifiedScalarExportFor = (
+    qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>
+  ): { kind: "scalar"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; declaredType: ScalarType }
+    | { kind: "geometry" }
+    | { kind: "private" }
+    | null => {
+    const instance = instances.find((candidate) => candidate.statementId === qualified.instance.statementId);
+    const definition = instance?.callee && stateByIndex.get(instance.callee.definitionStatementIndex);
+    const exported = definition?.bodyStatementIndexes
+      .map((statementIndex) => ({ statementIndex, statement: statements[statementIndex] }))
+      .find(({ statement }) =>
+        isDirectModuleChild(statement, definition.statementIndex) &&
+        statement.name === qualified.exportName &&
+        ((statement.kind === "typedDeclaration" && statement.exported) || (statement.kind === "element" && statement.exported))
+      );
+    if (!exported) {
+      const privateMember = definition?.bodyStatementIndexes.some((statementIndex) =>
+        isDirectModuleChild(statements[statementIndex], definition.statementIndex) && statements[statementIndex].name === qualified.exportName
+      );
+      return privateMember ? { kind: "private" } : null;
+    }
+    if (exported.statement.kind === "typedDeclaration" && exported.statement.declaredType) {
+      return {
+        kind: "scalar",
+        exportedStatementId: statementIdAt(stableStatementIdByIndex, exported.statementIndex),
+        exportedStatementIndex: exported.statementIndex,
+        declaredType: exported.statement.declaredType
+      };
+    }
+    return { kind: "geometry" };
+  };
+
   const qualifiedDiagnostic = (
     statementIndex: number,
     span: DslSpan,
@@ -636,7 +732,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       source.slice(componentSpan.start, componentSpan.end),
       componentSpan,
       { kind: "number" },
-      options.scalarResolver ?? ((reference) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex)),
+      options.scalarResolver ?? ((reference) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span)),
       options.bareScalarResolver,
       options.geometryPropertyResolver
     );

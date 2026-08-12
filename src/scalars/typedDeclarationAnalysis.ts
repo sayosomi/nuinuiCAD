@@ -7,7 +7,7 @@ import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnos
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import { isElementDslStatement } from "../dsl/dslParser";
 import { analyzeBindings, type BindingAnalysis, type InitializerReference } from "./bindingAnalysis";
-import { bindingIdForStableStatementId, buildBindingCatalog, type BindingId, type SourceNamespaceBindingResolver } from "./bindingCatalog";
+import { bindingIdForStableStatementId, buildBindingCatalog, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "./bindingCatalog";
 import { resolveInitializerReferences, type BindingResolution, type InitializerResolutionRequest } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
@@ -83,8 +83,11 @@ export const unresolvedReferenceMessage = (name: string, resolution: BindingReso
 
 const sourceNamespaceBindingResolverFor = (
   sourceNamespace: SourceLexicalNamespaceIndex,
-  typedStatementIndexes: ReadonlySet<number>
+  typedStatementIndexes: ReadonlySet<number>,
+  additionalResolver?: SourceNamespaceBindingResolver
 ): SourceNamespaceBindingResolver => (name, statementIndex) => {
+  const additional = additionalResolver?.(name, statementIndex, sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceNamespace.scopeIndex.rootScopeId);
+  if (additional) return additional;
   const path = parseDslReferenceToken(name);
   const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
   if (lookup.kind === "undefined") return null;
@@ -201,7 +204,9 @@ export const analyzeTypedDeclarations = ({
   reconciledContainers,
   spans,
   includeStatement: includeStatementOption,
-  sourceNamespace
+  sourceNamespace,
+  additionalBindings,
+  additionalBindingResolver
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -209,6 +214,8 @@ export const analyzeTypedDeclarations = ({
   spans: DiagnosticSpanContext;
   includeStatement?: (statement: DslStatement, statementIndex: number) => boolean;
   sourceNamespace?: SourceLexicalNamespaceIndex;
+  additionalBindings?: readonly BindingSeed[];
+  additionalBindingResolver?: SourceNamespaceBindingResolver;
 }): TypedDeclarationAnalysisCompilation => {
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
     isCompilableDslStatement(statements, statementIndex)
@@ -244,14 +251,15 @@ export const analyzeTypedDeclarations = ({
     stableStatementIdByIndex,
     iterationBindings: adapter.iterationBindings,
     containerIndex: adapter.containerIndex,
+    ...(additionalBindings?.length ? { additionalBindings } : {}),
     ...(sourceNamespace
-      ? { sourceNamespaceBindingResolver: sourceNamespaceBindingResolverFor(sourceNamespace, typedStatementIndexes) }
+      ? { sourceNamespaceBindingResolver: sourceNamespaceBindingResolverFor(sourceNamespace, typedStatementIndexes, additionalBindingResolver) }
       : {})
   });
   const parsedByBindingId = new Map<BindingId, ParsedInitializer>();
   const diagnostics: DslDiagnostic[] = [];
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed") continue;
+    if (binding.kind !== "typed" || binding.resolutionMode === "preResolvedOnly") continue;
     const statement = statements[binding.statementIndex];
     if (!statement || statement.kind !== "typedDeclaration") throw new Error(`typedDeclarationAnalysis: typed binding ${binding.id} has no declaration statement`);
     const parsed = parseInitializer(spans, statement, binding.id);
@@ -262,7 +270,7 @@ export const analyzeTypedDeclarations = ({
 
   const requests: InitializerResolutionRequest[] = [];
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed") continue;
+    if (binding.kind !== "typed" || binding.resolutionMode === "preResolvedOnly") continue;
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: missing parsed initializer for ${binding.id}`);
     const scopeId = scopeIndex.scopeOfStatement.get(binding.statementIndex) ?? scopeIndex.rootScopeId;
@@ -319,7 +327,7 @@ export const analyzeTypedDeclarations = ({
   for (const [statementIndex, elementId] of reconciledContainers.elementIdByStatementIndex) sourceOrderByElementId.set(elementId, statementIndex);
   const nameContext = createElementNameContext([...reconciledContainers.elements]);
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed") continue;
+    if (binding.kind !== "typed" || binding.resolutionMode === "preResolvedOnly") continue;
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: no parsed initializer for ${binding.id}`);
     const checked = typecheckScalarExpression(parsed.ast, {

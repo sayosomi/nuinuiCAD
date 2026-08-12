@@ -273,7 +273,9 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
   if (!instanceStatementId) return [];
   const instance = analysis.instancesByStatementId.get(instanceStatementId);
   const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
-  return definition?.exports.map((entry) => ({ label: entry.name, type: "constant" as const })) ?? [];
+  return definition?.exports
+    .filter((entry) => entry.kind === "geometry")
+    .map((entry) => ({ label: entry.name, type: "constant" as const })) ?? [];
 };
 
 /** Module candidates are source-semantic. Last-good identities are accepted
