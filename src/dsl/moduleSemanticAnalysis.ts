@@ -704,7 +704,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     statementIndex: number,
     span: DslSpan,
     qualified: Exclude<QualifiedModuleExportLookup, { kind: "deferred" }>,
-    expected: "point" | "line" | null
+    expected: ModuleGeometryInterfaceType | null
   ) => {
     const code = qualified.kind === "forward"
       ? "module-forward-instance-reference"
@@ -776,6 +776,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const semanticSpan = trimmedStart >= 0
       ? { start: trimmedStart, end: trimmedStart + trimmed.length }
       : span;
+    const expectedDiagnosticType = options.expectedInterfaceType ?? expected;
     const role = options.role ?? (expected === "point" ? "pointReference" : "lineReference");
     let referenceNameSpan: DslSpan | null = null;
     const semantic = (
@@ -787,7 +788,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (!trimmed) return semantic(null, "undefined");
     if (trimmed === "none") {
       if (options.allowNone) return semantic(null, "resolved");
-      addLocal(statementIndex, issue("module-geometry-none", semanticSpan, `geometry ${expected} reference に none は指定できません。`));
+      addLocal(statementIndex, issue("module-geometry-none", semanticSpan, `geometry ${expectedDiagnosticType} reference に none は指定できません。`));
       return semantic(null, "invalid");
     }
     if (trimmed.startsWith("(") || trimmed.startsWith("[")) {
@@ -805,7 +806,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         semanticSpan,
         coordinate && expected === "point" && options.allowCoordinate === false
           ? "このgeometry reference parameterではcoordinate形式を指定できません。"
-          : `geometry reference の形式が一致しません(期待: ${expected})。`
+          : `geometry reference の形式が一致しません(期待: ${expectedDiagnosticType})。`
       ));
       return semantic(null, "invalid");
     }
@@ -865,7 +866,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       );
     }
     if (qualified) {
-      qualifiedDiagnostic(statementIndex, semanticSpan, qualified, expected);
+      qualifiedDiagnostic(statementIndex, semanticSpan, qualified, expectedDiagnosticType);
       return semantic(null, qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid", null, derivedRole);
     }
     const path = parseDslReferenceToken(base);
@@ -886,7 +887,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           ? isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType)
           : parameterTarget?.geometryKind === expected;
       if (!parameterTarget || !compatible) {
-        addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expected})。`));
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`));
         return semantic(null, "invalid", null, derivedRole);
       }
       return semantic(pointTarget, "resolved", null, derivedRole);
@@ -935,7 +936,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType)
         : target.geometryKind === expected;
     if (!compatible) {
-      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expected})。`));
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`));
       return semantic(null, "invalid", null, derivedRole);
     }
     return semantic(pointTarget, "resolved", null, derivedRole);

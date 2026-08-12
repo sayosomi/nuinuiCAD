@@ -131,6 +131,28 @@ describe("module geometry runtime", () => {
     ]));
   });
 
+  it("uses the public geometry interface in direct Module argument diagnostics", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "point Point = coordinate(x: 0, y: 0)",
+      "module Broad(input: path) {",
+      "}",
+      "module Strict(input: line) {",
+      "}",
+      "module BroadCall = Broad(input: @Point)",
+      "module StrictCall = Strict(input: @Point)"
+    ].join("\n"));
+    const mismatches = errorsOf(compiled).filter((diagnostic) => diagnostic.code === "module-geometry-type-mismatch");
+
+    expect(mismatches).toHaveLength(2);
+    expect(mismatches.find((diagnostic) => diagnostic.message.includes("期待: path"))?.message).toBe(
+      "geometry reference「Point」の型が一致しません(期待: path)。"
+    );
+    expect(mismatches.find((diagnostic) => diagnostic.message.includes("期待: line"))?.message).toBe(
+      "geometry reference「Point」の型が一致しません(期待: line)。"
+    );
+  });
+
   it("checks line-to-path and path-to-line parameter forwarding directionally", () => {
     const compiled = compileWithIds([
       "nui 3",
