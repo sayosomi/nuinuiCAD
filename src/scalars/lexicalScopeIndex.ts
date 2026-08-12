@@ -17,7 +17,7 @@
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { ScalarType } from "./types";
 
-export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module";
+export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module" | "printLayout";
 export type ScopeId = string;
 
 export type LexicalScope = {
@@ -127,10 +127,11 @@ export const buildLexicalScopeIndex = (
         scopeId = `if:${resolveStatementId(enclosing.statementIndex, parent)}:${enclosing.branch}`;
       } else if (parent.kind === "moduleDefinition") {
         scopeId = `module:${resolveStatementId(enclosing.statementIndex, parent)}`;
+      } else if (parent.kind === "printLayout") {
+        scopeId = `printLayout:${resolveStatementId(enclosing.statementIndex, parent)}`;
       } else {
-        // printLayout (or any other block-opening kind not tracked as a
-        // lexical scope here): transparently delegate to the parent's own
-        // containing scope instead of inventing a frame for it.
+        // Any other block-opening kind not tracked as a lexical scope here
+        // transparently delegates to the parent's own containing scope.
         scopeId = scopeOfStatement(enclosing.statementIndex);
       }
     }
@@ -175,10 +176,11 @@ export const buildLexicalScopeIndex = (
       if (conditionalGroupsWithElse.has(index)) registerScope(`if:${stableId}:else`, "else", parentId, index);
     } else if (statement.kind === "moduleDefinition") {
       registerScope(`module:${resolveStatementId(index, statement)}`, "module", parentId, index);
+    } else if (statement.kind === "printLayout") {
+      registerScope(`printLayout:${resolveStatementId(index, statement)}`, "printLayout", parentId, index);
     }
-    // Any other opensBlock kind (e.g. a malformed statement the real parser
-    // also refused to push a frame for, or printLayout, which is not a
-    // tracked scope kind here) intentionally creates no scope.
+    // Any other opensBlock kind (for example a malformed statement the real
+    // parser also refused to push a frame for) intentionally creates no scope.
   });
 
   const memberIndices = new Map<ScopeId, number[]>();

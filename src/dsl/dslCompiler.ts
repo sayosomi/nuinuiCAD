@@ -29,13 +29,17 @@ import { compileMaterializedExecution } from "./moduleExecutionCompiler";
 import {
   placeAngleAttrKey,
   placeAtAttrKey,
+  placeXAttrKey,
+  placeYAttrKey,
   printLayoutCanvasAttrKey,
   printLayoutColumnsAttrKey,
+  printLayoutHeightAttrKey,
   printLayoutOverlapAttrKey,
   printLayoutPaperAttrKey,
   printLayoutRowsAttrKey,
   printLayoutScaleAttrKey,
-  printLayoutViewAttrKey
+  printLayoutViewAttrKey,
+  printLayoutWidthAttrKey
 } from "./dslPrintLayoutAttributes";
 
 const attr = (attrs: DslAttribute[], key: string) =>
@@ -95,10 +99,11 @@ const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
 // its existing group-name path for this task. Ordinary construction geometry
 // continues through the strict `@` resolver in dslReferences.ts.
 const resolvePrintGroupId = (token: string, index: NameIndex, line: number, diagnostics: DslDiagnostic[]) => {
-  const resolution = resolveElementName({ token, elements: index.elements, context: index.nameContext });
+  const normalizedToken = token.trim().replace(/^@/, "");
+  const resolution = resolveElementName({ token: normalizedToken, elements: index.elements, context: index.nameContext });
   if (resolution.status === "resolved") return resolution.element.id;
   diagnostics.push(warning(line, `place の参照先が見つかりません: ${token}`));
-  return token;
+  return normalizedToken;
 };
 
 // P6 applyArgs は ScannedArg[] を要求するが DslStatement は DslAttribute[] を運ぶ。
@@ -382,8 +387,12 @@ export const buildBlockPrintLayouts = ({
       placements.push({
         id: `placement-${placements.length + 1}`,
         groupId,
-        x: pair ? numeric(pair.x) : 0,
-        y: pair ? numeric(pair.y) : 0,
+        x: attr(member.attrs, placeXAttrKey) === undefined
+          ? pair ? numeric(pair.x) : 0
+          : numeric(attr(member.attrs, placeXAttrKey)!),
+        y: attr(member.attrs, placeYAttrKey) === undefined
+          ? pair ? numeric(pair.y) : 0
+          : numeric(attr(member.attrs, placeYAttrKey)!),
         angleDeg: numeric(attr(member.attrs, placeAngleAttrKey) ?? "0"),
         mirrorX: booleanValue(attr(member.attrs, "mirrorX") ?? "false") ?? false
       });
@@ -417,6 +426,8 @@ export const buildBlockPrintLayouts = ({
       : undefined;
     const columns = attr(statement.attrs, printLayoutColumnsAttrKey);
     const rows = attr(statement.attrs, printLayoutRowsAttrKey);
+    const width = attr(statement.attrs, printLayoutWidthAttrKey);
+    const height = attr(statement.attrs, printLayoutHeightAttrKey);
     const overlap = attr(statement.attrs, printLayoutOverlapAttrKey);
     const scale = attr(statement.attrs, printLayoutScaleAttrKey);
     const layout = normalizePrintLayout({
@@ -424,14 +435,18 @@ export const buildBlockPrintLayouts = ({
       name: unquoteName(attr(statement.attrs, "name")) ?? statement.name,
       outputKind: output ? outputKind(output) : existing?.outputKind,
       visibilityProfileId: profileId ?? existing?.visibilityProfileId,
-      paperSizeId: paper ?? existing?.paperSizeId,
+      paperSizeId: paper ?? (paperSizeIds.has(statement.name.toLowerCase()) ? statement.name.toLowerCase() : existing?.paperSizeId),
       orientation: orientation ?? existing?.orientation,
       columns: columns === undefined ? existing?.columns : numeric(columns),
       rows: rows === undefined ? existing?.rows : numeric(rows),
       overlapMm: overlap === undefined ? existing?.overlapMm : numeric(overlap),
       scale: scale === undefined ? existing?.scale : numeric(scale),
-      svgCanvasWidthMm: canvasPair ? numeric(canvasPair.x) : existing?.svgCanvasWidthMm,
-      svgCanvasHeightMm: canvasPair ? numeric(canvasPair.y) : existing?.svgCanvasHeightMm,
+      svgCanvasWidthMm: width === undefined
+        ? canvasPair ? numeric(canvasPair.x) : existing?.svgCanvasWidthMm
+        : numeric(width),
+      svgCanvasHeightMm: height === undefined
+        ? canvasPair ? numeric(canvasPair.y) : existing?.svgCanvasHeightMm
+        : numeric(height),
       placements
     }, elements, visibilityProfiles, { preserveDanglingReferences: true });
     next = existing
@@ -659,7 +674,14 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
           isElementDslStatement(statement) && isCompilableDslStatement(parsed.statements, statementIndex)
         ).length;
     } else {
-      diagnostics.push(warning(parsed.statements[atStopIndex].line, "@stop は文書全体の適用でのみ有効なため無視されます。"));
+      const stopStatement = parsed.statements[atStopIndex];
+      const stopText = parsed.logicalStatementByRangeFrom.get(stopStatement.documentRange.from)?.logicalText ?? "";
+      diagnostics.push(warning(
+        stopStatement.line,
+        stopText.trimStart().startsWith("@stop")
+          ? "@stop は文書全体の適用でのみ有効なため無視されます。"
+          : "stop は文書全体の適用でのみ有効なため無視されます。"
+      ));
     }
   }
 

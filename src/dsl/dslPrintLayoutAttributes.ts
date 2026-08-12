@@ -10,6 +10,8 @@
 // 確定仕様1.2「削除されるv1構文」)。正準キーのみを唯一の正とする。
 export const placeAngleAttrKey = "angle";
 export const placeAtAttrKey = "at";
+export const placeXAttrKey = "x";
+export const placeYAttrKey = "y";
 
 export const printLayoutColumnsAttrKey = "columns";
 export const printLayoutRowsAttrKey = "rows";
@@ -18,14 +20,18 @@ export const printLayoutScaleAttrKey = "scale";
 export const printLayoutCanvasAttrKey = "canvas";
 export const printLayoutViewAttrKey = "view";
 export const printLayoutPaperAttrKey = "paper";
+export const printLayoutWidthAttrKey = "width";
+export const printLayoutHeightAttrKey = "height";
 
 /** `place`'s plain-numeric attribute keys (each accepts `@variable`). */
-export const placeNumericAttrKeys: readonly string[] = [placeAngleAttrKey];
+export const placeNumericAttrKeys: readonly string[] = [placeXAttrKey, placeYAttrKey, placeAngleAttrKey];
 /** `place`'s coordinate-literal `(x, y)` attribute keys. */
 export const placeCoordinateAttrKeys: readonly string[] = [placeAtAttrKey];
 
 /** `printLayout`'s own plain-numeric attribute keys. */
 export const printLayoutNumericAttrKeys: readonly string[] = [
+  printLayoutWidthAttrKey,
+  printLayoutHeightAttrKey,
   printLayoutColumnsAttrKey,
   printLayoutRowsAttrKey,
   printLayoutOverlapAttrKey,

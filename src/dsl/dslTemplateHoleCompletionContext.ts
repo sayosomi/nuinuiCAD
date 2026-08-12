@@ -28,5 +28,5 @@ export const templateHoleContentSpanAt = (lineText: string, valueSpan: DslSpan, 
   if (pos < valueSpan.start || pos > valueSpan.end) return null;
   const scan = scanTextTemplateLiteral(lineText, { start: valueSpan.start, end: pos });
   if (scan.kind !== "error" || scan.issueCode !== "unterminated-interpolation" || scan.span.end !== pos) return null;
-  return { start: scan.span.start + 1, end: pos };
+  return { start: scan.span.start + (lineText[scan.span.start] === "$" ? 2 : 1), end: pos };
 };

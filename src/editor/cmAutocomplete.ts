@@ -872,8 +872,10 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     const parsed = parseDslSnapshot({ normalizedSource: input.source, sourceRevision: 0 });
     const block = bindingAnalysis ? dslEnclosingPrintLayoutLine(parsed, input.cursorLineNumber) : null;
     const layoutId = block ? printLayoutIdsByLiveLine(input.doc, options.printLayoutRanges()).get(block.line) : undefined;
+    const ownStatement = parsed.statements.find((statement) => statement.line === input.cursorLineNumber);
+    const siteStatementIndex = ownStatement?.kind === "place" ? parsed.statements.indexOf(ownStatement) : block?.statementIndex;
     completions = asVariableCompletions(
-      printLayoutTypedBindingReferenceOptions(layoutId, options.statementInfoByKey?.(), bindingAnalysis)
+      printLayoutTypedBindingReferenceOptions(layoutId, options.statementInfoByKey?.(), bindingAnalysis, siteStatementIndex)
     );
   } else if (completionContext.parameter.definition.kind === "number") {
     const availableMetadata = options.moduleSemanticMetadata?.();

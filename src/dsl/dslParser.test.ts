@@ -423,9 +423,9 @@ describe("DSL typed declarations", () => {
     expect(decls[2].enclosing).toMatchObject({ branch: "else" });
   });
 
-  it("is rejected inside printLayout blocks, matching place's own restriction", () => {
+  it("allows ordinary typed declarations inside printLayout blocks", () => {
     const result = errors(["printLayout 型紙A () {", "  const x: number = 1", "}"].join("\n"));
-    expect(result.some((item) => item.message.includes("place のみ"))).toBe(true);
+    expect(result).toEqual([]);
   });
 
   it("parses correctly when sandwiched between multi-line vertical element statements", () => {

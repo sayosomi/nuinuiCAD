@@ -7,7 +7,7 @@ import type { DslHighlightLine, DslHighlightToken, DslTokenKind } from "./dslTyp
 // 唯一の正として import する。本格的な磨き込み(補完の新コンテキスト等)はF2。
 const keywords = new Set<string>(Object.values(dslStatementKeywords));
 
-const stopKeyword = "@stop";
+const stopKeywords = new Set(["stop", "@stop"]);
 
 // Task 51: `@name` and the pre-migration bare `Element.property` collapse
 // into one `@?name(.property)?` shape here (matching
@@ -32,7 +32,7 @@ const commentIndex = (line: string) => {
 
 const classify = (text: string): DslTokenKind => {
   if (text.startsWith("\"") || text.startsWith("'")) return "string";
-  if (text === stopKeyword) return "keyword";
+  if (stopKeywords.has(text)) return "keyword";
   if (/^[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^[A-Za-z_][\w:-]*\.[A-Za-z_][\w:-]*$/.test(text)) return "reference";
   if (/^@[A-Za-z_][\w:-]*$/.test(text)) return "reference";
@@ -44,7 +44,7 @@ const classify = (text: string): DslTokenKind => {
 
 const headKeywordSpan = (code: string) => {
   const match = code.match(/^\s*([A-Za-z_][\w:-]*|@stop)\b/);
-  if (!match || !keywords.has(match[1]) && match[1] !== stopKeyword) return null;
+  if (!match || !keywords.has(match[1]) && !stopKeywords.has(match[1])) return null;
   const start = (match.index ?? 0) + match[0].indexOf(match[1]);
   return { start, end: start + match[1].length };
 };

@@ -3,15 +3,15 @@ import { templateHoleContentSpanAt } from "./dslTemplateHoleCompletionContext";
 
 describe("templateHoleContentSpanAt", () => {
   it("finds the content span of an in-progress hole with nothing typed yet", () => {
-    const text = 'label(text: "hi {';
+    const text = 'label(text: "hi ${';
     const valueSpan = { start: text.indexOf('"'), end: text.length };
     expect(templateHoleContentSpanAt(text, valueSpan, text.length)).toEqual({ start: text.length, end: text.length });
   });
 
   it("finds the content span of an in-progress hole with a partial reference typed", () => {
-    const text = 'label(text: "hi {@fo';
+    const text = 'label(text: "hi ${@fo';
     const valueSpan = { start: text.indexOf('"'), end: text.length };
-    const holeOpen = text.indexOf("{") + 1;
+    const holeOpen = text.indexOf("${") + 2;
     expect(templateHoleContentSpanAt(text, valueSpan, text.length)).toEqual({ start: holeOpen, end: text.length });
   });
 

@@ -15,9 +15,9 @@ const settingsSpecs: DslSettingsSpec[] = [
   { keyword: "view", args: [arg("default")], allowsDynamicArgs: true },
   {
     keyword: "printLayout",
-    args: [arg("output"), arg("view"), arg("paper"), arg("orientation"), arg("columns"), arg("rows"), arg("overlap"), arg("scale"), arg("canvas")],
+    args: [arg("output"), arg("view"), arg("paper"), arg("orientation"), arg("width"), arg("height"), arg("columns"), arg("rows"), arg("overlap"), arg("scale"), arg("canvas")],
   },
-  { keyword: "place", args: [positional("group"), arg("at"), arg("angle"), arg("mirrorX")] },
+  { keyword: "place", args: [positional("group"), arg("x"), arg("y"), arg("at"), arg("angle"), arg("mirrorX")] },
 ];
 
 const specsByKeyword = new Map(settingsSpecs.map((spec) => [spec.keyword, spec]));

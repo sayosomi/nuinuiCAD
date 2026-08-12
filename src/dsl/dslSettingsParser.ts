@@ -190,8 +190,8 @@ export const parseDslSettingsStatement = (
   const keywordSpan = { start: 0, end: keyword.length };
   const rest = trimSpan(logicalText, keyword.length, logicalText.length);
 
-  if (keyword === "@stop") {
-    if (rest.start !== rest.end || options.opensBlock) addDiagnostic(diagnostics, "@stop は単独の行に書いてください。", rest);
+  if (keyword === "stop" || keyword === "@stop") {
+    if (rest.start !== rest.end || options.opensBlock) addDiagnostic(diagnostics, `${keyword} は単独の行に書いてください。`, rest);
     return { statement: { kind: "atStop", name: "", nameSpan: null, keywordSpan, args: [], attrs: [], payloadSpans: {}, opensBlock: false }, diagnostics };
   }
   if (keyword === "nui") {

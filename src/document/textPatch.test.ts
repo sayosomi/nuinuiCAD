@@ -525,7 +525,7 @@ describe("textPatch リネーム伝播", () => {
         element.name === "前身頃" ? ({ ...element, name: "後身頃" } as CadElement) : element
       )
     }));
-    expect(patched).toContain("place 後身頃 ");
+    expect(patched).toContain("place @後身頃 ");
     expect(patched.split("\n").some((line) => line.startsWith("group 後身頃") && line.endsWith("{"))).toBe(true);
   });
 });
@@ -617,7 +617,7 @@ describe("textPatch 非要素セクション", () => {
       printLayouts: document.printLayouts.map((layout) => ({ ...layout, columns: 5 }))
     }));
     expect(patched).toContain("columns: 5");
-    expect(patched).toContain("place G ");
+    expect(patched).toContain("place @G ");
   });
 
   it("printLayout の追加と activePrintLayout の切替", () => {

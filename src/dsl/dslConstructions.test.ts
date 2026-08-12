@@ -126,11 +126,13 @@ describe("DSL nui 3 settings registry", () => {
     expect(settingsSpecFor("role")?.args.map((arg) => arg.arg)).toEqual(["name"]);
     expect(settingsSpecFor("view")).toMatchObject({ allowsDynamicArgs: true });
     expect(settingsSpecFor("printLayout")?.args.map((arg) => arg.arg)).toEqual([
-      "output", "view", "paper", "orientation", "columns", "rows", "overlap", "scale", "canvas",
+      "output", "view", "paper", "orientation", "width", "height", "columns", "rows", "overlap", "scale", "canvas",
     ]);
     expect(settingsSpecFor("place")).toMatchObject({
       args: [
         { arg: "group", positional: true },
+        { arg: "x" },
+        { arg: "y" },
         { arg: "at" },
         { arg: "angle" },
         { arg: "mirrorX" },

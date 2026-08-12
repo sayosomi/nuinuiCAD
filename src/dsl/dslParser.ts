@@ -37,6 +37,7 @@ import { isCompilableDslStatement } from "./dslCompilationGuard";
  * keyword list, the source of truth for completion.
  */
 export const dslStatementKeywords = {
+  stop: "stop",
   atStop: "@stop",
   version: "nui",
   for: "for",
@@ -68,7 +69,11 @@ export const dslStatementKeywords = {
   export: "export"
 } as const;
 
-export const dslStatementKeywordCompletions = Object.values(dslStatementKeywords);
+// `@stop` remains parseable only as a temporary migration spelling; editor
+// completion offers the nui4 keyword and never teaches the old surface to new
+// documents.
+export const dslStatementKeywordCompletions = Object.values(dslStatementKeywords)
+  .filter((keyword) => keyword !== dslStatementKeywords.atStop);
 
 // category キーワードは P3(dslCallParser)へ、設定文キーワードは P4(dslSettingsParser)へ。
 // 集合は互いに素(重複キーワードなし)。
@@ -392,7 +397,7 @@ const parseLine = (
   project: (span: DslSpan) => DslPhysicalSpan | null,
   requireArgumentCommas: boolean,
 ): ParsedLine => {
-  if (logicalText.startsWith(dslStatementKeywords.atStop)) {
+  if (/^(?:stop|@stop)(?:\s|$)/.test(logicalText)) {
     return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine);
   }
   const keyword = logicalText.match(leadingIdentifier)?.[0] ?? "";
@@ -484,8 +489,8 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
       return;
     }
     const top = stack.at(-1);
-    if (top?.kind === "printLayout" && statement.kind !== "place") {
-      diagnostics.push(diagnostic(statement.line, "printLayout ブロック内には place のみ書けます。"));
+    if (top?.kind === "printLayout" && statement.kind !== "place" && statement.kind !== "typedDeclaration") {
+      diagnostics.push(diagnostic(statement.line, "printLayout ブロック内には const / let と place のみ書けます。"));
     }
     if (statement.kind === "place" && top?.kind !== "printLayout") {
       diagnostics.push(diagnostic(statement.line, `${statement.kind} は printLayout ブロック内にのみ書けます。`));
@@ -640,7 +645,7 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
     )
     .slice(1)
     .map(({ statement }) => statement)) {
-    diagnostics.push(diagnostic(extra.line, "@stop は文書に1つだけ書けます。"));
+    diagnostics.push(diagnostic(extra.line, "stop は文書に1つだけ書けます。"));
   }
   return {
     statements,

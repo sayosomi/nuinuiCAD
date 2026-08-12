@@ -49,7 +49,7 @@ import { compileModuleScalarRuntime, moduleScalarBindingIdFor, moduleScalarExpor
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
-import type { StatementIdentity } from "../document/statementIdentity";
+import { createStatementIdentity, type StatementIdentity } from "../document/statementIdentity";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId, SourceNamespaceBindingResolver } from "../scalars/bindingCatalog";
 import type { ScalarProgram, ScalarProgramPositionMap } from "../scalars/scalarProgram";
@@ -331,6 +331,39 @@ const printLayoutBlockLines = (
   const numeric = (value: Parameters<typeof formatNumericValueForDsl>[0]) =>
     formatNumericValueForDsl(value, elements, [], undefined, nameContext, majorVersion);
 
+  // nui4's printLayout surface uses the paper token as the layout head and
+  // plain width/height fields, while the model continues to store the same
+  // physical canvas values used by the existing print runtime. Keep the
+  // migration branch's older named/output form for older model-only layouts;
+  // a paper-named layout is the unambiguous nui4 shape and is regenerated in
+  // that shape without inventing a body-local binding.
+  const canonicalNui4Layout = displayName.trim().toLowerCase() === layout.paperSizeId.trim().toLowerCase();
+  if (canonicalNui4Layout) {
+    const headerArgs = [
+      `output: ${layout.outputKind}`,
+      ...(profileName ? [`view: ${formatDslName(profileName)}`] : []),
+      `paper: ${formatDslName(layout.paperSizeId)}`,
+      `orientation: ${layout.orientation}`,
+      `width: ${numeric(layout.svgCanvasWidthMm)}`,
+      `height: ${numeric(layout.svgCanvasHeightMm)}`,
+      `columns: ${numeric(layout.columns)}`,
+      `rows: ${numeric(layout.rows)}`,
+      `overlap: ${numeric(layout.overlapMm)}`,
+      `scale: ${numeric(layout.scale)}`
+    ];
+    const memberLines = layout.placements.map((placement) => {
+      const groupToken = resolveGroupToken(elements, placement.groupId, nameContext);
+      return `${DSL_INDENT}place ${groupToken.startsWith("@") ? "" : "@"}${groupToken} (x: ${numeric(placement.x)}, y: ${numeric(placement.y)}, angle: ${numeric(placement.angleDeg)}, mirrorX: ${placement.mirrorX})`;
+    });
+    return [
+      `printLayout ${formatDslName(displayName)}(`,
+      ...headerArgs.map((line) => `${DSL_INDENT}${line},`),
+      ") {",
+      ...memberLines,
+      "}"
+    ];
+  }
+
   const argLines = [
     `output: ${layout.outputKind}`,
     ...(profileName ? [`view: ${formatDslName(profileName)}`] : []),
@@ -529,7 +562,7 @@ export const layoutElementTree = (
   for (const element of elements) {
     if (hasAtStop && emitted === limit) {
       lines.push({
-        lines: [`${DSL_INDENT.repeat(stack.length)}@stop`],
+        lines: [`${DSL_INDENT.repeat(stack.length)}stop`],
         argKeys: [null],
         depth: stack.length,
         role: "atStop"
@@ -601,7 +634,7 @@ export const layoutElementTree = (
   closeTo(0);
   if (hasAtStop && emitted === limit) {
     lines.push({
-      lines: ["@stop"],
+      lines: ["stop"],
       argKeys: [null],
       depth: 0,
       role: "atStop"
@@ -635,10 +668,10 @@ const serializeFlatElementTree = (
   const hasAtStop = evaluationLimitIndex !== undefined;
   const limit = Math.max(0, Math.min(evaluationLimitIndex ?? elements.length, elements.length));
   for (const [index, element] of elements.entries()) {
-    if (hasAtStop && index === limit) lines.push("@stop");
+    if (hasAtStop && index === limit) lines.push("stop");
     lines.push(...serializedFlatStatementLines(element, serializeElementStatementBlock(element, refs)));
   }
-  if (hasAtStop && limit === elements.length) lines.push("@stop");
+  if (hasAtStop && limit === elements.length) lines.push("stop");
   return lines;
 };
 
@@ -732,6 +765,7 @@ export const unsupportedDslMajorVersion = (source: string): number | null =>
 const PRINT_LAYOUT_TRAILING_ALLOWED_KINDS = new Set<DslStatement["kind"]>([
   "printLayout",
   "place",
+  "typedDeclaration",
   "activePrintLayout",
   "blockEnd",
   "blockElse"
@@ -749,7 +783,8 @@ const validatePrintLayoutPlacement = (
   for (let index = firstPrintLayoutIndex + 1; index < statements.length; index += 1) {
     const statement = statements[index];
     if (!includeStatement(statement, index)) continue;
-    if (PRINT_LAYOUT_TRAILING_ALLOWED_KINDS.has(statement.kind)) continue;
+    if (PRINT_LAYOUT_TRAILING_ALLOWED_KINDS.has(statement.kind) &&
+      (statement.kind !== "typedDeclaration" || statement.enclosing?.statementIndex === firstPrintLayoutIndex)) continue;
     diagnostics.push({
       severity: "error",
       line: statement.line,
@@ -1021,6 +1056,16 @@ export const compileDslDocument = (
     for (const [statementIndex, elementId] of compiled.elementIdsByStatementIndex ?? []) {
       stableStatementIdByIndex.set(statementIndex, elementId);
     }
+    // Standalone parse/compile callers do not have a prior reconciled
+    // snapshot. Allocate an opaque internal identity for a printLayout scope;
+    // canonicalDocument supplies the reconciler-owned identity on the normal
+    // edit path, so this fallback never becomes a user-visible name or source
+    // namespace.
+    parsed.statements.forEach((statement, statementIndex) => {
+      if (statement.kind === "printLayout" && !stableStatementIdByIndex.has(statementIndex)) {
+        stableStatementIdByIndex.set(statementIndex, createStatementIdentity("printLayout"));
+      }
+    });
   }
   const sourceNamespaceRequiresIdentity = (statement: DslStatement) =>
     statement.kind === "moduleDefinition" ||

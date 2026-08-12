@@ -602,7 +602,7 @@ describe("command-line session commands", () => {
 
     const reparsed = compileDslDocument(committed.sourceText).document!;
     expect(reparsed.evaluationLimitIndex).toBe(committed.evaluationLimitIndex);
-    expect(serializeDocumentToDsl(reparsed, 3)).toContain("@stop");
+    expect(serializeDocumentToDsl(reparsed, 3)).toContain("stop");
     useCadDocumentStore.getState().commitText(committed.sourceText, "test");
     expect(useCadDocumentStore.getState().evaluationLimitIndex).toBe(2);
   });

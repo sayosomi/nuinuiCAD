@@ -114,16 +114,18 @@ describe("scanTextTemplateLiteral", () => {
     expect(result).toMatchObject({ kind: "error", issueCode: "interpolation-nested-not-supported" });
   });
 
-  it("unmatched closing brace is interpolation-unmatched-closing-brace", () => {
+  it("ordinary closing braces remain literal text", () => {
     const source = '"oops }"';
     const result = scanTextTemplateLiteral(source, fullSpan(source));
-    expect(result).toMatchObject({ kind: "error", issueCode: "interpolation-unmatched-closing-brace" });
+    expect(result).toMatchObject({ kind: "string" });
+    if (result.kind === "string") expect(result.segments[0]).toMatchObject({ kind: "literal", cooked: "oops }" });
   });
 
-  it("empty hole is interpolation-empty", () => {
+  it("ordinary empty braces remain literal text", () => {
     const source = '"{}"';
     const result = scanTextTemplateLiteral(source, fullSpan(source));
-    expect(result).toMatchObject({ kind: "error", issueCode: "interpolation-empty" });
+    expect(result).toMatchObject({ kind: "string" });
+    if (result.kind === "string") expect(result.segments[0]).toMatchObject({ kind: "literal", cooked: "{}" });
   });
 
   it("unknown escape is invalid-string-escape", () => {

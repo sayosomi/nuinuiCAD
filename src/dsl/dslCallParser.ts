@@ -266,6 +266,59 @@ export const parseDslCallStatement = (
   const equals = topLevelIndex(logicalText, "=", afterCategory.start);
 
   if (isContainer) {
+    // nui4's for header is deliberately normalized into the existing `for`
+    // construction representation: the iterator remains the construction's
+    // positional `variable` argument, while range(...) contributes the same
+    // named from/count/step arguments used by the existing forGroup runtime.
+    // This is a syntax lowering only; it does not introduce another loop AST
+    // or runtime.
+    if (category === "for") {
+      const forHeader = logicalText.slice(afterCategory.start).match(/^([A-Za-z_][A-Za-z0-9_]*)\s+in\s+range\s*\(/);
+      if (forHeader) {
+        const variableStart = afterCategory.start + forHeader[0].indexOf(forHeader[1]);
+        const rangeOpen = afterCategory.start + forHeader[0].lastIndexOf("(");
+        const brace = topLevelIndex(logicalText, "{", rangeOpen);
+        const headerEnd = brace >= 0 ? brace : logicalText.length;
+        const afterBrace = brace >= 0 ? trimSpan(logicalText, brace + 1, logicalText.length) : null;
+        const inlineBlock = brace >= 0 && afterBrace!.start === afterBrace!.end;
+        if (brace >= 0 && !inlineBlock) diagnostic(diagnostics, "「{」の後に余分なトークンがあります。", afterBrace!);
+        const close = matchingClose(logicalText, rangeOpen);
+        if (close < 0) diagnostic(diagnostics, "range 呼び出しの「(」が閉じられていません。", { start: rangeOpen, end: rangeOpen + 1 });
+        const tail = close >= 0 ? trimSpan(logicalText, close + 1, headerEnd) : { start: headerEnd, end: headerEnd };
+        if (tail.start < tail.end) diagnostic(diagnostics, "range 呼び出しの「)」の後に余分なトークンがあります。", tail);
+        const opensBlock = Boolean(options.opensBlock || inlineBlock);
+        if (!opensBlock) diagnostic(diagnostics, "for にはブロックが必要です。", keywordSpan);
+        const scanned = scanCallArgs(
+          logicalText,
+          { start: rangeOpen + 1, end: close >= 0 ? close : logicalText.length },
+          { requireCommas: Boolean(options.requireArgumentCommas) }
+        );
+        diagnostics.push(...scanned.errors);
+        const variableSpan = { start: variableStart, end: variableStart + forHeader[1].length };
+        scanned.args.unshift({
+          key: null,
+          keySpan: null,
+          value: forHeader[1],
+          valueSpan: variableSpan
+        });
+        const payloadSpans: Record<string, DslSpan> = {};
+        const spec = validateArgs("for", "", keywordSpan, null, scanned.args, diagnostics, payloadSpans);
+        const statement = {
+          category: "for",
+          construction: "",
+          elementType: spec?.elementType ?? null,
+          name: "",
+          nameSpan: null,
+          keywordSpan,
+          constructionSpan: null,
+          args: scanned.args,
+          attrs: attrsFromArgs(scanned.args),
+          payloadSpans,
+          opensBlock
+        } satisfies DslCallStatement;
+        return { statement, diagnostics };
+      }
+    }
     const brace = topLevelIndex(logicalText, "{", afterCategory.start);
     const headerEnd = brace >= 0 ? brace : logicalText.length;
     const afterBrace = brace >= 0 ? trimSpan(logicalText, brace + 1, logicalText.length) : null;

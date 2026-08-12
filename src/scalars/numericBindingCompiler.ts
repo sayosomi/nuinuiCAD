@@ -14,13 +14,17 @@ import {
   placeAtAttrKey,
   placeCoordinateAttrKeys,
   placeNumericAttrKeys,
+  placeXAttrKey,
+  placeYAttrKey,
   printLayoutCanvasAttrKey,
   printLayoutColumnsAttrKey,
   printLayoutCoordinateAttrKeys,
+  printLayoutHeightAttrKey,
   printLayoutNumericAttrKeys,
   printLayoutOverlapAttrKey,
   printLayoutRowsAttrKey,
-  printLayoutScaleAttrKey
+  printLayoutScaleAttrKey,
+  printLayoutWidthAttrKey
 } from "../dsl/dslPrintLayoutAttributes";
 import { buildPlacementRefsByStatementIndex } from "../dsl/dslPrintLayoutPlacementIndex";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
@@ -182,6 +186,8 @@ export const compileNumericBindings = ({
       const logical = spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
       if (!layout || !logical) return;
       const numericFieldByAttr: Record<string, NumericValue | undefined> = {
+        [printLayoutWidthAttrKey]: layout.svgCanvasWidthMm,
+        [printLayoutHeightAttrKey]: layout.svgCanvasHeightMm,
         [printLayoutColumnsAttrKey]: layout.columns,
         [printLayoutRowsAttrKey]: layout.rows,
         [printLayoutOverlapAttrKey]: layout.overlapMm,
@@ -217,7 +223,13 @@ export const compileNumericBindings = ({
       const logical = spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
       if (!ref || !layout || !placement || !logical) return;
       for (const attrKey of placeNumericAttrKeys) {
-        const value = attrKey === placeAngleAttrKey ? placement.angleDeg : undefined;
+        const value = attrKey === placeAngleAttrKey
+          ? placement.angleDeg
+          : attrKey === placeXAttrKey
+            ? placement.x
+            : attrKey === placeYAttrKey
+              ? placement.y
+              : undefined;
         pushCandidate(
           propertyBindingOccurrenceKey(statementIndex, attrKey),
           statement, statementIndex, attrKey, value, logical.logicalText, attributeValueSpan(statement, attrKey)

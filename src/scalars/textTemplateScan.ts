@@ -1,5 +1,5 @@
 // Task 26: single forward-pass scan of a `label(text: "...")` raw quoted
-// value that resolves string escapes AND template hole braces (`{`/`}`) in
+// value that resolves string escapes AND template holes (`${...}`) in
 // exactly one pass over the characters - never two. See
 // docs/typed-variables/tasks/26-text-template-analysis.md.
 //
@@ -37,9 +37,9 @@ export type TextTemplateRawLiteralSegment = {
 
 export type TextTemplateRawHoleSegment = {
   readonly kind: "hole";
-  /** Raw span including both `{` and `}`. */
+  /** Raw span including both `${` and `}`. */
   readonly span: ScalarSpan;
-  /** Raw span of the hole's inner content, excluding braces. */
+  /** Raw span of the hole's inner content, excluding `${` and `}`. */
   readonly contentSpan: ScalarSpan;
   /** Position in cooked-coordinate space where this hole's value is spliced in. */
   readonly cookedInsertOffset: number;
@@ -169,21 +169,35 @@ export const scanTextTemplateLiteral = (source: string, span: ScalarSpan): TextT
       return { kind: "string", span: { start, end: index + 1 }, quote, raw: source.slice(contentStart, index), escapes, segments };
     }
 
-    if (char === "{") {
+    const canonicalHole = char === "$" && source[index + 1] === "{";
+    // The migration branch still reads a narrow subset of the existing nui3
+    // spelling so old documents remain inspectable until Task 8 removes it.
+    // Plain `{ ... }` prose is literal: a legacy hole is recognized only when
+    // its content does not start with whitespace.
+    const legacyHole = char === "{" && (() => {
+      const next = source[index + 1] ?? "";
+      if (!next || /\s/.test(next) || next === "}") return false;
+      const close = source.indexOf("}", index + 1);
+      if (close < 0) return /^[\p{L}\p{N}_@!.+-]/u.test(next);
+      const content = source.slice(index + 1, close).trim();
+      return /^[@\d.!+-]/.test(content) || /[+*/.=<>@-]/.test(content) || content === "true" || content === "false";
+    })();
+    if (canonicalHole || legacyHole) {
       if (inHole) {
-        return scanError("interpolation-nested-not-supported", { start: index, end: index + 1 }, "nested '{' is not supported inside a text template hole");
+        return scanError("interpolation-nested-not-supported", { start: index, end: index + 1 }, "nested interpolation is not supported inside a text template hole");
       }
       commitLiteralSegment(index);
       inHole = true;
       holeSpanStart = index;
-      holeContentStart = index + 1;
-      index += 1;
+      holeContentStart = index + (canonicalHole ? 2 : 1);
+      index += canonicalHole ? 2 : 1;
       continue;
     }
 
     if (char === "}") {
       if (!inHole) {
-        return scanError("interpolation-unmatched-closing-brace", { start: index, end: index + 1 }, "unmatched '}' - escape it as \\} for a literal brace");
+        index += 1;
+        continue;
       }
       if (index === holeContentStart) {
         return scanError("interpolation-empty", { start: holeSpanStart, end: index + 1 }, "text template hole cannot be empty");

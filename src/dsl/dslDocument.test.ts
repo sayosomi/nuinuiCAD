@@ -517,7 +517,7 @@ describe("dslDocument @stop / evaluationLimitIndex", () => {
     const { document, parsed, text } = roundTrip(source);
     expect(document.evaluationLimitIndex).toBe(2);
     expect(parsed.evaluationLimitIndex).toBe(2);
-    expect(text).toContain("@stop");
+    expect(text).toContain("stop");
   });
 
   it("omits @stop entirely when the whole document evaluates", () => {
@@ -533,8 +533,8 @@ describe("dslDocument @stop / evaluationLimitIndex", () => {
 
     expect(document.evaluationLimitIndex).toBe(2);
     expect(parsed.evaluationLimitIndex).toBe(2);
-    expect(text.split("\n").filter((line) => line === "@stop")).toHaveLength(1);
-    expect(text.trimEnd().endsWith("@stop")).toBe(true);
+    expect(text.split("\n").filter((line) => line === "stop")).toHaveLength(1);
+    expect(text.trimEnd().endsWith("stop")).toBe(true);
   });
 
   it("places @stop before the first element when evaluationLimitIndex is 0", () => {
@@ -573,7 +573,7 @@ describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
     expect(pointARow.lines).toEqual(["  point A = coordinate(", "    x: 0,", "    y: 0", "  )"]);
     expect(pointARow.argKeys).toEqual([null, "x", "y", null]);
 
-    expect(rows.find((row) => row.role === "atStop")!.lines).toEqual(["  @stop"]);
+    expect(rows.find((row) => row.role === "atStop")!.lines).toEqual(["  stop"]);
     expect(rows.find((row) => row.role === "blockEnd")!.lines).toEqual(["}"]);
   });
 });
