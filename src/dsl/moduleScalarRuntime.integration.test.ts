@@ -173,6 +173,106 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "ResultB").id)).toMatchObject({ kind: "point", x: 40, y: 0 });
   });
 
+  it("resolves a root sibling scalar export when it is used as a module argument", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Producer(input: number) {",
+      "  export const value: number = @input * 2",
+      "}",
+      "module Consumer(input: number) {",
+      "  export const result: number = @input + 1",
+      "}",
+      "instance A = Producer(input: 10)",
+      "instance B = Consumer(input: @A::value)",
+      "const result: number = @B::result",
+      "point Result = coordinate(x: @result, y: 0)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Result").id)).toMatchObject({ kind: "point", x: 21, y: 0 });
+  });
+
+  it("resolves nested sibling scalar exports per repeated parent instance", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Producer(input: number) {",
+      "  export const value: number = @input * 2",
+      "}",
+      "module Consumer(input: number) {",
+      "  export const result: number = @input + 1",
+      "}",
+      "module Parent(seed: number) {",
+      "  instance a = Producer(input: @seed)",
+      "  instance b = Consumer(input: @a::value)",
+      "  export const result: number = @b::result",
+      "}",
+      "instance A = Parent(seed: 10)",
+      "instance B = Parent(seed: 20)",
+      "const resultA: number = @A::result",
+      "const resultB: number = @B::result",
+      "point ResultA = coordinate(x: @resultA, y: 0)",
+      "point ResultB = coordinate(x: @resultB, y: 0)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "ResultA").id)).toMatchObject({ kind: "point", x: 21, y: 0 });
+    expect(result.computedGeometry.get(elementNamed(compiled, "ResultB").id)).toMatchObject({ kind: "point", x: 41, y: 0 });
+  });
+
+  it("resolves same-named module instances within their own lexical groups", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Producer(input: number) {",
+      "  export const value: number = @input * 2",
+      "}",
+      "group Left {",
+      "  instance foo = Producer(input: 10)",
+      "  const value: number = @foo::value",
+      "  point ResultLeft = coordinate(x: @value, y: 0)",
+      "}",
+      "group Right {",
+      "  instance foo = Producer(input: 20)",
+      "  const value: number = @foo::value",
+      "  point ResultRight = coordinate(x: @value, y: 0)",
+      "}"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "ResultLeft").id)).toMatchObject({ kind: "point", x: 20, y: 0 });
+    expect(result.computedGeometry.get(elementNamed(compiled, "ResultRight").id)).toMatchObject({ kind: "point", x: 40, y: 0 });
+  });
+
+  it("does not publish a group-local or private scalar export outside its source namespace", () => {
+    const scoped = compileWithIds([
+      "nui 3",
+      "module Producer(input: number) {",
+      "  const privateValue: number = @input * 3",
+      "  export const value: number = @input * 2",
+      "}",
+      "group Inside {",
+      "  instance localFoo = Producer(input: 10)",
+      "  const local: number = @localFoo::value",
+      "}",
+      "const outside: number = @localFoo::value",
+      "instance foo = Producer(input: 20)",
+      "const privateOutside: number = @foo::privateValue"
+    ].join("\n"));
+    const references = scoped.bindingAnalysis?.initializerReferences.filter((reference) =>
+      reference.name === "localFoo::value" || reference.name === "foo::privateValue"
+    ) ?? [];
+    expect(references).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "localFoo::value", resolution: expect.objectContaining({ kind: "undefined" }) }),
+      expect.objectContaining({ name: "foo::privateValue", resolution: expect.objectContaining({ kind: "namespace", reason: "incompatible" }) })
+    ]));
+    expect(scoped.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).not.toEqual([]);
+  });
+
   it("materializes parameter and local numeric bindings independently for repeated instances", () => {
     const compiled = compileWithIds([
       "nui 3",

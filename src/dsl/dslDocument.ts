@@ -45,7 +45,7 @@ import {
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleMaterialization } from "./moduleMaterialization";
-import { compileModuleScalarRuntime, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
+import { compileModuleScalarRuntime, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
@@ -66,7 +66,8 @@ import {
 } from "./dslSerializer";
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
 import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "./dslTypes";
-import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceTokens";
+import { formatDslReferencePath, formatDslReferenceToken, parseDslReferenceToken } from "./dslReferenceTokens";
+import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
 import {
   isSupportedDslMajorVersion,
@@ -1150,22 +1151,47 @@ export const compileDslDocument = (
   if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
     const exportBindingSeeds = moduleScalarExportBindingSeeds(
       moduleSemanticCompilation,
-      sourceLexicalNamespace.scopeIndex.rootScopeId
+      sourceLexicalNamespace
     );
     if (exportBindingSeeds.length > 0) {
-      const seedByName = new Map(exportBindingSeeds.map((seed) => [seed.name, seed] as const));
+      const seedById = new Map(exportBindingSeeds.map((seed) => [seed.id, seed] as const));
       const additionalBindingResolver: SourceNamespaceBindingResolver = (name, statementIndex) => {
-        const seed = seedByName.get(name);
-        if (!seed) return null;
-        if (statementIndex <= seed.statementIndex) {
+        const path = parseDslReferenceToken(name);
+        if (path.segments.length !== 2) return null;
+        const instanceLookup = resolveSourceLexicalDeclaration(sourceLexicalNamespace, statementIndex, path.segments[0]);
+        if (instanceLookup.kind === "forward" || instanceLookup.kind === "ambiguous") {
+          return instanceLookup.declarations.every((declaration) => declaration.kind === "moduleInstance")
+            ? {
+                kind: "blocked",
+                reason: instanceLookup.kind,
+                declarationKind: "moduleInstance",
+                ...(instanceLookup.declarations[0] ? { statementId: instanceLookup.declarations[0].statementId } : {})
+              }
+            : null;
+        }
+        if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") return null;
+        const instance = moduleSemanticCompilation.instancesByStatementId.get(instanceLookup.declaration.statementId);
+        const definition = instance?.callee && moduleSemanticCompilation.definitionsByStatementId.get(instance.callee.definitionStatementId);
+        const exported = definition?.exports.find((entry) => entry.kind === "scalar" && entry.name === path.segments[1]);
+        if (!instance || !definition || !exported || exported.kind !== "scalar") {
           return {
             kind: "blocked",
-            reason: "forward",
+            reason: "incompatible",
             declarationKind: "moduleInstance",
-            statementId: stableStatementIdByIndex.get(seed.statementIndex)
+            statementId: instanceLookup.declaration.statementId
           };
         }
-        return { kind: "resolved", bindingId: seed.id };
+        const bindingId = moduleScalarBindingIdFor(
+          [instance.statementId],
+          definition.statementId,
+          exported.exportedStatementId
+        );
+        return seedById.has(bindingId) ? { kind: "resolved", bindingId } : {
+          kind: "blocked",
+          reason: "incompatible",
+          declarationKind: "moduleInstance",
+          statementId: instance.statementId
+        };
       };
       scalarAnalysisCompilation = analyzeTypedDeclarations({
         statements: parsed.statements,

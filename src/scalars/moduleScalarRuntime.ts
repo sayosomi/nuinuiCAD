@@ -40,6 +40,7 @@ import { numericSourceForModuleSite } from "./moduleNumericRuntime";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
 import { isAssignableToPropertyCapability } from "./scalarAssignability";
 import type { ReconciledCadContainerInput } from "./containerIndex";
+import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
 
 export type MaterializedPropertyBindingSource = {
   elementId: ElementId;
@@ -126,12 +127,13 @@ export const moduleScalarDeclarationVersionIdFor = (
 
 export const moduleScalarExportBindingSeeds = (
   moduleSemanticAnalysis: ModuleSemanticAnalysis,
-  rootScopeId: string
+  sourceNamespace: SourceLexicalNamespaceIndex
 ): readonly BindingSeed[] => moduleSemanticAnalysis.instances
   .filter((instance) => instance.callerModuleDefinitionStatementId === null && instance.callee)
   .flatMap((instance) => {
     const definition = moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee!.definitionStatementId);
     if (!definition) return [];
+    const effectiveScopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(instance.statementIndex) ?? sourceNamespace.scopeIndex.rootScopeId;
     return definition.exports.flatMap((exported) => exported.kind === "scalar"
       ? [{
           id: moduleScalarBindingIdFor([instance.statementId], definition.statementId, exported.exportedStatementId),
@@ -140,8 +142,8 @@ export const moduleScalarExportBindingSeeds = (
           nameSpan: null,
           statementIndex: instance.statementIndex,
           sourceOrder: 0,
-          effectiveScopeId: rootScopeId,
-          visibility: { kind: "typed" as const, scopeId: rootScopeId },
+          effectiveScopeId,
+          visibility: { kind: "typed" as const, scopeId: effectiveScopeId },
           mutability: exported.bindingKind,
           declaredType: exported.declaredType,
           declarationVersionId: moduleScalarDeclarationVersionIdFor([instance.statementId], definition.statementId, exported.exportedStatementId),
@@ -435,10 +437,25 @@ export const compileModuleScalarRuntime = ({
   }
 
   const bindingInfoById = new Map(allBindingInfos.map((info) => [info.id, info] as const));
+  const runtimeContextForSourceInstance = (current: InstanceContext, instanceStatementId: string): InstanceContext | undefined => {
+    const target = moduleSemanticAnalysis.instancesByStatementId.get(instanceStatementId);
+    if (!target) return undefined;
+    if (target.callerModuleDefinitionStatementId === null) {
+      return contextsByKey.get(pathKey([instanceStatementId]));
+    }
+    let owner: InstanceContext | undefined = current;
+    while (owner) {
+      if (owner.definition.statementId === target.callerModuleDefinitionStatementId) {
+        return contextsByKey.get(pathKey([...owner.path, instanceStatementId]));
+      }
+      owner = owner.parentKey ? contextsByKey.get(owner.parentKey) : undefined;
+    }
+    return undefined;
+  };
   const bindingInfoForTarget = (target: ModuleScalarSourceTarget, current: InstanceContext): BindingInfo | undefined => {
     if (target.kind === "documentBinding") return bindingInfoById.get(target.bindingId);
     if (target.kind === "deferredModuleScalarExport") {
-      const child = contextsByKey.get(pathKey([...current.path, target.instanceStatementId]));
+      const child = runtimeContextForSourceInstance(current, target.instanceStatementId);
       const exported = child?.definition.exports.find((candidate) => candidate.name === target.exportName);
       return exported?.kind === "scalar" && exported.exportedStatementId === target.exportedStatementId
         ? child?.locals.get(exported.exportedStatementId)
