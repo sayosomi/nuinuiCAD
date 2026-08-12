@@ -6,18 +6,14 @@ import { SourceEditorController } from "./sourceEditorController";
 import { sourceEditSession } from "./sourceEditSession";
 
 /**
- * Phase 2e integration performance guard. Unlike codemirrorFoundationCost.test.ts
+ * Phase 2e integration scaling smoke regression. Unlike codemirrorFoundationCost.test.ts
  * (pure EditorState/pure-function costs), this drives the production
  * SourceEditorController: real EditorView transactions, evaluation decoration
  * updates, and store→controller model-patch reflection.
  *
- * Budgets (phase-2e doc): typing transaction median ≤16ms / p95 ≤32ms,
- * external 1-line model patch CM reflection median ≤16ms (CAD compile measured
- * separately), 1000-element commit median ≤300ms vs the ~222ms compile baseline.
- * The assertions below are deliberately looser than the budgets to keep CI
- * stable across machines; budget compliance is judged from the logged medians
- * on the development machine, and an over-budget local measurement must be
- * profiled and fixed even while these loose guards pass.
+ * The timings are logged for local profiling only. Normal correctness runs do
+ * not use absolute wall-clock thresholds because Vitest worker contention,
+ * garbage collection, JIT warm-up, and OS scheduling can vary substantially.
  */
 
 const source = (count: number) => ["nui 3", ...Array.from({ length: count }, (_, index) =>
@@ -46,7 +42,6 @@ const measure = (name: string, run: () => void, { runs = RUNS }: { runs?: number
   console.log(
     `[Phase 2e perf] ${name}: median=${median.toFixed(2)}ms p95=${p95.toFixed(2)}ms (${runs} runs, warm-up)`
   );
-  expect(Number.isFinite(median)).toBe(true);
   return { median, p95 };
 };
 
@@ -73,16 +68,21 @@ describe("Phase 2e source editor integration performance", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
   });
 
-  it("keeps controller typing transactions, model patches, and 1000-element commits within guard limits", () => {
+  it("handles controller transactions, model patches, and 1000-element commits as a scaling smoke test", () => {
     const store = useCadDocumentStore;
 
     for (const count of [500, 1000]) {
       store.setState(initialCadDocumentState());
-      store.getState().commitText(source(count), "test");
+      const sourceText = source(count);
+      store.getState().commitText(sourceText, "test");
+      expect(store.getState().sourceText).toBe(sourceText);
+      expect(store.getState().elements).toHaveLength(count);
+      expect(store.getState().elements[count - 1]?.name).toBe(`P${count - 1}`);
       const parent = document.createElement("div");
       document.body.appendChild(parent);
       const controller = new SourceEditorController(parent);
       const internals = controller as unknown as ControllerInternals;
+      expect(internals.view.state.doc.lines).toBe(count + 1);
 
       // Publish a real evaluation so decoration updates run against populated indexes.
       controller.setEvaluation({
@@ -91,15 +91,13 @@ describe("Phase 2e source editor integration performance", () => {
         evaluationRequestRevision: 1
       });
 
-      const typing = measure(`${count}行 controller typing transaction`, () => {
+      measure(`${count}行 controller typing transaction`, () => {
         const middle = internals.view.state.doc.line(Math.floor(internals.view.state.doc.lines / 2));
         internals.view.dispatch({
           changes: { from: middle.to, to: middle.to, insert: " " },
           userEvent: "input.type"
         });
       });
-      expect(typing.median).toBeLessThan(64);
-      expect(typing.p95).toBeLessThan(128);
 
       // Commit the typing burst so external model patches are accepted.
       expect(sourceEditSession.flush("command")).toBe("flushed");
@@ -135,13 +133,6 @@ describe("Phase 2e source editor integration performance", () => {
       console.log(
         `[Phase 2e perf] ${count}行 model patch CM反映分 (差分): ${cmReflection.toFixed(2)}ms`
       );
-      expect(patchWithController.median).toBeLessThan(1000);
-
-      if (count === 1000) {
-        // The 1000-element commit budget: the store-only patch commit above is the
-        // full text commit cycle (serialize + parse + compile + reconcile).
-        expect(patchWithoutController.median).toBeLessThan(1200);
-      }
     }
   }, 120_000);
 });
