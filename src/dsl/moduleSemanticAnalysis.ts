@@ -26,7 +26,8 @@ import { isKnownNumericComputedGeometryProperty } from "../geometry/numericExpre
 import { isDerivedPointKeyForGeometryCategory, isKnownDerivedPointKey, isLineEndpointPointKey } from "../model/pointAnchors";
 import { scopeChain, type ScopeId } from "../scalars/lexicalScopeIndex";
 import {
-  resolveModuleLexicalDeclaration as resolveSharedModuleLexicalDeclaration
+  resolveModuleLexicalDeclaration as resolveSharedModuleLexicalDeclaration,
+  resolveModuleLexicalPath as resolveSharedModuleLexicalPath
 } from "./moduleLexicalResolution";
 import type { ScalarType } from "../scalars/types";
 import type { StatementIdentity } from "../document/statementIdentity";
@@ -165,12 +166,9 @@ const sourceDeclarationResolution = (
 const qualifiedSourceDeclarationResolution = (
   sourceNamespace: SourceLexicalNamespaceIndex,
   statementIndex: number,
-  ownerIndex: number | null,
   path: ReturnType<typeof parseDslReferenceToken>
 ): SourceLexicalLookup | null => {
   if (path.segments.length < 2) return null;
-
-  if (ownerIndex !== null) return null;
   return resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
 };
 
@@ -261,39 +259,62 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     stateByIndex.set(statementIndex, state);
   }
 
+  const defaultParameterOverlaysFor = (ownerIndex: number | null): readonly DefinitionState[] =>
+    ownerIndex === null
+      ? []
+      : stateByIndex.get(ownerIndex)
+        ? [stateByIndex.get(ownerIndex)!]
+        : [];
+
+  const moduleResolutionInputFor = (parameterOverlays: readonly DefinitionState[]) => ({
+    sourceNamespace,
+    stableStatementIdByIndex,
+    parameterOverlays: parameterOverlays.map((definition) => ({
+      bodyScopeId: definition.bodyScopeId,
+      value: definition,
+      parameters: definition.parameters.map((parameter, index) => ({
+        index,
+        name: parameter.name,
+        value: { parameter, index }
+      }))
+    }))
+  });
+
   const resolveModuleLexicalDeclaration = (
     statementIndex: number,
     ownerIndex: number | null,
     name: string,
-    parameterOverlays: readonly DefinitionState[] = ownerIndex === null
-      ? []
-      : stateByIndex.get(ownerIndex)
-        ? [stateByIndex.get(ownerIndex)!]
-        : []
+    parameterOverlays: readonly DefinitionState[] = defaultParameterOverlaysFor(ownerIndex)
   ): ModuleLexicalLookup => {
     const shared = resolveSharedModuleLexicalDeclaration<
       { parameter: ResolvedModuleParameter; index: number },
       DefinitionState
     >(
-      {
-        sourceNamespace,
-        stableStatementIdByIndex,
-        parameterOverlays: parameterOverlays.map((definition) => ({
-          bodyScopeId: definition.bodyScopeId,
-          value: definition,
-          parameters: definition.parameters.map((parameter, index) => ({
-            index,
-            name: parameter.name,
-            value: { parameter, index }
-          }))
-        }))
-      },
+      moduleResolutionInputFor(parameterOverlays),
       statementIndex,
       name
     );
     if (shared.kind !== "parameter") return shared;
     return {
       kind: "parameter",
+      definition: shared.definition.value,
+      parameter: shared.parameter.value
+    };
+  };
+
+  const resolveModuleLexicalPath = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    path: ReturnType<typeof parseDslReferenceToken>,
+    parameterOverlays: readonly DefinitionState[] = defaultParameterOverlaysFor(ownerIndex)
+  ) => {
+    const shared = resolveSharedModuleLexicalPath<
+      { parameter: ResolvedModuleParameter; index: number },
+      DefinitionState
+    >(moduleResolutionInputFor(parameterOverlays), statementIndex, path);
+    if (shared.kind !== "parameter") return shared;
+    return {
+      kind: "parameter" as const,
       definition: shared.definition.value,
       parameter: shared.parameter.value
     };
@@ -307,7 +328,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     name: string,
     boundaryOwnerIndex: number | null = ownerIndex
   ): ReferenceResolution => {
-    const lookup = resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
+    const path = parseDslReferenceToken(name);
+    const lookup = path.segments.length > 1
+      ? resolveModuleLexicalPath(statementIndex, ownerIndex, path)
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
     if (lookup.kind === "parameter") {
       const type = scalarTypeOf(lookup.parameter.parameter.type);
       if (type) return { target: scalarParameterTarget(lookup.definition, lookup.parameter), type, resolution: "resolved" };
@@ -324,6 +348,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", { start: 0, end: 0 }, `未定義のmodule scalar「${name}」を参照しています。`) };
     if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", { start: 0, end: 0 }, `module scalar「${name}」はこの位置より後で宣言されています。`) };
     if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-reference", { start: 0, end: 0 }, `module scalar「${name}」を一意に解決できません。`) };
+    if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", { start: 0, end: 0 }, `「${lookup.name}」はparameter/iteration namespaceではありません。`) };
     if (lookup.kind === "invalidTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", { start: 0, end: 0 }, `「${lookup.declaration.name}」はnamespace/containerではありません。`) };
     const declaration = lookup.declaration;
     const declarationOwner = moduleOwnerIndexOf(statements, declaration.statementIndex);
@@ -364,7 +389,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const enclosingDefinition = definitionStates.find((candidate) => candidate.bodyScopeId === scopeId);
       return enclosingDefinition ? [enclosingDefinition] : [];
     });
-    const lookup = resolveModuleLexicalDeclaration(definition.statementIndex, null, reference.name, enclosingDefinitions);
+    const path = parseDslReferenceToken(reference.name);
+    const lookup = path.segments.length > 1
+      ? resolveModuleLexicalPath(definition.statementIndex, null, path, enclosingDefinitions)
+      : resolveModuleLexicalDeclaration(definition.statementIndex, null, reference.name, enclosingDefinitions);
     if (lookup.kind === "parameter") {
       const type = scalarTypeOf(lookup.parameter.parameter.type);
       return type
@@ -377,6 +405,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", reference.span, `未定義のmodule scalar「${reference.name}」を参照しています。`) };
     if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", reference.span, `module scalar「${reference.name}」はこの位置より後で宣言されています。`) };
     if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-reference", reference.span, `module scalar「${reference.name}」を一意に解決できません。`) };
+    if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", reference.span, `「${lookup.name}」はparameter/iteration namespaceではありません。`) };
     if (lookup.kind === "invalidTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", reference.span, `「${lookup.declaration.name}」はnamespace/containerではありません。`) };
     const declaration = lookup.declaration;
     if (declaration.kind === "typedDeclaration" && declaration.statement.kind === "typedDeclaration") {
@@ -522,11 +551,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (lookup.kind === "resolved") {
       // A qualified ordinary CAD namespace (for example
       // `前身頃::縫い代::先に縫う`) is not a module export. Let the normal
-      // source-namespace path resolver handle it below. Other declaration
-      // kinds retain the established wrong-kind diagnostic.
+      // source-namespace path resolver handle every non-module declaration
+      // below. Module export lookup remains exclusive to module instances.
       if (lookup.declaration.kind !== "moduleInstance") {
-        if (["group", "conditionalGroup", "forGroup"].includes(lookup.declaration.kind)) return null;
-        return { kind: "wrongKind", instanceName, instanceSpan, exportName, memberSpan };
+        return null;
       }
       const instanceOwnerIndex = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
       if (ownerIndex !== null && instanceOwnerIndex !== ownerIndex) {
@@ -534,8 +562,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }
       return { kind: "deferred", instance: lookup.declaration, instanceName, instanceSpan, exportName, memberSpan };
     }
-    if (lookup.kind === "forward") return { kind: "forward", instanceName, instanceSpan, exportName, memberSpan };
-    if (lookup.kind === "ambiguous") return { kind: "ambiguous", instanceName, instanceSpan, exportName, memberSpan };
+    if (lookup.kind === "forward" || lookup.kind === "ambiguous") {
+      if (lookup.declarations.every((declaration) => declaration.kind === "moduleInstance")) {
+        return { kind: lookup.kind, instanceName, instanceSpan, exportName, memberSpan };
+      }
+      return null;
+    }
+    if (lookup.kind === "parameter" || lookup.kind === "iteration") return null;
     return { kind: "undefined", instanceName, instanceSpan, exportName, memberSpan };
   };
 
@@ -713,14 +746,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       qualifiedDiagnostic(statementIndex, semanticSpan, qualified, expected);
       return semantic(null, qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid", null, derivedRole);
     }
-    const lookup = qualifiedSourceDeclarationResolution(
-      sourceNamespace,
-      statementIndex,
-      ownerIndex,
-      parseDslReferenceToken(base)
-    ) ?? (ownerIndex === null
-      ? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
-      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, base));
+    const path = parseDslReferenceToken(base);
+    const lookup = ownerIndex === null
+      ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
+      : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
     if (lookup.kind === "parameter") {
       const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       const pointTarget = pointKey
@@ -751,6 +780,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     if (lookup.kind === "ambiguous") {
       addLocal(statementIndex, issue("module-ambiguous-geometry-reference", baseSpan, `geometry「${base}」を一意に解決できません。`));
+      return semantic(null, "invalid", null, derivedRole);
+    }
+    if (lookup.kind === "invalidOverlayTraversal") {
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${lookup.name}」はparameter/iteration namespaceではありません。`));
       return semantic(null, "invalid", null, derivedRole);
     }
     if (lookup.kind === "invalidTraversal") {
@@ -814,14 +847,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       qualifiedDiagnostic(statementIndex, reference.span, qualified, null);
       return { target: null, type: null, resolution: qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid" };
     }
-    const lookup = qualifiedSourceDeclarationResolution(
-      sourceNamespace,
-      statementIndex,
-      ownerIndex,
-      parseDslReferenceToken(reference.elementName)
-    ) ?? (ownerIndex === null
-      ? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.elementName)
-      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, reference.elementName));
+    const path = parseDslReferenceToken(reference.elementName);
+    const lookup = ownerIndex === null
+      ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.elementName)
+      : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
     if (lookup.kind === "parameter") {
       const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       if (!parameterTarget) {
@@ -849,6 +878,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     if (lookup.kind === "ambiguous") {
       return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-geometry-reference", reference.span, `geometry「${reference.elementName}」を一意に解決できません。`) };
+    }
+    if (lookup.kind === "invalidOverlayTraversal") {
+      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.name}」はparameter/iteration namespaceではありません。`) };
     }
     if (lookup.kind === "invalidTraversal") {
       return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.declaration.name}」はnamespace/containerではありません。`) };

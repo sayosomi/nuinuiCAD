@@ -860,6 +860,83 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("resolves ordinary qualified source paths for module scalar and geometry consumers", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  group G {",
+      "    const X: number = 1",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "  const value: number = @G::X",
+      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "}"
+    ].join("\n"));
+    const definition = compiled.moduleSemanticAnalysis!.definitions[0];
+    const value = definition.localScalars.find((scalar) => scalar.name === "value");
+    expect(value?.initializer?.references[0]).toMatchObject({
+      name: "G::X",
+      target: { kind: "moduleLocal", statementId: "statement:test:3", statementIndex: 3 },
+      resolution: "resolved"
+    });
+    expect(moduleBodyAt(compiled, 7).geometryReferences[0].reference).toMatchObject({
+      source: "@G::P",
+      target: { kind: "sourceGeometry", statementId: "statement:test:4", statementIndex: 4 },
+      resolution: "resolved"
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("does not fall through an overlaid module parameter during qualified traversal", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "group G {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module M(G: point) {",
+      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "}"
+    ].join("\n"));
+    const reference = moduleBodyAt(compiled, 5).geometryReferences[0].reference;
+
+    expect(reference).toMatchObject({ resolution: "invalid", target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
+  });
+
+  it("keeps qualified module paths fail-closed across scalar and geometry kinds", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  group G {",
+      "    const X: number = 1",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "  const scalarFromGeometry: number = @G::P",
+      "  point geometryFromScalar = offset(from: @G::X, dx: 0, dy: 0)",
+      "}"
+    ].join("\n"));
+    const definition = compiled.moduleSemanticAnalysis!.definitions[0];
+    expect(definition.localScalars.find((scalar) => scalar.name === "scalarFromGeometry")?.initializer?.references[0]).toMatchObject({
+      name: "G::P",
+      target: { kind: "sourceGeometry", statementId: "statement:test:4", statementIndex: 4 },
+      resolution: "invalid"
+    });
+    expect(moduleBodyAt(compiled, 7).geometryReferences[0].reference).toMatchObject({
+      source: "@G::X",
+      target: null,
+      resolution: "invalid"
+    });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-reference-in-scalar" }),
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+  });
+
   it("does not create runtime CadElements or runtime IDs for module body statements", () => {
     const compiled = compileWithIds([
       "nui 3",

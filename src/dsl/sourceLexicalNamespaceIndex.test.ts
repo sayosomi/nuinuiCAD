@@ -385,4 +385,42 @@ describe("source lexical namespace index", () => {
     ]));
     expect(compiled.document).toBeNull();
   });
+
+  it("keeps a qualified typed scalar forward result in the canonical namespace", () => {
+    const source = [
+      "nui 3",
+      "group G {",
+      "  const use: number = @G::X",
+      "  const X: number = 1",
+      "}"
+    ].join("\n");
+    const { parsed, stableIds } = parseWithStableIds(source);
+    const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
+    const reference = compiled.bindingAnalysis?.initializerReferences.find((candidate) => candidate.name === "G::X");
+
+    expect(reference?.resolution).toMatchObject({ kind: "namespace", reason: "forward" });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "forward-binding-reference" })]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "undefined-binding", message: expect.stringContaining("G::X") })
+    ]));
+  });
+
+  it("keeps a qualified typed scalar ambiguity in the canonical namespace", () => {
+    const source = [
+      "nui 3",
+      "group G {",
+      "  const X: number = 1",
+      "  let X: number = 2",
+      "  const use: number = @G::X",
+      "}"
+    ].join("\n");
+    const { parsed, stableIds } = parseWithStableIds(source);
+    const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
+    const reference = compiled.bindingAnalysis?.initializerReferences.find((candidate) => candidate.name === "G::X");
+
+    expect(reference?.resolution).toMatchObject({ kind: "namespace", reason: "ambiguous" });
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "undefined-binding", message: expect.stringContaining("G::X") })
+    ]));
+  });
 });

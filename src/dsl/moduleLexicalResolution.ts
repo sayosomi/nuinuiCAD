@@ -1,10 +1,13 @@
 import type { StatementIdentity } from "../document/statementIdentity";
 import { scopeChain, type ScopeId } from "../scalars/lexicalScopeIndex";
 import {
+  resolveSourceLexicalPath,
+  resolveSourceLexicalPathFromDeclaration,
   type SourceLexicalDeclaration,
   type SourceLexicalLookup,
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
+import type { DslReferencePath } from "./dslReferenceTokens";
 
 /** The synthetic bindings which module semantic analysis overlays on the real
  * source namespace. The value is deliberately generic so completion and
@@ -19,6 +22,16 @@ export type ModuleLexicalLookup<T, D = unknown> =
   | { kind: "parameter"; definition: ModuleLexicalParameterOverlay<T, D>; parameter: { index: number; name: string; value: T } }
   | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string }
   | SourceLexicalLookup;
+
+export type ModuleLexicalPathLookup<T, D = unknown> =
+  | ModuleLexicalLookup<T, D>
+  | {
+      kind: "invalidOverlayTraversal";
+      overlay: "parameter" | "iteration";
+      name: string;
+      segment: string;
+      segmentIndex: number;
+    };
 
 export type ModuleLexicalResolutionInput<T, D = unknown> = {
   sourceNamespace: SourceLexicalNamespaceIndex;
@@ -72,6 +85,40 @@ export const resolveModuleLexicalDeclaration = <T, D = unknown>(
     if (declarations.length > 0 && !firstFuture) firstFuture = { scopeId, declarations };
   }
   return firstFuture ? { kind: "forward", ...firstFuture } : { kind: "undefined" };
+};
+
+/** Resolve a qualified module-body path without duplicating source namespace
+ * traversal. Only the first segment is overlay-aware; once it resolves to a
+ * source declaration, the canonical source path helper owns the remaining
+ * segments and their source-order diagnostics. */
+export const resolveModuleLexicalPath = <T, D = unknown>(
+  input: ModuleLexicalResolutionInput<T, D>,
+  statementIndex: number,
+  path: DslReferencePath,
+  position: ModuleLexicalResolutionPosition = {}
+): ModuleLexicalPathLookup<T, D> => {
+  if (path.segments.length === 0) return { kind: "undefined" };
+  if (path.absolute) return resolveSourceLexicalPath(input.sourceNamespace, statementIndex, path);
+
+  const first = resolveModuleLexicalDeclaration(input, statementIndex, path.segments[0], position);
+  if (path.segments.length === 1) return first;
+  if (first.kind === "parameter" || first.kind === "iteration") {
+    return {
+      kind: "invalidOverlayTraversal",
+      overlay: first.kind,
+      name: path.segments[0],
+      segment: path.segments[1],
+      segmentIndex: 1
+    };
+  }
+  if (first.kind !== "resolved") return first;
+  return resolveSourceLexicalPathFromDeclaration(
+    input.sourceNamespace,
+    statementIndex,
+    first.declaration,
+    path.segments.slice(1),
+    position.sourceOrderIndex ?? statementIndex
+  );
 };
 
 const isDescendantOrSelf = (index: SourceLexicalNamespaceIndex, child: ScopeId, ancestor: ScopeId): boolean => {

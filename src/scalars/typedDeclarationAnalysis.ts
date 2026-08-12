@@ -85,7 +85,8 @@ const sourceNamespaceBindingResolverFor = (
   sourceNamespace: SourceLexicalNamespaceIndex,
   typedStatementIndexes: ReadonlySet<number>
 ): SourceNamespaceBindingResolver => (name, statementIndex) => {
-  const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, parseDslReferenceToken(name));
+  const path = parseDslReferenceToken(name);
+  const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
   if (lookup.kind === "undefined") return null;
   if (lookup.kind === "resolved") {
     if (lookup.declaration.kind === "typedDeclaration" && typedStatementIndexes.has(lookup.declaration.statementIndex)) {
@@ -108,10 +109,16 @@ const sourceNamespaceBindingResolverFor = (
     };
   }
   // Keep the existing binding sweep as the owner for all-typed duplicate and
-  // forward buckets. A mixed-kind bucket must remain blocked so a scalar
-  // consumer cannot skip an inner geometry/group and capture an outer scalar.
+  // forward buckets for simple names. Qualified paths have already been
+  // resolved by the canonical namespace and must retain its forward/ambiguous
+  // reason even when every candidate is typed. A mixed-kind bucket must remain
+  // blocked so a scalar consumer cannot skip an inner geometry/group and
+  // capture an outer scalar.
   const declarations = lookup.declarations;
-  if (declarations.every((declaration) => declaration.kind === "typedDeclaration" && typedStatementIndexes.has(declaration.statementIndex))) return null;
+  if (
+    path.segments.length === 1 &&
+    declarations.every((declaration) => declaration.kind === "typedDeclaration" && typedStatementIndexes.has(declaration.statementIndex))
+  ) return null;
   return { kind: "blocked", reason: lookup.kind };
 };
 

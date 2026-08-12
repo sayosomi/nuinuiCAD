@@ -241,6 +241,41 @@ export const resolveSourceLexicalDeclaration = (
   return { kind: "undefined" };
 };
 
+/** Continue a source-level qualified path from a declaration that has already
+ * been resolved by a caller-specific first-segment lookup. The traversal
+ * itself remains owned by this source namespace index so module overlays and
+ * ordinary document references cannot drift apart. */
+export const resolveSourceLexicalPathFromDeclaration = (
+  index: SourceLexicalNamespaceIndex,
+  statementIndex: number,
+  declaration: SourceLexicalDeclaration,
+  remainingSegments: readonly string[],
+  sourceOrderIndex = statementIndex
+): SourceLexicalLookup => {
+  let current = declaration;
+  for (const [remainingIndex, segment] of remainingSegments.entries()) {
+    const segmentIndex = remainingIndex + 1;
+    const scopeIds = sourceNamespaceScopeIdsForDeclaration(index, current);
+    if (scopeIds.length === 0) {
+      return { kind: "invalidTraversal", declaration: current, segment, segmentIndex };
+    }
+    const declarations = scopeIds.flatMap((scopeId) =>
+      index.declarationsByScopeAndName.get(scopeId)?.get(segment) ?? []
+    );
+    const visible = declarations.filter((candidate) => candidate.statementIndex < sourceOrderIndex);
+    if (visible.length === 1) {
+      current = visible[0];
+      continue;
+    }
+    if (visible.length > 1) return { kind: "ambiguous", scopeId: scopeIds[0], declarations: visible };
+    const future = declarations.filter((candidate) => candidate.statementIndex >= sourceOrderIndex);
+    if (future.length > 0) return { kind: "forward", scopeId: scopeIds[0], declarations: future };
+    return { kind: "undefined" };
+  }
+
+  return { kind: "resolved", declaration: current };
+};
+
 /** Resolve a source-level qualified path using the same lexical visibility
  * rule as a simple name. The first segment is resolved through the nearest
  * visible scope; every later segment is a direct member of the container
@@ -272,26 +307,10 @@ export const resolveSourceLexicalPath = (
       })()
     : resolveSourceLexicalDeclaration(index, statementIndex, path.segments[0]);
   if (first.kind !== "resolved") return first;
-
-  let declaration = first.declaration;
-  for (let segmentIndex = 1; segmentIndex < path.segments.length; segmentIndex += 1) {
-    const scopeIds = sourceNamespaceScopeIdsForDeclaration(index, declaration);
-    if (scopeIds.length === 0) {
-      return { kind: "invalidTraversal", declaration, segment: path.segments[segmentIndex], segmentIndex };
-    }
-    const declarations = scopeIds.flatMap((scopeId) =>
-      index.declarationsByScopeAndName.get(scopeId)?.get(path.segments[segmentIndex]) ?? []
-    );
-    const visible = declarations.filter((candidate) => candidate.statementIndex < statementIndex);
-    if (visible.length === 1) {
-      declaration = visible[0];
-      continue;
-    }
-    if (visible.length > 1) return { kind: "ambiguous", scopeId: scopeIds[0], declarations: visible };
-    const future = declarations.filter((candidate) => candidate.statementIndex >= statementIndex);
-    if (future.length > 0) return { kind: "forward", scopeId: scopeIds[0], declarations: future };
-    return { kind: "undefined" };
-  }
-
-  return { kind: "resolved", declaration };
+  return resolveSourceLexicalPathFromDeclaration(
+    index,
+    statementIndex,
+    first.declaration,
+    path.segments.slice(1)
+  );
 };
