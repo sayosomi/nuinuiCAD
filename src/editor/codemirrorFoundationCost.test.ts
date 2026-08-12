@@ -12,6 +12,11 @@ const median = (values: number[]) => {
   return sorted[Math.floor(sorted.length / 2)];
 };
 
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
+
 const measure = (name: string, run: () => void) => {
   run();
   const durations: number[] = [];
@@ -27,7 +32,7 @@ const measure = (name: string, run: () => void) => {
   return value;
 };
 
-describe("CodeMirror Phase 2a performance baseline", () => {
+describePerformanceGates("CodeMirror Phase 2a performance baseline", () => {
   it("records 500/1000-line state creation, transaction, and LineSplice conversion separately from compile", () => {
     for (const count of [500, 1000]) {
       const text = source(count);

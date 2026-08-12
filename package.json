@@ -14,6 +14,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:performance:reconciler": "vitest run src/document/statementReconciler.performance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
+    "test:performance:codemirror-foundation": "VITE_RUN_PERFORMANCE_GATES=1 vitest run src/editor/codemirrorFoundationCost.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
+    "test:performance:rename-analysis": "VITE_RUN_PERFORMANCE_GATES=1 vitest run src/document/renameAnalysis.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
     "test:performance:binding-analysis": "VITE_RUN_PERFORMANCE_GATES=1 vitest run test/typedVariablesPureNui3BindingAnalysisPerformance.test.ts src/scalars/typedDependencyGraph.performance.test.ts src/scalars/typedRenameAnalysis.performance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
     "test:profile:binding-analysis": "VITE_RUN_BINDING_PROFILE=1 vitest run test/typedVariablesPureNui3BindingAnalysisProfile.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
     "test:performance:for-group-mutation": "VITE_RUN_PERFORMANCE_GATES=1 vitest run test/typedVariablesForGroupMutationProductionPerformance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
