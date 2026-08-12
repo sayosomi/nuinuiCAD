@@ -80,9 +80,11 @@ describe("SourceEditorController module semantic target priority", () => {
       "nui 3",
       "module M(width: number) {",
       "  export point Public = coordinate(x: 0, y: 0)",
+      "  export const value: number = 1",
       "}",
       "module I = M(width: 1)",
-      "point X = offset(from: @I::Public, dx: 1, dy: 0)"
+      "point X = offset(from: @I::Public, dx: 1, dy: 0)",
+      "const scalar: number = @I::value"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
@@ -106,6 +108,15 @@ describe("SourceEditorController module semantic target priority", () => {
     expect(exported?.kind).toBe("moduleSource");
     expect(controller.jumpToModuleSemanticTarget(exported!)).toBe(true);
     expect(internals.view.state.doc.sliceString(internals.view.state.selection.main.from, internals.view.state.selection.main.to)).toBe("Public");
+
+    moveTo("value", source.indexOf("@I::value"));
+    const scalarExport = controller.currentCursorModuleSemanticTarget();
+    expect(scalarExport).toEqual({ kind: "moduleSource", statementId: expect.any(String) });
+    expect(controller.jumpToModuleSemanticTarget(scalarExport!)).toBe(true);
+    expect(internals.view.state.doc.sliceString(internals.view.state.selection.main.from, internals.view.state.selection.main.to)).toBe("value");
+
+    moveTo("I", source.indexOf("@I::value") + 1);
+    expect(controller.currentCursorModuleSemanticTarget()?.kind).toBe("moduleInstance");
     controller.destroy();
   });
 

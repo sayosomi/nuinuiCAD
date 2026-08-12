@@ -41,6 +41,7 @@ import type {
   ModuleInstanceSemantic,
   ModuleGeometryReferenceRole,
   ModuleScalarExpressionSemantic,
+  ModuleScalarExpressionSite,
   ModuleScalarSourceTarget,
   ModuleSemanticAnalysis,
   ModuleSemanticAnalysisInput,
@@ -332,7 +333,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     boundaryOwnerIndex: number | null = ownerIndex,
     referenceSpan: DslSpan = { start: 0, end: name.length }
   ): ReferenceResolution => {
-    const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, name, referenceSpan);
+    // Scalar AST reference spans include the leading `@`, while the
+    // qualified-module resolver's source spans are defined over the path
+    // text. Keep the already-resolved target's member/instance spans exact so
+    // editor consumers can use them without reconstructing `instance::member`.
+    const referenceTextStart = referenceSpan.end - referenceSpan.start === name.length + 1 ? 1 : 0;
+    const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, name, referenceSpan, referenceTextStart);
     if (qualified?.kind === "deferred") {
       const scalarExport = qualifiedScalarExportFor(qualified);
       if (scalarExport?.kind === "scalar") {
@@ -1130,6 +1136,49 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     instances.push(semantic);
   }
 
+  // Root typed declarations are owned by the ordinary scalar analyzer, but a
+  // qualified module scalar reference still needs the Module source identity
+  // for editor completion/navigation/rename. Reuse this analysis' resolved
+  // target instead of asking the editor to resolve `instance::member` again.
+  const rootScalarExpressionsByStatementId = new Map<StatementIdentity, ModuleScalarExpressionSite>();
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (
+      statement.kind !== "typedDeclaration" ||
+      moduleOwnerIndexOf(statements, statementIndex) !== null ||
+      !statement.declaredType ||
+      !statement.payloadSpans.initializer ||
+      !statement.initializer.includes("::")
+    ) continue;
+    const initializerSpan = statement.payloadSpans.initializer;
+    const diagnosticsBefore = localDiagnosticsByStatement.get(statementIndex)?.length ?? 0;
+    const expression = analyzeExpression(
+      statementIndex,
+      statement.initializer,
+      initializerSpan,
+      statement.declaredType,
+      (reference) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
+      undefined,
+      (reference) => resolveGeometryProperty(statementIndex, null, reference)
+    );
+    // Root typed declaration diagnostics remain owned by the ordinary scalar
+    // analyzer. This pass only contributes already-resolved Module editor
+    // identity; duplicating an invalid/private diagnostic here would make the
+    // existing module scalar runtime bridge stop compiling its synthetic
+    // bindings before the canonical binding diagnostics are reported.
+    const diagnostics = localDiagnosticsByStatement.get(statementIndex);
+    if (diagnostics && diagnostics.length > diagnosticsBefore) {
+      diagnostics.splice(diagnosticsBefore);
+      if (diagnostics.length === 0) localDiagnosticsByStatement.delete(statementIndex);
+    }
+    if (expression) {
+      rootScalarExpressionsByStatementId.set(statementIdAt(stableStatementIdByIndex, statementIndex), {
+        parameterKey: null,
+        span: initializerSpan,
+        expression
+      });
+    }
+  }
+
   const localScalarsByDefinition = new Map<number, ModuleDefinitionSemantic["localScalars"]>();
   const bodyStatementsByDefinition = new Map<number, ModuleDefinitionSemantic["bodyStatements"]>();
   const exportsByDefinition = new Map<number, ResolvedModuleExport[]>();
@@ -1186,7 +1235,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   }
   const definitionsByStatementId = new Map(semanticDefinitions.map((definition) => [definition.statementId, definition] as const));
   const instancesByStatementId = new Map(instances.map((instance) => [instance.statementId, instance] as const));
-  return { definitions: semanticDefinitions, instances, definitionsByStatementId, instancesByStatementId, callEdges, rootGeometryReferencesByStatementId, diagnostics };
+  return {
+    definitions: semanticDefinitions,
+    instances,
+    definitionsByStatementId,
+    instancesByStatementId,
+    callEdges,
+    rootScalarExpressionsByStatementId,
+    rootGeometryReferencesByStatementId,
+    diagnostics
+  };
 };
 
 export const analyzeModuleSemantic = analyzeModuleSemantics;

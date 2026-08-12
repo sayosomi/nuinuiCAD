@@ -6,7 +6,13 @@ import { scalarLiteralCandidates } from "../scalars/typedValueCandidates";
 import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import type { ScalarType } from "../scalars/types";
 import type { DslModuleParameterType } from "./dslTypes";
-import type { ModuleDefinitionSemantic, ModuleGeometryPropertySourceTarget, ModuleGeometrySourceTarget, ModuleInstanceSemantic } from "./moduleSemanticTypes";
+import type {
+  ModuleDefinitionSemantic,
+  ModuleGeometryPropertySourceTarget,
+  ModuleGeometrySourceTarget,
+  ModuleInstanceSemantic,
+  ModuleScalarSourceTarget
+} from "./moduleSemanticTypes";
 import { sourceLocalVariableNamesBefore } from "./dslLocalVariableCompletionCandidates";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import { scanCallArgs } from "./dslArgScanner";
@@ -234,8 +240,84 @@ const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: num
   return geometryKind ? geometryCompletions(compiled, statementIndex, geometryKind, request) : scalarCompletions(compiled, statementIndex, parameterType, request);
 };
 
-const deferredInstanceIdOf = (target: ModuleGeometrySourceTarget | ModuleGeometryPropertySourceTarget | null) =>
-  target?.kind === "deferredModuleExport" || target?.kind === "deferredModuleExportProperty" ? target.instanceStatementId : null;
+const deferredInstanceIdOf = (target: ModuleScalarSourceTarget | ModuleGeometrySourceTarget | ModuleGeometryPropertySourceTarget | null) =>
+  target?.kind === "deferredModuleScalarExport" || target?.kind === "deferredModuleExport" || target?.kind === "deferredModuleExportProperty"
+    ? target.instanceStatementId
+    : null;
+
+type QualifiedMemberContext = {
+  instanceStatementId: string;
+  memberKind: "scalar" | "geometry";
+  expectedScalarType: ScalarType | null;
+};
+
+const containsLogicalPosition = (position: number, span: { start: number; end: number }) =>
+  position >= span.start && position <= span.end;
+
+const qualifiedMemberContextAt = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  request: ModuleCompletionRequest
+): QualifiedMemberContext | null => {
+  const logicalPosition = request.logicalCursorPosition;
+  if (logicalPosition === undefined) return null;
+  const owner = currentModuleDefinition(compiled, statementIndex, request.scopeId);
+  const body = owner?.bodyStatements.find((candidate) => candidate.statementIndex === statementIndex);
+  for (const site of body?.scalarExpressions ?? []) {
+    for (const reference of site.expression.references) {
+      const instanceStatementId = deferredInstanceIdOf(reference.target);
+      if (!instanceStatementId || !containsLogicalPosition(logicalPosition, reference.span)) continue;
+      return {
+        instanceStatementId,
+        memberKind: "scalar",
+        expectedScalarType: site.expression.ast.kind === "reference" ? site.expression.type : null
+      };
+    }
+  }
+  for (const site of body?.textTemplateHoles ?? []) {
+    for (const reference of site.expression.references) {
+      const instanceStatementId = deferredInstanceIdOf(reference.target);
+      if (!instanceStatementId || !containsLogicalPosition(logicalPosition, reference.span)) continue;
+      return { instanceStatementId, memberKind: "scalar", expectedScalarType: site.expression.ast.kind === "reference" ? site.expression.type : null };
+    }
+  }
+  for (const site of body?.geometryReferences ?? []) {
+    const instanceStatementId = deferredInstanceIdOf(site.reference.target);
+    if (instanceStatementId && containsLogicalPosition(logicalPosition, site.reference.span)) {
+      return { instanceStatementId, memberKind: "geometry", expectedScalarType: null };
+    }
+  }
+  for (const site of body?.scalarExpressions ?? []) {
+    for (const reference of site.expression.geometryProperties) {
+      const instanceStatementId = deferredInstanceIdOf(reference.target);
+      if (instanceStatementId && containsLogicalPosition(logicalPosition, reference.span)) {
+        return { instanceStatementId, memberKind: "geometry", expectedScalarType: null };
+      }
+    }
+  }
+  const rootScalarSite = compiled.moduleSemanticAnalysis?.rootScalarExpressionsByStatementId.get(
+    compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex) ?? ""
+  );
+  const rootScalarExpectedType = rootScalarSite?.expression.ast.kind === "reference" ? rootScalarSite.expression.type : null;
+  for (const reference of rootScalarSite?.expression.references ?? []) {
+    const instanceStatementId = deferredInstanceIdOf(reference.target);
+    if (!instanceStatementId || !containsLogicalPosition(logicalPosition, reference.span)) continue;
+    return {
+      instanceStatementId,
+      memberKind: "scalar",
+      expectedScalarType: rootScalarExpectedType
+    };
+  }
+  for (const site of compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(
+    compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex) ?? ""
+  ) ?? []) {
+    const instanceStatementId = deferredInstanceIdOf(site.reference.target);
+    if (instanceStatementId && containsLogicalPosition(logicalPosition, site.reference.span)) {
+      return { instanceStatementId, memberKind: "geometry", expectedScalarType: null };
+    }
+  }
+  return null;
+};
 
 const stableQualifiedInstanceIdAt = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest) => {
   const logicalPosition = request.logicalCursorPosition;
@@ -269,13 +351,30 @@ const stableQualifiedInstanceIdAt = (compiled: CompiledDslDocument, statementInd
 const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): Completion[] => {
   const analysis = compiled.moduleSemanticAnalysis;
   if (!analysis) return [];
-  const instanceStatementId = stableQualifiedInstanceIdAt(compiled, statementIndex, request);
+  const context = qualifiedMemberContextAt(compiled, statementIndex, request);
+  const semanticInstanceStatementId = context?.instanceStatementId ?? stableQualifiedInstanceIdAt(compiled, statementIndex, request);
+  const instanceStatementId = semanticInstanceStatementId ?? (() => {
+    if (!request.qualifiedInstanceName) return null;
+    const resolved = visibleLookup(compiled, statementIndex, request.qualifiedInstanceName, request.scopeId, request.sourceOrderIndex);
+    return resolved?.lookup.kind === "resolved" && resolved.lookup.declaration.kind === "moduleInstance"
+      ? resolved.lookup.declaration.statementId
+      : null;
+  })();
   if (!instanceStatementId) return [];
   const instance = analysis.instancesByStatementId.get(instanceStatementId);
   const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
-  return definition?.exports
+  if (!definition) return [];
+  const scalarContext = context?.memberKind === "scalar" || (!context && request.expectedScalarType !== null && request.expectedScalarType !== undefined);
+  if (scalarContext) {
+    const expected = context?.expectedScalarType ?? request.expectedScalarType ?? null;
+    return definition.exports
+      .filter((entry): entry is Extract<typeof entry, { kind: "scalar" }> => entry.kind === "scalar")
+      .filter((entry) => !expected || isScalarTypeAssignable(entry.declaredType, expected))
+      .map((entry) => ({ label: entry.name, type: "constant" as const }));
+  }
+  return definition.exports
     .filter((entry) => entry.kind === "geometry")
-    .map((entry) => ({ label: entry.name, type: "constant" as const })) ?? [];
+    .map((entry) => ({ label: entry.name, type: "constant" as const }));
 };
 
 /** Module candidates are source-semantic. Last-good identities are accepted

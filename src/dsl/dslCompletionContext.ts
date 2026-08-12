@@ -46,7 +46,7 @@ export type DslCompletionContext =
   | { kind: "moduleCallee"; from: number; to: number }
   | { kind: "moduleArgumentLabel"; from: number; to: number; argumentIndex: number }
   | { kind: "moduleArgumentValue"; from: number; to: number; argumentIndex: number }
-  | { kind: "moduleQualifiedMember"; from: number; to: number }
+  | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; expectedScalarType?: ScalarType }
   | { kind: "moduleReference"; from: number; to: number }
   | null;
 
@@ -322,7 +322,16 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
   if (moduleContext) return moduleContext;
 
   const qualified = code.slice(0, pos).match(new RegExp(`[^\\s"'#=()[\\]{},;:.]+::[^\\s"'#=()[\\]{},;:.]*$`));
-  if (qualified) return { kind: "moduleQualifiedMember", from: pos - qualified[0].length + qualified[0].indexOf("::") + 2, to: pos };
+  if (qualified) {
+    const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
+    return {
+      kind: "moduleQualifiedMember",
+      from: pos - qualified[0].length + qualified[0].indexOf("::") + 2,
+      to: pos,
+      qualifiedInstanceName: qualified[0].slice(0, qualified[0].indexOf("::")).replace(/^@/, ""),
+      ...(typedDeclarationContext ? { expectedScalarType: typedDeclarationContext.declaredType } : {})
+    };
+  }
 
   const callContext = dslCallCompletionContextAt(code, pos);
   if (callContext) return callContext;

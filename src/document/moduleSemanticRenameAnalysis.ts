@@ -54,11 +54,16 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
     if (value.kind === "parameter" || value.kind === "parameterProperty") return { kind: value.kind, definitionStatementId: value.definitionStatementId, parameterIndex: value.parameterIndex };
     if (value.kind === "sourceGeometry" || value.kind === "sourceGeometryProperty" || value.kind === "moduleLocal" || value.kind === "elementLocalVariable" || value.kind === "iteration") return { kind: value.kind, statementId: value.statementId, variableIndex: value.variableIndex ?? null };
     if (value.kind === "documentBinding") return { kind: value.kind, bindingId: value.bindingId };
-    if (value.kind === "deferredModuleExport" || value.kind === "deferredModuleExportProperty") {
+    if (value.kind === "deferredModuleScalarExport" || value.kind === "deferredModuleExport" || value.kind === "deferredModuleExportProperty") {
       const instance = analysis.instancesByStatementId.get(value.instanceStatementId as string);
       const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
       const exported = definition?.exports.find((entry) => entry.name === value.exportName);
-      return { kind: value.kind, instanceStatementId: value.instanceStatementId, exportedStatementId: exported?.exportedStatementId ?? null, property: value.property ?? null };
+      return {
+        kind: value.kind,
+        instanceStatementId: value.instanceStatementId,
+        exportedStatementId: value.exportedStatementId ?? exported?.exportedStatementId ?? null,
+        property: value.property ?? null
+      };
     }
     return value.kind;
   };
@@ -103,7 +108,8 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
       templates: body.textTemplateHoles.map((site) => expressionFingerprint(site.expression)),
       scalarTarget: targetFingerprint(body.scalarTarget)
     }))),
-    roots: [...analysis.rootGeometryReferencesByStatementId].map(([id, refs]) => [id, refs.map((site) => geometryFingerprint(site.reference))])
+    roots: [...analysis.rootGeometryReferencesByStatementId].map(([id, refs]) => [id, refs.map((site) => geometryFingerprint(site.reference))]),
+    scalarRoots: [...analysis.rootScalarExpressionsByStatementId].map(([id, site]) => [id, expressionFingerprint(site.expression)])
   });
 };
 

@@ -261,6 +261,8 @@ export type ModuleSemanticAnalysis = {
   definitionsByStatementId: ReadonlyMap<StatementIdentity, ModuleDefinitionSemantic>;
   instancesByStatementId: ReadonlyMap<StatementIdentity, ModuleInstanceSemantic>;
   callEdges: readonly ModuleCallEdge[];
+  /** Source-only qualified scalar references in root typed declarations. */
+  rootScalarExpressionsByStatementId: ReadonlyMap<StatementIdentity, ModuleScalarExpressionSite>;
   /** Source-only qualified geometry references in the root document. */
   rootGeometryReferencesByStatementId: ReadonlyMap<StatementIdentity, readonly ModuleGeometryReferenceSite[]>;
   diagnostics: readonly DslDiagnostic[];

@@ -110,6 +110,77 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(qualified?.options.map((option) => option.label)).not.toContain("Private");
   });
 
+  it("filters qualified scalar members by the scalar context and keeps geometry members separate", async () => {
+    const source = [
+      "nui 3",
+      "module M() {",
+      "  export const value: number = 1",
+      "  export let label: string = \"\"",
+      "  const privateValue: number = 2",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance foo = M()",
+      "const result: number = @foo::value",
+      "point X = offset(from: @foo::P, dx: 1, dy: 0)"
+    ].join("\n");
+    const scalarCursor = source.indexOf("@foo::value") + "@foo::".length;
+    const scalar = await completionFor(source, scalarCursor);
+    expect(scalar?.options.map((option) => option.label)).toContain("value");
+    expect(scalar?.options.map((option) => option.label)).not.toContain("label");
+    expect(scalar?.options.map((option) => option.label)).not.toContain("privateValue");
+    expect(scalar?.options.map((option) => option.label)).not.toContain("P");
+
+    const geometryCursor = source.indexOf("@foo::P") + "@foo::".length;
+    const geometry = await completionFor(source, geometryCursor);
+    expect(geometry?.options.map((option) => option.label)).toEqual(["P"]);
+    expect(geometry?.options.map((option) => option.label)).not.toContain("value");
+  });
+
+  it("completes a member on an in-progress root scalar reference", async () => {
+    const lastGood = [
+      "nui 3",
+      "module M() {",
+      "  export const value: number = 1",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance foo = M()",
+      "const result: number = @foo::value"
+    ].join("\n");
+    const source = lastGood.replace("@foo::value", "@foo::");
+    const statementIndex = lastGood.split("\n").findIndex((line) => line.startsWith("const result"));
+    const result = await completionForWithLastGoodMetadata(source, lastGood, source.length, {
+      statementIndex,
+      scopeId: "root",
+      sourceOrderIndex: statementIndex
+    });
+    expect(result?.options.map((option) => option.label)).toEqual(["value"]);
+  });
+
+  it("uses the resolved lexical instance for qualified scalar completion in nested scopes", async () => {
+    const source = [
+      "nui 3",
+      "module M1() {",
+      "  export const first: number = 1",
+      "}",
+      "module M2() {",
+      "  export const second: number = 2",
+      "}",
+      "group A (printEnabled: true) {",
+      "  instance foo = M1()",
+      "  const resultA: number = @foo::first",
+      "}",
+      "group B (printEnabled: true) {",
+      "  instance foo = M2()",
+      "  const resultB: number = @foo::second",
+      "}"
+    ].join("\n");
+    const firstCursor = source.indexOf("@foo::first") + "@foo::".length;
+    const secondStart = source.indexOf("@foo::second", firstCursor);
+    const secondCursor = secondStart + "@foo::".length;
+    expect((await completionFor(source, firstCursor))?.options.map((option) => option.label)).toEqual(["first"]);
+    expect((await completionFor(source, secondCursor))?.options.map((option) => option.label)).toEqual(["second"]);
+  });
+
   it("projects a multiline module call label completion through the logical statement map", async () => {
     const source = [
       "nui 3",

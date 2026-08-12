@@ -736,7 +736,11 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
           sourceOrderIndex: site.sourceOrderIndex
         } : {}),
         ...(completionContext.kind === "moduleArgumentLabel" || completionContext.kind === "moduleArgumentValue"
-          ? { argumentIndex: completionContext.argumentIndex } : {}) })
+          ? { argumentIndex: completionContext.argumentIndex } : {}),
+        ...(completionContext.kind === "moduleQualifiedMember" && completionContext.expectedScalarType
+          ? { expectedScalarType: completionContext.expectedScalarType } : {}),
+        ...(completionContext.kind === "moduleQualifiedMember"
+          ? { qualifiedInstanceName: completionContext.qualifiedInstanceName } : {}) })
       : [];
     if (completions.length === 0 && completionContext.kind === "moduleReference" && !availableMetadata) {
       const query = input.lineText.slice(completionContext.from, input.localPos);

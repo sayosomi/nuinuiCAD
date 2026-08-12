@@ -69,6 +69,51 @@ describe("module semantic editor range view", () => {
     expect(index.tokens.find((token) => deferredSource.slice(token.from, token.to) === "Output" && token.from > deferredSource.indexOf("@"))?.target).toEqual({ kind: "moduleSource", statementId: "statement:deferred:2" });
   });
 
+  it("connects scalar export declarations and qualified members to one source target", () => {
+    const scalarSource = [
+      "nui 3",
+      "module M() {",
+      "  export const value: number = 1",
+      "  export let label: string = \"\"",
+      "}",
+      "instance a = M()",
+      "instance b = M()",
+      "const rootA: number = @a::value",
+      "const rootB: number = @b::value",
+      "module Consumer() {",
+      "  instance child = M()",
+      "  const inside: number = @child::value",
+      "}"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: scalarSource, sourceRevision: 0 });
+    const document = compileDslDocument(scalarSource, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:scalar:${index}`]))
+    });
+    expect(document.diagnostics).toEqual([]);
+    const index = createModuleSemanticRangeIndex(document);
+    const sourceToken = (text: string, from = 0) => index.tokens.find((token) => scalarSource.slice(token.from, token.to) === text && token.from >= from);
+    const valueDeclaration = sourceToken("value");
+    expect(valueDeclaration?.target).toEqual({ kind: "moduleSource", statementId: "statement:scalar:2" });
+
+    const firstMember = sourceToken("value", scalarSource.indexOf("@a::"));
+    const secondMember = sourceToken("value", scalarSource.indexOf("@b::"));
+    const childMember = sourceToken("value", scalarSource.indexOf("@child::"));
+    expect(firstMember?.target).toEqual(valueDeclaration?.target);
+    expect(secondMember?.target).toEqual(valueDeclaration?.target);
+    expect(childMember?.target).toEqual(valueDeclaration?.target);
+
+    const firstInstance = sourceToken("a", scalarSource.indexOf("@a::"));
+    const childInstance = sourceToken("child", scalarSource.indexOf("@child::"));
+    expect(firstInstance?.target).toEqual({ kind: "moduleInstance", statementId: "statement:scalar:5" });
+    expect(childInstance?.target).toEqual({ kind: "moduleInstance", statementId: "statement:scalar:10" });
+    expect(moduleSemanticTargetAt(index, firstMember!.from)).toEqual(valueDeclaration?.target);
+    expect(moduleSemanticTargetAt(index, firstInstance!.from)).toEqual(firstInstance?.target);
+
+    const declaration = moduleSemanticDeclarationRange(index, firstMember!.target);
+    expect(declaration && scalarSource.slice(declaration.from, declaration.to)).toBe("value");
+  });
+
   it("collects scalar and geometry-property occurrences from text-template holes", () => {
     const templateSource = [
       "nui 3",
