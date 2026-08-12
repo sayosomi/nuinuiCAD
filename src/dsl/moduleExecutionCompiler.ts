@@ -32,7 +32,8 @@ type ApplyStatement = (
   nameContext: ElementNameContext,
   visibilityRoles?: VisibilityRole[],
   majorVersion?: DslMajorVersion,
-  geometryResolvers?: DslGeometryResolverOverrides
+  geometryResolvers?: DslGeometryResolverOverrides,
+  statementIndex?: number
 ) => CadElement;
 
 type BuildBlockPrintLayouts = (input: {
@@ -186,7 +187,8 @@ export const compileMaterializedExecution = ({
       index.nameContext,
       visibilitySettings.visibilityRoles,
       context.majorVersion,
-      moduleGeometryRuntime?.resolversByRuntimeElementId.get(entry.runtimeElementId)
+      moduleGeometryRuntime?.resolversByRuntimeElementId.get(entry.runtimeElementId),
+      entry.sourceStatementIndex
     );
     return {
       ...compiled,

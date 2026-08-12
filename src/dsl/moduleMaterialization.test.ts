@@ -35,7 +35,7 @@ describe("module materialization", () => {
       "nui 3",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
-      "  point Q = offset(from: P, dx: 1, dy: 2)",
+      "  point Q = offset(from: @P, dx: 1, dy: 2)",
       "}",
       "point Before = coordinate(x: 0, y: 0)",
       "module A = M()",

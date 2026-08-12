@@ -149,27 +149,27 @@ describe("rename propagation reference-form coverage", () => {
       "  y: 0",
       ")",
       "line L = segment(",
-      "  start: A,",
-      "  end: B",
+      "  start: @A,",
+      "  end: @B",
       ") # target comment",
       "",
       "point StartUser = offset(",
-      "  from: L.start,",
+      "  from: @L.start,",
       "  dx: 1,",
       "  dy: 0",
       ")",
       "point EndUser = offset(",
-      "  from: L.end,",
+      "  from: @L.end,",
       "  dx: 1,",
       "  dy: 0",
       ")",
       "point OnUser = onLine(",
-      "  from: L.end,",
+      "  from: @L.end,",
       "  distance: 1,",
       "  steps: [ratio: 0.01]",
       ")",
       "point PropertyUser = offset(",
-      "  from: A,",
+      "  from: @A,",
       "  dx: @L.length,",
       "  dy: 0",
       ")",
@@ -204,7 +204,7 @@ describe("rename propagation reference-form coverage", () => {
       "}",
       "group Consumer {",
       "  point User = offset(",
-      "    from: G::P,",
+      "    from: @G::P,",
       "    dx: 1,",
       "    dy: 0",
       "  )",
@@ -232,7 +232,7 @@ describe("rename propagation reference-form coverage", () => {
     expect(after).toContain("role seam (name: \"Seam\")");
     expect(after).toContain("view Draft (default: true, seam: true)");
     expect(after).toContain("activeView Draft");
-    expect(after).toContain("from: Pattern::P");
+    expect(after).toContain("from: @Pattern::P");
     expect(after).toContain("place Pattern (at: (0, 0), angle: 0, mirrorX: false)");
   });
 
@@ -245,7 +245,7 @@ describe("rename propagation reference-form coverage", () => {
       "  id: unnamed",
       ")",
       "point User = offset(",
-      "  from: unnamed,",
+      "  from: @unnamed,",
       "  dx: 1,",
       "  dy: 0",
       ")"
@@ -261,7 +261,7 @@ describe("rename propagation reference-form coverage", () => {
     // element; a first-ever name makes it redundant, so the statement's own
     // line count shrinks and everything after it shifts up by one line.
     expect(after).toContain("point Named = coordinate(");
-    expect(after).toContain("from: Named");
+    expect(after).toContain("from: @Named");
     expect(after).not.toContain("id: unnamed");
     expect(validateRenameReferenceStability({ before: before.doc, after: useCadDocumentStore.getState().doc }))
       .toEqual({ verdict: "ok" });
@@ -281,7 +281,7 @@ describe("rename propagation reference-form coverage", () => {
       "  group A {",
       "    point Renamed = coordinate(x: 1, y: 0)",
       "  }",
-      "  point User = offset(from: ::A::Target, dx: 1, dy: 0)",
+      "  point User = offset(from: @::A::Target, dx: 1, dy: 0)",
       "}"
     ].join("\n");
     seed(source);
@@ -310,7 +310,7 @@ describe("rename propagation reference-form coverage", () => {
       "point Outer = coordinate(x: 0, y: 0)",
       "group G {",
       "  point Inner = coordinate(x: 1, y: 0)",
-      "  point User = offset(from: Outer, dx: 1, dy: 0)",
+      "  point User = offset(from: @Outer, dx: 1, dy: 0)",
       "}"
     ].join("\n");
     seed(source);
@@ -323,7 +323,7 @@ describe("rename propagation reference-form coverage", () => {
   });
 
   it("rejects an existing dangling document at the clean-source gate", () => {
-    const source = "nui 3\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: Missing, dx: 1, dy: 0)";
+    const source = "nui 3\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)";
     seed(source);
     expect(useCadDocumentStore.getState().diagnostics).toEqual([
       expect.objectContaining({ severity: "warning", message: expect.stringContaining("参照先が見つかりません") })
@@ -334,7 +334,7 @@ describe("rename propagation reference-form coverage", () => {
   });
 
   it("rejects dangling capture in 5d analysis before bridge execution", () => {
-    const source = "nui 3\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: NewName, dx: 1, dy: 0)";
+    const source = "nui 3\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: @NewName, dx: 1, dy: 0)";
     const compiled = compileDslDocument(source);
     const target = compiled.document!.elements.find((element) => element.name === "A")!;
 
@@ -354,6 +354,6 @@ describe("rename propagation reference-form coverage", () => {
     const after = useCadDocumentStore.getState();
     expect(elapsed).toBeLessThan(5000);
     expect(validateRenameReferenceStability({ before: before.doc, after: after.doc })).toEqual({ verdict: "ok" });
-    expect(after.sourceText).toContain("point P991 = offset(\n  from: Renamed,\n  dx: 992,\n  dy: 0\n)");
+    expect(after.sourceText).toContain("point P991 = offset(\n  from: @Renamed,\n  dx: 992,\n  dy: 0\n)");
   });
 });

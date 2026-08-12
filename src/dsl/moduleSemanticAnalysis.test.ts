@@ -20,7 +20,7 @@ describe("module semantic analysis", () => {
       "  const doubled: number = @width + @width",
       "  export point Output = coordinate(x: @doubled, y: 0)",
       "}",
-      "module Instance = M(anchor: InputPoint, width: 10)"
+      "module Instance = M(anchor: @InputPoint, width: 10)"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -95,12 +95,12 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 3",
       "const outer: number = 10",
-      "module M(value: number, pointValue: point = P) {",
+      "module M(value: number, pointValue: point = @P) {",
       "  const local: number = @outer",
-      "  module Self = M(value: @value, pointValue: P)",
+      "  module Self = M(value: @value, pointValue: @P)",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
-      "module Use = M(value: @missing, pointValue: P)"
+      "module Use = M(value: @missing, pointValue: @P)"
     ].join("\n"));
     const codes = compiled.diagnostics.map((diagnostic) => diagnostic.code);
     expect(codes).toEqual(expect.arrayContaining([
@@ -138,7 +138,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 3",
       "module M(anchor: point) {",
-      "  export point Output = offset(from: anchor, dx: 1, dy: 0)",
+      "  export point Output = offset(from: @anchor, dx: 1, dy: 0)",
       "}",
       "module Use = M(anchor: (0, 0))"
     ].join("\n"));
@@ -255,7 +255,7 @@ describe("module semantic analysis", () => {
       "point OuterPoint = coordinate(x: 0, y: 0)",
       "const outer: number = 10",
       "module M() {",
-      "  curve C = bezier(start: (0, 0), end: (10, 0), intermediates: [OuterPoint: @outer: 20: 20])",
+      "  curve C = bezier(start: (0, 0), end: (10, 0), intermediates: [@OuterPoint: @outer: 20: 20])",
       "}"
     ].join("\n"));
     const body = moduleBodyAt(compiled, 4);
@@ -559,9 +559,9 @@ describe("module semantic analysis", () => {
       "nui 3",
       "module M(dx: number, base: line) {",
       "  line A = segment(start: (@dx, 0), end: (0, 0))",
-      "  point B = offset(from: base.start, dx: 10, dy: 0)",
+      "  point B = offset(from: @base.start, dx: 10, dy: 0)",
       "  line Local = segment(start: (0, 0), end: (10, 0))",
-      "  point C = offset(from: Local.end, dx: 10, dy: 0)",
+      "  point C = offset(from: @Local.end, dx: 10, dy: 0)",
       "}"
     ].join("\n"));
     const a = moduleBodyAt(compiled, 2);
@@ -624,13 +624,13 @@ describe("module semantic analysis", () => {
       "module M(lineParam: line, pointParam: point) {",
       "  line Local = segment(start: (0, 0), end: (10, 0))",
       "  arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
-      "  point FromLine = offset(from: Local.start, dx: 1, dy: 0)",
-      "  point FromArc = offset(from: Arc.center, dx: 1, dy: 0)",
-      "  point Endpoint = onLine(from: Local.end, distance: 1)",
-      "  point ParameterEndpoint = onLine(from: lineParam.end, distance: 1)",
-      "  line Plain = offset(sources: Local, distance: 1)",
-      "  point InvalidPointAccessor = offset(from: pointParam.start, dx: 1, dy: 0)",
-      "  point UnknownAccessor = offset(from: Local.foo, dx: 1, dy: 0)",
+      "  point FromLine = offset(from: @Local.start, dx: 1, dy: 0)",
+      "  point FromArc = offset(from: @Arc.center, dx: 1, dy: 0)",
+      "  point Endpoint = onLine(from: @Local.end, distance: 1)",
+      "  point ParameterEndpoint = onLine(from: @lineParam.end, distance: 1)",
+      "  line Plain = offset(sources: @Local, distance: 1)",
+      "  point InvalidPointAccessor = offset(from: @pointParam.start, dx: 1, dy: 0)",
+      "  point UnknownAccessor = offset(from: @Local.foo, dx: 1, dy: 0)",
       "}"
     ].join("\n"));
     expect(moduleBodyAt(compiled, 4).geometryReferences[0].reference).toMatchObject({ role: "derivedPoint", resolution: "resolved", target: { kind: "sourceGeometry", pointKey: "start" } });
@@ -651,8 +651,8 @@ describe("module semantic analysis", () => {
       "module M() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
       "  point P = coordinate(x: 0, y: 0)",
-      "  point InvalidLineCenter = offset(from: L.center, dx: 1, dy: 0)",
-      "  point InvalidPointStart = offset(from: P.start, dx: 1, dy: 0)",
+      "  point InvalidLineCenter = offset(from: @L.center, dx: 1, dy: 0)",
+      "  point InvalidPointStart = offset(from: @P.start, dx: 1, dy: 0)",
       "}"
     ].join("\n"));
     expect(moduleBodyAt(compiled, 4).geometryReferences[0].reference).toMatchObject({ resolution: "invalid", target: null });
@@ -665,8 +665,8 @@ describe("module semantic analysis", () => {
       "nui 3",
       "line Outer = segment(start: (0, 0), end: (10, 0))",
       "module M(base: line) {",
-      "  point A = offset(from: base, dx: 10, dy: 0)",
-      "  point B = offset(from: Outer.start, dx: 10, dy: 0)",
+      "  point A = offset(from: @base, dx: 10, dy: 0)",
+      "  point B = offset(from: @Outer.start, dx: 10, dy: 0)",
       "}"
     ].join("\n"));
     const body = compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements;
@@ -712,7 +712,7 @@ describe("module semantic analysis", () => {
       "}",
       "module M() {",
       "  module SomeInstance = Child()",
-      "  point P = offset(from: SomeInstance::Output, dx: 10, dy: 0)",
+      "  point P = offset(from: @SomeInstance::Output, dx: 10, dy: 0)",
       "  const length: number = @SomeInstance::Output.length",
       "}"
     ].join("\n");
@@ -751,7 +751,7 @@ describe("module semantic analysis", () => {
       "}",
       "module M() {",
       "  module SomeInstance = Child()",
-      "  point P = offset(from: SomeInstance::Output.start, dx: 10, dy: 0)",
+      "  point P = offset(from: @SomeInstance::Output.start, dx: 10, dy: 0)",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -825,10 +825,10 @@ describe("module semantic analysis", () => {
       "}",
       "module Outside = Base()",
       "module M() {",
-      "  line X = offset(sources: Outside::L, distance: 1)",
+      "  line X = offset(sources: @Outside::L, distance: 1)",
       "  const length: number = @Outside::L.length",
       "  module A = Base()",
-      "  line Y = offset(sources: A::L, distance: 1)",
+      "  line Y = offset(sources: @A::L, distance: 1)",
       "}"
     ].join("\n"));
     const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
@@ -846,10 +846,10 @@ describe("module semantic analysis", () => {
       "module Child() {",
       "}",
       "module M() {",
-      "  point Missing = offset(from: MissingInstance::Output, dx: 0, dy: 0)",
-      "  point Forward = offset(from: LaterInstance::Output, dx: 0, dy: 0)",
+      "  point Missing = offset(from: @MissingInstance::Output, dx: 0, dy: 0)",
+      "  point Forward = offset(from: @LaterInstance::Output, dx: 0, dy: 0)",
       "  const Wrong: number = 1",
-      "  point WrongKind = offset(from: Wrong::Output, dx: 0, dy: 0)",
+      "  point WrongKind = offset(from: @Wrong::Output, dx: 0, dy: 0)",
       "  module LaterInstance = Child()",
       "}"
     ].join("\n"));

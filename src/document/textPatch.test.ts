@@ -371,7 +371,7 @@ describe("textPatch 要素の移動・親変更", () => {
       // C(トップレベル)の後ろに、Gを親とするBを置く=ブロック表現不能。
       return { ...document, elements: [...document.elements, inserted], evaluationLimitIndex: undefined };
     });
-    expect(patched).toContain("parent: G");
+    expect(patched).toContain("parent: @G");
   });
 
   it("既存statementを新規groupで包むと、子の内容はgroupヘッダより後ろに来る", () => {
@@ -494,7 +494,7 @@ describe("textPatch リネーム伝播", () => {
       "nui 3",
       "# 注釈",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: A, dx: 1, dy: 2)",
+      "point B = offset(from: @A, dx: 1, dy: 2)",
       "point C = coordinate(x: 5, y: 5)"
     ].join("\n");
     const { splices, patched } = applyChange(source, (document) => ({
@@ -504,7 +504,7 @@ describe("textPatch リネーム伝播", () => {
       )
     }));
     expect(patched).toContain("point A2 = coordinate(");
-    expect(patched).toContain("from: A2");
+    expect(patched).toContain("from: @A2");
     expectLinesUntouched(splices, [1, 2, 5]);
   });
 
@@ -815,12 +815,12 @@ describe("elementUpdateSet 高速経路とfull比較の等価性", () => {
     "group Outer {",
     "  group Inner {",
     "    point P1 = coordinate(x: 0, y: 0)",
-    "    point P2 = offset(from: P1, dx: 1, dy: 1)",
+    "    point P2 = offset(from: @P1, dx: 1, dy: 1)",
     "  }",
     "  point Q = coordinate(x: 5, y: 5)",
     "}",
-    "point R = offset(from: Q, dx: 2, dy: 2)",
-    "point Ghost = offset(from: R, dx: 3, dy: 3)"
+    "point R = offset(from: @Q, dx: 2, dy: 2)",
+    "point Ghost = offset(from: @R, dx: 3, dy: 3)"
   ].join("\n");
 
   const expectFastMatchesFull = (oldDoc: DslDocumentData, newDoc: DslDocumentData) => {

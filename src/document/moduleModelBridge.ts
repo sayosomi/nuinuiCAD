@@ -124,7 +124,7 @@ const safeLiteralFor = (
 const moduleReferenceLiteralFor = (kind: ParameterValueKind, value: unknown): string | null => {
   const qualified = (token: unknown) =>
     typeof token === "string" && !token.startsWith("module-runtime:")
-      ? formatDslReferenceToken(token)
+      ? `@${formatDslReferenceToken(token.replace(/^@/, ""))}`
       : null;
   if (kind === "reference" && value && typeof value === "object" && "mode" in value) {
     const anchor = value as { mode?: string; pointId?: unknown; elementId?: unknown; pointKey?: unknown };

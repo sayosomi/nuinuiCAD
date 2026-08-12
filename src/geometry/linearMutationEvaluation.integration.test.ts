@@ -77,7 +77,7 @@ describe("Task 31 linear mutation production wiring", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "let x: number = 0",
       "set x = @AB.length",
       "point C = coordinate(x: @x, y: 0)"
@@ -94,7 +94,7 @@ describe("Task 31 linear mutation production wiring", () => {
       "set x = @Later.length",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Later = segment(start: A, end: B)",
+      "line Later = segment(start: @A, end: @B)",
       "point C = coordinate(x: @x, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -114,10 +114,10 @@ describe("Task 31 linear mutation production wiring", () => {
       "}",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "for Loop (i, from: 0, count: 2, step: 1, showGenerated: @show) {",
       "  set total = @total + 1",
-      "  line Copy = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 90, mirrorX: false, baseLines: [AB])",
+      "  line Copy = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 90, mirrorX: false, baseLines: [@AB])",
       "}",
       'text Final = label(text: "{@total}", anchor: none, size: 3)'
     ].join("\n"));
@@ -295,7 +295,7 @@ describe("Task 31 linear mutation production wiring", () => {
       "  point A = coordinate(x: @i, y: 0)",
       "  for Inner (j, from: 0, count: 2, step: 1) {",
       "    set total = @total + 1",
-      "    line L = segment(start: A, end: B)",
+      "    line L = segment(start: @A, end: @B)",
       "  }",
       "}"
     ].join("\n"));
@@ -391,7 +391,7 @@ describe("Task 31 linear mutation production wiring", () => {
       "nui 3",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 3, y: 4)",
-      "line D = segment(start: P, end: Q, state: hidden)",
+      "line D = segment(start: @P, end: @Q, state: hidden)",
       "let value: number = @D.length",
       'text A = label(text: "A={@value}", anchor: none, size: 3)',
       "set value = @D.length + 1",
@@ -497,7 +497,7 @@ describe("Task 31 linear mutation production wiring", () => {
       "nui 3",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 3, y: 4)",
-      "line D = segment(start: P, end: Q, state: hidden)",
+      "line D = segment(start: @P, end: @Q, state: hidden)",
       "let flag: boolean = false",
       "let result: number = 0",
       "set flag = @D.length == 5",

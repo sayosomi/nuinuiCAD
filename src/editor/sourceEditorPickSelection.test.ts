@@ -26,7 +26,7 @@ describe("resolveSourceEditorPickSelection", () => {
 
     expect(resolveSourceEditorPickSelection({
       lineText: line,
-      selection: select("A"),
+      selection: select("@A"),
       element,
       committedLineText: line,
     })).toEqual({ parameterKey: "fromPoint", commandId: "startPointPick" });

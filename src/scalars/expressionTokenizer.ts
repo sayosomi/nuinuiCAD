@@ -11,7 +11,7 @@
 
 import { scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
 import type { ScalarExpressionIssueCode } from "./expressionAst";
-import { readExpressionReferenceHead } from "./expressionReferenceGrammar";
+import { parseDslSourceReferenceAt } from "../dsl/dslReferenceTokens";
 
 export type ScalarExpressionOperatorSymbol =
   | "||"
@@ -51,8 +51,6 @@ export interface ScalarExpressionTokenizeResult {
 // tokenize as two separate single-char operators.
 const TWO_CHAR_OPERATORS = new Set(["&&", "||", "==", "!=", ">=", "<="]);
 const ONE_CHAR_OPERATORS = new Set(["+", "-", "*", "/", "<", ">", "!"]);
-
-const PROPERTY_PATH_PATTERN = /^[^\s()+*/<>!=&|]*/;
 
 const isWhitespace = (char: string) => char === " " || char === "\t" || char === "\n" || char === "\r";
 
@@ -101,53 +99,40 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
     }
 
     if (char === "@") {
-      const nameStart = index + 1;
-      const head = readExpressionReferenceHead(source, nameStart, end);
-      if (!head) {
+      const parsed = parseDslSourceReferenceAt(source, index, end);
+      if (parsed.kind === "invalid") {
         return {
           tokens,
           error: {
             code: "unexpected-token",
-            span: { start: index, end: index + 1 },
-            message: "「@」の後にbinding名が必要です。"
+            span: parsed.error.range,
+            message: parsed.error.message
           }
         };
       }
-      if (head.kind === "invalidScoped") {
-        return {
-          tokens,
-          error: {
-            code: "unexpected-token",
-            span: { start: head.invalidAt, end: head.invalidAt + 1 },
-            message: "scoped element name の各 segment は identifier である必要があります。"
-          }
-        };
-      }
-      const nameSpan: ScalarSpan = { start: nameStart, end: head.end };
-      if (head.kind === "scoped" && source[nameSpan.end] !== ".") {
-        const separatorAt = nameStart + head.name.indexOf("::");
-        return {
-          tokens,
-          error: {
-            code: "unexpected-token",
-            span: { start: separatorAt, end: separatorAt + 2 },
-            message: "scoped element name は geometry property の参照でのみ使用できます。"
-          }
-        };
-      }
-      if (source[nameSpan.end] === ".") {
-        const propertyMatch = PROPERTY_PATH_PATTERN.exec(source.slice(nameSpan.end + 1, end));
-        const propertyPath = propertyMatch?.[0] ?? "";
-        if (!propertyPath) {
-          return { tokens, error: { code: "unexpected-token", span: { start: index, end: nameSpan.end + 1 }, message: "「.」の後にプロパティ名が必要です。" } };
+      const reference = parsed.reference;
+      const nameSpan: ScalarSpan = reference.pathRange;
+      if (reference.path.segments.length > 1 || reference.path.absolute) {
+        if (!reference.property) {
+          const separatorAt = reference.pathRange.start + reference.pathText.indexOf("::");
+          return {
+            tokens,
+            error: {
+              code: "unexpected-token",
+              span: { start: separatorAt, end: separatorAt + 2 },
+              message: "scoped element name は geometry property の参照でのみ使用できます。"
+            }
+          };
         }
-        const propertySpan: ScalarSpan = { start: nameSpan.end + 1, end: nameSpan.end + 1 + propertyPath.length };
-        tokens.push({ kind: "geometryProperty", elementName: head.name, elementNameSpan: nameSpan, property: propertyPath, propertySpan, span: { start: index, end: propertySpan.end } });
-        index = propertySpan.end;
+      }
+      if (reference.property && reference.propertyRange) {
+        const propertySpan: ScalarSpan = reference.propertyRange;
+        tokens.push({ kind: "geometryProperty", elementName: reference.pathText, elementNameSpan: nameSpan, property: reference.property, propertySpan, span: reference.fullRange });
+        index = parsed.end;
         continue;
       }
-      tokens.push({ kind: "reference", name: head.name, nameSpan, span: { start: index, end: nameSpan.end } });
-      index = nameSpan.end;
+      tokens.push({ kind: "reference", name: reference.pathText, nameSpan, span: reference.fullRange });
+      index = parsed.end;
       continue;
     }
 

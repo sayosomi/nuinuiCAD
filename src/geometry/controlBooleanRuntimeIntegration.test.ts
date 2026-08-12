@@ -111,7 +111,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
       "nui 3",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "line D = segment(start: Z1, end: Z2, state: disabled)",
+      "line D = segment(start: @Z1, end: @Z2, state: disabled)",
       "let flag: boolean = @D.length > 0",
       "if C (@flag) {",
       "  point A = coordinate(x: 0, y: 0)",
@@ -147,12 +147,12 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
       "let flag: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "for 繰返し (i, from: 0, count: 3, step: 1) {",
       "  if C (@flag) {",
-      "    line Then = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
+      "    line Then = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "  } else {",
-      "    line Else = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: true, baseLines: [AB])",
+      "    line Else = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: true, baseLines: [@AB])",
       "  }",
       "}"
     ].join("\n"));
@@ -180,9 +180,9 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "for 繰返し (i, from: 0, count: 3, step: 1, showGenerated: false) {",
-      "  line C = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
+      "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -197,9 +197,9 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "let 表示: boolean = false",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "for 繰返し (i, from: 0, count: 3, step: 1, showGenerated: @表示) {",
-      "  line C = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
+      "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -222,9 +222,9 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "let 表示: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "for 繰返し (i, from: 0, count: 3, step: 1, showGenerated: @表示) {",
-      "  line C = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
+      "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -264,13 +264,13 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "nui 3",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "line D = segment(start: Z1, end: Z2, state: disabled)",
+      "line D = segment(start: @Z1, end: @Z2, state: disabled)",
       "let 表示: boolean = @D.length > 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "for 繰返し (i, from: 0, count: 3, step: 1, showGenerated: @表示) {",
-      "  line C = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
+      "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));

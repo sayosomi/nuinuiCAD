@@ -108,7 +108,7 @@ describe("SourceEditor editor-native value step commands", () => {
     const expressionSource = [
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
-      'point B = offset(from: A, dx: "@変数1 * 2", dy: 0, steps: [dx: 0.25])'
+      'point B = offset(from: @A, dx: "@変数1 * 2", dy: 0, steps: [dx: 0.25])'
     ].join("\n");
     const { controller, parent, view } = openEditor(expressionSource);
     const two = view.state.doc.toString().indexOf("* 2") + 2;
@@ -140,7 +140,7 @@ describe("SourceEditor editor-native value step commands", () => {
       "nui 3",
       "point 点A = coordinate(x: 0, y: 0)",
       "point 点B = offset(",
-      "  from: 点A,",
+      "  from: @点A,",
       "  dx: 130,",
       "  dy: 12",
       ")",
@@ -181,8 +181,8 @@ describe("SourceEditor editor-native value step commands", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 5, side: right, closed: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: false)"
     ].join("\n");
     const { controller, parent, view } = openEditor(booleanChoiceSource);
     selectToken(view, "false");

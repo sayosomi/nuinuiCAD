@@ -140,7 +140,7 @@ describe("compileNumericBindings: printLayout/place", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @AB.length, canvas: (410, 584)) {",
       "}"
     ].join("\n"));
@@ -185,7 +185,7 @@ describe("compileNumericBindings: printLayout/place", () => {
       "const printScale: number = 2",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @AB.length+@printScale, canvas: (410, 584)) {",
       "}"
     ].join("\n"));

@@ -45,7 +45,7 @@ describe("serializeElementStatementBlockWithBlanks", () => {
     const statement = serializeElementStatementBlockWithBlanks(draft.element, refs, draft.blankParameterKeys);
 
     expect(statement.args).toEqual([
-      { key: "start", text: "start: A" },
+      { key: "start", text: "start: @A" },
       { key: "end", text: "end: " }
     ]);
   });

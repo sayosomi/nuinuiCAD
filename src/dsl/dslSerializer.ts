@@ -38,15 +38,17 @@ export type DslSerializerRefs = {
 
 const flatAnchor = (value: PointAnchor | null | undefined) => {
   if (!value) return "none";
-  if (value.mode === "reference") return value.pointId;
-  if (value.mode === "derived") return `${value.elementId}.${value.pointKey}`;
+  if (value.mode === "reference") return sourceToken(value.pointId);
+  if (value.mode === "derived") return `${sourceToken(value.elementId)}.${value.pointKey}`;
   return `(${numericValueExpression(value.x)}, ${numericValueExpression(value.y)})`;
 };
 
+const sourceToken = (token: string) => token.startsWith("@") ? token : `@${token}`;
+
 export const flatRefs = (majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION): DslSerializerRefs => ({
-  token: (id) => id,
+  token: (id) => sourceToken(id),
   anchor: (value) => flatAnchor(value),
-  endpoint: (value) => `${value.lineId}.${value.endpointKey}`,
+  endpoint: (value) => `${sourceToken(value.lineId)}.${value.endpointKey}`,
   numeric: (value) => numericValueExpression(value),
   name: (element) => formatDslName(element.name || element.id),
   includeRecordIds: true,
@@ -64,6 +66,7 @@ export const documentDslRefs = (
   const nameContext = createElementNameContext(elements);
   const elementsById = nameContext.elementsById;
   const token = (id: ElementId, source: CadElement) => {
+    if (id.startsWith("@")) return id.slice(1);
     const target = elementsById.get(id);
     if (!target || !target.name.trim()) return formatDslReferenceToken(id);
     const resolution = resolveElementName({ token: target.name, elements, currentElement: source, context: nameContext });
@@ -78,14 +81,14 @@ export const documentDslRefs = (
   const numeric = (value: NumericValue, source: CadElement) =>
     formatNumericValueForDsl(value, elements, source.numericVariables ?? [], source, nameContext, majorVersion);
   return {
-    token,
+    token: (id, source) => `@${token(id, source)}`,
     anchor: (value, source) => {
       if (!value) return "none";
-      if (value.mode === "reference") return token(value.pointId, source);
-      if (value.mode === "derived") return `${token(value.elementId, source)}.${value.pointKey}`;
+      if (value.mode === "reference") return sourceToken(token(value.pointId, source));
+      if (value.mode === "derived") return `${sourceToken(token(value.elementId, source))}.${value.pointKey}`;
       return `(${numeric(value.x, source)}, ${numeric(value.y, source)})`;
     },
-    endpoint: (value, source) => `${token(value.lineId, source)}.${value.endpointKey}`,
+    endpoint: (value, source) => `${sourceToken(token(value.lineId, source))}.${value.endpointKey}`,
     numeric,
     // 無名要素は名前トークンを一切出力しない(空文字列)。ID
     // フォールバックは「参照される側」(token関数)のみの役割で、

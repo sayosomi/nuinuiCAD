@@ -29,7 +29,7 @@ const source = [
   "nui 3",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 100, y: 0)",
-  "line AB = segment(start: A, end: B)"
+  "line AB = segment(start: @A, end: @B)"
 ].join("\n");
 
 const byName = (name: string) => {

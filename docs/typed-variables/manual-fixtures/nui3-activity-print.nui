@@ -8,25 +8,25 @@ let printHidden: boolean = false
 group Visible (printEnabled: @printVisible) {
   point VA = coordinate(x: 0 y: 0)
   point VB = coordinate(x: 40 y: 0)
-  line VisibleLine = segment(start: VA end: VB)
+  line VisibleLine = segment(start: @VA end: @VB)
 }
 
 group Hidden (state: hidden printEnabled: @printVisible) {
   point HA = coordinate(x: 0 y: 10)
   point HB = coordinate(x: 40 y: 10)
-  line HiddenLine = segment(start: HA end: HB)
+  line HiddenLine = segment(start: @HA end: @HB)
 }
 
 group Disabled (state: disabled printEnabled: @printVisible) {
   point DA = coordinate(x: 0 y: 20)
   point DB = coordinate(x: 40 y: 20)
-  line DisabledLine = segment(start: DA end: DB)
+  line DisabledLine = segment(start: @DA end: @DB)
 }
 
 group NotPrinted (printEnabled: @printHidden) {
   point NA = coordinate(x: 0 y: 30)
   point NB = coordinate(x: 40 y: 30)
-  line NotPrintedLine = segment(start: NA end: NB)
+  line NotPrintedLine = segment(start: @NA end: @NB)
 }
 
 printLayout Test (

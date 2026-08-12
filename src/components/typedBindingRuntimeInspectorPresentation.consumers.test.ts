@@ -70,8 +70,8 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
       "const 方向: choice(right, left) = right",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 10, side: @方向, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 10, side: @方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "方向");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -88,9 +88,9 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
       "point B = coordinate(x: 10, y: 0)",
       "point C = coordinate(x: 0, y: 10)",
       "point D = coordinate(x: 10, y: 10)",
-      "line AB = segment(start: A, end: B)",
-      "line CD = segment(start: C, end: D)",
-      "point X = intersection(line1: AB, line2: CD, extensions: @延長)"
+      "line AB = segment(start: @A, end: @B)",
+      "line CD = segment(start: @C, end: @D)",
+      "point X = intersection(line1: @AB, line2: @CD, extensions: @延長)"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "延長");
     const rows = consumerRowsFor(compiled, bindingId);

@@ -63,6 +63,9 @@ export type DslDiagnostic = {
    */
   exactSpanOnly?: true;
   navigationTarget?: DslDiagnosticNavigationTarget;
+  /** Internal compiler projection for source-reference syntax diagnostics. */
+  logicalSpan?: DslSpan;
+  statementIndex?: number;
 };
 
 export type DslSpan = {

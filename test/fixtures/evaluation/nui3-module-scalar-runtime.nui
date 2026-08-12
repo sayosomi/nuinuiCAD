@@ -8,8 +8,8 @@ module M(value: number, side: choice(right, left), label: string) {
   point After = coordinate(x: @local, y: 0)
   point A = coordinate(x: 0, y: 0)
   point B = coordinate(x: 10, y: 0)
-  line AB = segment(start: A, end: B)
-  line Off = offset(sources: [AB], distance: 2, side: @side, closed: false, suppressTrimWarnings: false)
+  line AB = segment(start: @A, end: @B)
+  line Off = offset(sources: [@AB], distance: 2, side: @side, closed: false, suppressTrimWarnings: false)
   text Label = label(text: @label, anchor: none, size: 3)
 }
 module First = M(value: @caller, side: left, label: "first")

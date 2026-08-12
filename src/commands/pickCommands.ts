@@ -930,7 +930,8 @@ export const startLineAndPointPick = (
 export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | "pickedLineSourceReference">) => {
   const pickedLineId = context?.pickedLineId;
   if (!pickedLineId) return;
-  const sourceReference = sourceReferenceText(context?.pickedLineSourceReference ?? null);
+  const sourceReferenceToken = sourceReferenceText(context?.pickedLineSourceReference ?? null);
+  const sourceReferenceId = context?.pickedLineSourceReference?.base ?? null;
   const { activeLinePickTarget } = useCadUiStore.getState();
   const { elements } = useCadDocumentStore.getState();
   if (!activeLinePickTarget) return;
@@ -961,15 +962,16 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | 
       : null;
     if (!normalizedPickedLineId || !pickedLine || !isLineLikeElement(pickedLine)) return;
     if (commandLineStep.kind === "line") {
-      fillCommandLineCurrentStep(sourceReference ?? normalizedPickedLineId);
+      fillCommandLineCurrentStep(sourceReferenceToken ?? normalizedPickedLineId);
       return;
     }
     const draftLineIds = activeLinePickTarget.draftLineIds ?? [];
+    const adoptedLineId = sourceReferenceId ?? normalizedPickedLineId;
     useCadUiStore.getState().setActiveLinePickTarget({
       ...activeLinePickTarget,
-      draftLineIds: draftLineIds.includes(sourceReference ?? normalizedPickedLineId)
-        ? draftLineIds.filter((id) => id !== (sourceReference ?? normalizedPickedLineId))
-        : [...draftLineIds, sourceReference ?? normalizedPickedLineId]
+      draftLineIds: draftLineIds.includes(adoptedLineId)
+        ? draftLineIds.filter((id) => id !== adoptedLineId)
+        : [...draftLineIds, adoptedLineId]
     });
     return;
   }
@@ -984,7 +986,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | 
     ) return;
     useCadUiStore.getState().setActiveMeasurementInsertTarget({
       ...current,
-      lineId: sourceReference ?? pickedLine.id
+      lineId: sourceReferenceId ?? pickedLine.id
     });
     useCadUiStore.getState().setActiveLinePickTarget(null);
     insertSelectedMeasurement({
@@ -1029,7 +1031,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | 
           ? setParameterValue(
               targetElement,
               activeLinePickTarget.parameterKey,
-              sourceReference ?? normalizedPickedLineId
+              sourceReferenceId ?? normalizedPickedLineId
             )
           : element
       )
@@ -1059,7 +1061,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | 
 
   if (!currentLineIds) return;
   const draftLineIds = activeLinePickTarget.draftLineIds ?? currentLineIds;
-  const adoptedLineId = sourceReference ?? normalizedPickedLineId;
+  const adoptedLineId = sourceReferenceId ?? normalizedPickedLineId;
   useCadUiStore.getState().setActiveLinePickTarget({
     ...activeLinePickTarget,
     draftLineIds: draftLineIds.includes(adoptedLineId)

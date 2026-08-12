@@ -10,10 +10,10 @@ describe("DSL compiler", () => {
     const result = compileDslToElements(
       [
         "point A = coordinate(x: 0 y: 0)",
-        "point B = offset(from: A dx: 0 dy: -(210 / 4))",
-        "line AB = segment(start: A end: B)",
-        "arc armhole = arc(center: A radius: 120 start: 0 end: -90)",
-        "text label = label(text: \"前中心\" anchor: A size: 4)"
+        "point B = offset(from: @A dx: 0 dy: -(210 / 4))",
+        "line AB = segment(start: @A end: @B)",
+        "arc armhole = arc(center: @A radius: 120 start: 0 end: -90)",
+        "text label = label(text: \"前中心\" anchor: @A size: 4)"
       ].join("\n"),
       { elements: [] }
     );
@@ -68,9 +68,9 @@ describe("DSL compiler", () => {
     const result = compileDslToElements(
       [
         "point \"前 上\" = coordinate(x: 0 y: 0)",
-        "point \"前 下\" = offset(from: \"前 上\" dx: 0 dy: -(210 / 4))",
-        "line \"前 中心線\" = segment(start: \"前 上\" end: \"前 下\")",
-        "point \"線上 点\" = onLine(from: \"前 中心線\".end distance: 10)"
+        "point \"前 下\" = offset(from: @\"前 上\" dx: 0 dy: -(210 / 4))",
+        "line \"前 中心線\" = segment(start: @\"前 上\" end: @\"前 下\")",
+        "point \"線上 点\" = onLine(from: @\"前 中心線\".end distance: 10)"
       ].join("\n"),
       { elements: [] }
     );
@@ -100,10 +100,10 @@ describe("DSL compiler", () => {
         "}",
         "group back {",
         "}",
-        "point A = coordinate(x: 0 y: 0 parent: front)",
-        "point B = coordinate(x: 100 y: 0 parent: front)",
-        "point A = coordinate(x: 0 y: 10 parent: back)",
-        "point B = coordinate(x: 100 y: 10 parent: back)",
+        "point A = coordinate(x: 0 y: 0 parent: @front)",
+        "point B = coordinate(x: 100 y: 0 parent: @front)",
+        "point A = coordinate(x: 0 y: 10 parent: @back)",
+        "point B = coordinate(x: 100 y: 10 parent: @back)",
         // Bare `back::A` right after a call-arg colon is ambiguous with the
         // scanner's `identifier:` key-boundary heuristic (both start with
         // `back:`); quoting the group segment disambiguates, same as other
@@ -111,8 +111,8 @@ describe("DSL compiler", () => {
         // Both lines use fully-qualified references rather than relying on
         // implicit same-scope disambiguation from a flat `parent:` fallback,
         // since only the qualified-path form is reliably scope-resolved.
-        "line side = segment(start: \"front\"::A end: \"front\"::B parent: front)",
-        "line backSide = segment(start: \"back\"::A end: \"back\"::B parent: front)"
+        "line side = segment(start: @\"front\"::A end: @\"front\"::B parent: @front)",
+        "line backSide = segment(start: @\"back\"::A end: @\"back\"::B parent: @front)"
       ].join("\n"),
       { elements: [] }
     );
@@ -144,12 +144,12 @@ describe("DSL compiler", () => {
       [
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 100 y: 0)",
-        "line AB = segment(start: A end: B)"
+        "line AB = segment(start: @A end: @B)"
       ].join("\n"),
       { elements: [] }
     );
     const result = compileDslToElements(
-      "line offset = offset(sources: [AB] distance: 10 side: left closed: false)",
+      "line offset = offset(sources: [@AB] distance: 10 side: left closed: false)",
       { elements: base.elements }
     );
 
@@ -178,12 +178,12 @@ describe("DSL compiler", () => {
       [
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 100 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "line vertical = polar(start: A angle: 90 length: 100)",
-        "point mid = between(start: A end: B ratio: 0.5)",
-        "point onLine = onLine(from: AB.start distance: 25)",
-        "point cross = intersection(line1: AB line2: vertical index: 0 extensions: true)",
-        "point tangent = tangentOffset(line: AB base: A angle: 90 distance: 10)"
+        "line AB = segment(start: @A end: @B)",
+        "line vertical = polar(start: @A angle: 90 length: 100)",
+        "point mid = between(start: @A end: @B ratio: 0.5)",
+        "point onLine = onLine(from: @AB.start distance: 25)",
+        "point cross = intersection(line1: @AB line2: @vertical index: 0 extensions: true)",
+        "point tangent = tangentOffset(line: @AB base: @A angle: 90 distance: 10)"
       ].join("\n"),
       { elements: [] }
     );
@@ -211,11 +211,11 @@ describe("DSL compiler", () => {
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 100 y: 0)",
         "point C = coordinate(x: 50 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "curve curveAB = bezier(start: A end: B startAngle: 0 startLength: 25 endAngle: 180 endLength: 25 intermediates: [C:45:10:20:mid-1])",
-        "line splitAB = split(source: AB at: C)",
-        "extend(end: AB.end to: C)",
-        "line offsetAB = offset(sources: [AB, curveAB] distance: 10 side: left closed: false)"
+        "line AB = segment(start: @A end: @B)",
+        "curve curveAB = bezier(start: @A end: @B startAngle: 0 startLength: 25 endAngle: 180 endLength: 25 intermediates: [@C:45:10:20:mid-1])",
+        "line splitAB = split(source: @AB at: @C)",
+        "extend(end: @AB.end to: @C)",
+        "line offsetAB = offset(sources: [@AB, @curveAB] distance: 10 side: left closed: false)"
       ].join("\n"),
       { elements: [] }
     );
@@ -253,10 +253,10 @@ describe("DSL compiler", () => {
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 50 y: 50)",
         "point C = coordinate(x: 100 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "line BC = segment(start: B end: C)",
-        "arc throughArc = through(point1: A point2: B point3: C start: 0 end: 180)",
-        "arc cornerArc = corner(end1: AB.end end2: BC.start radius: 10 index: 0)"
+        "line AB = segment(start: @A end: @B)",
+        "line BC = segment(start: @B end: @C)",
+        "arc throughArc = through(point1: @A point2: @B point3: @C start: 0 end: 180)",
+        "arc cornerArc = corner(end1: @AB.end end2: @BC.start radius: 10 index: 0)"
       ].join("\n"),
       { elements: [] }
     );
@@ -274,7 +274,7 @@ describe("DSL compiler", () => {
 
   it("can compile a standalone DSL document without existing elements", () => {
     const existing = compileDslToElements("point old = coordinate(x: 10 y: 10)", { elements: [] }).elements;
-    const result = compileDslToElements("point A = coordinate(x: 0 y: 0)\npoint B = offset(from: A dx: 10 dy: 0)", {
+    const result = compileDslToElements("point A = coordinate(x: 0 y: 0)\npoint B = offset(from: @A dx: 10 dy: 0)", {
       elements: existing,
       mode: "document"
     });
@@ -285,7 +285,7 @@ describe("DSL compiler", () => {
   });
 
   it("serializes selected elements into editable DSL with ids", () => {
-    const result = compileDslToElements("point A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 10 y: 0)\nline AB = segment(start: A end: B)", {
+    const result = compileDslToElements("point A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 10 y: 0)\nline AB = segment(start: @A end: @B)", {
       elements: []
     });
     const source = serializeElementsToDsl(result.elements);
@@ -293,8 +293,8 @@ describe("DSL compiler", () => {
     expect(source).toContain("point A = coordinate(");
     expect(source).toContain(`id: ${result.elements[0].id}`);
     expect(source).toContain("line AB = segment(");
-    expect(source).toContain(`start: ${result.elements[0].id}`);
-    expect(source).toContain(`end: ${result.elements[1].id}`);
+    expect(source).toContain(`start: @${result.elements[0].id}`);
+    expect(source).toContain(`end: @${result.elements[1].id}`);
   });
 
   it("quotes serialized element names that contain spaces", () => {
@@ -302,7 +302,7 @@ describe("DSL compiler", () => {
       [
         "point \"前 上\" = coordinate(x: 0 y: 0)",
         "point \"前 下\" = coordinate(x: 0 y: -100)",
-        "line \"前 中心線\" = segment(start: \"前 上\" end: \"前 下\")"
+        "line \"前 中心線\" = segment(start: @\"前 上\" end: @\"前 下\")"
       ].join("\n"),
       { elements: [] }
     );
@@ -312,7 +312,7 @@ describe("DSL compiler", () => {
     expect(source).toContain(`point "前 上" = coordinate(`);
     expect(source).toContain(`id: ${result.elements[0].id}`);
     expect(source).toContain(`line "前 中心線" = segment(`);
-    expect(source).toContain(`start: ${result.elements[0].id}`);
+    expect(source).toContain(`start: @${result.elements[0].id}`);
     expect(roundTrip.diagnostics).toEqual([]);
     expect(roundTrip.elements.map((element) => element.name)).toEqual(["前 上", "前 下", "前 中心線"]);
   });
@@ -323,11 +323,11 @@ describe("DSL compiler", () => {
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 100 y: 0)",
         "point C = coordinate(x: 50 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "point mid = between(start: A end: B ratio: 0.5)",
+        "line AB = segment(start: @A end: @B)",
+        "point mid = between(start: @A end: @B ratio: 0.5)",
         "line splitAB = split(source: AB at: C)",
-        "line offsetAB = offset(sources: [AB] distance: 10 side: left closed: false)",
-        "curve curveAB = bezier(start: A end: B startAngle: 0 startLength: 25 endAngle: 180 endLength: 25 intermediates: [C:45:10:20:mid-1])"
+        "line offsetAB = offset(sources: [@AB] distance: 10 side: left closed: false)",
+        "curve curveAB = bezier(start: @A end: @B startAngle: 0 startLength: 25 endAngle: 180 endLength: 25 intermediates: [@C:45:10:20:mid-1])"
       ].join("\n"),
       { elements: [] }
     );
@@ -350,7 +350,7 @@ describe("DSL compiler", () => {
         "activeView 通常",
         "group 前身頃 {",
         "}",
-        "group 前身頃縫い代 (parent: 前身頃 roles: [seam]) {",
+        "group 前身頃縫い代 (parent: @前身頃 roles: [seam]) {",
         "}",
         "printLayout A4 (output: pdf view: 印刷) {",
         "}"
@@ -450,11 +450,11 @@ describe("DSL compiler: DivisionPlacement characterization", () => {
       [
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 10 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "point ByDistance = between(start: A end: B distance: 4)",
-        "point ByRatio = between(start: A end: B ratio: 0.25)",
-        "point OnLineByDistance = onLine(from: AB.start distance: 4)",
-        "point OnLineByRatio = onLine(from: AB.start ratio: 0.25)"
+        "line AB = segment(start: @A end: @B)",
+        "point ByDistance = between(start: @A end: @B distance: 4)",
+        "point ByRatio = between(start: @A end: @B ratio: 0.25)",
+        "point OnLineByDistance = onLine(from: @AB.start distance: 4)",
+        "point OnLineByRatio = onLine(from: @AB.start ratio: 0.25)"
       ].join("\n"),
       { elements: [] }
     );
@@ -471,7 +471,7 @@ describe("DSL compiler: DivisionPlacement characterization", () => {
       "nui 2",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "point Both = between(start: A end: B distance: 4 ratio: 0.25)"
+      "point Both = between(start: @A end: @B distance: 4 ratio: 0.25)"
     ].join("\n");
 
     const compiled = compileDslDocument(source);
@@ -499,9 +499,9 @@ describe("DSL compiler: DivisionPlacement characterization", () => {
     const source = [
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "point Neither = between(start: A end: B)",
-      "point OnLineNeither = onLine(from: AB.start)"
+      "line AB = segment(start: @A end: @B)",
+      "point Neither = between(start: @A end: @B)",
+      "point OnLineNeither = onLine(from: @AB.start)"
     ].join("\n");
 
     const result = compileDslToElements(source, { elements: [] });
@@ -582,7 +582,7 @@ describe("DSL compiler blocks", () => {
     const result = compileDslToElements(
       [
         "group 前身頃 {",
-        "  point A = coordinate(x: 0 y: 0 parent: どこか)",
+        "  point A = coordinate(x: 0 y: 0 parent: @どこか)",
         "}"
       ].join("\n"),
       { elements: [] }
@@ -732,7 +732,7 @@ describe("DSL compiler document settings", () => {
     const source = [
       "group 前身頃 (id: g1) {",
       "}",
-      "point A = coordinate(x: 0 y: 0 parent: g1)"
+      "point A = coordinate(x: 0 y: 0 parent: @g1)"
     ].join("\n");
 
     const editResult = compileDslToElements(source, { elements: [] });

@@ -80,7 +80,7 @@ describe("statementRangeIndex", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: A,",
+      "  from: @A,",
       "  dx: 100,",
       "  dy: 0",
       ")"
@@ -103,7 +103,7 @@ describe("statementRangeIndex", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: A",
+      "  from: @A",
       ")"
     ].join("\n");
     const result = compiled(source);
@@ -180,7 +180,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("keeps a statement identity when replacing a value at its final character", () => {
-    const source = "nui 3\npoint B = coordinate(x: 0, y: 0)\npoint A = offset(from: B, dx: 130, dy: 9)";
+    const source = "nui 3\npoint B = coordinate(x: 0, y: 0)\npoint A = offset(from: @B, dx: 130, dy: 9)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const pointA = result.document!.elements.find((element) => element.name === "A")!;

@@ -7,8 +7,8 @@ const twoPointsAndVariableSource = [
   "nui 3",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 1, y: 1)",
-  "line AB = segment(start: A, end: B)",
-  "extend(end: AB.start, to: A, id: W)"
+  "line AB = segment(start: @A, end: @B)",
+  "extend(end: @AB.start, to: @A, id: W)"
 ].join("\n");
 
 const elementNamed = (name: string) => useCadDocumentStore.getState().elements.find((element) => element.name === name)!;

@@ -19,6 +19,7 @@ import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isCompilableDslStatement, type DslStatementInclusion } from "./dslCompilationGuard";
 import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
+import { resolveElementName } from "../model/elementNames";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 import type { DslMajorVersion } from "./dslVersion";
@@ -90,6 +91,16 @@ const profileIdByToken = (profiles: VisibilityProfile[], token: string) => {
 
 const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
 
+// printLayout/place predates source-level geometry references and is kept on
+// its existing group-name path for this task. Ordinary construction geometry
+// continues through the strict `@` resolver in dslReferences.ts.
+const resolvePrintGroupId = (token: string, index: NameIndex, line: number, diagnostics: DslDiagnostic[]) => {
+  const resolution = resolveElementName({ token, elements: index.elements, context: index.nameContext });
+  if (resolution.status === "resolved") return resolution.element.id;
+  diagnostics.push(warning(line, `place の参照先が見つかりません: ${token}`));
+  return token;
+};
+
 // P6 applyArgs は ScannedArg[] を要求するが DslStatement は DslAttribute[] を運ぶ。
 // applyArgs は key/value しか参照しないため、span 側は再構成すれば足りる。
 const scannedArgsFromAttrs = (attrs: DslAttribute[]): ScannedArg[] =>
@@ -115,7 +126,8 @@ export const applyStatement = (
   nameContext: ElementNameContext,
   visibilityRoles: VisibilityRole[] = [],
   majorVersion?: DslMajorVersion,
-  geometryResolvers?: DslGeometryResolverOverrides
+  geometryResolvers?: DslGeometryResolverOverrides,
+  statementIndex?: number
 ): CadElement => {
   const named = { ...element, name: statement.name };
   const spec = constructionSpecFor(statement);
@@ -131,7 +143,9 @@ export const applyStatement = (
     majorVersion,
     ...geometryResolvers
   });
-  diagnostics.push(...result.diagnostics);
+  diagnostics.push(...result.diagnostics.map((item) =>
+    item.logicalSpan && statementIndex !== undefined ? { ...item, statementIndex } : item
+  ));
 
   let next = result.element;
   if (result.metadata.parent) {
@@ -355,7 +369,7 @@ export const buildBlockPrintLayouts = ({
 
     for (const member of members) {
       if (member.kind !== "place") continue;
-      const groupId = resolveId(member.group, nameIndex, member.line, diagnostics);
+      const groupId = resolvePrintGroupId(member.group, nameIndex, member.line, diagnostics);
       const target = nameIndex.elementsById.get(groupId);
       if (target && target.type !== "group") {
         diagnostics.push(diagnostic(member.line, `place の参照先はグループではありません: ${member.group}`));
@@ -582,7 +596,9 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         elementsForExpressions,
         index.nameContext,
         visibilitySettings.visibilityRoles,
-        context.majorVersion
+        context.majorVersion,
+        undefined,
+        statementIndexOf.get(statement)
       ),
       statement
     );

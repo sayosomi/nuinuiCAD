@@ -119,9 +119,9 @@ describe("DSL nui 3 element serializer", () => {
         incomingHandleLength: 20, outgoingHandleLength: 25,
       }],
     };
-    expect(serializeElementStatementLogical(curve, flatRefs())).toContain("intermediates: [p3:45:20:25:mid-1]");
+    expect(serializeElementStatementLogical(curve, flatRefs())).toContain("intermediates: [@p3:45:20:25:mid-1]");
     expect(serializeElementStatementLogical(curve, documentDslRefs([...referenceElements, curve])))
-      .toContain("intermediates: [C:45:20:25]");
+      .toContain("intermediates: [@C:45:20:25]");
   });
 
   it("uses only the active exclusive placement argument and canonical common-argument order", () => {
@@ -139,7 +139,7 @@ describe("DSL nui 3 element serializer", () => {
         .filter((arg) => arg.arg !== "roles")
         .map((arg) => arg.arg),
     ]);
-    expect(args.map((arg) => arg.text)).toContain("parent: g1");
+    expect(args.map((arg) => arg.text)).toContain("parent: @g1");
     expect(args.map((arg) => arg.text)).toContain("branch: else");
   });
 

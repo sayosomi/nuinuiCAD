@@ -43,10 +43,10 @@ const valueFor = (element: CadElement, parameterKey: string) => {
   switch (definition.kind) {
     case "number": return "12";
     case "boolean": return "true";
-    case "reference": return parameterKey === "printAnchor" ? "(1, 2)" : "A";
-    case "lineEndpointReference": return "AB.end";
-    case "lineReference": return "AB";
-    case "lineReferenceList": return "[AB, CD]";
+    case "reference": return parameterKey === "printAnchor" ? "(1, 2)" : "@A";
+    case "lineEndpointReference": return "@AB.end";
+    case "lineReference": return "@AB";
+    case "lineReferenceList": return "[@AB, @CD]";
     case "text": return '"a value"';
     case "choice": return definition.choiceOptions![0];
     case "color": return "pattern-black";
@@ -55,7 +55,7 @@ const valueFor = (element: CadElement, parameterKey: string) => {
 
 const populatedArgs = (spec: DslConstructionSpec, element: CadElement) =>
   spec.args.flatMap((definition) => {
-    if (definition.special === "intermediates") return [arg(definition.arg, "[C: 45: 20: 25: mid-1]")];
+    if (definition.special === "intermediates") return [arg(definition.arg, "[@C: 45: 20: 25: mid-1]")];
     if (definition.special === "roles") return [arg(definition.arg, "[縫い代]")];
     if (definition.special) return [];
     if (definition.arg === "ratio" && spec.exclusiveGroups?.some((group) => group.includes("distance"))) return [];
@@ -101,7 +101,7 @@ describe("DSL nui 3 compiler argument application", () => {
   it("uses parameter kinds, placement selection, and special arguments deterministically", () => {
     const division = sample("divisionPoint");
     const between = applyArgs(division, constructionFor("point", "between")!, [
-      arg("start", "A"), arg("end", "B"), arg("ratio", "0.25"),
+      arg("start", "@A"), arg("end", "@B"), arg("ratio", "0.25"),
       arg("state", "disabled"), arg("color", "red"),
     ], resolvers);
     expect(between.element).toMatchObject({
@@ -110,7 +110,7 @@ describe("DSL nui 3 compiler argument application", () => {
     });
 
     const curve = applyArgs(sample("bezierCurve"), constructionFor("curve", "bezier")!, [
-      arg("start", "A"), arg("end", "B"), arg("intermediates", "[C: 45: 20: 25: mid-1]"),
+      arg("start", "@A"), arg("end", "@B"), arg("intermediates", "[@C: 45: 20: 25: mid-1]"),
       arg("steps", "[startHandleLength: 0.5; endHandleLength: 2]"),
     ], resolvers);
     expect(curve.element).toMatchObject({
@@ -129,14 +129,14 @@ describe("DSL nui 3 compiler argument application", () => {
     // (dslCompiler.test.tsのDivisionPlacement characterizationを参照)。この2つの事実は
     // 別レイヤーの挙動であり矛盾ではない。
     const between = applyArgs(sample("divisionPoint"), constructionFor("point", "between")!, [
-      arg("start", "A"), arg("end", "B"), arg("distance", "7"), arg("ratio", "0.9"),
+      arg("start", "@A"), arg("end", "@B"), arg("distance", "7"), arg("ratio", "0.9"),
     ], resolvers);
 
     expect(between.element).toMatchObject({ placement: { kind: "distance", value: 7 } });
     expect(between.diagnostics).toEqual([]);
 
     const onLine = applyArgs(sample("lineDivisionPoint"), constructionFor("point", "onLine")!, [
-      arg("from", "AB.end"), arg("distance", "3"), arg("ratio", "0.4"),
+      arg("from", "@AB.end"), arg("distance", "3"), arg("ratio", "0.4"),
     ], resolvers);
 
     expect(onLine.element).toMatchObject({ placement: { kind: "distance", value: 3 } });
@@ -156,14 +156,14 @@ describe("DSL nui 3 compiler argument application", () => {
 
   it("resolves each reference, endpoint, list, choice, text, and coordinate kind", () => {
     const offset = applyArgs(sample("offsetPoint"), constructionFor("point", "offset")!, [
-      arg("from", "A"), arg("dx", "@width * 2"), arg("dy", "-5"),
+      arg("from", "@A"), arg("dx", "@width * 2"), arg("dy", "-5"),
     ], resolvers);
     expect(offset.element).toMatchObject({
       fromPoint: referenceAnchor("p1"), dx: { kind: "expression", expression: "@width * 2" }, dy: -5,
     });
 
     const onLine = applyArgs(sample("lineDivisionPoint"), constructionFor("point", "onLine")!, [
-      arg("from", "AB.end"), arg("distance", "20"),
+      arg("from", "@AB.end"), arg("distance", "20"),
     ], resolvers);
     expect(onLine.element).toMatchObject({
       endpoint: { lineId: "l1", endpointKey: "end" },
@@ -171,7 +171,7 @@ describe("DSL nui 3 compiler argument application", () => {
     });
 
     const offsetLine = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
-      arg("sources", "[AB, CD]"), arg("side", "right"), arg("closed", "true"),
+      arg("sources", "[@AB, @CD]"), arg("side", "right"), arg("closed", "true"),
     ], resolvers);
     expect(offsetLine.element).toMatchObject({ baseLineIds: ["l1", "l2"], side: "right", closed: true });
 
@@ -202,11 +202,11 @@ describe("DSL nui 3 compiler argument application", () => {
 
   it("returns compiler-owned metadata and retains unresolved references with warnings", () => {
     const result = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
-      arg("sources", "[missing]"), arg("id", "line-id"), arg("parent", "parent-token"), arg("branch", "else"),
+      arg("sources", "[@missing]"), arg("id", "line-id"), arg("parent", "parent-token"), arg("branch", "else"),
     ], resolvers);
     expect(result.metadata).toEqual({ id: "line-id", parent: "parent-token", branch: "else" });
-    expect(result.element).toMatchObject({ baseLineIds: ["missing"] });
-    expect(result.diagnostics).toEqual([expect.objectContaining({ severity: "warning", message: "参照先が見つかりません: missing" })]);
+    expect(result.element).toMatchObject({ baseLineIds: ["@missing"] });
+    expect(result.diagnostics).toEqual([expect.objectContaining({ severity: "warning", message: "参照先が見つかりません: @missing" })]);
   });
 
   it("reports invalid step values without mutating the input element", () => {

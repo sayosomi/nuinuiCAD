@@ -745,7 +745,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         replacementFrom: completionContext.from, statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
         elements: options.elements(), computedGeometry: options.computedGeometry(), forGroupGeneratedRows: options.forGroupGeneratedRows?.(),
         effectiveEnabledElementIds: options.effectiveEnabledElementIds(), errors: options.evaluationErrors()
-      }).map((option) => ({ label: option.displayLabel, apply: option.label, type: "constant" }));
+      }).map((option) => ({ label: option.displayLabel, apply: option.sourceToken, type: "constant" }));
     }
     disablesCompletionFiltering = true;
   } else if (completionContext.kind === "declaredType") {
@@ -894,7 +894,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       ...asVariableCompletions(localOptions)
     ];
   } else {
-    const query = input.lineText.slice(completionContext.from, input.localPos);
+    const query = input.lineText.slice(completionContext.from, input.localPos).replace(/^@/, "");
     if (!query.trim()) return null;
     preservesSharedReferenceRanking = true;
     const availableMetadata = options.moduleSemanticMetadata?.();
@@ -939,7 +939,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       errors: options.evaluationErrors()
     }).map((option) => ({
       label: option.displayLabel,
-      apply: option.label,
+      apply: option.sourceToken,
       detail: option.detail,
       type: "constant"
     }));

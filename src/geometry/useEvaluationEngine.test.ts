@@ -62,9 +62,9 @@ const copySource = (angleDeg: string) => [
   "nui 3",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
-  "line AB = segment(start: A, end: B)",
+  "line AB = segment(start: @A, end: @B)",
   "for Loop (i, from: 0, count: 2, step: 1, showGenerated: true) {",
-  `  line Copy = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: ${angleDeg}, mirrorX: false, baseLines: [AB])`,
+  `  line Copy = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: ${angleDeg}, mirrorX: false, baseLines: [@AB])`,
   "}"
 ].join("\n");
 

@@ -1,18 +1,11 @@
-// Shared reference-head grammar for typed scalar tokenization and the DSL
-// completion/reference scanners. A scoped element name is one or more normal
-// identifier segments joined by `::`; semantic resolution remains owned by
-// model/elementNames.ts.
-
-const IDENTIFIER_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*/u;
+// Thin typed-scalar adapter over the DSL reference path reader. The source
+// reference grammar owns `@`, path quoting, and `::`; this module retains the
+// historical head result shape used by the scalar tokenizer.
+import { readDslReferencePath } from "../dsl/dslReferenceTokens";
 
 export type ExpressionReferenceHead =
   | { readonly kind: "simple" | "scoped"; readonly name: string; readonly end: number }
   | { readonly kind: "invalidScoped"; readonly end: number; readonly invalidAt: number };
-
-const identifierAt = (source: string, start: number, end: number) => {
-  const match = IDENTIFIER_PATTERN.exec(source.slice(start, end));
-  return match ? { text: match[0], end: start + match[0].length } : null;
-};
 
 /** Reads a complete `identifier(::identifier)*` head within `[start, end)`. */
 export const readExpressionReferenceHead = (
@@ -20,22 +13,13 @@ export const readExpressionReferenceHead = (
   start: number,
   end = source.length
 ): ExpressionReferenceHead | null => {
-  const first = identifierAt(source, start, end);
-  if (!first) return null;
-
-  let cursor = first.end;
-  let scoped = false;
-  while (source.slice(cursor, cursor + 2) === "::") {
-    scoped = true;
-    const separatorStart = cursor;
-    const next = identifierAt(source, cursor + 2, end);
-    if (!next) return { kind: "invalidScoped", end: cursor, invalidAt: separatorStart };
-    cursor = next.end;
+  const path = readDslReferencePath(source, start, end);
+  if (path.kind === "invalid") {
+    return { kind: "invalidScoped", end: path.end, invalidAt: path.invalidAt };
   }
-
   return {
-    kind: scoped ? "scoped" : "simple",
-    name: source.slice(start, cursor),
-    end: cursor
+    kind: path.path.segments.length > 1 || path.path.absolute ? "scoped" : "simple",
+    name: path.name,
+    end: path.end
   };
 };

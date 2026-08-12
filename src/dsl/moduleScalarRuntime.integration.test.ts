@@ -146,8 +146,8 @@ describe("module scalar runtime integration", () => {
       "module M(side: choice(right, left) = left) {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line AB = segment(start: A, end: B)",
-      "  line Off = offset(sources: [AB], distance: 5, side: @side, closed: false, suppressTrimWarnings: false)",
+      "  line AB = segment(start: @A, end: @B)",
+      "  line Off = offset(sources: [@AB], distance: 5, side: @side, closed: false, suppressTrimWarnings: false)",
       "}",
       "module Instance = M()"
     ].join("\n"));

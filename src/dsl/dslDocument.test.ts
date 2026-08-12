@@ -38,25 +38,25 @@ describe("dslDocument round-trip matrix", () => {
   });
 
   it("round-trips offsetPoint via name reference and expression", () => {
-    const { document, parsed } = roundTrip(["point A = coordinate(x: 0 y: 0)", "point B = offset(from: A dx: 12 dy: -(12 * 2))"].join("\n"));
+    const { document, parsed } = roundTrip(["point A = coordinate(x: 0 y: 0)", "point B = offset(from: @A dx: 12 dy: -(12 * 2))"].join("\n"));
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
   it("round-trips polarOffsetPoint", () => {
-    const { document, parsed } = roundTrip(["point A = coordinate(x: 0 y: 0)", "point B = polar(from: A angle: 45 distance: 10)"].join("\n"));
+    const { document, parsed } = roundTrip(["point A = coordinate(x: 0 y: 0)", "point B = polar(from: @A angle: 45 distance: 10)"].join("\n"));
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
   it("round-trips divisionPoint by ratio and by distance", () => {
     const { document, parsed } = roundTrip(
-      ["point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 100 y: 0)", "point M1 = between(start: A end: B ratio: 0.5)", "point M2 = between(start: A end: B distance: 30)"].join("\n")
+      ["point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 100 y: 0)", "point M1 = between(start: @A end: @B ratio: 0.5)", "point M2 = between(start: @A end: @B distance: 30)"].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
   it("round-trips lineDivisionPoint via derived endpoint anchor", () => {
     const { document, parsed } = roundTrip(
-      ["point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 100 y: 0)", "line AB = segment(start: A end: B)", "point M = onLine(from: AB.end distance: 10)"].join("\n")
+      ["point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 100 y: 0)", "line AB = segment(start: @A end: @B)", "point M = onLine(from: @AB.end distance: 10)"].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
@@ -68,9 +68,9 @@ describe("dslDocument round-trip matrix", () => {
         "point B = coordinate(x: 100 y: 0)",
         "point C = coordinate(x: 0 y: 100)",
         "point D = coordinate(x: 100 y: 100)",
-        "line AB = segment(start: A end: B)",
-        "line CD = segment(start: C end: D)",
-        "point X = intersection(line1: AB line2: CD index: 0 extensions: true)"
+        "line AB = segment(start: @A end: @B)",
+        "line CD = segment(start: @C end: @D)",
+        "point X = intersection(line1: @AB line2: @CD index: 0 extensions: true)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -78,7 +78,7 @@ describe("dslDocument round-trip matrix", () => {
 
   it("round-trips lineTangentOffsetPoint", () => {
     const { document, parsed } = roundTrip(
-      ["point A = coordinate(x: 0 y: 0)", "arc c = arc(center: A radius: 50 start: 0 end: 180)", "point H = tangentOffset(line: c base: A angle: 30 distance: 5)"].join("\n")
+      ["point A = coordinate(x: 0 y: 0)", "arc c = arc(center: @A radius: 50 start: 0 end: 180)", "point H = tangentOffset(line: @c base: @A angle: 30 distance: 5)"].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
@@ -88,11 +88,11 @@ describe("dslDocument round-trip matrix", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "point Polar = polar(from: A, angle: 0, distance: 1)",
-      "line Length = polar(start: A, angle: 0, length: 1)",
-      "arc Arc = arc(center: A, radius: 1, start: 0, end: 90)",
-      "point Tail = tangentOffset(line: AB, base: A, angle: 0, distance: 1)",
+      "line AB = segment(start: @A, end: @B)",
+      "point Polar = polar(from: @A, angle: 0, distance: 1)",
+      "line Length = polar(start: @A, angle: 0, length: 1)",
+      "arc Arc = arc(center: @A, radius: 1, start: 0, end: 90)",
+      "point Tail = tangentOffset(line: @AB, base: @A, angle: 0, distance: 1)",
       "if 条件 (1) {",
       "  point ConditionalPoint = coordinate(x: 0, y: 0)",
       "}"
@@ -129,7 +129,7 @@ describe("dslDocument round-trip matrix", () => {
     expect(serialized).toContain("distance: sqrt(9) + 1");
     expect(serialized).toContain("length: - (2 * 3)");
     expect(serialized).toContain("radius: 10 / 2");
-    expect(serialized).toContain("AB.length > 0 && 2 > 1");
+    expect(serialized).toContain("@AB.length > 0 && 2 > 1");
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const compiledTail = compiled.document!.elements.find((element) => element.name === "Tail");
     const compiledCondition = compiled.document!.elements.find((element) => element.type === "conditionalGroup");
@@ -143,7 +143,7 @@ describe("dslDocument round-trip matrix", () => {
 
   it("round-trips line via segment() and angleLengthLine via polar()", () => {
     const { document, parsed } = roundTrip(
-      ["point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 100 y: 0)", "line AB = segment(start: A end: B)", "line shoulder = polar(start: A angle: -12 length: 130)"].join("\n")
+      ["point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 100 y: 0)", "line AB = segment(start: @A end: @B)", "line shoulder = polar(start: @A angle: -12 length: 130)"].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
@@ -154,11 +154,11 @@ describe("dslDocument round-trip matrix", () => {
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 50 y: 50)",
         "point C = coordinate(x: 100 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "line BC = segment(start: B end: C)",
-        "arc simple = arc(center: A radius: 30 start: 0 end: 90)",
-        "arc three = through(point1: A point2: B point3: C start: 0 end: 180)",
-        "arc corner = corner(end1: AB.end end2: BC.start radius: 10 index: 0)"
+        "line AB = segment(start: @A end: @B)",
+        "line BC = segment(start: @B end: @C)",
+        "arc simple = arc(center: @A radius: 30 start: 0 end: 90)",
+        "arc three = through(point1: @A point2: @B point3: @C start: 0 end: 180)",
+        "arc corner = corner(end1: @AB.end end2: @BC.start radius: 10 index: 0)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -170,10 +170,10 @@ describe("dslDocument round-trip matrix", () => {
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 100 y: 0)",
         "point C = coordinate(x: 150 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "line BC = segment(start: B end: C)",
-        "edge(end1: AB.end end2: BC.start index: 0)",
-        "extend(end: AB.end to: C)"
+        "line AB = segment(start: @A end: @B)",
+        "line BC = segment(start: @B end: @C)",
+        "edge(end1: @AB.end end2: @BC.start index: 0)",
+        "extend(end: @AB.end to: @C)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -185,7 +185,7 @@ describe("dslDocument round-trip matrix", () => {
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 100 y: 0)",
         "point C = coordinate(x: 50 y: 30)",
-        "curve neckline = bezier(start: A end: B startAngle: -90 startLength: 35 endAngle: 180 endLength: 45 intermediates: [C:45:20:25])"
+        "curve neckline = bezier(start: @A end: @B startAngle: -90 startLength: 35 endAngle: 180 endLength: 45 intermediates: [@C:45:20:25])"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -197,9 +197,9 @@ describe("dslDocument round-trip matrix", () => {
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 100 y: 0)",
         "point C = coordinate(x: 50 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "line seam = offset(sources: [AB] distance: 10 side: left closed: false suppressTrimWarnings: true)",
-        "line lower = split(source: AB at: C)"
+        "line AB = segment(start: @A end: @B)",
+        "line seam = offset(sources: [@AB] distance: 10 side: left closed: false suppressTrimWarnings: true)",
+        "line lower = split(source: @AB at: @C)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -211,11 +211,11 @@ describe("dslDocument round-trip matrix", () => {
       [
         "point A = coordinate(x: 0 y: 0)",
         "point B = coordinate(x: 100 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "line cp = copy(startPoint: A endPoint: B scale: 1 angleDeg: 0 mirrorX: false baseLines: [AB])",
-        "line sym = mirrorCopy(axis1: A axis2: B baseLines: [AB])",
-        "move(targets: [AB] from: A to: B scale: 1 angleDeg: 0 mirrorX: false)",
-        "mirrorMove(targets: [AB] axis1: A axis2: B)"
+        "line AB = segment(start: @A end: @B)",
+        "line cp = copy(startPoint: @A endPoint: @B scale: 1 angleDeg: 0 mirrorX: false baseLines: [@AB])",
+        "line sym = mirrorCopy(axis1: @A axis2: @B baseLines: [@AB])",
+        "move(targets: [@AB] from: @A to: @B scale: 1 angleDeg: 0 mirrorX: false)",
+        "mirrorMove(targets: [@AB] axis1: @A axis2: @B)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -229,12 +229,12 @@ describe("dslDocument round-trip matrix", () => {
   });
 
   it("round-trips text with quoted body and derived anchor", () => {
-    const { document, parsed } = roundTrip(["point A = coordinate(x: 0 y: 0)", 'text label = label(text: "前中心" anchor: A size: 4)'].join("\n"));
+    const { document, parsed } = roundTrip(["point A = coordinate(x: 0 y: 0)", 'text label = label(text: "前中心" anchor: @A size: 4)'].join("\n"));
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
   it("round-trips text containing a newline as an escaped single DSL line", () => {
-    const { text, parsed } = roundTrip(["point A = coordinate(x: 0 y: 0)", 'text label = label(text: "一行目\\n二行目" anchor: A size: 4)'].join("\n"));
+    const { text, parsed } = roundTrip(["point A = coordinate(x: 0 y: 0)", 'text label = label(text: "一行目\\n二行目" anchor: @A size: 4)'].join("\n"));
     expect(text).toContain('text: "一行目\\n二行目"');
     expect(parsed.elements.find((element) => element.name === "label")).toMatchObject({
       type: "text",
@@ -480,7 +480,7 @@ describe("printLayout is the canonical document-end sink", () => {
   it("rejects a reverse statement placed after a printLayout block", () => {
     const compiled = compileDslDocument([
       "nui 3",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 1)",
       "printLayout レイアウト1 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
@@ -599,13 +599,13 @@ describe("dslDocument idempotence", () => {
   it("is a fixed point for a document with non-contiguous group children (parent= fallback)", () => {
     const g1 = compileDslToElements("group G (id: g1) {\n}", { elements: [] }).elements[0];
     let elements: CadElement[] = [g1];
-    elements = compileDslToElements("point A = coordinate(x: 0 y: 0 id: pa parent: g1)", { elements }).elements;
+    elements = compileDslToElements("point A = coordinate(x: 0 y: 0 id: pa parent: @g1)", { elements }).elements;
     elements = compileDslToElements("point R = coordinate(x: 1 y: 1 id: pr)", { elements }).elements;
-    elements = compileDslToElements("point B = coordinate(x: 2 y: 2 id: pb parent: g1)", { elements }).elements;
+    elements = compileDslToElements("point B = coordinate(x: 2 y: 2 id: pb parent: @g1)", { elements }).elements;
 
     const document: DslDocumentData = { ...emptyDocument(), elements, evaluationLimitIndex: elements.length };
     const canonical = serializeDocumentToDsl(document, 3);
-    expect(canonical).toContain("parent: G");
+    expect(canonical).toContain("parent: @G");
     const parsed = parseDslDocument(canonical);
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(serializeDocumentToDsl(parsed.document!, 3)).toBe(canonical);
@@ -670,7 +670,7 @@ describe("dslDocument version handling", () => {
         "nui 3",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
-        "point Both = between(start: A, end: B, distance: 4, ratio: 0.25)"
+        "point Both = between(start: @A, end: @B, distance: 4, ratio: 0.25)"
       ].join("\n")
     );
     expect(compiled.document).toBeNull();

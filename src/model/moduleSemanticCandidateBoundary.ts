@@ -286,7 +286,7 @@ export const pointAnchorForSourceReference = (
 export const sourceReferenceText = (
   sourceReference: CanonicalGeometrySourceReference | null
 ) => sourceReference
-  ? `${sourceReference.base}${sourceReference.pointKey ? `.${sourceReference.pointKey}` : ""}`
+  ? `@${sourceReference.base}${sourceReference.pointKey ? `.${sourceReference.pointKey}` : ""}`
   : null;
 
 export const sourceReferenceForElement = ({

@@ -5,6 +5,6 @@ for Outer (i, from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
 
   for Inner (j, from: 0, count: 2, step: 1) {
-    line L = segment(start: A, end: B)
+    line L = segment(start: @A, end: @B)
   }
 }

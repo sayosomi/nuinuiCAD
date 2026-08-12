@@ -142,7 +142,7 @@ describe("CommandLineBar", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
-      "line 基準線 = segment(start: A, end: B)"
+      "line 基準線 = segment(start: @A, end: @B)"
     ].join("\n"), "test");
     const line = useCadDocumentStore.getState().elements.find((item) => item.name === "基準線")!;
     renderBar();
@@ -703,7 +703,7 @@ describe("CommandLineBar", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)"
+      "line AB = segment(start: @A, end: @B)"
     ].join("\n"), "test");
     const line = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!;
     renderBar();
@@ -727,7 +727,7 @@ describe("CommandLineBar", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)"
+      "line AB = segment(start: @A, end: @B)"
     ].join("\n"), "test");
     renderBar();
 
@@ -1217,7 +1217,7 @@ describe("CommandLineBar", () => {
 
   it("shows AB's referenceable parameters after ElementName. and narrows them by prefix", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
+      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1249,7 +1249,7 @@ describe("CommandLineBar", () => {
 
   it("replaces only the member token on selection, leaving ElementName. untouched", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
+      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1286,7 +1286,7 @@ describe("CommandLineBar", () => {
     const evaluateElementsModule = await import("../geometry/evaluate");
     const evaluateElementsSpy = vi.spyOn(evaluateElementsModule, "evaluateElements");
     useCadDocumentStore.getState().commitText(
-      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
+      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1323,7 +1323,7 @@ describe("CommandLineBar", () => {
 
   it("still excludes a genuinely disabled element when evaluation is current", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
+      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1348,7 +1348,7 @@ describe("CommandLineBar", () => {
 
   it("Task 51: Enter does not advance the step while element-property candidates are pending (evaluation not current)", async () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
+      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     renderBar({
@@ -1403,7 +1403,7 @@ describe("CommandLineBar", () => {
       "const length: number = 12.3456",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)"
+      "line AB = segment(start: @A, end: @B)"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
     const abId = documentState.elements.find((element) => element.name === "AB")!.id;
@@ -1463,8 +1463,8 @@ describe("CommandLineBar", () => {
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
         "point C = coordinate(x: 20, y: 0)",
-        "line 直線AB = segment(start: A, end: B, id: ab-1)",
-        "line 直線AB = segment(start: A, end: C, id: ab-2)"
+        "line 直線AB = segment(start: @A, end: @B, id: ab-1)",
+        "line 直線AB = segment(start: @A, end: @C, id: ab-2)"
       ].join("\n"),
       "test"
     );
@@ -1490,7 +1490,7 @@ describe("CommandLineBar", () => {
 
   it("coexists with @variable candidates in the same input without interference", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 3", "const Width: number = 10", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
+      ["nui 3", "const Width: number = 10", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const elements = useCadDocumentStore.getState().elements;
@@ -1519,7 +1519,7 @@ describe("CommandLineBar", () => {
 
   it("does not open element-parameter candidates during IME composition", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
+      ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;

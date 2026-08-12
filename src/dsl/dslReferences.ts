@@ -7,9 +7,13 @@ import type {
   NumericValue,
   PointAnchor
 } from "../types/geometry";
-import type { DslDiagnostic } from "./dslTypes";
-import { formatDslReferenceToken, parseDslReferenceToken } from "./dslReferenceTokens";
-import { lastIndexOfDslOutsideQuotes } from "./dslTokens";
+import type { DslDiagnostic, DslSpan } from "./dslTypes";
+import {
+  formatDslReferencePath,
+  formatDslSourceReference,
+  parseDslSourceReference,
+  type DslSourceReference
+} from "./dslReferenceTokens";
 
 export type NameIndex = {
   elements: CadElement[];
@@ -40,15 +44,51 @@ const diagnostic = (line: number, message: string): DslDiagnostic => ({
   message
 });
 
+const invalidReferenceDiagnostic = (
+  line: number,
+  reference: string,
+  message: string,
+  sourceSpan?: DslSpan,
+  relativeSpan?: DslSpan
+): DslDiagnostic => ({
+  severity: "error",
+  line,
+  column: 1,
+  code: "invalid-source-reference",
+  message: `${message} (${reference})`,
+  ...(sourceSpan && relativeSpan ? {
+    logicalSpan: {
+      start: sourceSpan.start + relativeSpan.start,
+      end: sourceSpan.start + relativeSpan.end
+    }
+  } : {})
+});
+
+const sourceReference = (
+  token: string,
+  line: number,
+  diagnostics: DslDiagnostic[],
+  sourceSpan?: DslSpan
+): DslSourceReference | null => {
+  if (!token.trim()) return null;
+  const parsed = parseDslSourceReference(token);
+  if (parsed.kind === "valid") return parsed.reference;
+  diagnostics.push(invalidReferenceDiagnostic(line, token.trim(), parsed.message, sourceSpan, parsed.range));
+  return null;
+};
+
 export const resolveId = (
   token: string,
   index: NameIndex,
   line: number,
   diagnostics: DslDiagnostic[],
-  currentElement?: CadElement
+  currentElement?: CadElement,
+  sourceSpan?: DslSpan
 ) => {
-  const path = parseDslReferenceToken(token);
-  const unresolvedToken = formatDslReferenceToken(token);
+  const reference = sourceReference(token, line, diagnostics, sourceSpan);
+  if (!reference) return token.trim();
+  const path = reference.path;
+  const unresolvedToken = formatDslSourceReference(reference);
   const resolution = resolveElementNamePath({
     path: { absolute: path.absolute, parts: path.segments },
     elements: index.elements,
@@ -75,16 +115,18 @@ export const resolveAnchor = (
   line: number,
   diagnostics: DslDiagnostic[],
   numeric: (source: string) => NumericValue,
-  currentElement?: CadElement
+  currentElement?: CadElement,
+  sourceSpan?: DslSpan
 ): PointAnchor => {
   const coordinate = coordinateAnchor(value, numeric);
   if (coordinate) return coordinate;
-  const dotIndex = lastIndexOfDslOutsideQuotes(value, ".");
-  if (dotIndex > 0) {
-    const elementId = resolveId(value.slice(0, dotIndex), index, line, diagnostics, currentElement);
-    return derivedAnchor(elementId, value.slice(dotIndex + 1));
-  }
-  return referenceAnchor(resolveId(value, index, line, diagnostics, currentElement));
+  const reference = sourceReference(value, line, diagnostics, sourceSpan);
+  if (!reference) return referenceAnchor(value.trim());
+  const pathToken = `@${formatDslReferencePath(reference.path)}`;
+  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement);
+  return reference.property
+    ? derivedAnchor(elementId, reference.property)
+    : referenceAnchor(elementId);
 };
 
 export const resolveEndpoint = (
@@ -92,11 +134,13 @@ export const resolveEndpoint = (
   index: NameIndex,
   line: number,
   diagnostics: DslDiagnostic[],
-  currentElement?: CadElement
+  currentElement?: CadElement,
+  sourceSpan?: DslSpan
 ): LineEndpointReference => {
-  const dotIndex = lastIndexOfDslOutsideQuotes(value, ".");
-  const lineName = dotIndex > 0 ? value.slice(0, dotIndex) : value;
-  const endpointKey = dotIndex > 0 && value.slice(dotIndex + 1) === "end" ? "end" : "start";
+  const reference = sourceReference(value, line, diagnostics, sourceSpan);
+  if (!reference) return { lineId: value.trim(), endpointKey: "start" };
+  const lineName = `@${formatDslReferencePath(reference.path)}`;
+  const endpointKey = reference.property === "end" ? "end" : "start";
   return {
     lineId: resolveId(lineName, index, line, diagnostics, currentElement),
     endpointKey

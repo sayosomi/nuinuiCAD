@@ -20,7 +20,7 @@ describe("module source-semantic rename analysis", () => {
     "}",
     "module I = M(width: 1)",
     "module J = M(width: 2)",
-    "point X = offset(from: I::Public, dx: 1, dy: 0)"
+    "point X = offset(from: @I::Public, dx: 1, dy: 0)"
   ].join("\n");
 
   it("renames a definition, all resolved calls, a parameter, body references, and matching labels", () => {

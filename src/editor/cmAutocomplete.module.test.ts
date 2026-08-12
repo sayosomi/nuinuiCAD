@@ -66,22 +66,22 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const source = [
       "nui 3",
       "point P = coordinate(x: 0, y: 0)",
-      "line L = segment(start: P, end: P)",
-      "curve C = bezier(start: P, end: P)",
+      "line L = segment(start: @P, end: @P)",
+      "curve C = bezier(start: @P, end: @P)",
       "module M(width: number, anchor: point, path: line, optional: number = 0) {",
       "}",
-      "module I = M(width: 1, anchor: P, path: L)"
+      "module I = M(width: 1, anchor: @P, path: @L)"
     ].join("\n");
-    const label = await completionFor(source, source.indexOf("anchor: P") + "anchor".length);
+    const label = await completionFor(source, source.indexOf("anchor: @P") + "anchor".length);
     expect(label?.options.map((option) => option.label)).toContain("optional");
     expect(label?.options.map((option) => option.label)).not.toContain("width");
     const scalar = await completionFor(source, source.indexOf("1, anchor") + 1);
     expect(scalar?.options.map((option) => option.label)).toContain("0");
     expect(scalar?.options.map((option) => option.label)).not.toContain("P");
-    const point = await completionFor(source, source.indexOf("P, path") + 1);
+    const point = await completionFor(source, source.indexOf("@P, path") + 2);
     expect(point?.options.map((option) => option.label)).toContain("P");
     expect(point?.options.map((option) => option.label)).not.toContain("L");
-    const line = await completionFor(source, source.indexOf("L)") + 1);
+    const line = await completionFor(source, source.indexOf("@L)") + 2);
     expect(line?.options.map((option) => option.label)).toContain("L");
     expect(line?.options.map((option) => option.label)).toContain("C");
     expect(line?.options.map((option) => option.label)).not.toContain("P");
@@ -95,11 +95,11 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "  point Private = coordinate(x: @width, y: 0)",
       "}",
       "module I = M(width: 1)",
-      "point X = offset(from: I::Public, dx: 1, dy: 0)"
+      "point X = offset(from: @I::Public, dx: 1, dy: 0)"
     ].join("\n");
     const body = await completionFor(source, source.indexOf("@width") + "@width".length);
     expect(body?.options.map((option) => option.label)).toContain("@width");
-    const qualified = await completionFor(source, source.indexOf("I::Public") + "I::".length);
+    const qualified = await completionFor(source, source.indexOf("@I::Public") + "@I::".length);
     expect(qualified?.options.map((option) => option.label)).toEqual(["Public"]);
     expect(qualified?.options.map((option) => option.label)).not.toContain("Private");
   });
@@ -148,9 +148,9 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "  export point 縫い代線 = coordinate(x: @縫い代写し, y: 0)",
       "}",
       "module 日本語インスタンス = 凸ノッチ(縫い代写し: 1)",
-      "point X = offset(from: 日本語インスタンス::縫い代線, dx: 1, dy: 0)"
+      "point X = offset(from: @日本語インスタンス::縫い代線, dx: 1, dy: 0)"
     ].join("\n");
-    const cursor = source.indexOf("日本語インスタンス::") + "日本語インスタンス::".length;
+    const cursor = source.indexOf("@日本語インスタンス::") + "@日本語インスタンス::".length;
     const result = await completionFor(source, cursor);
     expect(result?.options.map((option) => option.label)).toEqual(["縫い代線"]);
   });
@@ -253,10 +253,10 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const typedLastGood = [
       "nui 3",
       "point P = coordinate(x: 0, y: 0)",
-      "line L = segment(start: P, end: P)",
+      "line L = segment(start: @P, end: @P)",
       "module T(pointValue: point, lineValue: line, textValue: string, flagValue: boolean, sideValue: choice(left, right), numberOptional: number = 0, textOptional: string = \"\", flagOptional: boolean = false, sideOptional: choice(left, right) = left) {",
       "}",
-      "module I = T(pointValue: P, lineValue: L, textValue: \"\", flagValue: true, sideValue: left)"
+      "module I = T(pointValue: @P, lineValue: @L, textValue: \"\", flagValue: true, sideValue: left)"
     ].join("\n");
     for (const [label, expected] of [["numberOptional", "0"], ["textOptional", '""'], ["flagOptional", "true"], ["sideOptional", "left"]] as const) {
       const live = typedLastGood.replace("sideValue: left)", `sideValue: left, ${label}: `);

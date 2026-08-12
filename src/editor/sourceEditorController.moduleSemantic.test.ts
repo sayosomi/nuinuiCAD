@@ -82,7 +82,7 @@ describe("SourceEditorController module semantic target priority", () => {
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
       "module I = M(width: 1)",
-      "point X = offset(from: I::Public, dx: 1, dy: 0)"
+      "point X = offset(from: @I::Public, dx: 1, dy: 0)"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
@@ -136,7 +136,7 @@ describe("SourceEditorController module semantic target priority", () => {
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
       "module I = M()",
-      "point X = offset(from: I::Public, dx: 1, dy: 0)"
+      "point X = offset(from: @I::Public, dx: 1, dy: 0)"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));

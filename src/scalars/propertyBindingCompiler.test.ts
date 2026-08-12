@@ -76,8 +76,8 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
       "const 方向: choice(right, left) = right",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
+      "line AB = segment(start: @A end: @B)",
+      "line Off = offset(sources: [@AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -97,8 +97,8 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
       "let 有効: boolean = true",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      `line Off = offset(sources: [AB] distance: 10 side: right ${argName}: @有効 ${otherArg}: false)`
+      "line AB = segment(start: @A end: @B)",
+      `line Off = offset(sources: [@AB] distance: 10 side: right ${argName}: @有効 ${otherArg}: false)`
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -112,9 +112,9 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
       "point B = coordinate(x: 10 y: 0)",
       "point C = coordinate(x: 0 y: 10)",
       "point D = coordinate(x: 10 y: 10)",
-      "line AB = segment(start: A end: B)",
-      "line CD = segment(start: C end: D)",
-      "point X = intersection(line1: AB line2: CD extensions: @延長)"
+      "line AB = segment(start: @A end: @B)",
+      "line CD = segment(start: @C end: @D)",
+      "point X = intersection(line1: @AB line2: @CD extensions: @延長)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -123,13 +123,13 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
 
   it.each(["copy", "move"] as const)("%s mirrorX", (construction) => {
     const constructionLine = construction === "copy"
-      ? "line C = copy(startPoint: A endPoint: B scale: 1 angleDeg: 0 mirrorX: @反転 baseLines: [AB])"
-      : "move(targets: [AB] from: A to: B scale: 1 angleDeg: 0 mirrorX: @反転)";
+      ? "line C = copy(startPoint: @A endPoint: @B scale: 1 angleDeg: 0 mirrorX: @反転 baseLines: [@AB])"
+      : "move(targets: [@AB] from: @A to: @B scale: 1 angleDeg: 0 mirrorX: @反転)";
     const compiled = compileFor([
       "let 反転: boolean = true",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
+      "line AB = segment(start: @A end: @B)",
       constructionLine
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
@@ -188,8 +188,8 @@ describe("compilePropertyBindings: type mismatch", () => {
       "const n: number = 1",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 10 side: @n closed: false suppressTrimWarnings: false)"
+      "line AB = segment(start: @A end: @B)",
+      "line Off = offset(sources: [@AB] distance: 10 side: @n closed: false suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -201,7 +201,7 @@ describe("compilePropertyBindings: type mismatch", () => {
     // pre-Task-48 bug: every diagnostic here used statement.physicalSpan).
     expect(diagnostic.exactSpanOnly).toBe(true);
     expect(diagnostic.physicalSpan).toBeDefined();
-    const source = ["const n: number = 1", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 10 y: 0)", "line AB = segment(start: A end: B)", "line Off = offset(sources: [AB] distance: 10 side: @n closed: false suppressTrimWarnings: false)"].join("\n");
+    const source = ["const n: number = 1", "point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 10 y: 0)", "line AB = segment(start: @A end: @B)", "line Off = offset(sources: [@AB] distance: 10 side: @n closed: false suppressTrimWarnings: false)"].join("\n");
     const [segment] = diagnostic.physicalSpan!.segments;
     expect(source.slice(segment.from, segment.to)).toBe("@n");
     expect(source.slice(segment.from, segment.to).length).toBeLessThan(compiled.statements[4].physicalSpan.segments[0].to - compiled.statements[4].physicalSpan.segments[0].from);
@@ -212,8 +212,8 @@ describe("compilePropertyBindings: type mismatch", () => {
       "const 方向: choice(left, right) = left",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
+      "line AB = segment(start: @A end: @B)",
+      "line Off = offset(sources: [@AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -228,8 +228,8 @@ describe("compilePropertyBindings: type mismatch", () => {
       "const 方向: choice(right) = right",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
+      "line AB = segment(start: @A end: @B)",
+      "line Off = offset(sources: [@AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -241,8 +241,8 @@ describe("compilePropertyBindings: type mismatch", () => {
       "const 方向: choice(up, down) = up",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
+      "line AB = segment(start: @A end: @B)",
+      "line Off = offset(sources: [@AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -331,8 +331,8 @@ describe("compilePropertyBindings: literal properties are unaffected", () => {
       "let 印刷: boolean = true",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "line Off = offset(sources: [AB] distance: 10 side: right closed: false suppressTrimWarnings: false)",
+      "line AB = segment(start: @A end: @B)",
+      "line Off = offset(sources: [@AB] distance: 10 side: right closed: false suppressTrimWarnings: false)",
       "group G (printEnabled: @印刷) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);

@@ -976,7 +976,7 @@ point P = coordinate(x: 0, y: 5)
 for Outer (i, from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
   point B = coordinate(x: @i + 10, y: 0)
-  line AB = segment(start: A, end: B)
+  line AB = segment(start: @A, end: @B)
   for Inner (j, from: 0, count: 2, step: 1) {
     point Q = coordinate(x: lineDistance(P, AB), y: @j)
   }
@@ -1079,7 +1079,7 @@ point Q = coordinate(x: distance(P, R), y: angle(P, R))`);
     const { result, elementId } = compileAndEvaluate(`nui 3
 point P = coordinate(x: 0, y: 0)
 point R = coordinate(x: 10, y: 0)
-line PR = segment(start: P, end: R)
+line PR = segment(start: @P, end: @R)
 point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(result.errors).toEqual([]);
     const qId = elementId("Q");

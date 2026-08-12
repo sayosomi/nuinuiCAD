@@ -16,8 +16,7 @@ import {
 } from "./moduleScalarExpression";
 import { moduleCallEdges, recursiveModuleInstanceIds } from "./moduleCallGraph";
 import { analyzeModuleBody } from "./moduleBodySemantic";
-import { parseDslReferenceToken } from "./dslReferenceTokens";
-import { lastIndexOfDslOutsideQuotes } from "./dslTokens";
+import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { coordinateComponent } from "./dslParameterSpanScanner";
 import { splitDslList } from "./dslTokens";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
@@ -699,14 +698,23 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ));
       return semantic(null, "invalid");
     }
-    const sigilOffset = trimmed.startsWith("@") ? 1 : 0;
-    const withoutSigil = trimmed.slice(sigilOffset);
-    const dotIndex = lastIndexOfDslOutsideQuotes(withoutSigil, ".");
-    const base = (dotIndex > 0 ? withoutSigil.slice(0, dotIndex) : withoutSigil).trim();
-    const pointKey = dotIndex > 0 ? withoutSigil.slice(dotIndex + 1).trim() : null;
-    const baseOffset = sigilOffset + Math.max(0, withoutSigil.indexOf(base));
-    const baseStart = semanticSpan.start + baseOffset;
-    const baseSpan = { start: baseStart, end: baseStart + base.length };
+    const parsedReference = parseDslSourceReference(trimmed);
+    if (parsedReference.kind !== "valid") {
+      const relativeSpan = parsedReference.range;
+      const invalidSpan = {
+        start: semanticSpan.start + relativeSpan.start,
+        end: semanticSpan.start + Math.max(relativeSpan.end, relativeSpan.start + 1)
+      };
+      addLocal(statementIndex, issue("invalid-source-reference", invalidSpan, parsedReference.message));
+      return semantic(null, "invalid");
+    }
+    const reference = parsedReference.reference;
+    const base = reference.pathText;
+    const pointKey = reference.property;
+    const baseSpan = {
+      start: semanticSpan.start + reference.pathRange.start,
+      end: semanticSpan.start + reference.pathRange.end
+    };
     referenceNameSpan = baseSpan;
     const derivedRole: ModuleGeometryReferenceRole = pointKey
       ? role === "lineEndpointReference" ? "lineEndpointReference" : "derivedPoint"
@@ -724,7 +732,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (pointKey && role === "lineEndpointReference" && !isLineEndpointPointKey(pointKey)) {
       return rejectAccessor("line endpoint referenceにはstartまたはendを指定してください。");
     }
-    const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, base, semanticSpan, baseOffset);
+    const qualified = resolveQualifiedModuleExport(
+      statementIndex,
+      ownerIndex,
+      base,
+      semanticSpan,
+      reference.pathRange.start
+    );
     if (qualified?.kind === "deferred") {
       return semantic(deferredModuleExportTarget(qualified, expected, semanticSpan, pointKey), "deferred", null, derivedRole);
     }
@@ -910,8 +924,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const valueSpan = statement.payloadSpans[arg.arg] ?? statement.payloadSpans[parameterKey];
       if (!parameter || !valueSpan || !["reference", "lineEndpointReference", "lineReference", "lineReferenceList"].includes(parameter.kind)) continue;
       const raw = input.logicalTextByStatementIndex?.get(statementIndex)?.slice(valueSpan.start, valueSpan.end) ?? statement.attrs.find((attr) => attr.key === arg.arg)?.value ?? "";
-      if (!raw.includes("::")) continue;
-      const firstSegment = raw.trim().replace(/^@/, "").split("::", 1)[0];
+      const parsedReference = parseDslSourceReference(raw);
+      if (parsedReference.kind !== "valid" || parsedReference.reference.path.segments.length < 2) continue;
+      const firstSegment = parsedReference.reference.path.segments[0];
       const instanceLookup = sourceDeclarationResolution(sourceNamespace, statements, statementIndex, firstSegment);
       if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") continue;
       const expected = parameter.kind === "reference" || parameter.kind === "lineEndpointReference" ? "point" : "line";

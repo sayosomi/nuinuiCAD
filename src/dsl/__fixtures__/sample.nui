@@ -15,13 +15,13 @@ group 前身頃 {
     y: 0
   )
   point B = offset(
-    from: A,
+    from: @A,
     dx: 0,
     dy: -(840 / 4)
   )
   line AB = segment(
-    start: A,
-    end: B
+    start: @A,
+    end: @B
   )
 
   if 見返し (1) {

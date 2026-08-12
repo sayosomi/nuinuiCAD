@@ -1004,7 +1004,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: A,",
+      "  from: @A,",
       "  dx: 100,",
       "  dy: 0",
       ")"
@@ -1035,7 +1035,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: A,",
+      "  from: @A,",
       "  dx: 100,",
       "  dy: 0",
       ")",
@@ -1082,7 +1082,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: A",
+      "  from: @A",
       ")"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
@@ -1144,7 +1144,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "  point Else = coordinate(x: 1, y: 1)",
       "}",
       "point B = offset(",
-      "  from: Then,",
+      "  from: @Then,",
       "  dx: 100,",
       "  dy: 0",
       ")"
@@ -1206,7 +1206,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "point A = coordinate(x: 0, y: 0)",
       "group G {",
       "  point B = offset(",
-      "    from: A,",
+      "    from: @A,",
       "    dx: 100,",
       "    dy: 0",
       "  )",

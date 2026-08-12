@@ -274,7 +274,7 @@ describe("Module v1 manual fixtures", () => {
     expect(numericCandidates.some((candidate) => candidate.elementId === privateId)).toBe(false);
     expect(numericCandidates.flatMap((candidate) => candidate.options).map((option) =>
       option.kind === "numericReference" ? option.expression : null
-    )).toContain("写し::先に縫う.length");
+    )).toContain("@写し::先に縫う.length");
 
     const propertyOptions = elementParameterReferenceOptionsForPosition({
       referenceElements: children,
@@ -311,10 +311,10 @@ describe("Module v1 manual fixtures", () => {
     const mutation = compileSource([
       "nui 3",
       "module M(path: line) {",
-      "  move(targets: [path], from: path.start, to: path.end, scale: 1, angleDeg: 0, mirrorX: false)",
+      "  move(targets: [@path], from: @path.start, to: @path.end, scale: 1, angleDeg: 0, mirrorX: false)",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "module Call = M(path: Base)"
+      "module Call = M(path: @Base)"
     ].join("\n"));
     expect(errorsOf(mutation).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
 
@@ -324,7 +324,7 @@ describe("Module v1 manual fixtures", () => {
       "  point Private = coordinate(x: 0, y: 0)",
       "}",
       "module Call = M()",
-      "point Root = offset(from: Call::Private, dx: 1, dy: 1)"
+      "point Root = offset(from: @Call::Private, dx: 1, dy: 1)"
     ].join("\n"));
     expect(errorsOf(privateReference).some((diagnostic) => diagnostic.code === "module-private-member")).toBe(true);
   });
@@ -438,7 +438,7 @@ describe("Module v1 manual fixtures", () => {
       "}",
       "module I = M()",
       "line Base = segment(start: (0, 0), end: (5, 0))",
-      "line Use = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])"
+      "line Use = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -462,7 +462,7 @@ describe("Module v1 manual fixtures", () => {
     if (!exported) return;
     expect(applyPickReference(pickRefForOption(exported.candidate.elementId, exported.option), result)).toBe(true);
     finishLinePick();
-    expect(useCadDocumentStore.getState().sourceText).toContain("I::Out");
+    expect(useCadDocumentStore.getState().sourceText).toContain("@I::Out");
     expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
     expect(errorsOf(compileSource(useCadDocumentStore.getState().sourceText))).toEqual([]);
   });
@@ -476,8 +476,8 @@ describe("Module v1 manual fixtures", () => {
       "}",
       "module \"I.dot\" = \"M.dot\"()",
       "line Base = segment(start: (0, 0), end: (5, 0))",
-      "line LineUse = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])",
-      "line PointUse = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])"
+      "line LineUse = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])",
+      "line PointUse = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -502,7 +502,7 @@ describe("Module v1 manual fixtures", () => {
     if (!quotedLine) return;
     expect(applyPickReference(pickRefForOption(quotedLine.candidate.elementId, quotedLine.option), result)).toBe(true);
     finishLinePick();
-    expect(useCadDocumentStore.getState().sourceText).toContain('"I.dot"::"Out.dot"');
+    expect(useCadDocumentStore.getState().sourceText).toContain('@"I.dot"::"Out.dot"');
     expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
 
     const afterLine = useCadDocumentStore.getState().doc as ReturnType<typeof compileFixture>;
@@ -524,7 +524,7 @@ describe("Module v1 manual fixtures", () => {
       pickRefForOption(quotedEndpoint.candidate.elementId, quotedEndpoint.option),
       evaluateFixture(afterLine)
     )).toBe(true);
-    expect(useCadDocumentStore.getState().sourceText).toContain('startPoint: "I.dot"::"Out.dot".start');
+    expect(useCadDocumentStore.getState().sourceText).toContain('startPoint: @"I.dot"::"Out.dot".start');
     expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
     expect(errorsOf(compileSource(useCadDocumentStore.getState().sourceText))).toEqual([]);
   });

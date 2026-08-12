@@ -212,7 +212,7 @@ describe("compileTextTemplates: numeric-expression holes", () => {
       "const _unused: number = 0",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
+      "line AB = segment(start: @A end: @B)",
       'text T = label(text: "length {@AB.length}" anchor: none size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
@@ -225,7 +225,7 @@ describe("compileTextTemplates: numeric-expression holes", () => {
       "const _unused: number = 0",
       "point A = coordinate(x: 0 y: 0)",
       "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
+      "line AB = segment(start: @A end: @B)",
       'text T = label(text: "length {AB.length}" anchor: none size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toHaveLength(1);
@@ -259,7 +259,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
   const noTypedDeclarationSource = [
     "point A = coordinate(x: 0 y: 0)",
     "point B = coordinate(x: 10 y: 0)",
-    "line AB = segment(start: A end: B)",
+    "line AB = segment(start: @A end: @B)",
     'text T = label(text: "length \\{AB.length\\} = {@AB.length}" anchor: none size: 3)'
   ].join("\n");
 

@@ -54,7 +54,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
   }
   // 参照を1つ入れる(リネーム伝播の運動場)。
   if (params.pointCount >= 2) {
-    elementLines.push("point Ref0 = offset(from: P0, dx: 5, dy: 5)");
+    elementLines.push("point Ref0 = offset(from: @P0, dx: 5, dy: 5)");
   }
   if (params.withContinuation) {
     // nui 3の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。palette側で

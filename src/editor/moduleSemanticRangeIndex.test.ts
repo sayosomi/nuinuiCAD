@@ -11,7 +11,7 @@ const source = [
   "  point Private = coordinate(x: @width, y: 0)",
   "}",
   "module I = M(width: 1)",
-  "point X = offset(from: I::Public, dx: 1, dy: 0)"
+  "point X = offset(from: @I::Public, dx: 1, dy: 0)"
 ].join("\n");
 
 const compiled = () => {

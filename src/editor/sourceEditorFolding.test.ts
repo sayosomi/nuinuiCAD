@@ -14,7 +14,7 @@ describe("sourceEditorFolding structural rows", () => {
       "  point A = coordinate(x: 0, y: 0)",
       "}",
       "point B = offset(",
-      "  from: A,",
+      "  from: @A,",
       "  dx: 10,",
       "  dy: 0",
       ")",
@@ -58,7 +58,7 @@ describe("sourceEditorFolding structural rows", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: A,",
+      "  from: @A,",
       "  dx: 100",
       ")"
     ].join("\n");

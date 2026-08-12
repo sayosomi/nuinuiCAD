@@ -140,7 +140,7 @@ describe("createDslCompletionSource", () => {
   });
 
   it("projects a vertical call's partial named argument back to its physical row", async () => {
-    const source = ["point P = offset(", "  from: A", "  d", ")"].join("\n");
+    const source = ["point P = offset(", "  from: @A", "  d", ")"].join("\n");
     const state = EditorState.create({ doc: source });
     const completionSource = createDslCompletionSource({
       elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
@@ -173,7 +173,7 @@ describe("createDslCompletionSource", () => {
     ]);
     const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
     const state = EditorState.create({ doc: source });
-    const pos = source.indexOf("start: P") + "start: P".length;
+    const pos = source.indexOf("start: @P") + "start: @P".length;
     const completionSource = createDslCompletionSource({
       elements: () => elements,
       statementRanges: () => statementRanges,
@@ -207,8 +207,8 @@ describe("createDslCompletionSource", () => {
     ]);
     const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
     const state = EditorState.create({ doc: source });
-    const tokenStart = source.lastIndexOf("Sec");
-    const pos = tokenStart + 3;
+    const tokenStart = source.lastIndexOf("@Sec");
+    const pos = tokenStart + 4;
     const completionSource = createDslCompletionSource({
       elements: () => elements,
       statementRanges: () => statementRanges,
@@ -264,14 +264,14 @@ describe("createDslCompletionSource", () => {
 
   it("offers @name typed-binding completions for a number-kind field with a live @ prefix", async () => {
     // fromは未定義"A"へのダングリング参照(この文の意味自体はテスト対象外)。
-    const source = ["nui 3", "const Width: number = 10", "point P = offset(from: A, dx: 10+@Wi, dy: 0)"].join("\n");
+    const source = ["nui 3", "const Width: number = 10", "point P = offset(from: @A, dx: 10+@Wi, dy: 0)"].join("\n");
     // "@Wi" is a deliberately partial (still-being-typed) reference - compile a
     // same-shape baseline with it removed so compileDslDocument doesn't treat
     // this mid-keystroke text as a genuinely unresolved, document-fatal typed
     // binding reference. Only `state`/`pos` below use the real dirty text,
     // mirroring how production completion resolves against the store's
     // last-good bindingAnalysis while the live buffer is still dirty.
-    const compileSource = ["nui 3", "const Width: number = 10", "point P = offset(from: A, dx: 10, dy: 0)"].join("\n");
+    const compileSource = ["nui 3", "const Width: number = 10", "point P = offset(from: @A, dx: 10, dy: 0)"].join("\n");
     const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
     const compiled = compileDslDocument(compileSource, { assignedStatementIds });
@@ -304,10 +304,10 @@ describe("createDslCompletionSource", () => {
   });
 
   it("resolves attribute + @variable completion on a multi-line vertical-call continuation via the statement's logical projection", async () => {
-    const source = ["nui 3", "const Width: number = 10", "point P = offset(", "  from: A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
+    const source = ["nui 3", "const Width: number = 10", "point P = offset(", "  from: @A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
     // See the previous test's comment: "@Wi" is deliberately partial, so
     // compile a same-shape (same line count) baseline with it removed.
-    const compileSource = ["nui 3", "const Width: number = 10", "point P = offset(", "  from: A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
+    const compileSource = ["nui 3", "const Width: number = 10", "point P = offset(", "  from: @A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
     const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
     const compiled = compileDslDocument(compileSource, { assignedStatementIds });
@@ -376,13 +376,13 @@ describe("createDslCompletionSource", () => {
     // P's construction call always spans multiple physical rows in the
     // canonical vertical layout, so the lens text below is the joined
     // logical statement rather than a single physical row.
-    const bodySource = ["point P = offset(", "  from: A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
+    const bodySource = ["point P = offset(", "  from: @A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
     const source = ["nui 3", "const Width: number = 10", bodySource].join("\n");
     // "@Wi" is deliberately partial (still-being-typed) - compile a same-shape
     // baseline with it removed so compileDslDocument doesn't treat this
     // mid-keystroke text as a genuinely unresolved, document-fatal reference.
     // `mainState`/the lens below still carry the real dirty "@Wi" text.
-    const compileBodySource = ["point P = offset(", "  from: A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
+    const compileBodySource = ["point P = offset(", "  from: @A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
     const compileSource = ["nui 3", "const Width: number = 10", compileBodySource].join("\n");
     const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
@@ -397,7 +397,7 @@ describe("createDslCompletionSource", () => {
     // its own buffer offset 0 — a different EditorState than the main document,
     // proving the documentInput override, not the CompletionContext's own
     // state, drives candidate lookup.
-    const lensLineText = "point P = offset( from: A, dx: 10+@Wi, dy: 0 )";
+    const lensLineText = "point P = offset( from: @A, dx: 10+@Wi, dy: 0 )";
     const lensPos = lensLineText.indexOf("@Wi") + "@Wi".length;
     const lensState = EditorState.create({ doc: lensLineText });
     const completionSource = createDslCompletionSource({
@@ -508,7 +508,7 @@ describe("createDslCompletionSource", () => {
       "const Flag: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "group G {",
       "  point C = coordinate(x: 0, y: 0)",
       "}",
@@ -876,7 +876,7 @@ describe("createDslCompletionSource", () => {
         "const length: number = 12.3456",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
-        "line AB = segment(start: A, end: B)",
+        "line AB = segment(start: @A, end: @B)",
         "point C = coordinate(x: 0, y: 0)"
       ].join("\n");
       const compiled = compileDslDocument(source, { assignedStatementIds: new Map([[1, "test:length"]]) });
@@ -992,7 +992,7 @@ describe("createDslCompletionSource", () => {
         "nui 3",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
-        "line AB = segment(start: A, end: B)",
+        "line AB = segment(start: @A, end: @B)",
         "point C = coordinate(x: 0, y: 0)"
       ].join("\n");
       const compiled = compileDslDocument(source);
@@ -1062,8 +1062,8 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 3, side: right, closed: false)"
+        "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 3, side: right, closed: false)"
     ].join("\n");
     const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
     const abId = elements.find((element) => element.type === "line" && element.name === "AB")!.id;
@@ -1149,8 +1149,8 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
       "nui 3\n" +
       "point A = coordinate(x: 0, y: 0)\n" +
       "point B = coordinate(x: 10, y: 0)\n" +
-      "line AB = segment(start: A, end: B)\n" +
-      "line Off = offset(sources: [AB], distance: 3, side: left, closed: false)"
+      "line AB = segment(start: @A, end: @B)\n" +
+      "line Off = offset(sources: [@AB], distance: 3, side: left, closed: false)"
     );
     expect(parseDsl(applied).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -1163,7 +1163,7 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "point C = coordinate(x: 0, y: 0)"
     ].join("\n");
     const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);

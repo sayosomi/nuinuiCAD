@@ -20,7 +20,7 @@ import { compileDslToElements } from "./dslCompiler";
 import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
-import type { DiagnosticSpanContext } from "./dslDiagnosticSpan";
+import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
 import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import { compileNumericBindings, type CompiledNumericBinding } from "../scalars/numericBindingCompiler";
 import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
@@ -1024,13 +1024,6 @@ export const compileDslDocument = (
   const sourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
     ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
     : undefined;
-  const baseDiagnostics = [
-    ...versionValidation.diagnostics,
-    ...printLayoutPlacementDiagnostics,
-    ...compiled.diagnostics,
-    ...(sourceLexicalNamespace?.diagnostics ?? [])
-  ];
-
   // Task 48: the one parse-time span index every typed-variable diagnostic
   // producer - including ones that run later, against this exact compiled
   // document, from outside compileDslDocument itself (runtimeScalarDiagnostics.ts) -
@@ -1038,6 +1031,23 @@ export const compileDslDocument = (
   // never re-scanned per diagnostic; always available, even on the earliest
   // error return below, since it depends only on `parsed`.
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
+  const projectedCompilerDiagnostics = compiled.diagnostics.map((diagnostic) => {
+    const { logicalSpan, statementIndex, ...publicDiagnostic } = diagnostic;
+    if (logicalSpan === undefined || statementIndex === undefined) return publicDiagnostic;
+    const statement = parsed.statements[statementIndex];
+    const physicalSpan = statement ? exactPhysicalSpan(spans, statement, logicalSpan) : null;
+    return {
+      ...publicDiagnostic,
+      exactSpanOnly: true as const,
+      ...(physicalSpan ? { physicalSpan } : {})
+    };
+  });
+  const baseDiagnostics = [
+    ...versionValidation.diagnostics,
+    ...printLayoutPlacementDiagnostics,
+    ...projectedCompilerDiagnostics,
+    ...(sourceLexicalNamespace?.diagnostics ?? [])
+  ];
 
   // missing-attribute-value ("well-formed but currently-empty named value" -
   // see dslArgScanner.ts) is deliberately excluded from the fatal gate here,

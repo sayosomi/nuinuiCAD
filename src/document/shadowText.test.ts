@@ -308,6 +308,6 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
     };
     const next = advanceShadow(prev, afterDoc, 3);
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
-    expect(next.text).toContain("parent: G");
+    expect(next.text).toContain("parent: @G");
   });
 });

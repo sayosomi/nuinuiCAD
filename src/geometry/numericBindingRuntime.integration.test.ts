@@ -70,7 +70,7 @@ describe("general numeric typed binding runtime", () => {
       "const offset: number = 2",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "point C = coordinate(x: @offset + @AB.length, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));

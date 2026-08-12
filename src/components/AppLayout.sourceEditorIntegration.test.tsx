@@ -143,8 +143,8 @@ describe("AppLayout Source Editor production integration", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "point C = coordinate(x: 0, y: 100)",
-      "line L1 = segment(start: A, end: B)",
-      "line L2 = segment(start: A, end: C)"
+      "line L1 = segment(start: @A, end: @B)",
+      "line L2 = segment(start: @A, end: @C)"
     ].join("\n"), "test");
     const line1 = useCadDocumentStore.getState().elements.find((element) => element.name === "L1")!;
     const view = await renderAppLayout();
@@ -544,7 +544,7 @@ describe("AppLayout Source Editor production integration", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "point 選択候補 = coordinate(x: 0, y: -50)",
-      "line AB = segment(start: A, end: B)"
+      "line AB = segment(start: @A, end: @B)"
     ].join("\n"), "test");
     const view = await renderAppLayout();
     const lineId = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!.id;
@@ -575,7 +575,7 @@ describe("Canvas selection focuses the Source Editor", () => {
     "nui 3",
     "point A = coordinate(x: 0, y: 0)",
     "point B = coordinate(x: 100, y: 0)",
-    "line AB = segment(start: A, end: B)"
+    "line AB = segment(start: @A, end: @B)"
   ].join("\n");
 
   // worldToScreen with the default {panX:0, panY:0, zoom:1} viewport and the

@@ -19,8 +19,8 @@ import { InspectorPanel } from "./InspectorPanel";
 const source = [
   "nui 3",
   "point A = coordinate(x: 0, y: 0)",
-  "point B = offset(from: A, dx: 10, dy: 20)",
-  "line AB = segment(start: A, end: B)"
+  "point B = offset(from: @A, dx: 10, dy: 20)",
+  "line AB = segment(start: @A, end: @B)"
 ].join("\n");
 
 const makeHandle = (): SourceEditorHandle => ({
@@ -115,7 +115,7 @@ describe("InspectorPanel mouse-only actions", () => {
       "const length: number = 12.3456",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: @length, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "point C = coordinate(x: @length + @AB.length, y: 0)",
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
@@ -243,7 +243,7 @@ describe("InspectorPanel mouse-only actions", () => {
       "const length: number = 12.3456",
       'const label: string = "前身頃"',
       "point A = coordinate(x: 0, y: 0)",
-      'text Label = label(text: "\\{draft\\} {@label} {@length}\\n", anchor: A, size: 3)',
+      'text Label = label(text: "\\{draft\\} {@label} {@length}\\n", anchor: @A, size: 3)',
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const textTemplates = buildTextTemplateEntriesByElementId({
@@ -281,7 +281,7 @@ describe("InspectorPanel mouse-only actions", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
-      'text Bare = label(text: "前身頃", anchor: A, size: 3)',
+      'text Bare = label(text: "前身頃", anchor: @A, size: 3)',
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const evaluation = evaluateElements(state.elements);

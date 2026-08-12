@@ -20,7 +20,7 @@ describe("missing-attribute-value tolerance", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "line = segment(",
-      "  start: A,",
+      "  start: @A,",
       "  end: ",
       ")"
     ].join("\n");
@@ -42,7 +42,7 @@ describe("missing-attribute-value tolerance", () => {
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "line = segment(",
-      "  start: A,",
+      "  start: @A,",
       "  end: ",
       ")",
       "point B = coordinate(x: 10, y: 0)"
@@ -56,8 +56,8 @@ describe("missing-attribute-value tolerance", () => {
     const text = [
       "nui 3",
       "line = segment(",
-      "  start: A",
-      "  end: B", // missing comma - a real nui 3 syntax error, not missing-attribute-value
+      "  start: @A",
+      "  end: @B", // missing comma - a real nui 3 syntax error, not missing-attribute-value
       ")"
     ].join("\n");
     const compiled = compileDslDocument(text, { sourceRevision: 1 });
@@ -71,7 +71,7 @@ describe("missing-attribute-value tolerance", () => {
       "nui 3",
       "line = segment(",
       "  start: ,",
-      "  end: A",
+      "  end: @A",
       ")",
       "point B = coordinate(x: 0 y: 0)" // missing comma
     ].join("\n");

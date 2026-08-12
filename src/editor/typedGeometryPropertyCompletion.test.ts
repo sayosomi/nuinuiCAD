@@ -15,7 +15,7 @@ const baseSource = [
   "nui 3",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
-  "line AB = segment(start: A, end: B)",
+  "line AB = segment(start: @A, end: @B)",
   "let amount: number = 0",
   "let label: string = \"\""
 ].join("\n");
@@ -143,7 +143,7 @@ describe("typed geometry-property completion", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "const length: number = @Later.length",
-      "line Later = segment(start: A, end: B)"
+      "line Later = segment(start: @A, end: @B)"
     ].join("\n");
     const laterFixture = compiledFixture(laterSource);
     // Keep all compiled statement offsets stable; the editor's range index

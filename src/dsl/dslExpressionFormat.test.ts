@@ -13,8 +13,8 @@ const buildElements = () => {
       "point A = coordinate(x: 0 y: 0 id: p1)",
       "point \"前 上\" = coordinate(x: 0 y: 1 id: p10)",
       "point X = coordinate(x: 3 y: 3 id: p2)",
-      "point X = coordinate(x: 4 y: 4 id: p3 parent: g1)",
-      "line AB = segment(start: A end: \"前 上\" id: l1)"
+      "point X = coordinate(x: 4 y: 4 id: p3 parent: @g1)",
+      "line AB = segment(start: @A end: @\"前 上\" id: l1)"
     ].join("\n"),
     { elements: [] }
   );

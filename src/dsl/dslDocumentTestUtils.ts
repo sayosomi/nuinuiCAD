@@ -38,7 +38,7 @@ export const normalizeForComparison = (elements: CadElement[]) => {
   const indexById = new Map(elements.map((element, index) => [element.id, index]));
   const parentIsConditionalGroup = (id: ElementId | undefined) =>
     id !== undefined && elements.find((element) => element.id === id)?.type === "conditionalGroup";
-  const remapId = (id: ElementId | undefined) => (id === undefined ? undefined : indexById.get(id) ?? `unknown:${id}`);
+  const remapId = (id: ElementId | undefined) => (id === undefined ? undefined : indexById.get(id) ?? `unknown:${id.replace(/^@/, "")}`);
   const remapAnchor = (anchor: PointAnchor | null | undefined) => {
     if (!anchor) return anchor;
     if (anchor.mode === "reference") return { mode: "reference", pointId: remapId(anchor.pointId) };

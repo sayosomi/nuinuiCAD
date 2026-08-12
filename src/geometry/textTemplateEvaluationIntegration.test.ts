@@ -132,7 +132,7 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
       "const side: choice(right, left) = left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: @length, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       'text Label = label(text: "\\{draft\\} {@label} {@length}\\n", anchor: none, size: 3)',
       "text Bare = label(text: @label, anchor: none, size: 3)"
     ].join("\n"), new Map([

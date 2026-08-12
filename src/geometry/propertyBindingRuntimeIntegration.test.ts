@@ -55,22 +55,22 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
       "const 方向: choice(right, left) = left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 5, side: @方向, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: @方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const literalLeft = compileCanonical([
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 5, side: left, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const literalRight = compileCanonical([
       "nui 3",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 5, side: right, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const boundResult = evaluateElements(bound.document.elements, {
@@ -100,12 +100,12 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
       "nui 3",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "line D = segment(start: Z1, end: Z2, state: disabled)",
+      "line D = segment(start: @Z1, end: @Z2, state: disabled)",
       "let 有効: boolean = @D.length > 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 5, side: right, closed: @有効, suppressTrimWarnings: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: @有効, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const result = evaluateElements(compiled.document.elements, {
@@ -129,9 +129,9 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
         ...(mirrorXArg === "@反転" ? ["let 反転: boolean = true"] : []),
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
-        "line AB = segment(start: A, end: B)",
+        "line AB = segment(start: @A, end: @B)",
         "for 繰返し (i, from: 0, count: 3, step: 1) {",
-        `  line C = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: ${mirrorXArg}, baseLines: [AB])`,
+        `  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: ${mirrorXArg}, baseLines: [@AB])`,
         "}"
       ].join("\n");
 

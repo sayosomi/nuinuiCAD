@@ -62,13 +62,13 @@ describe("module geometry runtime", () => {
       "point Base = coordinate(x: 10, y: 20)",
       "line Guide = segment(start: (0, 0), end: (20, 0))",
       "module Inner(p: point) {",
-      "  point P = offset(from: p, dx: 1, dy: 2)",
+      "  point P = offset(from: @p, dx: 1, dy: 2)",
       "}",
       "module Outer(p: point) {",
-      "  module Nested = Inner(p: p)",
+      "  module Nested = Inner(p: @p)",
       "}",
-      "module Actual = Outer(p: Base)",
-      "module Derived = Inner(p: Guide.start)",
+      "module Actual = Outer(p: @Base)",
+      "module Derived = Inner(p: @Guide.start)",
       "module Coordinate = Inner(p: (7, 8))"
     ].join("\n"));
     expectValid(compiled);
@@ -87,11 +87,11 @@ describe("module geometry runtime", () => {
       "line Base = segment(start: (0, 0), end: (10, 0))",
       "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
       "module M(path: line) {",
-      "  point P = onLine(from: path.end, ratio: 0.5)",
-      "  line Copy = offset(sources: [path], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  point P = onLine(from: @path.end, ratio: 0.5)",
+      "  line Copy = offset(sources: [@path], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
       "}",
-      "module BaseInstance = M(path: Base)",
-      "module ArcInstance = M(path: A)"
+      "module BaseInstance = M(path: @Base)",
+      "module ArcInstance = M(path: @A)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -114,11 +114,11 @@ describe("module geometry runtime", () => {
       "}",
       "module Outer() {",
       "  module Child = Inner()",
-      "  export line L = segment(start: Child::P, end: (10, 4))",
+      "  export line L = segment(start: @Child::P, end: (10, 4))",
       "}",
       "module First = Outer()",
       "module Second = Outer()",
-      "point Root = offset(from: First::L.start, dx: 1, dy: 1)"
+      "point Root = offset(from: @First::L.start, dx: 1, dy: 1)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -143,8 +143,8 @@ describe("module geometry runtime", () => {
       "  const length: number = @path.length",
       "  point Result = coordinate(x: @px + @length, y: @py)",
       "}",
-      "module Actual = M(p: Base, path: Guide)",
-      "module Derived = M(p: Guide.start, path: Guide)"
+      "module Actual = M(p: @Base, path: @Guide)",
+      "module Derived = M(p: @Guide.start, path: @Guide)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -192,9 +192,9 @@ describe("module geometry runtime", () => {
       "  const px: number = @Child::P.x",
       "  const py: number = @Child::P.y",
       "  point PointProperty = coordinate(x: @px, y: @py)",
-      "  point LineStart = offset(from: Child::L.start, dx: 0, dy: 0)",
-      "  point LineEnd = offset(from: Child::L.end, dx: 0, dy: 0)",
-      "  point ArcCenter = offset(from: Child::A.center, dx: 0, dy: 0)",
+      "  point LineStart = offset(from: @Child::L.start, dx: 0, dy: 0)",
+      "  point LineEnd = offset(from: @Child::L.end, dx: 0, dy: 0)",
+      "  point ArcCenter = offset(from: @Child::A.center, dx: 0, dy: 0)",
       "}",
       "module X = Outer()"
     ].join("\n"));
@@ -209,9 +209,9 @@ describe("module geometry runtime", () => {
   });
 
   it.each([
-    ["ordinary line center", "export line L = segment(start: (0, 0), end: (10, 0))", "X::L.center"],
-    ["curve center", "export curve C = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 2, endAngle: 180, endLength: 2)", "X::C.center"],
-    ["point start", "export point P = coordinate(x: 3, y: 4)", "X::P.start"]
+    ["ordinary line center", "export line L = segment(start: (0, 0), end: (10, 0))", "@X::L.center"],
+    ["curve center", "export curve C = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 2, endAngle: 180, endLength: 2)", "@X::C.center"],
+    ["point start", "export point P = coordinate(x: 3, y: 4)", "@X::P.start"]
   ])("rejects invalid exported derived point accessor: %s", (_label, exported, reference) => {
     const compiled = compileWithIds([
       "nui 3",
@@ -233,7 +233,7 @@ describe("module geometry runtime", () => {
       "nui 3",
       "const x: number = 6",
       "module M(p: point) {",
-      "  point Result = offset(from: p, dx: 1, dy: 2)",
+      "  point Result = offset(from: @p, dx: 1, dy: 2)",
       "}",
       "module X = M(p: (@x, 4))"
     ].join("\n"));
@@ -251,7 +251,7 @@ describe("module geometry runtime", () => {
       "  point Private = coordinate(x: 1, y: 2)",
       "}",
       "module X = M()",
-      "point Root = offset(from: X::Private, dx: 1, dy: 1)"
+      "point Root = offset(from: @X::Private, dx: 1, dy: 1)"
     ].join("\n"));
     expect(privateMember.document).toBeNull();
     expect(errorsOf(privateMember).some((diagnostic) => diagnostic.code === "module-private-member")).toBe(true);
@@ -262,7 +262,7 @@ describe("module geometry runtime", () => {
       "  export point Public = coordinate(x: 1, y: 2)",
       "}",
       "module X = M()",
-      "point Root = offset(from: X::Missing, dx: 1, dy: 1)"
+      "point Root = offset(from: @X::Missing, dx: 1, dy: 1)"
     ].join("\n"));
     expect(errorsOf(undefinedMember).some((diagnostic) => diagnostic.code === "module-undefined-export")).toBe(true);
 
@@ -272,7 +272,7 @@ describe("module geometry runtime", () => {
       "  export line Public = segment(start: (0, 0), end: (1, 0))",
       "}",
       "module X = M()",
-      "point Root = offset(from: X::Public, dx: 1, dy: 1)"
+      "point Root = offset(from: @X::Public, dx: 1, dy: 1)"
     ].join("\n"));
     expect(errorsOf(mismatch).some((diagnostic) => diagnostic.code === "module-geometry-type-mismatch")).toBe(true);
   });
@@ -281,17 +281,17 @@ describe("module geometry runtime", () => {
     const uninstantiated = compileWithIds([
       "nui 3",
       "module DefinitionOnly(path: line) {",
-      "  reverse(target: path)",
+      "  reverse(target: @path)",
       "}"
     ].join("\n"));
     expect(errorsOf(uninstantiated).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
 
     for (const mutation of [
-      "edge(end1: path.start, end2: path.end)",
-      "extend(end: path.start, to: input)",
-      "move(targets: [path], from: input, to: input)",
-      "mirrorMove(targets: [path], axis1: input, axis2: input)",
-      "reverse(target: path)"
+      "edge(end1: @path.start, end2: @path.end)",
+      "extend(end: @path.start, to: @input)",
+      "move(targets: [@path], from: @input, to: @input)",
+      "mirrorMove(targets: [@path], axis1: @input, axis2: @input)",
+      "reverse(target: @path)"
     ]) {
       const compiled = compileWithIds([
         "nui 3",
@@ -300,7 +300,7 @@ describe("module geometry runtime", () => {
         `  ${mutation}`,
         "}",
         "line Base = segment(start: (0, 0), end: (10, 0))",
-        "module X = M(path: Base, input: Input)"
+        "module X = M(path: @Base, input: @Input)"
       ].join("\n"));
       expect(errorsOf(compiled).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
     }
@@ -308,11 +308,11 @@ describe("module geometry runtime", () => {
     const allowed = compileWithIds([
       "nui 3",
       "module M(path: line) {",
-      "  line Copy = copy(startPoint: path.start, endPoint: path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [path])",
-      "  reverse(target: Copy)",
+      "  line Copy = copy(startPoint: @path.start, endPoint: @path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@path])",
+      "  reverse(target: @Copy)",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "module X = M(path: Base)"
+      "module X = M(path: @Base)"
     ].join("\n"));
     expect(errorsOf(allowed)).toEqual([]);
   });

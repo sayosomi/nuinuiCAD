@@ -17,10 +17,10 @@ describe("reverse statement (end to end via DSL)", () => {
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 point C = coordinate(x: 10, y: 10)
-line AB = segment(start: A, end: B)
-line CB = segment(start: C, end: B)
-reverse(target: CB)
-line seam = offset(sources: [AB, CB], distance: 1, side: right, closed: false)`);
+line AB = segment(start: @A, end: @B)
+line CB = segment(start: @C, end: @B)
+reverse(target: @CB)
+line seam = offset(sources: [@AB, @CB], distance: 1, side: right, closed: false)`);
     expect(result.errors).toEqual([]);
     const cb = [...result.computedGeometry.values()].find((geometry) => geometry.name === "CB")!;
     expect(cb).toMatchObject({ kind: "line", start: { x: 10, y: 0 }, end: { x: 10, y: 10 } });
@@ -32,9 +32,9 @@ line seam = offset(sources: [AB, CB], distance: 1, side: right, closed: false)`)
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 point C = coordinate(x: 10, y: 10)
-line AB = segment(start: A, end: B)
-line CB = segment(start: C, end: B)
-line seam = offset(sources: [AB, CB], distance: 1, side: right, closed: false)`);
+line AB = segment(start: @A, end: @B)
+line CB = segment(start: @C, end: @B)
+line seam = offset(sources: [@AB, @CB], distance: 1, side: right, closed: false)`);
     expect(result.errors.map((error) => error.message).join(" ")).toContain("reverse");
   });
 });
@@ -45,8 +45,8 @@ describe("reverse statement forGroup ancestor validation", () => {
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 for Loop (i, from: 0, count: 2, step: 1) {
-  line AB = segment(start: A, end: B)
-  reverse(target: AB)
+  line AB = segment(start: @A, end: @B)
+  reverse(target: @AB)
 }`);
     expect(result.errors).toEqual([]);
   });
@@ -55,9 +55,9 @@ for Loop (i, from: 0, count: 2, step: 1) {
     const result = compileAndEvaluate(`nui 3
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
-line AB = segment(start: A, end: B)
+line AB = segment(start: @A, end: @B)
 for Loop (i, from: 0, count: 2, step: 1) {
-  reverse(target: AB)
+  reverse(target: @AB)
 }`);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors.every((error) => error.message.includes("for の外側"))).toBe(true);
@@ -71,9 +71,9 @@ for Loop (i, from: 0, count: 2, step: 1) {
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 for Outer (i, from: 0, count: 1, step: 1) {
-  line AB = segment(start: A, end: B)
+  line AB = segment(start: @A, end: @B)
   for Inner (j, from: 0, count: 1, step: 1) {
-    reverse(target: AB)
+    reverse(target: @AB)
   }
 }`);
     expect(result.errors.length).toBeGreaterThan(0);
@@ -86,8 +86,8 @@ point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 for Outer (i, from: 0, count: 1, step: 1) {
   for Inner (j, from: 0, count: 1, step: 1) {
-    line AB = segment(start: A, end: B)
-    reverse(target: AB)
+    line AB = segment(start: @A, end: @B)
+    reverse(target: @AB)
   }
 }`);
     expect(result.errors).toEqual([]);
