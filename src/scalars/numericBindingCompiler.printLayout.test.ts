@@ -165,7 +165,7 @@ describe("compileNumericBindings: printLayout/place", () => {
     expect(compiled.numericBindings?.size ?? 0).toBe(0);
   });
 
-  it("does not collect a scoped head without a property as a typed binding", () => {
+  it("does not resolve a qualified path as a typed binding before namespace semantics", () => {
     const compiled = compile([
       "nui 3",
       "const keep: number = 1",

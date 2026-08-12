@@ -90,7 +90,7 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
 // existing `@Element.property` spelling.
 const referencesIn = (source: string, outer: DslSpan): CandidateReference[] => {
   return scanExpressionReferences(source)
-    .filter((match): match is Extract<typeof match, { kind: "binding" }> => match.kind === "binding")
+    .filter((match): match is Extract<typeof match, { kind: "binding" }> => match.kind === "binding" && !match.qualifiedPath)
     .map((match) => ({
       name: match.query,
       span: { start: outer.start + match.from, end: outer.start + match.to },

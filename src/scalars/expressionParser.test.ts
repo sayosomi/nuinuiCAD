@@ -74,7 +74,7 @@ describe("parseScalarExpression / literal nodes", () => {
   });
 });
 
-describe("parseScalarExpression / @name reference", () => {
+describe("parseScalarExpression / @qualifiedName reference", () => {
   it("parses a single ASCII reference with an exact nameSpan excluding the sigil", () => {
     expect(parseOk("@width")).toEqual({
       kind: "reference",
@@ -90,6 +90,15 @@ describe("parseScalarExpression / @name reference", () => {
       span: { start: 0, end: 4 },
       nameSpan: { start: 1, end: 4 },
       name: "ラベル"
+    });
+  });
+
+  it.each(["@foo::実高さ", '@"foo bar"::実高さ'])("parses a qualified reference path without resolving its namespace", (source) => {
+    expect(parseOk(source)).toEqual({
+      kind: "reference",
+      span: { start: 0, end: source.length },
+      nameSpan: { start: 1, end: source.length },
+      name: source.slice(1)
     });
   });
 });

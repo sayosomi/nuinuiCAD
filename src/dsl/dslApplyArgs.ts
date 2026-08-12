@@ -209,7 +209,10 @@ export const applyArgs = (
     );
   const anchor = (source: string, sourceSpan?: DslSpan) =>
     resolveAnchor(source, resolvers.index, resolvers.line, diagnostics, numeric, next, sourceSpan);
-  const id = (source: string, sourceSpan?: DslSpan) =>
+  // `lineReference` and `lineReferenceList` are path-only roles. Endpoint and
+  // derived-point roles use the dedicated resolvers below, where the shared
+  // source-reference parser's property is meaningful.
+  const lineReferenceId = (source: string, sourceSpan?: DslSpan) =>
     resolveId(source, resolvers.index, resolvers.line, diagnostics, next, sourceSpan);
 
   for (const [argName, scanned] of byName) {
@@ -278,13 +281,13 @@ export const applyArgs = (
         next = setParameterValue(next, parameterKey, resolveEndpoint(value, resolvers.index, resolvers.line, diagnostics, next, scanned.valueSpan));
         break;
       case "lineReference":
-        next = setParameterValue(next, parameterKey, id(value, scanned.valueSpan));
+        next = setParameterValue(next, parameterKey, lineReferenceId(value, scanned.valueSpan));
         break;
       case "lineReferenceList":
         {
           const refs = referenceListItems(value).map((item) => {
             const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
-            return id(item.text, itemSpan);
+            return lineReferenceId(item.text, itemSpan);
           });
           next = setParameterValue(next, parameterKey, refs);
         }

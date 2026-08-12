@@ -1,5 +1,5 @@
 // Task 51: the single shared authority for scanning a reference token (either
-// a typed-binding `@name`, or an element-property
+// a typed-binding `@qualifiedName`, or an element-property
 // `Element.property`) inside numeric expression *surface* text. Both the
 // Source Editor (dslCompletionContext.ts) and CommandLineBar
 // (numericVariableSuggestion.ts / elementParameterSuggestion.ts) build on
@@ -17,7 +17,7 @@ import { parseDslSourceReferenceAt, readDslReferencePath } from "./dslReferenceT
 
 export type ExpressionReferenceTokenMatch =
   /**
-   * `@name` - typed binding reference. `from` INCLUDES
+   * `@qualifiedName` - typed binding reference. `from` INCLUDES
    * the leading `@` and `to` is the end of the identifier; apply text is
    * `"@" + query` (matches the existing dslVariableToken.ts / asScalarCompletions
    * replacement convention).
@@ -30,6 +30,8 @@ export type ExpressionReferenceTokenMatch =
       readonly to: number;
       readonly sigil: true;
       readonly query: string;
+      /** Qualified paths are frontend references, not Task 2 typed bindings. */
+      readonly qualifiedPath?: boolean;
     }
   /**
    * `@Element.prop` or an invalid bare `Element.prop`. `from`/`to` cover ONLY the member run after the dot (matches
@@ -105,7 +107,6 @@ export const expressionReferenceTokenEndingAt = (
     const parsed = parseDslSourceReferenceAt(text, sigilAt, pos);
     if (parsed.kind === "valid" && parsed.end === pos) {
       const reference = parsed.reference;
-      if (!reference.property && (reference.path.segments.length > 1 || reference.path.absolute)) return null;
       if (reference.property && reference.propertyRange) {
         return {
           kind: "elementProperty",
@@ -127,7 +128,8 @@ export const expressionReferenceTokenEndingAt = (
         from: sigilAt,
         to: pos,
         sigil: true,
-        query: reference.pathText
+        query: reference.pathText,
+        ...(reference.path.segments.length > 1 || reference.path.absolute ? { qualifiedPath: true } : {})
       };
     }
     const path = readDslReferencePath(text, sigilAt + 1, pos);
@@ -243,7 +245,7 @@ export const scanExpressionReferences = (
             elementTo: offset + reference.pathRange.end,
             query: reference.property
           });
-        } else if (reference.path.segments.length === 1 && !reference.path.absolute) {
+        } else {
           results.push({
             kind: "binding",
             tokenStart: offset + reference.fullRange.start,
@@ -251,7 +253,8 @@ export const scanExpressionReferences = (
             from: offset + reference.fullRange.start,
             to: offset + reference.fullRange.end,
             sigil: true,
-            query: reference.pathText
+            query: reference.pathText,
+            ...(reference.path.segments.length > 1 || reference.path.absolute ? { qualifiedPath: true } : {})
           });
         }
         index = parsed.end;

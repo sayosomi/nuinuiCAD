@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElementNameContext } from "../model/elementNames";
 import { createCadElement } from "../model/elementFactory";
-import { referenceAnchor } from "../model/pointAnchors";
+import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { CadElement, CadElementType } from "../types/geometry";
@@ -207,6 +207,35 @@ describe("DSL nui 3 compiler argument application", () => {
     expect(result.metadata).toEqual({ id: "line-id", parent: "parent-token", branch: "else" });
     expect(result.element).toMatchObject({ baseLineIds: ["@missing"] });
     expect(result.diagnostics).toEqual([expect.objectContaining({ severity: "warning", message: "参照先が見つかりません: @missing" })]);
+  });
+
+  it("rejects properties in lineReference and lineReferenceList roles without dropping them", () => {
+    const validList = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
+      arg("sources", "[@AB]")
+    ], resolvers);
+    expect(validList.element).toMatchObject({ baseLineIds: ["l1"] });
+    expect(validList.diagnostics).toEqual([]);
+
+    const invalidList = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
+      arg("sources", "[@AB.end]")
+    ], resolvers);
+    expect(invalidList.element).toMatchObject({ baseLineIds: ["@AB.end"] });
+    expect(invalidList.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "invalid-source-reference",
+        severity: "error",
+        message: expect.stringContaining("property")
+      })
+    ]);
+    expect(invalidList.diagnostics[0].logicalSpan).toEqual({ start: 14, end: 17 });
+
+    const invalidSingle = applyArgs(sample("splitLine"), constructionFor("line", "split")!, [
+      arg("source", "@AB.length"), arg("at", "@AB.start")
+    ], resolvers);
+    expect(invalidSingle.element).toMatchObject({ baseLineId: "@AB.length", splitPoint: derivedAnchor("l1", "start") });
+    expect(invalidSingle.diagnostics).toEqual([
+      expect.objectContaining({ code: "invalid-source-reference", severity: "error" })
+    ]);
   });
 
   it("reports invalid step values without mutating the input element", () => {

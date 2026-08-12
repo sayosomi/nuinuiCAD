@@ -89,6 +89,16 @@ export const resolveId = (
   if (!reference) return token.trim();
   const path = reference.path;
   const unresolvedToken = formatDslSourceReference(reference);
+  if (reference.property) {
+    diagnostics.push(invalidReferenceDiagnostic(
+      line,
+      reference.source,
+      "この geometry reference role では property を指定できません。",
+      sourceSpan,
+      reference.propertyRange ?? reference.fullRange
+    ));
+    return unresolvedToken;
+  }
   const resolution = resolveElementNamePath({
     path: { absolute: path.absolute, parts: path.segments },
     elements: index.elements,

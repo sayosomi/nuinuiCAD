@@ -7,7 +7,7 @@ export type ExpressionReferenceHead =
   | { readonly kind: "simple" | "scoped"; readonly name: string; readonly end: number }
   | { readonly kind: "invalidScoped"; readonly end: number; readonly invalidAt: number };
 
-/** Reads a complete `identifier(::identifier)*` head within `[start, end)`. */
+/** Reads a complete qualified reference path within `[start, end)`. */
 export const readExpressionReferenceHead = (
   source: string,
   start: number,

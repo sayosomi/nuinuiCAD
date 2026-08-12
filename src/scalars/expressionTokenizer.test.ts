@@ -56,7 +56,7 @@ describe("tokenizeScalarExpression / parens and operators", () => {
   });
 });
 
-describe("tokenizeScalarExpression / @name references", () => {
+describe("tokenizeScalarExpression / @qualifiedName references", () => {
   it("tokenizes a single ASCII reference with span including the sigil", () => {
     expect(tokenizeOk("@width")).toEqual([
       { kind: "reference", name: "width", nameSpan: { start: 1, end: 6 }, span: { start: 0, end: 6 } }
@@ -100,7 +100,15 @@ describe("tokenizeScalarExpression / @name references", () => {
     expect(result.tokens[0]).toMatchObject({ kind: "geometryProperty", property: "startPoint.x", span: { start: 0, end: source.length } });
   });
 
-  it("tokenizes a scoped element name as one geometry-property head", () => {
+  it("tokenizes a qualified path without a property as one reference", () => {
+    for (const source of ["@foo::実高さ", '@"foo bar"::実高さ']) {
+      expect(tokenizeOk(source)).toEqual([
+        { kind: "reference", name: source.slice(1), nameSpan: { start: 1, end: source.length }, span: { start: 0, end: source.length } }
+      ]);
+    }
+  });
+
+  it("tokenizes a qualified path with a property as one geometry-property head", () => {
     const elementName = "G::H::AB";
     const source = `@${elementName}.endTangentAngleDeg`;
     const result = tokenizeScalarExpression(source, fullSpan(source));
@@ -112,16 +120,6 @@ describe("tokenizeScalarExpression / @name references", () => {
       property: "endTangentAngleDeg",
       propertySpan: { start: 1 + elementName.length + 1, end: source.length },
       span: { start: 0, end: source.length }
-    });
-  });
-
-  it("rejects a scoped head without a geometry property", () => {
-    const source = "@G::AB";
-    const result = tokenizeScalarExpression(source, fullSpan(source));
-    expect(result.tokens).toEqual([]);
-    expect(result.error).toMatchObject({
-      code: "unexpected-token",
-      span: { start: source.indexOf("::"), end: source.indexOf("::") + 2 }
     });
   });
 

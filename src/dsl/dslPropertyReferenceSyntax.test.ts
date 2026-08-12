@@ -115,13 +115,12 @@ describe("nui 3 bare element-property reference diagnostic (Task 51)", () => {
     expect(compileDslDocument(nested, { assignedStatementIds: assignedStatementIds(nested) }).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
-  it("rejects a scoped head without a geometry property instead of resolving a binding", () => {
+  it("accepts a scoped reference without a geometry property at the frontend boundary", () => {
     const source = ["nui 3", "const x: number = @G::AB"].join("\n");
     const errors = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
     );
-    expect(errors).toEqual(expect.arrayContaining([expect.objectContaining({ code: "unexpected-token" })]));
-    expect(errors.some((error) => error.code === "undefined-binding")).toBe(false);
+    expect(errors).toEqual([]);
   });
 
   it("keeps unresolved scoped paths as precise geometry-property diagnostics", () => {

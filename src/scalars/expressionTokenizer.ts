@@ -1,5 +1,5 @@
 // Flat, single-pass tokenizer for typed scalar expressions. Handles
-// operators, parentheses, and the `@name` reference sigil itself; delegates
+// operators, parentheses, and the `@qualifiedName` reference sigil itself; delegates
 // every literal-shaped token (quote/digit/identifier start) to
 // scanScalarLiteral (Task 09) so literal classification lives in exactly one
 // place. See docs/typed-variables/tasks/14-ts-expression-parser.md and
@@ -112,19 +112,6 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
       }
       const reference = parsed.reference;
       const nameSpan: ScalarSpan = reference.pathRange;
-      if (reference.path.segments.length > 1 || reference.path.absolute) {
-        if (!reference.property) {
-          const separatorAt = reference.pathRange.start + reference.pathText.indexOf("::");
-          return {
-            tokens,
-            error: {
-              code: "unexpected-token",
-              span: { start: separatorAt, end: separatorAt + 2 },
-              message: "scoped element name は geometry property の参照でのみ使用できます。"
-            }
-          };
-        }
-      }
       if (reference.property && reference.propertyRange) {
         const propertySpan: ScalarSpan = reference.propertyRange;
         tokens.push({ kind: "geometryProperty", elementName: reference.pathText, elementNameSpan: nameSpan, property: reference.property, propertySpan, span: reference.fullRange });

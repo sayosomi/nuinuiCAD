@@ -45,11 +45,20 @@ describe("expressionReferenceTokenEndingAt", () => {
     expect(match).toMatchObject({ kind: "elementProperty", sigil: true, elementToken: "G::H::AB", query: "len" });
   });
 
-  it("does not classify a scoped head without a property as a binding", () => {
-    expect(expressionReferenceTokenEndingAt("@G::AB", "@G::AB".length)).toBeNull();
-    const matches = scanExpressionReferences("@G::AB + @name");
-    expect(matches.filter((match) => match.kind === "binding").map((match) => match.query)).toEqual(["name"]);
-    expect(matches.some((match) => match.kind === "elementProperty")).toBe(false);
+  it("classifies a qualified path without a property as a frontend reference", () => {
+    expect(expressionReferenceTokenEndingAt("@foo::実高さ", "@foo::実高さ".length)).toMatchObject({
+      kind: "binding",
+      query: "foo::実高さ",
+      from: 0,
+      to: "@foo::実高さ".length
+    });
+    expect(expressionReferenceTokenEndingAt('@"foo bar"::実高さ', '@"foo bar"::実高さ'.length)).toMatchObject({
+      kind: "binding",
+      query: '"foo bar"::実高さ'
+    });
+    const matches = scanExpressionReferences("@foo::実高さ + @foo::line.length + @name");
+    expect(matches.filter((match) => match.kind === "binding").map((match) => match.query)).toEqual(["foo::実高さ", "name"]);
+    expect(matches.filter((match) => match.kind === "elementProperty").map((match) => match.elementToken)).toEqual(["foo::line"]);
   });
 
   it("classifies bare AB.length as elementProperty with sigil:false", () => {

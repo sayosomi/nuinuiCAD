@@ -60,9 +60,10 @@ export interface ScalarUnresolvedChoiceLiteralNode {
 }
 
 /**
- * A single `@name` reference. `span` includes the leading `@`; `nameSpan`
- * covers only the identifier, since name-span exactness (including Unicode
- * names) is required independently of the sigil.
+ * A single `@qualifiedName` reference. `span` includes the leading `@`;
+ * `nameSpan` covers only the qualified path, since name-span exactness
+ * (including Unicode and quoted path segments) is required independently of
+ * the sigil.
  */
 export interface ScalarReferenceNode {
   readonly kind: "reference";
