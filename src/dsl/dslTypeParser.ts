@@ -30,6 +30,13 @@ export const dslTypedDeclarationTypeNames: readonly string[] = [
   dslChoiceTypeName
 ];
 
+export const dslModuleParameterTypeNames: readonly string[] = [
+  ...dslTypedDeclarationTypeNames,
+  "point",
+  "line",
+  "path"
+];
+
 const NUMBER_HEAD = new RegExp(`^${NUMBER_TYPE_NAME}\\s*\\(`);
 const CHOICE_HEAD = new RegExp(`^${dslChoiceTypeName}\\s*\\(`);
 const whitespace = /\s/;

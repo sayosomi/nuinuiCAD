@@ -16,6 +16,13 @@ import type {
 import { sourceLocalVariableNamesBefore } from "./dslLocalVariableCompletionCandidates";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import { scanCallArgs } from "./dslArgScanner";
+import {
+  isModuleGeometryInterfaceAssignable,
+  moduleGeometryInterfaceTypeOf,
+  moduleGeometryInterfaceTypeOfElement,
+  moduleRuntimeGeometryKindOf,
+  type ModuleGeometryInterfaceType
+} from "./moduleGeometryInterfaces";
 
 export type ModuleCompletionSite = {
   statementIndex: number;
@@ -41,11 +48,7 @@ export type ModuleCompletionRequest = {
   sourceOrderIndex?: number;
 };
 
-const geometryKindOfCategory = (category: string): "point" | "line" | null =>
-  category === "point" ? "point" : ["line", "curve", "arc"].includes(category) ? "line" : null;
-
-const parameterGeometryKind = (type: DslModuleParameterType | null | undefined): "point" | "line" | null =>
-  type?.kind === "point" || type?.kind === "line" ? type.kind : null;
+const parameterGeometryKind = moduleRuntimeGeometryKindOf;
 
 const scalarTypeOf = (type: DslModuleParameterType | null | undefined): ScalarType | null =>
   type && ["number", "string", "boolean", "choice"].includes(type.kind) ? type as ScalarType : null;
@@ -183,13 +186,37 @@ const geometryCompletions = (compiled: CompiledDslDocument, statementIndex: numb
       continue;
     }
     if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry" || lookup.declaration.statement.kind !== "element") continue;
-    const kind = geometryKindOfCategory(lookup.declaration.statement.category);
+    const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
+    const kind = interfaceType === "point" ? "point" : interfaceType ? "line" : null;
     if (kind === expected) result.push({ label: name, type: "constant" });
     // A line-like source is point-compatible only through its named endpoint;
     // iteration variables intentionally never enter this branch.
     if (expected === "point" && kind === "line") {
       result.push({ label: `${name}.start`, type: "constant" }, { label: `${name}.end`, type: "constant" });
     }
+  }
+  return result;
+};
+
+const geometryInterfaceCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  expected: ModuleGeometryInterfaceType,
+  request?: ModuleCompletionRequest
+): Completion[] => {
+  const result: Completion[] = [];
+  for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
+    const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);
+    if (!resolved) continue;
+    const { lookup } = resolved;
+    if (lookup.kind === "parameter") {
+      const actual = moduleGeometryInterfaceTypeOf(lookup.parameter.value.type);
+      if (isModuleGeometryInterfaceAssignable(actual, expected)) result.push({ label: name, type: "constant" });
+      continue;
+    }
+    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry" || lookup.declaration.statement.kind !== "element") continue;
+    const actual = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
+    if (isModuleGeometryInterfaceAssignable(actual, expected)) result.push({ label: name, type: "constant" });
   }
   return result;
 };
@@ -245,8 +272,10 @@ const moduleArgumentParameterType = (
 
 const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): Completion[] => {
   const parameterType = moduleArgumentParameterType(compiled, statementIndex, argumentIndex, request);
-  const geometryKind = parameterGeometryKind(parameterType);
-  return geometryKind ? geometryCompletions(compiled, statementIndex, geometryKind, request) : scalarCompletions(compiled, statementIndex, parameterType, request);
+  const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
+  return geometryInterfaceType
+    ? geometryInterfaceCompletions(compiled, statementIndex, geometryInterfaceType, request)
+    : scalarCompletions(compiled, statementIndex, parameterType, request);
 };
 
 const deferredInstanceIdOf = (target: ModuleScalarSourceTarget | ModuleGeometrySourceTarget | ModuleGeometryPropertySourceTarget | null) =>
@@ -375,11 +404,14 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
   if (!definition) return [];
   if (request.argumentIndex !== undefined) {
     const parameterType = moduleArgumentParameterType(compiled, statementIndex, request.argumentIndex, request);
-    const geometryKind = parameterGeometryKind(parameterType);
-    if (geometryKind) {
+    const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
+    if (geometryInterfaceType) {
       return definition.exports
         .filter((entry): entry is Extract<typeof entry, { kind: "geometry" }> => entry.kind === "geometry")
-        .filter((entry) => geometryKindOfCategory(entry.category) === geometryKind)
+        .filter((entry) => isModuleGeometryInterfaceAssignable(
+          moduleGeometryInterfaceTypeOfElement(compiled.statements[entry.exportedStatementIndex]),
+          geometryInterfaceType
+        ))
         .map((entry) => ({ label: entry.name, type: "constant" as const }));
     }
     const expected = scalarTypeOf(parameterType);

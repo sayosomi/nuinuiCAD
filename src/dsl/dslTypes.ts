@@ -92,7 +92,8 @@ export type DslEnclosing = {
 export type DslModuleParameterType =
   | ScalarType
   | { kind: "point" }
-  | { kind: "line" };
+  | { kind: "line" }
+  | { kind: "path" };
 
 export type DslModuleParameter = {
   kind: "moduleParameter";

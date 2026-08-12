@@ -127,12 +127,12 @@ const moduleParameterType = (
   diagnostics: DslModuleDiagnostic[]
 ): Pick<DslModuleParameter, "type" | "choiceOptionSpans" | "numericTypeOptions"> => {
   const text = source.slice(typeSpan.start, typeSpan.end);
-  if (text === "point" || text === "line") {
+  if (text === "point" || text === "line" || text === "path") {
     return { type: { kind: text }, choiceOptionSpans: [] };
   }
   const parsedDiagnostics: DslModuleDiagnostic[] = [];
   const parsed = parseDslScalarType(source, typeSpan, parsedDiagnostics, {
-    acceptedTypeDescription: "number/string/boolean/choice(...)/point/line"
+    acceptedTypeDescription: "number/string/boolean/choice(...)/point/line/path"
   });
   diagnostics.push(...parsedDiagnostics);
   return {

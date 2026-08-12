@@ -74,7 +74,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "point P = coordinate(x: 0, y: 0)",
       "line L = segment(start: @P, end: @P)",
       "curve C = bezier(start: @P, end: @P)",
-      "module M(width: number, anchor: point, path: line, optional: number = 0) {",
+      "module M(width: number, anchor: point, path: path, optional: number = 0) {",
       "}",
       "module I = M(width: 1, anchor: @P, path: @L)"
     ].join("\n");
@@ -91,6 +91,62 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(line?.options.map((option) => option.label)).toContain("L");
     expect(line?.options.map((option) => option.label)).toContain("C");
     expect(line?.options.map((option) => option.label)).not.toContain("P");
+  });
+
+  it("filters direct geometry candidates by strict line versus broad path interfaces", async () => {
+    const source = [
+      "nui 3",
+      "point P = coordinate(x: 0, y: 0)",
+      "line L = segment(start: @P, end: @P)",
+      "curve C = bezier(start: @P, end: @P)",
+      "arc A = arc(center: @P, radius: 5, start: 0, end: 90)",
+      "module Strict(input: line) {",
+      "}",
+      "module Broad(input: path) {",
+      "}",
+      "instance S = Strict(input: @)",
+      "instance B = Broad(input: @)"
+    ].join("\n");
+    const strictCursor = source.indexOf("Strict(input: @") + "Strict(input: @".length;
+    const broadCursor = source.indexOf("Broad(input: @") + "Broad(input: @".length;
+    const strict = await completionFor(source, strictCursor);
+    const broad = await completionFor(source, broadCursor);
+    expect(strict?.options.map((option) => option.label)).toEqual(["L"]);
+    expect(broad?.options.map((option) => option.label)).toEqual(["L", "C", "A"]);
+  });
+
+  it("filters qualified exported geometry candidates by the receiving interface", async () => {
+    const source = [
+      "nui 3",
+      "module Producer() {",
+      "  export line L = segment(start: (0, 0), end: (10, 0))",
+      "  export curve C = bezier(start: (0, 0), end: (10, 0))",
+      "  export arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
+      "}",
+      "module Strict(input: line) {",
+      "}",
+      "module Broad(input: path) {",
+      "}",
+      "instance Source = Producer()",
+      "instance S = Strict(input: @Source::)",
+      "instance B = Broad(input: @Source::)"
+    ].join("\n");
+    const strictCursor = source.indexOf("Strict(input: @Source::") + "Strict(input: @Source::".length;
+    const broadCursor = source.indexOf("Broad(input: @Source::") + "Broad(input: @Source::".length;
+    const strict = await completionFor(source, strictCursor);
+    const broad = await completionFor(source, broadCursor);
+    expect(strict?.options.map((option) => option.label)).toEqual(["L"]);
+    expect(broad?.options.map((option) => option.label)).toEqual(["L", "C", "A"]);
+  });
+
+  it("offers path in Module signature type completion without adding geometry to scalar declarations", async () => {
+    const moduleSource = "nui 3\nmodule M(input: pa";
+    const moduleResult = await completionFor(moduleSource, moduleSource.length);
+    expect(moduleResult?.options.map((option) => option.label)).toContain("path");
+
+    const scalarSource = "nui 3\nconst value: pa";
+    const scalarResult = await completionFor(scalarSource, scalarSource.length);
+    expect(scalarResult?.options.map((option) => option.label)).not.toContain("path");
   });
 
   it("offers module-body parameters and exports only for a qualified instance", async () => {

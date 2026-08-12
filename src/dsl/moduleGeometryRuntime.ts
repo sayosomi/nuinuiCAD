@@ -3,6 +3,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
 import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
 import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
+import { moduleRuntimeGeometryKindOf } from "./moduleGeometryInterfaces";
 import type {
   ModuleGeometryPropertySourceTarget,
   ModuleGeometryReferenceSemantic,
@@ -96,7 +97,7 @@ export const buildModuleGeometryRuntime = ({
     }
     exportsByPath.set(key, exportEntries);
     for (const parameter of definition.parameters) {
-      if (parameter.type?.kind !== "point" && parameter.type?.kind !== "line") continue;
+      if (!moduleRuntimeGeometryKindOf(parameter.type)) continue;
       const binding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
       if (binding?.value?.kind !== "geometry") continue;
       const instanceStatement = statements[instance.statementIndex];

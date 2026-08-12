@@ -11,7 +11,7 @@ import {
 import { Prec, type Extension, type Text } from "@codemirror/state";
 import { keymap, type Command, type EditorView } from "@codemirror/view";
 import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, dslVarsAttributeParameterKey, type DslCompletionContext } from "../dsl/dslCompletionContext";
-import { dslChoiceTypeName, dslTypedDeclarationTypeNames } from "../dsl/dslDeclarationParser";
+import { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "../dsl/dslDeclarationParser";
 import { dslStatementElementType } from "../dsl/dslCompletionMetadata";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
@@ -237,6 +237,19 @@ const declaredTypeCompletions = (): Completion[] => dslTypedDeclarationTypeNames
       })
     }
     : { label, type: "type" }
+);
+
+const moduleParameterTypeCompletions = (): Completion[] => dslModuleParameterTypeNames.map((label) =>
+  label === dslChoiceTypeName
+    ? {
+      label,
+      type: "type" as const,
+      apply: (view, _completion, from, to) => view.dispatch({
+        changes: { from, to, insert: "choice()" },
+        selection: { anchor: from + "choice(".length }
+      })
+    }
+    : { label, type: "type" as const }
 );
 
 /** Resolves the BindingReferenceSite for the CadElement at the cursor's own
@@ -752,6 +765,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       }).map((option) => ({ label: option.displayLabel, apply: option.sourceToken, type: "constant" }));
     }
     disablesCompletionFiltering = true;
+  } else if (completionContext.kind === "moduleParameterType") {
+    completions = moduleParameterTypeCompletions();
   } else if (completionContext.kind === "declaredType") {
     completions = declaredTypeCompletions();
   } else if (completionContext.kind === "numericTypeOption") {

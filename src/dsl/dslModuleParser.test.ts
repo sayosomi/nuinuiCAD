@@ -12,7 +12,7 @@ describe("DSL module source AST", () => {
   it("parses a definition with scalar, geometry, choice, and raw defaults", () => {
     const source = [
       "nui 3",
-      "module 凸ノッチ(凸ノッチ高さ: number, 縫い線: line, 縫い代線: line, ノッチ位置: point, 反転: boolean = false, 種別: choice(通常, 反転) = 通常) {",
+      "module 凸ノッチ(凸ノッチ高さ: number, 縫い線: line, 縫い代線: path, ノッチ位置: point, 反転: boolean = false, 種別: choice(通常, 反転) = 通常) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n");
@@ -24,7 +24,7 @@ describe("DSL module source AST", () => {
     expect(definition.parameters).toMatchObject([
       { kind: "moduleParameter", name: "凸ノッチ高さ", type: { kind: "number" }, defaultValue: null },
       { kind: "moduleParameter", name: "縫い線", type: { kind: "line" }, defaultValue: null },
-      { kind: "moduleParameter", name: "縫い代線", type: { kind: "line" }, defaultValue: null },
+      { kind: "moduleParameter", name: "縫い代線", type: { kind: "path" }, defaultValue: null },
       { kind: "moduleParameter", name: "ノッチ位置", type: { kind: "point" }, defaultValue: null },
       { kind: "moduleParameter", name: "反転", type: { kind: "boolean" }, defaultValue: "false" },
       { kind: "moduleParameter", name: "種別", type: { kind: "choice", options: ["通常", "反転"] }, defaultValue: "通常" }
@@ -59,6 +59,33 @@ describe("DSL module source AST", () => {
     ]);
     expect(parsed.statements[2].enclosing).toEqual({ statementIndex: 1, branch: "then" });
     expect(parsed.statements[3].enclosing).toEqual({ statementIndex: 2, branch: "then" });
+  });
+
+  it("parses path as a real geometry interface and keeps geometry defaults invalid", () => {
+    const parsed = parseDsl([
+      "nui 3",
+      "module M(straight: line, broad: path = @Line) {",
+      "}"
+    ].join("\n"));
+    expect(parsed.statements[1]).toMatchObject({
+      kind: "moduleDefinition",
+      parameters: [
+        { name: "straight", type: { kind: "line" } },
+        { name: "broad", type: { kind: "path" }, defaultValue: "@Line" }
+      ]
+    });
+    expect(parsed.diagnostics).toEqual([]);
+    const compiled = compileDslDocument([
+      "nui 3",
+      "module M(straight: line, broad: path = @Line) {",
+      "}"
+    ].join("\n"), {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:path:${index}`]))
+    });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-default" })
+    ]));
   });
 
   it("keeps module parameter and argument physical spans on multiline source", () => {
@@ -158,6 +185,11 @@ describe("DSL module source AST", () => {
     expect(instance.payloadSpans.arguments).toBeDefined();
     expect(logicalText.slice(instance.payloadSpans.options!.start, instance.payloadSpans.options!.end)).toBe(`state: ${state}`);
     expect(logicalText.slice(instance.payloadSpans.arguments!.start, instance.payloadSpans.arguments!.end)).toBe("state: true");
+  });
+
+  it("mentions path in invalid Module parameter type guidance", () => {
+    const diagnostic = errors("nui 3\nmodule M(input: unknown) {\n}").find((item) => item.message.includes("unknown"));
+    expect(diagnostic?.message).toContain("point/line/path");
   });
 
   it("keeps a module parameter named state separate from the instance option", () => {

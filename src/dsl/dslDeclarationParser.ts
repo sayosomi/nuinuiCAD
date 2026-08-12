@@ -7,7 +7,7 @@ import {
   type DslTypeDiagnostic
 } from "./dslTypeParser";
 
-export { dslChoiceTypeName, dslTypedDeclarationTypeNames } from "./dslTypeParser";
+export { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "./dslTypeParser";
 
 // Focused parser for the v3-only typed declaration statement:
 //   const NAME: TYPE = INITIALIZER

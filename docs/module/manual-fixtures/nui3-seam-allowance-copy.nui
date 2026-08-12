@@ -3,7 +3,7 @@ nui 3
 # 前身頃と後ろ身頃の縫い線を使う、実用途の縫い代写し。
 const 縫い代幅: number = 5
 
-module 縫い代写し(基準点: point, 写し元縫い線: line, 合わせ先縫い線: line, 写し元先に縫う縫い代線: line, 写し元後で縫う縫い代線: line, mirrorX: boolean = false) {
+module 縫い代写し(基準点: point, 写し元縫い線: path, 合わせ先縫い線: path, 写し元先に縫う縫い代線: path, 写し元後で縫う縫い代線: path, mirrorX: boolean = false) {
   line 脇コピー = copy(
     startPoint: @基準点,
     endPoint: @合わせ先縫い線.end,

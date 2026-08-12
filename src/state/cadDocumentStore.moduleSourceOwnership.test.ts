@@ -17,7 +17,7 @@ const geometryParameterModuleSource = [
   "nui 3",
   "line Base = segment(start: (0, 0), end: (10, 0))",
   "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
-  "module M(path: line, side: choice(right, left) = left) {",
+  "module M(path: path, side: choice(right, left) = left) {",
   "  point P = onLine(from: @path.end, ratio: 0.5)",
   "  line Copy = offset(",
   "    sources: [@path],",
@@ -126,7 +126,7 @@ describe("module source-owned model mutation", () => {
     useCadDocumentStore.getState().updateElement(baseCopy.id, { offset: 7 });
 
     const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("module M(path: line, side: choice(right, left) = left) {");
+    expect(state.sourceText).toContain("module M(path: path, side: choice(right, left) = left) {");
     expect(state.sourceText).toContain("sources: [@path]");
     expect(state.sourceText).toContain("side: @side");
     expect(state.sourceText).not.toContain("sources: [Base]");

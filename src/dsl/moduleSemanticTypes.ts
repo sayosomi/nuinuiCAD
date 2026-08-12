@@ -5,6 +5,7 @@ import type { ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
+import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 
 export type ModuleParameterSlot = {
   definitionStatementId: StatementIdentity;
@@ -48,6 +49,7 @@ export type ModuleGeometrySourceTarget =
       instanceName: string;
       exportName: string;
       expectedGeometryKind: "point" | "line";
+      expectedInterfaceType?: ModuleGeometryInterfaceType;
       pointKey?: string;
       referenceSpan: DslSpan;
       instanceSpan: DslSpan;

@@ -1,6 +1,13 @@
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
 import { constructionFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
 import {
+  isModuleGeometryInterfaceAssignable,
+  moduleGeometryInterfaceTypeOf,
+  moduleGeometryInterfaceTypeOfElement,
+  moduleRuntimeGeometryKindOf,
+  type ModuleGeometryInterfaceType
+} from "./moduleGeometryInterfaces";
+import {
   resolveSourceLexicalDeclaration,
   resolveSourceLexicalPath,
   type SourceLexicalDeclaration,
@@ -76,8 +83,7 @@ const scalarTypeOf = (type: DslModuleParameterType | null): ScalarType | null =>
     ? type
     : null;
 
-const geometryKindOf = (type: DslModuleParameterType | null): "point" | "line" | null =>
-  type?.kind === "point" || type?.kind === "line" ? type.kind : null;
+const geometryKindOf = moduleRuntimeGeometryKindOf;
 
 const geometryKindOfCategory = (category: DslGeometryDeclarationCategory): "point" | "line" | null =>
   category === "point" ? "point" : category === "line" || category === "curve" || category === "arc" ? "line" : null;
@@ -645,6 +651,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const deferredModuleExportTarget = (
     qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>,
     expectedGeometryKind: "point" | "line",
+    expectedInterfaceType: ModuleGeometryInterfaceType,
     span: DslSpan,
     pointKey: string | null
   ): Extract<ModuleGeometrySourceTarget, { kind: "deferredModuleExport" }> => ({
@@ -654,6 +661,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     instanceName: qualified.instanceName,
     exportName: qualified.exportName,
     expectedGeometryKind,
+    expectedInterfaceType,
     ...(pointKey ? { pointKey } : {}),
     referenceSpan: span,
     instanceSpan: qualified.instanceSpan,
@@ -751,6 +759,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     span: DslSpan,
     expected: "point" | "line",
     options: {
+      expectedInterfaceType?: ModuleGeometryInterfaceType;
       allowCoordinate?: boolean;
       allowNone?: boolean;
       role?: ModuleGeometryReferenceRole;
@@ -842,7 +851,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       reference.pathRange.start
     );
     if (qualified?.kind === "deferred") {
-      return semantic(deferredModuleExportTarget(qualified, expected, semanticSpan, pointKey), "deferred", null, derivedRole);
+      return semantic(
+        deferredModuleExportTarget(
+          qualified,
+          expected,
+          options.expectedInterfaceType ?? (expected === "point" ? "point" : "path"),
+          semanticSpan,
+          pointKey
+        ),
+        "deferred",
+        null,
+        derivedRole
+      );
     }
     if (qualified) {
       qualifiedDiagnostic(statementIndex, semanticSpan, qualified, expected);
@@ -859,12 +879,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           ? { ...parameterTarget, pointKey }
           : null
         : parameterTarget;
+      const actualInterfaceType = moduleGeometryInterfaceTypeOf(lookup.parameter.parameter.type);
       const compatible = pointKey
         ? Boolean(pointTarget && role !== "lineReference" && role !== "lineReferenceList")
-        : parameterTarget?.geometryKind === expected;
+        : options.expectedInterfaceType
+          ? isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType)
+          : parameterTarget?.geometryKind === expected;
       if (!parameterTarget || !compatible) {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expected})。`));
-        return semantic(parameterTarget, "invalid", null, derivedRole);
+        return semantic(null, "invalid", null, derivedRole);
       }
       return semantic(pointTarget, "resolved", null, derivedRole);
     }
@@ -905,7 +928,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const pointTarget = pointKey && expected === "point" && isDerivedPointKeyForGeometryCategory(target.category, pointKey)
       ? { ...target, pointKey }
       : pointKey ? null : target;
-    const compatible = pointKey ? Boolean(pointTarget) : target.geometryKind === expected;
+    const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
+    const compatible = pointKey
+      ? Boolean(pointTarget)
+      : options.expectedInterfaceType
+        ? isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType)
+        : target.geometryKind === expected;
     if (!compatible) {
       addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expected})。`));
       return semantic(null, "invalid", null, derivedRole);
@@ -1127,7 +1155,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           value = expression ? { kind: "scalar", expression } : null;
         } else {
           const parameterGeometryKind = geometryKindOf(parameter.type);
-          if (parameterGeometryKind) value = { kind: "geometry", reference: resolveGeometry(statementIndex, ownerIndex, argument.value, argument.valueSpan, parameterGeometryKind) };
+          const parameterInterfaceType = moduleGeometryInterfaceTypeOf(parameter.type);
+          if (parameterGeometryKind && parameterInterfaceType) {
+            value = {
+              kind: "geometry",
+              reference: resolveGeometry(
+                statementIndex,
+                ownerIndex,
+                argument.value,
+                argument.valueSpan,
+                parameterGeometryKind,
+                { expectedInterfaceType: parameterInterfaceType }
+              )
+            };
+          }
         }
         parameterBindings.push({ parameterIndex: parameter.parameterIndex, parameterName: parameter.name, parameterType: parameter.type, argumentIndex: argumentIndex ?? null, argumentLabel: argument.label, argumentSpan: argument.valueSpan, usesDefault: false, value });
       }

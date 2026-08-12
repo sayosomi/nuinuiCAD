@@ -24,7 +24,7 @@ import { numericTypeOptionCompletionContextAt } from "./dslNumericTypeOptionsCom
 import { propertyScalarValueCompletionContext, type PropertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
 import { templateHoleContentSpanAt } from "./dslTemplateHoleCompletionContext";
 import { setCompletionContextAt } from "./dslSetCompletionContext";
-import { dslModuleCompletionContextAt } from "./dslModuleCompletionContext";
+import { dslModuleCompletionContextAt, dslModuleParameterTypeCompletionContextAt } from "./dslModuleCompletionContext";
 import type { TypedGeometryPropertyCompletionContext } from "./dslTypedGeometryPropertyCompletionContext";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { DslSpan } from "./dslTypes";
@@ -44,6 +44,7 @@ export type DslCompletionContext =
   | { kind: "setTarget"; from: number; to: number }
   | { kind: "setRhs"; from: number; to: number; expressionSpan: DslSpan; targetName: string; geometryProperty?: TypedGeometryPropertyCompletionContext }
   | { kind: "moduleCallee"; from: number; to: number }
+  | { kind: "moduleParameterType"; from: number; to: number }
   | { kind: "moduleArgumentLabel"; from: number; to: number; argumentIndex: number }
   | { kind: "moduleArgumentValue"; from: number; to: number; argumentIndex: number }
   | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; argumentIndex?: number; expectedScalarType?: ScalarType }
@@ -317,6 +318,9 @@ export const dslCompletionContextAt = (lineText: string, pos: number, majorVersi
   if (comment && pos >= code.length) return null;
   const head = lineHeadContext(code, pos);
   if (head) return head;
+
+  const moduleParameterTypeContext = dslModuleParameterTypeCompletionContextAt(code, pos);
+  if (moduleParameterTypeContext) return moduleParameterTypeContext;
 
   const moduleContext = dslModuleCompletionContextAt(code, pos);
   if (moduleContext) return moduleContext;

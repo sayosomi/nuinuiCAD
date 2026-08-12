@@ -1,6 +1,6 @@
 nui 3
 
-# 実用途の凸ノッチ。Bezierの縫い線をline parameterへ渡し、
+# 実用途の凸ノッチ。Bezierの縫い線をpath parameterへ渡し、
 # Module内で接線方向・交点・延長を使って2つの独立したノッチを作る。
 const 凸ノッチ高さ: number = 9
 const 縫い代幅: number = 5
@@ -38,7 +38,7 @@ point ノッチ位置 = onLine(
   steps: [ratio: 0.01]
 )
 
-module 凸ノッチ(凸ノッチ高さ: number, 縫い線: line, 縫い代線: line, ノッチ位置: point, 反転: boolean = false) {
+module 凸ノッチ(凸ノッチ高さ: number, 縫い線: path, 縫い代線: path, ノッチ位置: point, 反転: boolean = false) {
   let 方向: number = 270
   if 反転判定 (@反転 == true) {
     set 方向 = 90

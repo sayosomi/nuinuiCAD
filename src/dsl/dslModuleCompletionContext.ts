@@ -51,6 +51,44 @@ const topLevelComma = (source: string, from: number, to: number) => {
   return -1;
 };
 
+export type DslModuleParameterTypeCompletionContext = {
+  kind: "moduleParameterType";
+  from: number;
+  to: number;
+};
+
+/** Type-name completion is limited to Module definition parameter headers. */
+export const dslModuleParameterTypeCompletionContextAt = (
+  code: string,
+  pos: number
+): DslModuleParameterTypeCompletionContext | null => {
+  const moduleMatch = /^\s*module\s+[^\s(=]+\s*\(/.exec(code);
+  if (!moduleMatch) return null;
+  const open = moduleMatch[0].lastIndexOf("(");
+  if (open < 0 || pos < open + 1) return null;
+  const prefix = code.slice(open + 1, pos);
+  let depth = 0;
+  let segmentStart = 0;
+  for (let index = 0; index < prefix.length; index += 1) {
+    if (prefix[index] === "(") depth += 1;
+    else if (prefix[index] === ")") depth = Math.max(0, depth - 1);
+    else if (prefix[index] === "," && depth === 0) segmentStart = index + 1;
+  }
+  const segment = prefix.slice(segmentStart);
+  const colon = segment.indexOf(":");
+  if (colon < 0) return null;
+  const typeStart = open + 1 + segmentStart + colon + 1;
+  const equals = segment.indexOf("=");
+  const typeEnd = equals >= 0 ? open + 1 + segmentStart + equals : pos;
+  if (pos > typeEnd) return null;
+  let from = typeStart;
+  while (from < typeEnd && /\s/.test(code[from] ?? "")) from += 1;
+  let to = from;
+  while (to < typeEnd && /[A-Za-z0-9_]/.test(code[to] ?? "")) to += 1;
+  if (pos < from || pos > to) return null;
+  return { kind: "moduleParameterType", from, to: pos };
+};
+
 const qualifiedMemberContextAt = (source: string, from: number, pos: number, argumentIndex: number): DslCompletionContext | null => {
   const qualified = source.slice(from, pos).match(new RegExp(`[^\\s"'#=()[\\]{},;:.]+::[^\\s"'#=()[\\]{},;:.]*$`));
   if (!qualified) return null;

@@ -14,6 +14,10 @@ import type {
   ResolvedModuleExport,
   ModuleScalarExpressionSemantic
 } from "./moduleSemanticTypes";
+import {
+  isModuleGeometryInterfaceAssignable,
+  moduleGeometryInterfaceTypeOfElement
+} from "./moduleGeometryInterfaces";
 import { encodeIdentityTuple } from "../document/identityTuple";
 
 export type GeometryAlias =
@@ -85,12 +89,12 @@ export const diagnosticForExport = (
 ): DslDiagnostic | null => {
   const namespaceDiagnostic = diagnosticForExportNamespace(statement, target, definition, statements, exportEntry);
   if (namespaceDiagnostic || !definition || !exportEntry) return namespaceDiagnostic;
-  const actualKind = geometryKindOfCategory(exportEntry.exported.category);
+  const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(statements[exportEntry.exported.exportedStatementIndex]);
   const validDerivedPoint = target.pointKey !== undefined &&
     target.expectedGeometryKind === "point" &&
     isDerivedPointKeyForGeometryCategory(exportEntry.exported.category, target.pointKey);
   const typeCompatible = target.pointKey === undefined
-    ? actualKind === target.expectedGeometryKind
+    ? isModuleGeometryInterfaceAssignable(actualInterfaceType, target.expectedInterfaceType ?? target.expectedGeometryKind)
     : validDerivedPoint;
   if (!typeCompatible) {
     return {

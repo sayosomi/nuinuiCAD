@@ -81,12 +81,12 @@ describe("module geometry runtime", () => {
       .toEqual([[11, 22], [1, 2], [8, 10]]);
   });
 
-  it("keeps line aliases broad and lowers endpoint/list references", () => {
+  it("keeps path aliases broad and lowers endpoint/list references", () => {
     const compiled = compileWithIds([
       "nui 3",
       "line Base = segment(start: (0, 0), end: (10, 0))",
       "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
-      "module M(path: line) {",
+      "module M(path: path) {",
       "  point P = onLine(from: @path.end, ratio: 0.5)",
       "  line Copy = offset(sources: [@path], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
       "}",
@@ -104,6 +104,80 @@ describe("module geometry runtime", () => {
     const arcCopy = compiled.document!.elements.find((element) => element.name === "Copy" && element.parentGroupId === named(compiled, "ArcInstance").id)!;
     expect((baseCopy as Extract<typeof baseCopy, { type: "offsetLine" }>).baseLineIds).toEqual([base.id]);
     expect((arcCopy as Extract<typeof arcCopy, { type: "offsetLine" }>).baseLineIds).toEqual([arc.id]);
+  });
+
+  it("checks strict line and broad path interfaces at direct Module argument boundaries", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "line Straight = segment(start: (0, 0), end: (10, 0))",
+      "line Polar = polar(start: (0, 0), angle: 0, length: 10)",
+      "curve Bezier = bezier(start: (0, 0), end: (10, 0))",
+      "arc Arc = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
+      "module Strict(input: line) {",
+      "}",
+      "module Broad(input: path) {",
+      "}",
+      "module StraightCall = Strict(input: @Straight)",
+      "module PolarCall = Strict(input: @Polar)",
+      "module ArcCall = Strict(input: @Arc)",
+      "module BezierCall = Strict(input: @Bezier)",
+      "module ArcPathCall = Broad(input: @Arc)",
+      "module BezierPathCall = Broad(input: @Bezier)"
+    ].join("\n"));
+
+    expect(errorsOf(compiled)).toHaveLength(2);
+    expect(errorsOf(compiled)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+  });
+
+  it("checks line-to-path and path-to-line parameter forwarding directionally", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "line Straight = segment(start: (0, 0), end: (10, 0))",
+      "module AcceptPath(input: path) {",
+      "}",
+      "module AcceptLine(input: line) {",
+      "}",
+      "module ForwardLine(input: line) {",
+      "  instance Nested = AcceptPath(input: @input)",
+      "}",
+      "module ForwardPath(input: path) {",
+      "  instance Nested = AcceptLine(input: @input)",
+      "}",
+      "module LineCall = ForwardLine(input: @Straight)",
+      "module PathCall = ForwardPath(input: @Straight)"
+    ].join("\n"));
+
+    expect(errorsOf(compiled)).toHaveLength(1);
+    expect(errorsOf(compiled)[0]).toMatchObject({ code: "module-geometry-type-mismatch" });
+  });
+
+  it("applies the same interface check to qualified exported geometry", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module Producer() {",
+      "  export line Straight = segment(start: (0, 0), end: (10, 0))",
+      "  export curve Bezier = bezier(start: (0, 0), end: (10, 0))",
+      "  export arc Arc = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
+      "}",
+      "module Strict(input: line) {",
+      "}",
+      "module Broad(input: path) {",
+      "}",
+      "module Source = Producer()",
+      "module StraightLine = Strict(input: @Source::Straight)",
+      "module StraightPath = Broad(input: @Source::Straight)",
+      "module ArcPath = Broad(input: @Source::Arc)",
+      "module BezierPath = Broad(input: @Source::Bezier)",
+      "module ArcLine = Strict(input: @Source::Arc)",
+      "module BezierLine = Strict(input: @Source::Bezier)"
+    ].join("\n"));
+
+    expect(errorsOf(compiled)).toHaveLength(2);
+    expect(errorsOf(compiled)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
   });
 
   it("resolves exported root and nested geometry through instance-local namespaces", () => {
