@@ -136,6 +136,66 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(geometry?.options.map((option) => option.label)).not.toContain("value");
   });
 
+  it("filters qualified module exports inside scalar arguments at the root and in nested module bodies", async () => {
+    const source = [
+      "nui 3",
+      "module Producer() {",
+      "  export const value: number = 1",
+      "  export const label: string = \"\"",
+      "  const privateValue: number = 2",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module Consumer(input: number) {",
+      "}",
+      "instance A = Producer()",
+      "instance B = Consumer(input: @A::)"
+    ].join("\n");
+    const rootCursor = source.indexOf("@A::") + "@A::".length;
+    const root = await completionFor(source, rootCursor);
+    expect(root?.options.map((option) => option.label)).toEqual(["value"]);
+
+    const completeSource = source.replace("@A::", "@A::value");
+    const memberCursor = completeSource.indexOf("@A::value") + "@A::".length;
+    const member = await completionFor(completeSource, memberCursor);
+    expect(member?.options.map((option) => option.label)).toEqual(["value"]);
+
+    const nestedSource = [
+      "nui 3",
+      "module Producer() {",
+      "  export const value: number = 1",
+      "  export const label: string = \"\"",
+      "  const privateValue: number = 2",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module Consumer(input: number) {",
+      "}",
+      "module Parent() {",
+      "  instance A = Producer()",
+      "  instance B = Consumer(input: @A::)",
+      "}"
+    ].join("\n");
+    const nestedCursor = nestedSource.indexOf("@A::") + "@A::".length;
+    const nested = await completionFor(nestedSource, nestedCursor);
+    expect(nested?.options.map((option) => option.label)).toEqual(["value"]);
+  });
+
+  it("filters qualified geometry exports inside geometry module arguments", async () => {
+    const source = [
+      "nui 3",
+      "module Producer() {",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "  export line L = segment(start: @P, end: @P)",
+      "}",
+      "module Consumer(anchor: point) {",
+      "}",
+      "instance A = Producer()",
+      "instance B = Consumer(anchor: @A::)"
+    ].join("\n");
+    const cursor = source.indexOf("@A::") + "@A::".length;
+    const result = await completionFor(source, cursor);
+    expect(result?.options.map((option) => option.label)).toEqual(["P"]);
+  });
+
   it("completes a member on an in-progress root scalar reference", async () => {
     const lastGood = [
       "nui 3",

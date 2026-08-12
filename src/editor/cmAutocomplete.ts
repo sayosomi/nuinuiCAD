@@ -735,7 +735,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
           scopeId: site.scopeId,
           sourceOrderIndex: site.sourceOrderIndex
         } : {}),
-        ...(completionContext.kind === "moduleArgumentLabel" || completionContext.kind === "moduleArgumentValue"
+        ...(completionContext.kind === "moduleArgumentLabel" || completionContext.kind === "moduleArgumentValue" || completionContext.kind === "moduleQualifiedMember"
           ? { argumentIndex: completionContext.argumentIndex } : {}),
         ...(completionContext.kind === "moduleQualifiedMember" && completionContext.expectedScalarType
           ? { expectedScalarType: completionContext.expectedScalarType } : {}),

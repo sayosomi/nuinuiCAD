@@ -46,7 +46,7 @@ export type DslCompletionContext =
   | { kind: "moduleCallee"; from: number; to: number }
   | { kind: "moduleArgumentLabel"; from: number; to: number; argumentIndex: number }
   | { kind: "moduleArgumentValue"; from: number; to: number; argumentIndex: number }
-  | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; expectedScalarType?: ScalarType }
+  | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; argumentIndex?: number; expectedScalarType?: ScalarType }
   | { kind: "moduleReference"; from: number; to: number }
   | null;
 

@@ -51,6 +51,19 @@ const topLevelComma = (source: string, from: number, to: number) => {
   return -1;
 };
 
+const qualifiedMemberContextAt = (source: string, from: number, pos: number, argumentIndex: number): DslCompletionContext | null => {
+  const qualified = source.slice(from, pos).match(new RegExp(`[^\\s"'#=()[\\]{},;:.]+::[^\\s"'#=()[\\]{},;:.]*$`));
+  if (!qualified) return null;
+  const separator = qualified[0].indexOf("::");
+  return {
+    kind: "moduleQualifiedMember",
+    from: from + (qualified.index ?? 0) + separator + 2,
+    to: pos,
+    qualifiedInstanceName: qualified[0].slice(0, separator).replace(/^@/, ""),
+    argumentIndex
+  };
+};
+
 /** Module calls use the ordinary module parser's spelling. This classifier is
  * only a cursor-shape adapter; semantic visibility and types stay in the
  * compiled ModuleSemanticAnalysis completion adapter. */
@@ -94,6 +107,8 @@ export const dslModuleCompletionContextAt = (code: string, pos: number): DslComp
   if (containing?.keySpan) {
     if (pos <= containing.keySpan.end) return { kind: "moduleArgumentLabel", from: containing.keySpan.start, to: pos, argumentIndex: scanned.indexOf(containing) };
     const valueFrom = containing.valueSpan.start === containing.valueSpan.end ? pos : containing.valueSpan.start;
+    const qualifiedMember = qualifiedMemberContextAt(code, valueFrom, pos, scanned.indexOf(containing));
+    if (qualifiedMember) return qualifiedMember;
     return { kind: "moduleArgumentValue", from: valueFrom, to: pos, argumentIndex: scanned.indexOf(containing) };
   }
   const segmentStart = (() => {

@@ -226,16 +226,25 @@ const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: num
   return definition.parameters.filter((parameter) => !used.has(parameter.name)).map((parameter) => ({ label: parameter.name, apply: `${parameter.name}: `, type: "property" as const }));
 };
 
-const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): Completion[] => {
+const moduleArgumentParameterType = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  argumentIndex: number,
+  request: ModuleCompletionRequest
+): DslModuleParameterType | null => {
   const instance = currentInstance(compiled, statementIndex);
   const definition = instance?.callee && compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
-  if (!definition) return [];
+  if (!definition) return null;
   const liveArgument = liveArguments(request)?.[argumentIndex];
   const binding = instance?.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
   const parameter = liveArgument?.key
     ? definition.parameters.find((candidate) => candidate.name === liveArgument.key)
     : binding && definition.parameters[binding.parameterIndex];
-  const parameterType = parameter?.type ?? binding?.parameterType;
+  return parameter?.type ?? binding?.parameterType ?? null;
+};
+
+const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): Completion[] => {
+  const parameterType = moduleArgumentParameterType(compiled, statementIndex, argumentIndex, request);
   const geometryKind = parameterGeometryKind(parameterType);
   return geometryKind ? geometryCompletions(compiled, statementIndex, geometryKind, request) : scalarCompletions(compiled, statementIndex, parameterType, request);
 };
@@ -364,6 +373,22 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
   const instance = analysis.instancesByStatementId.get(instanceStatementId);
   const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
   if (!definition) return [];
+  if (request.argumentIndex !== undefined) {
+    const parameterType = moduleArgumentParameterType(compiled, statementIndex, request.argumentIndex, request);
+    const geometryKind = parameterGeometryKind(parameterType);
+    if (geometryKind) {
+      return definition.exports
+        .filter((entry): entry is Extract<typeof entry, { kind: "geometry" }> => entry.kind === "geometry")
+        .filter((entry) => geometryKindOfCategory(entry.category) === geometryKind)
+        .map((entry) => ({ label: entry.name, type: "constant" as const }));
+    }
+    const expected = scalarTypeOf(parameterType);
+    if (!expected) return [];
+    return definition.exports
+      .filter((entry): entry is Extract<typeof entry, { kind: "scalar" }> => entry.kind === "scalar")
+      .filter((entry) => isScalarTypeAssignable(entry.declaredType, expected))
+      .map((entry) => ({ label: entry.name, type: "constant" as const }));
+  }
   const scalarContext = context?.memberKind === "scalar" || (!context && request.expectedScalarType !== null && request.expectedScalarType !== undefined);
   if (scalarContext) {
     const expected = context?.expectedScalarType ?? request.expectedScalarType ?? null;
