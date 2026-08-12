@@ -6,8 +6,8 @@ point D = coordinate(x: 30, y: 0)
 line CD = segment(start: @C, end: @D)
 for SameLoop (i, from: 0, count: 2, step: 1) {
   line AB = segment(start: @A, end: @B)
-  reverse(target: AB)
+  reverse(target: @AB)
 }
 for CrossLoop (i, from: 0, count: 2, step: 1) {
-  reverse(target: CD)
+  reverse(target: @CD)
 }
