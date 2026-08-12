@@ -1174,9 +1174,12 @@ export const compileDslDocument = (
         const definition = instance?.callee && moduleSemanticCompilation.definitionsByStatementId.get(instance.callee.definitionStatementId);
         const exported = definition?.exports.find((entry) => entry.kind === "scalar" && entry.name === path.segments[1]);
         if (!instance || !definition || !exported || exported.kind !== "scalar") {
+          const privateMember = !definition?.exports.some((entry) => entry.name === path.segments[1]) && definition?.bodyStatements.some((body) =>
+            parsed.statements[body.statementIndex]?.name === path.segments[1]
+          );
           return {
             kind: "blocked",
-            reason: "incompatible",
+            reason: privateMember ? "private" : "incompatible",
             declarationKind: "moduleInstance",
             statementId: instanceLookup.declaration.statementId
           };

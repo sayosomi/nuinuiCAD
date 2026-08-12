@@ -24,7 +24,7 @@ export type SourceNamespaceBindingLookup =
   | { kind: "resolved"; bindingId: BindingId }
   | {
       kind: "blocked";
-      reason: "forward" | "ambiguous" | "incompatible" | "invalidTraversal";
+      reason: "forward" | "ambiguous" | "incompatible" | "invalidTraversal" | "private";
       declarationKind?: string;
       statementId?: string;
     };

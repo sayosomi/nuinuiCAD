@@ -292,14 +292,21 @@ export const analyzeTypedDeclarations = ({
     const statement = statements[reference.site.statementIndex];
     const span = parsedByBindingId.get(reference.fromBindingId)?.references[reference.occurrenceIndex]?.span;
     if (!statement || !span) continue;
+    const privateMember = reference.resolution.reason === "private"
+      ? parseDslReferenceToken(reference.name).segments.at(-1) ?? reference.name
+      : null;
     const message = reference.resolution.reason === "forward"
       ? `"${reference.name}" はこの位置より後で宣言されているため、まだ参照できません。`
-      : `"${reference.name}" は${reference.resolution.declarationKind ?? "scalar以外の宣言"}のため、scalar expressionでは参照できません。`;
+      : privateMember
+        ? `module member「${privateMember}」はexportされていないため参照できません。`
+        : `"${reference.name}" は${reference.resolution.declarationKind ?? "scalar以外の宣言"}のため、scalar expressionでは参照できません。`;
     diagnostics.push(compileDiagnostic(
       spans,
       statement,
       span,
-      reference.resolution.reason === "forward" ? "forward-binding-reference" : "scalar-namespace-type-mismatch",
+      reference.resolution.reason === "private"
+        ? "module-private-member"
+        : reference.resolution.reason === "forward" ? "forward-binding-reference" : "scalar-namespace-type-mismatch",
       message,
       { bindingId: reference.fromBindingId }
     ));

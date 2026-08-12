@@ -41,7 +41,7 @@ export type BindingResolution =
       name: string;
       scopeId: ScopeId;
       statementIndex: number;
-      reason: "forward" | "ambiguous" | "incompatible" | "invalidTraversal";
+      reason: "forward" | "ambiguous" | "incompatible" | "invalidTraversal" | "private";
       declarationKind?: string;
       statementId?: string;
     };

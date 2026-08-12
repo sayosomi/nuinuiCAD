@@ -248,7 +248,7 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "ResultRight").id)).toMatchObject({ kind: "point", x: 40, y: 0 });
   });
 
-  it("does not publish a group-local or private scalar export outside its source namespace", () => {
+  it("diagnoses private members without publishing them as scalar bindings", () => {
     const scoped = compileWithIds([
       "nui 3",
       "module Producer(input: number) {",
@@ -261,16 +261,32 @@ describe("module scalar runtime integration", () => {
       "}",
       "const outside: number = @localFoo::value",
       "instance foo = Producer(input: 20)",
-      "const privateOutside: number = @foo::privateValue"
+      "const privateOutside: number = @foo::privateValue",
+      "const unknownOutside: number = @foo::doesNotExist"
     ].join("\n"));
     const references = scoped.bindingAnalysis?.initializerReferences.filter((reference) =>
-      reference.name === "localFoo::value" || reference.name === "foo::privateValue"
+      reference.name === "localFoo::value" || reference.name === "foo::privateValue" || reference.name === "foo::doesNotExist"
     ) ?? [];
     expect(references).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: "localFoo::value", resolution: expect.objectContaining({ kind: "undefined" }) }),
-      expect.objectContaining({ name: "foo::privateValue", resolution: expect.objectContaining({ kind: "namespace", reason: "incompatible" }) })
+      expect.objectContaining({ name: "foo::privateValue", resolution: expect.objectContaining({ kind: "namespace", reason: "private" }) }),
+      expect.objectContaining({ name: "foo::doesNotExist", resolution: expect.objectContaining({ kind: "namespace", reason: "incompatible" }) })
     ]));
-    expect(scoped.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).not.toEqual([]);
+    expect(scoped.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-private-member" })
+    ]));
+    expect(scoped.bindingAnalysis?.catalog.bindings.some((binding) => binding.name === "foo::privateValue")).toBe(false);
+
+    const unknown = compileWithIds([
+      "nui 3",
+      "module Producer(input: number) {",
+      "  const privateValue: number = @input * 3",
+      "  export const value: number = @input * 2",
+      "}",
+      "instance foo = Producer(input: 20)",
+      "const unknown: number = @foo::doesNotExist"
+    ].join("\n"));
+    expect(unknown.diagnostics.some((diagnostic) => diagnostic.code === "module-private-member")).toBe(false);
   });
 
   it("materializes parameter and local numeric bindings independently for repeated instances", () => {
