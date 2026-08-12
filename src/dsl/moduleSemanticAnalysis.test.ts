@@ -937,6 +937,117 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("does not traverse through an iteration overlay that shadows a qualified path", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "group G {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module M() {",
+      "  for Loop (G, from: 0, count: 1) {",
+      "    point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    const reference = moduleBodyAt(compiled, 6).geometryReferences[0].reference;
+
+    expect(reference).toMatchObject({ resolution: "invalid", target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
+  });
+
+  it("reports a qualified path first-segment forward reference without outer fallback", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "  group G {",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    const reference = moduleBodyAt(compiled, 2).geometryReferences[0].reference;
+
+    expect(reference).toMatchObject({ resolution: "forward", target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-forward-geometry-reference" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-undefined-geometry-reference" }),
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
+  });
+
+  it("reports a qualified path nested-member forward after resolving its local container", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  group G {",
+      "    point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    const reference = moduleBodyAt(compiled, 3).geometryReferences[0].reference;
+
+    expect(reference).toMatchObject({ resolution: "forward", target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-forward-geometry-reference" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-undefined-geometry-reference" })
+    ]));
+  });
+
+  it("rejects an ordinary qualified path that captures an outer module geometry", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "group G {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module M() {",
+      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "}"
+    ].join("\n"));
+    const reference = moduleBodyAt(compiled, 5).geometryReferences[0].reference;
+
+    expect(reference).toMatchObject({ resolution: "outerCapture", target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
+  });
+
+  it("resolves a module scalar qualified geometry property through the source namespace", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M() {",
+      "  group G {",
+      "    line L = segment(start: (0, 0), end: (10, 0))",
+      "  }",
+      "  const length: number = @G::L.length",
+      "}"
+    ].join("\n"));
+    const property = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!.geometryProperties[0];
+
+    expect(property).toMatchObject({
+      geometryName: "G::L",
+      property: "length",
+      target: {
+        kind: "sourceGeometryProperty",
+        statementId: "statement:test:3",
+        statementIndex: 3,
+        property: "length"
+      },
+      resolution: "resolved"
+    });
+    expect(property.target).not.toHaveProperty("kind", "deferredModuleExportProperty");
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
   it("does not create runtime CadElements or runtime IDs for module body statements", () => {
     const compiled = compileWithIds([
       "nui 3",
