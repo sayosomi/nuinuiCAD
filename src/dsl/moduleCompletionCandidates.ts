@@ -272,6 +272,7 @@ const moduleArgumentParameterType = (
 
 const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): Completion[] => {
   const parameterType = moduleArgumentParameterType(compiled, statementIndex, argumentIndex, request);
+  if (parameterType?.kind === "point") return geometryCompletions(compiled, statementIndex, "point", request);
   const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
   return geometryInterfaceType
     ? geometryInterfaceCompletions(compiled, statementIndex, geometryInterfaceType, request)

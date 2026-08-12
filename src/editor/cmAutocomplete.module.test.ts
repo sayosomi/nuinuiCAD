@@ -93,6 +93,52 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(line?.options.map((option) => option.label)).not.toContain("P");
   });
 
+  it("preserves point Module argument endpoint completions", async () => {
+    const source = [
+      "nui 3",
+      "point P = coordinate(x: 0, y: 0)",
+      "line L = segment(start: @P, end: @P)",
+      "curve C = bezier(start: @P, end: @P)",
+      "arc A = arc(center: @P, radius: 5, start: 0, end: 90)",
+      "module M(anchor: point) {",
+      "}",
+      "instance I = M(anchor: @)"
+    ].join("\n");
+    const cursor = source.indexOf("M(anchor: @") + "M(anchor: @".length;
+    const result = await completionFor(source, cursor);
+    expect(result?.options.map((option) => option.label)).toEqual([
+      "P",
+      "L.start",
+      "L.end",
+      "C.start",
+      "C.end",
+      "A.start",
+      "A.end"
+    ]);
+  });
+
+  it("forwards Module geometry parameters according to directional interfaces", async () => {
+    const source = [
+      "nui 3",
+      "module PathConsumer(input: path) {",
+      "}",
+      "module LineConsumer(input: line) {",
+      "}",
+      "module Container(lineParam: line, pathParam: path) {",
+      "  instance PathArg = PathConsumer(input: @)",
+      "  instance LineArg = LineConsumer(input: @)",
+      "}"
+    ].join("\n");
+    const pathCursor = source.indexOf("PathConsumer(input: @") + "PathConsumer(input: @".length;
+    const lineCursor = source.indexOf("LineConsumer(input: @") + "LineConsumer(input: @".length;
+    const path = await completionFor(source, pathCursor);
+    const line = await completionFor(source, lineCursor);
+    expect(path?.options.map((option) => option.label)).toContain("lineParam");
+    expect(path?.options.map((option) => option.label)).toContain("pathParam");
+    expect(line?.options.map((option) => option.label)).toContain("lineParam");
+    expect(line?.options.map((option) => option.label)).not.toContain("pathParam");
+  });
+
   it("filters direct geometry candidates by strict line versus broad path interfaces", async () => {
     const source = [
       "nui 3",
