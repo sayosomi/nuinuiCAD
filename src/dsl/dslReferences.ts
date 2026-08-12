@@ -14,26 +14,51 @@ import {
   parseDslSourceReference,
   type DslSourceReference
 } from "./dslReferenceTokens";
+import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 
 export type NameIndex = {
   elements: CadElement[];
   elementsById: Map<ElementId, CadElement>;
   idsByName: Map<string, ElementId[]>;
   nameContext: ElementNameContext;
+  sourceLexicalResolution?: {
+    sourceNamespace: SourceLexicalNamespaceIndex;
+    elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+    statementIndexByElementId: ReadonlyMap<ElementId, number>;
+  };
 };
 
-export const createNameIndex = (elements: CadElement[]): NameIndex => {
+export const createNameIndex = (
+  elements: CadElement[],
+  sourceLexicalResolution?: {
+    sourceNamespace: SourceLexicalNamespaceIndex;
+    elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  }
+): NameIndex => {
   const idsByName = new Map<string, ElementId[]>();
   for (const element of elements) {
     if (!element.name.trim()) continue;
     idsByName.set(element.name, [...(idsByName.get(element.name) ?? []), element.id]);
   }
   const nameContext = createElementNameContext(elements);
+  const statementIndexByElementId = new Map<ElementId, number>();
+  for (const [statementIndex, elementId] of sourceLexicalResolution?.elementIdByStatementIndex ?? []) {
+    statementIndexByElementId.set(elementId, statementIndex);
+  }
   return {
     elements,
     elementsById: nameContext.elementsById,
     idsByName,
-    nameContext
+    nameContext,
+    ...(sourceLexicalResolution
+      ? {
+          sourceLexicalResolution: {
+            sourceNamespace: sourceLexicalResolution.sourceNamespace,
+            elementIdByStatementIndex: sourceLexicalResolution.elementIdByStatementIndex,
+            statementIndexByElementId
+          }
+        }
+      : {})
   };
 };
 
@@ -97,6 +122,42 @@ export const resolveId = (
       sourceSpan,
       reference.propertyRange ?? reference.fullRange
     ));
+    return unresolvedToken;
+  }
+  const sourceResolution = index.sourceLexicalResolution && currentElement
+    ? (() => {
+        const statementIndex = index.sourceLexicalResolution!.statementIndexByElementId.get(currentElement.id);
+        return statementIndex === undefined
+          ? null
+          : resolveSourceLexicalPath(index.sourceLexicalResolution!.sourceNamespace, statementIndex, path);
+      })()
+    : null;
+  // An undefined source name may still be an explicit runtime element id for
+  // an unnamed legacy statement (`id: unnamed`). Preserve that established
+  // identity bridge; all named source outcomes remain authoritative below.
+  if (sourceResolution && sourceResolution.kind !== "undefined") {
+    if (sourceResolution.kind === "resolved") {
+      if (sourceResolution.declaration.kind === "geometry" || sourceResolution.declaration.kind === "group" || sourceResolution.declaration.kind === "conditionalGroup" || sourceResolution.declaration.kind === "forGroup") {
+        const resolvedId = index.sourceLexicalResolution!.elementIdByStatementIndex.get(sourceResolution.declaration.statementIndex);
+        if (resolvedId) return resolvedId;
+      }
+      diagnostics.push(invalidReferenceDiagnostic(
+        line,
+        reference.source,
+        `参照先「${sourceResolution.declaration.name}」はgeometryではありません。`,
+        sourceSpan,
+        reference.pathRange
+      ));
+      return unresolvedToken;
+    }
+    const sourceMessage = sourceResolution.kind === "forward"
+      ? `参照先がこの位置より後で宣言されています: ${unresolvedToken}`
+      : sourceResolution.kind === "ambiguous"
+        ? `参照名が曖昧です: ${unresolvedToken}`
+        : sourceResolution.kind === "invalidTraversal"
+          ? `参照先「${sourceResolution.declaration.name}」はnamespace/containerではありません: ${unresolvedToken}`
+          : `参照先が見つかりません: ${unresolvedToken}`;
+    diagnostics.push(diagnostic(line, sourceMessage));
     return unresolvedToken;
   }
   const resolution = resolveElementNamePath({

@@ -15,6 +15,26 @@ export type BindingVisibility =
 /** Whether a binding participates in ordinary source-name resolution. */
 export type BindingResolutionMode = "sourceLookup" | "preResolvedOnly";
 
+/** A narrow adapter from the canonical source namespace into the existing
+ * scalar binding sweep. `null` means the source namespace has no declaration
+ * to claim, so the sweep may continue with its established iteration/local
+ * specialization. A blocked result means a source declaration exists but it
+ * is not a scalar binding for this consumer. */
+export type SourceNamespaceBindingLookup =
+  | { kind: "resolved"; bindingId: BindingId }
+  | {
+      kind: "blocked";
+      reason: "forward" | "ambiguous" | "incompatible" | "invalidTraversal";
+      declarationKind?: string;
+      statementId?: string;
+    };
+
+export type SourceNamespaceBindingResolver = (
+  name: string,
+  statementIndex: number,
+  scopeId: ScopeId
+) => SourceNamespaceBindingLookup | null;
+
 export type BindingSeed = {
   id: BindingId;
   kind: BindingKind;
@@ -58,6 +78,7 @@ export type BuildBindingCatalogInput = {
   /** Additional already-resolved typed bindings, such as module instances. */
   additionalBindings?: readonly BindingSeed[];
   containerIndex?: CadContainerIndex;
+  sourceNamespaceBindingResolver?: SourceNamespaceBindingResolver;
 };
 
 export type BindingCatalog = {
@@ -75,6 +96,7 @@ export type BindingCatalog = {
   bindingsByEffectiveScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
   containerIndex: CadContainerIndex;
   declarationDuplicateBuckets: readonly (readonly Binding[])[];
+  sourceNamespaceBindingResolver?: SourceNamespaceBindingResolver;
 };
 
 export type BindingLookupNamespaces = {
@@ -105,7 +127,8 @@ export const buildBindingCatalog = ({
   stableStatementIdByIndex,
   iterationBindings = [],
   additionalBindings = [],
-  containerIndex = emptyContainerIndex
+  containerIndex = emptyContainerIndex,
+  sourceNamespaceBindingResolver
 }: BuildBindingCatalogInput): BindingCatalog => {
   const statementCount = scopeIndex.statementRankByIndex.size;
   const lanes: (Map<number, Ordered[]> | undefined)[][] = Array.from({ length: statementCount }, () => []);
@@ -205,5 +228,14 @@ export const buildBindingCatalog = ({
     const bucket = bindingsByEffectiveScopeAndName.get(binding.effectiveScopeId)?.get(binding.name);
     if (bucket && bucket.length > 1 && !duplicateSeen.has(bucket)) { duplicateSeen.add(bucket); declarationDuplicateBuckets.push(bucket); }
   }
-  return { scopeIndex, bindings, bindingsById, lookupNamespaces, bindingsByEffectiveScopeAndName, containerIndex, declarationDuplicateBuckets };
+  return {
+    scopeIndex,
+    bindings,
+    bindingsById,
+    lookupNamespaces,
+    bindingsByEffectiveScopeAndName,
+    containerIndex,
+    declarationDuplicateBuckets,
+    ...(sourceNamespaceBindingResolver ? { sourceNamespaceBindingResolver } : {})
+  };
 };

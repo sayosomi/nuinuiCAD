@@ -32,7 +32,19 @@ export type BindingResolution =
   | { kind: "undefined"; name: string; scopeId: ScopeId; statementIndex: number }
   | { kind: "forward"; name: string; scopeId: ScopeId; statementIndex: number; bindingIds: readonly BindingId[] }
   | { kind: "self"; name: string; scopeId: ScopeId; statementIndex: number; bindingId: BindingId }
-  | { kind: "duplicate"; name: string; scopeId: ScopeId; statementIndex: number; bindingIds: readonly string[] };
+  | { kind: "duplicate"; name: string; scopeId: ScopeId; statementIndex: number; bindingIds: readonly string[] }
+  /** A source declaration won the unified namespace, but it is not usable as
+   * a scalar binding. Downstream scalar consumers fail closed; they must not
+   * continue to an outer scalar or to the materialized geometry namespace. */
+  | {
+      kind: "namespace";
+      name: string;
+      scopeId: ScopeId;
+      statementIndex: number;
+      reason: "forward" | "ambiguous" | "incompatible" | "invalidTraversal";
+      declarationKind?: string;
+      statementId?: string;
+    };
 
 export type InitializerResolutionRequest = {
   fromBindingId: BindingId;
@@ -216,6 +228,35 @@ const resolutionFor = (
     if (local[0]) {
       recordEmittedCandidateCount(observer, 1);
       return { kind: "resolvedLocal", name, local: local[0] };
+    }
+  }
+  // Initializer self-detection remains owned by the existing binding sweep.
+  // The source namespace quite correctly sees the declaration as future at
+  // this point, but an initializer's own declaration must stay `self` rather
+  // than becoming a namespace-forward result.
+  if (request.owner && request.owner.name === name && request.owner.statementIndex === site.statementIndex) {
+    // Continue to the established lexical sweep below; it will emit `self`
+    // after finding no visible candidate.
+  } else {
+    const sourceLookup = catalog.sourceNamespaceBindingResolver?.(name, site.statementIndex, site.scopeId);
+    if (sourceLookup?.kind === "resolved") {
+      const binding = catalog.bindingsById.get(sourceLookup.bindingId);
+      // Rename analysis creates a virtual catalog by changing only the
+      // binding's name. The source namespace callback remains tied to the
+      // current document snapshot, so its identity claim is valid only while
+      // the virtual binding still carries that source name. Otherwise let the
+      // established sweep observe the virtual rename.
+      if (binding && binding.name === name) return { kind: "resolved", binding };
+    } else if (sourceLookup?.kind === "blocked") {
+      return {
+        kind: "namespace",
+        name,
+        scopeId: site.scopeId,
+        statementIndex: site.statementIndex,
+        reason: sourceLookup.reason,
+        ...(sourceLookup.declarationKind ? { declarationKind: sourceLookup.declarationKind } : {}),
+        ...(sourceLookup.statementId ? { statementId: sourceLookup.statementId } : {})
+      };
     }
   }
   const stack = activeByName.get(name) ?? [];

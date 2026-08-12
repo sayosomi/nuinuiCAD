@@ -169,6 +169,11 @@ const sameResolution = (before: BindingResolution, after: BindingResolution): bo
       // isn't, which the outer `before.kind !== after.kind` check above
       // already catches).
       return after.kind === "resolvedLocal" && before.local.id === after.local.id;
+    case "namespace":
+      return after.kind === "namespace" &&
+        before.reason === after.reason &&
+        before.declarationKind === after.declarationKind &&
+        before.statementId === after.statementId;
   }
 };
 

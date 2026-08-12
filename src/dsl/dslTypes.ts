@@ -250,6 +250,12 @@ export type CompileDslContext = {
   moduleSemanticAnalysis?: ModuleSemanticAnalysis;
   /** Reconciler-owned source identities used to derive materialized runtime IDs. */
   stableStatementIdByIndex?: ReadonlyMap<number, string>;
+  /** Canonical source namespace used by the second document compile pass.
+   * Materialized module children are never supplied through this field. */
+  sourceLexicalResolution?: {
+    sourceNamespace: import("./sourceLexicalNamespaceIndex").SourceLexicalNamespaceIndex;
+    elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  };
 };
 
 export type CompileDslResult = {

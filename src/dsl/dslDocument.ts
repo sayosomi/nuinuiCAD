@@ -998,8 +998,22 @@ export const compileDslDocument = (
   const hasCompilableGeometryStatements = parsed.statements.some(
     (statement, statementIndex) => isElementDslStatement(statement) && includeStatement(statement, statementIndex)
   );
+  const hasSourceNamespaceStatements = parsed.statements.some(
+    (statement, statementIndex) =>
+      includeStatement(statement, statementIndex) &&
+      (
+        statement.kind === "group" ||
+        statement.kind === "moduleDefinition" ||
+        statement.kind === "moduleInstance" ||
+        statement.kind === "typedDeclaration" ||
+        (statement.kind === "element" &&
+          (isGeometryDeclarationCategory(statement.category) ||
+            statement.type === "conditionalGroup" ||
+            statement.type === "forGroup"))
+      )
+  );
   const stableStatementIdByIndex =
-    (hasTypedDeclarations || hasSetStatements || hasPrintLayoutStatements || hasModuleStatements)
+    (hasTypedDeclarations || hasSetStatements || hasPrintLayoutStatements || hasModuleStatements || hasSourceNamespaceStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
   if (stableStatementIdByIndex) {
@@ -1018,12 +1032,31 @@ export const compileDslDocument = (
         statement.type === "forGroup"));
   const sourceNamespaceHasCompleteIdentity =
     stableStatementIdByIndex !== undefined &&
+    (options.assignedStatementIds !== undefined || options.assignedElementIds !== undefined) &&
     parsed.statements.every(
       (statement, statementIndex) => !sourceNamespaceRequiresIdentity(statement) || stableStatementIdByIndex.has(statementIndex)
     );
   const sourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
     ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
     : undefined;
+  if (sourceLexicalNamespace && stableStatementIdByIndex) {
+    // The first compile establishes reconciler-owned element identities and
+    // structural metadata. Re-run the same compiler with the source
+    // namespace attached so ordinary geometry consumers select source
+    // declarations before the legacy materialized-name fallback. Module
+    // export members are still handled by the later module runtime path.
+    compiled = compileDslToElements(normalized, {
+      elements: [],
+      mode: "document",
+      preparsed: parsed,
+      assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds ?? compiled.elementIdsByStatementIndex,
+      majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION,
+      sourceLexicalResolution: {
+        sourceNamespace: sourceLexicalNamespace,
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map()
+      }
+    });
+  }
   // Task 48: the one parse-time span index every typed-variable diagnostic
   // producer - including ones that run later, against this exact compiled
   // document, from outside compileDslDocument itself (runtimeScalarDiagnostics.ts) -
@@ -1080,7 +1113,8 @@ export const compileDslDocument = (
           elements: compiled.elements
         },
         spans,
-        includeStatement
+        includeStatement,
+        sourceNamespace: sourceLexicalNamespace
       })
     : { diagnostics: [] };
   const documentScalarAnalysis = scalarAnalysisCompilation.analysis;

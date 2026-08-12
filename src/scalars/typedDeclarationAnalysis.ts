@@ -7,7 +7,7 @@ import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnos
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import { isElementDslStatement } from "../dsl/dslParser";
 import { analyzeBindings, type BindingAnalysis, type InitializerReference } from "./bindingAnalysis";
-import { buildBindingCatalog, type BindingId } from "./bindingCatalog";
+import { bindingIdForStableStatementId, buildBindingCatalog, type BindingId, type SourceNamespaceBindingResolver } from "./bindingCatalog";
 import { resolveInitializerReferences, type BindingResolution, type InitializerResolutionRequest } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
@@ -19,6 +19,11 @@ import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
+import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
+import {
+  resolveSourceLexicalPath,
+  type SourceLexicalNamespaceIndex
+} from "../dsl/sourceLexicalNamespaceIndex";
 
 export type { DiagnosticSpanContext };
 
@@ -70,8 +75,44 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
  * reference inside typed-only syntax. */
 export const unresolvedReferenceMessage = (name: string, resolution: BindingResolution | undefined): string => {
   if (resolution?.kind === "forward") return `"${name}" はこの位置より後で宣言されているため、まだ参照できません。`;
+  if (resolution?.kind === "namespace" && resolution.reason === "forward") return `"${name}" はこの位置より後で宣言されているため、まだ参照できません。`;
   if (resolution?.kind === "duplicate") return `"${name}" は複数の宣言と一致するため一意に解決できません。`;
+  if (resolution?.kind === "namespace" && resolution.reason === "ambiguous") return `"${name}" は複数の宣言と一致するため一意に解決できません。`;
   return `未定義の変数 "${name}" を参照しています。`;
+};
+
+const sourceNamespaceBindingResolverFor = (
+  sourceNamespace: SourceLexicalNamespaceIndex,
+  typedStatementIndexes: ReadonlySet<number>
+): SourceNamespaceBindingResolver => (name, statementIndex) => {
+  const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, parseDslReferenceToken(name));
+  if (lookup.kind === "undefined") return null;
+  if (lookup.kind === "resolved") {
+    if (lookup.declaration.kind === "typedDeclaration" && typedStatementIndexes.has(lookup.declaration.statementIndex)) {
+      const bindingId = bindingIdForStableStatementId(lookup.declaration.statementId);
+      return { kind: "resolved", bindingId };
+    }
+    return {
+      kind: "blocked",
+      reason: "incompatible",
+      declarationKind: lookup.declaration.kind,
+      statementId: lookup.declaration.statementId
+    };
+  }
+  if (lookup.kind === "invalidTraversal") {
+    return {
+      kind: "blocked",
+      reason: "invalidTraversal",
+      declarationKind: lookup.declaration.kind,
+      statementId: lookup.declaration.statementId
+    };
+  }
+  // Keep the existing binding sweep as the owner for all-typed duplicate and
+  // forward buckets. A mixed-kind bucket must remain blocked so a scalar
+  // consumer cannot skip an inner geometry/group and capture an outer scalar.
+  const declarations = lookup.declarations;
+  if (declarations.every((declaration) => declaration.kind === "typedDeclaration" && typedStatementIndexes.has(declaration.statementIndex))) return null;
+  return { kind: "blocked", reason: lookup.kind };
 };
 
 /** Exact-span-or-nothing (Task 48): physicalSpan is set only when the
@@ -152,13 +193,15 @@ export const analyzeTypedDeclarations = ({
   stableStatementIdByIndex,
   reconciledContainers,
   spans,
-  includeStatement: includeStatementOption
+  includeStatement: includeStatementOption,
+  sourceNamespace
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   reconciledContainers: ReconciledCadContainerInput;
   spans: DiagnosticSpanContext;
   includeStatement?: (statement: DslStatement, statementIndex: number) => boolean;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
 }): TypedDeclarationAnalysisCompilation => {
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
     isCompilableDslStatement(statements, statementIndex)
@@ -188,11 +231,15 @@ export const analyzeTypedDeclarations = ({
 
   const scopeIndex = buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, includeStatement);
   const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers });
+  const typedStatementIndexes = new Set(typedStatements.map(({ statementIndex }) => statementIndex));
   const catalog = buildBindingCatalog({
     scopeIndex,
     stableStatementIdByIndex,
     iterationBindings: adapter.iterationBindings,
-    containerIndex: adapter.containerIndex
+    containerIndex: adapter.containerIndex,
+    ...(sourceNamespace
+      ? { sourceNamespaceBindingResolver: sourceNamespaceBindingResolverFor(sourceNamespace, typedStatementIndexes) }
+      : {})
   });
   const parsedByBindingId = new Map<BindingId, ParsedInitializer>();
   const diagnostics: DslDiagnostic[] = [];
@@ -220,6 +267,28 @@ export const analyzeTypedDeclarations = ({
     }));
   }
   const resolved = resolveInitializerReferences(catalog, requests);
+  for (const reference of resolved) {
+    if (reference.resolution.kind !== "namespace") continue;
+    // Cross-kind same-scope collisions already have the source namespace's
+    // single declaration diagnostic. Do not add a second consumer diagnostic
+    // for the ambiguous case; the important invariant is that no outer
+    // scalar was selected.
+    if (reference.resolution.reason === "ambiguous") continue;
+    const statement = statements[reference.site.statementIndex];
+    const span = parsedByBindingId.get(reference.fromBindingId)?.references[reference.occurrenceIndex]?.span;
+    if (!statement || !span) continue;
+    const message = reference.resolution.reason === "forward"
+      ? `"${reference.name}" はこの位置より後で宣言されているため、まだ参照できません。`
+      : `"${reference.name}" は${reference.resolution.declarationKind ?? "scalar以外の宣言"}のため、scalar expressionでは参照できません。`;
+    diagnostics.push(compileDiagnostic(
+      spans,
+      statement,
+      span,
+      reference.resolution.reason === "forward" ? "forward-binding-reference" : "scalar-namespace-type-mismatch",
+      message,
+      { bindingId: reference.fromBindingId }
+    ));
+  }
   // Typechecking consumes resolutions in each binding's occurrence order.
   // Keep that ordering while indexing the one shared resolved stream once,
   // instead of re-scanning every resolution for every typed binding.

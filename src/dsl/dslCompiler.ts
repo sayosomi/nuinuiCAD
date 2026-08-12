@@ -556,7 +556,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     ...createCadElement(type, existing, { createId: () => createdIds.get(statement) ?? "" }),
     name: statement.name
   }));
-  const preliminaryIndex = createNameIndex([...existing, ...placeholderElements]);
+  const preliminaryIndex = createNameIndex([...existing, ...placeholderElements], context.sourceLexicalResolution);
   placeholderElements = placeholderElements.map((element, index) => {
     const statement = statementsWithIds[index].statement;
     const block = blockContextOf(statement);
@@ -569,7 +569,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         }
       : element;
   });
-  const index = createNameIndex([...existing, ...placeholderElements]);
+  const index = createNameIndex([...existing, ...placeholderElements], context.sourceLexicalResolution);
   const elementsForExpressions = [...existing, ...placeholderElements];
 
   const updates = new Map<ElementId, CadElement>();
@@ -624,7 +624,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     statements: parsed.statements,
     layouts: visibilitySettings.printLayouts ?? (documentMode ? [] : undefined),
     elements,
-    nameIndex: createNameIndex(elements),
+    nameIndex: createNameIndex(elements, context.sourceLexicalResolution),
     visibilityProfiles: visibilitySettings.visibilityProfiles,
     diagnostics,
     printLayoutIdsByStatementIndex,
