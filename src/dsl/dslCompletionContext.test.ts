@@ -13,6 +13,25 @@ describe("dslCompletionContextAt", () => {
     expect(dslCompletionContextAt(line, at(line, "="))).toBeNull();
   });
 
+  it("recognizes the formal nui4 instance spelling for module call completion", () => {
+    const line = "instance foo = Foo(ba";
+    const keywordContext = dslCompletionContextAt("inst", 4);
+    expect(keywordContext).toMatchObject({ kind: "keyword" });
+    expect(keywordContext?.kind === "keyword" && keywordContext.options).toContain("instance");
+    expect(dslCompletionContextAt(line, line.length)).toMatchObject({
+      kind: "moduleArgumentLabel",
+      from: line.indexOf("ba"),
+      to: line.length,
+      argumentIndex: 1
+    });
+    const withState = "instance foo(state: hidden) = Foo(ba";
+    expect(dslCompletionContextAt(withState, withState.length)).toMatchObject({
+      kind: "moduleArgumentLabel",
+      from: withState.indexOf("ba"),
+      to: withState.length
+    });
+  });
+
   it("resolves reference and choice contexts through live line reparsing", () => {
     const line = "line L = segment(start: A end: B)";
     expect(dslCompletionContextAt(line, at(line, "A"))).toMatchObject({

@@ -28,7 +28,7 @@ import {
   type DslModuleParsedStatement,
   type DslModuleParseResult
 } from "./dslModuleParser";
-import { parseDslExportedGeometryStatement } from "./dslExportParser";
+import { parseDslExportStatement } from "./dslExportParser";
 import { isCompilableDslStatement } from "./dslCompilationGuard";
 
 /**
@@ -64,6 +64,7 @@ export const dslStatementKeywords = {
   image: "image",
   group: "group",
   module: "module",
+  instance: "instance",
   export: "export"
 } as const;
 
@@ -283,7 +284,9 @@ const declarationStatementToDslStatement = (
   declaredType: decl.declaredType,
   choiceOptionSpans: decl.choiceOptionSpans,
   ...(decl.numericTypeOptions ? { numericTypeOptions: decl.numericTypeOptions } : {}),
-  initializer: decl.initializer
+  initializer: decl.initializer,
+  exported: decl.exported ?? false,
+  exportSpan: decl.exportSpan ?? null
 });
 
 const setStatementToDslStatement = (
@@ -396,9 +399,22 @@ const parseLine = (
   if (keyword === dslStatementKeywords.module) {
     return fromModule(parseDslModuleStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
   }
+  if (keyword === dslStatementKeywords.instance) {
+    return fromModule(parseDslModuleStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
+  }
   if (keyword === dslStatementKeywords.export) {
-    const parsed = parseDslExportedGeometryStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas });
-    return fromCall(parsed.call, line, endLine, project, { exportSpan: parsed.exportSpan });
+    const parsed = parseDslExportStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas });
+    if (parsed.kind === "geometry" && parsed.call) {
+      return fromCall(parsed.call, line, endLine, project, { exportSpan: parsed.exportSpan });
+    }
+    if (parsed.kind === "typedDeclaration" && parsed.declaration) {
+      return fromDeclaration(parsed.declaration, line, endLine, project);
+    }
+    return {
+      diagnostics: parsed.diagnostics.map((item) =>
+        diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+      )
+    };
   }
   if (callCategoryKeywords.has(keyword) || mutationKeywords.has(keyword)) {
     return fromCall(parseDslCallStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine, project);
@@ -538,6 +554,8 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
       parameter.typePhysicalSpan = parameter.typeSpan ? project(parameter.typeSpan) : null;
       parameter.defaultPhysicalSpan = parameter.defaultSpan ? project(parameter.defaultSpan) : null;
     }
+  } else if (statement.kind === "typedDeclaration") {
+    statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
   } else if (statement.kind === "moduleInstance") {
     statement.moduleNamePhysicalSpan = statement.moduleNameSpan ? project(statement.moduleNameSpan) : null;
     for (const option of statement.options) {

@@ -289,9 +289,9 @@ const definition = (logicalText: string, options: ParseDslModuleOptions): DslMod
   };
 };
 
-const instance = (logicalText: string): DslModuleParseResult => {
+const instance = (logicalText: string, keyword = "module"): DslModuleParseResult => {
   const diagnostics: DslModuleDiagnostic[] = [];
-  const keywordSpan = { start: 0, end: "module".length };
+  const keywordSpan = { start: 0, end: keyword.length };
   const afterKeyword = trimSpan(logicalText, keywordSpan.end, logicalText.length);
   const firstOpen = topLevelIndex(logicalText, "(", afterKeyword.start);
   const firstClose = firstOpen >= 0 ? matchingClose(logicalText, firstOpen, logicalText.length) : -1;
@@ -377,6 +377,7 @@ export const parseDslModuleStatement = (
   options: ParseDslModuleOptions = {}
 ): DslModuleParseResult => {
   const keyword = logicalText.match(identifier)?.[0];
+  if (keyword === "instance") return instance(logicalText, keyword);
   if (keyword !== "module") return { statement: null, diagnostics: [] };
   const afterKeyword = trimSpan(logicalText, keyword.length, logicalText.length);
   const firstOpen = topLevelIndex(logicalText, "(", afterKeyword.start);

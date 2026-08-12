@@ -43,6 +43,9 @@ export type DslTypedDeclarationStatement = {
   args: [];
   attrs: [];
   opensBlock: false;
+  /** Set by the generalized export parser when `export` prefixes this declaration. */
+  exported?: boolean;
+  exportSpan?: DslSpan | null;
 };
 
 export type DslDeclarationParseResult = {

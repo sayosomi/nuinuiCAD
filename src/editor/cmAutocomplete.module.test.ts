@@ -62,6 +62,12 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(result?.options.map((option) => option.label)).toEqual(["First"]);
   });
 
+  it("offers module callees through the formal nui4 instance spelling", async () => {
+    const source = ["nui 3", "module First() {", "}", "instance Use = F", "module Forward() {", "}"].join("\n");
+    const result = await completionFor(source, source.indexOf("F\n", source.indexOf("instance Use")) + 1);
+    expect(result?.options.map((option) => option.label)).toEqual(["First"]);
+  });
+
   it("offers unconsumed named labels and type-filters scalar, point, and line arguments", async () => {
     const source = [
       "nui 3",

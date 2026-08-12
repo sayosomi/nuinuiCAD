@@ -24,5 +24,6 @@ export const serializeTypedDeclaration = (
 ): string => {
   const declaredType = statement.declaredType;
   const type = declaredType ? typeText(declaredType, statement.numericTypeOptions) : "";
-  return `${statement.bindingKind} ${formatDslName(statement.name)}: ${type} = ${statement.initializer}`;
+  const exportPrefix = statement.exported ? "export " : "";
+  return `${exportPrefix}${statement.bindingKind} ${formatDslName(statement.name)}: ${type} = ${statement.initializer}`;
 };

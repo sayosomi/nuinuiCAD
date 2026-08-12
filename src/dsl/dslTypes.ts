@@ -200,6 +200,10 @@ export type DslStatement =
       numericTypeOptions?: DslNumericTypeOptions;
       /** Raw, unparsed initializer source text - never evaluated or re-quoted (Task 14 owns that). */
       initializer: string;
+      /** Export is a modifier on the declaration, not an alias statement. */
+      exported: boolean;
+      exportSpan: DslSpan | null;
+      exportPhysicalSpan?: DslPhysicalSpan | null;
     })
   | (DslStatementBase & {
       kind: "set";

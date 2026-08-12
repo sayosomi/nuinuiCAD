@@ -21,6 +21,26 @@ const topLevelOpenParen = (source: string, from: number) => {
   return -1;
 };
 
+const matchingCloseParen = (source: string, open: number) => {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let index = open; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote && source[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === "(") {
+      depth += 1;
+    } else if (character === ")" && --depth === 0) {
+      return index;
+    }
+  }
+  return -1;
+};
+
 const topLevelComma = (source: string, from: number, to: number) => {
   let depth = 0;
   for (let index = from; index < to; index += 1) {
@@ -37,13 +57,24 @@ const topLevelComma = (source: string, from: number, to: number) => {
 export const dslModuleCompletionContextAt = (code: string, pos: number): DslCompletionContext => {
   let cursor = 0;
   while (/\s/.test(code[cursor] ?? "")) cursor += 1;
-  if (code.slice(cursor, cursor + 6) !== "module" || identifierPart(code[cursor - 1]) || identifierPart(code[cursor + 6])) return null;
-  cursor += 6;
+  const keyword = (["module", "instance"] as const).find((candidate) =>
+    code.slice(cursor, cursor + candidate.length) === candidate &&
+    !identifierPart(code[cursor - 1]) &&
+    !identifierPart(code[cursor + candidate.length])
+  );
+  if (!keyword) return null;
+  cursor += keyword.length;
   while (/\s/.test(code[cursor] ?? "")) cursor += 1;
   const instanceStart = cursor;
   while (identifierPart(code[cursor])) cursor += 1;
   if (cursor === instanceStart) return null;
   while (/\s/.test(code[cursor] ?? "")) cursor += 1;
+  if (code[cursor] === "(") {
+    const optionClose = matchingCloseParen(code, cursor);
+    if (optionClose < 0) return null;
+    cursor = optionClose + 1;
+    while (/\s/.test(code[cursor] ?? "")) cursor += 1;
+  }
   if (code[cursor] !== "=") return null;
   cursor += 1;
   while (/\s/.test(code[cursor] ?? "")) cursor += 1;
