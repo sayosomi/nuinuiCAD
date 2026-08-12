@@ -39,6 +39,8 @@ export type InitializerReference = {
 export type AnalyzeBindingsInput = {
   catalog: BindingCatalog;
   initializerReferences: readonly InitializerReference[];
+  /** Bindings known to be unavailable to the current evaluation pass. */
+  unavailableBindingIds?: ReadonlySet<BindingId>;
 };
 
 export type InitializerGraphEdge = { toBindingId: BindingId; reference: InitializerReference };
@@ -303,7 +305,7 @@ type MutableIssueBuckets = {
 };
 
 export const analyzeBindings = (input: AnalyzeBindingsInput): BindingAnalysis => {
-  const { catalog, initializerReferences } = input;
+  const { catalog, initializerReferences, unavailableBindingIds } = input;
   const graph = buildInitializerGraph(catalog, initializerReferences);
   const components = findStronglyConnectedComponents(graph);
 
@@ -442,6 +444,6 @@ export const analyzeBindings = (input: AnalyzeBindingsInput): BindingAnalysis =>
     directEntries.push(entry);
   }
 
-  const { entries, entriesById, compiledProgram } = buildBindingProgramEligibility(graph, directEntries);
+  const { entries, entriesById, compiledProgram } = buildBindingProgramEligibility(graph, directEntries, unavailableBindingIds);
   return { catalog, graph, components, entries, entriesById, compiledProgram, issues, initializerReferences: [...initializerReferences] };
 };

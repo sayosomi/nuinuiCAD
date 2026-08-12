@@ -34,10 +34,12 @@ const buildReverseAdjacency = (graph: InitializerGraph): ReadonlyMap<BindingId, 
 
 const findUnavailableBindingIds = (
   graph: InitializerGraph,
-  directEntries: readonly DirectStatusEntry[]
+  directEntries: readonly DirectStatusEntry[],
+  initiallyUnavailableBindingIds?: ReadonlySet<BindingId>
 ): ReadonlySet<BindingId> => {
-  const unavailableBindingIds = new Set<BindingId>();
+  const unavailableBindingIds = new Set(initiallyUnavailableBindingIds);
   const worklist: BindingId[] = [];
+  for (const bindingId of unavailableBindingIds) worklist.push(bindingId);
   for (const entry of directEntries) {
     if (entry.status.kind !== "invalid") continue;
     unavailableBindingIds.add(entry.bindingId);
@@ -108,9 +110,10 @@ const buildProgramSelection = (
 
 export const buildBindingProgramEligibility = (
   graph: InitializerGraph,
-  directEntries: readonly DirectStatusEntry[]
+  directEntries: readonly DirectStatusEntry[],
+  initiallyUnavailableBindingIds?: ReadonlySet<BindingId>
 ): EligibilityResult => {
-  const unavailableBindingIds = findUnavailableBindingIds(graph, directEntries);
+  const unavailableBindingIds = findUnavailableBindingIds(graph, directEntries, initiallyUnavailableBindingIds);
   const entries: BindingAnalysisEntry[] = [];
   const entriesById = new Map<BindingId, BindingAnalysisEntry>();
 

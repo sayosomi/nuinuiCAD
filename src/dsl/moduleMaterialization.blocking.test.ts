@@ -159,4 +159,32 @@ describe("module materialization blocking regressions", () => {
     expect(nestedQ).toMatchObject({ fromPoint: { mode: "reference", pointId: nestedP.id } });
     expect(outside).toMatchObject({ fromPoint: { mode: "reference", pointId: child.id } });
   });
+
+  it("propagates instance activity through materialized geometry evaluation", () => {
+    const compiled = runtimeNames([
+      "nui 3",
+      "module M() {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}",
+      "instance Default = M()",
+      "instance Hidden(state: hidden) = M()",
+      "instance Disabled(state: disabled) = M()"
+    ].join("\n"));
+    const elements = compiled.document!.elements;
+    const instanceNamed = (name: string) => elements.find((element) => element.name === name && element.type === "moduleInstance")!;
+    const pointOwnedBy = (instanceId: string) => elements.find((element) => element.name === "P" && element.parentGroupId === instanceId)!;
+    const defaultPoint = pointOwnedBy(instanceNamed("Default").id);
+    const hiddenPoint = pointOwnedBy(instanceNamed("Hidden").id);
+    const disabledPoint = pointOwnedBy(instanceNamed("Disabled").id);
+    const result = evaluateCompiled(compiled);
+
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.has(defaultPoint.id)).toBe(true);
+    expect(result.computedGeometry.has(hiddenPoint.id)).toBe(true);
+    expect(result.computedGeometry.has(disabledPoint.id)).toBe(false);
+    expect(result.effectiveVisibleElementIds).toContain(defaultPoint.id);
+    expect(result.effectiveVisibleElementIds).not.toContain(hiddenPoint.id);
+    expect(result.effectiveEnabledElementIds).toContain(hiddenPoint.id);
+    expect(result.effectiveEnabledElementIds).not.toContain(disabledPoint.id);
+  });
 });

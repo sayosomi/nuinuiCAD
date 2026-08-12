@@ -41,6 +41,7 @@ import type { ScalarValueSource } from "./propertyBindingCompiler";
 import { isAssignableToPropertyCapability } from "./scalarAssignability";
 import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
+import { effectiveElementActivityById } from "../model/elementActivity";
 
 export type MaterializedPropertyBindingSource = {
   elementId: ElementId;
@@ -436,6 +437,17 @@ export const compileModuleScalarRuntime = ({
     if (instance.callerModuleDefinitionStatementId === null) registerInstance(instance, [], null);
   }
 
+  const effectiveActivities = effectiveElementActivityById(elements);
+  const contextIsDisabled = (context: InstanceContext) => {
+    const runtimeId = instanceElement(moduleMaterialization, context.path);
+    return runtimeId !== undefined && effectiveActivities.get(runtimeId)?.activity === "disabled";
+  };
+  const disabledBindingIds = new Set(
+    allBindingInfos
+      .filter((info) => contextsByKey.get(info.contextKey) && contextIsDisabled(contextsByKey.get(info.contextKey)!))
+      .map((info) => info.id)
+  );
+
   const bindingInfoById = new Map(allBindingInfos.map((info) => [info.id, info] as const));
   const runtimeContextForSourceInstance = (current: InstanceContext, instanceStatementId: string): InstanceContext | undefined => {
     const target = moduleSemanticAnalysis.instancesByStatementId.get(instanceStatementId);
@@ -681,6 +693,7 @@ export const compileModuleScalarRuntime = ({
   const moduleInitializers = new Map<BindingId, TypedScalarExpression>();
   const moduleReferences: InitializerReference[] = [];
   const lowerForContext = (semantic: ModuleScalarExpressionSemantic, context: InstanceContext, ownerBindingId: BindingId) => {
+    if (contextIsDisabled(context)) return;
     const lowered = lowerExpression(
       semantic,
       (target) => resolvedBindingForContext(target, context),
@@ -692,6 +705,7 @@ export const compileModuleScalarRuntime = ({
   };
 
   for (const context of contextsByKey.values()) {
+    if (contextIsDisabled(context)) continue;
     for (const parameter of context.definition.parameters) {
       const info = context.parameters.get(parameter.parameterIndex);
       const binding = context.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
@@ -849,7 +863,11 @@ export const compileModuleScalarRuntime = ({
 
   const documentReferences = (documentBindingAnalysis?.initializerReferences ?? []).map((reference) => remapDocumentReference(reference, bindingsById));
   const combinedReferences = [...documentReferences, ...moduleReferences];
-  const combinedAnalysis = analyzeBindings({ catalog: combinedCatalog, initializerReferences: combinedReferences });
+  const combinedAnalysis = analyzeBindings({
+    catalog: combinedCatalog,
+    initializerReferences: combinedReferences,
+    unavailableBindingIds: disabledBindingIds
+  });
   const initializers = new Map<BindingId, TypedScalarExpression>();
   for (const [bindingId, initializer] of documentBindingAnalysis
     ? (documentBindingAnalysis as BindingAnalysis).catalog.bindings

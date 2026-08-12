@@ -194,6 +194,39 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "Result").id)).toMatchObject({ kind: "point", x: 21, y: 0 });
   });
 
+  it("keeps visible and hidden scalar exports usable but disables later references from disabled instances", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(input: number) {",
+      "  export const value: number = @input * 2",
+      "  export point P = coordinate(x: @value, y: 0)",
+      "}",
+      "instance Default = M(input: 3)",
+      "instance Hidden(state: hidden) = M(input: 4)",
+      "instance Disabled(state: disabled) = M(input: 5)",
+      "const defaultValue: number = @Default::value",
+      "const hiddenValue: number = @Hidden::value",
+      "const disabledValue: number = @Disabled::value",
+      "point DefaultResult = coordinate(x: @defaultValue, y: 0)",
+      "point HiddenResult = coordinate(x: @hiddenValue, y: 0)",
+      "point DisabledResult = coordinate(x: @disabledValue, y: 0)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    const bindingValue = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(bindingValue("Default::value")).toMatchObject({ status: "ok", value: { value: 6 } });
+    expect(bindingValue("Hidden::value")).toMatchObject({ status: "ok", value: { value: 8 } });
+    expect(bindingValue("Disabled::value")).toMatchObject({ status: "error" });
+    expect(result.computedGeometry.get(elementNamed(compiled, "DefaultResult").id)).toMatchObject({ kind: "point", x: 6 });
+    expect(result.computedGeometry.get(elementNamed(compiled, "HiddenResult").id)).toMatchObject({ kind: "point", x: 8 });
+    expect(result.computedGeometry.has(elementNamed(compiled, "DisabledResult").id)).toBe(false);
+    expect(result.errors.some((error) => error.elementName === "DisabledResult")).toBe(true);
+  });
+
   it("resolves nested sibling scalar exports per repeated parent instance", () => {
     const compiled = compileWithIds([
       "nui 3",
