@@ -100,8 +100,8 @@ export const serializedStatementLines = (statement: SerializedStatement, indent:
   statement.close
     ? [
         `${indent}${statement.header}`,
-        ...statement.args.map((arg, index) =>
-          `${indent}${DSL_INDENT}${arg.text}${statement.argumentSeparator === "comma" && index < statement.args.length - 1 ? "," : ""}`
+        ...statement.args.map((arg) =>
+          `${indent}${DSL_INDENT}${arg.text}${statement.argumentSeparator === "comma" ? "," : ""}`
         ),
         `${indent}${statement.close}`
       ]

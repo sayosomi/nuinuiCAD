@@ -302,6 +302,9 @@ const resolveGroupToken = (
   groupId: ElementId,
   context: ElementNameContext
 ): string => {
+  // Unresolved print targets retain their canonical source reference so that
+  // a compile -> serialize -> recompile round-trip does not add a second `@`.
+  if (groupId.startsWith("@")) return groupId;
   const target = context.elementsById.get(groupId);
   if (!target || !target.name.trim()) return formatDslReferenceToken(groupId);
   const resolution = resolveElementName({ token: target.name, elements, context });
@@ -458,8 +461,8 @@ const statementRows = (
   return {
     lines: [
       `${indent}${statement.header}`,
-      ...statement.args.map((arg, index) =>
-        `${argIndent}${arg.text}${statement.argumentSeparator === "comma" && index < statement.args.length - 1 ? "," : ""}`
+      ...statement.args.map((arg) =>
+        `${argIndent}${arg.text}${statement.argumentSeparator === "comma" ? "," : ""}`
       ),
       `${indent}${statement.close}${appendBrace ? " {" : ""}`
     ],

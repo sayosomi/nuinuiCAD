@@ -419,6 +419,34 @@ describe("dslDocument printLayout and activePrintLayout", () => {
 });
 
 describe("printLayout is the canonical document-end sink", () => {
+  it("accepts stop before the final printLayout section", () => {
+    const compiled = compileDslDocument([
+      "nui 4",
+      "group 前身頃 {",
+      "}",
+      "stop",
+      "printLayout A4(",
+      "  width: 210,",
+      "  height: 297,",
+      ") {",
+      "  const margin: number = 10",
+      "  place @前身頃(x: @margin, y: @margin, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"), {
+      assignedStatementIds: new Map([[5, "test:print-layout-margin"]])
+    });
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(compiled.document?.printLayouts[0].placements).toHaveLength(1);
+  });
+
+  it("adds a trailing comma to every argument in canonical multi-line calls", () => {
+    const compiled = compileDslDocument("nui 4\npoint A = coordinate(\n  x: 0,\n  y: 0\n)");
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(serializeDocumentToDsl(compiled.document!, 4)).toContain(
+      "point A = coordinate(\n  x: 0,\n  y: 0,\n)"
+    );
+  });
+
   it("serializes the printLayout section after the elements section", () => {
     const compiled = compileDslDocument([
       "nui 4",
@@ -568,7 +596,7 @@ describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
     // Regular (non-container) elements now serialize as vertical calls:
     // header line, one arg per line, closing `)` line.
     const pointARow = rows[1];
-    expect(pointARow.lines).toEqual(["  point A = coordinate(", "    x: 0,", "    y: 0", "  )"]);
+    expect(pointARow.lines).toEqual(["  point A = coordinate(", "    x: 0,", "    y: 0,", "  )"]);
     expect(pointARow.argKeys).toEqual([null, "x", "y", null]);
 
     expect(rows.find((row) => row.role === "atStop")!.lines).toEqual(["  stop"]);

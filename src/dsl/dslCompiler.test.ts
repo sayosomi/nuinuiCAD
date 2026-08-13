@@ -677,6 +677,46 @@ describe("DSL compiler document settings", () => {
     expect(result.diagnostics.some((item) => item.message.includes("参照先が見つかりません"))).toBe(true);
   });
 
+  it("requires strict @ references for place targets and rejects properties", () => {
+    const qualified = compileDslToElements(
+      [
+        "group Outer {",
+        "  group Inner {",
+        "  }",
+        "}",
+        "printLayout 型紙A () {",
+        "  place @Outer::Inner(at: (0, 0))",
+        "}"
+      ].join("\n"),
+      { elements: [], mode: "document" }
+    );
+    expect(qualified.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(qualified.printLayouts?.[0].placements[0].groupId).toBe(
+      qualified.elements.find((element) => element.name === "Inner")?.id
+    );
+
+    const compilePlace = (target: string) => compileDslToElements(
+      [
+        "group G {",
+        "}",
+        "printLayout 型紙A () {",
+        `  place ${target}(at: (0, 0))`,
+        "}"
+      ].join("\n"),
+      { elements: [], mode: "document" }
+    );
+
+    const bare = compilePlace("G");
+    expect(bare.diagnostics.some((item) => item.severity === "error" && item.code === "invalid-source-reference")).toBe(true);
+
+    const malformed = compilePlace("@G::");
+    expect(malformed.diagnostics.some((item) => item.severity === "error" && item.code === "invalid-source-reference")).toBe(true);
+
+    const property = compilePlace("@G.name");
+    expect(property.diagnostics.some((item) => item.severity === "error" && item.code === "invalid-source-reference")).toBe(true);
+    expect(property.diagnostics.some((item) => item.message.includes("property"))).toBe(true);
+  });
+
   it("resolves activePrintLayout by name", () => {
     const result = compileDslToElements(
       [

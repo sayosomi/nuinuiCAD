@@ -26,7 +26,7 @@ describe("serializeElementStatementBlockWithBlanks", () => {
     expect(serializedStatementLines(statement, "")).toEqual([
       "line = segment(",
       "  start: ,",
-      "  end: ",
+      "  end: ,",
       ")"
     ]);
   });

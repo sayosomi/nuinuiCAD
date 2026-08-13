@@ -51,7 +51,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     expect(document.sourceText).toContain([
       "line = segment(",
       "  start: ,",
-      "  end: ",
+      "  end: ,",
       ")"
     ].join("\n"));
     // Nothing compiles into an element for a wholly blank statement, so the
@@ -173,7 +173,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     expect(sourceText).toContain([
       "  line = segment(",
       "    start: ,",
-      "    end: ",
+      "    end: ,",
       "  )"
     ].join("\n"));
   });

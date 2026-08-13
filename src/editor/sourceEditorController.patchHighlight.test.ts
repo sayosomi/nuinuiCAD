@@ -87,12 +87,12 @@ describe("SourceEditorController patch-change highlight", () => {
     // x && y each sit on their own physical line in v2's canonical vertical
     // call, so the changed x line's own text must be exactly the mark (no
     // extra content highlighted alongside it), && the unchanged y line
-    // (unaffected by this edit) must still read "y: 0".
+    // (unaffected by this edit) must still read "y: 0,".
     const line = internals.view.state.doc.lineAt(mark.from);
     const fullLineText = internals.view.state.doc.sliceString(line.from, line.to);
     expect(fullLineText).toBe("  x: 777,");
     const yLine = internals.view.state.doc.line(line.number + 1);
-    expect(internals.view.state.doc.sliceString(yLine.from, yLine.to)).toBe("  y: 0");
+    expect(internals.view.state.doc.sliceString(yLine.from, yLine.to)).toBe("  y: 0,");
     controller.destroy();
   });
 

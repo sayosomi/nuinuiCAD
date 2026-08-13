@@ -31,7 +31,7 @@ const sourceWithAllDanglingKinds = [
   'line ListRefUser = copy(startPoint: @A, endPoint: @A, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@MissingLine, @"Missing line 2", @"Outer group"::"Missing#line"])',
   'point ParentUser = coordinate(x: 1, y: 1, parent: @"Outer group"::"Missing parent#1")',
   'printLayout Sheet (output: pdf, view: "Missing View", paper: a4, orientation: portrait, columns: 1, rows: 1, overlap: 0, scale: 1, canvas: (210, 297)) {',
-  '  place "Missing Group" (at: (10, 0), angle: 0, mirrorX: false)',
+  '  place @"Missing Group" (at: (10, 0), angle: 0, mirrorX: false)',
   "}",
   'activePrintLayout "Missing Layout"'
 ].join("\n");
@@ -64,7 +64,7 @@ describe("dangling reference diagnostics and retention", () => {
       .toMatchObject({ ghost: false });
     expect(document.activeVisibilityProfileId).toBe("Missing View");
     expect(document.printLayouts[0]).toMatchObject({ visibilityProfileId: "Missing View" });
-    expect(document.printLayouts[0].placements[0].groupId).toBe('"Missing Group"');
+    expect(document.printLayouts[0].placements[0].groupId).toBe('@"Missing Group"');
     expect(document.activePrintLayoutId).toBe("Missing Layout");
   });
 
@@ -82,7 +82,7 @@ describe("dangling reference diagnostics and retention", () => {
     expect(serializeDocumentToDsl(second.document!, 4)).toBe(serialized);
     expect(second.document!.activeVisibilityProfileId).toBe("Missing View");
     expect(second.document!.activePrintLayoutId).toBe("Missing Layout");
-    expect(second.document!.printLayouts[0].placements[0].groupId).toBe('"Missing Group"');
+    expect(second.document!.printLayouts[0].placements[0].groupId).toBe('@"Missing Group"');
   });
 
   it("reports ambiguous resolveId references as recoverable warnings", () => {

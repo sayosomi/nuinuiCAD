@@ -311,7 +311,7 @@ describe("textPatch 要素の挿入", () => {
     const zIndex = lines.findIndex((line) => line.includes("point Z"));
     expect(lines[zIndex]).toBe("  point Z = coordinate(");
     expect(lines[zIndex + 1]).toBe("    x: 9,");
-    expect(lines[zIndex + 2]).toBe("    y: 9");
+    expect(lines[zIndex + 2]).toBe("    y: 9,");
     expect(lines[zIndex + 3]).toBe("  )");
     expect(lines[zIndex + 4]).toBe("}");
     expect(lines[zIndex - 1]).toBe("  # グループ末尾コメント");
@@ -324,7 +324,7 @@ describe("textPatch 要素の挿入", () => {
       evaluationLimitIndex: undefined
     }));
     const lines = patched.split("\n");
-    expect(lines.slice(-4)).toEqual(["point Z = coordinate(", "  x: 9,", "  y: 9", ")"]);
+    expect(lines.slice(-4)).toEqual(["point Z = coordinate(", "  x: 9,", "  y: 9,", ")"]);
   });
 
   it("else枝への初回挿入は `} else {` 行を生成する", () => {
@@ -380,7 +380,7 @@ describe("textPatch 要素の挿入", () => {
       "",
       "point Z = coordinate(",
       "  x: 9,",
-      "  y: 9",
+      "  y: 9,",
       ")"
     ]);
   });
@@ -554,7 +554,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
       )
     }));
     const lines = patched.split("\n");
-    expect(lines).toContain("  color: accent  # 継続コメント");
+    expect(lines).toContain("  color: accent,  # 継続コメント");
     expect(lines).not.toContain("  color: main  # 継続コメント");
     expect(patched).toContain("point B = coordinate(x: 1, y: 1)");
   });
@@ -572,7 +572,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     });
     const lines = patched.split("\n");
     expect(lines).toContain("  point A = coordinate(");
-    expect(lines).toContain("    color: main");
+    expect(lines).toContain("    color: main,");
     // 旧・継続行の残骸(トップレベルの"  color: main"単独行)が残っていないこと。
     expect(lines.filter((line) => line.includes("color: main"))).toHaveLength(1);
   });

@@ -131,7 +131,11 @@ text note = label(
 
 `printLayout` の body は通常の scope です。layout 専用の `layoutVar` はなく、ローカル `const` / `let` / `set` と `place @...` を使います。
 
+`printLayout` は文書末尾の section です。`stop` を使う場合は `printLayout` より前に置きます。
+
 ```text
+stop
+
 printLayout A4(
   width: 210,
   height: 297,
@@ -145,8 +149,6 @@ printLayout A4(
     mirrorX: false,
   )
 }
-
-stop
 ```
 
 ## 編集と診断

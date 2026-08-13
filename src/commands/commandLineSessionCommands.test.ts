@@ -380,8 +380,8 @@ describe("command-line session commands", () => {
     expect(document.elements.find((element) => element.id === unnamed[1].id)?.name).toBe("");
     expect(inserted.startPoint).toEqual(referenceAnchor(promoted.id));
     expect(document.sourceText).toContain("# このコメントは変えない");
-    expect(document.sourceText).toContain("point 点 = coordinate(\n  x: 0,\n  y: 0\n)");
-    expect(document.sourceText).toContain("line = segment(\n  start: @点,\n  end: @B\n)");
+    expect(document.sourceText).toContain("point 点 = coordinate(\n  x: 0,\n  y: 0,\n)");
+    expect(document.sourceText).toContain("line = segment(\n  start: @点,\n  end: @B,\n)");
     expect(document.sourceText).not.toContain(promoted.id);
 
     const reloaded = compileDslDocument(document.sourceText);
@@ -414,7 +414,7 @@ describe("command-line session commands", () => {
     expect(confirmCommandLineSession()).toBe(true);
 
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === unnamed.id)?.name).toBe("点");
-    expect(useCadDocumentStore.getState().sourceText).toContain("line = segment(\n  start: @G::点,\n  end: @B\n)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("line = segment(\n  start: @G::点,\n  end: @B,\n)");
   });
 
   it("leaves no provisional promotion behind when a stale session is rejected", () => {

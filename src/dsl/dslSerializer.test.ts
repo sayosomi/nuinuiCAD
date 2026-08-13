@@ -59,87 +59,87 @@ describe("serializeElementsToDsl flat output", () => {
       point A = coordinate(
         x: 0,
         y: 0,
-        id: p1
+        id: p1,
       )
       point inGroup = coordinate(
         x: 1,
         y: 1,
         id: p9,
-        parent: @g1
+        parent: @g1,
       )
       point B = offset(
         from: @p1,
         dx: 10,
         dy: -(210 / 4),
-        id: p2
+        id: p2,
       )
       point C = polar(
         from: @p1,
         angle: -45,
         distance: 80,
-        id: p3
+        id: p3,
       )
       line AB = segment(
         start: @p1,
         end: @p2,
-        id: l1
+        id: l1,
       )
       line shoulder = polar(
         start: @p1,
         angle: -12,
         length: 130,
-        id: l2
+        id: l2,
       )
       arc armhole = arc(
         center: @p1,
         radius: 120,
         start: 0,
         end: -90,
-        id: a1
+        id: a1,
       )
       point D = between(
         start: @p1,
         end: @p2,
         ratio: 0.5,
         steps: [ratio: 0.01],
-        id: p4
+        id: p4,
       )
       point E = onLine(
         from: @l1.end,
         distance: 20,
         steps: [ratio: 0.01],
-        id: p5
+        id: p5,
       )
       point X = intersection(
         line1: @l1,
         line2: @l2,
         index: 0,
         extensions: false,
-        id: p6
+        id: p6,
       )
       point H = tangentOffset(
         line: @a1,
         base: @p1,
         angle: 90,
         distance: 12,
-        id: p7
+        id: p7,
       )
       arc r = corner(
         end1: @l1.end,
         end2: @l2.start,
         radius: 10,
         index: 0,
-        id: a2
+        id: a2,
       )
       line lower = split(
         source: @a1,
         at: @p4,
-        id: l3
+        id: l3,
       )
       extend(
         end: @l2.end,
         to: @p5,
-        id: l4
+        id: l4,
       )
       line seam = offset(
         sources: [@l1, @l2],
@@ -147,7 +147,7 @@ describe("serializeElementsToDsl flat output", () => {
         side: left,
         closed: false,
         suppressTrimWarnings: false,
-        id: l5
+        id: l5,
       )
       curve neckline = bezier(
         start: @p1,
@@ -157,7 +157,7 @@ describe("serializeElementsToDsl flat output", () => {
         endAngle: 180,
         endLength: 45,
         intermediates: [@p3:45:20:25:i1],
-        id: c1
+        id: c1,
       )
       arc three = through(
         point1: @p1,
@@ -165,19 +165,19 @@ describe("serializeElementsToDsl flat output", () => {
         point3: @p3,
         start: 180,
         end: 270,
-        id: a3
+        id: a3,
       )
       text label = label(
         text: "前中心",
         anchor: @p1,
         size: 4,
-        id: t1
+        id: t1,
       )
       edge(
         end1: @l1.start,
         end2: @l2.end,
         index: 0,
-        id: e1
+        id: e1,
       )
       line cp = copy(
         startPoint: @p1,
@@ -186,13 +186,13 @@ describe("serializeElementsToDsl flat output", () => {
         angleDeg: 0,
         mirrorX: false,
         baseLines: [@l1],
-        id: e2
+        id: e2,
       )
       line sym = mirrorCopy(
         axis1: @p1,
         axis2: @p2,
         baseLines: [@l1],
-        id: e3
+        id: e3,
       )
       move(
         targets: [@l1],
@@ -201,13 +201,13 @@ describe("serializeElementsToDsl flat output", () => {
         scale: 1,
         angleDeg: 0,
         mirrorX: false,
-        id: e4
+        id: e4,
       )
       mirrorMove(
         targets: [@l1],
         axis1: @p1,
         axis2: @p2,
-        id: e5
+        id: e5,
       )
       if (1)
       for i in range(from: 0, count: 5, step: 1)
@@ -222,14 +222,14 @@ describe("serializeElementsToDsl flat output", () => {
         angleDeg: 0,
         mirrorX: false,
         steps: [scale: 0.01],
-        id: e8
+        id: e8,
       )
       point hidden = coordinate(
         x: 5,
         y: 5,
         state: disabled,
         color: main,
-        id: p8
+        id: p8,
       )"
     `);
   });
@@ -310,7 +310,7 @@ describe("extended lossless attributes", () => {
         "  y: 0,",
         "  vars: [高さ: 10; 幅: @local-variable-1 * 2],",
         "  varIds: [local-variable-1, local-variable-2],",
-        "  id: p1",
+        "  id: p1,",
         ")"
       ].join("\n")
     );

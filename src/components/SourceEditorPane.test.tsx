@@ -28,7 +28,7 @@ describe("SourceEditorPane", () => {
     });
 
     expect(ref.current?.getText()).toBe(
-      "nui 4\npoint A = coordinate(\n  x: 0,\n  y: 0,\n  state: disabled\n)\npoint B = coordinate(x: 1, y: 1)"
+      "nui 4\npoint A = coordinate(\n  x: 0,\n  y: 0,\n  state: disabled,\n)\npoint B = coordinate(x: 1, y: 1)"
     );
     screen.unmount();
   });

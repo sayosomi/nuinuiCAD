@@ -19,7 +19,6 @@ import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isCompilableDslStatement, type DslStatementInclusion } from "./dslCompilationGuard";
 import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
-import { resolveElementName } from "../model/elementNames";
 import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 import type { DslMajorVersion } from "./dslVersion";
@@ -95,15 +94,11 @@ const profileIdByToken = (profiles: VisibilityProfile[], token: string) => {
 
 const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
 
-// printLayout/place predates source-level geometry references && is kept on
-// its existing group-name path for this task. Ordinary construction geometry
-// continues through the strict `@` resolver in dslReferences.ts.
+// printLayout/place uses the same strict source-reference resolver as ordinary
+// geometry references. In particular, do not strip `@` here: every geometry
+// reference must pass through parseDslSourceReference via resolveId.
 const resolvePrintGroupId = (token: string, index: NameIndex, line: number, diagnostics: DslDiagnostic[]) => {
-  const normalizedToken = token.trim().replace(/^@/, "");
-  const resolution = resolveElementName({ token: normalizedToken, elements: index.elements, context: index.nameContext });
-  if (resolution.status === "resolved") return resolution.element.id;
-  diagnostics.push(warning(line, `place の参照先が見つかりません: ${token}`));
-  return normalizedToken;
+  return resolveId(token, index, line, diagnostics);
 };
 
 // P6 applyArgs は ScannedArg[] を要求するが DslStatement は DslAttribute[] を運ぶ。
