@@ -58,18 +58,18 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 describe("module geometry runtime", () => {
   it("lowers actual, derived, coordinate, forwarded, and repeated point aliases", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "point Base = coordinate(x: 10, y: 20)",
       "line Guide = segment(start: (0, 0), end: (20, 0))",
       "module Inner(p: point) {",
-      "  point P = offset(from: p, dx: 1, dy: 2)",
+      "  point P = offset(from: @p, dx: 1, dy: 2)",
       "}",
       "module Outer(p: point) {",
-      "  module Nested = Inner(p: p)",
+      "  instance Nested = Inner(p: @p)",
       "}",
-      "module Actual = Outer(p: Base)",
-      "module Derived = Inner(p: Guide.start)",
-      "module Coordinate = Inner(p: (7, 8))"
+      "instance Actual = Outer(p: @Base)",
+      "instance Derived = Inner(p: @Guide.start)",
+      "instance Coordinate = Inner(p: (7, 8))"
     ].join("\n"));
     expectValid(compiled);
 
@@ -81,17 +81,17 @@ describe("module geometry runtime", () => {
       .toEqual([[11, 22], [1, 2], [8, 10]]);
   });
 
-  it("keeps line aliases broad and lowers endpoint/list references", () => {
+  it("keeps path aliases broad and lowers endpoint/list references", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "line Base = segment(start: (0, 0), end: (10, 0))",
       "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
-      "module M(path: line) {",
-      "  point P = onLine(from: path.end, ratio: 0.5)",
-      "  line Copy = offset(sources: [path], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "module M(path: path) {",
+      "  point P = onLine(from: @path.end, ratio: 0.5)",
+      "  line Copy = offset(sources: [@path], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
       "}",
-      "module BaseInstance = M(path: Base)",
-      "module ArcInstance = M(path: A)"
+      "instance BaseInstance = M(path: @Base)",
+      "instance ArcInstance = M(path: @A)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -106,19 +106,115 @@ describe("module geometry runtime", () => {
     expect((arcCopy as Extract<typeof arcCopy, { type: "offsetLine" }>).baseLineIds).toEqual([arc.id]);
   });
 
+  it("checks strict line and broad path interfaces at direct Module argument boundaries", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line Straight = segment(start: (0, 0), end: (10, 0))",
+      "line Polar = polar(start: (0, 0), angle: 0, length: 10)",
+      "curve Bezier = bezier(start: (0, 0), end: (10, 0))",
+      "arc Arc = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
+      "module Strict(input: line) {",
+      "}",
+      "module Broad(input: path) {",
+      "}",
+      "instance StraightCall = Strict(input: @Straight)",
+      "instance PolarCall = Strict(input: @Polar)",
+      "instance ArcCall = Strict(input: @Arc)",
+      "instance BezierCall = Strict(input: @Bezier)",
+      "instance ArcPathCall = Broad(input: @Arc)",
+      "instance BezierPathCall = Broad(input: @Bezier)"
+    ].join("\n"));
+
+    expect(errorsOf(compiled)).toHaveLength(2);
+    expect(errorsOf(compiled)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+  });
+
+  it("uses the public geometry interface in direct Module argument diagnostics", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "point Point = coordinate(x: 0, y: 0)",
+      "module Broad(input: path) {",
+      "}",
+      "module Strict(input: line) {",
+      "}",
+      "instance BroadCall = Broad(input: @Point)",
+      "instance StrictCall = Strict(input: @Point)"
+    ].join("\n"));
+    const mismatches = errorsOf(compiled).filter((diagnostic) => diagnostic.code === "module-geometry-type-mismatch");
+
+    expect(mismatches).toHaveLength(2);
+    expect(mismatches.find((diagnostic) => diagnostic.message.includes("期待: path"))?.message).toBe(
+      "geometry reference「Point」の型が一致しません(期待: path)。"
+    );
+    expect(mismatches.find((diagnostic) => diagnostic.message.includes("期待: line"))?.message).toBe(
+      "geometry reference「Point」の型が一致しません(期待: line)。"
+    );
+  });
+
+  it("checks line-to-path and path-to-line parameter forwarding directionally", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line Straight = segment(start: (0, 0), end: (10, 0))",
+      "module AcceptPath(input: path) {",
+      "}",
+      "module AcceptLine(input: line) {",
+      "}",
+      "module ForwardLine(input: line) {",
+      "  instance Nested = AcceptPath(input: @input)",
+      "}",
+      "module ForwardPath(input: path) {",
+      "  instance Nested = AcceptLine(input: @input)",
+      "}",
+      "instance LineCall = ForwardLine(input: @Straight)",
+      "instance PathCall = ForwardPath(input: @Straight)"
+    ].join("\n"));
+
+    expect(errorsOf(compiled)).toHaveLength(1);
+    expect(errorsOf(compiled)[0]).toMatchObject({ code: "module-geometry-type-mismatch" });
+  });
+
+  it("applies the same interface check to qualified exported geometry", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module Producer() {",
+      "  export line Straight = segment(start: (0, 0), end: (10, 0))",
+      "  export curve Bezier = bezier(start: (0, 0), end: (10, 0))",
+      "  export arc Arc = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
+      "}",
+      "module Strict(input: line) {",
+      "}",
+      "module Broad(input: path) {",
+      "}",
+      "instance Source = Producer()",
+      "instance StraightLine = Strict(input: @Source::Straight)",
+      "instance StraightPath = Broad(input: @Source::Straight)",
+      "instance ArcPath = Broad(input: @Source::Arc)",
+      "instance BezierPath = Broad(input: @Source::Bezier)",
+      "instance ArcLine = Strict(input: @Source::Arc)",
+      "instance BezierLine = Strict(input: @Source::Bezier)"
+    ].join("\n"));
+
+    expect(errorsOf(compiled)).toHaveLength(2);
+    expect(errorsOf(compiled)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+  });
+
   it("resolves exported root and nested geometry through instance-local namespaces", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Inner() {",
       "  export point P = coordinate(x: 3, y: 4)",
       "}",
       "module Outer() {",
-      "  module Child = Inner()",
-      "  export line L = segment(start: Child::P, end: (10, 4))",
+      "  instance Child = Inner()",
+      "  export line L = segment(start: @Child::P, end: (10, 4))",
       "}",
-      "module First = Outer()",
-      "module Second = Outer()",
-      "point Root = offset(from: First::L.start, dx: 1, dy: 1)"
+      "instance First = Outer()",
+      "instance Second = Outer()",
+      "point Root = offset(from: @First::L.start, dx: 1, dy: 1)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -134,7 +230,7 @@ describe("module geometry runtime", () => {
 
   it("lowers line and point geometry properties to stable targets", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "point Base = coordinate(x: 10, y: 20)",
       "line Guide = segment(start: (0, 0), end: (12, 0))",
       "module M(p: point, path: line) {",
@@ -143,8 +239,8 @@ describe("module geometry runtime", () => {
       "  const length: number = @path.length",
       "  point Result = coordinate(x: @px + @length, y: @py)",
       "}",
-      "module Actual = M(p: Base, path: Guide)",
-      "module Derived = M(p: Guide.start, path: Guide)"
+      "instance Actual = M(p: @Base, path: @Guide)",
+      "instance Derived = M(p: @Guide.start, path: @Guide)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -161,16 +257,16 @@ describe("module geometry runtime", () => {
 
   it("lowers nested export properties through the same runtime target path", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Inner() {",
       "  export line L = segment(start: (0, 0), end: (9, 0))",
       "}",
       "module Outer() {",
-      "  module Child = Inner()",
+      "  instance Child = Inner()",
       "  const length: number = @Child::L.length",
       "  point Result = coordinate(x: @length, y: 0)",
       "}",
-      "module X = Outer()"
+      "instance X = Outer()"
     ].join("\n"));
     expectValid(compiled);
 
@@ -181,22 +277,22 @@ describe("module geometry runtime", () => {
 
   it("validates exported point properties and category-aware derived points", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Inner() {",
       "  export point P = coordinate(x: 3, y: 4)",
       "  export line L = segment(start: (0, 0), end: (10, 0))",
       "  export arc A = arc(center: (5, 6), radius: 2, start: 0, end: 90)",
       "}",
       "module Outer() {",
-      "  module Child = Inner()",
+      "  instance Child = Inner()",
       "  const px: number = @Child::P.x",
       "  const py: number = @Child::P.y",
       "  point PointProperty = coordinate(x: @px, y: @py)",
-      "  point LineStart = offset(from: Child::L.start, dx: 0, dy: 0)",
-      "  point LineEnd = offset(from: Child::L.end, dx: 0, dy: 0)",
-      "  point ArcCenter = offset(from: Child::A.center, dx: 0, dy: 0)",
+      "  point LineStart = offset(from: @Child::L.start, dx: 0, dy: 0)",
+      "  point LineEnd = offset(from: @Child::L.end, dx: 0, dy: 0)",
+      "  point ArcCenter = offset(from: @Child::A.center, dx: 0, dy: 0)",
       "}",
-      "module X = Outer()"
+      "instance X = Outer()"
     ].join("\n"));
     expectValid(compiled);
 
@@ -209,16 +305,16 @@ describe("module geometry runtime", () => {
   });
 
   it.each([
-    ["ordinary line center", "export line L = segment(start: (0, 0), end: (10, 0))", "X::L.center"],
-    ["curve center", "export curve C = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 2, endAngle: 180, endLength: 2)", "X::C.center"],
-    ["point start", "export point P = coordinate(x: 3, y: 4)", "X::P.start"]
+    ["ordinary line center", "export line L = segment(start: (0, 0), end: (10, 0))", "@X::L.center"],
+    ["curve center", "export curve C = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 2, endAngle: 180, endLength: 2)", "@X::C.center"],
+    ["point start", "export point P = coordinate(x: 3, y: 4)", "@X::P.start"]
   ])("rejects invalid exported derived point accessor: %s", (_label, exported, reference) => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       `  ${exported}`,
       "}",
-      "module X = M()",
+      "instance X = M()",
       `point Root = offset(from: ${reference}, dx: 1, dy: 1)`
     ].join("\n"));
 
@@ -230,12 +326,12 @@ describe("module geometry runtime", () => {
 
   it("keeps module coordinate aliases on the existing numeric binding path", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "const x: number = 6",
       "module M(p: point) {",
-      "  point Result = offset(from: p, dx: 1, dy: 2)",
+      "  point Result = offset(from: @p, dx: 1, dy: 2)",
       "}",
-      "module X = M(p: (@x, 4))"
+      "instance X = M(p: (@x, 4))"
     ].join("\n"));
     expectValid(compiled);
 
@@ -246,73 +342,73 @@ describe("module geometry runtime", () => {
 
   it("reports private, undefined, and geometry-kind export diagnostics", () => {
     const privateMember = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point Private = coordinate(x: 1, y: 2)",
       "}",
-      "module X = M()",
-      "point Root = offset(from: X::Private, dx: 1, dy: 1)"
+      "instance X = M()",
+      "point Root = offset(from: @X::Private, dx: 1, dy: 1)"
     ].join("\n"));
     expect(privateMember.document).toBeNull();
     expect(errorsOf(privateMember).some((diagnostic) => diagnostic.code === "module-private-member")).toBe(true);
 
     const undefinedMember = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  export point Public = coordinate(x: 1, y: 2)",
       "}",
-      "module X = M()",
-      "point Root = offset(from: X::Missing, dx: 1, dy: 1)"
+      "instance X = M()",
+      "point Root = offset(from: @X::Missing, dx: 1, dy: 1)"
     ].join("\n"));
     expect(errorsOf(undefinedMember).some((diagnostic) => diagnostic.code === "module-undefined-export")).toBe(true);
 
     const mismatch = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  export line Public = segment(start: (0, 0), end: (1, 0))",
       "}",
-      "module X = M()",
-      "point Root = offset(from: X::Public, dx: 1, dy: 1)"
+      "instance X = M()",
+      "point Root = offset(from: @X::Public, dx: 1, dy: 1)"
     ].join("\n"));
     expect(errorsOf(mismatch).some((diagnostic) => diagnostic.code === "module-geometry-type-mismatch")).toBe(true);
   });
 
   it("guards only mutation write targets for caller-owned geometry parameters", () => {
     const uninstantiated = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module DefinitionOnly(path: line) {",
-      "  reverse(target: path)",
+      "  reverse(target: @path)",
       "}"
     ].join("\n"));
     expect(errorsOf(uninstantiated).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
 
     for (const mutation of [
-      "edge(end1: path.start, end2: path.end)",
-      "extend(end: path.start, to: input)",
-      "move(targets: [path], from: input, to: input)",
-      "mirrorMove(targets: [path], axis1: input, axis2: input)",
-      "reverse(target: path)"
+      "edge(end1: @path.start, end2: @path.end)",
+      "extend(end: @path.start, to: @input)",
+      "move(targets: [@path], from: @input, to: @input)",
+      "mirrorMove(targets: [@path], axis1: @input, axis2: @input)",
+      "reverse(target: @path)"
     ]) {
       const compiled = compileWithIds([
-        "nui 3",
+        "nui 4",
         "point Input = coordinate(x: 0, y: 0)",
         "module M(path: line, input: point) {",
         `  ${mutation}`,
         "}",
         "line Base = segment(start: (0, 0), end: (10, 0))",
-        "module X = M(path: Base, input: Input)"
+        "instance X = M(path: @Base, input: @Input)"
       ].join("\n"));
       expect(errorsOf(compiled).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
     }
 
     const allowed = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(path: line) {",
-      "  line Copy = copy(startPoint: path.start, endPoint: path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [path])",
-      "  reverse(target: Copy)",
+      "  line Copy = copy(startPoint: @path.start, endPoint: @path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@path])",
+      "  reverse(target: @Copy)",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "module X = M(path: Base)"
+      "instance X = M(path: @Base)"
     ].join("\n"));
     expect(errorsOf(allowed)).toEqual([]);
   });

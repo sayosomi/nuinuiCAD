@@ -14,7 +14,7 @@ const textOf = (source: string, span: { start: number; end: number }) => source.
 
 describe("dslLineValueSpans", () => {
   it("keeps the legacy projection while exposing payload and attribute labels", () => {
-    const source = "point A = coordinate(x: 0 y: 10 state: hidden)";
+    const source = "point A = coordinate(x: 0,y: 10,state: hidden)";
     const labeled = dslLineLabeledValueSpans(source);
     const xStart = source.indexOf("x: 0") + "x: ".length;
     const yStart = source.indexOf("y: 10") + "y: ".length;
@@ -27,72 +27,72 @@ describe("dslLineValueSpans", () => {
     expect(labeled.map(({ start, end }) => ({ start, end }))).toEqual(dslLineValueSpans(source));
   });
   it("selects point X and Y coordinates independently", () => {
-    const source = "point A = coordinate(x: 0 y: 10)";
+    const source = "point A = coordinate(x: 0,y: 10)";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["0", "10"]);
   });
 
   it("includes the sign on a negative decimal coordinate", () => {
-    const source = "point A = coordinate(x: -10.5 y: 20)";
+    const source = "point A = coordinate(x: -10.5,y: 20)";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["-10.5", "20"]);
   });
 
   it("selects line start and end references independently", () => {
-    const source = "line AB = segment(start: A end: B)";
+    const source = "line AB = segment(start: A,end: B)";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["A", "B"]);
   });
 
   it("selects a derived-point reference as a whole span", () => {
-    const source = "line CD = segment(start: AB.start end: AB.end)";
+    const source = "line CD = segment(start: AB.start,end: AB.end)";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["AB.start", "AB.end"]);
   });
 
   it("selects a numeric attribute value", () => {
-    const source = "arc C = arc(center: A radius: 10 start: 0 end: 120)";
+    const source = "arc C = arc(center: A,radius: 10,start: 0,end: 120)";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["A", "10", "0", "120"]);
   });
 
   it("selects a boolean attribute value", () => {
-    const source = "line L = offset(sources: [AB] distance: 10 side: right closed: true)";
+    const source = "line L = offset(sources: [AB],distance: 10,side: right,closed: true)";
     const spans = dslLineValueSpans(source);
     expect(spans.at(-1)).toBeDefined();
     expect(textOf(source, spans.at(-1)!)).toBe("true");
   });
 
   it("selects a string attribute value including its quotes", () => {
-    const source = 'text Label = label(anchor: A size: 4 text: "hello world")';
+    const source = 'text Label = label(anchor: A,size: 4,text: "hello world")';
     const spans = dslLineValueSpans(source);
     expect(textOf(source, spans.at(-1)!)).toBe('"hello world"');
   });
 
   it("selects a parenthesized expression attribute value as a whole", () => {
-    const source = "point B = offset(from: A dx: 0 dy: (base + 10))";
+    const source = "point B = offset(from: A, dx: 0, dy: (base + 10))";
     const spans = dslLineValueSpans(source);
     expect(textOf(source, spans.at(-1)!)).toBe("(base + 10)");
   });
 
   it("does not duplicate a span shared by payloadSpans and attrs (arc center)", () => {
-    const source = "arc C = arc(center: P radius: 10)";
+    const source = "arc C = arc(center: P,radius: 10)";
     const spans = dslLineValueSpans(source);
     const texts = spans.map((span) => textOf(source, span));
     expect(texts.filter((text) => text === "P")).toHaveLength(1);
   });
 
   it("does not surface extra spans beyond the construction's own reference arguments", () => {
-    const source = "point P = between(start: A end: B)";
+    const source = "point P = between(start: A,end: B)";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["A", "B"]);
   });
 
   it("still selects attribute values on a block-opening statement (for/if/group)", () => {
-    const forSource = "for Loop (i from: 0 count: 5) {";
+    const forSource = "for i in range(from: 0,count: 5) {";
     expect(dslLineValueSpans(forSource).map((span) => textOf(forSource, span))).toEqual(["i", "0", "5"]);
 
-    const ifSource = "if Branch (x > 5) {";
+    const ifSource = "if (x > 5) {";
     const ifSpans = dslLineValueSpans(ifSource);
     expect(ifSpans).toHaveLength(1);
     expect(textOf(ifSource, ifSpans[0])).toBe("x > 5");
@@ -113,14 +113,14 @@ describe("dslLineValueSpans", () => {
   it("still surfaces already-typed argument spans for a mid-edit unclosed call (UNCLOSED_CALL_CODE carve-out)", () => {
     // Task 51 fix: an unclosed call (e.g. a string/template hole not yet
     // closed while typing) used to be rejected outright, with no statement
-    // and no spans at all, which meant completion could never resolve the
+    // && no spans at all, which meant completion could never resolve the
     // argument being edited. This is still a hard compile error for a real
     // document (see dslCompiler.test.ts's "unterminated call statement
-    // safety" suite, and dslValueSpans.test.ts's own "yields a statement AND
+    // safety" suite, && dslValueSpans.test.ts's own "yields a statement AND
     // an error diagnostic" case above for the general rule) - only this
     // single-line probe tolerates it, the same way it already tolerates
     // MISSING_ATTRIBUTE_VALUE_CODE.
-    const source = "point A = coordinate(x: 0 y: 10";
+    const source = "point A = coordinate(x: 0,y: 10";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["0", "10"]);
   });
@@ -130,7 +130,7 @@ describe("dslLineValueSpans", () => {
     // trailing "{" is invalid for this statement kind (point can't open a block),
     // so parseDsl also emits an error attached to this same line. The diagnostics
     // check must win over the fact that a statement was parsed.
-    const source = "point A = coordinate(x: 0 y: 10) {";
+    const source = "point A = coordinate(x: 0, y: 10) {";
     const { statements, diagnostics } = parseDsl(source);
     expect(statements).toHaveLength(1);
     expect(diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
@@ -144,7 +144,7 @@ describe("dslLineValueSpans", () => {
     // not blank out the whole line's spans - otherwise completion could
     // never resolve the very attribute being edited (Task 51 manual E2E
     // rerun regression).
-    const source = "line Off = offset(sources: [AB] distance: 3 side:  closed: false)";
+    const source = "line Off = offset(sources: [AB], distance: 3, side: , closed: false)";
     const { diagnostics } = parseDsl(source);
     expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toHaveLength(1);
     expect(diagnostics[0].message).toContain("値がありません");
@@ -156,11 +156,11 @@ describe("dslLineValueSpans", () => {
     const sideSpan = labeled.find((span) => span.key === "side");
     expect(sideSpan?.start).toBe(sideSpan?.end);
     expect(sideSpan?.rawValueSpan).toBeDefined();
-    expect(textOf(source, sideSpan!.rawValueSpan!)).toBe("  ");
+    expect(textOf(source, sideSpan!.rawValueSpan!)).toBe(" ");
   });
 
   it("does not select comment text following a value", () => {
-    const source = "point A = coordinate(x: 0 y: 10) # trailing comment";
+    const source = "point A = coordinate(x: 0, y: 10) # trailing comment";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["0", "10"]);
   });
@@ -169,14 +169,14 @@ describe("dslLineValueSpans", () => {
     expect(dslLineValueSpans("nui 2")).toEqual([]);
     expect(dslLineValueSpans('role R (name: "縫い代")')).toEqual([]);
     expect(dslLineValueSpans("view V (default: true)")).toEqual([]);
-    expect(dslLineValueSpans('color X ("#336699" name: "基本線")')).toEqual([]);
+    expect(dslLineValueSpans('color X ("#336699", name: "基本線")')).toEqual([]);
     expect(dslLineValueSpans("printLayout P (scale: 2) {")).toEqual([]);
   });
 });
 
 describe("adjacentDslValueSpan", () => {
-  it("cycles point X/Y forward and backward, matching the spec's worked example", () => {
-    const source = "point A = coordinate(x: 0 y: 10)";
+  it("cycles point X/Y forward && backward, matching the spec's worked example", () => {
+    const source = "point A = coordinate(x: 0, y: 10)";
     const spans = dslLineValueSpans(source);
     const [x, y] = spans;
 
@@ -187,7 +187,7 @@ describe("adjacentDslValueSpan", () => {
   });
 
   it("walks a mixed payload/attribute line in source order", () => {
-    const source = "line AB = segment(start: A end: B color: red state: hidden)";
+    const source = "line AB = segment(start: A, end: B, color: red, state: hidden)";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["A", "B", "red", "hidden"]);
 
@@ -202,7 +202,7 @@ describe("adjacentDslValueSpan", () => {
   });
 
   it("resolves from a caret inside a value, an exact-match selection, and a caret outside every value", () => {
-    const source = "arc C = arc(center: A radius: 10 start: 0 end: 120)";
+    const source = "arc C = arc(center: A, radius: 10, start: 0, end: 120)";
     const spans = dslLineValueSpans(source);
     const [center, radius, start, end] = spans;
 
@@ -236,7 +236,7 @@ describe("adjacentDslValueSpan", () => {
 });
 
 describe("findDslValueSpanAt", () => {
-  const source = "arc C = arc(center: A radius: 10 start: 0 end: 120)";
+  const source = "arc C = arc(center: A, radius: 10, start: 0, end: 120)";
   const spans = dslLineValueSpans(source);
 
   it("finds the value at a position inside it", () => {
@@ -266,13 +266,13 @@ describe("findDslValueSpanAt", () => {
 
 describe("dslLinePrintLayoutStatement / dslLinePrintLayoutValueSpans", () => {
   it("recognizes a printLayout block-opening line and rejects an element-statement line", () => {
-    const line = "printLayout Layout1 (columns: 2 canvas: (210, 297)) {";
+    const line = "printLayout Layout1 (columns: 2, canvas: (210, 297)) {";
     expect(dslLinePrintLayoutStatement(line)?.kind).toBe("printLayout");
-    expect(dslLinePrintLayoutStatement("point A = coordinate(x: 0 y: 0)")).toBeNull();
+    expect(dslLinePrintLayoutStatement("point A = coordinate(x: 0, y: 0)")).toBeNull();
   });
 
   it("recognizes a place member line only via the synthetic enclosing block", () => {
-    const line = "place Group1 (at: (10, 20) angle: 15)";
+    const line = "place @Group1(at: (10, 20), angle: 15)";
     expect(dslLinePrintLayoutStatement(line)?.kind).toBe("place");
   });
 
@@ -284,9 +284,9 @@ describe("dslLinePrintLayoutStatement / dslLinePrintLayoutValueSpans", () => {
     // The synthetic wrapper prepends a full extra line ("printLayout {\n") before
     // this text when reparsing a place line. If span offsets ever leaked
     // through unadjusted from that wrapped coordinate space, they would be off by
-    // "printLayout {\n".length (14) or by an unrelated line-1 offset entirely —
+    // "printLayout {\n".length (14) || by an unrelated line-1 offset entirely —
     // this test fails loudly in either case instead of silently mis-selecting text.
-    const line = "place Group1 (at: (10, 20) angle: 15)";
+    const line = "place @Group1(at: (10, 20), angle: 15)";
     const spans = dslLinePrintLayoutValueSpans(line);
     const at = spans.find((span) => span.key === "at")!;
     const angle = spans.find((span) => span.key === "angle")!;
@@ -301,7 +301,7 @@ describe("dslLinePrintLayoutStatement / dslLinePrintLayoutValueSpans", () => {
     // printLayout uses the same synthetic-closing-`}` strategy as
     // dslLineElementStatement (append, not prepend), so this is the same
     // no-shift guarantee already relied on elsewhere, re-asserted explicitly here.
-    const line = "printLayout Layout1 (columns: 2 canvas: (210, 297)) {";
+    const line = "printLayout Layout1 (columns: 2, canvas: (210, 297)) {";
     const spans = dslLinePrintLayoutValueSpans(line);
     const columns = spans.find((span) => span.key === "columns")!;
     const canvas = spans.find((span) => span.key === "canvas")!;

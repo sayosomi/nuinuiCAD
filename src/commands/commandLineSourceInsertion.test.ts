@@ -11,7 +11,7 @@ const compiled = (lines: string[]) => {
 describe("command-line source insertion", () => {
   it("keeps an element-statement cursor after the complete statement", () => {
     const result = compiled([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 1)"
     ]);
@@ -30,7 +30,7 @@ describe("command-line source insertion", () => {
 
   it("inserts a comment-line cursor inside its enclosing group", () => {
     const result = compiled([
-      "nui 3",
+      "nui 4",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  # keep this comment with the following insertion",
@@ -50,12 +50,12 @@ describe("command-line source insertion", () => {
     });
   });
 
-  it("places an @stop-line cursor before the evaluation boundary", () => {
+  it("places an stop-line cursor before the evaluation boundary", () => {
     const result = compiled([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "# create before the stop",
-      "@stop",
+      "stop",
       "point B = coordinate(x: 1, y: 1)"
     ]);
 

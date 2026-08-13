@@ -31,6 +31,10 @@ describe("serializeTypedDeclaration", () => {
     expect(serializeTypedDeclaration(declarationOf(source))).toBe("const x: number = 12   +   3");
   });
 
+  it("preserves the export modifier on typed scalar declarations", () => {
+    expect(serializeTypedDeclaration(declarationOf("export const x: number = 12"))).toBe("export const x: number = 12");
+  });
+
   it("normalizes choice option spacing in the type annotation only", () => {
     const source = "const d: choice( right ,left ,  center ) = right";
     expect(serializeTypedDeclaration(declarationOf(source))).toBe("const d: choice(right, left, center) = right");

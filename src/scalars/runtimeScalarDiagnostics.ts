@@ -2,14 +2,14 @@
 // (computedScalarBindings) into the same central DslDiagnostic shape the
 // gutter/Problems popover already consume for compile-time diagnostics.
 //
-// Pure and re-run on every read, never cached across a source/evaluation
+// Pure && re-run on every read, never cached across a source/evaluation
 // change (see sourceEditorController.ts's runtimeDiagnostics() - the only
 // caller): freshness is checked here, every single call, against whatever
 // `freshness` the caller currently has, so a stale/dirty moment yields an
-// empty array immediately rather than a snapshot taken once and held.
+// empty array immediately rather than a snapshot taken once && held.
 //
-// Never re-parses source and never re-resolves a name: every span comes from
-// exactPhysicalSpan against the already-compiled statements/span index, and
+// Never re-parses source && never re-resolves a name: every span comes from
+// exactPhysicalSpan against the already-compiled statements/span index, &&
 // every consumer occurrence comes from propertyBindingCompiler.ts's
 // precomputed occurrenceKeysByBindingId (built once per compile, O(1) get
 // per binding here).

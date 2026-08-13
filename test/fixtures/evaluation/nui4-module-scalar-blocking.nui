@@ -1,0 +1,56 @@
+nui 4
+# Active nui4 evaluation fixture.
+point Base = coordinate(x: 10, y: 0)
+module M() {
+  line A = segment(start: (0, 0), end: (10, 0))
+  const length: number = @A.length
+  point P = coordinate(x: @length, y: 0)
+}
+instance X = M()
+module N(width: number) {
+  point Q = coordinate(x: @width, y: 0)
+}
+instance Y = N(width: @Base.x)
+module LoopM() {
+  for i in range(from: 1, count: 2, step: 1) {
+    const local: number = @i
+    point P = coordinate(x: @local, y: 1)
+  }
+}
+instance LoopInstance = LoopM()
+module Inner(width: number = 9) {
+  point NestedPoint = coordinate(x: @width, y: 2)
+}
+module Outer() {
+  for i in range(from: 1, count: 2, step: 1) {
+    instance Nested = Inner(width: @i)
+  }
+}
+instance OuterInstance = Outer()
+module Caller(x: number) {
+  point CallerPoint = coordinate(x: @x, y: 3)
+}
+for i in range(from: 1, count: 2, step: 1) {
+  instance CallerInstance = Caller(x: @i)
+}
+if (false) {
+  instance ConditionalFalse = Caller(x: 30)
+}
+if (true) {
+  instance ConditionalTrue = Caller(x: 40)
+}
+module Mixed(base: number) {
+  for i in range(from: 1, count: 2, step: 1) {
+    const local: number = @base
+    point MixedPoint = coordinate(x: @local + @i, y: 4)
+  }
+}
+instance MixedInstance = Mixed(base: 10)
+module ElementLocal(width: number) {
+  point ElementLocalPoint = coordinate(x: @width + @local, y: 5, vars: [local: 5])
+}
+instance ElementLocalInstance = ElementLocal(width: 10)
+module VariableInit(width: number) {
+  point VariableInitPoint = coordinate(x: @local, y: 6, vars: [local: @width + 5])
+}
+instance VariableInitInstance = VariableInit(width: 10)

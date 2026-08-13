@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { parseDsl } from "../dsl/dslParser";
 import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
 import type { CadElement } from "../types/geometry";
+import { evaluateElements } from "../geometry/evaluate";
+import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
+import { activePrintLayout, resolvePrintLayout } from "../print/printLayout";
 import {
   applyLineSplices,
   buildTextPatch,
@@ -10,16 +14,19 @@ import {
   elementUpdateSetFullComparisonForTesting,
   type LineSplice
 } from "./textPatch";
+import { commitModelBridge, type CanonicalDocumentValue, type LastGoodDslDocument } from "./canonicalDocument";
 
 const elementByName = (document: DslDocumentData, name: string): CadElement => {
-  const element = document.elements.find((item) => item.name === name);
+  const element = document.elements.find((item) => item.name === name)
+    ?? (name === "分岐" ? document.elements.find((item) => item.type === "conditionalGroup") : undefined)
+    ?? (name === "繰返し" ? document.elements.find((item) => item.type === "forGroup") : undefined);
   expect(element, `element ${name}`).toBeDefined();
   return element!;
 };
 
 // 小さなDSL片から挿入用の要素オブジェクトを作る(IDは新規=挿入として扱われる)。
 const makeElement = (statement: string, overrides: Partial<CadElement> = {}): CadElement => {
-  const compiled = compileDslDocument(`nui 3\n${statement}`);
+  const compiled = compileDslDocument(`nui 4\n${statement}`);
   expect(compiled.document).not.toBeNull();
   return { ...compiled.document!.elements[0], ...overrides } as CadElement;
 };
@@ -52,8 +59,62 @@ const expectLinesUntouched = (splices: LineSplice[], lines: number[]) => {
   }
 };
 
+const canonicalFrom = (source: string): CanonicalDocumentValue => {
+  const parsed = parseDsl(source);
+  expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `statement:test:${index}`]));
+  const compiled = compileDslDocument(source, { assignedStatementIds, preparsed: parsed });
+  expect(compiled.document).not.toBeNull();
+  expect(compiled.statementMap).not.toBeNull();
+  return {
+    sourceText: source,
+    doc: compiled as LastGoodDslDocument,
+    docText: source,
+    diagnostics: compiled.diagnostics,
+    bindingIssueDiagnostics: compiled.bindingIssueDiagnostics ?? [],
+    typedDependencyGraph: compiled.typedDependencyGraph
+  };
+};
+
+const evaluatePrintLayout = (compiled: LastGoodDslDocument) => {
+  const evaluation = evaluateElements(compiled.document.elements, {
+    scalarProgram: compiled.scalarProgram,
+    bindingVersions: compiled.bindingVersions,
+    statementInfoByElementId: compiled.statementMap.byElementId,
+    statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
+    numericBindingEntries: buildNumericBindingRuntimeEntries({
+      numericBindings: compiled.numericBindings ?? new Map(),
+      elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex
+    }, compiled.document.elements)
+  });
+  const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
+  return resolvePrintLayout({
+    layout,
+    elements: compiled.document.elements,
+    evaluation,
+    numericBindingLookup: {
+      numericBindings: compiled.numericBindings ?? new Map(),
+      byKey: compiled.statementMap.byKey,
+      bindingVersions: compiled.bindingVersions
+    }
+  });
+};
+
+const commitPrintLayoutModelEdit = (
+  current: CanonicalDocumentValue,
+  edit: (layout: DslDocumentData["printLayouts"][number]) => DslDocumentData["printLayouts"][number]
+) => {
+  const afterDocument = {
+    ...current.doc.document,
+    printLayouts: current.doc.document.printLayouts.map((layout) =>
+      layout.id === current.doc.document.activePrintLayoutId ? edit(layout) : layout
+    )
+  };
+  return commitModelBridge(current, afterDocument);
+};
+
 const BASE_SOURCE = [
-  "nui 3",
+  "nui 4",
   "",
   "# パレット注釈",
   'color main ("#112233", name: "本体", default: true)',
@@ -122,6 +183,75 @@ describe("applyLineSplices", () => {
 });
 
 describe("textPatch 要素の更新", () => {
+  it("モデルの別フィールドを編集してもsource-authored typed property expressionを保持する", () => {
+    const source = [
+      "nui 4",
+      "let 印刷: boolean = true",
+      "let 下書き: boolean = false",
+      "group G (printEnabled: @印刷  and  not @下書き) {",
+      "}"
+    ].join("\n");
+    const current = canonicalFrom(source);
+    const group = elementByName(current.doc.document, "G");
+    const result = commitModelBridge(current, {
+      ...current.doc.document,
+      elements: current.doc.document.elements.map((element) =>
+        element.id === group.id ? { ...element, activity: "hidden" } as CadElement : element
+      )
+    });
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.value.sourceText).toContain("printEnabled: @印刷  and  not @下書き");
+    expect(result.value.sourceText).toContain("state: hidden");
+  });
+
+  it.each([
+    "true and false",
+    "not false",
+    "@enabled and true"
+  ])("@ の有無にかかわらず compound boolean source を保持する: %s", (expression) => {
+    const source = [
+      "nui 4",
+      ...(expression.includes("@enabled") ? ["let enabled: boolean = true"] : []),
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      `line Off = offset(sources: [@AB], distance: 1, side: right, closed: ${expression}, suppressTrimWarnings: false)`
+    ].join("\n");
+    const current = canonicalFrom(source);
+    const offset = elementByName(current.doc.document, "Off");
+    const result = commitModelBridge(current, {
+      ...current.doc.document,
+      elements: current.doc.document.elements.map((element) =>
+        element.id === offset.id ? { ...element, activity: "hidden" } as CadElement : element
+      )
+    });
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.value.sourceText).toContain(`closed: ${expression}`);
+    expect(result.value.sourceText).toContain("state: hidden");
+    expect(result.value.sourceText).toContain("point A = coordinate(x: 0, y: 0)");
+  });
+
+  it("serializes a directly edited authored parameter instead of preserving its old expression", () => {
+    const current = canonicalFrom([
+      "nui 4",
+      "group G (printEnabled: true and false) {",
+      "}"
+    ].join("\n"));
+    const group = elementByName(current.doc.document, "G");
+    const result = commitModelBridge(current, {
+      ...current.doc.document,
+      elements: current.doc.document.elements.map((element) =>
+        element.id === group.id ? { ...element, printEnabled: true } as CadElement : element
+      )
+    });
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.value.sourceText).toContain("printEnabled: true");
+    expect(result.value.sourceText).not.toContain("printEnabled: true and false");
+  });
+
   it("属性編集はstatementの行群だけを書き換え、隣接行と行末コメントを保存する", () => {
     // v2は要素statementの正準出力が常に縦型callのため、属性を1つ追加すると
     // 物理行数が増える。ヘッダ行の置換(旧行そのまま)と、増えた引数行の挿入
@@ -181,7 +311,7 @@ describe("textPatch 要素の挿入", () => {
     const zIndex = lines.findIndex((line) => line.includes("point Z"));
     expect(lines[zIndex]).toBe("  point Z = coordinate(");
     expect(lines[zIndex + 1]).toBe("    x: 9,");
-    expect(lines[zIndex + 2]).toBe("    y: 9");
+    expect(lines[zIndex + 2]).toBe("    y: 9,");
     expect(lines[zIndex + 3]).toBe("  )");
     expect(lines[zIndex + 4]).toBe("}");
     expect(lines[zIndex - 1]).toBe("  # グループ末尾コメント");
@@ -194,11 +324,11 @@ describe("textPatch 要素の挿入", () => {
       evaluationLimitIndex: undefined
     }));
     const lines = patched.split("\n");
-    expect(lines.slice(-4)).toEqual(["point Z = coordinate(", "  x: 9,", "  y: 9", ")"]);
+    expect(lines.slice(-4)).toEqual(["point Z = coordinate(", "  x: 9,", "  y: 9,", ")"]);
   });
 
   it("else枝への初回挿入は `} else {` 行を生成する", () => {
-    const source = ["nui 3", "if 分岐 (1) {", "  point T = coordinate(x: 0, y: 0)", "}"].join("\n");
+    const source = ["nui 4", "if (true) {", "  point T = coordinate(x: 0, y: 0)", "}"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const conditional = elementByName(document, "分岐");
       const inserted = makeElement("point E = coordinate(x: 5, y: 5)", {
@@ -237,20 +367,20 @@ describe("textPatch 要素の挿入", () => {
   });
 
   it("要素セクションが空の文書への挿入はセクションを新設する", () => {
-    const source = ["nui 3", "", 'color main ("#112233", name: "本体", default: true)'].join("\n");
+    const source = ["nui 4", "", 'color main ("#112233", name: "本体", default: true)'].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [makeElement("point Z = coordinate(x: 9, y: 9)")],
       evaluationLimitIndex: undefined
     }));
     expect(patched.split("\n")).toEqual([
-      "nui 3",
+      "nui 4",
       "",
       'color main ("#112233", name: "本体", default: true)',
       "",
       "point Z = coordinate(",
       "  x: 9,",
-      "  y: 9",
+      "  y: 9,",
       ")"
     ]);
   });
@@ -316,8 +446,8 @@ describe("textPatch 要素の削除", () => {
 
   it("else枝の最後のメンバー削除は `} else {` 行も除去する", () => {
     const source = [
-      "nui 3",
-      "if 分岐 (1) {",
+      "nui 4",
+      "if (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
       "  point E = coordinate(x: 5, y: 5)",
@@ -335,7 +465,7 @@ describe("textPatch 要素の削除", () => {
 
 describe("textPatch 要素の移動・親変更", () => {
   it("同一スコープ内の並べ替えは削除+挿入で表現される", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const [a, b, c] = document.elements;
       return { ...document, elements: [a, c, b] };
@@ -364,14 +494,14 @@ describe("textPatch 要素の移動・親変更", () => {
   });
 
   it("非連続な親子順序は parent: フォールバックで表現される", () => {
-    const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}", "point C = coordinate(x: 2, y: 2)"].join("\n");
+    const source = ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "}", "point C = coordinate(x: 2, y: 2)"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = elementByName(document, "G");
       const inserted = makeElement("point B = coordinate(x: 1, y: 1)", { parentGroupId: group.id });
       // C(トップレベル)の後ろに、Gを親とするBを置く=ブロック表現不能。
       return { ...document, elements: [...document.elements, inserted], evaluationLimitIndex: undefined };
     });
-    expect(patched).toContain("parent: G");
+    expect(patched).toContain("parent: @G");
   });
 
   it("既存statementを新規groupで包むと、子の内容はgroupヘッダより後ろに来る", () => {
@@ -380,7 +510,7 @@ describe("textPatch 要素の移動・親変更", () => {
     // ヘッダ)とstatement自身の内容の相対順序がinsertBeforeの呼び出し順に
     // 依存してしまい、子の内容がgroupヘッダより前に出てしまう回帰があった
     // (発見・修正はW2実装時)。ここで固定する。
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = makeElement("group G {\n}");
       return {
@@ -407,7 +537,7 @@ describe("textPatch 要素の移動・親変更", () => {
 // パッチ挙動を主題として検証するため、手書きリテラルのまま残す。
 describe("textPatch 複数行statement(括弧継続)", () => {
   const CONTINUATION_SOURCE = [
-    "nui 3",
+    "nui 4",
     "point A = coordinate(",
     "  x: 0,",
     "  y: 0,",
@@ -424,13 +554,13 @@ describe("textPatch 複数行statement(括弧継続)", () => {
       )
     }));
     const lines = patched.split("\n");
-    expect(lines).toContain("  color: accent  # 継続コメント");
+    expect(lines).toContain("  color: accent,  # 継続コメント");
     expect(lines).not.toContain("  color: main  # 継続コメント");
     expect(patched).toContain("point B = coordinate(x: 1, y: 1)");
   });
 
   it("内容変更のない継続statementの移動(既存groupへのdepth変更)も全範囲を置換する", () => {
-    const source = ["nui 3", "group G {", "}", "point A = coordinate(", "  x: 0,", "  y: 0,", "  color: main", ")"].join("\n");
+    const source = ["nui 4", "group G {", "}", "point A = coordinate(", "  x: 0,", "  y: 0,", "  color: main", ")"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = elementByName(document, "G");
       return {
@@ -442,7 +572,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     });
     const lines = patched.split("\n");
     expect(lines).toContain("  point A = coordinate(");
-    expect(lines).toContain("    color: main");
+    expect(lines).toContain("    color: main,");
     // 旧・継続行の残骸(トップレベルの"  color: main"単独行)が残っていないこと。
     expect(lines.filter((line) => line.includes("color: main"))).toHaveLength(1);
   });
@@ -473,7 +603,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     // だけを見ていると、無変更の複数行文が文書末尾にあるとき、新規要素が
     // ヘッダ行と継続行の間に挟まってしまい継続が壊れる回帰があった
     // (property testで発見・修正)。
-    const source = ["nui 3", "point B = coordinate(x: 1, y: 1)", "point A = coordinate(", "  x: 0,", "  y: 0,", "  color: main", ")"].join("\n");
+    const source = ["nui 4", "point B = coordinate(x: 1, y: 1)", "point A = coordinate(", "  x: 0,", "  y: 0,", "  color: main", ")"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [...document.elements, makeElement("point Z = coordinate(x: 9, y: 9)")],
@@ -491,10 +621,10 @@ describe("textPatch 複数行statement(括弧継続)", () => {
 describe("textPatch リネーム伝播", () => {
   it("参照元のリネームで参照行が書き換わり、無関係行は不変", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "# 注釈",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: A, dx: 1, dy: 2)",
+      "point B = offset(from: @A, dx: 1, dy: 2)",
       "point C = coordinate(x: 5, y: 5)"
     ].join("\n");
     const { splices, patched } = applyChange(source, (document) => ({
@@ -504,19 +634,29 @@ describe("textPatch リネーム伝播", () => {
       )
     }));
     expect(patched).toContain("point A2 = coordinate(");
-    expect(patched).toContain("from: A2");
+    expect(patched).toContain("from: @A2");
     expectLinesUntouched(splices, [1, 2, 5]);
   });
 
   it("配置済みグループのリネームで printLayout ブロックが書き換わる", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "group 前身頃 {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
       "",
-      "printLayout A4 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "  place 前身頃 (at: (0, 0), angle: 0, mirrorX: false)",
+      "printLayout A4(",
+      "  output: pdf,",
+      "  paper: a4,",
+      "  orientation: portrait,",
+      "  width: 410,",
+      "  height: 584,",
+      "  columns: 2,",
+      "  rows: 2,",
+      "  overlap: 10,",
+      "  scale: 1,",
+      ") {",
+      "  place @前身頃(x: 0, y: 0, angle: 0, mirrorX: false)",
       "}"
     ].join("\n");
     const { patched } = applyChange(source, (document) => ({
@@ -525,7 +665,7 @@ describe("textPatch リネーム伝播", () => {
         element.name === "前身頃" ? ({ ...element, name: "後身頃" } as CadElement) : element
       )
     }));
-    expect(patched).toContain("place 後身頃 ");
+    expect(patched).toContain("place @後身頃(");
     expect(patched.split("\n").some((line) => line.startsWith("group 後身頃") && line.endsWith("{"))).toBe(true);
   });
 });
@@ -533,7 +673,7 @@ describe("textPatch リネーム伝播", () => {
 describe("textPatch 非要素セクション", () => {
   it("色の追加・編集・default移動・削除", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "",
       'color main ("#112233", name: "本体", default: true)',
       'color sub ("#445566", name: "サブ")',
@@ -561,7 +701,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("ロール追加は各view行を個別に書き換え、行間コメントを保存する", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       'role seam (name: "縫い代")',
       "view 通常 (default: true, seam: false)",
       "# ビュー間コメント",
@@ -585,7 +725,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("activeView の切替はその行だけを書き換える", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       'role seam (name: "縫い代")',
       "view 通常 (default: true, seam: false)",
       "view 印刷 (default: true, seam: true)",
@@ -604,12 +744,22 @@ describe("textPatch 非要素セクション", () => {
 
   it("printLayout の属性変更はブロック単位で置換される", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
-      "printLayout A4 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "  place G (at: (0, 15), angle: 0, mirrorX: false)",
+      "printLayout A4(",
+      "  output: pdf,",
+      "  paper: a4,",
+      "  orientation: portrait,",
+      "  width: 410,",
+      "  height: 584,",
+      "  columns: 2,",
+      "  rows: 2,",
+      "  overlap: 10,",
+      "  scale: 1,",
+      ") {",
+      "  place @G(x: 0, y: 15, angle: 0, mirrorX: false)",
       "}"
     ].join("\n");
     const { patched } = applyChange(source, (document) => ({
@@ -617,12 +767,128 @@ describe("textPatch 非要素セクション", () => {
       printLayouts: document.printLayouts.map((layout) => ({ ...layout, columns: 5 }))
     }));
     expect(patched).toContain("columns: 5");
-    expect(patched).toContain("place G ");
+    expect(patched).toContain("place @G(");
+  });
+
+  it("commitModelBridge のprintLayout property editはbody-local let/set/placeを保持する", () => {
+    const current = canonicalFrom([
+      "nui 4",
+      "group G {",
+      "}",
+      "printLayout A4(",
+      "  width: 210,",
+      "  height: 297,",
+      "  columns: 1,",
+      ") {",
+      "  let margin: number = 10",
+      "  set margin = 20",
+      "",
+      "  place @G(",
+      "    x: @margin,",
+      "    y: 0,",
+      "    angle: 0,",
+      "    mirrorX: false,",
+      "  )",
+      "}"
+    ].join("\n"));
+    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    const letIndex = result.value.sourceText.indexOf("let margin: number = 10");
+    const setIndex = result.value.sourceText.indexOf("set margin = 20");
+    const placeIndex = result.value.sourceText.indexOf("place @G");
+    expect(result.value.sourceText).toContain("columns: 3");
+    expect(letIndex).toBeGreaterThanOrEqual(0);
+    expect(setIndex).toBeGreaterThan(letIndex);
+    expect(placeIndex).toBeGreaterThan(setIndex);
+    expect(result.value.doc.document.printLayouts[0].columns).toBe(3);
+  });
+
+  it("commitModelBridge後もprintLayout local setのruntime valueを評価する", () => {
+    const current = canonicalFrom([
+      "nui 4",
+      "group G {",
+      "}",
+      "printLayout A4(width: 210, height: 297, columns: 1) {",
+      "  let margin: number = 10",
+      "  set margin = 20",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(evaluatePrintLayout(result.value.doc).placements[0]?.x).toBe(20);
+  });
+
+  it("commitModelBridgeはplace/set/placeのsource orderを保持する", () => {
+    const current = canonicalFrom([
+      "nui 4",
+      "group G {",
+      "}",
+      "printLayout A4(width: 210, height: 297, columns: 1) {",
+      "  let margin: number = 10",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "  set margin = 20",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    const firstPlaceIndex = result.value.sourceText.indexOf("place @G");
+    const setIndex = result.value.sourceText.indexOf("set margin = 20");
+    const secondPlaceIndex = result.value.sourceText.indexOf("place @G", firstPlaceIndex + 1);
+    expect(firstPlaceIndex).toBeLessThan(setIndex);
+    expect(setIndex).toBeLessThan(secondPlaceIndex);
+    expect(evaluatePrintLayout(result.value.doc).placements.map((placement) => placement.x)).toEqual([10, 20]);
+  });
+
+  it("commitModelBridgeはprintLayout body-local constを保持する", () => {
+    const current = canonicalFrom([
+      "nui 4",
+      "group G {",
+      "}",
+      "printLayout A4(width: 210, height: 297) {",
+      "  const margin: number = 10",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.value.sourceText).toContain("const margin: number = 10");
+    expect(evaluatePrintLayout(result.value.doc).placements[0]?.x).toBe(10);
+  });
+
+  it("複数printLayoutのmodel editは対象外layoutのsource-only bodyを変更しない", () => {
+    const current = canonicalFrom([
+      "nui 4",
+      "group G {",
+      "}",
+      "printLayout A4(width: 210, height: 297, columns: 1) {",
+      "  const margin: number = 10",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}",
+      "printLayout A3(width: 297, height: 420, columns: 1) {",
+      "  const margin: number = 20",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const secondLayoutSource = current.sourceText.slice(current.sourceText.indexOf("printLayout A3"));
+    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 2 }));
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    const secondLayoutStart = result.value.sourceText.indexOf("printLayout A3");
+    expect(secondLayoutStart).toBeGreaterThanOrEqual(0);
+    expect(result.value.sourceText.slice(secondLayoutStart)).toBe(secondLayoutSource);
+    expect(result.value.sourceText).toContain("const margin: number = 10");
+    expect(result.value.sourceText).toContain("const margin: number = 20");
   });
 
   it("printLayout の追加と activePrintLayout の切替", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
       "}"
@@ -641,12 +907,12 @@ describe("textPatch 非要素セクション", () => {
         activePrintLayoutId: "二枚目"
       };
     });
-    expect(patched).toContain("printLayout 二枚目 ");
+    expect(patched).toContain("printLayout 二枚目(");
     expect(patched).toContain("activePrintLayout 二枚目");
   });
 
   it("printLayoutが存在しない文書に新規追加すると、既存elementsセクションより後に挿入される", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       printLayouts: [
@@ -676,10 +942,10 @@ describe("textPatch 非要素セクション", () => {
     expect(printLayoutLine).toBeGreaterThan(pointBLine);
   });
 
-  it("末尾に@stopがある文書に新規printLayoutを追加すると、@stopより後に挿入される", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "@stop"].join("\n");
+  it("末尾にstopがある文書に新規printLayoutを追加すると、stopより後に挿入される", () => {
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop"].join("\n");
     // applyChange itself already asserts the patched text reparses with zero
-    // error diagnostics - if printLayout landed before @stop, that assertion
+    // error diagnostics - if printLayout landed before stop, that assertion
     // would fail on validatePrintLayoutPlacement's structural diagnostic
     // ("printLayoutブロック以降には...") before this test body even runs.
     const { patched } = applyChange(source, (document) => ({
@@ -705,7 +971,7 @@ describe("textPatch 非要素セクション", () => {
       activePrintLayoutId: "レイアウト1"
     }));
     const lines = patched.split("\n");
-    const atStopLine = lines.findIndex((line) => line.startsWith("@stop"));
+    const atStopLine = lines.findIndex((line) => line.startsWith("stop"));
     const printLayoutLine = lines.findIndex((line) => line.startsWith("printLayout"));
     expect(atStopLine).toBeGreaterThanOrEqual(0);
     expect(printLayoutLine).toBeGreaterThan(atStopLine);
@@ -713,7 +979,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("printLayoutが既に存在する文書へ新規elementを追加すると、printLayoutセクションより前に挿入される", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
       "}"
@@ -730,28 +996,28 @@ describe("textPatch 非要素セクション", () => {
     expect(printLayoutLine).toBeGreaterThan(pointBLine);
   });
 
-  it("@stop の移動は削除+挿入", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "@stop", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
+  it("stop の移動は削除+挿入", () => {
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       evaluationLimitIndex: 2
     }));
     const lines = patched.split("\n");
-    expect(lines.filter((line) => line === "@stop")).toHaveLength(1);
-    const stopIndex = lines.indexOf("@stop");
+    expect(lines.filter((line) => line === "stop")).toHaveLength(1);
+    const stopIndex = lines.indexOf("stop");
     const bIndex = lines.findIndex((line) => line.startsWith("point B "));
     const cIndex = lines.findIndex((line) => line.startsWith("point C "));
     expect(stopIndex).toBeGreaterThan(bIndex);
     expect(stopIndex).toBeLessThan(cIndex);
   });
 
-  it("@stop を明示的に除去したら行も除去される", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "@stop", "point B = coordinate(x: 1, y: 1)"].join("\n");
+  it("stop を明示的に除去したら行も除去される", () => {
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       evaluationLimitIndex: undefined
     }));
-    expect(patched).not.toContain("@stop");
+    expect(patched).not.toContain("stop");
   });
 });
 
@@ -811,16 +1077,16 @@ describe("diffDocuments", () => {
 // full比較と一致することを検証する。
 describe("elementUpdateSet 高速経路とfull比較の等価性", () => {
   const NESTED_SOURCE = [
-    "nui 3",
+    "nui 4",
     "group Outer {",
     "  group Inner {",
     "    point P1 = coordinate(x: 0, y: 0)",
-    "    point P2 = offset(from: P1, dx: 1, dy: 1)",
+    "    point P2 = offset(from: @P1, dx: 1, dy: 1)",
     "  }",
     "  point Q = coordinate(x: 5, y: 5)",
     "}",
-    "point R = offset(from: Q, dx: 2, dy: 2)",
-    "point Ghost = offset(from: R, dx: 3, dy: 3)"
+    "point R = offset(from: @Q, dx: 2, dy: 2)",
+    "point Ghost = offset(from: @R, dx: 3, dy: 3)"
   ].join("\n");
 
   const expectFastMatchesFull = (oldDoc: DslDocumentData, newDoc: DslDocumentData) => {

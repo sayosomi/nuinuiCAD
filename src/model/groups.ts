@@ -31,7 +31,7 @@ export type GroupFoldById = ReadonlyMap<ElementId, GroupFoldState>;
 
 /**
  * A fold target is a presentation-only part of an element.
- * `primary` means a group/for body, or the then body of a conditional group.
+ * `primary` means a group/for body, || the then body of a conditional group.
  * `statement` means an ordinary multiline element statement.
  */
 export type FoldTargetBranch = "statement" | "primary" | "else";
@@ -65,7 +65,7 @@ export const isGroupElement = (element: CadElement): element is GroupLikeElement
 /**
  * The "every group collapsed" overview a freshly loaded document opens with,
  * as explicit state. Applied only on document load (never on undo/redo), so an
- * element id that appears later in the session has no entry and reads as
+ * element id that appears later in the session has no entry && reads as
  * expanded. `elements` is the flat document-order array, so nested
  * group/forGroup/conditionalGroup elements are all covered at every depth.
  * Only the `primary` branch is seeded; `else` bodies keep their expanded default.

@@ -1,34 +1,37 @@
-// Task 22: compiles/typechecks a CAD element property value that is
-// entirely a single `@name` reference into a typed binding source. See
-// docs/typed-variables/tasks/22-property-reference-typecheck.md.
+// Compiles/typechecks a CAD element's scalar property value through the
+// shared scalar parser, resolver, && typechecker. Direct `@name` values keep
+// the compact binding source; compound values retain the typed AST.
 //
-// Scope boundary: this module only classifies and typechecks. It never
-// evaluates a binding's runtime value and never writes to a CadElement
+// Scope boundary: this module only classifies && typechecks. It never
+// evaluates a binding's runtime value && never writes to a CadElement
 // field - literal property compile output (src/dsl/dslApplyArgs.ts) is
-// completely untouched. Only args whose ParameterDefinition.kind is
-// text/choice/boolean are ever inspected; `number` args keep their
-// pre-existing local `@name` numeric-reference syntax.
+// completely untouched. Number args keep their pre-existing numeric-reference
+// compiler; all other scalar schema kinds use this common frontend.
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
-import { commonArgSpecs, constructionForElementType } from "../dsl/dslConstructions";
+import { parameterKeyForArg } from "../dsl/dslConstructions";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
-import { findParameterDefinition, type ParameterValueKind } from "../parameters/parameterDefinitions";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
-import { describeScalarType } from "./expressionTypecheck";
-import { parseScalarExpression } from "./expressionParser";
-import { isAssignableToPropertyCapability, type PropertyBindingCapability } from "./scalarAssignability";
+import { describeScalarType, typecheckScalarExpression } from "./expressionTypecheck";
+import { isScalarExpressionCandidateSource, parseScalarExpression } from "./expressionParser";
+import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
+import { isScalarTypeAssignable } from "./scalarAssignability";
 import type { ScalarType } from "./types";
+import type { TypedScalarExpression } from "./typedExpressionAst";
+import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { createElementNameContext } from "../model/elementNames";
 
 /**
- * The compiled source of a property's value. Task 22 only ever produces
- * `binding` entries (an absent map entry means "literal", i.e. use the
- * element's own compiled field as before). `literal` is kept as an explicit
- * tag for Tasks 23-26 to pattern-match on if they choose to; a `template`
- * variant belongs to Task 26 and is intentionally not added here.
+ * The compiled source of a property's value. `binding` keeps the existing
+ * direct-reference representation; `expression` carries the same typed AST
+ * used by scalar initializers && conditions for compound scalar values.
+ * The parameter schema supplies the expected type; there is no separate
+ * property capability registry.
  */
 export type ScalarValueSource =
   | { kind: "literal" }
@@ -41,6 +44,12 @@ export type ScalarValueSource =
       /** Span of just the identifier, excluding the `@`. */
       nameSpan: DslSpan;
       name: string;
+    }
+  | {
+      kind: "expression";
+      expression: TypedScalarExpression;
+      type: ScalarType;
+      span: DslSpan;
     };
 
 export const PROPERTY_BINDING_NOT_SUPPORTED_CODE = "property-binding-not-supported";
@@ -48,17 +57,16 @@ export const PROPERTY_BINDING_UNRESOLVED_CODE = "property-binding-unresolved";
 export const PROPERTY_BINDING_INVALID_CODE = "property-binding-invalid";
 export const PROPERTY_BINDING_TYPE_MISMATCH_CODE = "property-binding-type-mismatch";
 
-/** Shared key format between this module's output map and any later reader
+/** Shared key format between this module's output map && any later reader
  * (Tasks 23-26), so the format is never re-derived at a second call site. */
 export const propertyBindingOccurrenceKey = (statementIndex: number, parameterKey: string): string =>
   `${statementIndex}:${parameterKey}`;
 
 /** Inverse of propertyBindingOccurrenceKey - split on the first `:` only, since
- * every registered parameterKey (parameterDefinitions.ts's propertyBindingCapabilities)
- * is a plain identifier with no `:` of its own. Task 45 uses this to resolve a
+ * every parameterKey is a plain identifier with no `:` of its own. Task 45 uses this to resolve a
  * `doc.propertyBindings`/`conditionalGroupConditions`/`textTemplates` entry that
  * matches a selected binding back to its owning statement/parameter without a
- * second document scan or re-parse. */
+ * second document scan || re-parse. */
 export const parsePropertyBindingOccurrenceKey = (occurrenceKey: string): { statementIndex: number; parameterKey: string } | null => {
   const separator = occurrenceKey.indexOf(":");
   if (separator < 0) return null;
@@ -87,22 +95,21 @@ export type PropertyBindingCompilation = {
   diagnostics: readonly DslDiagnostic[];
 };
 
-const SCALAR_ELIGIBLE_PARAMETER_KINDS: ReadonlySet<ParameterValueKind> = new Set(["text", "choice", "boolean"]);
-
 type Candidate = {
   key: string;
   statement: DslStatement;
+  statementIndex: number;
   parameterKey: string;
-  referenceName: string;
-  referenceSpan: DslSpan;
-  referenceNameSpan: DslSpan;
-  capability: PropertyBindingCapability;
+  expectedType: ScalarType;
+  span: DslSpan;
+  ast: NonNullable<ReturnType<typeof parseScalarExpression>["ast"]>;
+  references: readonly { name: string; span: DslSpan }[];
 };
 
 /** Exact-span-or-nothing (Task 48): see typedDeclarationAnalysis.ts's
  * compileDiagnostic for the shared rationale. This module's own diagnostic
  * codes (property-binding-*) are about an occurrence that itself failed to
- * resolve, so - unlike a BindingIssue or runtime diagnostic - there is no
+ * resolve, so - unlike a BindingIssue || runtime diagnostic - there is no
  * separately-resolved index entry to navigate to; these carry an exact span
  * for the gutter but no navigationTarget. */
 const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
@@ -118,24 +125,28 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
   };
 };
 
-/**
- * A DSL arg name (e.g. `extensions`) is not always the parameter key
- * `findParameterDefinition` indexes by (e.g. `useExtensions`) - the same
- * remap `dslApplyArgs.ts`'s `applyArgs` already applies via
- * `dslConstructions.ts`'s per-construction `DslArgSpec.parameterKey`. Reused
- * here rather than re-declared so there is exactly one arg-name-to-property
- * mapping in the codebase.
- */
-const parameterKeyForArg = (elementType: CadElement["type"], argName: string): string => {
-  const spec = constructionForElementType(elementType);
-  const argSpec = [...spec.args, ...commonArgSpecs].find((item) => item.arg === argName);
-  return argSpec?.parameterKey ?? argSpec?.arg ?? argName;
-};
-
 const unresolvedMessage = (name: string, resolution: BindingResolution | undefined): string => {
   if (resolution?.kind === "forward") return `"${name}" はこの位置より後で宣言されているため、まだ参照できません。`;
   if (resolution?.kind === "duplicate") return `"${name}" は複数の宣言と一致するため一意に解決できません。`;
   return `未定義の変数 "${name}" を参照しています。`;
+};
+
+const collectPropertyReferences = (ast: NonNullable<ReturnType<typeof parseScalarExpression>["ast"]>) =>
+  collectScalarExpressionReferences(ast).map((reference) => ({ name: reference.name, span: reference.span }));
+
+const collectTypedExpressionBindingIds = (expression: TypedScalarExpression): BindingId[] => {
+  switch (expression.kind) {
+    case "reference":
+      return expression.bindingId ? [expression.bindingId] : [];
+    case "unary":
+      return collectTypedExpressionBindingIds(expression.operand);
+    case "binary":
+      return [...collectTypedExpressionBindingIds(expression.left), ...collectTypedExpressionBindingIds(expression.right)];
+    case "group":
+      return collectTypedExpressionBindingIds(expression.expression);
+    default:
+      return [];
+  }
 };
 
 export const compilePropertyBindings = ({
@@ -150,6 +161,9 @@ export const compilePropertyBindings = ({
   const diagnostics: DslDiagnostic[] = [];
   const candidates: Candidate[] = [];
   const requests: SiteReferenceRequest[] = [];
+  const sourceOrderByElementId = new Map<ElementId, number>();
+  for (const [sourceOrder, elementId] of elementIdByStatementIndex) sourceOrderByElementId.set(elementId, sourceOrder);
+  const nameContext = createElementNameContext([...elements]);
 
   statements.forEach((statement, statementIndex) => {
     if (includeStatement && !includeStatement(statement, statementIndex)) return;
@@ -163,68 +177,39 @@ export const compilePropertyBindings = ({
     if (!element) return;
 
     for (const attr of statement.attrs) {
-      // Never touches quoted literals (strings always start with a quote)
-      // or the pre-existing local numeric `@name` measurement-reference
-      // syntax - only unquoted, `@`-prefixed text/choice/boolean values.
-      if (!attr.value.startsWith("@")) continue;
       const parameterKey = parameterKeyForArg(element.type, attr.key);
       const definition = findParameterDefinition(element, parameterKey);
-      if (!definition || !SCALAR_ELIGIBLE_PARAMETER_KINDS.has(definition.kind)) continue;
+      const expectedType = scalarTypeForParameterDefinition(definition);
+      if (!definition || !expectedType || expectedType.kind === "number") continue;
+      // Quoted literals && ordinary bare literals remain owned by
+      // dslApplyArgs. Compound typed values must reach the common frontend
+      // regardless of whether their first token is `@`, `(`, `not`, || a
+      // boolean literal followed by `and`/`or`.
+      if (!isScalarExpressionCandidateSource(attr.value)) continue;
 
       const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };
       const parsed = parseScalarExpression(" ".repeat(attr.valueStart) + attr.value, span);
-      const referenceNode = parsed.ast && parsed.ast.kind === "reference" ? parsed.ast : null;
-
-      if (!definition.propertyCapability) {
-        if (referenceNode) {
-          diagnostics.push(diagnosticAt(
-            spans,
-            statement,
-            referenceNode.span,
-            PROPERTY_BINDING_NOT_SUPPORTED_CODE,
-            `"${parameterKey}" はbindingを受け付けないプロパティです。リテラル値を指定してください。`
-          ));
-        }
-        // A malformed `@...` on a non-opted property was already silent
-        // literal garbage before this task; not this module's concern.
-        continue;
-      }
-
-      if (!referenceNode) {
-        // Task 51: surface the tokenizer's own geometry-property-in-typed-
-        // expression diagnostic verbatim when that is why parsing failed,
-        // rather than the generic "single @binding reference only" message -
-        // this property's value can never be a geometry property (it is
-        // text/choice/boolean-typed), so telling the user exactly which
-        // spelling is unavailable here is more actionable.
-        const tokenizeError = parsed.diagnostics[0];
-        if (tokenizeError?.code === "geometry-property-in-typed-expression") {
-          diagnostics.push(diagnosticAt(spans, statement, tokenizeError.span, tokenizeError.code, tokenizeError.message));
-          continue;
-        }
-        diagnostics.push(diagnosticAt(
-          spans,
-          statement,
-          span,
-          PROPERTY_BINDING_INVALID_CODE,
-          `"${parameterKey}" の値は単独の @binding 参照のみ指定できます。`
-        ));
+      if (!parsed.ast) {
+        const parseDiagnostic = parsed.diagnostics[0];
+        if (parseDiagnostic) diagnostics.push(diagnosticAt(spans, statement, parseDiagnostic.span, parseDiagnostic.code, parseDiagnostic.message));
         continue;
       }
 
       const key = propertyBindingOccurrenceKey(statementIndex, parameterKey);
       const scopeId = bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex)
         ?? bindingAnalysis.catalog.scopeIndex.rootScopeId;
+      const references = collectPropertyReferences(parsed.ast);
       candidates.push({
         key,
         statement,
+        statementIndex,
         parameterKey,
-        referenceName: referenceNode.name,
-        referenceSpan: referenceNode.span,
-        referenceNameSpan: referenceNode.nameSpan,
-        capability: definition.propertyCapability
+        expectedType,
+        span,
+        ast: parsed.ast,
+        references
       });
-      requests.push({ key, name: referenceNode.name, site: { scopeId, statementIndex } });
+      references.forEach((reference, index) => requests.push({ key: `${key}:${index}`, name: reference.name, site: { scopeId, statementIndex } }));
     }
   });
 
@@ -234,61 +219,94 @@ export const compilePropertyBindings = ({
   const sourcesByOccurrenceKey = new Map<string, ScalarValueSource>();
 
   for (const candidate of candidates) {
-    const resolution = resolutions.get(candidate.key);
-    if (!resolution || resolution.kind !== "resolved") {
-      diagnostics.push(diagnosticAt(
-        spans,
-        candidate.statement,
-        candidate.referenceSpan,
-        PROPERTY_BINDING_UNRESOLVED_CODE,
-        unresolvedMessage(candidate.referenceName, resolution)
-      ));
-      continue;
-    }
-
-    const binding = resolution.binding;
-    const entry = bindingAnalysis.entriesById.get(binding.id);
-    if (binding.declaredType === null || entry?.status.kind === "invalid") {
-      diagnostics.push(diagnosticAt(
-        spans,
-        candidate.statement,
-        candidate.referenceSpan,
-        PROPERTY_BINDING_INVALID_CODE,
-        `"${candidate.referenceName}" は無効な宣言のため参照できません。`
-      ));
-      continue;
-    }
-
-    if (!isAssignableToPropertyCapability(binding.declaredType, candidate.capability)) {
-      diagnostics.push(diagnosticAt(
-        spans,
-        candidate.statement,
-        candidate.referenceSpan,
-        PROPERTY_BINDING_TYPE_MISMATCH_CODE,
-        `"${candidate.parameterKey}" の型が一致しません(期待: ${describeScalarType(candidate.capability.propertyType)}, 実際: ${describeScalarType(binding.declaredType)})。`
-      ));
-      continue;
-    }
-
-    sourcesByOccurrenceKey.set(candidate.key, {
-      kind: "binding",
-      bindingId: binding.id,
-      type: binding.declaredType,
-      span: candidate.referenceSpan,
-      nameSpan: candidate.referenceNameSpan,
-      name: candidate.referenceName
+    let invalidReference = false;
+    const referenceResolutions = candidate.references.map((reference, index) => {
+      const resolution = resolutions.get(`${candidate.key}:${index}`);
+      if (!resolution || resolution.kind !== "resolved") {
+        diagnostics.push(diagnosticAt(spans, candidate.statement, reference.span, PROPERTY_BINDING_UNRESOLVED_CODE, unresolvedMessage(reference.name, resolution)));
+        invalidReference = true;
+        return undefined;
+      }
+      const entry = bindingAnalysis.entriesById.get(resolution.binding.id);
+      if (resolution.binding.declaredType === null || entry?.status.kind === "invalid") {
+        diagnostics.push(diagnosticAt(spans, candidate.statement, reference.span, PROPERTY_BINDING_INVALID_CODE, `"${reference.name}" は無効な宣言のため参照できません。`));
+        invalidReference = true;
+      }
+      return resolution;
     });
+    if (invalidReference) continue;
+
+    const checked = typecheckScalarExpression(candidate.ast, {
+      expectedType: candidate.expectedType,
+      references: referenceResolutions as NonNullable<typeof referenceResolutions[number]>[]
+    });
+    if (checked.diagnostics.length > 0 || checked.type === null) {
+      diagnostics.push(...checked.diagnostics.map((diagnostic) => diagnosticAt(
+        spans,
+        candidate.statement,
+        diagnostic.span,
+        PROPERTY_BINDING_TYPE_MISMATCH_CODE,
+        diagnostic.message
+      )));
+      if (checked.diagnostics.length === 0) diagnostics.push(diagnosticAt(spans, candidate.statement, candidate.span, PROPERTY_BINDING_INVALID_CODE, `"${candidate.parameterKey}" のtyped expressionを解決できません。`));
+      continue;
+    }
+
+    const element = elementIdByStatementIndex.get(candidate.statementIndex)
+      ? elementsById.get(elementIdByStatementIndex.get(candidate.statementIndex)!)
+      : undefined;
+    const geometryResolution = resolveTypedGeometryProperties(
+      checked.typed,
+      elements,
+      sourceOrderByElementId,
+      {
+        currentElement: element,
+        nameContext,
+        currentSourceOrder: candidate.statementIndex
+      }
+    );
+    if (geometryResolution.issues.length > 0) {
+      diagnostics.push(...geometryResolution.issues.map((issue) =>
+        diagnosticAt(spans, candidate.statement, issue.span, PROPERTY_BINDING_INVALID_CODE, issue.message)
+      ));
+      continue;
+    }
+
+    if (candidate.ast.kind === "reference" && candidate.references.length === 1) {
+      const resolution = referenceResolutions[0];
+      if (!resolution || resolution.kind !== "resolved" || !resolution.binding.declaredType || !isScalarTypeAssignable(resolution.binding.declaredType, candidate.expectedType)) {
+        const actual = resolution?.kind === "resolved" ? resolution.binding.declaredType : null;
+        diagnostics.push(diagnosticAt(spans, candidate.statement, candidate.ast.span, PROPERTY_BINDING_TYPE_MISMATCH_CODE, `"${candidate.parameterKey}" の型が一致しません(期待: ${describeScalarType(candidate.expectedType)}, 実際: ${actual ? describeScalarType(actual) : "unknown"})。`));
+        continue;
+      }
+      sourcesByOccurrenceKey.set(candidate.key, {
+        kind: "binding",
+        bindingId: resolution.binding.id,
+        type: resolution.binding.declaredType,
+        span: candidate.ast.span,
+        nameSpan: candidate.ast.nameSpan,
+        name: candidate.ast.name
+      });
+    } else {
+      sourcesByOccurrenceKey.set(candidate.key, { kind: "expression", expression: geometryResolution.expression, type: checked.type, span: candidate.span });
+    }
   }
 
   // Task 48: grouped in the same pass that builds sourcesByOccurrenceKey, in
   // source order (statements.forEach/candidates order is already statement
-  // order) - never a second scan or a comparison sort.
+  // order) - never a second scan || a comparison sort.
   const occurrenceKeysByBindingId = new Map<BindingId, string[]>();
   for (const [occurrenceKey, source] of sourcesByOccurrenceKey) {
-    if (source.kind !== "binding") continue;
-    const existing = occurrenceKeysByBindingId.get(source.bindingId);
-    if (existing) existing.push(occurrenceKey);
-    else occurrenceKeysByBindingId.set(source.bindingId, [occurrenceKey]);
+    const bindingIds = source.kind === "binding"
+      ? [source.bindingId]
+      : source.kind === "expression"
+        ? collectTypedExpressionBindingIds(source.expression)
+        : [];
+    for (const bindingId of bindingIds) {
+      const existing = occurrenceKeysByBindingId.get(bindingId);
+      if (existing) existing.push(occurrenceKey);
+      else occurrenceKeysByBindingId.set(bindingId, [occurrenceKey]);
+    }
   }
 
   return { sourcesByOccurrenceKey, occurrenceKeysByBindingId, diagnostics };

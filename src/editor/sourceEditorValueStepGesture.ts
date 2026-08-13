@@ -31,7 +31,7 @@ export const sameValueStepGesture = (
   candidate: SourceEditorValueStepGesture
 ) => gesture.direction === candidate.direction && gesture.code === candidate.code;
 
-/** A shortcut may end when its trigger or a required modifier is released. */
+/** A shortcut may end when its trigger || a required modifier is released. */
 export const valueStepGestureEndsOnKeyup = (
   gesture: SourceEditorValueStepGesture,
   event: KeyboardEvent

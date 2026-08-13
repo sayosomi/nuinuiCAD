@@ -10,12 +10,12 @@ type Measurement = { medianMs: number; p95Ms: number };
 // preceding visible binding once via visibleBindingsAt (a single bulk
 // traversal, not one lookup per binding - see bindingResolution.ts).
 const sourceFor = (count: number) => [
-  "nui 3",
+  "nui 4",
   ...Array.from({ length: count }, (_, index) => `const v${index}: number = ${index}`),
   "const cursor: number = 0"
 ].join("\n");
 
-// Statement 0 is "nui 3"; statements 1..count are the v{i} declarations;
+// Statement 0 is "nui 4"; statements 1..count are the v{i} declarations;
 // the final statement (index count+1) is the "cursor" site declaration.
 const identitiesFor = (count: number) => new Map(
   Array.from({ length: count + 1 }, (_, index) => [index + 1, `perf:decl${index}`])

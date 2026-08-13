@@ -1,33 +1,18 @@
-//! Task 28 IPC payload decode/validation for the bare `@binding` `text.text`
-//! property (a plain string-typed property binding, distinct from a quoted
-//! `"...{...}..."` compiled template - see `text_template_payload.rs`).
-//! Mirrors `control_boolean_payload.rs`'s strict-allowlist decode pattern
-//! exactly - its own doc comment calls this kind of small, stable per-task
-//! duplication deliberate, not a shortcut - but with its own 1-entry
-//! `canonical_expected_type` allowlist: `("text", "text") => String`. This is
-//! Task 28's own runtime scope boundary, not an extension of Task 23's
-//! 7-entry `("offsetLine","side")`-style list.
+//! IPC payload decode/validation for text-property values. Bare references
+//! and compound typed expressions arrive through the same schema-driven DTO;
+//! quoted text templates remain a separate presentation feature.
 
 use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
+use super::expression_payload::validate_typed_expression_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
-use super::property_binding_payload::ValidatedPropertyBinding;
+use super::property_binding_payload::{
+    validate_expression_expected_type, ValidatedPropertyBinding,
+};
 use super::scalar_payload::decode_scalar_type;
-use super::types::ScalarType;
-
-/// The only (element type, parameter key) pair this module connects, and its
-/// canonical `ScalarType` - kept in sync with TS's `textTemplateRuntime.ts`'s
-/// `TEXT_PROPERTY_TARGETS`.
-fn canonical_expected_type(element_type: &str, parameter_key: &str) -> Option<ScalarType> {
-    match (element_type, parameter_key) {
-        ("text", "text") => Some(ScalarType::String),
-        _ => None,
-    }
-}
-
 fn non_empty_string<'a>(json: &'a Value, context: &str) -> Result<&'a str, ScalarPayloadIssue> {
     json.as_str()
         .filter(|value| !value.is_empty())
@@ -48,7 +33,13 @@ fn decode_text_property_binding(
     let object = as_object(json, "text property binding")?;
     reject_unexpected_fields(
         object,
-        &["elementId", "parameterKey", "bindingId", "expectedType"],
+        &[
+            "elementId",
+            "parameterKey",
+            "bindingId",
+            "expression",
+            "expectedType",
+        ],
         "text property binding",
     )?;
 
@@ -62,38 +53,34 @@ fn decode_text_property_binding(
         "text property binding parameterKey",
     )?
     .to_owned();
-    let binding_id = non_empty_string(
-        require_field(object, "bindingId", "text property binding")?,
-        "text property binding bindingId",
-    )?
-    .to_owned();
+    let binding_id = object
+        .get("bindingId")
+        .map(|value| {
+            non_empty_string(value, "text property binding bindingId").map(ToOwned::to_owned)
+        })
+        .transpose()?;
+    let expression = object
+        .get("expression")
+        .map(validate_typed_expression_payload)
+        .transpose()?;
+    if binding_id.is_some() == expression.is_some() {
+        return Err(issue(
+            Code::InvalidFieldType,
+            "text property binding must contain exactly one of bindingId or expression",
+        ));
+    }
     let expected_type = decode_scalar_type(require_field(
         object,
         "expectedType",
         "text property binding",
     )?)?;
 
-    let element_type = element_type_by_id.get(element_id.as_str()).ok_or_else(|| {
+    let _element_type = element_type_by_id.get(element_id.as_str()).ok_or_else(|| {
         issue(
             Code::InvalidFieldType,
             format!("text property binding elementId \"{element_id}\" does not match any element"),
         )
     })?;
-
-    let canonical = canonical_expected_type(element_type, &parameter_key).ok_or_else(|| {
-        issue(
-            Code::InvalidFieldType,
-            format!("\"{element_type}.{parameter_key}\" is not a supported text property binding target"),
-        )
-    })?;
-    if canonical != expected_type {
-        return Err(issue(
-            Code::InvalidFieldType,
-            format!(
-                "\"{element_type}.{parameter_key}\" expectedType does not match its canonical type"
-            ),
-        ));
-    }
 
     if !seen_pairs.insert((element_id.clone(), parameter_key.clone())) {
         return Err(issue(
@@ -102,19 +89,25 @@ fn decode_text_property_binding(
         ));
     }
 
-    if !valid_binding_ids.contains(binding_id.as_str()) {
-        return Err(issue(
-            Code::InvalidBindingId,
-            format!(
-                "text property binding bindingId \"{binding_id}\" does not exist in the scalar runtime"
-            ),
-        ));
+    if let Some(binding_id) = &binding_id {
+        if !valid_binding_ids.contains(binding_id.as_str()) {
+            return Err(issue(
+                Code::InvalidBindingId,
+                format!(
+                    "text property binding bindingId \"{binding_id}\" does not exist in the scalar runtime"
+                ),
+            ));
+        }
+    }
+    if let Some(expression) = &expression {
+        validate_expression_expected_type(expression, &expected_type, "text property binding")?;
     }
 
     Ok(ValidatedPropertyBinding {
         element_id,
         parameter_key,
         binding_id,
+        expression,
         expected_type,
     })
 }

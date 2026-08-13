@@ -54,7 +54,7 @@ const createView = (source: string, isComposing: () => boolean = () => false) =>
 describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
   it("reopens a choice value's own candidates after a real delete lands the cursor at a zero-length value, with no explicit invocation", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
@@ -83,19 +83,19 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
   });
 
   it("never opens a popup for a delete that lands on a position with no completion context", async () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const { view, parent } = createView(source);
 
-    // Deletes the version digit: "nui 3" -> "nui " has no keyword, call,
-    // declaration, set, or element-statement context at all.
-    const versionDigit = source.indexOf("3");
+    // Deletes the version digit: "nui 4" -> "nui " has no keyword, call,
+    // declaration, set, || element-statement context at all.
+    const versionDigit = source.indexOf("4");
     view.dispatch({
       changes: { from: versionDigit, to: versionDigit + 1 },
       selection: { anchor: versionDigit },
       annotations: Transaction.userEvent.of("delete.selection")
     });
 
-    // Give the (would-be) retry's async probe and CM's own debounce every
+    // Give the (would-be) retry's async probe && CM's own debounce every
     // chance to fire, then assert nothing ever opened.
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(completionStatus(view.state)).toBeNull();
@@ -111,7 +111,7 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
     // Opens the line-head keyword popup by typing two characters, then
     // narrows it back down to one by deleting the second - "s" alone is
     // still a valid, non-empty-matching keyword prefix throughout, so a
-    // completion is active both immediately before and immediately after
+    // completion is active both immediately before && immediately after
     // the delete transaction the retry mechanism reacts to.
     view.dispatch({
       changes: { from: 0, insert: "se" },
@@ -135,7 +135,7 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
 
   it("never retries while IME composition is active", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
@@ -160,7 +160,7 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
 
   it("only ever produces one tooltip for one delete transaction (no duplicate/reopen loop)", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
@@ -177,8 +177,8 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
     });
 
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
-    // Settle well past the retry's microtask probe and CM's own query debounce,
-    // then confirm the popup never doubled up or flickered into a second node.
+    // Settle well past the retry's microtask probe && CM's own query debounce,
+    // then confirm the popup never doubled up || flickered into a second node.
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(completionStatus(view.state)).toBe("active");
     expect(parent.querySelectorAll(".cm-tooltip-autocomplete").length).toBe(1);
@@ -197,19 +197,19 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
   // ("set " -> type "total" -> undo back to "set ") must never reopen the
   // popup on its own from that undo.
   const buildSetTargetView = () => {
-    // A committed document must be a fully valid nui 3 source (an
-    // incomplete "set " target has error diagnostics and never compiles) -
+    // A committed document must be a fully valid nui 4 source (an
+    // incomplete "set " target has error diagnostics && never compiles) -
     // so this commits a complete "set total = 99" line, exactly like the
     // real duplicate-line repro, then reaches the zero-length "set " state
     // through a real, live delete transaction before the undo/redo/
     // programmatic-change scenarios below take over from there.
     const committedSource = [
-      "nui 3",
+      "nui 4",
       "let flag: boolean = true",
       "let total: number = 0",
       "let show: boolean = false",
       "const limit: number = 10",
-      "if Branch (@flag) {",
+      "if (@flag) {",
       "} else {",
       "  set total = 99",
       "}"

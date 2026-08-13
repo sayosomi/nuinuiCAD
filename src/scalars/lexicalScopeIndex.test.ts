@@ -40,12 +40,12 @@ describe("buildLexicalScopeIndex", () => {
 
   it("models if/else as siblings, not parent/child", () => {
     const statements = parse(
-      ["if 分岐 (1) {", "  let x: boolean = true", "} else {", "  let x: boolean = false", "}"].join("\n")
+      ["if (1) {", "  let x: boolean = true", "} else {", "  let x: boolean = false", "}"].join("\n")
     );
     const index = buildLexicalScopeIndex(statements, byName);
 
-    const thenId = "if:分岐:then";
-    const elseId = "if:分岐:else";
+    const thenId = "if:element@1:then";
+    const elseId = "if:element@1:else";
     const then = index.scopes.get(thenId);
     const elseScope = index.scopes.get(elseId);
     expect(then).toBeDefined();
@@ -61,20 +61,20 @@ describe("buildLexicalScopeIndex", () => {
   });
 
   it("creates only a then scope when there is no else branch", () => {
-    const statements = parse(["if 分岐 (1) {", "  const x: number = 1", "}"].join("\n"));
+    const statements = parse(["if (1) {", "  const x: number = 1", "}"].join("\n"));
     const index = buildLexicalScopeIndex(statements, byName);
-    expect(index.scopes.has("if:分岐:then")).toBe(true);
-    expect(index.scopes.has("if:分岐:else")).toBe(false);
+    expect(index.scopes.has("if:element@1:then")).toBe(true);
+    expect(index.scopes.has("if:element@1:else")).toBe(false);
   });
 
   it("records the forGroup iteration binding slot, including unnamed loops", () => {
-    const named = parse(["for 繰返し (i from: 0 count: 5 step: 1) {", "  const y: number = 1", "}"].join("\n"));
+    const named = parse(["for i in range(from: 0,count: 5,step: 1) {", "  const y: number = 1", "}"].join("\n"));
     const namedIndex = buildLexicalScopeIndex(named, byName);
-    const namedScopeId = "for:繰返し";
+    const namedScopeId = "for:element@1";
     expect(namedIndex.forGroupIterationSlots.get(namedScopeId)).toMatchObject({ name: "i", scopeId: namedScopeId });
     expect(namedIndex.declarationsByScope.get(namedScopeId)?.[0]).toMatchObject({ name: "y" });
 
-    const unnamed = parse(["for (i from: 0 count: 3) {", "}"].join("\n"));
+    const unnamed = parse(["for i in range(from: 0, count: 3, step: 1) {", "}"].join("\n"));
     const unnamedByLine: ResolveStatementId = (_index, statement) => `for@${statement.line}`;
     const unnamedIndex = buildLexicalScopeIndex(unnamed, unnamedByLine);
     const unnamedScopeId = "for:for@1";
@@ -116,7 +116,7 @@ describe("buildLexicalScopeIndex", () => {
   });
 
   it("stays deterministic when a statement cannot open a block", () => {
-    const statements = parseAllowingDiagnostics("point A = coordinate(x: 0 y: 0) {");
+    const statements = parseAllowingDiagnostics("point A = coordinate(x: 0,y: 0) {");
     expect(() => buildLexicalScopeIndex(statements, byName)).not.toThrow();
   });
 

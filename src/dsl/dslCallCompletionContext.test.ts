@@ -24,7 +24,7 @@ describe("dslCallCompletionContextAt", () => {
   });
 
   it("excludes used named arguments and waits for container positional arguments", () => {
-    const offset = "point P = offset(from: A dx: 10 )";
+    const offset = "point P = offset(from: A, dx: 10 )";
     const offsetContext = dslCallCompletionContextAt(offset, offset.indexOf(")"));
     expect(offsetContext).toMatchObject({ kind: "argument" });
     if (!offsetContext || offsetContext.kind !== "argument") throw new Error("argument context expected");
@@ -32,9 +32,9 @@ describe("dslCallCompletionContextAt", () => {
       "dy", "state", "color", "steps", "vars"
     ]);
 
-    expect(atEnd("if Branch (")).toBeNull();
-    expect(atEnd("for Repeat (i ")).toBeNull();
-    expect(atEnd("for Repeat (i fr")).toMatchObject({ kind: "argument", spec: { category: "for" } });
+    expect(atEnd("if (")).toBeNull();
+    expect(atEnd("for i in range(")).toMatchObject({ kind: "argument", spec: { category: "for" } });
+    expect(atEnd("for i in range(fr")).toMatchObject({ kind: "argument", spec: { category: "for" } });
     expect(atEnd("group G (")).toMatchObject({ kind: "argument", spec: { category: "group" } });
   });
 
@@ -48,17 +48,17 @@ describe("dslCallCompletionContextAt", () => {
   });
 
   it("does not offer attribute-key completion when the cursor sits inside an emptied value's raw gap", () => {
-    // Matches a real edit: select an existing choice value and delete it,
+    // Matches a real edit: select an existing choice value && delete it,
     // landing the cursor right where the deleted text used to start - not at
     // the far edge of the resulting whitespace gap. dslArgScanner's
     // trimSpan always collapses an empty valueSpan toward the far edge of
     // its raw gap (never toward the cursor), so a test that only probes the
     // far edge would not reproduce the real regression.
-    const before = "line Off = offset(sources: [AB] side: right closed: false)";
+    const before = "line Off = offset(sources: [AB], side: right, closed: false)";
     const deleteStart = before.indexOf("right");
     const deleteEnd = deleteStart + "right".length;
     const after = before.slice(0, deleteStart) + before.slice(deleteEnd);
-    expect(after).toBe("line Off = offset(sources: [AB] side:  closed: false)");
+    expect(after).toBe("line Off = offset(sources: [AB], side: , closed: false)");
 
     // The real-deletion cursor position, one char into the raw gap.
     expect(dslCallCompletionContextAt(after, deleteStart)).toBeNull();
@@ -68,7 +68,7 @@ describe("dslCallCompletionContextAt", () => {
 
     // A second, independent attribute value on the same construction -
     // this fix must not be `side`-specific.
-    const closedBefore = "line Off = offset(sources: [AB] side: right closed: false)";
+    const closedBefore = "line Off = offset(sources: [AB], side: right, closed: false)";
     const closedDeleteStart = closedBefore.indexOf("false");
     const closedDeleteEnd = closedDeleteStart + "false".length;
     const closedAfter = closedBefore.slice(0, closedDeleteStart) + closedBefore.slice(closedDeleteEnd);

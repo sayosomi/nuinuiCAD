@@ -51,7 +51,7 @@ const hasScope = (element: CadElement, scope: Scope) =>
   (scope.conditionalBranch === undefined || (element.conditionalBranch ?? "then") === scope.conditionalBranch);
 
 /**
- * Converts a physical editor position into both a semantic creation target and
+ * Converts a physical editor position into both a semantic creation target &&
  * a line-splice anchor. A cursor in an element retains the established
  * "after the complete statement" behavior; all other cursor lines insert
  * immediately before that physical line.

@@ -85,7 +85,7 @@ describe("renameAnalysis contract", () => {
     });
 
     // The unnamed point's construction call spans every physical line after
-    // "nui 3" (a canonical vertical call), and
+    // "nui 4" (a canonical vertical call), and
     // expectedPatchedLines now covers a changed statement's full line range
     // (renameAnalysisCandidate.ts) rather than just a diffed line.
     const statementLineCount = source.split("\n").length - 1;
@@ -256,15 +256,15 @@ describe("renameAnalysis contract", () => {
         ]
       }],
       activePrintLayoutId: "layout"
-    }, 3);
+    }, 4);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "G")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "H" });
 
     expect(analysis).toMatchObject({ verdict: "ok" });
     if (analysis.verdict !== "ok") return;
-    const placeGLine = lineOf(source, "place G");
-    const placeXLine = lineOf(source, "place X");
+    const placeGLine = lineOf(source, "place @G");
+    const placeXLine = lineOf(source, "place @X");
     expect(analysis.occurrences).toEqual(expect.arrayContaining([
       expect.objectContaining({ line: placeGLine, referencedElementId: target.id, form: "print-layout-place" })
     ]));
@@ -277,35 +277,36 @@ describe("renameAnalysis contract", () => {
   // source range's physical line count to equal the generated plan's line
   // count, so a single-line header would always fall back to block granularity.
   const printLayoutHeaderLines = [
-    "printLayout L (",
+    "printLayout L(",
     "  output: pdf,",
     "  paper: a4,",
     "  orientation: portrait,",
+    "  width: 100,",
+    "  height: 100,",
     "  columns: 1,",
     "  rows: 1,",
     "  overlap: 0,",
     "  scale: 1,",
-    "  canvas: (100, 100)",
     ") {"
   ];
 
   it("excludes an unchanged raw-id descendant place when print-layout line mapping is exact", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "group Parent {",
       "  group (id: child) {",
       "  }",
       "}",
       ...printLayoutHeaderLines,
-      "  place Parent (at: (0, 0), angle: 0, mirrorX: false)",
-      "  place child (at: (20, 0), angle: 0, mirrorX: false)",
+      "  place @Parent(x: 0, y: 0, angle: 0, mirrorX: false)",
+      "  place @child(x: 20, y: 0, angle: 0, mirrorX: false)",
       "}"
     ].join("\n");
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "Parent")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" });
 
-    const placeParentLine = lineOf(source, "place Parent");
+    const placeParentLine = lineOf(source, "place @Parent");
     expect(analysis).toMatchObject({ verdict: "ok" });
     if (analysis.verdict !== "ok") return;
     expect(analysis.occurrences).toEqual([
@@ -315,23 +316,23 @@ describe("renameAnalysis contract", () => {
 
   it("keeps block-granularity occurrences when source-only print-layout lines prevent an exact mapping", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "group Parent {",
       "  group (id: child) {",
       "  }",
       "}",
       ...printLayoutHeaderLines,
-      "  place Parent (at: (0, 0), angle: 0, mirrorX: false)",
+      "  place @Parent(x: 0, y: 0, angle: 0, mirrorX: false)",
       "  # source-only comment prevents a line-for-line plan proof",
-      "  place child (at: (20, 0), angle: 0, mirrorX: false)",
+      "  place @child(x: 20, y: 0, angle: 0, mirrorX: false)",
       "}"
     ].join("\n");
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "Parent")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" });
 
-    const placeParentLine = lineOf(source, "place Parent");
-    const placeChildLine = lineOf(source, "place child");
+    const placeParentLine = lineOf(source, "place @Parent");
+    const placeChildLine = lineOf(source, "place @child");
     expect(analysis).toMatchObject({ verdict: "ok" });
     if (analysis.verdict !== "ok") return;
     expect(analysis.occurrences).toEqual(expect.arrayContaining([

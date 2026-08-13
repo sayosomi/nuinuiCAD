@@ -14,9 +14,9 @@ const firstNonWhitespace = (source: string, from: number, to: number): number =>
 };
 
 /**
- * Finds an in-progress declaration type name between `:` and `=`. This is
+ * Finds an in-progress declaration type name between `:` && `=`. This is
  * intentionally more tolerant than the full parser: while the user is
- * authoring `const x: n` or `const x: num =`, the annotation is not yet a
+ * authoring `const x: n` || `const x: num =`, the annotation is not yet a
  * valid type but it is still a valid completion site.
  */
 export const declaredTypeCompletionContextAt = (

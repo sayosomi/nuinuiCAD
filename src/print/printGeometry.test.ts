@@ -295,8 +295,8 @@ describe("printGeometry", () => {
 // not just the isGroupPrintEnabled unit (see groupPrintEnabledRuntime.test.ts).
 describe("printGeometry: group.printEnabled binding", () => {
   const compileCanonical = (statements: string[]): LastGoodDslDocument => {
-    const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
-    const result = compileCanonicalText(baseline, ["nui 3", ...statements].join("\n"));
+    const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+    const result = compileCanonicalText(baseline, ["nui 4", ...statements].join("\n"));
     expect(result.status).not.toBe("fatal");
     return result.doc;
   };
@@ -320,7 +320,7 @@ describe("printGeometry: group.printEnabled binding", () => {
     `group G (${groupArgs}) {`,
     "  point A = coordinate(x: 0, y: 0)",
     "  point B = coordinate(x: 10, y: 0)",
-    "  line AB = segment(start: A, end: B)",
+    "  line AB = segment(start: @A, end: @B)",
     "}"
   ];
 
@@ -360,7 +360,7 @@ describe("printGeometry: group.printEnabled binding", () => {
       "group G (printEnabled: @印刷) {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line AB = segment(start: A, end: B)",
+      "  line AB = segment(start: @A, end: @B)",
       "}"
     ]);
     const group = groupNamed(doc, "G");
@@ -380,13 +380,13 @@ describe("printGeometry: group.printEnabled binding", () => {
     const doc = compileCanonical([
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "line D = segment(start: Z1, end: Z2, state: disabled)",
+    "line D = segment(start: @Z1, end: @Z2, state: disabled)",
       "const dist: number = @D.length",
       "const 印刷: boolean = @dist > 0",
       "group G (printEnabled: @印刷) {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line AB = segment(start: A, end: B)",
+      "  line AB = segment(start: @A, end: @B)",
       "}"
     ]);
     const group = groupNamed(doc, "G");

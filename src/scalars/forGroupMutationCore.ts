@@ -1,6 +1,6 @@
 // Task 34's production-unconnected loop mutation primitive. The caller owns
-// statement/version/binding identities and the body callback; this module only
-// owns iteration frame lifetime and in-place outer-slot carry.
+// statement/version/binding identities && the body callback; this module only
+// owns iteration frame lifetime && in-place outer-slot carry.
 
 export type LoopMutationSlot<T> = ReadonlyMap<string, T>;
 
@@ -54,7 +54,7 @@ export class ForGroupMutationError extends Error {}
 /**
  * Existing forGroup expansion supplies this at a generated-statement boundary
  * when its compiled evaluation limit has been reached. The core propagates it
- * through all remaining statements, iterations, and nested runs.
+ * through all remaining statements, iterations, && nested runs.
  */
 export type ForGroupMutationRunOutcome = "completed" | "stopped";
 

@@ -1,6 +1,6 @@
 // Pure live-buffer visibility for typed-binding completion. The caller owns
 // editor range mapping; this module deliberately accepts only plain offsets,
-// scope IDs, and catalog data so it remains independent of CodeMirror.
+// scope IDs, && catalog data so it remains independent of CodeMirror.
 
 import type { Binding, BindingCatalog, BindingId } from "./bindingCatalog";
 import { scopeChain, type ScopeId } from "./lexicalScopeIndex";
@@ -16,11 +16,11 @@ export type LiveTypedBindingVisibilityInput = {
 type VisibleBinding = { binding: Binding; scopeDistance: number; offset: number };
 
 /**
- * Returns one typed binding declared at or before the live cursor per visible
+ * Returns one typed binding declared at || before the live cursor per visible
  * name. A binding is usable only when its catalog identity still has a mapped
  * live offset, which keeps
  * stale metadata fail-closed without asking this pure layer to inspect an
- * editor document or change description.
+ * editor document || change description.
  */
 export const visibleTypedBindingsAtLivePosition = (
   input: LiveTypedBindingVisibilityInput,

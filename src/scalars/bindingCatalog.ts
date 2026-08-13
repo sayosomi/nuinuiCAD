@@ -1,5 +1,5 @@
 // Canonical, comparison-sort-free binding catalog. Adapters provide stable
-// identities and source positions; this module only uses dense ranks derived
+// identities && source positions; this module only uses dense ranks derived
 // from the parsed statement stream.
 import type { DslSpan } from "../dsl/dslTypes";
 import type { LexicalScopeIndex, ScopeId } from "./lexicalScopeIndex";
@@ -14,6 +14,26 @@ export type BindingVisibility =
   | { kind: "iteration"; rootScopeId: ScopeId };
 /** Whether a binding participates in ordinary source-name resolution. */
 export type BindingResolutionMode = "sourceLookup" | "preResolvedOnly";
+
+/** A narrow adapter from the canonical source namespace into the existing
+ * scalar binding sweep. `null` means the source namespace has no declaration
+ * to claim, so the sweep may continue with its established iteration/local
+ * specialization. A blocked result means a source declaration exists but it
+ * is not a scalar binding for this consumer. */
+export type SourceNamespaceBindingLookup =
+  | { kind: "resolved"; bindingId: BindingId }
+  | {
+      kind: "blocked";
+      reason: "forward" | "ambiguous" | "incompatible" | "invalidTraversal" | "private";
+      declarationKind?: string;
+      statementId?: string;
+    };
+
+export type SourceNamespaceBindingResolver = (
+  name: string,
+  statementIndex: number,
+  scopeId: ScopeId
+) => SourceNamespaceBindingLookup | null;
 
 export type BindingSeed = {
   id: BindingId;
@@ -58,6 +78,7 @@ export type BuildBindingCatalogInput = {
   /** Additional already-resolved typed bindings, such as module instances. */
   additionalBindings?: readonly BindingSeed[];
   containerIndex?: CadContainerIndex;
+  sourceNamespaceBindingResolver?: SourceNamespaceBindingResolver;
 };
 
 export type BindingCatalog = {
@@ -75,10 +96,11 @@ export type BindingCatalog = {
   bindingsByEffectiveScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
   containerIndex: CadContainerIndex;
   declarationDuplicateBuckets: readonly (readonly Binding[])[];
+  sourceNamespaceBindingResolver?: SourceNamespaceBindingResolver;
 };
 
 export type BindingLookupNamespaces = {
-  /** Iteration slots are structural and become visible when their scope opens. */
+  /** Iteration slots are structural && become visible when their scope opens. */
   iterationByScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
 };
 
@@ -105,7 +127,8 @@ export const buildBindingCatalog = ({
   stableStatementIdByIndex,
   iterationBindings = [],
   additionalBindings = [],
-  containerIndex = emptyContainerIndex
+  containerIndex = emptyContainerIndex,
+  sourceNamespaceBindingResolver
 }: BuildBindingCatalogInput): BindingCatalog => {
   const statementCount = scopeIndex.statementRankByIndex.size;
   const lanes: (Map<number, Ordered[]> | undefined)[][] = Array.from({ length: statementCount }, () => []);
@@ -145,14 +168,14 @@ export const buildBindingCatalog = ({
       const slotCount = slots.size;
       for (let sourceOrder = 0; sourceOrder < slotCount; sourceOrder += 1) {
         const slot = slots.get(sourceOrder);
-        if (!slot || slot.length !== 1) throw new Error("bindingCatalog: sourceOrder must be contiguous and unique per statement/kind");
+        if (!slot || slot.length !== 1) throw new Error("bindingCatalog: sourceOrder must be contiguous && unique per statement/kind");
         bindings.push({ ...slot[0], rank: bindings.length });
       }
     }
   }
 
   // Synthetic module bindings have no entry in the document-only scope
-  // index. They are already ordered by the module execution planner and are
+  // index. They are already ordered by the module execution planner && are
   // appended as an explicit catalog lane; no source name lookup uses them.
   for (const seed of additionalBindings) {
     if (!Number.isInteger(seed.sourceOrder) || seed.sourceOrder < 0) throw new Error(`bindingCatalog: invalid sourceOrder for ${seed.id}`);
@@ -205,5 +228,14 @@ export const buildBindingCatalog = ({
     const bucket = bindingsByEffectiveScopeAndName.get(binding.effectiveScopeId)?.get(binding.name);
     if (bucket && bucket.length > 1 && !duplicateSeen.has(bucket)) { duplicateSeen.add(bucket); declarationDuplicateBuckets.push(bucket); }
   }
-  return { scopeIndex, bindings, bindingsById, lookupNamespaces, bindingsByEffectiveScopeAndName, containerIndex, declarationDuplicateBuckets };
+  return {
+    scopeIndex,
+    bindings,
+    bindingsById,
+    lookupNamespaces,
+    bindingsByEffectiveScopeAndName,
+    containerIndex,
+    declarationDuplicateBuckets,
+    ...(sourceNamespaceBindingResolver ? { sourceNamespaceBindingResolver } : {})
+  };
 };

@@ -18,7 +18,7 @@ const catalogFor = (source: string) => {
   const statements = parsedStatements(source);
   const stableIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
   const scopeIndex = buildLexicalScopeIndex(statements, (index) => stableIds.get(index)!);
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
   const reconciledContainers = { elements: compiled.elements, elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map() };
   const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex: stableIds, reconciledContainers });
   return buildBindingCatalog({
@@ -147,10 +147,10 @@ describe("analyzeBindings", () => {
     const catalog = catalogFor([
       "const x: number = 1",
       "const x: number = 2",
-      "for LoopA (i, from: 0, count: 2) {",
+      "for i in range(from: 0, count: 2) {",
       "  const bodyA: number = 0",
       "}",
-      "for LoopB (i, from: 0, count: 2) {",
+      "for i in range(from: 0, count: 2) {",
       "  const bodyB: number = 0",
       "}"
     ].join("\n"));
@@ -216,7 +216,7 @@ describe("analyzeBindings", () => {
     const catalog = catalogFor("const x: number = 1");
     const selfBinding = catalog.bindingsById.get(bindingId(0))!;
     // This resolution could never come from resolveInitializerReferences
-    // itself (direct self-name references always resolve to "self" or an
+    // itself (direct self-name references always resolve to "self" || an
     // outer binding - see bindingResolution.ts's runSweep). It is
     // constructed directly here to defend the general SCC algorithm against
     // the classic "singleton SCC without a self-loop is not a cycle" pitfall.

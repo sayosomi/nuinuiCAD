@@ -21,6 +21,26 @@ const topLevelOpenParen = (source: string, from: number) => {
   return -1;
 };
 
+const matchingCloseParen = (source: string, open: number) => {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let index = open; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote && source[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === "(") {
+      depth += 1;
+    } else if (character === ")" && --depth === 0) {
+      return index;
+    }
+  }
+  return -1;
+};
+
 const topLevelComma = (source: string, from: number, to: number) => {
   let depth = 0;
   for (let index = from; index < to; index += 1) {
@@ -31,19 +51,81 @@ const topLevelComma = (source: string, from: number, to: number) => {
   return -1;
 };
 
+export type DslModuleParameterTypeCompletionContext = {
+  kind: "moduleParameterType";
+  from: number;
+  to: number;
+};
+
+/** Type-name completion is limited to Module definition parameter headers. */
+export const dslModuleParameterTypeCompletionContextAt = (
+  code: string,
+  pos: number
+): DslModuleParameterTypeCompletionContext | null => {
+  const moduleMatch = /^\s*module\s+[^\s(=]+\s*\(/.exec(code);
+  if (!moduleMatch) return null;
+  const open = moduleMatch[0].lastIndexOf("(");
+  if (open < 0 || pos < open + 1) return null;
+  const prefix = code.slice(open + 1, pos);
+  let depth = 0;
+  let segmentStart = 0;
+  for (let index = 0; index < prefix.length; index += 1) {
+    if (prefix[index] === "(") depth += 1;
+    else if (prefix[index] === ")") depth = Math.max(0, depth - 1);
+    else if (prefix[index] === "," && depth === 0) segmentStart = index + 1;
+  }
+  const segment = prefix.slice(segmentStart);
+  const colon = segment.indexOf(":");
+  if (colon < 0) return null;
+  const typeStart = open + 1 + segmentStart + colon + 1;
+  const equals = segment.indexOf("=");
+  const typeEnd = equals >= 0 ? open + 1 + segmentStart + equals : pos;
+  if (pos > typeEnd) return null;
+  let from = typeStart;
+  while (from < typeEnd && /\s/.test(code[from] ?? "")) from += 1;
+  let to = from;
+  while (to < typeEnd && /[A-Za-z0-9_]/.test(code[to] ?? "")) to += 1;
+  if (pos < from || pos > to) return null;
+  return { kind: "moduleParameterType", from, to: pos };
+};
+
+const qualifiedMemberContextAt = (source: string, from: number, pos: number, argumentIndex: number): DslCompletionContext | null => {
+  const qualified = source.slice(from, pos).match(new RegExp(`[^\\s"'#=()[\\]{},;:.]+::[^\\s"'#=()[\\]{},;:.]*$`));
+  if (!qualified) return null;
+  const separator = qualified[0].indexOf("::");
+  return {
+    kind: "moduleQualifiedMember",
+    from: from + (qualified.index ?? 0) + separator + 2,
+    to: pos,
+    qualifiedInstanceName: qualified[0].slice(0, separator).replace(/^@/, ""),
+    argumentIndex
+  };
+};
+
 /** Module calls use the ordinary module parser's spelling. This classifier is
- * only a cursor-shape adapter; semantic visibility and types stay in the
+ * only a cursor-shape adapter; semantic visibility && types stay in the
  * compiled ModuleSemanticAnalysis completion adapter. */
 export const dslModuleCompletionContextAt = (code: string, pos: number): DslCompletionContext => {
   let cursor = 0;
   while (/\s/.test(code[cursor] ?? "")) cursor += 1;
-  if (code.slice(cursor, cursor + 6) !== "module" || identifierPart(code[cursor - 1]) || identifierPart(code[cursor + 6])) return null;
-  cursor += 6;
+  const keyword = (["module", "instance"] as const).find((candidate) =>
+    code.slice(cursor, cursor + candidate.length) === candidate &&
+    !identifierPart(code[cursor - 1]) &&
+    !identifierPart(code[cursor + candidate.length])
+  );
+  if (!keyword) return null;
+  cursor += keyword.length;
   while (/\s/.test(code[cursor] ?? "")) cursor += 1;
   const instanceStart = cursor;
   while (identifierPart(code[cursor])) cursor += 1;
   if (cursor === instanceStart) return null;
   while (/\s/.test(code[cursor] ?? "")) cursor += 1;
+  if (code[cursor] === "(") {
+    const optionClose = matchingCloseParen(code, cursor);
+    if (optionClose < 0) return null;
+    cursor = optionClose + 1;
+    while (/\s/.test(code[cursor] ?? "")) cursor += 1;
+  }
   if (code[cursor] !== "=") return null;
   cursor += 1;
   while (/\s/.test(code[cursor] ?? "")) cursor += 1;
@@ -63,6 +145,8 @@ export const dslModuleCompletionContextAt = (code: string, pos: number): DslComp
   if (containing?.keySpan) {
     if (pos <= containing.keySpan.end) return { kind: "moduleArgumentLabel", from: containing.keySpan.start, to: pos, argumentIndex: scanned.indexOf(containing) };
     const valueFrom = containing.valueSpan.start === containing.valueSpan.end ? pos : containing.valueSpan.start;
+    const qualifiedMember = qualifiedMemberContextAt(code, valueFrom, pos, scanned.indexOf(containing));
+    if (qualifiedMember) return qualifiedMember;
     return { kind: "moduleArgumentValue", from: valueFrom, to: pos, argumentIndex: scanned.indexOf(containing) };
   }
   const segmentStart = (() => {

@@ -37,13 +37,13 @@ const depsAt = (
 
 describe("setTargetCandidates", () => {
   it("includes a visible let with a known declared type", () => {
-    const { catalog, entriesById } = catalogFor(["nui 3", "let a: number = 1"].join("\n"));
+    const { catalog, entriesById } = catalogFor(["nui 4", "let a: number = 1"].join("\n"));
     const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, 10);
     expect(setTargetCandidates(deps)).toEqual([{ name: "a", bindingId: bindingByName(catalog, "a").id, type: { kind: "number" } }]);
   });
 
   it("excludes const, and never consults BindingAnalysis status for a poisoned (self-initializing) let", () => {
-    const source = ["nui 3", "const c: number = 1", "let poison: number = @poison"].join("\n");
+    const source = ["nui 4", "const c: number = 1", "let poison: number = @poison"].join("\n");
     const { catalog, entriesById } = catalogFor(source);
     const poisonBinding = bindingByName(catalog, "poison");
     // Confirm the fixture really is invalid at the BindingAnalysis level -
@@ -57,9 +57,9 @@ describe("setTargetCandidates", () => {
 
   it("excludes iteration bindings", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "let a: number = 1",
-      "for Loop (i, from: 0, count: 2) {",
+      "for i in range(from: 0, count: 2) {",
       "}"
     ].join("\n");
     const { catalog, entriesById } = catalogFor(source);
@@ -68,7 +68,7 @@ describe("setTargetCandidates", () => {
   });
 
   it("excludes a forward-declared let (position after the cursor), even in the same scope", () => {
-    const source = ["nui 3", "let a: number = 1", "let b: number = 2"].join("\n");
+    const source = ["nui 4", "let a: number = 1", "let b: number = 2"].join("\n");
     const { catalog, entriesById } = catalogFor(source);
     const cursorPosition = bindingByName(catalog, "a").statementIndex;
     const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, cursorPosition);
@@ -77,9 +77,9 @@ describe("setTargetCandidates", () => {
 
   it("dedupes same-name shadowing to the innermost scope", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "let x: number = 1",
-      "if C (true) {",
+      "if (true) {",
       "  let x: number = 2",
       "}"
     ].join("\n");
@@ -92,9 +92,9 @@ describe("setTargetCandidates", () => {
 
   it("outer scope stays visible before the inner shadow's own declaration", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "let x: number = 1",
-      "if C (true) {",
+      "if (true) {",
       "  let x: number = 2",
       "}"
     ].join("\n");
@@ -109,10 +109,10 @@ describe("setTargetCandidates", () => {
 
   it("makes an outer let visible inside a nested then/forGroup scope", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "let outer: number = 1",
-      "if C (true) {",
-      "  for Loop (i, from: 0, count: 2) {",
+      "if (true) {",
+      "  for i in range(from: 0, count: 2) {",
       "  }",
       "}"
     ].join("\n");
@@ -124,8 +124,8 @@ describe("setTargetCandidates", () => {
 
   it("makes a then-branch let invisible from the sibling else branch", () => {
     const source = [
-      "nui 3",
-      "if C (true) {",
+      "nui 4",
+      "if (true) {",
       "  let onlyThen: number = 1",
       "} else {",
       "  let onlyElse: number = 2",
@@ -139,8 +139,8 @@ describe("setTargetCandidates", () => {
 });
 
 describe("setRhsScalarCandidates", () => {
-  it("offers boolean literal and unary ! candidates at a clean operand start", () => {
-    const { catalog, entriesById } = catalogFor(["nui 3", "let flag: boolean = true"].join("\n"));
+  it("offers boolean literal && unary ! candidates at a clean operand start", () => {
+    const { catalog, entriesById } = catalogFor(["nui 4", "let flag: boolean = true"].join("\n"));
     const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, 10);
     const line = "set flag = ";
     const candidates = setRhsScalarCandidates(line, { start: line.indexOf("=") + 1, end: line.length }, line.length, { kind: "boolean" }, deps);
@@ -148,7 +148,7 @@ describe("setRhsScalarCandidates", () => {
   });
 
   it("offers @name reference candidates filtered to the expected type, excluding a non-matching type", () => {
-    const source = ["nui 3", "let flagA: boolean = true", "let numA: number = 1", "let target: boolean = false"].join("\n");
+    const source = ["nui 4", "let flagA: boolean = true", "let numA: number = 1", "let target: boolean = false"].join("\n");
     const { catalog, entriesById } = catalogFor(source);
     const cursorPosition = bindingByName(catalog, "target").statementIndex + 1;
     const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, cursorPosition);
@@ -159,7 +159,7 @@ describe("setRhsScalarCandidates", () => {
   });
 
   it("excludes an invalid (self-initializing) reference from RHS candidates, unlike the set target", () => {
-    const source = ["nui 3", "let poison: number = @poison", "let target: number = 0"].join("\n");
+    const source = ["nui 4", "let poison: number = @poison", "let target: number = 0"].join("\n");
     const { catalog, entriesById } = catalogFor(source);
     const cursorPosition = bindingByName(catalog, "target").statementIndex + 1;
     const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, cursorPosition);
@@ -169,7 +169,7 @@ describe("setRhsScalarCandidates", () => {
   });
 
   it("preserves declared choice option order", () => {
-    const { catalog, entriesById } = catalogFor(["nui 3", "let side: choice(right, left) = right"].join("\n"));
+    const { catalog, entriesById } = catalogFor(["nui 4", "let side: choice(right, left) = right"].join("\n"));
     const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, 10);
     const line = "set side = ";
     const type = { kind: "choice" as const, options: ["right", "left"] };
@@ -178,7 +178,7 @@ describe("setRhsScalarCandidates", () => {
   });
 
   it("offers number operators right after a completed literal operand", () => {
-    const { catalog, entriesById } = catalogFor(["nui 3", "let n: number = 0"].join("\n"));
+    const { catalog, entriesById } = catalogFor(["nui 4", "let n: number = 0"].join("\n"));
     const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, 10);
     const line = "set n = 5 ";
     const candidates = setRhsScalarCandidates(line, { start: line.indexOf("=") + 1, end: line.length }, line.length, { kind: "number" }, deps);
@@ -186,12 +186,12 @@ describe("setRhsScalarCandidates", () => {
   });
 
   it("offers boolean operators right after a completed reference operand", () => {
-    const source = ["nui 3", "let flagA: boolean = true", "let target: boolean = true"].join("\n");
+    const source = ["nui 4", "let flagA: boolean = true", "let target: boolean = true"].join("\n");
     const { catalog, entriesById } = catalogFor(source);
     const cursorPosition = bindingByName(catalog, "target").statementIndex + 1;
     const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, cursorPosition);
     const line = "set target = @flagA ";
     const candidates = setRhsScalarCandidates(line, { start: line.indexOf("=") + 1, end: line.length }, line.length, { kind: "boolean" }, deps);
-    expect(candidates.map((c) => (c.kind === "reference" ? c.name : c.label))).toEqual(["&&", "||", "==", "!="]);
+    expect(candidates.map((c) => (c.kind === "reference" ? c.name : c.label))).toEqual([" and ", " or ", "==", "!="]);
   });
 });

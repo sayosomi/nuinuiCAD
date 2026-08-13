@@ -1,7 +1,7 @@
 // Pure, catalog-free typed declaration initializer completion context
 // (Task 39). Re-parses only the single statement the cursor is in - never
-// the document - and never resolves `@name` types itself; see
-// docs/typed-variables/tasks/39-typed-value-completion.md and
+// the document - && never resolves `@name` types itself; see
+// docs/typed-variables/tasks/39-typed-value-completion.md &&
 // src/scalars/scalarExpressionPositionClassifier.ts for the shared
 // operand/operator position analysis this delegates to.
 
@@ -23,13 +23,13 @@ export type TypedDeclarationInitializerCompletionContext = {
 /**
  * `parseDslTypedDeclarationStatement`'s own `payloadSpans.initializer`, when
  * present, is trimmed of trailing whitespace (mirrors every other payload
- * span's convention), and is entirely absent when the trimmed text is empty -
+ * span's convention), && is entirely absent when the trimmed text is empty -
  * exactly the common "cursor right after `=`, nothing typed yet" completion
  * moment. Rather than changing that established parser contract (other
  * consumers, e.g. Source Editor value-span navigation, rely on the trimmed
  * span/its absence), this always widens the end boundary to the end of
  * `logicalText` (nothing follows an initializer in this statement grammar,
- * so trailing whitespace - or a not-yet-typed operator - is always fair
+ * so trailing whitespace - || a not-yet-typed operator - is always fair
  * completion territory) and, when the span is entirely absent, falls back to
  * the text after the first `=` for its start - safe here specifically
  * because that branch only ever runs when nothing meaningful has been typed
@@ -47,7 +47,7 @@ const initializerSpanIncludingEmpty = (logicalText: string, existing: DslSpan | 
  * physical line - this function has no opinion on which, matching
  * dslCompletionContext.ts's own convention), `pos` a local offset into it.
  * Returns `null` whenever the statement isn't a typed declaration, its type
- * annotation didn't parse, or the cursor sits outside the initializer.
+ * annotation didn't parse, || the cursor sits outside the initializer.
  */
 export const typedDeclarationInitializerCompletionContext = (
   logicalText: string,

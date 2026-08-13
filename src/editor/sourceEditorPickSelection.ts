@@ -10,7 +10,7 @@ export type SourceEditorPickSelection = {
 
 /**
  * Identifies a Canvas-pickable parameter only when the selection is exactly its
- * complete live DSL span. Partial, non-pickable, and ambiguous selections return null.
+ * complete live DSL span. Partial, non-pickable, && ambiguous selections return null.
  */
 export const resolveSourceEditorPickSelection = ({
   lineText,

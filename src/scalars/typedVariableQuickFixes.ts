@@ -2,18 +2,18 @@
 // choice diagnostics. See docs/typed-variables/tasks/41-typed-variable-quick-fixes.md.
 //
 // This module never mutates a live editor, never dispatches a CM transaction,
-// and never re-resolves a binding. It only reads already-compiled
+// && never re-resolves a binding. It only reads already-compiled
 // `DslStatement`s (never `bindingAnalysis`/`BindingCatalog` - every fix here
 // only needs fields already present on the statement itself: `nameSpan`,
-// `declaredType`, `bindingKind`, `attrs`) plus the diagnostics array, and
+// `declaredType`, `bindingKind`, `attrs`) plus the diagnostics array, &&
 // produces plain splice/action descriptors an editor adapter can apply
 // verbatim. `diagnostic.line`/`diagnostic.code` are used only to *route* to
-// the owning statement and fix kind - every actual offset is computed from
+// the owning statement && fix kind - every actual offset is computed from
 // the statement's own already-logical spans, projected to physical source
 // offsets via `parseDslSnapshot`/`physicalSpanForLogicalRange` (the same
 // "only bridge from parser logical offsets to editor physical offsets" Task
 // 38's `buildTypedRenameSplices` established), never from a diagnostic's own
-// `column`/`physicalSpan` (which is coarse - whole-keyword or whole-statement
+// `column`/`physicalSpan` (which is coarse - whole-keyword || whole-statement
 // - for several of the diagnostic codes this module handles).
 //
 // Every descriptor carries the exact `sourceText` snapshot it was generated
@@ -90,8 +90,8 @@ const logicalStatementFor = (
  * Projects a logical range (relative to `logical`'s own logical text - the
  * same domain `nameSpan`/`attrs[].keyStart`/a typecheck diagnostic's own
  * `span` all live in) into an absolute splice, verifying the projection is a
- * single contiguous physical segment and recording the live text actually
- * found there. Returns `null` (no fix offered) on any non-contiguous or
+ * single contiguous physical segment && recording the live text actually
+ * found there. Returns `null` (no fix offered) on any non-contiguous ||
  * out-of-range projection - this module never guesses across a projection
  * failure. Only for non-zero-width ranges - see `projectInsertionOffset` for
  * a pure insertion point.
@@ -124,7 +124,7 @@ const projectSplice = (
  * segment for a zero-width range (a continuation separator has zero width
  * too, so a naive `{pos, pos}` query is ambiguous about which side of it the
  * point falls on) - this instead projects the single real character
- * immediately before `pos` (or immediately after, at logical-zero) and reads
+ * immediately before `pos` (or immediately after, at logical-zero) && reads
  * the *near* edge of that segment, which is well-defined as long as `pos`
  * doesn't itself sit exactly on a continuation boundary (in which case this
  * returns `null` - no fix offered - rather than guess a side).
@@ -219,11 +219,11 @@ const choiceLiteralReplaceFixes = (
  * Inserts a `set <name> = ` skeleton line right before whatever statement
  * follows this declaration in document order (including a block-closing
  * `}`, which is itself a statement - this keeps the inserted `set` inside
- * the same lexical block without any scope-aware logic), or at true EOF when
+ * the same lexical block without any scope-aware logic), || at true EOF when
  * this is the last statement. Anchoring to the *next* statement's own line
  * start - rather than this statement's own line end - means the insertion
  * point is never on the same physical line as this declaration, so it can
- * never land before a same-line trailing comment or split a continuation;
+ * never land before a same-line trailing comment || split a continuation;
  * physical line boundaries are pure string facts, so this needs no
  * logical->physical projection at all (unlike every other fix here).
  */
@@ -273,7 +273,7 @@ const setSkeletonRecoveryFix = (
  * regardless of the on-disk format, but this module normalizes internally -
  * mirroring `buildTypedRenameSplices`'s own `sourceText.replace(/\r\n/g,
  * "\n")` step - so it never depends on the caller having done so). Every
- * computed offset, and every descriptor's `sourceSnapshot`, is relative to
+ * computed offset, && every descriptor's `sourceSnapshot`, is relative to
  * the *normalized* text - the editor adapter must compare against
  * `view.state.doc.toString()`, which is always in that same LF form.
  */

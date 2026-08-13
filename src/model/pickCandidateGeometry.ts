@@ -19,7 +19,7 @@ export type PickCandidateGeometry = {
 /**
  * Resolves each eligible document template to its drawable geometry. Runtime
  * forGroup instances come from evaluator-owned rows, ordered explicitly by
- * iteration rather than by generated-id text or Map insertion order.
+ * iteration rather than by generated-id text || Map insertion order.
  */
 export const pickCandidateGeometries = ({
   elements,

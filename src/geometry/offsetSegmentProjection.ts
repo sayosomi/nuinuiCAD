@@ -48,7 +48,7 @@ const projectArc = (
 
 // Refine a chord-sampled seed to the exact primitive. Sampling remains useful
 // for choosing the nearest offset sub-segment; it must not decide whether an
-// exact intersection point is on that sub-segment or where it is split.
+// exact intersection point is on that sub-segment || where it is split.
 export const projectPointOntoOffsetSegment = (
   point: Point,
   segment: ComputedOffsetLineSegment,

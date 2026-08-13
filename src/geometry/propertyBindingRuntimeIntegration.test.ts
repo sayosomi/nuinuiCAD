@@ -1,7 +1,7 @@
-// End-to-end coverage for Task 23: compiles real nui 3 source through the
+// End-to-end coverage for Task 23: compiles real nui 4 source through the
 // production document pipeline (mirroring scalarProgramEvaluation.test.ts's
 // approach), builds Task 23's elementId-keyed property binding entries via
-// buildPropertyBindingRuntimeEntries, and evaluates through evaluateElements
+// buildPropertyBindingRuntimeEntries, && evaluates through evaluateElements
 // - proving the whole compile -> build entries -> materialize -> evaluate
 // path works together, not just each piece in isolation.
 
@@ -12,7 +12,7 @@ import { evaluateElements } from "./evaluate";
 import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
   const result = compileCanonicalText(baseline, source);
   expect(result.status).not.toBe("fatal");
   return result.doc;
@@ -32,7 +32,7 @@ const idByName = (compiled: LastGoodDslDocument, name: string): string => {
 };
 
 /**
- * Strips id/name fields (which are compiler-assigned per-document and never
+ * Strips id/name fields (which are compiler-assigned per-document && never
  * expected to match across two separately-compiled documents) so two
  * computed geometries can be compared on their actual numeric shape alone.
  */
@@ -49,28 +49,45 @@ const geometryShape = (value: unknown): unknown => {
 };
 
 describe("Task 23 standard property runtime, end-to-end through the real compiler", () => {
+  it("evaluates a resolved geometry-property expression in a common boolean property", () => {
+    const compiled = compileCanonical([
+      "nui 4",
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: @AB.length > 0, suppressTrimWarnings: false)"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, {
+      scalarProgram: compiled.scalarProgram,
+      propertyBindingEntries: entriesFor(compiled)
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.has(idByName(compiled, "Off"))).toBe(true);
+  });
+
   it("offsetLine.side bound to a choice const flips the offset direction, matching a literal side of the same value", () => {
     const bound = compileCanonical([
-      "nui 3",
+      "nui 4",
       "const 方向: choice(right, left) = left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 5, side: @方向, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: @方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const literalLeft = compileCanonical([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 5, side: left, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const literalRight = compileCanonical([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 5, side: right, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const boundResult = evaluateElements(bound.document.elements, {
@@ -90,22 +107,22 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
   });
 
   it("fails closed (no computedGeometry, an error) when the bound boolean binding is poisoned", () => {
-    // A choice const can only ever be a literal or a reference to another
+    // A choice const can only ever be a literal || a reference to another
     // choice binding (no computed/conditional choice expressions - see
     // plan.md), so it can never itself become runtime-poisoned; a boolean
     // binding can, via a numeric comparison against a disabled element's
     // property, mirroring scalarProgramEvaluation.test.ts's own poison
     // fixture.
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "line D = segment(start: Z1, end: Z2, state: disabled)",
+      "line D = segment(start: @Z1, end: @Z2, state: disabled)",
       "let 有効: boolean = @D.length > 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 5, side: right, closed: @有効, suppressTrimWarnings: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: @有効, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const result = evaluateElements(compiled.document.elements, {
@@ -122,16 +139,16 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     // copyLine (not move) stores its computed geometry under its own
     // elementId - move instead overwrites its *base* line's geometry in
     // place, which would only let the last of the 3 iterations' writes
-    // survive and wouldn't exercise "every generated instance individually".
+    // survive && wouldn't exercise "every generated instance individually".
     const source = (mirrorXArg: string) =>
       [
-        "nui 3",
+        "nui 4",
         ...(mirrorXArg === "@反転" ? ["let 反転: boolean = true"] : []),
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
-        "line AB = segment(start: A, end: B)",
-        "for 繰返し (i, from: 0, count: 3, step: 1) {",
-        `  line C = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: ${mirrorXArg}, baseLines: [AB])`,
+        "line AB = segment(start: @A, end: @B)",
+        "for i in range(from: 0, count: 3, step: 1) {",
+        `  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: ${mirrorXArg}, baseLines: [@AB])`,
         "}"
       ].join("\n");
 

@@ -145,7 +145,7 @@ export const openDocument = async () => {
   const content = await invokeReadDocumentFile(path);
   const unsupportedMajor = unsupportedNuiMajorVersion(content);
   if (unsupportedMajor !== null) {
-    throw new Error(`nui 3 文書のみ開けます（検出: ${unsupportedMajor}）。`);
+    throw new Error(`nui 4 文書のみ開けます（検出: ${unsupportedMajor}）。`);
   }
   if (!flushSourceEditForFileOperation()) return;
   useCadDocumentStore.getState().replaceTextDocument(content, {

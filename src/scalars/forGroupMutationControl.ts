@@ -1,5 +1,5 @@
-// Static Task 35 join between Task 30 forGroup owners and compiled elements.
-// It never reconstructs source order or stable identities from element order.
+// Static Task 35 join between Task 30 forGroup owners && compiled elements.
+// It never reconstructs source order || stable identities from element order.
 import type { CadElement, ElementId } from "../types/geometry";
 import type { BindingControlOwner, BindingVersionGraph } from "./bindingVersions";
 
@@ -49,7 +49,7 @@ export const forGroupMutationOwnerByElementId = (
 
 /**
  * Eligibility must not infer an owner from element order. A missing, stale,
- * or inconsistent compiled join keeps the document on the TS reference path.
+ * || inconsistent compiled join keeps the document on the TS reference path.
  */
 export const hasCanonicalForGroupMutationOwners = (
   graph: BindingVersionGraph,

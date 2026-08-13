@@ -1,5 +1,5 @@
 // Resolves typed-scalar geometry reads once, while the compiled element names
-// and source order are still available. Runtimes consume only this stable IR.
+// && source order are still available. Runtimes consume only this stable IR.
 import {
   isKnownNumericComputedGeometryProperty,
   normalizeNumericExpressionInput
@@ -18,6 +18,9 @@ export type GeometryPropertyResolutionIssue = {
 export type TypedGeometryPropertyResolutionContext = {
   currentElement?: Pick<CadElement, "parentGroupId">;
   nameContext?: ElementNameContext;
+  /** Source-order position of the expression owner. Geometry reads must point
+   * strictly earlier in document order. */
+  currentSourceOrder?: number;
 };
 
 const normalizedReference = (
@@ -66,11 +69,20 @@ export const resolveTypedGeometryProperties = (
         issues.push({ span: node.propertySpan, message: `要素プロパティ「${node.property}」は数値参照として使用できません。` });
         return { ...node, property: reference.property, elementId: null, targetSourceOrder: null };
       }
+      const targetSourceOrder = sourceOrderByElementId.get(reference.elementId);
+      if (targetSourceOrder === undefined) {
+        issues.push({ span: node.elementNameSpan, message: `要素「${node.elementName}」のsource orderを解決できません。` });
+        return { ...node, property: reference.property, elementId: null, targetSourceOrder: null };
+      }
+      if (context?.currentSourceOrder !== undefined && targetSourceOrder >= context.currentSourceOrder) {
+        issues.push({ span: node.elementNameSpan, message: `要素「${node.elementName}」はこの式より後、または同じ位置にあるため参照できません。` });
+        return { ...node, property: reference.property, elementId: null, targetSourceOrder: null };
+      }
       return {
         ...node,
         property: reference.property,
         elementId: reference.elementId,
-        targetSourceOrder: sourceOrderByElementId.get(reference.elementId) ?? null
+        targetSourceOrder
       };
     }
     if (node.kind === "unary") return { ...node, operand: visit(node.operand) };

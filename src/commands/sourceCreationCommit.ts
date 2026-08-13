@@ -12,7 +12,7 @@ export type SourceCreationCommit = {
 /**
  * Inserts a contiguous newly-created element run at one physical source
  * boundary. Layout comes from the complete post-insertion tree so containers
- * receive their braces and nested template elements retain correct indent.
+ * receive their braces && nested template elements retain correct indent.
  */
 export const commitSourceCreationInsertion = ({
   elements,
@@ -36,7 +36,7 @@ export const commitSourceCreationInsertion = ({
   const insertedIds = new Set(insertedElements.map((element) => element.id));
   const replacementLines = layoutElementTree(
     allElements,
-    documentDslRefs(allElements, document.doc.majorVersion),
+    documentDslRefs(allElements),
     undefined
   )
     .filter((row) => row.elementId !== undefined && insertedIds.has(row.elementId))

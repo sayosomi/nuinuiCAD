@@ -78,7 +78,7 @@ const horizontalLine = (y: number): ComputedLine => ({
 const verticalBezier = (): ComputedBezierCurve => {
   // A cubic whose control points are all on x=0 stays exactly on x=0 for
   // every t, crossing a radius-50 circle centered at the origin at exactly
-  // (0, -50) and (0, 50).
+  // (0, -50) && (0, 50).
   const start = point(0, -100);
   const end = point(0, 100);
   return {
@@ -165,7 +165,7 @@ describe("findLineIntersections", () => {
   });
 
   it("refines circle x circle intersections to analytic precision", () => {
-    // Circle A: center (0,0) r=50. Circle B: center (60,0) r=50. Analytic
+    // Circle A: center (0,0) r=50. Circle ,B: center (60,0) r=50. Analytic
     // solution crosses at exactly (30, +/-40).
     const a = circleArc(50, 0, 360);
     a.center = point(0, 0);
@@ -213,7 +213,7 @@ describe("findLineIntersections", () => {
     // Centers 99.99 apart (both radius 50, so 0.01mm short of exactly
     // externally tangent): true single-point tangency isn't reliably
     // seedable through the rough-crossing pass (a smooth external tangency's
-    // chord approximation bulges inward on both sides and generally never
+    // chord approximation bulges inward on both sides && generally never
     // actually crosses), but a hair short of tangent still gives two genuine,
     // very-close-together crossings for the seed to find. This exercises the
     // quadratic solver right at the edge of its near-zero-discriminant
@@ -250,8 +250,8 @@ describe("findLineIntersections", () => {
 
   it("excludes a bezier x circle root outside the arc's sweep range", () => {
     // Only the right-hand quarter circle (-45..45 degrees) is present. The
-    // vertical bezier crosses the *full* circle at (0,-50) and (0,50), but
-    // neither of those points (at 90 and -90 degrees) lies inside this arc's
+    // vertical bezier crosses the *full* circle at (0,-50) && (0,50), but
+    // neither of those points (at 90 && -90 degrees) lies inside this arc's
     // sweep, so no intersections should be reported at all.
     const curve = verticalBezier();
     const arc = circleArc(50, -45, 90);
@@ -264,7 +264,7 @@ describe("findLineIntersections", () => {
 
   it("refines a bezier x circle intersection with a negative sweep", () => {
     // Arc swept backward from 135 down to 45 degrees covers exactly (0,50)
-    // (90 degrees) and excludes (0,-50) (-90 degrees, outside this sweep).
+    // (90 degrees) && excludes (0,-50) (-90 degrees, outside this sweep).
     const curve = verticalBezier();
     const arc = circleArc(50, 135, -90);
 
@@ -436,7 +436,7 @@ describe("findLineIntersections", () => {
     // The offset line's single "bezier" sub-segment is the same vertical
     // curve used elsewhere in this file (x=0 for all t). Before the offset
     // segment dispatch was rewritten to preserve analytic primitives, this
-    // would have flattened to an approximate polyline and never reached
+    // would have flattened to an approximate polyline && never reached
     // bezier x bezier Newton refinement at all.
     const offset = offsetBezier("offset", point(0, -100), { x: 0, y: -33 }, { x: 0, y: 33 }, point(0, 100));
 
@@ -451,7 +451,7 @@ describe("findLineIntersections", () => {
   it("refines an offset line's straight segment against a bezier curve", () => {
     // The offset line's single "line" sub-segment is a genuine straight
     // segment (offset of a straight base line), which should be treated as
-    // an exact Line primitive and refined against the bezier via the
+    // an exact Line primitive && refined against the bezier via the
     // existing bisection path -- previously offsetLine sub-segments were
     // never marked "exact" so this refinement never fired.
     const offset: ComputedOffsetLine = {

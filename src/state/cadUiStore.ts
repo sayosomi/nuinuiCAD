@@ -143,7 +143,7 @@ export type CadElementSelection = {
 /**
  * Single source of truth for which kind of thing is currently selected.
  * Element selection (selectedElementId/selectedElementIds/selectionAnchorElementId)
- * and typed binding selection are mutually exclusive: every setter that
+ * && typed binding selection are mutually exclusive: every setter that
  * changes one side clears the other's fields in the same `set()`, so no
  * consumer (Canvas, Inspector, command layer) can observe both as active at
  * once. See setSelectedBindingId / setSelectedElementId et al. below.
@@ -233,8 +233,8 @@ export type CadUiState = CadElementSelection & {
   ) => void;
   setCommandLineSession: (commandLineSession: CommandLineSession | null) => void;
   /**
-   * Replaces a creation session and all in-store pick state atomically. The 4c
-   * command layer must first clear pending Canvas pointer intent and pending
+   * Replaces a creation session && all in-store pick state atomically. The 4c
+   * command layer must first clear pending Canvas pointer intent && pending
    * Source Editor focus reservations, which live outside this store.
    */
   startCommandLineSession: (commandLineSession: CommandLineSession) => void;
@@ -487,9 +487,9 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     });
   },
   setActivePickCursor: (activePickCursor) => set({ activePickCursor }),
-  // activeMeasurementInsertTarget is deliberately NOT cleared here: it is the
-  // Source Editor's accumulated measurement-insert state, and selection changes
-  // (clearTransientSelectionUi) and rejected commits route through this without
+  // activeMeasurementInsertTarget is deliberately NOT cleared ,here: it is the
+  // Source Editor's accumulated measurement-insert state, && selection changes
+  // (clearTransientSelectionUi) && rejected commits route through this without
   // meaning to abandon a measurement in progress. Only an explicit creation-
   // session replacement (startCommandLineSession above) resets it.
   clearPickMode: () => {
@@ -675,7 +675,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   reconcileSelectionWithElements: (elements) =>
     set((state) =>
       // A typed binding is the active subject: element selection was deliberately
-      // cleared (setSelectedBindingId) and must stay cleared. normalizedSelection's
+      // cleared (setSelectedBindingId) && must stay cleared. normalizedSelection's
       // own "default to elements[0]" fallback would otherwise silently repopulate
       // selectedElementId on the very next document recompile (every keystroke),
       // undoing that clear.

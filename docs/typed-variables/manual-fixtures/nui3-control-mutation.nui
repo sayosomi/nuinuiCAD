@@ -11,10 +11,10 @@ if Branch (@flag) {
 }
 point A = coordinate(x: 0 y: 0)
 point B = coordinate(x: 10 y: 0)
-line AB = segment(start: A end: B)
+line AB = segment(start: @A end: @B)
 for Loop (i from: 0 count: 2 step: 1 showGenerated: @show) {
   set total = @total + 1
   text T = label(text: "{@total}" anchor: none size: 3)
-  line Copy = copy(startPoint: A endPoint: B scale: 1 angleDeg: 90 mirrorX: @flag baseLines: [AB])
+  line Copy = copy(startPoint: @A endPoint: @B scale: 1 angleDeg: 90 mirrorX: @flag baseLines: [@AB])
 }
 text Final1 = label(text: "{@total}" anchor: none size: 3)

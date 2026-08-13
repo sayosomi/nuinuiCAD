@@ -6,7 +6,7 @@ import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRun
 import { activePrintLayout, resolvePrintLayout } from "./printLayout";
 
 const compile = (source: string): LastGoodDslDocument => {
-  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), source);
+  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
 };
@@ -31,16 +31,93 @@ const resolveScale = (compiled: LastGoodDslDocument) => {
     evaluation,
     numericBindingLookup: {
       numericBindings: compiled.numericBindings ?? new Map(),
-      byKey: compiled.statementMap.byKey
+      byKey: compiled.statementMap.byKey,
+      bindingVersions: compiled.bindingVersions
     }
   });
   return resolved.scale;
 };
 
 describe("resolvePrintLayout: typed const/let binding materialization (Task 53)", () => {
+  it("evaluates printLayout-local bindings after a preceding stop and moves place coordinates", () => {
+    const compileWithMargin = (margin: number) => compile([
+      "nui 4",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "group Pattern (printEnabled: true, printAnchor: @Origin) {",
+      "  point B = coordinate(x: 100, y: 0)",
+      "  point C = coordinate(x: 100, y: 50)",
+      "  line AB = segment(start: @Origin, end: @B)",
+      "  line BC = segment(start: @B, end: @C)",
+      "}",
+      "stop",
+      "printLayout A4 (width: 210, height: 297) {",
+      `  const margin: number = ${margin}`,
+      "  place @Pattern(x: @margin, y: @margin, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+
+    const resolvedPlacement = (margin: number) => {
+      const compiled = compileWithMargin(margin);
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
+      return resolvePrintLayout({
+        layout,
+        elements: compiled.document.elements,
+        evaluation,
+        numericBindingLookup: {
+          numericBindings: compiled.numericBindings ?? new Map(),
+          byKey: compiled.statementMap.byKey,
+          bindingVersions: compiled.bindingVersions
+        }
+      }).placements[0];
+    };
+
+    const compiled = compileWithMargin(10);
+    const localBinding = compiled.scalarProgram?.statements.find(
+      (statement) => statement.sourceOrder > (compiled.scalarProgram?.evaluationLimitSourceOrder ?? -1)
+    );
+    const placeXBinding = [...(compiled.numericBindings?.values() ?? [])]
+      .find((binding) => binding.parameterKey === "x");
+    expect(localBinding).toBeDefined();
+    expect(compiled.scalarProgram?.postStopBindingIds).toEqual([localBinding!.bindingId]);
+    expect(placeXBinding?.references[0].bindingId).toBe(localBinding!.bindingId);
+
+    expect(resolvedPlacement(10)).toMatchObject({ x: 10, y: 10 });
+    expect(resolvedPlacement(30)).toMatchObject({ x: 30, y: 30 });
+  });
+
+  it("evaluates printLayout-local let/set bindings after a preceding stop", () => {
+    const compiled = compile([
+      "nui 4",
+      "group Pattern {",
+      "  point Origin = coordinate(x: 0, y: 0)",
+      "}",
+      "stop",
+      "printLayout A4 (width: 210, height: 297) {",
+      "  let margin: number = 10",
+      "  set margin = 30",
+      "  place @Pattern(x: @margin, y: @margin, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
+    const resolved = resolvePrintLayout({
+      layout,
+      elements: compiled.document.elements,
+      evaluation,
+      numericBindingLookup: {
+        numericBindings: compiled.numericBindings ?? new Map(),
+        byKey: compiled.statementMap.byKey,
+        bindingVersions: compiled.bindingVersions
+      }
+    });
+
+    expect(resolved.placements[0]).toMatchObject({ x: 30, y: 30 });
+  });
+
   it("resolves a typed const number reference in scale", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "const printScale: number = 2.5",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
       "}"
@@ -50,7 +127,7 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
 
   it("resolves a typed let reassigned via set to its terminal value (Task 53 binding version semantics)", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "let v: number = 1",
       "set v = 3",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @v, canvas: (410, 584)) {",
@@ -61,7 +138,7 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
 
   it("matches the value an element numeric parameter sees for the same let+set binding", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "let v: number = 1",
       "set v = 3",
       "point A = coordinate(x: @v, y: 0)",
@@ -77,13 +154,13 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
 
   it("resolves place's angle/at against a typed binding", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "const ang: number = 30",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "  place G (at: (0, 0), angle: @ang, mirrorX: false)",
+      "  place @G(at: (0, 0), angle: @ang, mirrorX: false)",
       "}"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -94,7 +171,8 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
       evaluation,
       numericBindingLookup: {
         numericBindings: compiled.numericBindings ?? new Map(),
-        byKey: compiled.statementMap.byKey
+        byKey: compiled.statementMap.byKey,
+        bindingVersions: compiled.bindingVersions
       }
     });
     expect(resolved.placements[0].angleDeg).toBe(30);
@@ -102,7 +180,7 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
 
   it("keeps the typed binding reference and its resolved value across a save -> reopen round-trip", () => {
     const original = [
-      "nui 3",
+      "nui 4",
       "const printScale: number = 2.5",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
       "}"
@@ -126,7 +204,7 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
 
   it("falls back to the literal default when the numericBindingLookup is omitted", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "const printScale: number = 2.5",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
       "}"
@@ -135,7 +213,7 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
     const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
     const resolved = resolvePrintLayout({ layout, elements: compiled.document.elements, evaluation });
     // Unmaterialized `@printScale` isn't a recognized local variable, so the
-    // legacy evaluator fails and the field falls back to its literal default.
+    // legacy evaluator fails && the field falls back to its literal default.
     expect(resolved.scale).toBe(1);
   });
 });

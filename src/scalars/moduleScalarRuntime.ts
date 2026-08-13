@@ -15,7 +15,7 @@ import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import type { CadElement, ElementId } from "../types/geometry";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
 import { analyzeBindings } from "./bindingAnalysis";
 import {
@@ -38,8 +38,10 @@ import { collectScalarExpressionReferences } from "./expressionReferenceCollecto
 import type { CompiledNumericBinding } from "./numericBindingCompiler";
 import { numericSourceForModuleSite } from "./moduleNumericRuntime";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
-import { isAssignableToPropertyCapability } from "./scalarAssignability";
+import { isScalarTypeAssignable } from "./scalarAssignability";
 import type { ReconciledCadContainerInput } from "./containerIndex";
+import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
+import { effectiveElementActivityById } from "../model/elementActivity";
 
 export type MaterializedPropertyBindingSource = {
   elementId: ElementId;
@@ -112,11 +114,54 @@ const scalarTypeOf = (type: ModuleDefinitionSemantic["parameters"][number]["type
 
 const pathKey = (path: readonly string[]) => encodeIdentityTuple(["instance", ...path]);
 
+export const moduleScalarBindingIdFor = (
+  path: readonly string[],
+  definitionStatementId: string,
+  localStatementId: string
+) => `module-binding:${encodeIdentityTuple(["local", ...path, definitionStatementId, localStatementId])}`;
+
+export const moduleScalarDeclarationVersionIdFor = (
+  path: readonly string[],
+  definitionStatementId: string,
+  localStatementId: string
+) => `module-declaration:${encodeIdentityTuple(["local", ...path, definitionStatementId, localStatementId])}`;
+
+export const moduleScalarExportBindingSeeds = (
+  moduleSemanticAnalysis: ModuleSemanticAnalysis,
+  sourceNamespace: SourceLexicalNamespaceIndex
+): readonly BindingSeed[] => moduleSemanticAnalysis.instances
+  .filter((instance) => instance.callerModuleDefinitionStatementId === null && instance.callee)
+  .flatMap((instance) => {
+    const definition = moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee!.definitionStatementId);
+    if (!definition) return [];
+    const effectiveScopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(instance.statementIndex) ?? sourceNamespace.scopeIndex.rootScopeId;
+    return definition.exports.flatMap((exported) => exported.kind === "scalar"
+      ? [{
+          id: moduleScalarBindingIdFor([instance.statementId], definition.statementId, exported.exportedStatementId),
+          kind: "typed" as const,
+          name: `${instance.name}::${exported.name}`,
+          nameSpan: null,
+          statementIndex: instance.statementIndex,
+          sourceOrder: 0,
+          effectiveScopeId,
+          visibility: { kind: "typed" as const, scopeId: effectiveScopeId },
+          mutability: exported.bindingKind,
+          declaredType: exported.declaredType,
+          declarationVersionId: moduleScalarDeclarationVersionIdFor([instance.statementId], definition.statementId, exported.exportedStatementId),
+          resolutionMode: "preResolvedOnly" as const
+        }]
+      : []);
+  });
+
 const bindingIdFor = (kind: "parameter" | "local", context: InstanceContext, discriminator: string) =>
-  `module-binding:${encodeIdentityTuple([kind, ...context.path, context.definition.statementId, discriminator])}`;
+  kind === "local"
+    ? moduleScalarBindingIdFor(context.path, context.definition.statementId, discriminator)
+    : `module-binding:${encodeIdentityTuple([kind, ...context.path, context.definition.statementId, discriminator])}`;
 
 const declarationVersionIdFor = (kind: "parameter" | "local", context: InstanceContext, discriminator: string) =>
-  `module-declaration:${encodeIdentityTuple([kind, ...context.path, context.definition.statementId, discriminator])}`;
+  kind === "local"
+    ? moduleScalarDeclarationVersionIdFor(context.path, context.definition.statementId, discriminator)
+    : `module-declaration:${encodeIdentityTuple([kind, ...context.path, context.definition.statementId, discriminator])}`;
 
 const setVersionIdFor = (context: InstanceContext, statementId: string) =>
   `module-set:${encodeIdentityTuple([...context.path, context.definition.statementId, statementId])}`;
@@ -157,7 +202,7 @@ const lowerExpression = (
 ): { expression: TypedScalarExpression; references: InitializerReference[] } => {
   const references = semanticReferencesUsedByAst(semantic);
   const resolutions = references.map((reference) => bindingResolutionFor(
-    reference.target && ["parameter", "moduleLocal", "documentBinding", "iteration"].includes(reference.target.kind)
+    reference.target && ["parameter", "moduleLocal", "documentBinding", "iteration", "deferredModuleScalarExport"].includes(reference.target.kind)
       ? bindingForTarget(reference.target as ModuleScalarSourceTarget, reference.name, reference.span.start)
       : undefined,
     reference.name,
@@ -242,29 +287,31 @@ const propertySourceFor = (
   element: CadElement,
   parameterKey: string,
   semantic: ModuleScalarExpressionSemantic,
-  bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined
+  loweredExpression: TypedScalarExpression
 ): ScalarValueSource | undefined => {
-  if (semantic.ast.kind !== "reference" || semantic.references.length !== 1) return undefined;
+  if (semantic.references.length === 0) return undefined;
   const parameter = findParameterDefinition(element, parameterKey);
-  const capability = parameter?.propertyCapability;
-  const target = semantic.references[0].target;
-  if (!capability || !target || !["parameter", "moduleLocal", "documentBinding"].includes(target.kind)) return undefined;
-  const binding = bindingForTarget(target as ModuleScalarSourceTarget, semantic.references[0].name, semantic.references[0].span.start);
-  if (!binding || !binding.declaredType || !isAssignableToPropertyCapability(binding.declaredType, capability)) return undefined;
-  return {
-    kind: "binding",
-    bindingId: binding.id,
-    type: binding.declaredType,
-    span: semantic.references[0].span,
-    nameSpan: { start: semantic.references[0].span.start + 1, end: semantic.references[0].span.end },
-    name: semantic.references[0].name
-  };
+  const expectedType = scalarTypeForParameterDefinition(parameter);
+  if (!expectedType || expectedType.kind === "number" || !loweredExpression.type ||
+      !isScalarTypeAssignable(loweredExpression.type, expectedType)) return undefined;
+  if (loweredExpression.kind === "reference" && loweredExpression.bindingId !== null && semantic.references.length === 1) {
+    const reference = semantic.references[0];
+    return {
+      kind: "binding",
+      bindingId: loweredExpression.bindingId,
+      type: loweredExpression.type,
+      span: reference.span,
+      nameSpan: { start: reference.span.start + 1, end: reference.span.end },
+      name: reference.name
+    };
+  }
+  return { kind: "expression", expression: loweredExpression, type: loweredExpression.type, span: semantic.ast.span };
 };
 
 /**
  * Lowers Task 3 module scalar targets into the ordinary typed scalar
  * catalog/program/version graph. It deliberately receives semantic targets
- * and materialized identities; it never performs a second lexical lookup.
+ * && materialized identities; it never performs a second lexical lookup.
  */
 export const compileModuleScalarRuntime = ({
   statements,
@@ -392,9 +439,42 @@ export const compileModuleScalarRuntime = ({
     if (instance.callerModuleDefinitionStatementId === null) registerInstance(instance, [], null);
   }
 
+  const effectiveActivities = effectiveElementActivityById(elements);
+  const contextIsDisabled = (context: InstanceContext) => {
+    const runtimeId = instanceElement(moduleMaterialization, context.path);
+    return runtimeId !== undefined && effectiveActivities.get(runtimeId)?.activity === "disabled";
+  };
+  const disabledBindingIds = new Set(
+    allBindingInfos
+      .filter((info) => contextsByKey.get(info.contextKey) && contextIsDisabled(contextsByKey.get(info.contextKey)!))
+      .map((info) => info.id)
+  );
+
   const bindingInfoById = new Map(allBindingInfos.map((info) => [info.id, info] as const));
+  const runtimeContextForSourceInstance = (current: InstanceContext, instanceStatementId: string): InstanceContext | undefined => {
+    const target = moduleSemanticAnalysis.instancesByStatementId.get(instanceStatementId);
+    if (!target) return undefined;
+    if (target.callerModuleDefinitionStatementId === null) {
+      return contextsByKey.get(pathKey([instanceStatementId]));
+    }
+    let owner: InstanceContext | undefined = current;
+    while (owner) {
+      if (owner.definition.statementId === target.callerModuleDefinitionStatementId) {
+        return contextsByKey.get(pathKey([...owner.path, instanceStatementId]));
+      }
+      owner = owner.parentKey ? contextsByKey.get(owner.parentKey) : undefined;
+    }
+    return undefined;
+  };
   const bindingInfoForTarget = (target: ModuleScalarSourceTarget, current: InstanceContext): BindingInfo | undefined => {
     if (target.kind === "documentBinding") return bindingInfoById.get(target.bindingId);
+    if (target.kind === "deferredModuleScalarExport") {
+      const child = runtimeContextForSourceInstance(current, target.instanceStatementId);
+      const exported = child?.definition.exports.find((candidate) => candidate.name === target.exportName);
+      return exported?.kind === "scalar" && exported.exportedStatementId === target.exportedStatementId
+        ? child?.locals.get(exported.exportedStatementId)
+        : undefined;
+    }
     const contextCandidates: InstanceContext[] = [];
     let cursor: InstanceContext | undefined = current;
     while (cursor) {
@@ -540,11 +620,34 @@ export const compileModuleScalarRuntime = ({
       resolutionMode: "preResolvedOnly" as const
     }))
   );
+  const basePreResolvedSeeds: BindingSeed[] = baseCatalog.bindings
+    .filter((binding) => binding.resolutionMode === "preResolvedOnly")
+    .map((binding) => ({
+      id: binding.id,
+      kind: binding.kind,
+      name: binding.name,
+      nameSpan: binding.nameSpan,
+      statementIndex: binding.statementIndex,
+      sourceOrder: 0,
+      effectiveScopeId: binding.effectiveScopeId,
+      visibility: binding.visibility,
+      mutability: binding.mutability,
+      declaredType: binding.declaredType,
+      ...(binding.declarationVersionId ? { declarationVersionId: binding.declarationVersionId } : {}),
+      resolutionMode: "preResolvedOnly" as const
+    }));
+  const additionalSeeds: BindingSeed[] = [];
+  const additionalSeedIds = new Set<BindingId>();
+  for (const seed of [...basePreResolvedSeeds, ...moduleSeeds, ...moduleIterationSeeds]) {
+    if (additionalSeedIds.has(seed.id)) continue;
+    additionalSeedIds.add(seed.id);
+    additionalSeeds.push(seed);
+  }
   const combinedCatalog = buildBindingCatalog({
     scopeIndex: baseCatalog.scopeIndex,
     stableStatementIdByIndex,
     iterationBindings: iterationSeeds,
-    additionalBindings: [...moduleSeeds, ...moduleIterationSeeds],
+    additionalBindings: additionalSeeds,
     containerIndex: baseCatalog.containerIndex
   });
   const bindingsById = combinedCatalog.bindingsById;
@@ -592,6 +695,7 @@ export const compileModuleScalarRuntime = ({
   const moduleInitializers = new Map<BindingId, TypedScalarExpression>();
   const moduleReferences: InitializerReference[] = [];
   const lowerForContext = (semantic: ModuleScalarExpressionSemantic, context: InstanceContext, ownerBindingId: BindingId) => {
+    if (contextIsDisabled(context)) return;
     const lowered = lowerExpression(
       semantic,
       (target) => resolvedBindingForContext(target, context),
@@ -603,6 +707,7 @@ export const compileModuleScalarRuntime = ({
   };
 
   for (const context of contextsByKey.values()) {
+    if (contextIsDisabled(context)) continue;
     for (const parameter of context.definition.parameters) {
       const info = context.parameters.get(parameter.parameterIndex);
       const binding = context.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
@@ -719,16 +824,16 @@ export const compileModuleScalarRuntime = ({
       lowerModuleTextTemplate(context, body, runtime);
       for (const site of body.scalarExpressions) {
         if (site.parameterKey === null) continue;
+        const loweredSiteExpression = lowerExpression(
+          site.expression,
+          (target) => resolvedBindingForContext(target, context),
+          bindingsById,
+          (target) => resolvedGeometryPropertyForContext(target, context)
+        );
         if (element.type === "conditionalGroup" && site.parameterKey === "condition") {
-          const lowered = lowerExpression(
-            site.expression,
-            (target) => resolvedBindingForContext(target, context),
-            bindingsById,
-            (target) => resolvedGeometryPropertyForContext(target, context)
-          );
-          materializedConditionalGroupConditions.push({ elementId: runtime.elementId, expression: lowered.expression });
+          materializedConditionalGroupConditions.push({ elementId: runtime.elementId, expression: loweredSiteExpression.expression });
         }
-        const property = propertySourceFor(element, site.parameterKey, site.expression, (target) => resolvedBindingForContext(target, context));
+        const property = propertySourceFor(element, site.parameterKey, site.expression, loweredSiteExpression.expression);
         if (property) {
           materializedPropertyBindings.push({ elementId: runtime.elementId, parameterKey: site.parameterKey, source: property });
           if (site.parameterKey === "printEnabled") materializedGroupPrintEnabledBindings.set(runtime.elementId, property);
@@ -760,7 +865,11 @@ export const compileModuleScalarRuntime = ({
 
   const documentReferences = (documentBindingAnalysis?.initializerReferences ?? []).map((reference) => remapDocumentReference(reference, bindingsById));
   const combinedReferences = [...documentReferences, ...moduleReferences];
-  const combinedAnalysis = analyzeBindings({ catalog: combinedCatalog, initializerReferences: combinedReferences });
+  const combinedAnalysis = analyzeBindings({
+    catalog: combinedCatalog,
+    initializerReferences: combinedReferences,
+    unavailableBindingIds: disabledBindingIds
+  });
   const initializers = new Map<BindingId, TypedScalarExpression>();
   for (const [bindingId, initializer] of documentBindingAnalysis
     ? (documentBindingAnalysis as BindingAnalysis).catalog.bindings
@@ -843,7 +952,7 @@ export const compileModuleScalarRuntime = ({
     };
   };
   // Every module binding uses its source lexical scope qualified by the call
-  // path. The document control map is rebuilt by dslDocument and merged
+  // path. The document control map is rebuilt by dslDocument && merged
   // separately; materialized module owners use the explicit qualified IDs.
   for (const context of contextsByKey.values()) {
     const relevantScopeIds = new Set<string>([context.bodyScopeId]);

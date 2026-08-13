@@ -9,9 +9,10 @@ import { isElementDslStatement } from "./dslParser";
 import { splitDslList, unquoteDslString } from "./dslTokens";
 import { recordField, recordSpans } from "./dslParameterSpanScanner";
 import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
+import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
 import { analyzeElementLocalVariables, type ElementLocalVariableResolver } from "./moduleElementLocalVariableSemantic";
 import type { DslSpan, DslStatement } from "./dslTypes";
-import { getParameterDefinitions, type ParameterDefinition } from "../parameters/parameterDefinitions";
+import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ScalarType } from "../scalars/types";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
@@ -88,17 +89,9 @@ const isAllowedModuleBodyStatement = (statement: DslStatement): boolean => {
 const isDirectModuleChild = (statement: DslStatement, moduleIndex: number) =>
   statement.enclosing?.statementIndex === moduleIndex;
 
-const scalarTypeFromParameterDefinition = (definition: ParameterDefinition): ScalarType | null => {
-  if (definition.kind === "number") return { kind: "number" };
-  if (definition.kind === "boolean") return { kind: "boolean" };
-  if (definition.kind === "text") return { kind: "string" };
-  if (definition.kind === "choice") return { kind: "choice", options: definition.choiceOptions ?? [] };
-  return null;
-};
-
 const getParameterDefinitionsForType = (type: string) =>
   // The registry is the source of truth. This object is only a shape carrier;
-  // no ID, element, or runtime geometry is created by semantic analysis.
+  // no ID, element, || runtime geometry is created by semantic analysis.
   getParameterDefinitions({ type, intermediatePoints: [] } as never);
 
 const textParameterSemantic = (raw: string, span: DslSpan): ModuleScalarExpressionSemantic => ({
@@ -144,6 +137,20 @@ export const analyzeModuleBody = ({
   const localScalars: NonNullable<ModuleDefinitionSemantic["localScalars"]>[number][] = [];
   const bodyStatements: ModuleBodyStatementSemantic[] = [];
   const exports: ResolvedModuleExport[] = [];
+  const exportByName = new Map<string, ResolvedModuleExport>();
+
+  const registerExport = (entry: ResolvedModuleExport, span: DslSpan) => {
+    if (exportByName.has(entry.name)) {
+      addLocal(entry.exportedStatementIndex, {
+        code: "module-duplicate-export",
+        span,
+        message: `module export「${entry.name}」が重複しています。`
+      });
+      return;
+    }
+    exportByName.set(entry.name, entry);
+    exports.push(entry);
+  };
 
   const sourceTextFor = (statementIndex: number) => input.logicalTextByStatementIndex?.get(statementIndex) ?? "";
   const addScalar = (
@@ -288,6 +295,26 @@ export const analyzeModuleBody = ({
         : null;
       localScalars.push({ statementId, statementIndex, name: statement.name, type: statement.declaredType, bindingKind: statement.bindingKind, initializer });
       if (initializer && initializerSpan) bodySemantic.scalarExpressions = [{ parameterKey: null, span: initializerSpan, expression: initializer }];
+      if (statement.exported) {
+        if (!isDirectModuleChild(statement, definition.statementIndex) || !statement.name || !statement.declaredType) {
+          addLocal(statementIndex, {
+            code: "module-invalid-export",
+            span: statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan,
+            message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。"
+          });
+        } else if (statementId) {
+          registerExport({
+            kind: "scalar",
+            ownerModuleDefinitionStatementId: definition.statementId,
+            exportedStatementId: statementId,
+            exportedStatementIndex: statementIndex,
+            sourceOrder: statementIndex,
+            name: statement.name,
+            declaredType: statement.declaredType,
+            bindingKind: statement.bindingKind
+          }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
+        }
+      }
     } else if (statement.kind === "set") {
       const target = resolvePlainScalarTarget(statementIndex, definition.statementIndex, statement.name);
       const expressionSpan = statement.payloadSpans.expression ?? statement.keywordSpan;
@@ -316,17 +343,18 @@ export const analyzeModuleBody = ({
           addLocal(statementIndex, {
             code: "module-invalid-export",
             span: statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan,
-            message: "export は module 直下の名前付き geometry declaration にのみ指定できます。"
+            message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。"
           });
         } else if (statementId) {
-          exports.push({
+          registerExport({
+            kind: "geometry",
             ownerModuleDefinitionStatementId: definition.statementId,
             exportedStatementId: statementId,
             exportedStatementIndex: statementIndex,
             sourceOrder: statementIndex,
             name: statement.name,
             category
-          });
+          }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
         }
       }
       const spec = statement.kind === "group" ? constructionFor("group", "") : constructionFor(statement.category, statement.construction);
@@ -385,12 +413,12 @@ export const analyzeModuleBody = ({
           } else {
             const expectedType = statement.kind === "element" && statement.type === "conditionalGroup" && parameterKey === "condition"
               ? ({ kind: "boolean" } as const)
-              : scalarTypeFromParameterDefinition(parameter);
+              : scalarTypeForParameterDefinition(parameter);
             if (!expectedType) continue;
             const template = parameter.kind === "text" ? analyzeTextTemplate(statementIndex, bodySemantic, valueSpan, localResolver) : false;
             const expression = template
               ? null
-              : parameter.kind === "text" && !value.trim().startsWith("@")
+              : parameter.kind === "text" && !isScalarExpressionCandidateSource(value)
                 ? textParameterSemantic(value, valueSpan)
                 : analyzeExpression(
                   statementIndex,

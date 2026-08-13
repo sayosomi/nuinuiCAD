@@ -6,11 +6,11 @@ import { serializeDslNumericType } from "./dslNumericTypeOptions";
 // Canonical, statement-level serializer for the typed declaration statement.
 // Only the declaration's outer shape (keyword, spacing, name, type text) is
 // canonicalized here. The initializer is re-emitted byte-for-byte from its
-// raw source text: no re-quoting, re-escaping, or whitespace normalization
+// raw source text: no re-quoting, re-escaping, || whitespace normalization
 // is performed, because Task 10 never parses the initializer as an
 // expression (see docs/typed-variables/tasks/10-typed-declaration-syntax.md).
 //
-// This statement only exists in nui 3 - there is no v2 form - so no
+// This statement only exists in nui 4 - there is no v2 form - so no
 // majorVersion branching is needed here.
 
 const typeText = (type: ScalarType, numericTypeOptions?: Extract<DslStatement, { kind: "typedDeclaration" }>["numericTypeOptions"]): string => {
@@ -24,5 +24,6 @@ export const serializeTypedDeclaration = (
 ): string => {
   const declaredType = statement.declaredType;
   const type = declaredType ? typeText(declaredType, statement.numericTypeOptions) : "";
-  return `${statement.bindingKind} ${formatDslName(statement.name)}: ${type} = ${statement.initializer}`;
+  const exportPrefix = statement.exported ? "export " : "";
+  return `${exportPrefix}${statement.bindingKind} ${formatDslName(statement.name)}: ${type} = ${statement.initializer}`;
 };

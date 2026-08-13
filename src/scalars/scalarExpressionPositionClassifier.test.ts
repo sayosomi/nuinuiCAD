@@ -77,7 +77,7 @@ describe("expectedOperandType", () => {
     expect(expectedOperandType({ kind: "leftParen", span: { start: 0, end: 1 } }, { kind: "boolean" })).toEqual({ kind: "boolean" });
   });
 
-  it("&&, ||, ! require a boolean operand", () => {
+  it(" and ,  or , ! require a boolean operand", () => {
     for (const value of ["&&", "||", "!"] as const) {
       expect(expectedOperandType(opToken({ kind: "operator", value, span: { start: 0, end: 1 } }), { kind: "number" })).toEqual({ kind: "boolean" });
     }
@@ -176,7 +176,7 @@ describe("scalarExpressionCompletionContextAt", () => {
   });
 
   it("an earlier tokenizer error before the effective position yields no completion", () => {
-    // "&" alone is not a valid one-char operator in this grammar (only "&&" is), so
+    // "&" alone is not a valid one-char operator in this grammar (only " and " is), so
     // tokenizing up to the space before it fails.
     const text = "1 & true";
     const span = { start: 0, end: text.length };

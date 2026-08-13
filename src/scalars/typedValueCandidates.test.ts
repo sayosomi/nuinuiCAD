@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingCatalog } from "./bindingCatalog";
-import { isAssignableToPropertyCapability, isScalarTypeAssignable } from "./scalarAssignability";
+import { isScalarTypeAssignable } from "./scalarAssignability";
 import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnalysisFixture";
 import {
   resolvePrecedingOperandType,
@@ -44,7 +44,7 @@ describe("scalarOperatorCandidates", () => {
     expect(scalarOperatorCandidates({ kind: "number" }).map((c) => c.label)).toEqual(["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!="]);
   });
   it("boolean: logical + equality", () => {
-    expect(scalarOperatorCandidates({ kind: "boolean" }).map((c) => c.label)).toEqual(["&&", "||", "==", "!="]);
+    expect(scalarOperatorCandidates({ kind: "boolean" }).map((c) => c.label)).toEqual([" and ", " or ", "==", "!="]);
   });
   it("string/choice: equality only", () => {
     expect(scalarOperatorCandidates({ kind: "string" }).map((c) => c.label)).toEqual(["==", "!="]);
@@ -68,7 +68,7 @@ describe("scalarPrefixOperatorCandidates", () => {
 });
 
 describe("resolvePrecedingOperandType", () => {
-  const { catalog, entriesById } = compileFor(["nui 3", "const flag: boolean = true", "const n: number = 1"].join("\n"));
+  const { catalog, entriesById } = compileFor(["nui 4", "const flag: boolean = true", "const n: number = 1"].join("\n"));
   const site = { scopeId: catalog.scopeIndex.rootScopeId, statementIndex: bindingIdByName(catalog, "n").statementIndex };
 
   it("null preceding token -> null", () => {
@@ -103,7 +103,7 @@ describe("resolvePrecedingOperandType", () => {
 describe("resolvePrecedingOperandType: implicit-number binding and invalid exclusion", () => {
   it("forGroup iteration binding reference resolves to implicit number", () => {
     const { catalog, entriesById } = compileFor(
-      ["nui 3", "for Loop (i, from: 0, count: 2) {", "  const n: number = @i", "}"].join("\n")
+      ["nui 4", "for i in range(from: 0, count: 2) {", "  const n: number = @i", "}"].join("\n")
     );
     const n = bindingIdByName(catalog, "n");
     const site = { scopeId: n.effectiveScopeId, statementIndex: n.statementIndex };
@@ -112,7 +112,7 @@ describe("resolvePrecedingOperandType: implicit-number binding and invalid exclu
   });
 
   it("reference to a self-initializing (invalid) binding resolves to null", () => {
-    const { catalog, entriesById } = compileFor(["nui 3", "const a: number = @a", "const b: number = @a"].join("\n"));
+    const { catalog, entriesById } = compileFor(["nui 4", "const a: number = @a", "const b: number = @a"].join("\n"));
     const site = { scopeId: catalog.scopeIndex.rootScopeId, statementIndex: bindingIdByName(catalog, "b").statementIndex };
     const referenceToken = tokenizeScalarExpression("@a", { start: 0, end: 2 }).tokens[0];
     expect(resolvePrecedingOperandType({ precedingToken: referenceToken, catalog, entriesById, site, rootType: null })).toBeNull();
@@ -123,7 +123,7 @@ describe("typedBindingReferenceCandidates: pre-declaration visibility", () => {
   const accepts = () => true;
 
   it("excludes the binding's own not-yet-declared self", () => {
-    const { catalog, entriesById } = compileFor(["nui 3", "const a: number = 1"].join("\n"));
+    const { catalog, entriesById } = compileFor(["nui 4", "const a: number = 1"].join("\n"));
     const a = bindingIdByName(catalog, "a");
     const site = { scopeId: a.effectiveScopeId, statementIndex: a.statementIndex };
     const names = typedBindingReferenceCandidates({ catalog, entriesById, site, accepts }).map((c) => c.name);
@@ -131,7 +131,7 @@ describe("typedBindingReferenceCandidates: pre-declaration visibility", () => {
   });
 
   it("keeps an outer same-name binding visible even before its own inner declaration line", () => {
-    const source = ["nui 3", "const outer: number = 1", "group G {", "const inner: number = @outer", "}"].join("\n");
+    const source = ["nui 4", "const outer: number = 1", "group G {", "const inner: number = @outer", "}"].join("\n");
     const { catalog, entriesById } = compileFor(source);
     const inner = bindingIdByName(catalog, "inner");
     const site = { scopeId: inner.effectiveScopeId, statementIndex: inner.statementIndex };
@@ -140,7 +140,7 @@ describe("typedBindingReferenceCandidates: pre-declaration visibility", () => {
   });
 
   it("excludes a same-scope forward declaration", () => {
-    const source = ["nui 3", "group G {", "const b: number = 1", "const c: number = 1", "}"].join("\n");
+    const source = ["nui 4", "group G {", "const b: number = 1", "const c: number = 1", "}"].join("\n");
     const { catalog, entriesById } = compileFor(source);
     const b = bindingIdByName(catalog, "b");
     const site = { scopeId: b.effectiveScopeId, statementIndex: b.statementIndex };
@@ -149,7 +149,7 @@ describe("typedBindingReferenceCandidates: pre-declaration visibility", () => {
   });
 
   it("excludes an ambiguous same-scope duplicate name entirely", () => {
-    const source = ["nui 3", "const x: number = 1", "const x: number = 2", "const y: number = 1"].join("\n");
+    const source = ["nui 4", "const x: number = 1", "const x: number = 2", "const y: number = 1"].join("\n");
     const { catalog, entriesById } = compileFor(source);
     const y = bindingIdByName(catalog, "y");
     const site = { scopeId: y.effectiveScopeId, statementIndex: y.statementIndex };
@@ -158,7 +158,7 @@ describe("typedBindingReferenceCandidates: pre-declaration visibility", () => {
   });
 
   it("excludes an invalid (self-initializing) binding even though it is structurally visible", () => {
-    const source = ["nui 3", "const a: number = @a", "const b: number = 1"].join("\n");
+    const source = ["nui 4", "const a: number = @a", "const b: number = 1"].join("\n");
     const { catalog, entriesById } = compileFor(source);
     const b = bindingIdByName(catalog, "b");
     const site = { scopeId: b.effectiveScopeId, statementIndex: b.statementIndex };
@@ -169,7 +169,7 @@ describe("typedBindingReferenceCandidates: pre-declaration visibility", () => {
 
 describe("typedBindingReferenceCandidates: type filtering", () => {
   it("exact-type accepts only same-kind bindings", () => {
-    const source = ["nui 3", "const flag: boolean = true", "const label: string = \"x\"", "const n: number = 1"].join("\n");
+    const source = ["nui 4", "const flag: boolean = true", "const label: string = \"x\"", "const n: number = 1"].join("\n");
     const { catalog, entriesById } = compileFor(source);
     const n = bindingIdByName(catalog, "n");
     const site = { scopeId: n.effectiveScopeId, statementIndex: n.statementIndex };
@@ -182,23 +182,22 @@ describe("typedBindingReferenceCandidates: type filtering", () => {
     expect(names).toEqual(["flag"]);
   });
 
-  it("choice subset accepts a narrower-declared choice binding", () => {
-    const source = ["nui 3", "const side: choice(right) = right", "const n: number = 1"].join("\n");
+  it("requires exact choice schema equality for a property binding", () => {
+    const source = ["nui 4", "const side: choice(right) = right", "const n: number = 1"].join("\n");
     const { catalog, entriesById } = compileFor(source);
     const n = bindingIdByName(catalog, "n");
     const site = { scopeId: n.effectiveScopeId, statementIndex: n.statementIndex };
-    const capability = { propertyType: { kind: "choice" as const, options: ["right", "left"] } };
     const names = typedBindingReferenceCandidates({
       catalog,
       entriesById,
       site,
-      accepts: (type) => type !== null && isAssignableToPropertyCapability(type, capability)
+      accepts: (type) => type !== null && isScalarTypeAssignable(type, { kind: "choice", options: ["right", "left"] })
     }).map((c) => c.name);
-    expect(names).toEqual(["side"]);
+    expect(names).toEqual([]);
   });
 
   it("exact-type equality rejects a choice binding whose options differ (even as a subset target)", () => {
-    const source = ["nui 3", "const side: choice(right, left, center) = right", "const n: number = 1"].join("\n");
+    const source = ["nui 4", "const side: choice(right, left, center) = right", "const n: number = 1"].join("\n");
     const { catalog, entriesById } = compileFor(source);
     const n = bindingIdByName(catalog, "n");
     const site = { scopeId: n.effectiveScopeId, statementIndex: n.statementIndex };
@@ -218,7 +217,7 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
   // text - exactly like the real dirty-buffer flow, where the precomputed
   // catalog (Tier B) can lag behind whatever the user is currently typing
   // (Tier A).
-  const { catalog, entriesById } = compileFor(["nui 3", "const flagA: boolean = true", "const numA: number = 1", "const target: boolean = true"].join("\n"));
+  const { catalog, entriesById } = compileFor(["nui 4", "const flagA: boolean = true", "const numA: number = 1", "const target: boolean = true"].join("\n"));
   const target = bindingIdByName(catalog, "target");
   const site = { scopeId: target.effectiveScopeId, statementIndex: target.statementIndex };
 
@@ -251,8 +250,8 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
     expect(context.kind).toBe("operator");
     const candidates = scalarExpressionCandidates(context, { catalog, entriesById, site, includeOperators: true });
     expect(candidates).toEqual([
-      { kind: "operator", label: "&&" },
-      { kind: "operator", label: "||" },
+      { kind: "operator", label: " and " },
+      { kind: "operator", label: " or " },
       { kind: "operator", label: "==" },
       { kind: "operator", label: "!=" }
     ]);
@@ -273,7 +272,7 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
 
 describe("templateHoleScalarCandidates: string/number union, boolean/choice excluded", () => {
   const source = [
-    "nui 3",
+    "nui 4",
     "const label: string = \"x\"",
     "const count: number = 1",
     "const flag: boolean = true",

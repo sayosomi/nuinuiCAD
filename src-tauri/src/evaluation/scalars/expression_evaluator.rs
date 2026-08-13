@@ -40,10 +40,9 @@ use super::types::{
 /// Resolves a runtime value for an already-resolved binding ID. Mirrors TS's
 /// `ScalarEvaluationEnvironment.lookupBinding` - called at most once per
 /// reference node actually reached during evaluation, never for a
-/// `bindingId` inside a short-circuited `&&`/`||` branch. No numeric-geometry
-/// hook exists here: the typed-expression grammar has no call-node syntax to
-/// reach geometry functions, so adding an inert
-/// method here would be speculative surface with no product need yet.
+/// bindingId inside a short-circuited &&/|| branch. Geometry-property reads
+/// use the same environment so callers can provide already-resolved,
+/// already-computed geometry without re-parsing or re-resolving source.
 pub(crate) trait ScalarEvaluationEnvironment {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation;
     fn lookup_geometry_property(

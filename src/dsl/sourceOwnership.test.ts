@@ -19,16 +19,16 @@ const compileWithStableIds = (source: string) => {
 
 describe("source ownership", () => {
   const source = [
-    "nui 3",
+    "nui 4",
     "point Outside = coordinate(x: 0, y: 0)",
     "module Inner() {",
     "  point InnerPoint = coordinate(x: 1, y: 2)",
     "}",
     "module Outer() {",
-    "  module Nested = Inner()",
+    "  instance Nested = Inner()",
     "}",
-    "module First = Outer()",
-    "module Second = Outer()"
+    "instance First = Outer()",
+    "instance Second = Outer()"
   ].join("\n");
 
   it("resolves ordinary elements through StatementMap.byElementId", () => {

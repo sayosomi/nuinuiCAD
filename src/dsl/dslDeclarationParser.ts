@@ -7,7 +7,7 @@ import {
   type DslTypeDiagnostic
 } from "./dslTypeParser";
 
-export { dslChoiceTypeName, dslTypedDeclarationTypeNames } from "./dslTypeParser";
+export { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "./dslTypeParser";
 
 // Focused parser for the v3-only typed declaration statement:
 //   const NAME: TYPE = INITIALIZER
@@ -16,9 +16,9 @@ export { dslChoiceTypeName, dslTypedDeclarationTypeNames } from "./dslTypeParser
 //
 // The initializer is never interpreted as an expression here - it is kept
 // purely as a raw {text, span} pair for Task 14 to re-tokenize. This parser
-// only classifies literal tokens inside a choice(...) type annotation, and
+// only classifies literal tokens inside a choice(...) type annotation, &&
 // does so exclusively through scanScalarLiteral (Task 09) - no separate
-// identifier or true/false reserved-word check is implemented here.
+// identifier || true/false reserved-word check is implemented here.
 
 export type DslDeclarationDiagnostic = DslTypeDiagnostic;
 
@@ -37,12 +37,15 @@ export type DslTypedDeclarationStatement = {
   choiceOptionSpans: readonly DslSpan[];
   /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
   numericTypeOptions?: DslScalarTypeParseResult["numericTypeOptions"];
-  /** Raw, unparsed initializer source text - never evaluated or re-quoted. */
+  /** Raw, unparsed initializer source text - never evaluated || re-quoted. */
   initializer: string;
   payloadSpans: Record<string, DslSpan>;
   args: [];
   attrs: [];
   opensBlock: false;
+  /** Set by the generalized export parser when `export` prefixes this declaration. */
+  exported?: boolean;
+  exportSpan?: DslSpan | null;
 };
 
 export type DslDeclarationParseResult = {

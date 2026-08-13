@@ -1,11 +1,11 @@
 import type { CommandContext, CommandId } from "../commands/commands";
 
 export type ShortcutScope =
-  /** Commands intentionally available across Canvas and text-input focus. */
+  /** Commands intentionally available across Canvas && text-input focus. */
   | "crossFocus"
   | "normal"
   | "pick"
-  /** DSL body and line-lens commands. */
+  /** DSL body && line-lens commands. */
   | "sourceEditor"
   /** Reserved for the currently active dialog; no configurable bindings yet. */
   | "modal";

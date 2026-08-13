@@ -74,7 +74,7 @@ describe("parseScalarExpression / literal nodes", () => {
   });
 });
 
-describe("parseScalarExpression / @name reference", () => {
+describe("parseScalarExpression / @qualifiedName reference", () => {
   it("parses a single ASCII reference with an exact nameSpan excluding the sigil", () => {
     expect(parseOk("@width")).toEqual({
       kind: "reference",
@@ -90,6 +90,15 @@ describe("parseScalarExpression / @name reference", () => {
       span: { start: 0, end: 4 },
       nameSpan: { start: 1, end: 4 },
       name: "ラベル"
+    });
+  });
+
+  it.each(["@foo::実高さ", '@"foo bar"::実高さ'])("parses a qualified reference path without resolving its namespace", (source) => {
+    expect(parseOk(source)).toEqual({
+      kind: "reference",
+      span: { start: 0, end: source.length },
+      nameSpan: { start: 1, end: source.length },
+      name: source.slice(1)
     });
   });
 });
@@ -159,8 +168,8 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
-  it("binds equality tighter than &&", () => {
-    const ast = parseOk("1 == 1 && true");
+  it("binds equality tighter than  and ", () => {
+    const ast = parseOk("1 == 1  and  true");
     expect(ast).toMatchObject({
       kind: "binary",
       operator: "&&",
@@ -169,8 +178,8 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
-  it("binds && tighter than ||", () => {
-    const ast = parseOk("true || false && false");
+  it("binds  and  tighter than  or ", () => {
+    const ast = parseOk("true  or  false  and  false");
     expect(ast).toMatchObject({
       kind: "binary",
       operator: "||",
@@ -187,6 +196,34 @@ describe("parseScalarExpression / precedence and associativity", () => {
       left: { kind: "unary", operator: "!", operand: { value: true } },
       right: { kind: "booleanLiteral", value: false }
     });
+  });
+
+  it("accepts nui4 word operators while retaining the internal operator representation", () => {
+    const ast = parseOk("@a or @b and not @c");
+    expect(ast).toMatchObject({
+      kind: "binary",
+      operator: "||",
+      right: {
+        kind: "binary",
+        operator: "&&",
+        right: { kind: "unary", operator: "!", operand: { kind: "reference", name: "c" } }
+      }
+    });
+    expect(parseOk("(@a and @b) or @c")).toMatchObject({
+      kind: "binary",
+      operator: "||",
+      left: { kind: "group", expression: { kind: "binary", operator: "&&" } }
+    });
+  });
+
+  it("does not split Unicode choice literals that contain a word-operator spelling", () => {
+    for (const source of ["and縫う", "縫うand", "not幅"]) {
+      expect(parseOk(source)).toEqual({
+        kind: "unresolvedChoiceLiteral",
+        raw: source,
+        span: { start: 0, end: source.length }
+      });
+    }
   });
 
   it("left-associates a chain of + and -", () => {
@@ -209,8 +246,8 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
-  it("left-associates a chain of &&", () => {
-    const ast = parseOk("true && true && true");
+  it("left-associates a chain of  and ", () => {
+    const ast = parseOk("true  and  true  and  true");
     expect(ast).toMatchObject({
       kind: "binary",
       operator: "&&",
@@ -218,8 +255,8 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
-  it("left-associates a chain of ||", () => {
-    const ast = parseOk("false || false || true");
+  it("left-associates a chain of  or ", () => {
+    const ast = parseOk("false  or  false  or  true");
     expect(ast).toMatchObject({
       kind: "binary",
       operator: "||",
@@ -277,7 +314,7 @@ describe("parseScalarExpression / error scenarios", () => {
 
   it("reports a missing left operand", () => {
     expect(parseErr("* 2").code).toBe("missing-operand");
-    expect(parseErr("&& true").code).toBe("missing-operand");
+    expect(parseErr(" and  true").code).toBe("missing-operand");
   });
 
   it("reports a missing right operand", () => {
@@ -336,7 +373,7 @@ describe("parseScalarExpression / exact spans", () => {
 });
 
 describe("parseScalarExpression / JSON round-trip", () => {
-  const sources = ['1 + 2 * 3 == 4 && !@flag || (5 - 1)', '"hi" ', "right", "@名前_1"];
+  const sources = ['1 + 2 * 3 == 4  and  not @flag  or  (5 - 1)', '"hi" ', "right", "@名前_1"];
 
   it.each(sources)("round-trips %j through JSON.stringify/JSON.parse", (source) => {
     const ast = parseOk(source);

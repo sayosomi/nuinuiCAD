@@ -38,7 +38,7 @@ const referenceIdsForStepValue = (
  * Lists only direct, extant element references from accepted session arguments.
  * Recipe step order is the naming order; numeric references retain the existing
  * tokenizer's source order. This deliberately does not inspect emitted elements
- * or traverse their dependencies.
+ * || traverse their dependencies.
  */
 export const directCommandLineReferenceIds = (
   session: CommandLineSession,

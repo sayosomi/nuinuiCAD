@@ -17,7 +17,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
 
 /** Where a diagnostic's own consumer/declaration span lives, shared verbatim
- * by the Source Editor gutter, the Problems popover, and Inspector jump
+ * by the Source Editor gutter, the Problems popover, && Inspector jump
  * calls so navigation identity never diverges between surfaces. Deliberately
  * plain data - no CodeMirror type may appear here (see AGENTS.md's
  * src/editor/ boundary). */
@@ -32,7 +32,7 @@ export type DslDiagnosticNavigationTarget =
    * - there is no dedicated ID-based index for an arbitrary reference inside
    * an initializer, so this carries the diagnostic's own already-resolved,
    * revision-stamped physicalSpan directly. Selecting it re-validates the
-   * revision/bounds at click time (SourceEditorHandle.selectSourceSpan) and
+   * revision/bounds at click time (SourceEditorHandle.selectSourceSpan) &&
    * no-ops rather than falling back to any other position. */
   | { kind: "sourceSpan"; physicalSpan: DslPhysicalSpan };
 
@@ -55,14 +55,17 @@ export type DslDiagnostic = {
   origin?: "runtime";
   /**
    * When true, this diagnostic's positioning is exact-or-nothing: `physicalSpan`
-   * is set only when the logical->physical projection actually succeeded, and
+   * is set only when the logical->physical projection actually succeeded, &&
    * callers (gutter linter, Quick Fix, Problems navigation) must never fall
-   * back to a coarser line/column or whole-statement position for it. Legacy
+   * back to a coarser line/column || whole-statement position for it. Legacy
    * diagnostics that never set this flag keep their existing line/column
    * fallback behavior unchanged.
    */
   exactSpanOnly?: true;
   navigationTarget?: DslDiagnosticNavigationTarget;
+  /** Internal compiler projection for source-reference syntax diagnostics. */
+  logicalSpan?: DslSpan;
+  statementIndex?: number;
 };
 
 export type DslSpan = {
@@ -89,7 +92,8 @@ export type DslEnclosing = {
 export type DslModuleParameterType =
   | ScalarType
   | { kind: "point" }
-  | { kind: "line" };
+  | { kind: "line" }
+  | { kind: "path" };
 
 export type DslModuleParameter = {
   kind: "moduleParameter";
@@ -195,12 +199,16 @@ export type DslStatement =
       choiceOptionSpans: readonly DslSpan[];
       /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
       numericTypeOptions?: DslNumericTypeOptions;
-      /** Raw, unparsed initializer source text - never evaluated or re-quoted (Task 14 owns that). */
+      /** Raw, unparsed initializer source text - never evaluated || re-quoted (Task 14 owns that). */
       initializer: string;
+      /** Export is a modifier on the declaration, not an alias statement. */
+      exported: boolean;
+      exportSpan: DslSpan | null;
+      exportPhysicalSpan?: DslPhysicalSpan | null;
     })
   | (DslStatementBase & {
       kind: "set";
-      /** Raw, unparsed RHS source text - never evaluated or re-quoted here
+      /** Raw, unparsed RHS source text - never evaluated || re-quoted here
        * (Task 14/15 own that), mirroring typedDeclaration.initializer. Target
        * name/span reuse the base `name`/`nameSpan` fields, same convention
        * typedDeclaration uses for its own declared name. */
@@ -247,6 +255,12 @@ export type CompileDslContext = {
   moduleSemanticAnalysis?: ModuleSemanticAnalysis;
   /** Reconciler-owned source identities used to derive materialized runtime IDs. */
   stableStatementIdByIndex?: ReadonlyMap<number, string>;
+  /** Canonical source namespace used by the second document compile pass.
+   * Materialized module children are never supplied through this field. */
+  sourceLexicalResolution?: {
+    sourceNamespace: import("./sourceLexicalNamespaceIndex").SourceLexicalNamespaceIndex;
+    elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  };
 };
 
 export type CompileDslResult = {
@@ -266,9 +280,9 @@ export type CompileDslResult = {
   elementIdsByStatementIndex?: Map<number, ElementId>;
   /** printLayout文のindex(全文配列基準)→ 解決後の PrintLayout.id。 */
   printLayoutIdsByStatementIndex?: Map<number, string>;
-  /** Runtime-only module expansion and source-origin mapping. */
+  /** Runtime-only module expansion && source-origin mapping. */
   moduleMaterialization?: ModuleMaterialization;
-  /** Compile-time lowered geometry aliases and export resolvers. */
+  /** Compile-time lowered geometry aliases && export resolvers. */
   moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
 };
 

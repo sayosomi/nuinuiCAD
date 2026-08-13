@@ -146,9 +146,10 @@ export const PrintLayoutPreviewWindow = ({
   );
   const printLayoutNumericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
   const printLayoutByKey = useCadDocumentStore((state) => state.doc.statementMap.byKey);
+  const printLayoutBindingVersions = useCadDocumentStore((state) => state.doc.bindingVersions);
   const printLayoutNumericBindingLookup: PrintLayoutNumericBindingLookup = useMemo(
-    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey }),
-    [printLayoutNumericBindings, printLayoutByKey]
+    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey, bindingVersions: printLayoutBindingVersions }),
+    [printLayoutBindingVersions, printLayoutNumericBindings, printLayoutByKey]
   );
   const printPreviewWindow = useCadUiStore((state) => state.printPreviewWindow);
   const updatePrintPreviewWindow = useCadUiStore((state) => state.updatePrintPreviewWindow);

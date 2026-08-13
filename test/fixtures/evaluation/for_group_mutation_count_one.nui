@@ -1,6 +1,6 @@
-nui 3
+nui 4
 let total: number = 0
-for Loop (i, from: 0, count: 1, step: 1) {
+for i in range(from: 0, count: 1, step: 1) {
   set total = @total + 1
   point P = coordinate(x: @total, y: 0)
 }

@@ -28,9 +28,9 @@ const resetStore = () => {
 // ShortcutSettingsDialog defers its initial search-field focus to a real
 // requestAnimationFrame (which itself schedules a second, nested frame via
 // selectTextInputValue). trackAnimationFrames wraps the real rAF - it never
-// runs a callback early or synchronously - so it can count every frame that
+// runs a callback early || synchronously - so it can count every frame that
 // gets scheduled, including ones registered from inside another frame's own
-// callback, and flush() only resolves once all of them have actually fired.
+// callback, && flush() only resolves once all of them have actually fired.
 const trackAnimationFrames = () => {
   let pendingFrames = 0;
   const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);

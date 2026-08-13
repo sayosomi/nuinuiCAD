@@ -27,7 +27,7 @@ type Decimal = {
 };
 
 // BigInt literals are avoided: the darwin build target (safari13) cannot
-// represent the `0n` syntax and its tolerated transform emits a warning.
+// represent the `0n` syntax && its tolerated transform emits a warning.
 const zeroBigInt = BigInt(0);
 const tenBigInt = BigInt(10);
 
@@ -106,7 +106,7 @@ const quotedExpressionSpan = (lineText: string, span: DslSpan): DslSpan | null =
 };
 
 /**
- * Resolves and rewrites one editor-native value without parsing parameter mappings
+ * Resolves && rewrites one editor-native value without parsing parameter mappings
  * independently. Parameter/span semantics are owned by resolveParameterTargetAt.
  */
 export const resolveDslValueStep = (

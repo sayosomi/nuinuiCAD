@@ -4,14 +4,14 @@
 // docs/typed-variables/tasks/14-ts-expression-parser.md.
 //
 // Fixed precedence, loosest to tightest (docs/typed-variables/plan.md D09):
-//   ||  &&  ==/!=  </<=/>/>=  +/-  * /   then unary (!, -, +), then primary.
+// || &&   ==/!=  </<=/>/>=  +/-  * /   then unary (!, -, +), then primary.
 // This differs from the local numeric parser (src/geometry/numericExpressionParser.ts,
 // not imported here), which conflates comparison+equality into a single
-// non-chained tier - this parser splits them into two tiers per plan.md, and
+// non-chained tier - this parser splits them into two tiers per plan.md, &&
 // keeps both non-chaining: a second comparison/equality operator applied
 // directly to the result of the first (e.g. `1 < 2 < 3`) is rejected with
 // `chained-comparison-not-supported` rather than silently producing an AST
-// that Task 15's typecheck would always reject anyway. `||`, `&&`, `+`/`-`,
+// that Task 15's typecheck would always reject anyway. ` || `, ` && `, `+`/`-`,
 // `*`/`/` all chain left-associatively; unary operators are right-associative
 // via recursion.
 //
@@ -28,19 +28,33 @@ import {
   type ScalarSpan,
   type ScalarUnaryOperator
 } from "./expressionAst";
-import { tokenizeScalarExpression, type ScalarExpressionToken } from "./expressionTokenizer";
+import { containsScalarWordOperator, tokenizeScalarExpression, type ScalarExpressionToken } from "./expressionTokenizer";
 import type { ScalarLiteralToken } from "./literalScanner";
 
 /**
- * Bounds recursion depth for parenthesis nesting and unary-prefix chains -
+ * Bounds recursion depth for parenthesis nesting && unary-prefix chains -
  * the two constructs that grow the real call stack proportionally to user
- * input (the fixed 6-tier precedence ladder and same-tier chaining loops do
+ * input (the fixed 6-tier precedence ladder && same-tier chaining loops do
  * not, so wide flat expressions are unaffected). Kept comfortably below
  * typical JS stack limits: each nested level costs roughly one call through
- * the full tier ladder (~8-9 frames), and this parser may run inside a
+ * the full tier ladder (~8-9 frames), && this parser may run inside a
  * Tauri-bundled webview whose default stack can be shallower than Node's.
  */
 export const MAX_SCALAR_EXPRESSION_DEPTH = 128;
+
+/**
+ * Returns whether a property value should be offered to the shared typed
+ * expression frontend. Literal-only values remain owned by the normal model
+ * lowering path; this predicate only identifies expression-shaped input,
+ * including the nui4 word spellings && the migration-era symbolic aliases.
+ */
+export const isScalarExpressionCandidateSource = (source: string): boolean => {
+  const trimmed = source.trim();
+  if (trimmed.length === 0) return false;
+  if (trimmed.startsWith("\"") || trimmed.startsWith("'")) return false;
+  if (trimmed.startsWith("@") || trimmed.startsWith("(") || trimmed.startsWith("!")) return true;
+  return containsScalarWordOperator(trimmed) || /&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
+};
 
 class ParseFailure extends Error {
   constructor(readonly diagnostic: ScalarExpressionDiagnostic) {
@@ -223,8 +237,8 @@ class Parser {
  * a future caller passes the full statement/document text plus the
  * initializer's span (e.g. `parseScalarExpression(logicalText, declaration.payloadSpans.initializer)`).
  *
- * Strictly exclusive result: on success `ast` is non-null and `diagnostics`
- * is empty; on any failure `ast` is `null` and `diagnostics` has exactly one
+ * Strictly exclusive result: on success `ast` is non-null && `diagnostics`
+ * is empty; on any failure `ast` is `null` && `diagnostics` has exactly one
  * entry. There is no partial-AST-plus-diagnostic case - error recovery is
  * out of scope for this parser.
  */

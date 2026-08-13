@@ -59,12 +59,12 @@ const scalarProgram: ScalarProgram = {
 };
 
 const copySource = (angleDeg: string) => [
-  "nui 3",
+  "nui 4",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
-  "line AB = segment(start: A, end: B)",
-  "for Loop (i, from: 0, count: 2, step: 1, showGenerated: true) {",
-  `  line Copy = copy(startPoint: A, endPoint: B, scale: 1, angleDeg: ${angleDeg}, mirrorX: false, baseLines: [AB])`,
+  "line AB = segment(start: @A, end: @B)",
+  "for i in range(from: 0, count: 2, step: 1, showGenerated: true) {",
+  `  line Copy = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: ${angleDeg}, mirrorX: false, baseLines: [@AB])`,
   "}"
 ].join("\n");
 
@@ -100,7 +100,7 @@ describe("useEvaluationEngine", () => {
     setTauriRuntime();
     vi.stubEnv("VITE_EVALUATION_ENGINE", "parity");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const valid = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), copySource("90"));
+    const valid = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), copySource("90"));
     const incomplete = compileCanonicalText(valid, copySource("90 +"));
     const completed = compileCanonicalText(incomplete, copySource("90 + 10"));
     expect(valid.status).toBe("valid");
@@ -177,10 +177,10 @@ describe("useEvaluationEngine", () => {
   it("adopts the Rust result for a canonical forGroup mutation graph", async () => {
     setTauriRuntime();
     vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), [
-      "nui 3",
+    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), [
+      "nui 4",
       "let total: number = 0",
-      "for Loop (i, from: 0, count: 2, step: 1) {",
+      "for i in range(from: 0, count: 2, step: 1) {",
       "  set total = @total + 1",
       "  point P = coordinate(x: @total, y: 0)",
       "}"
@@ -221,17 +221,17 @@ describe("useEvaluationEngine", () => {
   it("adopts Rust for canonical nested conditional and forGroup mutation", async () => {
     setTauriRuntime();
     vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), [
-      "nui 3",
+    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), [
+      "nui 4",
       "let total: number = 0",
-      "for Outer (i, from: 0, count: 2, step: 1) {",
-      "  if Branch (@total == 0) {",
+      "for i in range(from: 0, count: 2, step: 1) {",
+      "  if (@total == 0) {",
       "    let scratch: number = 1",
       "    set total = @total + @scratch",
       "  } else {",
       "    set total = @total + 10",
       "  }",
-      "  for Inner (j, from: 0, count: 2, step: 1) {",
+      "  for j in range(from: 0, count: 2, step: 1) {",
       "    set total = @total + 1",
       "    point P = coordinate(x: 0, y: 0)",
       "  }",

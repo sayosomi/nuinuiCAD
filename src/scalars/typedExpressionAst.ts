@@ -31,9 +31,9 @@ export interface TypedScalarBooleanLiteralNode {
 }
 
 /**
- * Always produced for a source `unresolvedChoiceLiteral`, whether or not it
+ * Always produced for a source `unresolvedChoiceLiteral`, whether || not it
  * resolved. `value` preserves the raw token either way; `type` is non-null
- * only when it resolved against an expected choice type and is a member of
+ * only when it resolved against an expected choice type && is a member of
  * it (D07). No separate failure-case node kind - downstream consumers check
  * `type !== null` uniformly, exactly like every other node.
  */
@@ -59,6 +59,18 @@ export interface TypedScalarReferenceNode {
   readonly bindingId: BindingId | null;
   readonly type: ScalarType | null;
 }
+
+/**
+ * A resolved type supplied by a closed frontend such as Module semantics.
+ * The frontend owns the target identity && may lower it to a real
+ * `BindingId` later; the common checker only needs the already-resolved type
+ * && must not perform another name lookup.
+ */
+export type ScalarExpressionResolvedReference = {
+  readonly kind: "resolvedType";
+  readonly bindingId: BindingId | null;
+  readonly type: ScalarType | null;
+};
 
 /** Resolved at compile time. `elementId` is never re-resolved by a runtime. */
 export interface TypedScalarGeometryPropertyReferenceNode {
@@ -122,7 +134,7 @@ export interface ScalarExpressionTypecheckDiagnostic {
 /**
  * `expectedType`: the declaration's declared type (or the target type of
  * whatever other context is checking this expression - a condition, a
- * future `set` RHS - or null for no target). `references`: one
+ * future `set` RHS - || null for no target). `references`: one
  * `BindingResolution` per `reference` AST node, in the same left-to-right
  * source order the parser built the tree in (matching Task 12/13's
  * occurrenceIndex convention). The caller assembles this array; Task 15
@@ -130,7 +142,14 @@ export interface ScalarExpressionTypecheckDiagnostic {
  */
 export interface ScalarExpressionTypecheckContext {
   readonly expectedType: ScalarType | null;
-  readonly references: readonly BindingResolution[];
+  readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
+  /** Optional closed-frontend hook for bare choice tokens that are actually
+   * local semantic values (for example a legacy Module iteration value). */
+  readonly resolveChoiceLiteral?: (
+    raw: string,
+    expectedType: ScalarType | null,
+    span: ScalarSpan
+  ) => ScalarType | null | undefined;
 }
 
 /**
@@ -138,7 +157,7 @@ export interface ScalarExpressionTypecheckContext {
  * - `type !== null` implies `diagnostics.length === 0`.
  * - `diagnostics.length > 0` implies `type === null`.
  * - `type === null && diagnostics.length === 0` is allowed: silent
- *   propagation from a reference Task 12 left unresolved, or a resolved
+ *   propagation from a reference Task 12 left unresolved, || a resolved
  *   `typed` binding with a null `declaredType` - Task 15 adds no diagnostic
  *   of its own for either case (that surface belongs to Task 13 / Task 10
  *   respectively), but must not report a type either.

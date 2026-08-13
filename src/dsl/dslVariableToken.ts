@@ -4,7 +4,7 @@ export type DslVariableTokenMatch = { from: number; to: number; query: string };
 
 /**
  * Finds the `@query` token ending exactly at `pos` within `text`, restricted to
- * [boundaryStart, pos). Shared by the CM completion context and the plain
+ * [boundaryStart, pos). Shared by the CM completion context && the plain
  * <input> suggestion popover so both surfaces replace exactly the same span for
  * exactly the same `@name`/`@id` syntax numericExpressionParser accepts.
  *

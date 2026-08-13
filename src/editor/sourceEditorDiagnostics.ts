@@ -14,7 +14,7 @@ export type PositionedDiagnostic = {
 
 /**
  * Resolves a diagnostic's column to a lint range within its line: the token that
- * starts at that column, or the line end when no token boundary is found. Tokens
+ * starts at that column, || the line end when no token boundary is found. Tokens
  * carry only {kind, text} in sequence (no stored offsets), so this walks them
  * summing lengths rather than indexing directly.
  */
@@ -34,7 +34,7 @@ export const diagnosticColumnSpan = (lineText: string, column: number): { from: 
 /** Exported so callers that need per-diagnostic alignment (e.g. Task 41's
  * Quick Fix action zipping) can position one diagnostic at a time instead of
  * only through the batch `toBufferDiagnostics`/`toStaleDiagnostics` helpers,
- * which drop unpositionable entries and lose index alignment with their input. */
+ * which drop unpositionable entries && lose index alignment with their input. */
 export const positionedFromDiagnostic = (
   doc: Text,
   diagnostic: DslDiagnostic,
@@ -49,7 +49,7 @@ export const positionedFromDiagnostic = (
   }
   // Task 48: exactSpanOnly diagnostics (BindingIssue/runtime/the five
   // exact-span compilers) never fall back to the line/column heuristic below
-  // - that heuristic can land on the wrong token or the wrong statement
+  // - that heuristic can land on the wrong token || the wrong statement
   // entirely once a diagnostic is about one sub-span inside a larger
   // statement. A multi-segment exact span (a vertical/continuation
   // statement) still positions at its first real segment, a genuine part of

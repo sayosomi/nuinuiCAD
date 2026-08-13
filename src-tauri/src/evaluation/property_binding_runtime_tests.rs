@@ -80,6 +80,27 @@ fn line(id: &str, start: &str, end: &str) -> Value {
     })
 }
 
+fn geometry_length_positive_expression(element_id: &str, target_source_order: usize) -> Value {
+    json!({
+        "kind": "binary",
+        "span": {"start": 0, "end": 16},
+        "operator": ">",
+        "left": {
+            "kind": "geometryProperty",
+            "span": {"start": 0, "end": 11},
+            "elementNameSpan": {"start": 1, "end": 3},
+            "propertySpan": {"start": 4, "end": 10},
+            "elementName": "ab",
+            "elementId": element_id,
+            "property": "length",
+            "targetSourceOrder": target_source_order,
+            "type": {"kind": "number"}
+        },
+        "right": {"kind": "numberLiteral", "span": {"start": 14, "end": 15}, "value": 0, "type": {"kind": "number"}},
+        "type": {"kind": "boolean"}
+    })
+}
+
 fn offset_line(id: &str, base_line_id: &str, side: &str) -> Value {
     json!({
         "id": id, "name": id, "type": "offsetLine", "activity": "visible",
@@ -95,6 +116,28 @@ fn geometry<'a>(result: &'a EvaluationPayload, id: &str) -> Option<&'a Value> {
 }
 
 const CHOICE_RIGHT_LEFT: [&str; 2] = ["right", "left"];
+
+#[test]
+fn evaluates_a_resolved_geometry_property_expression_on_a_common_property() {
+    let result = evaluate_document_input(input(
+        vec![
+            point("a", 0.0, 0.0),
+            point("b", 10.0, 0.0),
+            line("ab", "a", "b"),
+            offset_line("off", "ab", "right"),
+        ],
+        Some(program(vec![])),
+        Some(json!([{
+            "elementId": "off",
+            "parameterKey": "closed",
+            "expression": geometry_length_positive_expression("ab", 2),
+            "expectedType": {"kind": "boolean"}
+        }])),
+    ));
+
+    assert!(result.errors.is_empty());
+    assert!(geometry(&result, "off").is_some());
+}
 
 #[test]
 fn offset_line_side_bound_to_a_choice_binding_flips_the_offset_direction() {
@@ -180,8 +223,8 @@ fn fails_closed_when_the_bound_binding_is_poisoned() {
 
 #[test]
 fn fails_closed_on_a_runtime_type_mismatch_even_though_the_payloads_own_expected_type_was_valid() {
-    // The payload's expectedType (boolean, for offsetLine.closed) is itself
-    // valid per the canonical registry - but the binding it points to is
+    // The payload's expectedType (boolean, for offsetLine.closed) is supplied
+    // by the compiled frontend - but the binding it points to is
     // declared (and evaluates as) a *choice*, not boolean. Rust must catch
     // this live, not just trust that TS always pairs bindings/properties
     // consistently.
@@ -218,8 +261,8 @@ fn fails_closed_on_a_runtime_type_mismatch_even_though_the_payloads_own_expected
 #[test]
 fn fails_closed_when_the_resolved_choice_value_is_not_one_of_the_propertys_own_options() {
     // Same idea as above, for the choice-membership check specifically: the
-    // binding's own declared choice type is wider than the property's
-    // canonical options (a D07 violation TS's compile-time check would
+    // binding's own declared choice type is wider than the compiled
+    // property's options (a D07 violation TS's compile-time check would
     // normally prevent) - Rust must still catch it live.
     let elements = vec![
         point("a", 0.0, 0.0),
@@ -323,7 +366,7 @@ fn materializes_a_bound_boolean_property_uniformly_across_every_forgroup_generat
 }
 
 #[test]
-fn evaluate_document_rejects_the_whole_call_on_a_malformed_property_bindings_payload() {
+fn evaluate_document_accepts_a_schema_driven_property_key_and_fails_closed_at_runtime() {
     let elements = vec![
         point("a", 0.0, 0.0),
         point("b", 10.0, 0.0),
@@ -337,9 +380,10 @@ fn evaluate_document_rejects_the_whole_call_on_a_malformed_property_bindings_pay
         json!({"kind": "choice", "options": CHOICE_RIGHT_LEFT}),
         choice_literal("left", &CHOICE_RIGHT_LEFT),
     )]);
-    // "offset" is not a standard property target for offsetLine (only
-    // side/closed/suppressTrimWarnings are).
-    let malformed_property_bindings = json!([property_binding(
+    // Rust does not duplicate the frontend parameter schema or maintain a
+    // property allowlist. The compiled contract is accepted, then the
+    // runtime type mismatch fails closed before the geometry evaluator runs.
+    let property_bindings = json!([property_binding(
         "off",
         "offset",
         "binding:dir",
@@ -349,8 +393,11 @@ fn evaluate_document_rejects_the_whole_call_on_a_malformed_property_bindings_pay
     let result = evaluate_document(input(
         elements,
         Some(scalar_program),
-        Some(malformed_property_bindings),
+        Some(property_bindings),
     ));
 
-    assert!(result.is_err());
+    assert!(result.is_ok());
+    let payload = result.unwrap();
+    assert!(geometry(&payload, "off").is_none());
+    assert!(payload.errors.iter().any(|error| error.element_id == "off"));
 }

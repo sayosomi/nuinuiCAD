@@ -5,14 +5,14 @@ import { rebaseImageSourcePathsInText } from "./imageFilePaths";
 describe("rebaseImageSourcePathsInText", () => {
   it("rewrites only the source value of a vertical (canonical) image statement", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
       ")",
       "image Img = image(",
       "  source: \"assets/photo.png\",",
-      "  origin: A,",
+      "  origin: @A,",
       "  naturalWidthPx: 100,",
       "  naturalHeightPx: 100,",
       "  sourceDpi: 96,",
@@ -26,9 +26,9 @@ describe("rebaseImageSourcePathsInText", () => {
     const rebased = rebaseImageSourcePathsInText(source, "/docs/a/pattern.nui", "/docs/b/pattern.nui");
 
     expect(rebased).toContain("source: \"../a/assets/photo.png\"");
-    // Header line and every other argument line survive byte-identical.
+    // Header line && every other argument line survive byte-identical.
     expect(rebased).toContain("image Img = image(\n");
-    expect(rebased).toContain("origin: A");
+    expect(rebased).toContain("origin: @A");
     expect(rebased).toContain("naturalWidthPx: 100");
     expect(rebased).toContain("naturalHeightPx: 100");
     expect(rebased).toContain("sourceDpi: 96");
@@ -42,7 +42,7 @@ describe("rebaseImageSourcePathsInText", () => {
 
   it("produces no diagnostics on reparse after rebasing a vertical image statement", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "image Img = image(",
       "  source: \"assets/photo.png\",",
       "  origin: (0, 0),",
@@ -56,21 +56,21 @@ describe("rebaseImageSourcePathsInText", () => {
 
   it("still rewrites a compact single-line image statement", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "image Img = image(source: \"assets/photo.png\", origin: (0, 0))"
     ].join("\n");
 
     const rebased = rebaseImageSourcePathsInText(source, "/docs/a/pattern.nui", "/docs/b/pattern.nui");
 
     expect(rebased).toBe(
-      ["nui 3", "image Img = image(source: \"../a/assets/photo.png\", origin: (0, 0))"].join("\n")
+      ["nui 4", "image Img = image(source: \"../a/assets/photo.png\", origin: (0, 0))"].join("\n")
     );
     expect(parseDsl(rebased).diagnostics).toEqual([]);
   });
 
   it("leaves the text unchanged when the source and destination directories are the same", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "image Img = image(",
       "  source: \"assets/photo.png\",",
       "  origin: (0, 0),",
@@ -84,7 +84,7 @@ describe("rebaseImageSourcePathsInText", () => {
 
   it("rewrites multiple image statements independently, each at its own physical position", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "image First = image(",
       "  source: \"assets/first.png\",",
       "  origin: (0, 0),",

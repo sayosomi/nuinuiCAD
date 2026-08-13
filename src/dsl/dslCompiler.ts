@@ -28,13 +28,17 @@ import { compileMaterializedExecution } from "./moduleExecutionCompiler";
 import {
   placeAngleAttrKey,
   placeAtAttrKey,
+  placeXAttrKey,
+  placeYAttrKey,
   printLayoutCanvasAttrKey,
   printLayoutColumnsAttrKey,
+  printLayoutHeightAttrKey,
   printLayoutOverlapAttrKey,
   printLayoutPaperAttrKey,
   printLayoutRowsAttrKey,
   printLayoutScaleAttrKey,
-  printLayoutViewAttrKey
+  printLayoutViewAttrKey,
+  printLayoutWidthAttrKey
 } from "./dslPrintLayoutAttributes";
 
 const attr = (attrs: DslAttribute[], key: string) =>
@@ -90,6 +94,13 @@ const profileIdByToken = (profiles: VisibilityProfile[], token: string) => {
 
 const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
 
+// printLayout/place uses the same strict source-reference resolver as ordinary
+// geometry references. In particular, do not strip `@` here: every geometry
+// reference must pass through parseDslSourceReference via resolveId.
+const resolvePrintGroupId = (token: string, index: NameIndex, line: number, diagnostics: DslDiagnostic[]) => {
+  return resolveId(token, index, line, diagnostics);
+};
+
 // P6 applyArgs は ScannedArg[] を要求するが DslStatement は DslAttribute[] を運ぶ。
 // applyArgs は key/value しか参照しないため、span 側は再構成すれば足りる。
 const scannedArgsFromAttrs = (attrs: DslAttribute[]): ScannedArg[] =>
@@ -115,7 +126,8 @@ export const applyStatement = (
   nameContext: ElementNameContext,
   visibilityRoles: VisibilityRole[] = [],
   majorVersion?: DslMajorVersion,
-  geometryResolvers?: DslGeometryResolverOverrides
+  geometryResolvers?: DslGeometryResolverOverrides,
+  statementIndex?: number
 ): CadElement => {
   const named = { ...element, name: statement.name };
   const spec = constructionSpecFor(statement);
@@ -131,7 +143,9 @@ export const applyStatement = (
     majorVersion,
     ...geometryResolvers
   });
-  diagnostics.push(...result.diagnostics);
+  diagnostics.push(...result.diagnostics.map((item) =>
+    item.logicalSpan && statementIndex !== undefined ? { ...item, statementIndex } : item
+  ));
 
   let next = result.element;
   if (result.metadata.parent) {
@@ -355,7 +369,7 @@ export const buildBlockPrintLayouts = ({
 
     for (const member of members) {
       if (member.kind !== "place") continue;
-      const groupId = resolveId(member.group, nameIndex, member.line, diagnostics);
+      const groupId = resolvePrintGroupId(member.group, nameIndex, member.line, diagnostics);
       const target = nameIndex.elementsById.get(groupId);
       if (target && target.type !== "group") {
         diagnostics.push(diagnostic(member.line, `place の参照先はグループではありません: ${member.group}`));
@@ -368,8 +382,12 @@ export const buildBlockPrintLayouts = ({
       placements.push({
         id: `placement-${placements.length + 1}`,
         groupId,
-        x: pair ? numeric(pair.x) : 0,
-        y: pair ? numeric(pair.y) : 0,
+        x: attr(member.attrs, placeXAttrKey) === undefined
+          ? pair ? numeric(pair.x) : 0
+          : numeric(attr(member.attrs, placeXAttrKey)!),
+        y: attr(member.attrs, placeYAttrKey) === undefined
+          ? pair ? numeric(pair.y) : 0
+          : numeric(attr(member.attrs, placeYAttrKey)!),
         angleDeg: numeric(attr(member.attrs, placeAngleAttrKey) ?? "0"),
         mirrorX: booleanValue(attr(member.attrs, "mirrorX") ?? "false") ?? false
       });
@@ -403,6 +421,8 @@ export const buildBlockPrintLayouts = ({
       : undefined;
     const columns = attr(statement.attrs, printLayoutColumnsAttrKey);
     const rows = attr(statement.attrs, printLayoutRowsAttrKey);
+    const width = attr(statement.attrs, printLayoutWidthAttrKey);
+    const height = attr(statement.attrs, printLayoutHeightAttrKey);
     const overlap = attr(statement.attrs, printLayoutOverlapAttrKey);
     const scale = attr(statement.attrs, printLayoutScaleAttrKey);
     const layout = normalizePrintLayout({
@@ -410,14 +430,18 @@ export const buildBlockPrintLayouts = ({
       name: unquoteName(attr(statement.attrs, "name")) ?? statement.name,
       outputKind: output ? outputKind(output) : existing?.outputKind,
       visibilityProfileId: profileId ?? existing?.visibilityProfileId,
-      paperSizeId: paper ?? existing?.paperSizeId,
+      paperSizeId: paper ?? (paperSizeIds.has(statement.name.toLowerCase()) ? statement.name.toLowerCase() : existing?.paperSizeId),
       orientation: orientation ?? existing?.orientation,
       columns: columns === undefined ? existing?.columns : numeric(columns),
       rows: rows === undefined ? existing?.rows : numeric(rows),
       overlapMm: overlap === undefined ? existing?.overlapMm : numeric(overlap),
       scale: scale === undefined ? existing?.scale : numeric(scale),
-      svgCanvasWidthMm: canvasPair ? numeric(canvasPair.x) : existing?.svgCanvasWidthMm,
-      svgCanvasHeightMm: canvasPair ? numeric(canvasPair.y) : existing?.svgCanvasHeightMm,
+      svgCanvasWidthMm: width === undefined
+        ? canvasPair ? numeric(canvasPair.x) : existing?.svgCanvasWidthMm
+        : numeric(width),
+      svgCanvasHeightMm: height === undefined
+        ? canvasPair ? numeric(canvasPair.y) : existing?.svgCanvasHeightMm
+        : numeric(height),
       placements
     }, elements, visibilityProfiles, { preserveDanglingReferences: true });
     next = existing
@@ -542,7 +566,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     ...createCadElement(type, existing, { createId: () => createdIds.get(statement) ?? "" }),
     name: statement.name
   }));
-  const preliminaryIndex = createNameIndex([...existing, ...placeholderElements]);
+  const preliminaryIndex = createNameIndex([...existing, ...placeholderElements], context.sourceLexicalResolution);
   placeholderElements = placeholderElements.map((element, index) => {
     const statement = statementsWithIds[index].statement;
     const block = blockContextOf(statement);
@@ -555,7 +579,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         }
       : element;
   });
-  const index = createNameIndex([...existing, ...placeholderElements]);
+  const index = createNameIndex([...existing, ...placeholderElements], context.sourceLexicalResolution);
   const elementsForExpressions = [...existing, ...placeholderElements];
 
   const updates = new Map<ElementId, CadElement>();
@@ -582,7 +606,9 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         elementsForExpressions,
         index.nameContext,
         visibilitySettings.visibilityRoles,
-        context.majorVersion
+        context.majorVersion,
+        undefined,
+        statementIndexOf.get(statement)
       ),
       statement
     );
@@ -608,7 +634,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     statements: parsed.statements,
     layouts: visibilitySettings.printLayouts ?? (documentMode ? [] : undefined),
     elements,
-    nameIndex: createNameIndex(elements),
+    nameIndex: createNameIndex(elements, context.sourceLexicalResolution),
     visibilityProfiles: visibilitySettings.visibilityProfiles,
     diagnostics,
     printLayoutIdsByStatementIndex,
@@ -643,7 +669,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
           isElementDslStatement(statement) && isCompilableDslStatement(parsed.statements, statementIndex)
         ).length;
     } else {
-      diagnostics.push(warning(parsed.statements[atStopIndex].line, "@stop は文書全体の適用でのみ有効なため無視されます。"));
+      const stopStatement = parsed.statements[atStopIndex];
+      diagnostics.push(warning(stopStatement.line, "stop は文書全体の適用でのみ有効なため無視されます。"));
     }
   }
 

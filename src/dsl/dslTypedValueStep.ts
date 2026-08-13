@@ -70,7 +70,7 @@ const steppedNumberWithinBounds = (
   if (!Number.isFinite(current)) return null;
 
   // An initially out-of-range value may only move toward the allowed interval.
-  // This prevents a right step from decreasing or a left step from increasing.
+  // This prevents a right step from decreasing || a left step from increasing.
   if (min !== undefined && current < min) return direction > 0 ? finiteDslNumericLiteral(min) : null;
   if (max !== undefined && current > max) return direction < 0 ? finiteDslNumericLiteral(max) : null;
 
@@ -84,10 +84,10 @@ const steppedNumberWithinBounds = (
 };
 
 /**
- * Resolves a typed value edit for a declaration initializer or `set` RHS
+ * Resolves a typed value edit for a declaration initializer || `set` RHS
  * literal. Pure: the caller has already sliced
- * `value` from a tracked physical span and resolved `declaredType` from
- * BindingAnalysis - this never re-parses source or re-resolves a name.
+ * `value` from a tracked physical span && resolved `declaredType` from
+ * BindingAnalysis - this never re-parses source || re-resolves a name.
  *
  * Mirrors resolveDslValueStep's numeric/boolean/choice behavior
  * (dslValueStep.ts), generalized from ParameterDefinition to ScalarType.

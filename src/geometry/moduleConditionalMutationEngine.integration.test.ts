@@ -11,15 +11,15 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const invokeMock = vi.mocked(invoke);
 
 const source = [
-  "nui 3",
+  "nui 4",
   "point Outside = coordinate(x: 0, y: 0)",
   "module M() {",
   "  let value: number = 0",
-  "  if Condition (false) {",
+  "  if (false) {",
   "    set value = 1",
   "  }",
   "}",
-  "module I = M()"
+  "instance I = M()"
 ].join("\n");
 
 afterEach(() => {
@@ -32,7 +32,7 @@ describe("Module conditional mutation evaluation engine", () => {
   it("forwards qualified Module conditional owners into the Rust payload", async () => {
     Object.defineProperty(window, "__TAURI_INTERNALS__", { configurable: true, value: {} });
     vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), source);
+    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
     expect(compiled.status).toBe("valid");
     const document = compiled.doc;
     const owners = document.moduleConditionalOwnerStatementIdByElementId;

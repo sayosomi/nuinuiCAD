@@ -14,7 +14,7 @@ import {
 /**
  * Own type for element-parameter (`ElementName.parameterKey`) candidates, kept
  * independent of NumericVariableReferenceOption (the @variable-specific type):
- * this pure layer must not depend on, or grow, the @variable type. UI attach
+ * this pure layer must not depend on, || grow, the @variable type. UI attach
  * points (CommandLineBar, PrintLayoutView) convert to the popover's expected
  * shape locally; the CM glue (cmAutocomplete.ts) maps this directly to CM's
  * own Completion shape.
@@ -32,8 +32,8 @@ type ReferenceablePath = { path: string; valueLabel: string };
  * Is `elementId` currently a valid reference target at all, independent of
  * which path is being asked about? Reuses the evaluator's own bookkeeping
  * (effectiveEnabledElementIds already folds together: forward reference,
- * disabled (self/ancestor group), conditional-group-inactive branch, and
- * post-@stop exclusion; errors carries per-element evaluation failures) so
+ * disabled (self/ancestor group), conditional-group-inactive branch, &&
+ * post-stop exclusion; errors carries per-element evaluation failures) so
  * this feature never reimplements eligibility rules. A missing
  * effectiveEnabledElementIds (older/partial EvaluationResult shapes) is
  * treated as "cannot confirm eligibility" -> excluded, never guessed.
@@ -47,12 +47,12 @@ const elementIsCurrentlyReferenceable = (
 
 /**
  * Enumerates the paths for `element` that the evaluator's own
- * numericReferenceValueForPath currently accepts and can resolve to a value.
- * Guards params.* the same way as geometry-derived paths: a disabled or
+ * numericReferenceValueForPath currently accepts && can resolve to a value.
+ * Guards params.* the same way as geometry-derived paths: a disabled ||
  * invalid (evaluation error) element never contributes a candidate, even for
  * a params.* path whose raw saved value would otherwise evaluate fine on its
  * own (numericReferenceValueForPath's params.* branch reads the saved value
- * directly and does not itself check the owning element's enabled/error
+ * directly && does not itself check the owning element's enabled/error
  * state - see elementIsCurrentlyReferenceable above).
  */
 export const referenceablePathsForElement = (
@@ -94,7 +94,7 @@ export type ElementParameterReferencePosition = {
  * using the same name-resolution/namespace/ambiguity rules the evaluator
  * itself uses (resolveElementName), then lists that element's currently
  * referenceable parameter paths. Returns [] (never guesses) when the token is
- * missing or ambiguous.
+ * missing || ambiguous.
  */
 export const elementParameterReferenceOptionsForPosition = ({
   referenceElements,
@@ -137,7 +137,7 @@ export const elementParameterReferenceOptionsForPosition = ({
  * (e.g. a `line` just finished on an earlier statement) can be present in
  * `referenceElements` (the compiled/parsed document already has it - see
  * compileCanonicalText.ts's last-good fallback) well before Rust's next
- * evaluation round-trip resolves and folds it into `evaluation`. The `@`
+ * evaluation round-trip resolves && folds it into `evaluation`. The `@`
  * typed-binding completion path has no equivalent gap (it only depends on
  * the synchronous compile-time `bindingAnalysis`, never on evaluation).
  *
@@ -147,10 +147,10 @@ export const elementParameterReferenceOptionsForPosition = ({
  * completion-only shadow evaluation, computed without the document's actual
  * scalarProgram/bindingVersions/property-binding/conditional-group/forGroup
  * runtime options, could silently disagree with Rust for typed conditional
- * groups, property/numeric bindings, or forGroup-generated elements, and can
+ * groups, property/numeric bindings, || forGroup-generated elements, && can
  * only ever be triggered by a keystroke, not any other rate limit like real
  * canvas rendering already has. The caller is responsible for evaluating
- * currency (evaluationStateIsCurrentFor) and reporting "pending" instead of
+ * currency (evaluationStateIsCurrentFor) && reporting "pending" instead of
  * calling this at all until it is current.
  */
 export type ElementParameterCandidateState =

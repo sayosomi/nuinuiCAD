@@ -9,11 +9,11 @@ describe("DSL compiler", () => {
   it("creates basic drafting elements from short DSL syntax", () => {
     const result = compileDslToElements(
       [
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = offset(from: A dx: 0 dy: -(210 / 4))",
-        "line AB = segment(start: A end: B)",
-        "arc armhole = arc(center: A radius: 120 start: 0 end: -90)",
-        "text label = label(text: \"前中心\" anchor: A size: 4)"
+        "point A = coordinate(x: 0,y: 0)",
+        "point B = offset(from: @A, dx: 0, dy: -(210 / 4))",
+        "line AB = segment(start: @A,end: @B)",
+        "arc armhole = arc(center: @A,radius: 120,start: 0,end: -90)",
+        "text label = label(text: \"前中心\", anchor: @A, size: 4)"
       ].join("\n"),
       { elements: [] }
     );
@@ -38,7 +38,7 @@ describe("DSL compiler", () => {
   });
 
   it("keeps an unanchored text element unanchored when applying serialized DSL", () => {
-    const initial = compileDslToElements('text label = label(text: "一行目\\n二行目" anchor: none size: 3)', { elements: [] });
+    const initial = compileDslToElements('text label = label(text: "一行目\\n二行目",anchor: none,size: 3)', { elements: [] });
 
     expect(initial.diagnostics).toEqual([]);
     expect(initial.elements[0]).toMatchObject({
@@ -49,9 +49,9 @@ describe("DSL compiler", () => {
   });
 
   it("updates existing elements by stable id", () => {
-    const initial = compileDslToElements("point A = coordinate(x: 0 y: 0)", { elements: [] });
+    const initial = compileDslToElements("point A = coordinate(x: 0,y: 0)", { elements: [] });
     const point = initial.elements[0];
-    const result = compileDslToElements(`point A = coordinate(x: 10 y: 20 id: ${point.id})`, {
+    const result = compileDslToElements(`point A = coordinate(x: 10, y: 20, id: ${point.id})`, {
       elements: initial.elements
     });
 
@@ -67,10 +67,10 @@ describe("DSL compiler", () => {
   it("supports quoted names and references with spaces", () => {
     const result = compileDslToElements(
       [
-        "point \"前 上\" = coordinate(x: 0 y: 0)",
-        "point \"前 下\" = offset(from: \"前 上\" dx: 0 dy: -(210 / 4))",
-        "line \"前 中心線\" = segment(start: \"前 上\" end: \"前 下\")",
-        "point \"線上 点\" = onLine(from: \"前 中心線\".end distance: 10)"
+        "point \"前 上\" = coordinate(x: 0, y: 0)",
+        "point \"前 下\" = offset(from: @\"前 上\", dx: 0, dy: -(210 / 4))",
+        "line \"前 中心線\" = segment(start: @\"前 上\", end: @\"前 下\")",
+        "point \"線上 点\" = onLine(from: @\"前 中心線\".end, distance: 10)"
       ].join("\n"),
       { elements: [] }
     );
@@ -100,10 +100,10 @@ describe("DSL compiler", () => {
         "}",
         "group back {",
         "}",
-        "point A = coordinate(x: 0 y: 0 parent: front)",
-        "point B = coordinate(x: 100 y: 0 parent: front)",
-        "point A = coordinate(x: 0 y: 10 parent: back)",
-        "point B = coordinate(x: 100 y: 10 parent: back)",
+        "point A = coordinate(x: 0,y: 0,parent: @front)",
+        "point B = coordinate(x: 100,y: 0,parent: @front)",
+        "point A = coordinate(x: 0,y: 10,parent: @back)",
+        "point B = coordinate(x: 100,y: 10,parent: @back)",
         // Bare `back::A` right after a call-arg colon is ambiguous with the
         // scanner's `identifier:` key-boundary heuristic (both start with
         // `back:`); quoting the group segment disambiguates, same as other
@@ -111,8 +111,8 @@ describe("DSL compiler", () => {
         // Both lines use fully-qualified references rather than relying on
         // implicit same-scope disambiguation from a flat `parent:` fallback,
         // since only the qualified-path form is reliably scope-resolved.
-        "line side = segment(start: \"front\"::A end: \"front\"::B parent: front)",
-        "line backSide = segment(start: \"back\"::A end: \"back\"::B parent: front)"
+        "line side = segment(start: @\"front\"::A, end: @\"front\"::B, parent: @front)",
+        "line backSide = segment(start: @\"back\"::A, end: @\"back\"::B, parent: @front)"
       ].join("\n"),
       { elements: [] }
     );
@@ -142,14 +142,14 @@ describe("DSL compiler", () => {
   it("constructs an offsetLine element via its construction call (no generic escape hatch remains)", () => {
     const base = compileDslToElements(
       [
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 100 y: 0)",
-        "line AB = segment(start: A end: B)"
+        "point A = coordinate(x: 0, y: 0)",
+        "point B = coordinate(x: 100, y: 0)",
+        "line AB = segment(start: @A, end: @B)"
       ].join("\n"),
       { elements: [] }
     );
     const result = compileDslToElements(
-      "line offset = offset(sources: [AB] distance: 10 side: left closed: false)",
+      "line offset = offset(sources: [@AB], distance: 10, side: left, closed: false)",
       { elements: base.elements }
     );
 
@@ -165,7 +165,7 @@ describe("DSL compiler", () => {
   });
 
   it("rejects the retired locked attribute as an unknown argument", () => {
-    const result = compileDslToElements("point A = coordinate(x: 0 y: 0 locked: true)", { elements: [] });
+    const result = compileDslToElements("point A = coordinate(x: 0, y: 0, locked: true)", { elements: [] });
 
     expect(result.diagnostics.map((item) => item.message)).toContain(
       "construction「coordinate」に引数「locked」はありません。候補: x、y、state、color、steps、vars、varIds、id、roles、parent、branch。"
@@ -176,14 +176,14 @@ describe("DSL compiler", () => {
   it("creates drafting point constructions from natural DSL syntax", () => {
     const result = compileDslToElements(
       [
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 100 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "line vertical = polar(start: A angle: 90 length: 100)",
-        "point mid = between(start: A end: B ratio: 0.5)",
-        "point onLine = onLine(from: AB.start distance: 25)",
-        "point cross = intersection(line1: AB line2: vertical index: 0 extensions: true)",
-        "point tangent = tangentOffset(line: AB base: A angle: 90 distance: 10)"
+        "point A = coordinate(x: 0, y: 0)",
+        "point B = coordinate(x: 100, y: 0)",
+        "line AB = segment(start: @A, end: @B)",
+        "line vertical = polar(start: @A, angle: 90, length: 100)",
+        "point mid = between(start: @A, end: @B, ratio: 0.5)",
+        "point onLine = onLine(from: @AB.start, distance: 25)",
+        "point cross = intersection(line1: @AB, line2: @vertical, index: 0, extensions: true)",
+        "point tangent = tangentOffset(line: @AB, base: @A, angle: 90, distance: 10)"
       ].join("\n"),
       { elements: [] }
     );
@@ -208,14 +208,14 @@ describe("DSL compiler", () => {
   it("creates line and curve operations from natural DSL syntax", () => {
     const result = compileDslToElements(
       [
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 100 y: 0)",
-        "point C = coordinate(x: 50 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "curve curveAB = bezier(start: A end: B startAngle: 0 startLength: 25 endAngle: 180 endLength: 25 intermediates: [C:45:10:20:mid-1])",
-        "line splitAB = split(source: AB at: C)",
-        "extend(end: AB.end to: C)",
-        "line offsetAB = offset(sources: [AB, curveAB] distance: 10 side: left closed: false)"
+        "point A = coordinate(x: 0, y: 0)",
+        "point B = coordinate(x: 100, y: 0)",
+        "point C = coordinate(x: 50, y: 0)",
+        "line AB = segment(start: @A, end: @B)",
+        "curve curveAB = bezier(start: @A, end: @B, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25, intermediates: [@C:45:10:20:mid-1])",
+        "line splitAB = split(source: @AB, at: @C)",
+        "extend(end: @AB.end, to: @C)",
+        "line offsetAB = offset(sources: [@AB, @curveAB], distance: 10, side: left, closed: false)"
       ].join("\n"),
       { elements: [] }
     );
@@ -250,13 +250,13 @@ describe("DSL compiler", () => {
   it("creates advanced arc constructions from natural DSL syntax", () => {
     const result = compileDslToElements(
       [
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 50 y: 50)",
-        "point C = coordinate(x: 100 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "line BC = segment(start: B end: C)",
-        "arc throughArc = through(point1: A point2: B point3: C start: 0 end: 180)",
-        "arc cornerArc = corner(end1: AB.end end2: BC.start radius: 10 index: 0)"
+        "point A = coordinate(x: 0, y: 0)",
+        "point B = coordinate(x: 50, y: 50)",
+        "point C = coordinate(x: 100, y: 0)",
+        "line AB = segment(start: @A, end: @B)",
+        "line BC = segment(start: @B, end: @C)",
+        "arc throughArc = through(point1: @A, point2: @B, point3: @C, start: 0, end: 180)",
+        "arc cornerArc = corner(end1: @AB.end, end2: @BC.start, radius: 10, index: 0)"
       ].join("\n"),
       { elements: [] }
     );
@@ -273,8 +273,8 @@ describe("DSL compiler", () => {
   });
 
   it("can compile a standalone DSL document without existing elements", () => {
-    const existing = compileDslToElements("point old = coordinate(x: 10 y: 10)", { elements: [] }).elements;
-    const result = compileDslToElements("point A = coordinate(x: 0 y: 0)\npoint B = offset(from: A dx: 10 dy: 0)", {
+    const existing = compileDslToElements("point old = coordinate(x: 10, y: 10)", { elements: [] }).elements;
+    const result = compileDslToElements("point A = coordinate(x: 0, y: 0)\npoint B = offset(from: @A, dx: 10, dy: 0)", {
       elements: existing,
       mode: "document"
     });
@@ -285,7 +285,7 @@ describe("DSL compiler", () => {
   });
 
   it("serializes selected elements into editable DSL with ids", () => {
-    const result = compileDslToElements("point A = coordinate(x: 0 y: 0)\npoint B = coordinate(x: 10 y: 0)\nline AB = segment(start: A end: B)", {
+    const result = compileDslToElements("point A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 10, y: 0)\nline AB = segment(start: @A, end: @B)", {
       elements: []
     });
     const source = serializeElementsToDsl(result.elements);
@@ -293,16 +293,16 @@ describe("DSL compiler", () => {
     expect(source).toContain("point A = coordinate(");
     expect(source).toContain(`id: ${result.elements[0].id}`);
     expect(source).toContain("line AB = segment(");
-    expect(source).toContain(`start: ${result.elements[0].id}`);
-    expect(source).toContain(`end: ${result.elements[1].id}`);
+    expect(source).toContain(`start: @${result.elements[0].id}`);
+    expect(source).toContain(`end: @${result.elements[1].id}`);
   });
 
   it("quotes serialized element names that contain spaces", () => {
     const result = compileDslToElements(
       [
-        "point \"前 上\" = coordinate(x: 0 y: 0)",
-        "point \"前 下\" = coordinate(x: 0 y: -100)",
-        "line \"前 中心線\" = segment(start: \"前 上\" end: \"前 下\")"
+        "point \"前 上\" = coordinate(x: 0, y: 0)",
+        "point \"前 下\" = coordinate(x: 0, y: -100)",
+        "line \"前 中心線\" = segment(start: @\"前 上\", end: @\"前 下\")"
       ].join("\n"),
       { elements: [] }
     );
@@ -312,7 +312,7 @@ describe("DSL compiler", () => {
     expect(source).toContain(`point "前 上" = coordinate(`);
     expect(source).toContain(`id: ${result.elements[0].id}`);
     expect(source).toContain(`line "前 中心線" = segment(`);
-    expect(source).toContain(`start: ${result.elements[0].id}`);
+    expect(source).toContain(`start: @${result.elements[0].id}`);
     expect(roundTrip.diagnostics).toEqual([]);
     expect(roundTrip.elements.map((element) => element.name)).toEqual(["前 上", "前 下", "前 中心線"]);
   });
@@ -320,14 +320,14 @@ describe("DSL compiler", () => {
   it("serializes advanced GUI elements with natural DSL syntax", () => {
     const result = compileDslToElements(
       [
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 100 y: 0)",
-        "point C = coordinate(x: 50 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "point mid = between(start: A end: B ratio: 0.5)",
-        "line splitAB = split(source: AB at: C)",
-        "line offsetAB = offset(sources: [AB] distance: 10 side: left closed: false)",
-        "curve curveAB = bezier(start: A end: B startAngle: 0 startLength: 25 endAngle: 180 endLength: 25 intermediates: [C:45:10:20:mid-1])"
+        "point A = coordinate(x: 0, y: 0)",
+        "point B = coordinate(x: 100, y: 0)",
+        "point C = coordinate(x: 50, y: 0)",
+        "line AB = segment(start: @A, end: @B)",
+        "point mid = between(start: @A, end: @B, ratio: 0.5)",
+        "line splitAB = split(source: AB, at: C)",
+        "line offsetAB = offset(sources: [@AB], distance: 10, side: left, closed: false)",
+        "curve curveAB = bezier(start: @A, end: @B, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25, intermediates: [@C:45:10:20:mid-1])"
       ].join("\n"),
       { elements: [] }
     );
@@ -345,14 +345,14 @@ describe("DSL compiler", () => {
       [
         'role seam (name: "縫い代")',
         'role notch (name: "ノッチ")',
-        "view 通常 (default: false seam: false notch: false)",
-        "view 印刷 (default: false seam: true notch: true)",
+        "view 通常 (default: false, seam: false, notch: false)",
+        "view 印刷 (default: false, seam: true, notch: true)",
         "activeView 通常",
         "group 前身頃 {",
         "}",
-        "group 前身頃縫い代 (parent: 前身頃 roles: [seam]) {",
+        "group 前身頃縫い代 (parent: @前身頃, roles: [seam]) {",
         "}",
-        "printLayout A4 (output: pdf view: 印刷) {",
+        "printLayout A4 (output: pdf, view: 印刷) {",
         "}"
       ].join("\n"),
       {
@@ -410,7 +410,7 @@ describe("DSL compiler", () => {
 // diagnostic - see dslCallParser.ts's UNCLOSED_CALL_CODE and
 // dslValueSpans.ts's dslLineElementStatement carve-out.
 describe("DSL compiler: unterminated call statement safety", () => {
-  const source = 'text T = label(text: "{@';
+  const source = 'text T = label(text: "${@';
 
   it("compileDslToElements reports UNCLOSED_CALL_CODE and produces no elements", () => {
     const result = compileDslToElements(source, { elements: [] });
@@ -423,7 +423,7 @@ describe("DSL compiler: unterminated call statement safety", () => {
   });
 
   it("compileDslToElements does not overwrite existing elements with garbage from the degraded statement", () => {
-    const existing = compileDslToElements("point A = coordinate(x: 0 y: 0)", { elements: [] }).elements;
+    const existing = compileDslToElements("point A = coordinate(x: 0,y: 0)", { elements: [] }).elements;
     const result = compileDslToElements(source, { elements: existing });
 
     expect(result.elements).toBe(existing);
@@ -448,13 +448,13 @@ describe("DSL compiler: DivisionPlacement characterization", () => {
   it("compiles distance-only and ratio-only division points normally", () => {
     const result = compileDslToElements(
       [
-        "point A = coordinate(x: 0 y: 0)",
-        "point B = coordinate(x: 10 y: 0)",
-        "line AB = segment(start: A end: B)",
-        "point ByDistance = between(start: A end: B distance: 4)",
-        "point ByRatio = between(start: A end: B ratio: 0.25)",
-        "point OnLineByDistance = onLine(from: AB.start distance: 4)",
-        "point OnLineByRatio = onLine(from: AB.start ratio: 0.25)"
+        "point A = coordinate(x: 0,y: 0)",
+        "point B = coordinate(x: 10,y: 0)",
+        "line AB = segment(start: @A,end: @B)",
+        "point ByDistance = between(start: @A,end: @B,distance: 4)",
+        "point ByRatio = between(start: @A,end: @B,ratio: 0.25)",
+        "point OnLineByDistance = onLine(from: @AB.start,distance: 4)",
+        "point OnLineByRatio = onLine(from: @AB.start,ratio: 0.25)"
       ].join("\n"),
       { elements: [] }
     );
@@ -469,9 +469,9 @@ describe("DSL compiler: DivisionPlacement characterization", () => {
   it("fails the whole v2 document compile when both distance and ratio are given (no element is produced)", () => {
     const source = [
       "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "point Both = between(start: A end: B distance: 4 ratio: 0.25)"
+      "point A = coordinate(x: 0,y: 0)",
+      "point B = coordinate(x: 10,y: 0)",
+      "point Both = between(start: @A,end: @B,distance: 4,ratio: 0.25)"
     ].join("\n");
 
     const compiled = compileDslDocument(source);
@@ -486,10 +486,10 @@ describe("DSL compiler: DivisionPlacement characterization", () => {
 
     const lineSource = [
       "nui 2",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "point Both = onLine(from: AB.start distance: 4 ratio: 0.25)"
+      "point A = coordinate(x: 0,y: 0)",
+      "point B = coordinate(x: 10,y: 0)",
+      "line AB = segment(start: A,end: B)",
+      "point Both = onLine(from: AB.start,distance: 4,ratio: 0.25)"
     ].join("\n");
 
     expect(compileDslDocument(lineSource).document).toBeNull();
@@ -497,11 +497,11 @@ describe("DSL compiler: DivisionPlacement characterization", () => {
 
   it("falls back to the factory default (ratio 0.5) when neither distance nor ratio is given", () => {
     const source = [
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: A end: B)",
-      "point Neither = between(start: A end: B)",
-      "point OnLineNeither = onLine(from: AB.start)"
+      "point A = coordinate(x: 0,y: 0)",
+      "point B = coordinate(x: 10,y: 0)",
+      "line AB = segment(start: @A,end: @B)",
+      "point Neither = between(start: @A,end: @B)",
+      "point OnLineNeither = onLine(from: @AB.start)"
     ].join("\n");
 
     const result = compileDslToElements(source, { elements: [] });
@@ -521,9 +521,9 @@ describe("DSL compiler blocks", () => {
     const result = compileDslToElements(
       [
         "group 前身頃 {",
-        "  point A = coordinate(x: 0 y: 0)",
+        "  point A = coordinate(x: 0,y: 0)",
         "  group 襟 {",
-        "    point B = coordinate(x: 1 y: 1)",
+        "    point B = coordinate(x: 1,y: 1)",
         "  }",
         "}"
       ].join("\n"),
@@ -546,10 +546,10 @@ describe("DSL compiler blocks", () => {
   it("assigns conditionalBranch from if/else blocks", () => {
     const result = compileDslToElements(
       [
-        "if 分岐 (1) {",
-        "  point A = coordinate(x: 0 y: 0)",
+        "if (1) {",
+        "  point A = coordinate(x: 0,y: 0)",
         "} else {",
-        "  point B = coordinate(x: 1 y: 1)",
+        "  point B = coordinate(x: 1,y: 1)",
         "}"
       ].join("\n"),
       { elements: [] }
@@ -565,8 +565,8 @@ describe("DSL compiler blocks", () => {
   it("compiles for blocks to forGroup with children", () => {
     const result = compileDslToElements(
       [
-        "for 繰返し (i from: 0 count: 3 step: 1) {",
-        "  point P = coordinate(x: i * 10 y: 0)",
+        "for i in range(from: 0,count: 3,step: 1) {",
+        "  point P = coordinate(x: i * 10,y: 0)",
         "}"
       ].join("\n"),
       { elements: [] }
@@ -582,7 +582,7 @@ describe("DSL compiler blocks", () => {
     const result = compileDslToElements(
       [
         "group 前身頃 {",
-        "  point A = coordinate(x: 0 y: 0 parent: どこか)",
+        "  point A = coordinate(x: 0,y: 0,parent: @どこか)",
         "}"
       ].join("\n"),
       { elements: [] }
@@ -594,11 +594,11 @@ describe("DSL compiler blocks", () => {
   });
 
   it("keeps unnamed elements unnamed and always inserts them", () => {
-    const initial = compileDslToElements("point = coordinate(x: 0 y: 0)", { elements: [] });
+    const initial = compileDslToElements("point = coordinate(x: 0,y: 0)", { elements: [] });
     expect(initial.elements).toHaveLength(1);
     expect(initial.elements[0].name).toBe("");
 
-    const second = compileDslToElements("point = coordinate(x: 5 y: 5)", { elements: initial.elements });
+    const second = compileDslToElements("point = coordinate(x: 5,y: 5)", { elements: initial.elements });
     expect(second.elements).toHaveLength(2);
   });
 });
@@ -607,9 +607,9 @@ describe("DSL compiler document settings", () => {
   it("builds a palette from color statements", () => {
     const result = compileDslToElements(
       [
-        'color main ("#112233" name: "本体")',
-        'color accent ("#445566" default: true)',
-        "point A = coordinate(x: 0 y: 0)"
+        'color main ("#112233", name: "本体")',
+        'color accent ("#445566", default: true)',
+        "point A = coordinate(x: 0,y: 0)"
       ].join("\n"),
       { elements: [], mode: "document" }
     );
@@ -626,7 +626,7 @@ describe("DSL compiler document settings", () => {
 
   it("rejects multiple default colors", () => {
     const result = compileDslToElements(
-      ['color a ("#112233" default: true)', 'color b ("#445566" default: true)'].join("\n"),
+      ['color a ("#112233", default: true)', 'color b ("#445566", default: true)'].join("\n"),
       { elements: [], mode: "document" }
     );
     expect(result.diagnostics.some((item) => item.message.includes("default"))).toBe(true);
@@ -636,10 +636,10 @@ describe("DSL compiler document settings", () => {
     const result = compileDslToElements(
       [
         "group 前身頃 {",
-        "  point A = coordinate(x: 0 y: 0)",
+        "  point A = coordinate(x: 0,y: 0)",
         "}",
-        "printLayout 型紙A (output: svg paper: a3 orientation: landscape columns: 3 rows: 4 overlap: 15 scale: 0.5 canvas: (500, 700)) {",
-        "  place 前身頃 (at: (10, 20) angle: 90 mirrorX: true)",
+        "printLayout 型紙A (output: svg,paper: a3,orientation: landscape,columns: 3,rows: 4,overlap: 15,scale: 0.5,canvas: (500, 700)) {",
+        "  place @前身頃(at: (10, 20),angle: 90,mirrorX: true)",
         "}"
       ].join("\n"),
       { elements: [], mode: "document" }
@@ -671,10 +671,50 @@ describe("DSL compiler document settings", () => {
 
   it("reports unresolved place references", () => {
     const result = compileDslToElements(
-      ["printLayout 型紙A () {", "  place 存在しない (at: (0, 0))", "}"].join("\n"),
+      ["printLayout 型紙A () {", "  place @存在しない(at: (0, 0))", "}"].join("\n"),
       { elements: [], mode: "document" }
     );
     expect(result.diagnostics.some((item) => item.message.includes("参照先が見つかりません"))).toBe(true);
+  });
+
+  it("requires strict @ references for place targets and rejects properties", () => {
+    const qualified = compileDslToElements(
+      [
+        "group Outer {",
+        "  group Inner {",
+        "  }",
+        "}",
+        "printLayout 型紙A () {",
+        "  place @Outer::Inner(at: (0, 0))",
+        "}"
+      ].join("\n"),
+      { elements: [], mode: "document" }
+    );
+    expect(qualified.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(qualified.printLayouts?.[0].placements[0].groupId).toBe(
+      qualified.elements.find((element) => element.name === "Inner")?.id
+    );
+
+    const compilePlace = (target: string) => compileDslToElements(
+      [
+        "group G {",
+        "}",
+        "printLayout 型紙A () {",
+        `  place ${target}(at: (0, 0))`,
+        "}"
+      ].join("\n"),
+      { elements: [], mode: "document" }
+    );
+
+    const bare = compilePlace("G");
+    expect(bare.diagnostics.some((item) => item.severity === "error" && item.code === "invalid-source-reference")).toBe(true);
+
+    const malformed = compilePlace("@G::");
+    expect(malformed.diagnostics.some((item) => item.severity === "error" && item.code === "invalid-source-reference")).toBe(true);
+
+    const property = compilePlace("@G.name");
+    expect(property.diagnostics.some((item) => item.severity === "error" && item.code === "invalid-source-reference")).toBe(true);
+    expect(property.diagnostics.some((item) => item.message.includes("property"))).toBe(true);
   });
 
   it("resolves activePrintLayout by name", () => {
@@ -699,9 +739,9 @@ describe("DSL compiler document settings", () => {
     expect(result.diagnostics.some((item) => item.message.includes("未定義の印刷レイアウト"))).toBe(true);
   });
 
-  it("computes evaluationLimitIndex from @stop in document mode", () => {
+  it("computes evaluationLimitIndex from stop in document mode", () => {
     const result = compileDslToElements(
-      ["point A = coordinate(x: 0 y: 0)", "point B = coordinate(x: 1 y: 1)", "@stop", "point C = coordinate(x: 2 y: 2)"].join("\n"),
+      ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 1,y: 1)", "stop", "point C = coordinate(x: 2,y: 2)"].join("\n"),
       { elements: [], mode: "document" }
     );
 
@@ -710,18 +750,18 @@ describe("DSL compiler document settings", () => {
     expect(result.elements).toHaveLength(3);
   });
 
-  it("warns and ignores @stop in edit mode", () => {
+  it("warns and ignores stop in edit mode", () => {
     const result = compileDslToElements(
-      ["point A = coordinate(x: 0 y: 0)", "@stop"].join("\n"),
+      ["point A = coordinate(x: 0,y: 0)", "stop"].join("\n"),
       { elements: [] }
     );
     expect(result.evaluationLimitIndex).toBeUndefined();
-    expect(result.diagnostics.some((item) => item.severity === "warning" && item.message.includes("@stop"))).toBe(true);
+    expect(result.diagnostics.some((item) => item.severity === "warning" && item.message.includes("stop"))).toBe(true);
   });
 
   it("ignores the nui version statement during compilation", () => {
     const result = compileDslToElements(
-      ["nui 1", "point A = coordinate(x: 0 y: 0)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0,y: 0)"].join("\n"),
       { elements: [] }
     );
     expect(result.diagnostics).toEqual([]);
@@ -732,7 +772,7 @@ describe("DSL compiler document settings", () => {
     const source = [
       "group 前身頃 (id: g1) {",
       "}",
-      "point A = coordinate(x: 0 y: 0 parent: g1)"
+      "point A = coordinate(x: 0,y: 0,parent: @g1)"
     ].join("\n");
 
     const editResult = compileDslToElements(source, { elements: [] });
@@ -750,7 +790,7 @@ describe("DSL compiler: typed declarations", () => {
       ["const x: number = 1", "let y: boolean = true", 'const label: string = "front"', "const dir: choice(a, b) = a"].join(
         "\n"
       ),
-      { elements: [], majorVersion: 3 }
+      { elements: [], majorVersion: 4 }
     );
     expect(result.diagnostics).toEqual([]);
     expect(result.elements).toHaveLength(0);
@@ -758,8 +798,8 @@ describe("DSL compiler: typed declarations", () => {
 
   it("does not perturb duplicate-name or element compilation for surrounding elements", () => {
     const result = compileDslToElements(
-      ["const x: number = 1", "point A = coordinate(x: 0 y: 0)", "const x: number = 2"].join("\n"),
-      { elements: [], majorVersion: 3 }
+      ["const x: number = 1", "point A = coordinate(x: 0,y: 0)", "const x: number = 2"].join("\n"),
+      { elements: [], majorVersion: 4 }
     );
     expect(result.diagnostics).toEqual([]);
     expect(result.elements).toHaveLength(1);
@@ -768,7 +808,7 @@ describe("DSL compiler: typed declarations", () => {
 
 describe("DSL compiler: set statements", () => {
   it("accepts set with no diagnostics, and does not lift it into elements", () => {
-    const result = compileDslToElements(["set x = 1", "set y = 2"].join("\n"), { elements: [], majorVersion: 3 });
+    const result = compileDslToElements(["set x = 1", "set y = 2"].join("\n"), { elements: [], majorVersion: 4 });
     expect(result.diagnostics).toEqual([]);
     expect(result.elements).toHaveLength(0);
   });

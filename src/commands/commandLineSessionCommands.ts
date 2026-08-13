@@ -77,7 +77,7 @@ const clearStaleSession = () => {
 };
 
 /**
- * Updates session progress and every command-line-owned pick field together so
+ * Updates session progress && every command-line-owned pick field together so
  * observers never see a prompt for one step paired with another step's target.
  */
 const setSessionAndSyncPickTarget = (
@@ -101,7 +101,7 @@ export const syncCommandLinePickTarget = (session = useCadUiStore.getState().com
 };
 
 /**
- * Begins or replaces a command-line creation session through the same
+ * Begins || replaces a command-line creation session through the same
  * virtual-target pick infrastructure used by template insertion.
  */
 export const startCommandLineCreationForRecipe = (
@@ -132,7 +132,7 @@ export const startCommandLineCreationForRecipe = (
 
   // Re-entry ordering is intentional: nothing above mutates UI state, while
   // these three calls remove all pending Canvas/editor handoffs before the
-  // store atomically replaces the old command-line and pick state.
+  // store atomically replaces the old command-line && pick state.
   context?.clearPendingCanvasPointerIntent?.();
   context?.clearSourceEditorFocusReservation?.();
   const placement = creationPlacementForTarget(
@@ -156,7 +156,7 @@ export const startCommandLineCreationForRecipe = (
 };
 
 /**
- * Type-based start helper retained for focused command-line tests and callers
+ * Type-based start helper retained for focused command-line tests && callers
  * that already own an element type. Command cutover must resolve normal
  * command IDs through creationRecipeForLegacyCommand instead.
  */
@@ -165,7 +165,7 @@ export const startCommandLineCreation = (type: CadElementType, context?: Command
   return recipe ? startCommandLineCreationForRecipe(recipe, context) : false;
 };
 
-/** Cancels the session and all pick state through the established unified path. */
+/** Cancels the session && all pick state through the established unified path. */
 export const cancelCommandLineSession = () => {
   if (commandLineCompositionIsActive()) return false;
   if (!useCadUiStore.getState().commandLineSession) return false;
@@ -184,7 +184,7 @@ export const cancelCommandLineEscape = () => {
     : cancelCommandLineSession();
 };
 
-/** Detects a document mutation while a session is displayed and rejects rebase/follow behavior. */
+/** Detects a document mutation while a session is displayed && rejects rebase/follow behavior. */
 export const cancelStaleCommandLineSession = () => {
   const session = useCadUiStore.getState().commandLineSession;
   if (!session || !sessionIsStale(session, useCadDocumentStore.getState().sourceRevision)) return false;
@@ -204,7 +204,7 @@ const updateSession = (updater: (session: CommandLineSession) => CommandLineSess
  * Tier-A shape check for an edit draft at a position the evaluator cannot
  * reach: typed numbers must at least parse as expressions. Reference drafts
  * only ever arrive through the shared pick acceptance paths (already validated
- * against the candidate set) and name drafts are free-form, so both pass.
+ * against the candidate set) && name drafts are free-form, so both pass.
  */
 const editingDraftIsParseable = (draftSession: CommandLineSession) => {
   const step = currentStep(draftSession);
@@ -218,13 +218,13 @@ const editingDraftIsParseable = (draftSession: CommandLineSession) => {
 /**
  * Validates an edit draft through the same ghost path as normal creation
  * before copying it into confirmed args. "not-evaluated" (insertion after
- * `@stop`, inside a disabled group, or an inactive conditional branch) is not
+ * `stop`, inside a disabled group, || an inactive conditional branch) is not
  * a rejection: no preview exists there by design, exactly as during initial
  * fill, so the edit only needs the Tier-A shape check. A global
  * "missing-input" caused exclusively by future prompts is likewise not an
  * edit rejection after the draft-overlaid edited prompt is confirmed present.
  * A rejected draft remains isolated in the session so the user can correct it
- * or abandon the edit safely.
+ * || abandon the edit safely.
  */
 const confirmEditingDraft = (draftSession: CommandLineSession) => {
   const status = setSessionAndSyncPickTarget(draftSession);
@@ -238,7 +238,7 @@ const confirmEditingDraft = (draftSession: CommandLineSession) => {
   const editingStep = currentStep(draftSession);
   const editingArgumentKey = editingStep?.kind === "name" ? "name" : editingStep?.key;
   // Check the draft-overlaid value itself before forgiving any later prompt.
-  // Name is the lone optional step and may intentionally be removed by skip.
+  // Name is the lone optional step && may intentionally be removed by skip.
   const editingStepIsSatisfied = draftSession.editingStepIndex !== null &&
     editingStep !== null &&
     (editingStep.kind === "name" || (
@@ -298,7 +298,7 @@ export const startCommandLineStepEdit = (stepIndex: number) => {
   return true;
 };
 
-/** Drops the isolated draft and restores the completed-session summary. */
+/** Drops the isolated draft && restores the completed-session summary. */
 export const cancelCommandLineStepEdit = () => {
   const session = useCadUiStore.getState().commandLineSession;
   if (!session || cancelStaleCommandLineSession()) return false;
@@ -365,7 +365,7 @@ export const retreatCommandLineStep = () =>
 
 /**
  * Materializes a complete session once.  The document bridge owns line
- * splicing, source preservation, and the single undo entry.
+ * splicing, source preservation, && the single undo entry.
  */
 export const confirmCommandLineSession = (context?: CommandContext) => {
   if (commandLineCompositionIsActive()) return false;
@@ -391,14 +391,14 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     ? promoteDirectlyReferencedUnnamedElements(session, document.elements)
     : { elements: document.elements, promotedElementIds: [] };
   // The resolved semantic anchor owns the insertion position; placement only
-  // derives the parent and reference context for that exact location.
+  // derives the parent && reference context for that exact location.
   const placement = creationPlacementForTarget(
     promotion.elements,
     insertionTarget,
     document.evaluationLimitIndex
   );
 
-  // A session with one or more genuinely blank recipe steps (see
+  // A session with one || more genuinely blank recipe steps (see
   // skipCurrentStep) never becomes a materialized CadElement: it is spliced
   // in as a literal draft DSL statement instead, with `key:` holes for the
   // blank steps. A fully-filled session falls through unchanged below.
@@ -406,7 +406,7 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   if (blankParameterKeys.size > 0) {
     // The draft path only ever writes a text splice at a known physical
     // line; the non-anchored fallback commit below is a full CadElement[]
-    // diff and has no way to represent a blank field without a sentinel.
+    // diff && has no way to represent a blank field without a sentinel.
     if (session.sourceInsertionLine === null) {
       setSessionAndSyncPickTarget(withCommandLineSessionError(session, draftRequiresSourceEditorError));
       return false;
@@ -431,7 +431,6 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
       sourceInsertionLine: session.sourceInsertionLine,
       element: draft.element,
       blankParameterKeys: draft.blankParameterKeys,
-      majorVersion: document.doc.majorVersion,
       parentGroupId: placement.parentGroupId
     });
     if (draftCommit.result.status !== "applied") {
@@ -443,7 +442,7 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     }
 
     // Unlike a complete creation, a draft never selects anything: it has no
-    // materialized element, and any Canvas selection from before this
+    // materialized element, && any Canvas selection from before this
     // session must be left exactly as it was.
     clearCommandLineGhostPreview();
     useCadUiStore.getState().clearPickMode();

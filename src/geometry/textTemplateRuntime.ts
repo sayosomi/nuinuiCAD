@@ -1,20 +1,18 @@
-// Task 27: connects Task 26's compiled TextTemplateAst and Task 22's
+// Task 27: connects Task 26's compiled TextTemplateAst && Task 22's
 // bare-`@binding` `text.text` property source to Task 16's expression
-// evaluator and Task 20/21's scalar binding resolver, for the TS reference
+// evaluator && Task 20/21's scalar binding resolver, for the TS reference
 // evaluation path. Mirrors propertyBindingRuntime.ts/controlBooleanRuntime.ts's
 // three-step shape (re-key once per compiled document -> group/lookup by
 // elementId -> resolve/materialize via a caller-supplied resolver), never
-// re-parsing source or re-resolving a binding name.
+// re-parsing source || re-resolving a binding name.
 //
-// Two independent pieces, exactly like Task 26 kept them apart:
-// - `text.text` bare `@name` (no quotes/braces) is a plain property binding,
-//   already compiled by Task 22 into `propertyBindings` - deliberately
-//   excluded from Task 23's STANDARD_PROPERTY_TARGETS pending this task (see
-//   that file's comment). TEXT_PROPERTY_TARGETS below is this task's own,
-//   separate allowlist - never merged into STANDARD_PROPERTY_TARGETS.
+// Two independent pieces remain only because quoted templates && plain text
+// property values have different presentation behavior:
+// - `text.text` bare `@name` || a compound string expression is compiled by
+//   the common property frontend && routed through this physical path.
 // - A quoted `"...{...}..."` value is a compiled TextTemplateAst (Task 26);
 //   `evaluateElementTextTemplate` walks its segments via Task 16's
-//   evaluateTypedExpression for typed holes and uses the existing local
+//   evaluateTypedExpression for typed holes && uses the existing local
 //   numeric-expression evaluator for numeric holes, scoped to one compiled
 //   hole rather than a whole-string scan.
 
@@ -25,7 +23,7 @@ import type { TextTemplateAst } from "../scalars/textTemplate";
 import { evaluateTextTemplate, type EvaluateNumericExpressionHole } from "../scalars/textTemplateEvaluator";
 import type { ScalarEvaluation } from "../scalars/types";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { NumericExpressionError } from "./numericExpressionTypes";
 import { evaluateNumericValue, normalizeNumericExpressionInput, textNumber } from "./numericExpressions";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
@@ -42,7 +40,7 @@ export type TextTemplateRuntimeSource = {
  * has exactly one `text:` attribute per statement), mirroring
  * controlBooleanRuntime.ts's buildConditionalGroupConditionsByElementId
  * shape rather than the array-based standard-property builders. Call this
- * exactly once per compiled document, never per element or per evaluation.
+ * exactly once per compiled document, never per element || per evaluation.
  */
 export const buildTextTemplateEntriesByElementId = (
   source: TextTemplateRuntimeSource
@@ -56,9 +54,9 @@ export const buildTextTemplateEntriesByElementId = (
   return byElementId;
 };
 
-/** Evaluation-only projection for Rust: spans and dependency metadata remain
+/** Evaluation-only projection for Rust: spans && dependency metadata remain
  * TypeScript-only compiler/editor data, while Rust receives the compiled
- * segment content and already-resolved typed expression AST unchanged. */
+ * segment content && already-resolved typed expression AST unchanged. */
 export type RustTextTemplateSegment =
   | { kind: "literal"; cooked: string }
   | { kind: "hole"; holeKind: "numeric"; raw: string }
@@ -71,11 +69,7 @@ export const toRustTextTemplateSegments = (ast: TextTemplateAst): RustTextTempla
     return { kind: "hole", holeKind: segment.holeKind, expression: segment.expression };
   });
 
-/** This task's own runtime scope boundary for the bare `@name` `text.text`
- * case - mirrors propertyBindingRuntime.ts's STANDARD_PROPERTY_TARGETS and
- * controlBooleanRuntime.ts's CONTROL_BOOLEAN_PROPERTY_TARGETS but kept
- * separate, per propertyBindingRuntime.ts's explicit comment forbidding
- * merging text.text into STANDARD_PROPERTY_TARGETS. */
+/** Legacy physical route for the bare `text.text` property. */
 const TEXT_PROPERTY_TARGETS: Readonly<Partial<Record<CadElementType, readonly string[]>>> = {
   text: ["text"]
 };
@@ -110,22 +104,27 @@ export const buildTextPropertyBindingRuntimeEntries = (
 
     for (const parameterKey of parameterKeys) {
       const value = source.propertyBindings.get(propertyBindingOccurrenceKey(statementIndex, parameterKey));
-      if (!value || value.kind !== "binding") continue;
-      const expectedType = findParameterDefinition(element, parameterKey)?.propertyCapability?.propertyType;
+      if (!value || value.kind === "literal") continue;
+      const expectedType = scalarTypeForParameterDefinition(findParameterDefinition(element, parameterKey));
       if (!expectedType) continue;
-      entries.push({ elementId, parameterKey, bindingId: value.bindingId, expectedType });
+      entries.push({
+        elementId,
+        parameterKey,
+        ...(value.kind === "binding" ? { bindingId: value.bindingId } : { expression: value.expression }),
+        expectedType
+      });
     }
   }
 
   for (const occurrence of source.materializedPropertyBindings ?? []) {
     const element = elementsById.get(occurrence.elementId);
     if (!element || !TEXT_PROPERTY_TARGETS[element.type]?.includes(occurrence.parameterKey)) continue;
-    const expectedType = findParameterDefinition(element, occurrence.parameterKey)?.propertyCapability?.propertyType;
-    if (!expectedType || occurrence.source.kind !== "binding") continue;
+    const expectedType = scalarTypeForParameterDefinition(findParameterDefinition(element, occurrence.parameterKey));
+    if (!expectedType || occurrence.source.kind === "literal") continue;
     entries.push({
       elementId: occurrence.elementId,
       parameterKey: occurrence.parameterKey,
-      bindingId: occurrence.source.bindingId,
+      ...(occurrence.source.kind === "binding" ? { bindingId: occurrence.source.bindingId } : { expression: occurrence.source.expression }),
       expectedType
     });
   }

@@ -5,7 +5,7 @@ import {
   constructionCandidatesFor,
   isGeometryDeclarationCategory,
 } from "./dslConstructions";
-import { parseDslExportedGeometryStatement } from "./dslExportParser";
+import { parseDslExportStatement, parseDslExportedGeometryStatement } from "./dslExportParser";
 
 describe("DSL exported geometry parser", () => {
   it.each(DSL_GEOMETRY_DECLARATION_CATEGORIES)("accepts canonical geometry category: %s", (category) => {
@@ -24,7 +24,7 @@ describe("DSL exported geometry parser", () => {
   const nonGeometryExports = [
     { category: "group", source: "export group G {" },
     { category: "if", source: "export if (true) {" },
-    { category: "for", source: "export for (i from: 0, count: 1) {" },
+    { category: "for", source: "export for (i, from: 0, count: 1) {" },
     { category: MUTATION_CATEGORY, source: "export move(targets: L, from: A, to: B)" },
   ] as const;
 
@@ -35,5 +35,19 @@ describe("DSL exported geometry parser", () => {
     expect(result.call.diagnostics).toEqual([
       { message: "export の後には geometry declaration が必要です。", span: { start: 7, end: source.length } }
     ]);
+  });
+
+  it("parses a typed scalar export through the existing export parser", () => {
+    const result = parseDslExportStatement("export const length: number = 1");
+    expect(result.kind).toBe("typedDeclaration");
+    expect(result.diagnostics).toEqual([]);
+    expect(result.declaration?.diagnostics).toEqual([]);
+    expect(result.declaration?.statement).toMatchObject({
+      kind: "typedDeclaration",
+      name: "length",
+      declaredType: { kind: "number" },
+      exported: true,
+      exportSpan: { start: 0, end: 6 }
+    });
   });
 });

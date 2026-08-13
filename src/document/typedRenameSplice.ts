@@ -29,7 +29,7 @@ export type TypedRenameSpliceResult =
 
 /** Neutral source-semantic names used by module rename. Keeping the original
  * typed aliases preserves the reviewed typed-rename API while both paths share
- * exactly the same projection, overlap, and atomic LineSplice implementation. */
+ * exactly the same projection, overlap, && atomic LineSplice implementation. */
 export type SourceSemanticRenameSpliceEntry = TypedRenameSpliceEntry;
 export type SourceSemanticRenameSpliceResult = TypedRenameSpliceResult;
 
@@ -56,7 +56,7 @@ const lineIndexForOffset = (lineStarts: readonly number[], offset: number): numb
  * Builds one `LineSplice` per physical line touched by `entries` (declaration
  * + every affected occurrence from a Task 37 "ok" verdict). Every entry is
  * independently verified against the live `sourceText` before any splice is
- * built - a single mismatch, duplicate, overlap, or non-contiguous/
+ * built - a single mismatch, duplicate, overlap, || non-contiguous/
  * cross-line projection fails the whole batch atomically; no partial
  * application is ever returned.
  */

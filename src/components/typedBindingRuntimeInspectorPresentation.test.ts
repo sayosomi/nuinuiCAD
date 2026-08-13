@@ -13,7 +13,7 @@ import {
 } from "./typedBindingRuntimeInspectorPresentation";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
   const result = compileCanonicalText(baseline, source);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
@@ -80,8 +80,8 @@ const historyRow = (presentation: ReturnType<typeof present>) =>
   presentation?.rows.find((row) => row.key === "history")?.value;
 
 describe("typedBindingRuntimeInspectorPresentation: declaration-only (no set)", () => {
-  it("shows a const number's final value and no history row", () => {
-    const compiled = compileCanonical(["nui 3", "const width: number = 12"].join("\n"));
+  it("shows a const number's final value && no history row", () => {
+    const compiled = compileCanonical(["nui 4", "const width: number = 12"].join("\n"));
     const bindingId = bindingIdByName(compiled, "width");
     const presentation = present(compiled, bindingId, evaluate(compiled));
     expect(presentation?.status).toBe("ok");
@@ -91,31 +91,31 @@ describe("typedBindingRuntimeInspectorPresentation: declaration-only (no set)", 
   });
 
   it("formats a non-integer number with the same rule text templates use", () => {
-    const compiled = compileCanonical(["nui 3", "const ratio: number = 1 / 3"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "const ratio: number = 1 / 3"].join("\n"));
     const bindingId = bindingIdByName(compiled, "ratio");
     expect(valueRow(present(compiled, bindingId, evaluate(compiled)))).toBe("0.333");
   });
 
   it("formats a boolean value", () => {
-    const compiled = compileCanonical(["nui 3", "const shown: boolean = true"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "const shown: boolean = true"].join("\n"));
     const bindingId = bindingIdByName(compiled, "shown");
     expect(valueRow(present(compiled, bindingId, evaluate(compiled)))).toBe("true");
   });
 
   it("formats a string value", () => {
-    const compiled = compileCanonical(["nui 3", 'const label: string = "front piece"'].join("\n"));
+    const compiled = compileCanonical(["nui 4", 'const label: string = "front piece"'].join("\n"));
     const bindingId = bindingIdByName(compiled, "label");
     expect(valueRow(present(compiled, bindingId, evaluate(compiled)))).toBe("front piece");
   });
 
   it("formats a choice value", () => {
-    const compiled = compileCanonical(["nui 3", "const side: choice(right, left) = right"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "const side: choice(right, left) = right"].join("\n"));
     const bindingId = bindingIdByName(compiled, "side");
     expect(valueRow(present(compiled, bindingId, evaluate(compiled)))).toBe("right");
   });
 
-  it("surfaces a runtime failure (no sets) as poisoned with an explanatory message and no history row", () => {
-    const compiled = compileCanonical(["nui 3", "const bad: number = 1 / 0"].join("\n"));
+  it("surfaces a runtime failure (no sets) as poisoned with an explanatory message && no history row", () => {
+    const compiled = compileCanonical(["nui 4", "const bad: number = 1 / 0"].join("\n"));
     const bindingId = bindingIdByName(compiled, "bad");
     const presentation = present(compiled, bindingId, evaluate(compiled));
     expect(presentation?.status).toBe("poisoned");
@@ -127,7 +127,7 @@ describe("typedBindingRuntimeInspectorPresentation: declaration-only (no set)", 
 
 describe("typedBindingRuntimeInspectorPresentation: linear set", () => {
   it("shows the final value after a set, with a history summary", () => {
-    const compiled = compileCanonical(["nui 3", "let total: number = 1", "set total = 5"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "let total: number = 1", "set total = 5"].join("\n"));
     const bindingId = bindingIdByName(compiled, "total");
     const presentation = present(compiled, bindingId, evaluate(compiled));
     expect(presentation?.status).toBe("ok");
@@ -137,7 +137,7 @@ describe("typedBindingRuntimeInspectorPresentation: linear set", () => {
 
   it("recovers after an earlier poisoned set: final ok, history notes the recovery", () => {
     const compiled = compileCanonical(
-      ["nui 3", "let value: number = 1 / 0", "set value = 5"].join("\n")
+      ["nui 4", "let value: number = 1 / 0", "set value = 5"].join("\n")
     );
     const bindingId = bindingIdByName(compiled, "value");
     const presentation = present(compiled, bindingId, evaluate(compiled));
@@ -149,7 +149,7 @@ describe("typedBindingRuntimeInspectorPresentation: linear set", () => {
 
   it("stays poisoned when a later set also fails", () => {
     const compiled = compileCanonical(
-      ["nui 3", "let value: number = 1 / 0", "set value = 1 / 0"].join("\n")
+      ["nui 4", "let value: number = 1 / 0", "set value = 1 / 0"].join("\n")
     );
     const bindingId = bindingIdByName(compiled, "value");
     const presentation = present(compiled, bindingId, evaluate(compiled));
@@ -161,7 +161,7 @@ describe("typedBindingRuntimeInspectorPresentation: linear set", () => {
 describe("typedBindingRuntimeInspectorPresentation: conditional branch", () => {
   it("reflects only the active branch's set", () => {
     const compiled = compileCanonical(
-      ["nui 3", "let value: number = 0", "if C (true) {", "  set value = 1", "} else {", "  set value = 2", "}"].join("\n")
+      ["nui 4", "let value: number = 0", "if (true) {", "  set value = 1", "} else {", "  set value = 2", "}"].join("\n")
     );
     const bindingId = bindingIdByName(compiled, "value");
     const presentation = present(compiled, bindingId, evaluate(compiled));
@@ -170,7 +170,7 @@ describe("typedBindingRuntimeInspectorPresentation: conditional branch", () => {
 
   it("reflects the else branch when the condition is false, never the inactive then-branch value", () => {
     const compiled = compileCanonical(
-      ["nui 3", "let value: number = 0", "if C (false) {", "  set value = 1", "} else {", "  set value = 2", "}"].join("\n")
+      ["nui 4", "let value: number = 0", "if (false) {", "  set value = 1", "} else {", "  set value = 2", "}"].join("\n")
     );
     const bindingId = bindingIdByName(compiled, "value");
     const presentation = present(compiled, bindingId, evaluate(compiled));
@@ -182,9 +182,9 @@ describe("typedBindingRuntimeInspectorPresentation: forGroup loop", () => {
   it("shows the final (last-iteration) value, never an intermediate iteration's value", () => {
     const compiled = compileCanonical(
       [
-        "nui 3",
+        "nui 4",
         "let total: number = 0",
-        "for Loop (i, from: 0, count: 3, step: 1) {",
+        "for i in range(from: 0, count: 3, step: 1) {",
         "  set total = @total + 1",
         "  point P = coordinate(x: 0, y: 0)",
         "}"
@@ -203,7 +203,7 @@ describe("typedBindingRuntimeInspectorPresentation: forGroup loop", () => {
 
 describe("typedBindingRuntimeInspectorPresentation: freshness gate", () => {
   it("shows unknown instead of the last value when isFresh is false", () => {
-    const compiled = compileCanonical(["nui 3", "const width: number = 12"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "const width: number = 12"].join("\n"));
     const bindingId = bindingIdByName(compiled, "width");
     const presentation = present(compiled, bindingId, evaluate(compiled), false);
     expect(presentation?.status).toBe("unknown");
@@ -212,7 +212,7 @@ describe("typedBindingRuntimeInspectorPresentation: freshness gate", () => {
   });
 
   it("shows unknown when the binding has no entry in this evaluation at all", () => {
-    const compiled = compileCanonical(["nui 3", "const width: number = 12"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "const width: number = 12"].join("\n"));
     const bindingId = bindingIdByName(compiled, "width");
     const presentation = present(compiled, bindingId, { computedScalarBindings: new Map(), computedScalarBindingVersions: new Map() });
     expect(presentation?.status).toBe("unknown");
@@ -223,7 +223,7 @@ describe("typedBindingRuntimeInspectorPresentation: freshness gate", () => {
 describe("typedBindingRuntimeInspectorPresentation: selection guard", () => {
   it("returns null for a non-typed (forGroup iteration) binding kind", () => {
     const compiled = compileCanonical(
-      ["nui 3", "for 繰返し (i, from: 0, count: 3, step: 1) {", "  const y: number = 1", "}"].join("\n")
+      ["nui 4", "for i in range(from: 0, count: 3, step: 1) {", "  const y: number = 1", "}"].join("\n")
     );
     const iterationBinding = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "iteration");
     expect(iterationBinding).toBeTruthy();
@@ -231,7 +231,7 @@ describe("typedBindingRuntimeInspectorPresentation: selection guard", () => {
   });
 
   it("returns null for an unknown binding id", () => {
-    const compiled = compileCanonical(["nui 3", "const width: number = 12"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "const width: number = 12"].join("\n"));
     expect(present(compiled, "binding:does-not-exist", evaluate(compiled))).toBeNull();
   });
 });

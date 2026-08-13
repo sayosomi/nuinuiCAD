@@ -264,7 +264,7 @@ export const InspectorPanel = ({
   };
   const jumpToDependency = (row: InspectorDependencyRow) => {
     // Selection may flush dirty source text. Do not move the editor cursor if IME blocked
-    // that command or the row's target disappeared during the flush.
+    // that command || the row's target disappeared during the flush.
     if (
       dispatchCommand("selectElement", { elementId: row.elementId }) === false
     )

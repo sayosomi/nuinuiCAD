@@ -15,14 +15,14 @@ const scan = (source: string) => {
 
 const strictScan = (source: string) => {
   const open = source.indexOf("(");
-  return scanCallArgs(source, { start: open + 1, end: source.lastIndexOf(")") }, { requireCommas: true });
+  return scanCallArgs(source, { start: open + 1, end: source.lastIndexOf(")") });
 };
 
 describe("scanCallArgs", () => {
   it("scans named arguments from projected vertical, one-line, and mixed calls", () => {
-    const vertical = "offset(from: A dx: @幅 * 2)";
-    const oneLine = "coordinate(x: 50 y: -50)";
-    const mixed = "offset( from: A   dx: 100 dy: -20 )";
+    const vertical = "offset(from: A, dx: @幅 * 2)";
+    const oneLine = "coordinate(x: 50,y: -50)";
+    const mixed = "offset( from: A, dx: 100, dy: -20 )";
 
     expect(scan(vertical).args).toEqual([
       { key: "from", keySpan: spanOf(vertical, "from"), value: "A", valueSpan: spanOf(vertical, "A") },
@@ -34,8 +34,8 @@ describe("scanCallArgs", () => {
 
   it("returns leading positional arguments only before the first named boundary", () => {
     const positionalOnly = "if(@見返し > 0)";
-    const positionalAndNamed = "for(i from: 0 count: 3 step: 1)";
-    const namedOnly = "coordinate(x: 0 y: 0)";
+    const positionalAndNamed = "call(i, from: 0, count: 3, step: 1)";
+    const namedOnly = "coordinate(x: 0,y: 0)";
 
     expect(scan(positionalOnly).args).toEqual([
       { key: null, keySpan: null, value: "@見返し > 0", valueSpan: spanOf(positionalOnly, "@見返し > 0") },
@@ -47,15 +47,15 @@ describe("scanCallArgs", () => {
   });
 
   it("does not split nested values, quoted strings, or reference forms", () => {
-    const source = 'call(at: (0, 0) sources: [AB, CD] vars: [高さ: 10; 幅: @x * 2] text: "(: #)" ref: 前身頃::交点 endpoint: AB.end)';
+    const source = 'call(at: (0, 0), sources: [AB, CD], vars: [高さ: 10; 幅: @x * 2], text: "(: #)", ref: @前身頃::交点, endpoint: @AB.end)';
 
     expect(scan(source).args.map((arg) => [arg.key, arg.value])).toEqual([
       ["at", "(0, 0)"],
       ["sources", "[AB, CD]"],
       ["vars", "[高さ: 10; 幅: @x * 2]"],
       ["text", '"(: #)"'],
-      ["ref", "前身頃::交点"],
-      ["endpoint", "AB.end"],
+      ["ref", "@前身頃::交点"],
+      ["endpoint", "@AB.end"],
     ]);
     expect(scan(source).errors).toEqual([]);
   });
@@ -91,7 +91,7 @@ describe("scanCallArgs", () => {
   });
 
   it("reports empty values and a missing space after a colon with precise spans", () => {
-    const source = "call(x: y: 2 z:3)";
+    const source = "call(x: , y: 2, z:3)";
     const result = scan(source);
 
     expect(result.args.map((arg) => [arg.key, arg.value])).toEqual([["x", ""], ["y", "2"], ["z", "3"]]);
@@ -101,13 +101,13 @@ describe("scanCallArgs", () => {
       key: "x",
       keySpan: spanOf(source, "x"),
       value: "",
-      valueSpan: { start: source.indexOf("y:"), end: source.indexOf("y:") },
-      rawValueSpan: { start: source.indexOf("y:") - 1, end: source.indexOf("y:") },
+      valueSpan: { start: source.indexOf("x:") + 3, end: source.indexOf("x:") + 3 },
+      rawValueSpan: { start: source.indexOf("x:") + 2, end: source.indexOf("x:") + 3 },
     });
     expect(result.errors).toEqual([
       {
         message: "引数「x」の値がありません。",
-        span: { start: source.indexOf("y:"), end: source.indexOf("y:") },
+        span: { start: source.indexOf("x:") + 3, end: source.indexOf("x:") + 3 },
         code: "missing-attribute-value",
       },
       {

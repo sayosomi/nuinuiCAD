@@ -1,5 +1,5 @@
 // Static typed dependency projection for Task 36. This consumes compiler
-// records only: it deliberately never parses DSL source or resolves names.
+// records only: it deliberately never parses DSL source || resolves names.
 import type { DslSpan } from "../dsl/dslTypes";
 import { effectiveElementActivityById } from "../model/elementActivity";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -160,17 +160,23 @@ export const buildTypedDependencyGraph = ({
   }
 
   for (const [key, source] of propertyBindings ?? []) {
-    if (source.kind !== "binding") continue;
     const statementIndex = Number(key.slice(0, key.indexOf(":")));
     const elementId = elementIdByStatementIndex.get(statementIndex);
     if (!elementId) continue;
-    add({
-      kind: "property-binding",
-      from: elementEndpoint(elementsById, elementId, statementIndex),
-      to: bindingEndpoint(bindingAnalysis, source.bindingId),
-      span: source.span,
-      reason: reasonFor(source.bindingId)
-    });
+    const references = source.kind === "binding"
+      ? [{ bindingId: source.bindingId, span: source.span }]
+      : source.kind === "expression"
+        ? referencesIn(source.expression).flatMap((reference) => reference.bindingId ? [{ bindingId: reference.bindingId, span: reference.span }] : [])
+        : [];
+    for (const reference of references) {
+      add({
+        kind: "property-binding",
+        from: elementEndpoint(elementsById, elementId, statementIndex),
+        to: bindingEndpoint(bindingAnalysis, reference.bindingId),
+        span: reference.span,
+        reason: reasonFor(reference.bindingId)
+      });
+    }
   }
   for (const [key, source] of numericBindings ?? []) {
     const statementIndex = Number(key.slice(0, key.indexOf(":")));

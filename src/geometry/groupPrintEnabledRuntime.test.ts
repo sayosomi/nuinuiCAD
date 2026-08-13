@@ -11,8 +11,8 @@ import {
 } from "./groupPrintEnabledRuntime";
 
 const compile = (statements: string[]): LastGoodDslDocument => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
-  const result = compileCanonicalText(baseline, ["nui 3", ...statements].join("\n"));
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+  const result = compileCanonicalText(baseline, ["nui 4", ...statements].join("\n"));
   expect(result.status).not.toBe("fatal");
   return result.doc;
 };
@@ -74,6 +74,23 @@ describe("isGroupPrintEnabled", () => {
     const bindingId = resolveGroupPrintEnabledBindingId(group.id, lookup);
     const computedScalarBindings = new Map<BindingId, ScalarEvaluation>([[bindingId!, booleanEvaluation(false)]]);
     expect(isGroupPrintEnabled(group, lookup, computedScalarBindings)).toBe(false);
+  });
+
+  it("evaluates a compound typed expression through the shared scalar evaluator", () => {
+    const doc = compile([
+      "let 印刷: boolean = true",
+      "let 下書き: boolean = false",
+      "group G (printEnabled: @印刷  and  not @下書き) {",
+      "}"
+    ]);
+    const group = groupNamed(doc, "G");
+    const computedScalarBindings = new Map<BindingId, ScalarEvaluation>();
+    for (const binding of ["印刷", "下書き"]) {
+      const bindingId = doc.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === binding)?.id;
+      if (!bindingId) throw new Error(`binding "${binding}" not found`);
+      computedScalarBindings.set(bindingId, booleanEvaluation(binding === "印刷"));
+    }
+    expect(isGroupPrintEnabled(group, lookupFor(doc), computedScalarBindings)).toBe(true);
   });
 
   it("fails closed to false when the bound binding evaluation is missing from computedScalarBindings", () => {

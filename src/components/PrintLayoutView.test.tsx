@@ -311,7 +311,7 @@ describe("PrintLayoutPanel element-parameter completion", () => {
     window.localStorage.clear();
   });
 
-  it("shows 直線AB's referenceable parameters after ElementName. and narrows them by prefix", async () => {
+  it("shows 直線AB's referenceable parameters after ElementName. && narrows them by prefix", async () => {
     await renderWithLine();
     const scaleInput = screen.getByLabelText("拡大率");
 
@@ -357,11 +357,11 @@ describe("PrintLayoutPanel element-parameter completion", () => {
     // rather than raw store-state injection.
     useCadDocumentStore.getState().commitText(
       [
-        "nui 3",
+        "nui 4",
         "const 倍率: number = 1.5",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
-        "line 直線AB = segment(start: A, end: B)",
+        "line 直線AB = segment(start: @A, end: @B)",
         "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
         "}"
       ].join("\n"),

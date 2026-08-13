@@ -5,13 +5,13 @@ import { createModuleSemanticRangeIndex, moduleSemanticDeclarationRange, moduleS
 import { analyzeModuleSemanticRename } from "../document/moduleSemanticRenameAnalysis";
 
 const source = [
-  "nui 3",
+  "nui 4",
   "module M(width: number) {",
   "  export point Public = coordinate(x: @width, y: 0)",
   "  point Private = coordinate(x: @width, y: 0)",
   "}",
-  "module I = M(width: 1)",
-  "point X = offset(from: I::Public, dx: 1, dy: 0)"
+  "instance I = M(width: 1)",
+  "point X = offset(from: @I::Public, dx: 1, dy: 0)"
 ].join("\n");
 
 const compiled = () => {
@@ -34,7 +34,7 @@ describe("module semantic editor range view", () => {
 
   it("uses tokenizer-owned element/property spans for geometry property source targets", () => {
     const propertySource = [
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  line lineA = segment(start: (0, 0), end: (10, 0))",
       "  const length: number = @lineA.length",
@@ -53,12 +53,12 @@ describe("module semantic editor range view", () => {
 
   it("connects deferred export property instance and member tokens to stable source targets", () => {
     const deferredSource = [
-      "nui 3",
+      "nui 4",
       "module Child() {",
       "  export line Output = segment(start: (0, 0), end: (10, 0))",
       "}",
       "module M() {",
-      "  module SomeInstance = Child()",
+      "  instance SomeInstance = Child()",
       "  const length: number = @SomeInstance::Output.length",
       "}"
     ].join("\n");
@@ -69,16 +69,61 @@ describe("module semantic editor range view", () => {
     expect(index.tokens.find((token) => deferredSource.slice(token.from, token.to) === "Output" && token.from > deferredSource.indexOf("@"))?.target).toEqual({ kind: "moduleSource", statementId: "statement:deferred:2" });
   });
 
+  it("connects scalar export declarations and qualified members to one source target", () => {
+    const scalarSource = [
+      "nui 4",
+      "module M() {",
+      "  export const value: number = 1",
+      "  export let label: string = \"\"",
+      "}",
+      "instance a = M()",
+      "instance b = M()",
+      "const rootA: number = @a::value",
+      "const rootB: number = @b::value",
+      "module Consumer() {",
+      "  instance child = M()",
+      "  const inside: number = @child::value",
+      "}"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: scalarSource, sourceRevision: 0 });
+    const document = compileDslDocument(scalarSource, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:scalar:${index}`]))
+    });
+    expect(document.diagnostics).toEqual([]);
+    const index = createModuleSemanticRangeIndex(document);
+    const sourceToken = (text: string, from = 0) => index.tokens.find((token) => scalarSource.slice(token.from, token.to) === text && token.from >= from);
+    const valueDeclaration = sourceToken("value");
+    expect(valueDeclaration?.target).toEqual({ kind: "moduleSource", statementId: "statement:scalar:2" });
+
+    const firstMember = sourceToken("value", scalarSource.indexOf("@a::"));
+    const secondMember = sourceToken("value", scalarSource.indexOf("@b::"));
+    const childMember = sourceToken("value", scalarSource.indexOf("@child::"));
+    expect(firstMember?.target).toEqual(valueDeclaration?.target);
+    expect(secondMember?.target).toEqual(valueDeclaration?.target);
+    expect(childMember?.target).toEqual(valueDeclaration?.target);
+
+    const firstInstance = sourceToken("a", scalarSource.indexOf("@a::"));
+    const childInstance = sourceToken("child", scalarSource.indexOf("@child::"));
+    expect(firstInstance?.target).toEqual({ kind: "moduleInstance", statementId: "statement:scalar:5" });
+    expect(childInstance?.target).toEqual({ kind: "moduleInstance", statementId: "statement:scalar:10" });
+    expect(moduleSemanticTargetAt(index, firstMember!.from)).toEqual(valueDeclaration?.target);
+    expect(moduleSemanticTargetAt(index, firstInstance!.from)).toEqual(firstInstance?.target);
+
+    const declaration = moduleSemanticDeclarationRange(index, firstMember!.target);
+    expect(declaration && scalarSource.slice(declaration.from, declaration.to)).toBe("value");
+  });
+
   it("collects scalar and geometry-property occurrences from text-template holes", () => {
     const templateSource = [
-      "nui 3",
+      "nui 4",
       "module Child() {",
       "  export line Export = segment(start: (0, 0), end: (10, 0))",
       "}",
       "module M(lineParam: line) {",
       "  line lineA = segment(start: (0, 0), end: (10, 0))",
-      "  module instance = Child()",
-      "  text Label = label(text: \"private={@lineA.length} parameter={@lineParam.length} export={@instance::Export.length}\", anchor: (0, 0))",
+      "  instance instance = Child()",
+      "  text Label = label(text: \"private=${@lineA.length} parameter=${@lineParam.length} export=${@instance::Export.length}\", anchor: (0, 0))",
       "}"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: templateSource, sourceRevision: 0 });

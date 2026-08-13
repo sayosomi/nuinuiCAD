@@ -30,7 +30,7 @@ export const typedDeclarationAnalysisFor = (source: string): TypedDeclarationAna
   expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const statements = parsed.statements;
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
   expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
   const stableStatementIdByIndex = new Map<number, string>(statements.map((_, index) => [index, `stable-${index}`]));

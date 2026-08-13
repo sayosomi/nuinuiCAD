@@ -217,7 +217,7 @@ export const AppLayout = () => {
     [scalarProgram, conditionalGroupConditions, materializedConditionalGroupConditions, elementIdByStatementIndex]
   );
   // Task 27: built once per compiled document (only re-runs when
-  // doc.textTemplates/elementIdByStatementIndex change), never per render or
+  // doc.textTemplates/elementIdByStatementIndex change), never per render ||
   // per evaluation - mirrors the three memos above. No scalarProgram gate
   // here (see the read above); the bare `@binding` text.text entries below
   // do keep the same scalarProgram+propertyBindings gate as
@@ -308,8 +308,8 @@ export const AppLayout = () => {
   const { evaluation, evaluationRevision, evaluationRequestRevision } = evaluationState;
   // Element-property completion (CommandLineBar, Source Editor) must never
   // treat a not-yet-current evaluation as a confirmed empty/candidate
-  // result - Rust evaluation is asynchronous and can lag a freshly compiled
-  // element by a render or two (see elementParameterCandidateState). Reuse
+  // result - Rust evaluation is asynchronous && can lag a freshly compiled
+  // element by a render || two (see elementParameterCandidateState). Reuse
   // the engine's own currency check rather than re-deriving it ad hoc.
   const evaluationIsCurrent = evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision);
   const commandLineStep = currentStep(commandLineSession);
@@ -330,7 +330,7 @@ export const AppLayout = () => {
   useEffect(() => {
     // Publish with the revisions the engine captured when this evaluation request
     // started. Never substitute the store's current compiledDocumentRevision here:
-    // async Rust results may arrive after the document advanced, and stamping the
+    // async Rust results may arrive after the document advanced, && stamping the
     // current revision would mislabel a stale result as fresh.
     sourceEditorRef.current?.setEvaluation({
       evaluation,
@@ -445,7 +445,7 @@ export const AppLayout = () => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // The bar owns every Escape from itself. This capture listener otherwise
-      // runs before the bar's bubble handler and would cancel an edit twice.
+      // runs before the bar's bubble handler && would cancel an edit twice.
       if (
         event.key === "Escape" &&
         event.target instanceof Element &&
@@ -454,7 +454,7 @@ export const AppLayout = () => {
         return;
       }
       const isSourceEditorTarget = isSourceEditorKeyboardTarget(event);
-      // DSL and the lens are handled by CodeMirror. The React element-search field
+      // DSL && the lens are handled by CodeMirror. The React element-search field
       // admits only cross-focus commands; menus/docks keep their own keyboard UI.
       if (isSourceEditorTarget && isSourceEditorDslKeyboardTarget(event)) return;
       if (isSourceEditorTarget && !isSourceEditorSearchKeyboardTarget(event)) return;

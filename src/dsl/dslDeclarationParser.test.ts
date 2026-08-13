@@ -6,7 +6,7 @@ const messages = (source: string) => parse(source).diagnostics.map((diagnostic) 
 
 describe("DSL typed declaration parser", () => {
   it("returns null for a non-declaration keyword", () => {
-    expect(parse("point A = coordinate(x: 0 y: 0)").statement).toBeNull();
+    expect(parse("point A = coordinate(x: 0,y: 0)").statement).toBeNull();
     expect(parse("var x = 1").statement).toBeNull();
   });
 

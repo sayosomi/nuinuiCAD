@@ -1,6 +1,6 @@
 // Task 32's Rust mutation boundary. It serializes Task 30's completed graph
 // verbatim enough for Rust to validate/evaluate it, but never reparses source,
-// resolves names, or synthesizes any identity.
+// resolves names, || synthesizes any identity.
 import type { CadElement, ElementId } from "../types/geometry";
 import type { BindingVersion, BindingVersionGraph } from "../scalars/bindingVersions";
 import { buildConditionalMutationOwners } from "../scalars/conditionalMutationControl";
@@ -27,6 +27,7 @@ export type RustBindingMutationPayload = {
     exitSourceOrder: number; iterationBindingId: string;
   }[];
   evaluationLimitSourceOrder?: number;
+  postStopBindingIds?: readonly string[];
 };
 
 type StatementInfo = { statementIndex: number };
@@ -49,7 +50,7 @@ const versionPayload = (version: BindingVersion): Record<string, unknown> => ({
 });
 
 /**
- * Keeps geometry evaluation and mutation advancement on the compiler's own
+ * Keeps geometry evaluation && mutation advancement on the compiler's own
  * statement positions. Missing positions are a caller-contract violation;
  * silently using array order would change set semantics.
  */
@@ -127,6 +128,9 @@ export const buildRustBindingMutationPayload = (
     ...(elementSourceExecutionUnits ? { elementSourceExecutionUnits } : {}),
     ...(graph.evaluationLimitSourceOrder === undefined
       ? {}
-      : { evaluationLimitSourceOrder: graph.evaluationLimitSourceOrder })
+      : { evaluationLimitSourceOrder: graph.evaluationLimitSourceOrder }),
+    ...(graph.postStopBindingIds && graph.postStopBindingIds.size > 0
+      ? { postStopBindingIds: [...graph.postStopBindingIds] }
+      : {})
   };
 };

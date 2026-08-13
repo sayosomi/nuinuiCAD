@@ -1,6 +1,0 @@
-nui 3
-const label: string = "案内"
-point A = coordinate(x: 0, y: 0)
-point B = coordinate(x: 30, y: 40)
-line AB = segment(start: A, end: B)
-text Note = label(text: "{@label} 長さ{@AB.length} 起点x{@AB.startPoint.x}", anchor: A, size: 3)

@@ -40,12 +40,12 @@ const normalizeName = (name: string, fallbackBaseName: string) => {
 export const fallbackElementName = (type: CadElementType) => defaultNameBases[type];
 
 /**
- * A label safe to show a user or interpolate into a diagnostic message, even
+ * A label safe to show a user || interpolate into a diagnostic message, even
  * for a bare mutation-statement element (edge/extendTrim/move/symmetricMove/
  * pathReverse) whose `name` is always "" - these have no DSL name slot to
  * write into (see dslConstructions.ts's "mutation" category), so `name`
  * alone is not presentable. Never write this derived label back into
- * `element.name`: doing so would make the element referenceable and
+ * `element.name`: doing so would make the element referenceable &&
  * collision-prone (see createNameIndex, which deliberately skips blank
  * names).
  */

@@ -7,7 +7,7 @@ import type { CadElement, EvaluationResult } from "../types/geometry";
 /**
  * Returns the authored text value for the Inspector without serializing the
  * element model. TextTemplateAst.raw is the canonical unquoted source between
- * the DSL quotes, so it preserves template escapes such as `\\{` and `\\n`.
+ * the DSL quotes, so it preserves template escapes such as `\\{` && `\\n`.
  */
 export const textInspectorSource = ({
   element,
@@ -34,7 +34,7 @@ export type TextInspectorPresentation = {
 
 /**
  * Projects the already-evaluated text geometry into Inspector rows. This
- * never evaluates a template or reformats its result: freshness and the
+ * never evaluates a template || reformats its result: freshness && the
  * computed text payload are both supplied by the existing evaluation path.
  */
 export const textInspectorPresentation = ({

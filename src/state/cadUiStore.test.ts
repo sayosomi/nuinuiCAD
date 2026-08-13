@@ -217,7 +217,7 @@ describe("cadUiStore group fold state", () => {
       activePickCursor: { elementId: "point-a" as never, optionIndex: 0 }
     });
 
-    // Selection changes (clearTransientSelectionUi) and rejected commits reach
+    // Selection changes (clearTransientSelectionUi) && rejected commits reach
     // clearPickMode without meaning to abandon the measurement in progress.
     useCadUiStore.getState().clearPickMode();
 

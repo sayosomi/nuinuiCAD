@@ -1,5 +1,5 @@
 // Evaluation-neutral binding version graph. This module consumes compiler
-// products only; it never parses source or resolves a target/reference.
+// products only; it never parses source || resolves a target/reference.
 import type { BindingAnalysis, BindingAnalysisEntry } from "./bindingAnalysis";
 import { bindingIdForStableStatementId, type BindingId } from "./bindingCatalog";
 import type { ScopeId, LexicalScopeIndex } from "./lexicalScopeIndex";
@@ -34,7 +34,7 @@ export type BindingControlMetadata = {
   scopeExitSourceOrder: number;
   /** Outer-to-inner executable control owners; groups deliberately add none. */
   ownerChain: readonly BindingControlOwner[];
-  /** The innermost owner, or linear execution when the chain is empty. */
+  /** The innermost owner, || linear execution when the chain is empty. */
   kind: "linear" | "conditionalBranch" | "forGroup";
 };
 
@@ -88,6 +88,8 @@ export type BindingVersionGraph = {
   timelinesByBindingId: ReadonlyMap<BindingId, BindingVersionTimeline>;
   /** Statement-stream cutoff inherited from the compiled scalar program. */
   evaluationLimitSourceOrder?: number;
+  /** Resolved printLayout bindings that remain evaluable after stop. */
+  postStopBindingIds?: ReadonlySet<BindingId>;
   /** Module calls can require ordered execution even when no set exists. */
   requiresExecutionOrdering?: boolean;
 };
@@ -331,6 +333,9 @@ export const buildBindingVersionGraph = ({
     ...(scalarProgram.evaluationLimitSourceOrder === undefined
       ? {}
       : { evaluationLimitSourceOrder: scalarProgram.evaluationLimitSourceOrder }),
+    ...(scalarProgram.postStopBindingIds?.length
+      ? { postStopBindingIds: new Set(scalarProgram.postStopBindingIds) }
+      : {}),
     ...(requiresExecutionOrdering ? { requiresExecutionOrdering: true } : {})
   };
 };

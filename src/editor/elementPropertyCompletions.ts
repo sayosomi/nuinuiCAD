@@ -3,7 +3,7 @@ import { dslElementParameterCompletionOptions } from "../dsl/dslElementParameter
 import type { DslLiveStatementIdentity } from "../dsl/dslCompletionCandidates";
 import type { CadElement, ComputedGeometry, DependencyError, ElementId } from "../types/geometry";
 
-/** Editor adapter shared by numeric and typed expression property completion. */
+/** Editor adapter shared by numeric && typed expression property completion. */
 export const elementPropertyCompletions = ({
   source,
   cursorLine,

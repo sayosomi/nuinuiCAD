@@ -34,7 +34,7 @@ export type DslSettingsParseResult = {
   diagnostics: DslSettingsDiagnostic[];
 };
 
-export type ParseDslSettingsOptions = { opensBlock?: boolean; requireArgumentCommas?: boolean };
+export type ParseDslSettingsOptions = { opensBlock?: boolean };
 
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 const whitespace = /\s/;
@@ -184,14 +184,19 @@ export const parseDslSettingsStatement = (
   options: ParseDslSettingsOptions = {},
 ): DslSettingsParseResult => {
   const diagnostics: DslSettingsDiagnostic[] = [];
-  const keywordMatch = logicalText.match(identifier) ?? (logicalText.startsWith("@stop") ? ["@stop"] : null);
+  if (logicalText.trimStart().startsWith("@stop")) {
+    const start = logicalText.indexOf("@stop");
+    addDiagnostic(diagnostics, "`@stop` は nui4 では使えません。`stop` を使用してください。", { start, end: start + 5 });
+    return { statement: null, diagnostics };
+  }
+  const keywordMatch = logicalText.match(identifier);
   if (!keywordMatch) return { statement: null, diagnostics };
   const keyword = keywordMatch[0];
   const keywordSpan = { start: 0, end: keyword.length };
   const rest = trimSpan(logicalText, keyword.length, logicalText.length);
 
-  if (keyword === "@stop") {
-    if (rest.start !== rest.end || options.opensBlock) addDiagnostic(diagnostics, "@stop は単独の行に書いてください。", rest);
+  if (keyword === "stop") {
+    if (rest.start !== rest.end || options.opensBlock) addDiagnostic(diagnostics, `${keyword} は単独の行に書いてください。`, rest);
     return { statement: { kind: "atStop", name: "", nameSpan: null, keywordSpan, args: [], attrs: [], payloadSpans: {}, opensBlock: false }, diagnostics };
   }
   if (keyword === "nui") {
@@ -232,7 +237,7 @@ export const parseDslSettingsStatement = (
   if (inlineBlock && keyword !== "printLayout") addDiagnostic(diagnostics, `${keyword}文はブロックを開けません。`, tail);
   if (keyword === "printLayout" && !opensBlock) addDiagnostic(diagnostics, "printLayout にはブロックが必要です。", keywordSpan);
 
-  const scanned = scanCallArgs(logicalText, { start: open + 1, end: close }, { requireCommas: Boolean(options.requireArgumentCommas) });
+  const scanned = scanCallArgs(logicalText, { start: open + 1, end: close });
   diagnostics.push(...scanned.errors);
   if (keyword === "place" && parsedName.nameSpan) {
     scanned.args.unshift({

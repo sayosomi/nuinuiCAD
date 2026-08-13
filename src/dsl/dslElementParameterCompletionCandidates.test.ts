@@ -36,7 +36,7 @@ const lineGeometry = (id: ElementId): ComputedLine => ({
   endTangentAngleDeg: 0
 });
 
-const baseSource = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: A, end: B)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
+const baseSource = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: @A, end: @B)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
 
 describe("dslElementParameterCompletionOptions", () => {
   it("lists AB's referenceable parameters when identity/type/enabled all agree with the last evaluation", () => {
@@ -75,20 +75,20 @@ describe("dslElementParameterCompletionOptions", () => {
     expect(options).toEqual([]);
   });
 
-  it("excludes a statement declared after the document's @stop marker, even if it would otherwise resolve", () => {
+  it("excludes a statement declared after the document's stop marker, even if it would otherwise resolve", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "@stop",
+      "line AB = segment(start: @A, end: @B)",
+      "stop",
       "point C = coordinate(x: 20, y: 0)",
-      "line CD = segment(start: B, end: C)",
+      "line CD = segment(start: @B, end: @C)",
       "point Target = coordinate(x: 5, y: 5)"
     ].join("\n");
     const { elements, ids } = identities(source);
     const cdId = ids.get(7)!;
-    // Fabricate as if CD had somehow been computed - the @stop cutoff must
+    // Fabricate as if CD had somehow been computed - the stop cutoff must
     // still exclude it from the name-resolution pool regardless of whatever
     // computedGeometry/effectiveEnabledElementIds are passed in.
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[cdId, lineGeometry(cdId)]]);
@@ -107,11 +107,11 @@ describe("dslElementParameterCompletionOptions", () => {
 
   it("excludes a group-scoped element outside the cursor's live group scope", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "group Outer {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line AB = segment(start: A, end: B)",
+      "  line AB = segment(start: @A, end: @B)",
       "}",
       "point Target = coordinate(x: 5, y: 5)"
     ].join("\n");
@@ -146,10 +146,10 @@ describe("dslElementParameterCompletionOptions", () => {
 
   it("resolves element-property candidates for a printLayout header attribute (scale=), even though printLayout is a BlockFrame scope with no elementId", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "group G {",
       "  point C = coordinate(x: 0, y: 0)",
       "}",
@@ -157,7 +157,7 @@ describe("dslElementParameterCompletionOptions", () => {
       "  columns: 2,",
       "  scale: 1+@AB.length",
       ") {",
-      "  place G (at: (0, 0), angle: 0+@AB.length)",
+      "  place @G(at: (0, 0), angle: 0+@AB.length)",
       "}"
     ].join("\n");
     const { elements, ids } = identities(source);
@@ -180,12 +180,12 @@ describe("dslElementParameterCompletionOptions", () => {
     expect(options.map((option) => option.path)).toContain("length");
   });
 
-  it("resolves element-property candidates for a place attribute (angle=) inside a printLayout block", () => {
+  it("resolves element-property candidates for a place @attribute(angle=) inside a printLayout block", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
+      "line AB = segment(start: @A, end: @B)",
       "group G {",
       "  point C = coordinate(x: 0, y: 0)",
       "}",
@@ -193,7 +193,7 @@ describe("dslElementParameterCompletionOptions", () => {
       "  columns: 2,",
       "  scale: 1",
       ") {",
-      "  place G (at: (0, 0), angle: 0+@AB.length)",
+      "  place @G(at: (0, 0), angle: 0+@AB.length)",
       "}"
     ].join("\n");
     const { elements, ids } = identities(source);
@@ -201,7 +201,7 @@ describe("dslElementParameterCompletionOptions", () => {
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
     const options = dslElementParameterCompletionOptions({
       source,
-      cursorLine: 12, // "  place G (at: (0, 0), angle: 0+@AB.length)"
+      cursorLine: 12, // "  place @G(at: (0, 0), angle: 0+@AB.length)"
       statementElementIds: ids,
       elements,
       elementToken: "AB",
@@ -246,13 +246,13 @@ describe("dslElementParameterCompletionOptions", () => {
     expect(options).toEqual([]);
   });
 
-  it("returns no candidates while evaluation has no footprint for AB (caller's responsibility to treat as pending, not fall back)", () => {
+  it("returns no candidates while evaluation has no footprint for caller in range('s responsibility to treat as pending, not fall back)", () => {
     // dslElementParameterCompletionOptions never itself infers "pending" from
-    // an empty/missing evaluation, and never runs a synchronous TS-reference
+    // an empty/missing evaluation, && never runs a synchronous TS-reference
     // evaluation as a substitute - that would risk disagreeing with Rust for
     // typed conditional groups/property bindings/forGroup-generated elements.
     // The caller (cmAutocomplete.ts) is responsible for checking
-    // evaluationIsCurrent and not calling this at all until Rust catches up -
+    // evaluationIsCurrent && not calling this at all until Rust catches up -
     // see elementParameterCandidateState in elementParameterReferenceOptions.ts.
     const { elements, ids } = identities(baseSource);
     const options = dslElementParameterCompletionOptions({
@@ -270,11 +270,11 @@ describe("dslElementParameterCompletionOptions", () => {
 
   it("resolves namespace-qualified and Japanese element names", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "group グループ1 {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line 直線AB = segment(start: A, end: B)",
+      "  line 直線AB = segment(start: @A, end: @B)",
       "  point Target = coordinate(x: 5, y: 5)",
       "}"
     ].join("\n");
@@ -308,12 +308,12 @@ describe("dslElementParameterCompletionOptions", () => {
 
   it("never guesses for an ambiguous (duplicate) element name", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B, id: ab-1)",
+      "line AB = segment(start: @A, end: @B, id: ab-1)",
       "point C = coordinate(x: 20, y: 0)",
-      "line AB = segment(start: A, end: C, id: ab-2)",
+      "line AB = segment(start: @A, end: @C, id: ab-2)",
       "point Target = coordinate(x: 5, y: 5)"
     ].join("\n");
     const { elements, ids } = identities(source);
@@ -342,7 +342,7 @@ describe("dslElementParameterCompletionOptions", () => {
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
     // Same line number, but the live text now declares a "point" where the
     // compiled document still has a "line" - dirty, uncommitted structural edit.
-    const dirtySource = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "point AB = coordinate(x: 5, y: 5)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
+    const dirtySource = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "point AB = coordinate(x: 5, y: 5)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
     const options = dslElementParameterCompletionOptions({
       source: dirtySource,
       cursorLine: 5,
@@ -361,10 +361,10 @@ describe("dslElementParameterCompletionOptions", () => {
     const abId = ids.get(4)!;
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
     // Same statement/type/identity, but the live text was just dirty-edited to
-    // add enabled=false - the compiled element (elements array) and the
+    // add enabled=false - the compiled element (elements array) && the
     // computedGeometry/effectiveEnabledElementIds snapshot both still reflect
     // the previous (enabled) evaluation.
-    const dirtySource = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: A, end: B, state: disabled)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
+    const dirtySource = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: @A, end: @B, state: disabled)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
     const options = dslElementParameterCompletionOptions({
       source: dirtySource,
       cursorLine: 5,
@@ -384,7 +384,7 @@ describe("dslElementParameterCompletionOptions", () => {
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
     // A dirty edit unrelated to enabled/type (e.g. touching a later line) still
     // leaves AB's own live statement agreeing with the compiled snapshot.
-    const dirtySource = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: A, end: B)", "point Target = coordinate(x: 6, y: 5)"].join("\n");
+    const dirtySource = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: @A, end: @B)", "point Target = coordinate(x: 6, y: 5)"].join("\n");
     const options = dslElementParameterCompletionOptions({
       source: dirtySource,
       cursorLine: 5,

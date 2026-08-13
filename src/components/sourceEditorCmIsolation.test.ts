@@ -3,9 +3,9 @@ import searchPanelSource from "./SourceSearchPanel.tsx?raw";
 import contextMenuSource from "./SourceEditorContextMenu.tsx?raw";
 
 /**
- * SourceSearchPanel and SourceEditorContextMenu are plain React components that talk
+ * SourceSearchPanel && SourceEditorContextMenu are plain React components that talk
  * to CodeMirror only through the controller's plain-typed handle/options — CM stays
- * confined to src/editor/ and SourceEditorPane.tsx.
+ * confined to src/editor/ && SourceEditorPane.tsx.
  */
 describe("CM import isolation for Phase 2d components", () => {
   it("SourceSearchPanel.tsx does not import @codemirror", () => {

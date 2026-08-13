@@ -3,6 +3,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
 import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
 import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
+import { moduleRuntimeGeometryKindOf } from "./moduleGeometryInterfaces";
 import type {
   ModuleGeometryPropertySourceTarget,
   ModuleGeometryReferenceSemantic,
@@ -62,7 +63,7 @@ export const buildModuleGeometryRuntime = ({
   const exportsByPath = new Map<string, ReadonlyMap<string, ExportEntry>>();
   const resolversByRuntimeElementId = new Map<ElementId, DslGeometryResolverOverrides>();
 
-  const exportAliasFor = (path: readonly string[], exported: ResolvedModuleExport): GeometryAlias | undefined => {
+  const exportAliasFor = (path: readonly string[], exported: Extract<ResolvedModuleExport, { kind: "geometry" }>): GeometryAlias | undefined => {
     const entry = runtimeEntryForBody(moduleMaterialization, path, exported.exportedStatementId);
     const kind = geometryKindOfCategory(exported.category);
     if (!entry || !kind) return undefined;
@@ -90,12 +91,13 @@ export const buildModuleGeometryRuntime = ({
     contextsByPath.set(key, context);
     const exportEntries = new Map<string, ExportEntry>();
     for (const exported of definition.exports) {
+      if (exported.kind !== "geometry") continue;
       const alias = exportAliasFor(path, exported);
       if (alias) exportEntries.set(exported.name, { exported, alias });
     }
     exportsByPath.set(key, exportEntries);
     for (const parameter of definition.parameters) {
-      if (parameter.type?.kind !== "point" && parameter.type?.kind !== "line") continue;
+      if (!moduleRuntimeGeometryKindOf(parameter.type)) continue;
       const binding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
       if (binding?.value?.kind !== "geometry") continue;
       const instanceStatement = statements[instance.statementIndex];

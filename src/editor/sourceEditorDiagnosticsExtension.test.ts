@@ -34,7 +34,7 @@ const baseSource = (compiled: ReturnType<typeof compile>, overrides: Partial<Dia
 
 describe("currentDiagnosticsWithActions", () => {
   it("attaches an action for a fixable diagnostic, even though the error makes the compiled document non-last-good", () => {
-    const source = ["nui 3", "const x = 1"].join("\n");
+    const source = ["nui 4", "const x = 1"].join("\n");
     const compiled = compile(source);
     // The missing-declared-type error is itself what nulls `document`/`statementMap` -
     // this is the exact case that previously (before routing statements
@@ -48,7 +48,7 @@ describe("currentDiagnosticsWithActions", () => {
   });
 
   it("passes the live deps through so a click on the resulting action still no-ops mid-composition", () => {
-    const source = ["nui 3", "const x = 1"].join("\n");
+    const source = ["nui 4", "const x = 1"].join("\n");
     const compiled = compile(source);
     const view = makeView(source);
     let composing = false;
@@ -63,7 +63,7 @@ describe("currentDiagnosticsWithActions", () => {
   });
 
   it("produces plain (action-less) diagnostics for an unrelated, non-fixable error", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "bogus statement here"].join("\n");
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "bogus statement here"].join("\n");
     const compiled = compile(source);
     const view = makeView(source);
     const diagnostics = currentDiagnosticsWithActions(view, baseSource(compiled));
@@ -72,7 +72,7 @@ describe("currentDiagnosticsWithActions", () => {
   });
 
   it("Task 48: merges a fresh runtime diagnostic in, positioned exactly, with no Quick Fix action", () => {
-    const source = ["nui 3", "const x: number = 1"].join("\n");
+    const source = ["nui 4", "const x: number = 1"].join("\n");
     const compiled = compile(source);
     const view = makeView(source);
     const xOffset = source.indexOf("x:");
@@ -95,7 +95,7 @@ describe("currentDiagnosticsWithActions", () => {
   });
 
   it("Task 48: drops (never mispositions) an exactSpanOnly diagnostic whose exact span never resolved", () => {
-    const source = ["nui 3", "const x: number = 1"].join("\n");
+    const source = ["nui 4", "const x: number = 1"].join("\n");
     const compiled = compile(source);
     const view = makeView(source);
     const unresolved = [{

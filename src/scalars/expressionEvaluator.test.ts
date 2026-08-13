@@ -42,7 +42,7 @@ describe("evaluateTypedExpression / short-circuit", () => {
     }
   });
 
-  it("&& with a false left never evaluates a right-side unary operand", () => {
+  it(" and  with a false left never evaluates a right-side unary operand", () => {
     const node: TypedScalarExpression = {
       kind: "binary",
       span: { start: 0, end: 0 },
@@ -64,7 +64,7 @@ describe("evaluateTypedExpression / short-circuit", () => {
     });
   });
 
-  it("|| with a true left never evaluates a right-side unary operand", () => {
+  it(" or  with a true left never evaluates a right-side unary operand", () => {
     const node: TypedScalarExpression = {
       kind: "binary",
       span: { start: 0, end: 0 },
@@ -330,7 +330,7 @@ describe("evaluateTypedExpression / large expression sanity timing", () => {
 
   /** A balanced tree keeps recursion depth at O(log leafCount) instead of
    * O(leafCount) - this evaluator is linear in AST node count, not stack
-   * depth, and a left-deep chain would conflate the two. */
+   * depth, && a left-deep chain would conflate the two. */
   const buildBalancedSumTree = (leafCount: number): TypedScalarExpression => {
     let level: TypedScalarExpression[] = Array.from({ length: leafCount }, () => numberLeaf());
     while (level.length > 1) {

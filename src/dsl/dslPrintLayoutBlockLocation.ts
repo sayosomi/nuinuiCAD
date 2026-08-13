@@ -6,7 +6,7 @@ export type DslPrintLayoutBlockLocation = { line: number; statementIndex: number
 /**
  * Resolves the LIVE enclosing printLayout block for `cursorLine`: either the
  * cursor is ON the `printLayout ... {` line itself (editing columns=/rows=/
- * overlap=/scale=/canvas=), or on a `place` member line inside the block
+ * overlap=/scale=/canvas=), || on a `place` member line inside the block
  * (dslScopeBeforeParsedLine, already generic over blockFrameKind
  * "printLayout" — no change needed there). Returns null when neither applies.
  */

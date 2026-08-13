@@ -42,7 +42,7 @@ const expectShadowConsistent = () => {
   const state = useCadDocumentStore.getState();
   expect(state.doc.document).not.toBeNull();
   const afterDoc = state.doc.document;
-  expect(serializeDocumentToDsl(state.doc.document, 3)).toBe(serializeDocumentToDsl(afterDoc, 3));
+  expect(serializeDocumentToDsl(state.doc.document, 4)).toBe(serializeDocumentToDsl(afterDoc, 4));
 };
 
 const seedFromSource = (source: string) => {

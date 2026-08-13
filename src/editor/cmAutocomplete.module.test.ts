@@ -57,59 +57,298 @@ describe("module completion through the existing CodeMirror pipeline", () => {
   });
 
   it("offers only source-order visible module callees and excludes forward definitions", async () => {
-    const source = ["nui 3", "module First() {", "}", "module Use = F", "module Forward() {", "}"].join("\n");
+    const source = ["nui 4", "module First() {", "}", "instance Use = F", "module Forward() {", "}"].join("\n");
     const result = await completionFor(source, source.indexOf("F\n", source.indexOf("module Use")) + 1);
+    expect(result?.options.map((option) => option.label)).toEqual(["First"]);
+  });
+
+  it("offers module callees through the formal nui4 instance spelling", async () => {
+    const source = ["nui 4", "module First() {", "}", "instance Use = F", "module Forward() {", "}"].join("\n");
+    const result = await completionFor(source, source.indexOf("F\n", source.indexOf("instance Use")) + 1);
     expect(result?.options.map((option) => option.label)).toEqual(["First"]);
   });
 
   it("offers unconsumed named labels and type-filters scalar, point, and line arguments", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point P = coordinate(x: 0, y: 0)",
-      "line L = segment(start: P, end: P)",
-      "curve C = bezier(start: P, end: P)",
-      "module M(width: number, anchor: point, path: line, optional: number = 0) {",
+      "line L = segment(start: @P, end: @P)",
+      "curve C = bezier(start: @P, end: @P)",
+      "module M(width: number, anchor: point, path: path, optional: number = 0) {",
       "}",
-      "module I = M(width: 1, anchor: P, path: L)"
+      "instance I = M(width: 1, anchor: @P, path: @L)"
     ].join("\n");
-    const label = await completionFor(source, source.indexOf("anchor: P") + "anchor".length);
+    const label = await completionFor(source, source.indexOf("anchor: @P") + "anchor".length);
     expect(label?.options.map((option) => option.label)).toContain("optional");
     expect(label?.options.map((option) => option.label)).not.toContain("width");
     const scalar = await completionFor(source, source.indexOf("1, anchor") + 1);
     expect(scalar?.options.map((option) => option.label)).toContain("0");
     expect(scalar?.options.map((option) => option.label)).not.toContain("P");
-    const point = await completionFor(source, source.indexOf("P, path") + 1);
+    const point = await completionFor(source, source.indexOf("@P, path") + 2);
     expect(point?.options.map((option) => option.label)).toContain("P");
     expect(point?.options.map((option) => option.label)).not.toContain("L");
-    const line = await completionFor(source, source.indexOf("L)") + 1);
+    const line = await completionFor(source, source.indexOf("@L)") + 2);
     expect(line?.options.map((option) => option.label)).toContain("L");
     expect(line?.options.map((option) => option.label)).toContain("C");
     expect(line?.options.map((option) => option.label)).not.toContain("P");
   });
 
+  it("preserves point Module argument endpoint completions", async () => {
+    const source = [
+      "nui 4",
+      "point P = coordinate(x: 0, y: 0)",
+      "line L = segment(start: @P, end: @P)",
+      "curve C = bezier(start: @P, end: @P)",
+      "arc A = arc(center: @P, radius: 5, start: 0, end: 90)",
+      "module M(anchor: point) {",
+      "}",
+      "instance I = M(anchor: @)"
+    ].join("\n");
+    const cursor = source.indexOf("M(anchor: @") + "M(anchor: @".length;
+    const result = await completionFor(source, cursor);
+    expect(result?.options.map((option) => option.label)).toEqual([
+      "P",
+      "L.start",
+      "L.end",
+      "C.start",
+      "C.end",
+      "A.start",
+      "A.end"
+    ]);
+  });
+
+  it("forwards Module geometry parameters according to directional interfaces", async () => {
+    const source = [
+      "nui 4",
+      "module PathConsumer(input: path) {",
+      "}",
+      "module LineConsumer(input: line) {",
+      "}",
+      "module Container(lineParam: line, pathParam: path) {",
+      "  instance PathArg = PathConsumer(input: @)",
+      "  instance LineArg = LineConsumer(input: @)",
+      "}"
+    ].join("\n");
+    const pathCursor = source.indexOf("PathConsumer(input: @") + "PathConsumer(input: @".length;
+    const lineCursor = source.indexOf("LineConsumer(input: @") + "LineConsumer(input: @".length;
+    const path = await completionFor(source, pathCursor);
+    const line = await completionFor(source, lineCursor);
+    expect(path?.options.map((option) => option.label)).toContain("lineParam");
+    expect(path?.options.map((option) => option.label)).toContain("pathParam");
+    expect(line?.options.map((option) => option.label)).toContain("lineParam");
+    expect(line?.options.map((option) => option.label)).not.toContain("pathParam");
+  });
+
+  it("filters direct geometry candidates by strict line versus broad path interfaces", async () => {
+    const source = [
+      "nui 4",
+      "point P = coordinate(x: 0, y: 0)",
+      "line L = segment(start: @P, end: @P)",
+      "curve C = bezier(start: @P, end: @P)",
+      "arc A = arc(center: @P, radius: 5, start: 0, end: 90)",
+      "module Strict(input: line) {",
+      "}",
+      "module Broad(input: path) {",
+      "}",
+      "instance S = Strict(input: @)",
+      "instance B = Broad(input: @)"
+    ].join("\n");
+    const strictCursor = source.indexOf("Strict(input: @") + "Strict(input: @".length;
+    const broadCursor = source.indexOf("Broad(input: @") + "Broad(input: @".length;
+    const strict = await completionFor(source, strictCursor);
+    const broad = await completionFor(source, broadCursor);
+    expect(strict?.options.map((option) => option.label)).toEqual(["L"]);
+    expect(broad?.options.map((option) => option.label)).toEqual(["L", "C", "A"]);
+  });
+
+  it("filters qualified exported geometry candidates by the receiving interface", async () => {
+    const source = [
+      "nui 4",
+      "module Producer() {",
+      "  export line L = segment(start: (0, 0), end: (10, 0))",
+      "  export curve C = bezier(start: (0, 0), end: (10, 0))",
+      "  export arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
+      "}",
+      "module Strict(input: line) {",
+      "}",
+      "module Broad(input: path) {",
+      "}",
+      "instance Source = Producer()",
+      "instance S = Strict(input: @Source::)",
+      "instance B = Broad(input: @Source::)"
+    ].join("\n");
+    const strictCursor = source.indexOf("Strict(input: @Source::") + "Strict(input: @Source::".length;
+    const broadCursor = source.indexOf("Broad(input: @Source::") + "Broad(input: @Source::".length;
+    const strict = await completionFor(source, strictCursor);
+    const broad = await completionFor(source, broadCursor);
+    expect(strict?.options.map((option) => option.label)).toEqual(["L"]);
+    expect(broad?.options.map((option) => option.label)).toEqual(["L", "C", "A"]);
+  });
+
+  it("offers path in Module signature type completion without adding geometry to scalar declarations", async () => {
+    const moduleSource = "nui 4\nmodule M(input: pa";
+    const moduleResult = await completionFor(moduleSource, moduleSource.length);
+    expect(moduleResult?.options.map((option) => option.label)).toContain("path");
+
+    const scalarSource = "nui 4\nconst value: pa";
+    const scalarResult = await completionFor(scalarSource, scalarSource.length);
+    expect(scalarResult?.options.map((option) => option.label)).not.toContain("path");
+  });
+
   it("offers module-body parameters and exports only for a qualified instance", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
       "  export point Public = coordinate(x: @width, y: 0)",
       "  point Private = coordinate(x: @width, y: 0)",
       "}",
-      "module I = M(width: 1)",
-      "point X = offset(from: I::Public, dx: 1, dy: 0)"
+      "instance I = M(width: 1)",
+      "point X = offset(from: @I::Public, dx: 1, dy: 0)"
     ].join("\n");
     const body = await completionFor(source, source.indexOf("@width") + "@width".length);
     expect(body?.options.map((option) => option.label)).toContain("@width");
-    const qualified = await completionFor(source, source.indexOf("I::Public") + "I::".length);
+    const qualified = await completionFor(source, source.indexOf("@I::Public") + "@I::".length);
     expect(qualified?.options.map((option) => option.label)).toEqual(["Public"]);
     expect(qualified?.options.map((option) => option.label)).not.toContain("Private");
   });
 
+  it("filters qualified scalar members by the scalar context and keeps geometry members separate", async () => {
+    const source = [
+      "nui 4",
+      "module M() {",
+      "  export const value: number = 1",
+      "  export let label: string = \"\"",
+      "  const privateValue: number = 2",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance foo = M()",
+      "const result: number = @foo::value",
+      "point X = offset(from: @foo::P, dx: 1, dy: 0)"
+    ].join("\n");
+    const scalarCursor = source.indexOf("@foo::value") + "@foo::".length;
+    const scalar = await completionFor(source, scalarCursor);
+    expect(scalar?.options.map((option) => option.label)).toContain("value");
+    expect(scalar?.options.map((option) => option.label)).not.toContain("label");
+    expect(scalar?.options.map((option) => option.label)).not.toContain("privateValue");
+    expect(scalar?.options.map((option) => option.label)).not.toContain("P");
+
+    const geometryCursor = source.indexOf("@foo::P") + "@foo::".length;
+    const geometry = await completionFor(source, geometryCursor);
+    expect(geometry?.options.map((option) => option.label)).toEqual(["P"]);
+    expect(geometry?.options.map((option) => option.label)).not.toContain("value");
+  });
+
+  it("filters qualified module exports inside scalar arguments at the root and in nested module bodies", async () => {
+    const source = [
+      "nui 4",
+      "module Producer() {",
+      "  export const value: number = 1",
+      "  export const label: string = \"\"",
+      "  const privateValue: number = 2",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module Consumer(input: number) {",
+      "}",
+      "instance A = Producer()",
+      "instance B = Consumer(input: @A::)"
+    ].join("\n");
+    const rootCursor = source.indexOf("@A::") + "@A::".length;
+    const root = await completionFor(source, rootCursor);
+    expect(root?.options.map((option) => option.label)).toEqual(["value"]);
+
+    const completeSource = source.replace("@A::", "@A::value");
+    const memberCursor = completeSource.indexOf("@A::value") + "@A::".length;
+    const member = await completionFor(completeSource, memberCursor);
+    expect(member?.options.map((option) => option.label)).toEqual(["value"]);
+
+    const nestedSource = [
+      "nui 4",
+      "module Producer() {",
+      "  export const value: number = 1",
+      "  export const label: string = \"\"",
+      "  const privateValue: number = 2",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module Consumer(input: number) {",
+      "}",
+      "module Parent() {",
+      "  instance A = Producer()",
+      "  instance B = Consumer(input: @A::)",
+      "}"
+    ].join("\n");
+    const nestedCursor = nestedSource.indexOf("@A::") + "@A::".length;
+    const nested = await completionFor(nestedSource, nestedCursor);
+    expect(nested?.options.map((option) => option.label)).toEqual(["value"]);
+  });
+
+  it("filters qualified geometry exports inside geometry module arguments", async () => {
+    const source = [
+      "nui 4",
+      "module Producer() {",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "  export line L = segment(start: @P, end: @P)",
+      "}",
+      "module Consumer(anchor: point) {",
+      "}",
+      "instance A = Producer()",
+      "instance B = Consumer(anchor: @A::)"
+    ].join("\n");
+    const cursor = source.indexOf("@A::") + "@A::".length;
+    const result = await completionFor(source, cursor);
+    expect(result?.options.map((option) => option.label)).toEqual(["P"]);
+  });
+
+  it("completes a member on an in-progress root scalar reference", async () => {
+    const lastGood = [
+      "nui 4",
+      "module M() {",
+      "  export const value: number = 1",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance foo = M()",
+      "const result: number = @foo::value"
+    ].join("\n");
+    const source = lastGood.replace("@foo::value", "@foo::");
+    const statementIndex = lastGood.split("\n").findIndex((line) => line.startsWith("const result"));
+    const result = await completionForWithLastGoodMetadata(source, lastGood, source.length, {
+      statementIndex,
+      scopeId: "root",
+      sourceOrderIndex: statementIndex
+    });
+    expect(result?.options.map((option) => option.label)).toEqual(["value"]);
+  });
+
+  it("uses the resolved lexical instance for qualified scalar completion in nested scopes", async () => {
+    const source = [
+      "nui 4",
+      "module M1() {",
+      "  export const first: number = 1",
+      "}",
+      "module M2() {",
+      "  export const second: number = 2",
+      "}",
+      "group A (printEnabled: true) {",
+      "  instance foo = M1()",
+      "  const resultA: number = @foo::first",
+      "}",
+      "group B (printEnabled: true) {",
+      "  instance foo = M2()",
+      "  const resultB: number = @foo::second",
+      "}"
+    ].join("\n");
+    const firstCursor = source.indexOf("@foo::first") + "@foo::".length;
+    const secondStart = source.indexOf("@foo::second", firstCursor);
+    const secondCursor = secondStart + "@foo::".length;
+    expect((await completionFor(source, firstCursor))?.options.map((option) => option.label)).toEqual(["first"]);
+    expect((await completionFor(source, secondCursor))?.options.map((option) => option.label)).toEqual(["second"]);
+  });
+
   it("projects a multiline module call label completion through the logical statement map", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module M(width: number, optional: number = 0) {",
       "}",
-      "module I = M(",
+      "instance I = M(",
       "  width: 1",
       ")"
     ].join("\n");
@@ -121,18 +360,18 @@ describe("module completion through the existing CodeMirror pipeline", () => {
   });
 
   it("fails closed for module candidates while the semantic metadata is stale", async () => {
-    const source = ["nui 3", "module M() {", "}", "module I = M()"].join("\n");
+    const source = ["nui 4", "module M() {", "}", "instance I = M()"].join("\n");
     const result = await completionFor(source, source.indexOf("M()", source.indexOf("module I")) + 1, false);
     expect(result?.options ?? []).toEqual([]);
   });
 
   it("keeps a mapped last-good module site completable during dirty authoring", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
-      "module I = M(width: 1)"
+      "instance I = M(width: 1)"
     ].join("\n");
     const cursor = source.indexOf("@width") + "@width".length;
     const compiled = compileWithIds(source);
@@ -143,31 +382,31 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("uses the shared DSL identifier grammar for Japanese module names, parameters, instances, and exports", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module 凸ノッチ(縫い代写し: number) {",
       "  export point 縫い代線 = coordinate(x: @縫い代写し, y: 0)",
       "}",
-      "module 日本語インスタンス = 凸ノッチ(縫い代写し: 1)",
-      "point X = offset(from: 日本語インスタンス::縫い代線, dx: 1, dy: 0)"
+      "instance 日本語インスタンス = 凸ノッチ(縫い代写し: 1)",
+      "point X = offset(from: @日本語インスタンス::縫い代線, dx: 1, dy: 0)"
     ].join("\n");
-    const cursor = source.indexOf("日本語インスタンス::") + "日本語インスタンス::".length;
+    const cursor = source.indexOf("@日本語インスタンス::") + "@日本語インスタンス::".length;
     const result = await completionFor(source, cursor);
     expect(result?.options.map((option) => option.label)).toEqual(["縫い代線"]);
   });
 
   it("unions Module candidates into typed initializers, template holes, and set RHS without leaking outer bindings", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const outer: number = 10",
       "module M(width: number, caption: string) {",
       "  const leaked: number = @outer",
       "  const first: number = 1",
       "  const second: number = @first",
       "  set first = @width",
-      "  text Label = label(text: \"width={@width}\", anchor: (0, 0))",
-      "  text LabelLocal = label(text: \"first={@first}\", anchor: (0, 0))",
+      "  text Label = label(text: \"width=${@width}\", anchor: (0, 0))",
+      "  text LabelLocal = label(text: \"first=${@first}\", anchor: (0, 0))",
       "  text Label2 = label(text: @caption, anchor: (0, 0))",
-      "  point P = coordinate(x: @width, y: 0, vars: [early: 10; late: @])",
+      "  point P = coordinate(x: @width, y: 0, vars: [early: 10;,late: @])",
       "}"
     ].join("\n");
     const typed = await completionFor(source, source.indexOf("@first") + 1);
@@ -176,9 +415,9 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const set = await completionFor(source, source.indexOf("@width", source.indexOf("set first")) + 1);
     expect(set?.options.map((option) => option.label)).toContain("width");
     expect(set?.options.map((option) => option.label)).toContain("first");
-    const template = await completionFor(source, source.indexOf("{@width") + 2);
+    const template = await completionFor(source, source.indexOf("${@width") + 2);
     expect(template?.options.map((option) => option.label)).toContain("width");
-    const localTemplate = await completionFor(source, source.indexOf("{@first") + 2);
+    const localTemplate = await completionFor(source, source.indexOf("${@first") + 2);
     expect(localTemplate?.options.map((option) => option.label)).toContain("first");
     const property = await completionFor(source, source.indexOf("@caption") + 1);
     expect(property?.options.map((option) => option.label)).toContain("caption");
@@ -191,7 +430,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("filters Module body scalar references by boolean, string, and choice parameter type", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module M(flag: boolean, label: string, side: choice(left, right)) {",
       "  const flagCopy: boolean = @flag",
       "  const labelCopy: string = @label",
@@ -211,7 +450,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("completes dirty new Module calls and newly added arguments from last-good identities", async () => {
     const lastGood = [
-      "nui 3",
+      "nui 4",
       "point P = coordinate(x: 0, y: 0)",
       "module M(pointValue: point, lineValue: line, textValue: string, flagValue: boolean, sideValue: choice(left, right), optional: number = 0) {",
       "}",
@@ -221,8 +460,8 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "}"
     ].join("\n");
     const forwardAt = lastGood.indexOf("module Forward");
-    const newCall = `${lastGood.slice(0, forwardAt)}module I = F\n${lastGood.slice(forwardAt)}`;
-    const newCallCursor = newCall.indexOf("module I = F") + "module I = F".length;
+    const newCall = `${lastGood.slice(0, forwardAt)}instance I = F\n${lastGood.slice(forwardAt)}`;
+    const newCallCursor = newCall.indexOf("instance I = F") + "instance I = F".length;
     const callee = await completionForWithLastGoodMetadata(newCall, lastGood, newCallCursor, {
       statementIndex: 6,
       scopeId: "root",
@@ -232,10 +471,10 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(callee?.options.map((option) => option.label)).not.toContain("Forward");
 
     const existingCall = [
-      "nui 3",
+      "nui 4",
       "module M(pointValue: point, lineValue: line, textValue: string, flagValue: boolean, sideValue: choice(left, right), optional: number = 0) {",
       "}",
-      "module I = M(pointValue: (0, 0), optional: )"
+      "instance I = M(pointValue: (0, 0), optional: )"
     ].join("\n");
     const oldCall = existingCall.replace(", optional: )", ")");
     const optionalCursor = existingCall.indexOf("optional: )") + "optional: ".length;
@@ -251,12 +490,12 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(unsafe?.options ?? []).toEqual([]);
 
     const typedLastGood = [
-      "nui 3",
+      "nui 4",
       "point P = coordinate(x: 0, y: 0)",
-      "line L = segment(start: P, end: P)",
+      "line L = segment(start: @P, end: @P)",
       "module T(pointValue: point, lineValue: line, textValue: string, flagValue: boolean, sideValue: choice(left, right), numberOptional: number = 0, textOptional: string = \"\", flagOptional: boolean = false, sideOptional: choice(left, right) = left) {",
       "}",
-      "module I = T(pointValue: P, lineValue: L, textValue: \"\", flagValue: true, sideValue: left)"
+      "instance I = T(pointValue: @P, lineValue: @L, textValue: \"\", flagValue: true, sideValue: left)"
     ].join("\n");
     for (const [label, expected] of [["numberOptional", "0"], ["textOptional", '""'], ["flagOptional", "true"], ["sideOptional", "left"]] as const) {
       const live = typedLastGood.replace("sideValue: left)", `sideValue: left, ${label}: `);
@@ -270,7 +509,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     }
 
     const nestedLastGood = [
-      "nui 3",
+      "nui 4",
       "module First() {",
       "}",
       "group G (printEnabled: true) {",
@@ -282,8 +521,8 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const groupScope = [...nestedCompiled.sourceLexicalNamespace!.scopeIndex.scopes.values()].find((scope) => scope.kind === "group")!;
     const groupClose = groupScope.exitStatementIndex;
     const groupCloseText = nestedCompiled.statements[groupClose].documentRange.from;
-    const nestedLive = `${nestedLastGood.slice(0, groupCloseText)}  module I = F\n${nestedLastGood.slice(groupCloseText)}`;
-    const nestedCursor = nestedLive.indexOf("module I = F") + "module I = F".length;
+    const nestedLive = `${nestedLastGood.slice(0, groupCloseText)}  instance I = F\n${nestedLastGood.slice(groupCloseText)}`;
+    const nestedCursor = nestedLive.indexOf("instance I = F") + "instance I = F".length;
     const nested = await completionForWithLastGoodMetadata(nestedLive, nestedLastGood, nestedCursor, {
       statementIndex: groupClose,
       scopeId: groupScope.id,

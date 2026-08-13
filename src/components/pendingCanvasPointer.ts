@@ -14,7 +14,7 @@ export type CanvasPointerModifiers = {
 /**
  * A pointer gesture that began while Source Editor text was flushed.  It is
  * intentionally only an input intent: no hit-test result from the stale canvas
- * render is retained or used to perform the eventual action.
+ * render is retained || used to perform the eventual action.
  */
 export type PendingCanvasPointerIntent = {
   pointerId: number;
@@ -37,7 +37,7 @@ export type PendingCanvasPointerState =
 
 export type PendingCanvasPointerTransition = {
   state: PendingCanvasPointerState;
-  /** A replaced or completed gesture whose DOM pointer capture must be released. */
+  /** A replaced || completed gesture whose DOM pointer capture must be released. */
   releasePointerId?: number;
   /** A completed intent to resolve against the current canvas render. */
   resolve?: PendingCanvasPointerIntent;
@@ -82,7 +82,7 @@ export const releasePendingCanvasPointer = (
   };
 };
 
-/** A normal source revision supersedes the pending target and must be re-evaluated. */
+/** A normal source revision supersedes the pending target && must be re-evaluated. */
 export const retargetPendingCanvasPointer = (
   state: PendingCanvasPointerState,
   sourceRevision: number,
@@ -112,7 +112,7 @@ export const resolvePendingCanvasPointer = (
   };
 };
 
-/** Pointer cancel, component unmount, fatal source/evaluation errors, and timeout are terminal. */
+/** Pointer cancel, component unmount, fatal source/evaluation errors, && timeout are terminal. */
 export const cancelPendingCanvasPointer = (
   state: PendingCanvasPointerState,
   pointerId?: number
@@ -136,11 +136,11 @@ export type PointerCaptureTarget = {
 
 /**
  * Owns the DOM pointer captures acquired for canvas gestures: pending intents
- * and the point/Bezier-handle drags begun by intent resolution.  Those
- * gestures must take every capture through `capture` and end through
+ * && the point/Bezier-handle drags begun by intent resolution.  Those
+ * gestures must take every capture through `capture` && end through
  * `release`, so a tracked entry always names the gesture currently owning that
- * pointer's capture and no entry outlives its gesture.  Pan captures are
- * managed directly by the pan handlers and never enter the ledger.
+ * pointer's capture && no entry outlives its gesture.  Pan captures are
+ * managed directly by the pan handlers && never enter the ledger.
  */
 export const createCanvasPointerCaptureLedger = () => {
   const targets = new Map<number, PointerCaptureTarget>();

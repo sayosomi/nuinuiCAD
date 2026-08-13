@@ -48,7 +48,7 @@ describe("cadDocumentStore canonical text", () => {
     const lastGoodDoc = warningState.doc;
     // 意図的な構文エラー(未閉じ呼び出し)。fatal挙動の検証が目的であり、
     // 生成経由化は不可。
-    const fatal = "nui 3\npoint Broken = coordinate(";
+    const fatal = "nui 4\npoint Broken = coordinate(";
     useCadDocumentStore.getState().commitText(fatal, "test");
     const fatalState = useCadDocumentStore.getState();
     expect(fatalState.sourceText).toBe(fatal);
@@ -61,7 +61,7 @@ describe("cadDocumentStore canonical text", () => {
     const valid = onePointSource();
     seedText(valid);
     // 意図的な構文エラー(未閉じ呼び出し)。
-    const fatalText = "nui 3\npoint A = coordinate(";
+    const fatalText = "nui 4\npoint A = coordinate(";
     useCadDocumentStore.getState().commitText(fatalText, "test");
     const fatalState = useCadDocumentStore.getState();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -83,10 +83,10 @@ describe("cadDocumentStore canonical text", () => {
   });
 
   it("keeps the current-source typed dependency graph when fatal text retains last-good geometry", () => {
-    seedText(["nui 3", "const stable: number = 1"].join("\n"));
+    seedText(["nui 4", "const stable: number = 1"].join("\n"));
     const lastGoodGraph = useCadDocumentStore.getState().typedDependencyGraph;
     const fatal = [
-      "nui 3",
+      "nui 4",
       "const missing: number = @unknown",
       "group G (printEnabled: @unknown) {",
       "}"
@@ -133,7 +133,7 @@ describe("cadDocumentStore canonical text", () => {
   // 検証する、手書きレイアウトが主題のテスト。
   it("keeps comments and dangling tokens through model bridge edits", () => {
     seedText([
-      "nui 3",
+      "nui 4",
       "",
       "# keep this comment",
       "point A = coordinate(x: 0, y: 0, color: missing-color)",

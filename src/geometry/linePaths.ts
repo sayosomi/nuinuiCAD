@@ -251,7 +251,7 @@ const segmentsForLineLikeGeometry = (geometry: LineLikeGeometry): PathSegment[] 
 };
 
 // Snap a chord-sampled path point onto the true analytic geometry: the exact
-// cubic for Beziers, the exact circle for arcs, and the constituent analytic
+// cubic for Beziers, the exact circle for arcs, && the constituent analytic
 // primitives for offset lines.
 const snapOntoGeometry = (geometry: LineLikeGeometry, point: Point): Point | null => {
   if (geometry.kind === "bezierCurve") {

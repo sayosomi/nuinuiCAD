@@ -11,7 +11,7 @@ const commentOnlyLine = (targetIndent: string, comment: string): string =>
 
 const serializedArgumentText = (next: SerializedStatement, index: number): string => {
   const arg = next.args[index];
-  return `${arg.text}${next.argumentSeparator === "comma" && index < next.args.length - 1 ? "," : ""}`;
+  return `${arg.text}${next.argumentSeparator === "comma" ? "," : ""}`;
 };
 
 const mergeToSingleLine = (

@@ -44,11 +44,11 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("prefers a module source target over a materialized child and clears it while dirty", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point Private = coordinate(x: 0, y: 0)",
       "}",
-      "module I = M()"
+      "instance I = M()"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
@@ -77,12 +77,14 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("navigates callee, argument label, and qualified export member to exact source declarations", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
       "  export point Public = coordinate(x: 0, y: 0)",
+      "  export const value: number = 1",
       "}",
-      "module I = M(width: 1)",
-      "point X = offset(from: I::Public, dx: 1, dy: 0)"
+      "instance I = M(width: 1)",
+      "point X = offset(from: @I::Public, dx: 1, dy: 0)",
+      "const scalar: number = @I::value"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
@@ -106,16 +108,25 @@ describe("SourceEditorController module semantic target priority", () => {
     expect(exported?.kind).toBe("moduleSource");
     expect(controller.jumpToModuleSemanticTarget(exported!)).toBe(true);
     expect(internals.view.state.doc.sliceString(internals.view.state.selection.main.from, internals.view.state.selection.main.to)).toBe("Public");
+
+    moveTo("value", source.indexOf("@I::value"));
+    const scalarExport = controller.currentCursorModuleSemanticTarget();
+    expect(scalarExport).toEqual({ kind: "moduleSource", statementId: expect.any(String) });
+    expect(controller.jumpToModuleSemanticTarget(scalarExport!)).toBe(true);
+    expect(internals.view.state.doc.sliceString(internals.view.state.selection.main.from, internals.view.state.selection.main.to)).toBe("value");
+
+    moveTo("I", source.indexOf("@I::value") + 1);
+    expect(controller.currentCursorModuleSemanticTarget()?.kind).toBe("moduleInstance");
     controller.destroy();
   });
 
   it("bridges a module default document binding back to the existing BindingId declaration", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const outer: number = 10",
       "module M(width: number = @outer) {",
       "}",
-      "module I = M()"
+      "instance I = M()"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
@@ -131,12 +142,12 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("keeps root qualified references stale-safe when their token is replaced", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
-      "module I = M()",
-      "point X = offset(from: I::Public, dx: 1, dy: 0)"
+      "instance I = M()",
+      "point X = offset(from: @I::Public, dx: 1, dy: 0)"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
@@ -172,7 +183,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("maps a dirty new Module body statement through the controller's real completion site", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const outer: number = 10",
       "module M(width: number) {",
       "}"
@@ -194,7 +205,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("uses source order for a new body declaration after an existing Module local", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const outer: number = 10",
       "module M(width: number) {",
       "  const first: number = 1",
@@ -222,7 +233,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("does not map a new statement typed after Enter onto the previous statement range", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
       "  const first: number = 1",
       "}"
@@ -244,11 +255,11 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it.each([
     ["group", "group G (printEnabled: true) {\n}", "group G"],
-    ["if", "if Branch (true) {\n}", "if Branch"],
-    ["for", "for Loop (i, from: 0, count: 1, step: 1) {\n}", "for Loop"]
+    ["if", "if (true) {\n}", "if Branch"],
+    ["for", "for i in range(from: 0, count: 1, step: 1) {\n}", "for Loop"]
   ])("keeps Module ownership for a new statement inside nested %s scope", async (_kind, nested, marker) => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const outer: number = 10",
       "module M(width: number) {",
       "  const first: number = 1",
@@ -270,8 +281,8 @@ describe("SourceEditorController module semantic target priority", () => {
   it("unions Module completion into new template, set, and numeric body statements", async () => {
     const cases = [
       {
-        insert: `\n  text Label = label(text: "width={@}", anchor: (0, 0))`,
-        cursorOffset: "\n  text Label = label(text: \"width={@".length,
+        insert: `\n  text Label = label(text: "width=\${@}", anchor: (0, 0))`,
+        cursorOffset: "\n  text Label = label(text: \"width=${@".length,
         expected: "width"
       },
       {
@@ -289,7 +300,7 @@ describe("SourceEditorController module semantic target priority", () => {
       useCadDocumentStore.setState(initialCadDocumentState());
       useCadUiStore.setState(initialCadUiState());
       const source = [
-        "nui 3",
+        "nui 4",
         "module M(width: number) {",
         "  const first: number = 1",
         "}"
@@ -308,7 +319,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("preserves generic typed completion outside Modules while dirty Module structure fails closed", async () => {
     const ordinarySource = [
-      "nui 3",
+      "nui 4",
       "const outer: number = 10",
       "point P = coordinate(x: 0, y: 0)"
     ].join("\n");
@@ -321,7 +332,7 @@ describe("SourceEditorController module semantic target priority", () => {
     ordinaryController.destroy();
 
     const moduleSource = [
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
       "  const inside: number = @width",
       "}"
@@ -343,7 +354,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("maps a dirty new Module call and new argument through the controller site", async () => {
     const lastGood = [
-      "nui 3",
+      "nui 4",
       "module M(width: number, optional: number = 0) {",
       "}",
       "module First() {",
@@ -354,17 +365,17 @@ describe("SourceEditorController module semantic target priority", () => {
     useCadDocumentStore.getState().commitText(lastGood, "test");
     const controller = new SourceEditorController(document.createElement("div"));
     const forwardOffset = lastGood.indexOf("module Forward");
-    const newCallCursor = insertAt(controller, forwardOffset, "module I = F\n");
+    const newCallCursor = insertAt(controller, forwardOffset, "instance I = F\n");
     const callLabels = (await completionAt(controller, newCallCursor - 1))?.options.map((option) => option.label) ?? [];
     expect(callLabels).toContain("First");
     expect(callLabels).not.toContain("Forward");
     controller.destroy();
 
     const existingCall = [
-      "nui 3",
+      "nui 4",
       "module M(width: number, optional: number = 0) {",
       "}",
-      "module I = M(width: 1)"
+      "instance I = M(width: 1)"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());

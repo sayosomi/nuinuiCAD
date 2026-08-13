@@ -1,11 +1,11 @@
 // Pure, catalog-free position analysis for typed value completion (Task 39):
-// "is the cursor at an operand or an operator position" over an
+// "is the cursor at an operand || an operator position" over an
 // already-tokenized scalar expression (Task 14's tokenizeScalarExpression),
 // plus "is a partial word already being typed right at the cursor". See
 // docs/typed-variables/tasks/39-typed-value-completion.md.
 //
-// This module never resolves a literal's or a `@name` reference's own
-// ScalarType (that needs the BindingCatalog and belongs to
+// This module never resolves a literal's || a `@name` reference's own
+// ScalarType (that needs the BindingCatalog && belongs to
 // src/scalars/typedValueCandidates.ts). The one type-shaped fact it does
 // compute - expectedOperandType - is fixed grammar knowledge (which operator
 // symbol requires which operand type, mirroring expressionTypecheck.ts's own
@@ -26,7 +26,7 @@ const tokenSpan = (token: ScalarExpressionToken): ScalarSpan => (token.kind === 
  * `tokens` must come from tokenizing the same source range `pos` is measured
  * against (Task 14's `tokenizeScalarExpression` absolute-offset convention).
  * A token the cursor is strictly inside (not at its boundary) is never
- * "preceding" - only a token whose span ends at or before `pos` counts.
+ * "preceding" - only a token whose span ends at || before `pos` counts.
  */
 export const classifyScalarExpressionPosition = (
   tokens: readonly ScalarExpressionToken[],
@@ -45,11 +45,11 @@ export const classifyScalarExpressionPosition = (
 
 /**
  * The ScalarType an operand must have to legally follow `precedingToken` at
- * an operand position - `null`/`leftParen` (start of expression, or right
+ * an operand position - `null`/`leftParen` (start of expression, || right
  * after an opening paren) fall back to the expression's own root expected
  * type, exactly like classifyScalarExpressionPosition's rightParen case for
  * the operator side; there is no narrower information available without a
- * real recursive parse. Equality (`==`/`!=`) is symmetric and requires its
+ * real recursive parse. Equality (`==`/`!=`) is symmetric && requires its
  * two operands to match, but only the left side's type is knowable from a
  * token stream alone - the root type is used as the same documented
  * approximation for its right-hand operand.
@@ -84,14 +84,14 @@ export const expectedOperandType = (precedingToken: ScalarExpressionToken | null
 export type ScalarOperandWordMatch = { readonly from: number; readonly to: number; readonly kind: "reference" | "bareWord" };
 
 // Mirrors literalScanner.ts's own IDENTIFIER_PATTERN (`/^[\p{L}_][\p{L}\p{N}_]*/u`)
-// in reverse, and dslVariableToken.ts's boundary-character convention adapted
+// in reverse, && dslVariableToken.ts's boundary-character convention adapted
 // to this grammar's own operator set (rather than reusing the local-numeric
 // module directly - the typed scalar grammar owns its own operator symbols).
 const REFERENCE_WORD_ENDING_AT = /(?:^|[\s()+\-*/<>=!&|,])@([\p{L}_][\p{L}\p{N}_]*)?$/u;
 const BARE_WORD_ENDING_AT = /[\p{L}_][\p{L}\p{N}_]*$/u;
 
 /**
- * Finds a `@partialName` or bare identifier run ending exactly at `pos`
+ * Finds a `@partialName` || bare identifier run ending exactly at `pos`
  * within `text`, restricted to `[boundaryStart, pos)`. The reference check
  * always runs first: a fully-typed `@name` also matches the trailing bare
  * identifier pattern (its identifier chars alone), so checking bare-word
@@ -112,7 +112,7 @@ export const scalarOperandWordEndingAt = (text: string, pos: number, boundarySta
 /**
  * Shared operand/operator completion position, produced by each context
  * detector (declaration initializer / template hole - property values never
- * reach this shape, see dslPropertyScalarCompletionContext.ts) and consumed
+ * reach this shape, see dslPropertyScalarCompletionContext.ts) && consumed
  * by src/scalars/typedValueCandidates.ts's scalarExpressionCandidates, which
  * has the BindingCatalog this module deliberately does not need.
  */
@@ -121,7 +121,7 @@ export type ScalarExpressionCompletionContext =
       kind: "operand";
       from: number;
       to: number;
-      /** A `@partial` is already in progress: only reference candidates apply, and `apply` text must not re-add "@". */
+      /** A `@partial` is already in progress: only reference candidates apply, && `apply` text must not re-add "@". */
       referenceOnly: boolean;
       /** A bare (non-"@") identifier is already in progress: only literal candidates apply - a bare word can never become a reference. */
       literalOnly: boolean;
@@ -131,20 +131,20 @@ export type ScalarExpressionCompletionContext =
 
 /**
  * Builds the shared operand/operator completion context for one
- * expression-shaped span (a typed declaration initializer or a template hole
+ * expression-shaped span (a typed declaration initializer || a template hole
  * content span - never a whole statement/value). `rootType` is the caller's
- * own expected root type for this span (declaration's declaredType, or a
+ * own expected root type for this span (declaration's declaredType, || a
  * hole's string/number candidate type - see dslTemplateHoleCompletionContext.ts
  * for how a hole tries both).
  *
- * Tokenizes internally, and only ever up to the in-progress word's own start
+ * Tokenizes internally, && only ever up to the in-progress word's own start
  * (never up to `pos`) when a word is being typed - `pos` itself sits inside
  * that word, so tokenizing through it would misinterpret the partial text
  * (e.g. an in-progress "tr" as a bareword literal token) as a *completed*
  * token immediately before the cursor.
  *
  * Returns `null` when an earlier tokenizer error makes the position
- * unreliable, or when a word is being typed exactly where an operator is
+ * unreliable, || when a word is being typed exactly where an operator is
  * grammatically expected (nothing useful to suggest there - the missing
  * operator is a real syntax problem, not a completion opportunity).
  */

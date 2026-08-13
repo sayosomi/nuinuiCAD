@@ -175,31 +175,22 @@ compatibility with earlier local drafts. Breaking saved-format changes are
 acceptable unless the user explicitly asks for a migration path or compatibility
 layer.
 
-The final supported saved-document format is `nui 3` only. Parsers,
-serializers, importers, adapters, fallbacks, bridges, fixtures, and conditional
-branches that exist only for `nui 2` or earlier are temporary migration aids,
-not product contracts. Do not proactively extend legacy compatibility, re-audit
-old formats outside the assigned task, add compatibility fixtures or automatic
-migration, or preserve an old shape "just in case." Prefer precise diagnostics
-and a manually repairable source file. After the existing documents have been
-manually updated and verified through the `nui 3` path, remove all legacy-only
-code and tests.
+The target final saved-document format is `nui 4`. Until the nui4 migration is
+complete, the current production implementation and current document format
+remain `nui 3`. nui4 is a destructive replacement. Do not add a nui3-to-nui4
+compatibility layer, converter, importer, or migration wizard. Compatibility
+with old local documents must not distort the nui4 architecture; prefer precise
+diagnostics and a manually repairable `.nui` source file during the transition.
 
-For pre-`nui 3` documents, do not stop unrelated work for evaluation failure,
-round-trip differences, semantic or visibility differences, compiled/IPC shape
-changes, legacy-only performance regressions, missing automatic migration, or
-the need for manual source edits. A legacy-only problem is blocking only when
-the application crashes or cannot expose the source, source is destroyed or
-lost, diagnostics lack enough position information to locate the repair, or
-the pre-save source cannot be restored so manual repair is impractical. Data
-loss, wrong evaluation, and scope/type/runtime parity failures in the current
-`nui 3` specification remain blocking.
+The nui4 migration does not preserve legacy-only parser, serializer, importer,
+adapter, fallback, bridge, fixture, or conditional branches. Do not proactively
+extend old-format compatibility or add automatic migration.
 
 The persisted document is one `.nui` DSL text file. `sourceText` is the
-canonical, durable state. During the temporary `nui 3` migration period,
-existing `.nuinui.json` and pre-`nui 3` import paths may remain only long enough
-to inspect and manually repair the small set of existing documents; they are
-never save targets and must be deleted before `nui 3` is considered complete.
+canonical, durable state. Document-order deterministic evaluation, no automatic
+dependency sorting, Rust-first evaluation, and statement-level source editing
+remain in force throughout the migration. Existing local drafts are not a
+reason to preserve obsolete language shapes or create a second save target.
 Keep document edits on the central `sourceEditSession`/`commitText` boundary.
 Canvas and command changes must use statement-level text splices through the
 document bridge: do not add whole-file reserialization as a mutation path
@@ -273,17 +264,44 @@ Important scenarios include:
 * parameter definition and keyboard edit behavior
 * geometry measurement behavior when relevant
 
-Run the relevant checks before handing work back:
+Choose verification based on the surface actually changed. Use the smallest
+check that can meaningfully detect regressions caused by the change. Do not run
+an expensive full suite merely by habit when the change cannot be meaningfully
+verified by it. Task-specific gates and gates explicitly requested by the user
+take precedence.
 
-* `npm test`
-* `npm run test:parity` when evaluation behavior, payload conversion, or Rust
-  eligibility changed
-* `npm run build`
-* `npm run lint`
-* `cargo fmt --check` in `src-tauri` when Rust code changed
-* `cargo test` in `src-tauri` when Rust code changed
-* `cargo clippy --all-targets -- -D warnings` in `src-tauri` when Rust code changed
-* `npm run desktop:build` when Tauri packaging, commands, or Rust evaluation changed
+For documentation, comments, or policy-only changes that do not change source
+code, configuration, generated artifacts, or runtime behavior, `git diff --check`
+and diff review are sufficient. Do not routinely run `npm run build`, `npm run
+lint`, `npm test`, `npm run test:parity`, `cargo check`, `cargo test`, `cargo
+clippy`, or `npm run desktop:build` for such changes; run them only when the task
+explicitly requires them.
+
+For TypeScript, TSX, JavaScript, or executable DSL implementation changes, first
+run focused tests that directly cover the changed behavior. When production
+TypeScript, types, or bundle/build inputs change, run `npm run build`. When
+linted source or lint configuration changes, run `npm run lint`. Run the full
+`npm test` suite for broad or cross-cutting changes, shared parser/compiler/
+document/runtime infrastructure changes, an explicitly requested full
+regression gate, or a final cutover/regression milestone. Do not require the
+full suite by habit for a small isolated change with sufficient focused
+coverage.
+
+Run `npm run test:parity` when evaluation semantics, evaluation payload
+conversion, Rust eligibility, or behavior shared by the TypeScript reference
+evaluator and Rust evaluator changes. Do not run it for docs-only, UI-only, or
+unrelated source changes.
+
+For Rust changes, first run `cargo fmt --check`, `cargo check`, and focused Rust
+tests covering the changed code. Run `cargo test` and
+`cargo clippy --all-targets -- -D warnings` for broad Rust changes, shared
+evaluation/runtime infrastructure changes, a final regression gate, or when the
+task explicitly requires them.
+
+Run `npm run desktop:build` when Tauri packaging, app configuration, native
+command registration or boundaries, release-build behavior, or an explicit task
+gate requires it. It is not a routine gate for documentation, pure logic, or
+unrelated frontend changes.
 
 If a check cannot be run or fails for unrelated existing reasons, report that
 clearly.
@@ -308,6 +326,13 @@ than hiding the issue.
 ## Git / GitHub workflow
 
 * In plan mode, only plan Git/GitHub actions; execute them after approval.
-* Start each task by merge-committing the previous PR into `main`, then branch from the latest `origin/main`.
-* Finish by committing, pushing, and opening a draft PR to `main`.
-* Never merge the new draft PR without explicit approval.
+* Follow the branch and worktree workflow specified by the task.
+* Do not require a new branch or worktree for every task as a repository-wide
+  rule.
+* A long-running migration or multi-task plan may continue using the same branch
+  and worktree when the task specifies that workflow.
+* Do not switch the current worktree to `main` without instruction.
+* Do not delete unrelated worktrees or branches without instruction.
+* Do not create a PR or merge without the user's explicit request.
+* Follow the task or user instruction for branch/worktree cleanup.
+* Never merge a PR without explicit approval.

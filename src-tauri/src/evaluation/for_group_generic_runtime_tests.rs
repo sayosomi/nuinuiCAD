@@ -3,7 +3,7 @@
 //! JSON fixtures, mirroring `property_binding_runtime_tests.rs`'s style).
 //! Low-level coverage of `expand_for_group_iteration_from_template` itself
 //! lives in `for_group_tests.rs`; TS/Rust parity for the same scenario is
-//! covered by `test/fixtures/evaluation/nui3-nested-generic-for-group.nui`.
+//! covered by `test/fixtures/evaluation/nui4-nested-generic-for-group.nui`.
 
 use super::*;
 use serde_json::{json, Value};

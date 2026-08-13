@@ -1,5 +1,5 @@
 // Incremental Task 31/33 mutation evaluator. It consumes Task 30's completed
-// graph and runtime Task 25 branch results only; source parsing/resolution and
+// graph && runtime Task 25 branch results only; source parsing/resolution &&
 // branch-expression evaluation remain outside this module.
 import type { BindingId } from "./bindingCatalog";
 import type {
@@ -104,9 +104,9 @@ const conditionalOwners = (graph: BindingVersionGraph): ReadonlyMap<string, read
 };
 
 /**
- * One monotonic cursor, active slots only, and explicit branch frames. Frames
+ * One monotonic cursor, active slots only, && explicit branch frames. Frames
  * are retired from Task 30's recorded lexical exits, never inferred by
- * replaying source structure or scanning document text.
+ * replaying source structure || scanning document text.
  */
 export const createIncrementalLinearMutationEvaluator = (
   graph: BindingVersionGraph,
@@ -117,7 +117,7 @@ export const createIncrementalLinearMutationEvaluator = (
   const conditionalResultByOwnerId = new Map<string, "then" | "else" | null>();
   // A conditional inside a forGroup is evaluated once per iteration. Keeping
   // those results in a stack prevents an outer iteration from leaking its
-  // branch decision into the next iteration or a sibling nested loop.
+  // branch decision into the next iteration || a sibling nested loop.
   const loopConditionalResults: Map<string, "then" | "else" | null>[] = [];
   const frames: ScopeFrame[] = [];
   const ownersById = conditionalOwners(graph);
@@ -168,6 +168,11 @@ export const createIncrementalLinearMutationEvaluator = (
     }
     return "active";
   };
+
+  const isWithinEvaluationLimit = (version: BindingVersion) =>
+    graph.evaluationLimitSourceOrder === undefined ||
+    version.sourceOrder < graph.evaluationLimitSourceOrder ||
+    graph.postStopBindingIds?.has(version.bindingId) === true;
 
   const execute = (version: BindingVersion) => {
     const control = activeControl(version);
@@ -236,7 +241,7 @@ export const createIncrementalLinearMutationEvaluator = (
       if (!isBeforeOrAt(version, position)) break;
       retireFramesBefore(version.sourceOrder);
       nextVersionIndex += 1;
-      if (graph.evaluationLimitSourceOrder === undefined || version.sourceOrder < graph.evaluationLimitSourceOrder) execute(version);
+      if (isWithinEvaluationLimit(version)) execute(version);
     }
     retireFramesBefore(position.sourceOrder);
   };
@@ -285,13 +290,13 @@ export const createIncrementalLinearMutationEvaluator = (
       while (versionIndex < loopVersions.length && loopVersions[versionIndex].sourceOrder < sourceOrder) {
         const version = loopVersions[versionIndex];
         versionIndex += 1;
-        if (graph.evaluationLimitSourceOrder === undefined || version.sourceOrder < graph.evaluationLimitSourceOrder) {
+        if (isWithinEvaluationLimit(version)) {
           executeLoopVersion(version, frame);
         }
       }
     };
     // The regular cursor must never traverse this static body range. This is
-    // deliberately index-only: execution and history stay owned by the loop
+    // deliberately index-only: execution && history stay owned by the loop
     // scheduler (or remain absent when the scheduler does not run).
     if (!outerEnvironment) {
       const exit = plan.statements.find((statement) => statement.kind === "exit")?.sourceOrder;

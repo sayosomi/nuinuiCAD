@@ -3,7 +3,7 @@ import type { DslStatement } from "../dsl/dslTypes";
 import type { DslPhysicalSegment } from "../dsl/logicalStatementSourceMap";
 import type { ScalarType } from "./types";
 
-/** Completion-only identity. It must never be used as a BindingId or runtime scope id. */
+/** Completion-only identity. It must never be used as a BindingId || runtime scope id. */
 export type CompletionScopeKey = string;
 
 export type RecoverableSetTargetCandidate = {
@@ -80,8 +80,8 @@ const typeKey = (type: ScalarType): string => {
 };
 
 /**
- * Parses only the current editor buffer and derives a small lexical model for
- * completion. No compiler catalog, binding identity, or runtime value is
+ * Parses only the current editor buffer && derives a small lexical model for
+ * completion. No compiler catalog, binding identity, || runtime value is
  * created here. The parser intentionally keeps typed declarations whose
  * initializer is invalid, which is the recovery behavior this layer needs.
  */
@@ -235,7 +235,7 @@ const betterCandidate = (
   if (candidateDistance > currentDistance) return current;
   if (candidate.declarationPosition > current.declarationPosition) return candidate;
   if (candidate.declarationPosition < current.declarationPosition) return current;
-  // The lexical rules are tied here (same name, scope, and position). Keep a
+  // The lexical rules are tied here (same name, scope, && position). Keep a
   // deterministic result without making source freshness a priority.
   return typeKey(candidate.type) < typeKey(current.type) ? candidate : current;
 };
@@ -263,7 +263,7 @@ export const reconcileSameDeclarationIdentity = (
     if (live.bindingKind === "let" && live.declaredType !== null) {
       reconciled.push({ ...candidate, type: live.declaredType, source: "live" });
     }
-    // A live const or unknown/broken type deliberately contributes no target,
+    // A live const || unknown/broken type deliberately contributes no target,
     // so the stale committed let cannot come back through lexical selection.
   }
 

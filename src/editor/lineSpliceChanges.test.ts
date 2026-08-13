@@ -31,7 +31,7 @@ describe("LineSplice to source-editor changes", () => {
   });
 
   it("keeps adjacent replacements disjoint when the latter replaces the final line", () => {
-    const source = ["nui 3", "", "const zoom_ratio: number = 2", "const SA: number = 7 * @zoom_ratio"].join("\n");
+    const source = ["nui 4", "", "const zoom_ratio: number = 2", "const SA: number = 7 * @zoom_ratio"].join("\n");
     const splices = [
       { startLine: 3, endLine: 3, replacementLines: ["const ZOOM_RATIO: number = 2"] },
       { startLine: 4, endLine: 4, replacementLines: ["const SA: number = 7 * @ZOOM_RATIO"] }

@@ -1,14 +1,14 @@
 // Static typechecker for typed scalar expressions. Consumes a parsed
 // ScalarExpressionAst (Task 14) plus already-resolved BindingResolution
-// values (Task 12) and produces a typed AST with per-node types, resolved
-// choice literals, and reference binding IDs. Production-unconnected: see
+// values (Task 12) && produces a typed AST with per-node types, resolved
+// choice literals, && reference binding IDs. Production-unconnected: see
 // docs/typed-variables/tasks/15-ts-expression-typechecker.md.
 //
-// This module never re-resolves a binding name and never re-derives Task
+// This module never re-resolves a binding name && never re-derives Task
 // 13's cross-binding diagnostics (undefined/forward/self/duplicate/cycle):
 // it only reacts to the BindingResolution it is handed, marking a node
 // invalid (`type: null`) without adding a new diagnostic when that
-// resolution isn't "resolved", or when it resolves to a typed binding whose
+// resolution isn't "resolved", || when it resolves to a typed binding whose
 // declaredType is itself null (a malformed type annotation Task 10 already
 // diagnosed). Every other type-vs-type comparison goes through
 // isScalarTypeAssignable - an exact match (D01/D07) - never the property
@@ -20,6 +20,7 @@ import {
 } from "./expressionAst";
 import type { BindingResolution } from "./bindingResolution";
 import type {
+  ScalarExpressionResolvedReference,
   ScalarExpressionTypecheckContext,
   ScalarExpressionTypecheckDiagnostic,
   ScalarExpressionTypecheckResult,
@@ -32,9 +33,10 @@ const NUMBER_TYPE: Extract<ScalarType, { kind: "number" }> = { kind: "number" };
 const BOOLEAN_TYPE: Extract<ScalarType, { kind: "boolean" }> = { kind: "boolean" };
 
 interface TraversalState {
-  readonly references: readonly BindingResolution[];
+  readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   cursor: number;
   readonly diagnostics: ScalarExpressionTypecheckDiagnostic[];
+  readonly resolveChoiceLiteral?: ScalarExpressionTypecheckContext["resolveChoiceLiteral"];
 }
 
 /** Exported for reuse by other diagnostic-message producers (e.g. Task 22's
@@ -51,7 +53,7 @@ const nextReferenceResolution = (
   state: TraversalState,
   name: string,
   offset: number
-): BindingResolution => {
+): BindingResolution | ScalarExpressionResolvedReference => {
   if (state.cursor >= state.references.length) {
     throw new Error(`expressionTypecheck: no BindingResolution supplied for reference "@${name}" at offset ${offset}`);
   }
@@ -61,8 +63,8 @@ const nextReferenceResolution = (
 };
 
 /**
- * Shared operand-vs-required-kind check for unary and non-equality binary
- * operators. A null operand type (already invalid - unresolved reference or
+ * Shared operand-vs-required-kind check for unary && non-equality binary
+ * operators. A null operand type (already invalid - unresolved reference ||
  * an already-mismatched subexpression) is silently treated as "not ok"
  * without adding a diagnostic - this is the cascade-suppression rule: one
  * root cause, not a diagnostic per ancestor.
@@ -161,6 +163,13 @@ const checkNode = (
       return { kind: "booleanLiteral", span: node.span, value: node.value, type: BOOLEAN_TYPE };
 
     case "unresolvedChoiceLiteral": {
+      const resolvedByFrontend = state.resolveChoiceLiteral?.(node.raw, expectedType, node.span);
+      if (resolvedByFrontend !== undefined) {
+        if (resolvedByFrontend !== null) {
+          return { kind: "choiceLiteral", span: node.span, value: node.raw, type: resolvedByFrontend.kind === "choice" ? resolvedByFrontend : null };
+        }
+        return { kind: "choiceLiteral", span: node.span, value: node.raw, type: null };
+      }
       if (expectedType !== null && isChoiceScalarType(expectedType) && isChoiceOptionMember(expectedType, node.raw)) {
         return { kind: "choiceLiteral", span: node.span, value: node.raw, type: expectedType };
       }
@@ -180,6 +189,9 @@ const checkNode = (
 
     case "reference": {
       const resolution = nextReferenceResolution(state, node.name, node.span.start);
+      if (resolution.kind === "resolvedType") {
+        return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: resolution.bindingId, type: resolution.type };
+      }
       if (resolution.kind !== "resolved") {
         return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: null, type: null };
       }
@@ -229,7 +241,12 @@ export const typecheckScalarExpression = (
   ast: ScalarExpressionAst,
   context: ScalarExpressionTypecheckContext
 ): ScalarExpressionTypecheckResult => {
-  const state: TraversalState = { references: context.references, cursor: 0, diagnostics: [] };
+  const state: TraversalState = {
+    references: context.references,
+    cursor: 0,
+    diagnostics: [],
+    resolveChoiceLiteral: context.resolveChoiceLiteral
+  };
   const typed = checkNode(ast, context.expectedType, state);
   if (state.cursor !== state.references.length) {
     throw new Error(
@@ -242,7 +259,7 @@ export const typecheckScalarExpression = (
     state.diagnostics.push({
       code: "scalar-type-mismatch",
       span: ast.span,
-      message: `宣言された型と一致しません(期待: ${describeScalarType(context.expectedType)}, 実際: ${describeScalarType(type)})。`,
+    message: `宣言された型と一致しません(期待: ${describeScalarType(context.expectedType)}, 実際: ${describeScalarType(type)})。`,
       expectedType: context.expectedType,
       actualType: type
     });

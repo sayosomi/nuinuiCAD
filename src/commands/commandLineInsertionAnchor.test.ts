@@ -8,8 +8,8 @@ import {
 describe("command-line insertion anchors", () => {
   it("resolves a conditional group's anchor after its complete then/else structure", () => {
     const compiled = compileDslDocument([
-      "nui 3",
-      "if 分岐 (1) {",
+      "nui 4",
+      "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  group 内側 {",
@@ -19,7 +19,7 @@ describe("command-line insertion anchors", () => {
       "point C = coordinate(x: 2, y: 2)"
     ].join("\n"));
     const elements = compiled.document!.elements;
-    const group = elements.find((element) => element.name === "分岐")!;
+    const group = elements.find((element) => element.type === "conditionalGroup")!;
 
     expect(resolveCommandLineInsertionAnchor(
       insertionAnchorForCommandLineCreation(group.id),
@@ -31,7 +31,7 @@ describe("command-line insertion anchors", () => {
 
   it("keeps a child anchor in its structural parent without consulting fold state", () => {
     const compiled = compileDslDocument([
-      "nui 3",
+      "nui 4",
       "group 外側 {",
       "  group 内側 {",
       "    point A = coordinate(x: 0, y: 0)",

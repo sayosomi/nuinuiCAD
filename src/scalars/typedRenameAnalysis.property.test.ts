@@ -10,7 +10,7 @@ import { analyzeTypedBindingRenameInDocument } from "../document/typedRenameAnal
 // replay), as opposed to typedDependencyGraph.performance.test.ts's long
 // chain shape (most relevant to dependency-graph traversal depth).
 const fanOutSource = (count: number, name: string) => [
-  "nui 3",
+  "nui 4",
   `const ${name}: number = 0`,
   ...Array.from({ length: count }, (_, index) => `let v${index}: number = @${name}`)
 ].join("\n");

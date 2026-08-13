@@ -1,5 +1,0 @@
-nui 3
-for Loop (i, from: 0, count: 3, step: 1) {
-  const w: number = @i * 2
-  point P = coordinate(x: @w, y: 0)
-}

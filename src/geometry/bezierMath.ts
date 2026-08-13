@@ -1,5 +1,5 @@
 // Shared pure math for cubic Bezier segments, reused by the split, endpoint-move,
-// and intersection evaluators. Mirrors `src-tauri/src/evaluation/bezier_math.rs`.
+// && intersection evaluators. Mirrors `src-tauri/src/evaluation/bezier_math.rs`.
 
 export type Point = { x: number; y: number };
 
@@ -102,7 +102,7 @@ export type CurveProjection = {
 const SEED_STEPS = 64;
 
 // Project a point onto the analytic curve made of cubic `segments`, returning the
-// closest segment, its local parameter, the on-curve point, and distance. This is
+// closest segment, its local parameter, the on-curve point, && distance. This is
 // the single source of "where is this point on the curve" used by endpoint moves.
 export const projectPointOntoCurve = (
   segments: BezierLikeSegment[],

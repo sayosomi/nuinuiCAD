@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
 import { compileDslToElements } from "../dsl/dslCompiler";
+import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { parseDsl } from "../dsl/dslParser";
 import type { DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -28,7 +30,7 @@ const compileFor = (
   expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const statements = parsed.statements;
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
   expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
   const stableStatementIdByIndex = new Map<number, string>(statements.map((_, index) => [index, `stable-${index}`]));
@@ -55,7 +57,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
     // (and therefore this compiler) to run at all in production wiring -
     // see dslDocument.ts's `scalarAnalysis ?` gate - mirroring
     // propertyBindingCompiler.test.ts's own convention.
-    const compiled = compileFor(["const _unused: number = 0", "if C (true) {", "}"].join("\n"));
+    const compiled = compileFor(["const _unused: number = 0", "if (true) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
@@ -66,7 +68,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
   });
 
   it("unary not on a typed boolean reference", () => {
-    const compiled = compileFor(["let flag: boolean = true", "if C (!@flag) {", "}"].join("\n"));
+    const compiled = compileFor(["let flag: boolean = true", "if (not @flag) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
@@ -77,7 +79,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
   });
 
   it("bare reference to a typed boolean binding", () => {
-    const compiled = compileFor(["let flag: boolean = true", "if C (@flag) {", "}"].join("\n"));
+    const compiled = compileFor(["let flag: boolean = true", "if (@flag) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
@@ -88,7 +90,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
   });
 
   it("comparison where an operand is a typed number binding", () => {
-    const compiled = compileFor(["const n: number = 5", "if C (@n > 0) {", "}"].join("\n"));
+    const compiled = compileFor(["const n: number = 5", "if (@n > 0) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
@@ -98,11 +100,11 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
     });
   });
 
-  it("logical && combining two typed boolean references", () => {
+  it("logical  and  combining two typed boolean references", () => {
     const compiled = compileFor([
       "let a: boolean = true",
       "let b: boolean = false",
-      "if C (@a && @b) {",
+      "if (@a  and  @b) {",
       "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
@@ -113,33 +115,106 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
       type: { kind: "boolean" }
     });
   });
-});
 
-describe("compileConditionalGroupConditions: numeric-only conditions are left untouched", () => {
-  it("a plain numeric literal produces no entry and no diagnostic", () => {
-    const compiled = compileFor(["const _unused: number = 0", "if C (1) {", "}"].join("\n"));
+  it("accepts nui4 word operators and resolves an earlier geometry property", () => {
+    const compiled = compileFor([
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "if (@AB.length > 0) {",
+      "}"
+    ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
-    expect(sourcesByOccurrenceKey.size).toBe(0);
-    expect(compiled.elements[0]).toMatchObject({ type: "conditionalGroup", condition: 1 });
+    expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "condition"))).toMatchObject({
+      kind: "binary",
+      operator: ">",
+      left: { kind: "geometryProperty", elementId: expect.any(String), targetSourceOrder: 3 }
+    });
   });
 
-  it("a zero-reference numeric comparison produces no entry and no diagnostic", () => {
-    const compiled = compileFor(["const _unused: number = 0", "if C (1 > 0) {", "}"].join("\n"));
+  it("rejects a forward geometry property in a conditional expression", () => {
+    const compiled = compileFor([
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "if (@Later.length > 0) {",
+      "}",
+      "line Later = segment(start: @A, end: @B)"
+    ].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
+    expect(sourcesByOccurrenceKey.size).toBe(0);
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "geometry-property-invalid", message: expect.stringContaining("後") })
+    ]));
+  });
+});
+
+describe("compileConditionalGroupConditions: every scalar AST uses boolean expected type", () => {
+  it("wires the boolean expected-type check through the production document compiler without typed declarations", () => {
+    const result = compileCanonicalText(
+      regenerateCanonicalFromModel(emptyDocument(), 4),
+      ["nui 4", "if (1) {", "}"].join("\n")
+    );
+    expect(result.status).toBe("fatal");
+    expect(result.diagnostics.filter((diagnostic) => diagnostic.code === CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE)).toHaveLength(1);
+  });
+
+  it.each([true, false])("accepts boolean literal %s", (value) => {
+    const compiled = compileFor(["const _unused: number = 0", `if (${value}) {`, "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
+    expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
+      kind: "booleanLiteral",
+      value,
+      type: { kind: "boolean" }
+    });
+  });
+
+  it.each(["1", "0"])("rejects numeric truthiness for if (%s)", (condition) => {
+    const compiled = compileFor(["const _unused: number = 0", `if (${condition}) {`, "}"].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].code).toBe(CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE);
     expect(sourcesByOccurrenceKey.size).toBe(0);
+  });
+
+  it("accepts a zero-reference boolean comparison", () => {
+    const compiled = compileFor(["const _unused: number = 0", "if (1 > 0) {", "}"].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
+    expect(diagnostics).toEqual([]);
+    expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
+      kind: "binary",
+      operator: ">",
+      type: { kind: "boolean" }
+    });
+  });
+
+  it("rejects a geometry property used as a condition without a boolean comparison", () => {
+    const compiled = compileFor([
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "if (@AB.length) {",
+      "}"
+    ].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
+    expect(sourcesByOccurrenceKey.size).toBe(0);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].code).toBe(CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE);
   });
 
   it("characterization: typed-only condition syntax is not rejected earlier by the generic numeric apply stage", () => {
     // If dslApplyArgs's numeric() ever started rejecting non-numeric-grammar
-    // text like `true` or `@a && @b` at compile time, compileFor's own
+    // text like `true` || `@a &&  @b` at compile time, compileFor's own
     // `compiled.diagnostics` assertion above would already fail before this
     // module even runs - this test exists to name that guarantee explicitly.
     const compiled = compileFor([
       "let a: boolean = true",
       "let b: boolean = true",
-      "if C (@a && @b) {",
+      "if (@a && @b) {",
       "}"
     ].join("\n"));
     expect(compiled.elements[0]).toMatchObject({ type: "conditionalGroup" });
@@ -149,7 +224,7 @@ describe("compileConditionalGroupConditions: numeric-only conditions are left un
 
 describe("compileConditionalGroupConditions: fail-closed diagnostics once classified typed", () => {
   it("an unresolved reference inside a typed-only expression", () => {
-    const compiled = compileFor(["const _unused: number = 0", "if C (@missing && true) {", "}"].join("\n"));
+    const compiled = compileFor(["const _unused: number = 0", "if (@missing && true) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
     expect(diagnostics).toHaveLength(1);
@@ -157,7 +232,7 @@ describe("compileConditionalGroupConditions: fail-closed diagnostics once classi
   });
 
   it("a non-boolean root type (bare reference to a typed number binding)", () => {
-    const compiled = compileFor(["const n: number = 1", "if C (@n) {", "}"].join("\n"));
+    const compiled = compileFor(["const n: number = 1", "if (@n) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
     expect(diagnostics).toHaveLength(1);
@@ -167,7 +242,7 @@ describe("compileConditionalGroupConditions: fail-closed diagnostics once classi
   it("an invalid (poisoned) typed declaration referenced inside a typed-only expression", () => {
     const compiled = compileFor([
       "let 壊れた: boolean = @何か",
-      "if C (@壊れた && true) {",
+      "if (@壊れた && true) {",
       "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);

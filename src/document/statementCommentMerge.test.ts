@@ -323,12 +323,12 @@ describe("mergeStatementComments: 旧が1行statement -> 新が縦型", () => {
 describe("mergeStatementComments: 縦型 -> 短形式(next.close === null)", () => {
   it("旧の全行コメントを先頭行群として持ち上げる", () => {
     const oldLines = [
-      "var x = expression(",
+      "const x: number = expression(",
       "  # about value",
       "  value: 5",
       ")",
     ];
-    const next: SerializedStatement = { header: "var x = 5", args: [], close: null };
+    const next: SerializedStatement = { header: "const x: number = 5", args: [], close: null };
     const result = mergeStatementComments({
       oldLines,
       oldArgLineByKey: argLineMap([["value", 2]]),
@@ -337,52 +337,52 @@ describe("mergeStatementComments: 縦型 -> 短形式(next.close === null)", () 
     });
     expect(result).toEqual([
       "# about value",
-      "var x = 5",
+      "const x: number = 5",
     ]);
   });
 
   it("旧の全EOLコメントを1本のEOLへ連結する(文書順)", () => {
     const oldLines = [
-      "var x = expression(  # h",
+      "const x: number = expression(  # h",
       "  value: 5  # v",
       ")  # c",
     ];
-    const next: SerializedStatement = { header: "var x = 5", args: [], close: null };
+    const next: SerializedStatement = { header: "const x: number = 5", args: [], close: null };
     const result = mergeStatementComments({
       oldLines,
       oldArgLineByKey: argLineMap([["value", 1]]),
       next,
       indent: "",
     });
-    expect(result).toEqual(["var x = 5  # h  # v  # c"]);
+    expect(result).toEqual(["const x: number = 5  # h  # v  # c"]);
   });
 
   it("旧が既に1行だった場合も二重カウントしない", () => {
-    const oldLines = ["var x = 5  # only"];
-    const next: SerializedStatement = { header: "var x = 6", args: [], close: null };
+    const oldLines = ["const x: number = 5  # only"];
+    const next: SerializedStatement = { header: "const x: number = 6", args: [], close: null };
     const result = mergeStatementComments({
       oldLines,
       oldArgLineByKey: argLineMap([]),
       next,
       indent: "",
     });
-    expect(result).toEqual(["var x = 6  # only"]);
+    expect(result).toEqual(["const x: number = 6  # only"]);
   });
 
   it("depth>0でインデントを正しく適用する", () => {
     const oldLines = [
-      "  var x = expression(",
+      "  const x: number = expression(",
       "    value: 5  # v",
       "  )",
     ];
-    const next: SerializedStatement = { header: "var x = 6", args: [], close: null };
+    const next: SerializedStatement = { header: "const x: number = 6", args: [], close: null };
     const result = mergeStatementComments({
       oldLines,
       oldArgLineByKey: argLineMap([["value", 1]]),
       next,
       indent: "  ",
     });
-    expect(result).toEqual(["  var x = 6  # v"]);
+    expect(result).toEqual(["  const x: number = 6  # v"]);
   });
 });
 

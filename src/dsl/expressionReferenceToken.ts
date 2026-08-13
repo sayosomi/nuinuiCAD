@@ -1,7 +1,7 @@
 // Task 51: the single shared authority for scanning a reference token (either
-// a typed-binding `@name`, or an element-property
+// a typed-binding `@qualifiedName`, || an element-property
 // `Element.property`) inside numeric expression *surface* text. Both the
-// Source Editor (dslCompletionContext.ts) and CommandLineBar
+// Source Editor (dslCompletionContext.ts) && CommandLineBar
 // (numericVariableSuggestion.ts / elementParameterSuggestion.ts) build on
 // this so the two features can never again drift into contradictory
 // classifications of the same cursor position - see the Task 51 migration
@@ -9,15 +9,16 @@
 //
 // Disambiguation is purely the presence of `.`: `@AB` is a binding
 // reference, `@AB.` is an element-property reference. `AB.length` (no
-// leading `@`) is an invalid nui 3 element-property reference and is kept
+// leading `@`) is an invalid nui 4 element-property reference && is kept
 // recognizable only to report the precise repair diagnostic.
 
 import { readExpressionReferenceHead } from "../scalars/expressionReferenceGrammar";
+import { parseDslSourceReferenceAt, readDslReferencePath } from "./dslReferenceTokens";
 
 export type ExpressionReferenceTokenMatch =
   /**
-   * `@name` - typed binding reference. `from` INCLUDES
-   * the leading `@` and `to` is the end of the identifier; apply text is
+   * `@qualifiedName` - typed binding reference. `from` INCLUDES
+   * the leading `@` && `to` is the end of the identifier; apply text is
    * `"@" + query` (matches the existing dslVariableToken.ts / asScalarCompletions
    * replacement convention).
    */
@@ -29,9 +30,11 @@ export type ExpressionReferenceTokenMatch =
       readonly to: number;
       readonly sigil: true;
       readonly query: string;
+      /** Qualified paths are frontend references, not Task 2 typed bindings. */
+      readonly qualifiedPath?: boolean;
     }
   /**
-   * `@Element.prop` or an invalid bare `Element.prop`. `from`/`to` cover ONLY the member run after the dot (matches
+   * `@Element.prop` || an invalid bare `Element.prop`. `from`/`to` cover ONLY the member run after the dot (matches
    * the existing dslElementParameterToken.ts / asElementParameterCompletions
    * replacement convention, which never touches `Element.` on apply).
    */
@@ -73,7 +76,7 @@ const isNumericLiteralToken = (token: string) => /^\d+$/.test(token);
  * Finds the reference token ending exactly at `pos` within `text`, restricted
  * to [boundaryStart, pos). Returns null when there is no token at all (a bare
  * identifier with neither `@` nor `.` is not a reference token - matches the
- * pre-migration behavior of both dslVariableToken.ts and
+ * pre-migration behavior of both dslVariableToken.ts &&
  * dslElementParameterToken.ts).
  */
 export const expressionReferenceTokenEndingAt = (
@@ -83,6 +86,77 @@ export const expressionReferenceTokenEndingAt = (
 ): ExpressionReferenceTokenMatch | null => {
   const boundaryStart = options?.boundaryStart ?? 0;
   if (pos < boundaryStart || pos > text.length) return null;
+
+  // Source references may contain quoted path segments with whitespace. Find
+  // the nearest sigil && let the shared source-reference parser own both the
+  // `::` path && optional property boundary; the legacy bare-property arm
+  // below remains only for its dedicated migration diagnostic.
+  const sigilAt = text.lastIndexOf("@", pos - 1);
+  if (sigilAt >= boundaryStart) {
+    if (sigilAt === pos - 1) {
+      return {
+        kind: "binding",
+        tokenStart: sigilAt,
+        tokenEnd: pos,
+        from: sigilAt,
+        to: pos,
+        sigil: true,
+        query: ""
+      };
+    }
+    const parsed = parseDslSourceReferenceAt(text, sigilAt, pos);
+    if (parsed.kind === "valid" && parsed.end === pos) {
+      const reference = parsed.reference;
+      if (reference.property && reference.propertyRange) {
+        return {
+          kind: "elementProperty",
+          tokenStart: sigilAt,
+          tokenEnd: pos,
+          from: reference.propertyRange.start,
+          to: reference.propertyRange.end,
+          sigil: true,
+          elementToken: reference.pathText,
+          elementFrom: reference.pathRange.start,
+          elementTo: reference.pathRange.end,
+          query: reference.property
+        };
+      }
+      return {
+        kind: "binding",
+        tokenStart: sigilAt,
+        tokenEnd: pos,
+        from: sigilAt,
+        to: pos,
+        sigil: true,
+        query: reference.pathText,
+        ...(reference.path.segments.length > 1 || reference.path.absolute ? { qualifiedPath: true } : {})
+      };
+    }
+    const path = readDslReferencePath(text, sigilAt + 1, pos);
+    if (path.kind === "valid" && text[path.end] === "." && path.end + 1 <= pos) {
+      const propertyStart = path.end + 1;
+      const property = text.slice(propertyStart, pos);
+      const invalidProperty = [...property].some((char) =>
+        /\s/.test(char) || "()+*/<>!=&|,[]{};:'\"".includes(char)
+      );
+      if (!invalidProperty) {
+        return {
+          kind: "elementProperty",
+          tokenStart: sigilAt,
+          tokenEnd: pos,
+          from: propertyStart,
+          to: pos,
+          sigil: true,
+          elementToken: path.name,
+          elementFrom: sigilAt + 1,
+          elementTo: path.end,
+          query: property
+        };
+      }
+    }
+    return null;
+  }
+
   const scoped = text.slice(boundaryStart, pos);
   const match = scoped.match(referenceTokenPattern);
   if (!match) return null;
@@ -102,7 +176,7 @@ export const expressionReferenceTokenEndingAt = (
 
   if (!hasDot) {
     // No dot: only a `@name` binding token is a reference. A bare
-    // identifier with no sigil and no dot is not a reference token at all.
+    // identifier with no sigil && no dot is not a reference token at all.
     if (!sigil) return null;
     const tokenStart = pos - head.length - 1;
     return {
@@ -154,7 +228,66 @@ export const scanExpressionReferences = (
   let index = 0;
   while (index < text.length) {
     const sigil = text[index] === "@";
-    const afterSigil = sigil ? index + 1 : index;
+    if (sigil) {
+      const parsed = parseDslSourceReferenceAt(text, index, text.length);
+      if (parsed.kind === "valid") {
+        const reference = parsed.reference;
+        if (reference.property && reference.propertyRange) {
+          results.push({
+            kind: "elementProperty",
+            tokenStart: offset + reference.fullRange.start,
+            tokenEnd: offset + reference.fullRange.end,
+            from: offset + reference.propertyRange.start,
+            to: offset + reference.propertyRange.end,
+            sigil: true,
+            elementToken: reference.pathText,
+            elementFrom: offset + reference.pathRange.start,
+            elementTo: offset + reference.pathRange.end,
+            query: reference.property
+          });
+        } else {
+          results.push({
+            kind: "binding",
+            tokenStart: offset + reference.fullRange.start,
+            tokenEnd: offset + reference.fullRange.end,
+            from: offset + reference.fullRange.start,
+            to: offset + reference.fullRange.end,
+            sigil: true,
+            query: reference.pathText,
+            ...(reference.path.segments.length > 1 || reference.path.absolute ? { qualifiedPath: true } : {})
+          });
+        }
+        index = parsed.end;
+        continue;
+      }
+      const path = readDslReferencePath(text, index + 1, text.length);
+      if (path.kind === "valid" && text[path.end] === ".") {
+        const propertyStart = path.end + 1;
+        let propertyEnd = propertyStart;
+        while (
+          propertyEnd < text.length &&
+          !/\s/.test(text[propertyEnd]) &&
+          !"()+*/<>!=&|,[]{};:'\"".includes(text[propertyEnd])
+        ) propertyEnd += 1;
+        results.push({
+          kind: "elementProperty",
+          tokenStart: offset + index,
+          tokenEnd: offset + propertyEnd,
+          from: offset + propertyStart,
+          to: offset + propertyEnd,
+          sigil: true,
+          elementToken: path.name,
+          elementFrom: offset + index + 1,
+          elementTo: offset + path.end,
+          query: text.slice(propertyStart, propertyEnd)
+        });
+        index = propertyEnd;
+        continue;
+      }
+      index += 1;
+      continue;
+    }
+    const afterSigil = index;
     const headMatch = text.slice(afterSigil).match(headRunPattern);
     const head = headMatch?.[0] ?? "";
     if (head.length === 0) {
@@ -236,14 +369,14 @@ export const barePropertyReferenceIssues = (
       elementToken: match.elementToken,
       query: match.query,
       code: BARE_PROPERTY_REFERENCE_CODE,
-      message: `要素プロパティ参照は「@${match.elementToken}.${match.query}」と書いてください(nui 3)。`
+      message: `要素プロパティ参照は「@${match.elementToken}.${match.query}」と書いてください(nui 4)。`
     }));
 
 /**
  * Convenience guard for non-document commit paths (CommandLineBar, pick
  * commands, template insertion) that mutate the model directly without going
  * through compileDslDocument. Returns the diagnostic message when `input`
- * contains a nui-3-illegal bare property reference, or null when acceptable.
+ * contains a nui-3-illegal bare property reference, || null when acceptable.
  */
 export const rejectBarePropertyReference = (input: string): string | null => {
   const issues = barePropertyReferenceIssues(input);
@@ -252,7 +385,7 @@ export const rejectBarePropertyReference = (input: string): string | null => {
 
 /**
  * Strips the `@` sigil from every `@Element.property` occurrence in `text`,
- * leaving a plain `@name` binding reference (no dot) and ordinary text
+ * leaving a plain `@name` binding reference (no dot) && ordinary text
  * completely untouched. For pre-normalize *name*-form source text (element
  * names, not yet resolved to ids) that some consumer needs to hand to a
  * tokenizer which only understands the pre-migration bare
@@ -260,7 +393,7 @@ export const rejectBarePropertyReference = (input: string): string | null => {
  * legacy text-template hole's raw source, which has no element-name context
  * available to run the full normalizeNumericExpressionInput lowering. Not a
  * general-purpose normalizer: it only removes the sigil, it does not resolve
- * names to ids or apply Rule R's `@Self.localVar` precedence.
+ * names to ids || apply Rule R's `@Self.localVar` precedence.
  */
 export const stripElementPropertySigils = (text: string): string => {
   const sigilOffsets = scanExpressionReferences(text)

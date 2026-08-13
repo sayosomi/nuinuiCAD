@@ -72,7 +72,7 @@ describe("cadDocumentStore source updates", () => {
   });
 
   it("commitLineSplices tags model-patch (not reset) with the given splices, in one Undo step", () => {
-    const source = ["nui 3", "const base: number = 1", "let derived: number = @base"].join("\n");
+    const source = ["nui 4", "const base: number = 1", "let derived: number = @base"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const pastLength = useCadDocumentStore.getState().past.length;
 
@@ -83,7 +83,7 @@ describe("cadDocumentStore source updates", () => {
 
     expect(result).toEqual({ status: "applied" });
     expect(useCadDocumentStore.getState().sourceText).toBe(
-      ["nui 3", "const renamed: number = 1", "let derived: number = @renamed"].join("\n")
+      ["nui 4", "const renamed: number = 1", "let derived: number = @renamed"].join("\n")
     );
     const update = useCadDocumentStore.getState().sourceUpdate;
     expect(update.kind).toBe("model-patch");
@@ -96,7 +96,7 @@ describe("cadDocumentStore source updates", () => {
   });
 
   it("commitLineSplices is a noop when the given splices produce identical text", () => {
-    const source = ["nui 3", "const base: number = 1"].join("\n");
+    const source = ["nui 4", "const base: number = 1"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const before = useCadDocumentStore.getState();
 

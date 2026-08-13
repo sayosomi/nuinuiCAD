@@ -1,17 +1,16 @@
 import {
   layoutElementTree,
-  NEW_DOCUMENT_DSL_MAJOR_VERSION,
   planPrintLayoutSection,
   serializePaletteColorLine,
   serializePaletteLines,
   withFallbackParentArgs,
   type CompiledDslDocument,
   type DslDocumentData,
-  type DslMajorVersion,
   type ElementTreeRow,
   type StatementInfo
 } from "../dsl/dslDocument";
 import { isElementDslStatement } from "../dsl/dslParser";
+import { commonArgSpecs, constructionForElementType } from "../dsl/dslConstructions";
 import {
   documentDslRefs,
   serializeActiveViewLine,
@@ -24,6 +23,9 @@ import type { DslStatement } from "../dsl/dslTypes";
 import { DSL_INDENT, splitDslComment } from "../dsl/dslTokens";
 import { mergeStatementComments } from "./statementCommentMerge";
 import type { CadElement, ElementId } from "../types/geometry";
+import { getParameterValue } from "../parameters/parameterAccess";
+import { getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
 
 // textPatch — モデル差分を「行スプライス」列に変換するパッチ生成器
 // (docs/overhaul/plan.md / Phase 1a)。
@@ -173,7 +175,6 @@ const namesAndParentsUnchanged = (oldDoc: DslDocumentData, newDoc: DslDocumentDa
 const elementUpdateSet = (
   oldDoc: DslDocumentData,
   newDoc: DslDocumentData,
-  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION,
   precomputedRefsNew?: DslSerializerRefs
 ): Set<ElementId> => {
   const oldById = new Map(oldDoc.elements.map((element) => [element.id, element]));
@@ -190,8 +191,8 @@ const elementUpdateSet = (
     return updates;
   }
 
-  const refsOld = documentDslRefs(oldDoc.elements, majorVersion);
-  const refsNew = precomputedRefsNew ?? documentDslRefs(newDoc.elements, majorVersion);
+  const refsOld = documentDslRefs(oldDoc.elements);
+  const refsNew = precomputedRefsNew ?? documentDslRefs(newDoc.elements);
   for (const element of newDoc.elements) {
     const oldElement = oldById.get(element.id);
     if (!oldElement) continue;
@@ -210,11 +211,10 @@ const elementUpdateSet = (
 // 高速経路と結果が常に一致することの検証にのみ使う。
 export const elementUpdateSetFullComparisonForTesting = (
   oldDoc: DslDocumentData,
-  newDoc: DslDocumentData,
-  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+  newDoc: DslDocumentData
 ): Set<ElementId> => {
-  const refsOld = documentDslRefs(oldDoc.elements, majorVersion);
-  const refsNew = documentDslRefs(newDoc.elements, majorVersion);
+  const refsOld = documentDslRefs(oldDoc.elements);
+  const refsNew = documentDslRefs(newDoc.elements);
   const oldById = new Map(oldDoc.elements.map((element) => [element.id, element]));
   const updates = new Set<ElementId>();
   for (const element of newDoc.elements) {
@@ -325,19 +325,84 @@ const insertBefore = (ops: PatchOps, line: number, lines: string[]) => {
   ops.insertsBefore.set(line, [...(ops.insertsBefore.get(line) ?? []), ...lines]);
 };
 
+const sameModelValue = (left: unknown, right: unknown) =>
+  Object.is(left, right) || JSON.stringify(left) === JSON.stringify(right);
+
+const changedParameterKeysForSource = (before: CadElement, after: CadElement): string[] => {
+  const keys = new Set([
+    ...getParameterDefinitions(before).map((definition) => definition.key),
+    ...getParameterDefinitions(after).map((definition) => definition.key)
+  ]);
+  return [...keys].filter((key) => !sameModelValue(getParameterValue(before, key), getParameterValue(after, key)));
+};
+
+const sourceNamesAndParentsUnchanged = (before: readonly CadElement[], after: readonly CadElement[]) => {
+  if (before.length !== after.length) return false;
+  const beforeById = new Map(before.map((element) => [element.id, element]));
+  return after.every((element) => {
+    const previous = beforeById.get(element.id);
+    return previous?.name === element.name && previous?.parentGroupId === element.parentGroupId;
+  });
+};
+
+/**
+ * Preserve authored scalar/reference text when a model edit changes another
+ * field on the same statement. The model intentionally stores evaluated
+ * values for some legacy scalar fields, so ordinary serialization cannot
+ * reconstruct a compound source expression such as `@a &&  not @b`,
+ * `true && false`, || `@path.property`. Only unchanged parameters are
+ * eligible; an actual edit to the authored field still uses the normal
+ * serializer/bridge path.
+ */
+const preserveUnchangedAuthoredValues = (
+  oldElement: CadElement,
+  newElement: CadElement,
+  oldStatement: DslStatement,
+  next: ReturnType<typeof serializeElementStatementBlock>,
+  changedKeys: ReadonlySet<string>,
+  preserveReferences: boolean
+) => {
+  if (!preserveReferences) return next;
+  const args = [...next.args];
+  const specs = [...constructionForElementType(oldElement.type).args, ...commonArgSpecs];
+  for (const attribute of oldStatement.attrs) {
+    if (!isScalarExpressionCandidateSource(attribute.value)) continue;
+    const spec = specs.find((candidate) => candidate.arg === attribute.key);
+    const parameterKey = spec?.parameterKey ?? spec?.arg;
+    if (!parameterKey || changedKeys.has(parameterKey) || parameterKey === "activity") continue;
+    if (!sameModelValue(getParameterValue(oldElement, parameterKey), getParameterValue(newElement, parameterKey))) continue;
+    const preserved = `${attribute.key}: ${attribute.value}`;
+    const existingIndex = args.findIndex((arg) => arg.key === attribute.key);
+    if (existingIndex >= 0) args[existingIndex] = { ...args[existingIndex], text: preserved };
+    else args.push({ key: attribute.key, text: preserved });
+  }
+  if (args.length === next.args.length && args.every((arg, index) => arg === next.args[index])) return next;
+  if (next.close !== null) return { ...next, args };
+
+  const renderedArgs = args.map((arg, index) =>
+    `${arg.text}${next.argumentSeparator === "comma" && index < args.length - 1 ? "," : ""}`
+  ).join(" ");
+  const close = next.header.lastIndexOf(")");
+  if (close >= 0 && next.header.lastIndexOf("(") < close) {
+    const open = next.header.lastIndexOf("(");
+    const existing = next.header.slice(open + 1, close).trim();
+    const separator = existing.length > 0 ? (next.argumentSeparator === "comma" ? ", " : " ") : "";
+    return { ...next, header: `${next.header.slice(0, open + 1)}${existing}${separator}${renderedArgs}${next.header.slice(close)}`, args: [] };
+  }
+  return { ...next, header: `${next.header} (${renderedArgs})`, args: [] };
+};
+
 // ==== 要素セクション ====
 
 const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   const { old, newDocument } = input;
   const oldDocument = old.document!;
   const statementMap = old.statementMap!;
-  // `old.majorVersion` is guaranteed non-null alongside `old.document`/`old.statementMap`
-  // (see CompiledDslDocument.majorVersion); the fallback below is defensive only.
-  const majorVersion = old.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION;
-  const refsNew = documentDslRefs(newDocument.elements, majorVersion);
+  const refsNew = documentDslRefs(newDocument.elements);
   const layout = layoutElementTree(newDocument.elements, refsNew, newDocument.evaluationLimitIndex);
   const newById = new Map(newDocument.elements.map((element) => [element.id, element]));
-  const updates = elementUpdateSet(oldDocument, newDocument, majorVersion, refsNew);
+  const updates = elementUpdateSet(oldDocument, newDocument, refsNew);
+  const preserveAuthoredReferences = sourceNamesAndParentsUnchanged(oldDocument.elements, newDocument.elements);
 
   // 文の実際の旧終端行(ヘッダ自身のendLineと、旧文書が次行単独 `{` を
   // 使っていた場合のopenBraceLineの大きい方)。v2正準出力はヘッダ行自身に
@@ -476,6 +541,12 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
         // layoutLine.lines(物理行化・インデント・brace装飾済みの表示用出力)
         // からは再構築しない — 構造とレンダリングを混ぜない。
         let next = serializeElementStatementBlock(newElement, refsNew);
+        const oldElement = oldDocument.elements.find((candidate) => candidate.id === elementId);
+        if (oldElement) {
+          const changedKeys = new Set(changedParameterKeysForSource(oldElement, newElement));
+          if (oldElement.activity !== newElement.activity) changedKeys.add("activity");
+          next = preserveUnchangedAuthoredValues(oldElement, newElement, oldStatement, next, changedKeys, preserveAuthoredReferences);
+        }
         if (layoutLine.fallback) {
           const parentToken = refsNew.token(newElement.parentGroupId!, newElement);
           const branch: "then" | "else" = newElement.conditionalBranch === "else" ? "else" : "then";
@@ -496,7 +567,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
           // (insertsBefore(cursor) before lineOps(cursor)) when the
           // statement's own content is the lineOps entry at that cursor.
           // Remaining merged lines go through insertBefore(info.line + 1, …)
-          // and every other old physical line in range is cleared, so the
+          // && every other old physical line in range is cleared, so the
           // collapsed splice reassembles the full merged content in order
           // regardless of how the old/new physical line counts compare.
           const [headerLine, ...rest] = mergedLines;
@@ -508,7 +579,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       continue;
     }
 
-    // Structural rows and @stop only change for indentation changes.
+    // Structural rows && @stop only change for indentation changes.
     // (blockEnd/blockElse の正準深さは対応する開き文の深さに等しい。)
     const info =
       layoutLine.role === "atStop"
@@ -774,6 +845,117 @@ const patchVisibility = (input: TextPatchInput, ops: PatchOps) => {
 
 // ==== 印刷レイアウトセクション ====
 
+const replaceLineRange = (
+  ops: PatchOps,
+  startLine: number,
+  endLine: number,
+  replacementLines: readonly string[]
+) => {
+  if (startLine > endLine || startLine < 1) {
+    throw new UnappliedTextPatchError(`印刷レイアウトの行範囲が不正です (${startLine}..${endLine})。`);
+  }
+  if (replacementLines.length === 0) {
+    for (let line = startLine; line <= endLine; line += 1) setLineOp(ops, line, null);
+    return;
+  }
+  setLineOp(ops, startLine, replacementLines[0]);
+  if (replacementLines.length > 1) insertBefore(ops, startLine + 1, [...replacementLines].slice(1));
+  for (let line = startLine + 1; line <= endLine; line += 1) setLineOp(ops, line, null);
+};
+
+const directPrintLayoutSourceChildren = (
+  statements: readonly DslStatement[],
+  layoutStatementIndex: number
+) => statements.filter((statement) =>
+  (statement.kind === "typedDeclaration" || statement.kind === "set") &&
+  statement.enclosing?.statementIndex === layoutStatementIndex
+);
+
+const patchPrintLayoutWithSourceChildren = ({
+  ops,
+  oldLayout,
+  newLayout,
+  newBlock,
+  layoutInfo,
+  statementMap,
+  oldStatements
+}: {
+  ops: PatchOps;
+  oldLayout: DslDocumentData["printLayouts"][number];
+  newLayout: DslDocumentData["printLayouts"][number];
+  newBlock: { layoutId: string; lines: string[] };
+  layoutInfo: StatementInfo;
+  statementMap: NonNullable<CompiledDslDocument["statementMap"]>;
+  oldStatements: readonly DslStatement[];
+}) => {
+  const headerEndIndex = newBlock.lines.findIndex((line) => line.trim().endsWith(") {"));
+  if (headerEndIndex < 0 || newBlock.lines.at(-1) !== "}") {
+    throw new UnappliedTextPatchError(`printLayout ${newLayout.id} の正準ブロック範囲を特定できません。`);
+  }
+  const headerLines = newBlock.lines.slice(0, headerEndIndex + 1);
+  const placeLines = newBlock.lines.slice(headerEndIndex + 1, -1);
+  if (placeLines.length !== newLayout.placements.length) {
+    throw new UnappliedTextPatchError(`printLayout ${newLayout.id} のplace文数とモデルの配置数が一致しません。`);
+  }
+
+  const oldPlaceInfos = statementMap.statements
+    .filter((info) =>
+      info.kind === "place" && info.enclosing?.statementIndex === layoutInfo.statementIndex
+    )
+    .sort((left, right) => left.statementIndex - right.statementIndex);
+  if (oldPlaceInfos.length !== oldLayout.placements.length) {
+    throw new UnappliedTextPatchError(`printLayout ${oldLayout.id} のplace文位置をモデル配置へ対応付けられません。`);
+  }
+  if (directPrintLayoutSourceChildren(oldStatements, layoutInfo.statementIndex).length === 0) {
+    throw new UnappliedTextPatchError(`printLayout ${oldLayout.id} にbody-local scalar文がありません。`);
+  }
+
+  const oldPlacementIds = oldLayout.placements.map((placement) => placement.id);
+  const newPlacementIds = newLayout.placements.map((placement) => placement.id);
+  const oldPlacementIdSet = new Set(oldPlacementIds);
+  if (oldPlacementIdSet.size !== oldPlacementIds.length || new Set(newPlacementIds).size !== newPlacementIds.length) {
+    throw new UnappliedTextPatchError(`printLayout ${newLayout.id} の配置identityが一意ではありません。`);
+  }
+  const retainedOldIds = oldPlacementIds.filter((id) => newPlacementIds.includes(id));
+  const retainedNewIds = newPlacementIds.filter((id) => oldPlacementIdSet.has(id));
+  if (retainedOldIds.join("\0") !== retainedNewIds.join("\0")) {
+    throw new UnappliedTextPatchError(
+      `printLayout ${newLayout.id} のplace順序変更はbody-local scalar文を保ったまま適用できません。`
+    );
+  }
+  const lastRetainedNewIndex = Math.max(
+    -1,
+    ...retainedNewIds.map((id) => newPlacementIds.indexOf(id))
+  );
+  if (newPlacementIds.some((id, index) => !oldPlacementIdSet.has(id) && index < lastRetainedNewIndex)) {
+    throw new UnappliedTextPatchError(
+      `printLayout ${newLayout.id} の新規placeをbody-local scalar文の相対位置なしに挿入できません。`
+    );
+  }
+
+  const headerEndLine = Math.max(layoutInfo.endLine, layoutInfo.openBraceLine ?? 0);
+  replaceLineRange(ops, layoutInfo.line, headerEndLine, headerLines);
+
+  oldPlacementIds.forEach((placementId, oldIndex) => {
+    const oldPlaceInfo = oldPlaceInfos[oldIndex];
+    const newIndex = newPlacementIds.indexOf(placementId);
+    const oldPlaceEndLine = Math.max(oldPlaceInfo.line, oldPlaceInfo.endLine);
+    if (newIndex < 0) {
+      replaceLineRange(ops, oldPlaceInfo.line, oldPlaceEndLine, []);
+      return;
+    }
+    replaceLineRange(ops, oldPlaceInfo.line, oldPlaceEndLine, [placeLines[newIndex]]);
+  });
+
+  const addedPlaceLines = newPlacementIds
+    .map((placementId, index) => oldPlacementIdSet.has(placementId) ? undefined : placeLines[index])
+    .filter((line): line is string => line !== undefined);
+  if (addedPlaceLines.length > 0) {
+    const closeLine = layoutInfo.closeBraceLine ?? layoutInfo.range.endLine;
+    insertBefore(ops, closeLine, addedPlaceLines);
+  }
+};
+
 const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
   const { old, newDocument } = input;
   const oldDocument = old.document!;
@@ -797,6 +979,11 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
       .filter((entry): entry is readonly [string, StatementInfo] => entry[1] !== undefined)
   );
   const activeInfo = statementMap.byKey.get("activePrintLayout");
+  const sourceOnlyLayoutIds = new Set(
+    [...infoById.entries()]
+      .filter(([, info]) => directPrintLayoutSourceChildren(old.statements, info.statementIndex).length > 0)
+      .map(([layoutId]) => layoutId)
+  );
 
   if (infoById.size === 0) {
     // セクション新設。printLayoutはcanonicalに常にelementsより後。
@@ -823,6 +1010,12 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
   const keptNewOrder = newPlan.blocks
     .map((block) => block.layoutId)
     .filter((id) => oldBlockById.has(id));
+  if (keptOldOrder.some((layoutId, index) => keptNewOrder[index] !== layoutId) &&
+    keptOldOrder.some((layoutId) => sourceOnlyLayoutIds.has(layoutId))) {
+    throw new UnappliedTextPatchError(
+      "body-local scalar文を含むprintLayoutの順序変更は、source orderを保ったまま適用できません。"
+    );
+  }
   if (keptOldOrder.join(" ") !== keptNewOrder.join(" ")) {
     const firstLine = Math.min(...[...infoById.values()].map((info) => info.range.startLine));
     for (const block of oldPlan.blocks) dropRange(block.layoutId);
@@ -845,8 +1038,25 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
     if (newBlock.lines.join("\n") === block.lines.join("\n")) continue;
     const info = infoById.get(block.layoutId);
     if (!info) continue;
-    dropRange(block.layoutId);
-    insertBefore(ops, info.range.startLine, newBlock.lines);
+    const oldLayout = oldDocument.printLayouts.find((layout) => layout.id === block.layoutId);
+    const newLayout = newDocument.printLayouts.find((layout) => layout.id === block.layoutId);
+    if (!oldLayout || !newLayout) {
+      throw new UnappliedTextPatchError(`printLayout ${block.layoutId} のモデル対応を特定できません。`);
+    }
+    if (sourceOnlyLayoutIds.has(block.layoutId)) {
+      patchPrintLayoutWithSourceChildren({
+        ops,
+        oldLayout,
+        newLayout,
+        newBlock,
+        layoutInfo: info,
+        statementMap,
+        oldStatements: old.statements
+      });
+    } else {
+      dropRange(block.layoutId);
+      insertBefore(ops, info.range.startLine, newBlock.lines);
+    }
   }
 
   // 追加レイアウト: 新配列順で、直後の既存レイアウトのブロック先頭の直前へ

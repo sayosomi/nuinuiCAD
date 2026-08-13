@@ -1,5 +1,5 @@
-import type { CadElement, CadElementType, PointAnchor } from "../types/geometry";
-import type { PropertyBindingCapability } from "../scalars/scalarAssignability";
+import type { CadElement, PointAnchor } from "../types/geometry";
+import type { ScalarType } from "../scalars/types";
 
 export type ParameterValueKind =
   | "text"
@@ -23,56 +23,29 @@ export type ParameterDefinition = {
   emptyInputDefaultValue?: number;
   stepLevels?: readonly number[];
   choiceOptions?: readonly string[];
-  // Declares that a typed scalar binding may be assigned to this parameter
-  // (see docs/typed-variables/tasks/08-scalar-type-contracts.md). Optional
-  // and unused by existing consumers until a later task opts a property in.
-  propertyCapability?: PropertyBindingCapability;
 };
 
-// Task 22 opt-in registry (docs/typed-variables/plan.md "property対応" / D10):
-// the *only* place a property is declared eligible for a typed scalar
-// binding. `getParameterDefinitions` below applies this generically as a
-// post-map, so `parameterDefinitions.ts` stays the sole source of property
-// type info and no compiler elsewhere needs its own list of property names.
-const propertyBindingCapabilities: Partial<Record<CadElementType, Record<string, PropertyBindingCapability>>> = {
-  text: {
-    text: { propertyType: { kind: "string" } }
-  },
-  offsetLine: {
-    side: { propertyType: { kind: "choice", options: ["right", "left"] } },
-    closed: { propertyType: { kind: "boolean" } },
-    suppressTrimWarnings: { propertyType: { kind: "boolean" } }
-  },
-  intersectionPoint: {
-    useExtensions: { propertyType: { kind: "boolean" } }
-  },
-  copyLine: {
-    mirrorX: { propertyType: { kind: "boolean" } }
-  },
-  move: {
-    mirrorX: { propertyType: { kind: "boolean" } }
-  },
-  image: {
-    mirrorX: { propertyType: { kind: "boolean" } }
-  },
-  group: {
-    printEnabled: { propertyType: { kind: "boolean" } }
-  },
-  forGroup: {
-    showGenerated: { propertyType: { kind: "boolean" } }
+/**
+ * The scalar type of a parameter is part of the parameter schema itself.
+ * Consumers that compile typed values must use this helper as the single
+ * schema-to-scalar-type mapping.
+ */
+export const scalarTypeForParameterDefinition = (
+  definition: ParameterDefinition | undefined
+): ScalarType | null => {
+  if (!definition) return null;
+  switch (definition.kind) {
+    case "number":
+      return { kind: "number" };
+    case "boolean":
+      return { kind: "boolean" };
+    case "text":
+      return { kind: "string" };
+    case "choice":
+      return { kind: "choice", options: definition.choiceOptions ?? [] };
+    default:
+      return null;
   }
-};
-
-const withPropertyBindingCapabilities = (
-  type: CadElementType,
-  definitions: ParameterDefinition[]
-): ParameterDefinition[] => {
-  const capabilities = propertyBindingCapabilities[type];
-  if (!capabilities) return definitions;
-  return definitions.map((definition) => {
-    const capability = capabilities[definition.key];
-    return capability ? { ...definition, propertyCapability: capability } : definition;
-  });
 };
 
 export const defaultNumericParameterStep = 1;
@@ -595,7 +568,7 @@ const parameterDefinitionsForElement = (
 export const getParameterDefinitions = (
   element: CadElement,
 ): ParameterDefinition[] =>
-  withPropertyBindingCapabilities(element.type, parameterDefinitionsForElement(element));
+  parameterDefinitionsForElement(element);
 
 export const findParameterDefinition = (
   element: CadElement,

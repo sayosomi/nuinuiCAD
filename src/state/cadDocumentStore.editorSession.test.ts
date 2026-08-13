@@ -98,7 +98,7 @@ describe("cadDocumentStore editor mutation boundary", () => {
     useCadDocumentStore.getState().undo();
 
     expect(flush).toHaveBeenCalledWith("command");
-    // The burst is flushed and committed first, then a single undo step removes
+    // The burst is flushed && committed first, then a single undo step removes
     // exactly that burst -- not some pre-flush, never-committed intermediate state.
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
     expect(useCadDocumentStore.getState().future[0]?.text).toBe(flushedText);

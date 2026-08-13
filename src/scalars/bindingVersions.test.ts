@@ -18,7 +18,7 @@ const compileWithStableIds = (source: string, stableIds?: ReadonlyMap<number, st
 
 describe("binding version graph", () => {
   it("keeps a recoverable invalid let as poisoned version 0 and connects a valid set", () => {
-    const compiled = compileWithStableIds(["nui 3", "let broken: number = @missing", "set broken = 12"].join("\n"));
+    const compiled = compileWithStableIds(["nui 4", "let broken: number = @missing", "set broken = 12"].join("\n"));
     const graph = compiled.bindingVersions!;
     expect(graph.versions).toHaveLength(2);
     const [declaration, set] = graph.versions;
@@ -38,7 +38,7 @@ describe("binding version graph", () => {
 
   it("marks dependency-poisoned lets while allowing their later recovery set", () => {
     const compiled = compileWithStableIds([
-      "nui 3",
+      "nui 4",
       "let broken: number = @missing",
       "let dependent: number = @broken + 1",
       "set dependent = 8"
@@ -53,7 +53,7 @@ describe("binding version graph", () => {
   });
 
   it("uses explicit before/after statement boundaries without walking a version chain", () => {
-    const compiled = compileWithStableIds(["nui 3", "let x: number = 1", "set x = 2", "set x = 3"].join("\n"));
+    const compiled = compileWithStableIds(["nui 4", "let x: number = 1", "set x = 2", "set x = 3"].join("\n"));
     const graph = compiled.bindingVersions!;
     const bindingId = graph.versions[0].bindingId;
     expect(readBindingVersionAtPosition(graph, bindingId, beforeStatement(1))).toBeUndefined();
@@ -66,7 +66,7 @@ describe("binding version graph", () => {
 
   it("keeps shadowed lets in separate chains and creates no const successor", () => {
     const compiled = compileWithStableIds([
-      "nui 3",
+      "nui 4",
       "const fixed: number = 1",
       "let x: number = 2",
       "group G {",
@@ -86,9 +86,9 @@ describe("binding version graph", () => {
 
   it("preserves conditional and nested forGroup owner chains from lexical metadata", () => {
     const source = [
-      "nui 3",
-      "if Choice (true) {",
-      "  for Repeat (i, from: 0, count: 2) {",
+      "nui 4",
+      "if (true) {",
+      "  for i in range(from: 0, count: 2) {",
       "    let x: number = 1",
       "    set x = 2",
       "  }",
@@ -124,11 +124,11 @@ describe("binding version graph", () => {
   });
 
   it("retains control owner identities after an unrelated edit when reconciler identities are reused", () => {
-    const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+    const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
     const source = [
-      "nui 3",
-      "if C (true) {",
-      "  for Loop (i, from: 0, count: 2) {",
+      "nui 4",
+      "if (true) {",
+      "  for i in range(from: 0, count: 2) {",
       "    let x: number = 1",
       "    set x = 2",
       "  }",

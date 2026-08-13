@@ -30,10 +30,10 @@ describe("insertNumericExpressionSnippet", () => {
     expect(
       insertNumericExpressionSnippet({
         currentExpression: "line.length",
-        snippet: " && ",
+        snippet: "  and  ",
         appendMode: "raw"
       })
-    ).toBe("line.length && ");
+    ).toBe("line.length  and  ");
   });
 
   it("keeps a zero left operand when appending raw operator snippets", () => {

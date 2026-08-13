@@ -1,0 +1,14 @@
+nui 4
+# Active nui4 evaluation fixture.
+const maximum: number = 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+const overflow: number = @maximum + @maximum
+let value: number = 1
+let mirror: number = 0
+set value = 1 / 0
+set mirror = @value
+set value = 4
+text Recovered = label(text: "${@value}", anchor: none, size: 3)
+text Poisoned = label(text: "${@mirror}", anchor: none, size: 3)
+stop
+set value = 99
+text AfterStop = label(text: "${@value}", anchor: none, size: 3)

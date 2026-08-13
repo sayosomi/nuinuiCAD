@@ -366,7 +366,7 @@ export type CadElement =
 export type CadElementType = CadElement["type"];
 export type CadElementCategory = "group" | "container" | "point" | "line" | "modification";
 
-/** Runtime-only elements do not have a nui 3 source construction yet. */
+/** Runtime-only elements do not have a nui 4 source construction yet. */
 export const runtimeOnlyElementTypes = new Set<CadElementType>(["moduleInstance"]);
 
 export type ComputedPoint = {
@@ -547,7 +547,7 @@ export type EvaluationResult = {
   forGroupGeneratedRows?: ForGroupGeneratedRow[];
   /**
    * Task 25: `forGroup` element ids whose generated-result presentation is
-   * currently enabled (the literal `showGenerated` value, or the resolved
+   * currently enabled (the literal `showGenerated` value, || the resolved
    * typed boolean binding when bound). Never affects iteration count/rows -
    * `forGroupGeneratedRows` above is always fully populated regardless of
    * membership here. Consulted only by presentation surfaces such as the
@@ -557,7 +557,7 @@ export type EvaluationResult = {
   /**
    * Task 20: version-0 TS reference evaluation of the compiled scalar
    * program's const/let declarations, keyed by BindingId. Present only when the source document had a non-empty
-   * `EvaluateElementsOptions.scalarProgram` and only on the TS reference
+   * `EvaluateElementsOptions.scalarProgram` && only on the TS reference
    * evaluation path (`evaluateElementsWithRust` does not run
    * `evaluateElements`'s loop at all, so Rust output has no equivalent field
    * until Task 21).

@@ -73,6 +73,35 @@ fn point(id: &str, x: f64, y: f64) -> Value {
     json!({ "id": id, "name": id, "type": "freePoint", "activity": "visible", "x": x, "y": y })
 }
 
+fn line(id: &str, start: &str, end: &str) -> Value {
+    json!({
+        "id": id, "name": id, "type": "line", "activity": "visible",
+        "startPoint": {"mode": "reference", "pointId": start},
+        "endPoint": {"mode": "reference", "pointId": end}
+    })
+}
+
+fn geometry_length_positive_expression(element_id: &str, target_source_order: usize) -> Value {
+    json!({
+        "kind": "binary",
+        "span": {"start": 0, "end": 16},
+        "operator": ">",
+        "left": {
+            "kind": "geometryProperty",
+            "span": {"start": 0, "end": 11},
+            "elementNameSpan": {"start": 1, "end": 3},
+            "propertySpan": {"start": 4, "end": 10},
+            "elementName": "ab",
+            "elementId": element_id,
+            "property": "length",
+            "targetSourceOrder": target_source_order,
+            "type": {"kind": "number"}
+        },
+        "right": {"kind": "numberLiteral", "span": {"start": 14, "end": 15}, "value": 0, "type": {"kind": "number"}},
+        "type": {"kind": "boolean"}
+    })
+}
+
 fn conditional_group(id: &str, condition: Value) -> Value {
     json!({
         "id": id, "name": id, "type": "conditionalGroup", "activity": "visible",
@@ -211,6 +240,36 @@ fn a_plain_legacy_numeric_condition_with_no_condition_expressions_is_unaffected(
         .iter()
         .any(|geometry| geometry["elementId"] == json!("then-point")));
     assert_eq!(result.condition_inactive_element_ids, vec!["else-point"]);
+}
+
+#[test]
+fn evaluates_a_resolved_geometry_property_condition_against_prior_geometry() {
+    let result = evaluate_document_input(input(
+        vec![
+            point("a", 0.0, 0.0),
+            point("b", 10.0, 0.0),
+            line("ab", "a", "b"),
+            conditional_group("if", json!(0.0)),
+            branch_point("then-point", "if", "then"),
+            branch_point("else-point", "if", "else"),
+        ],
+        Some(program(vec![])),
+        None,
+        Some(json!([condition_expression_entry(
+            "if",
+            geometry_length_positive_expression("ab", 2)
+        )])),
+    ));
+
+    assert!(result.errors.is_empty());
+    assert!(result
+        .computed_geometry
+        .iter()
+        .any(|geometry| geometry["elementId"] == json!("then-point")));
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("else-point")));
 }
 
 #[test]

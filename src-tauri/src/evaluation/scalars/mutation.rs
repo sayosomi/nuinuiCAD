@@ -53,7 +53,7 @@ impl<'a> ScalarMutationResolver<'a> {
             }
             self.retire_before(version.source_order);
             self.next_version_index += 1;
-            if self.is_before_cutoff(version.source_order) {
+            if self.is_version_before_cutoff(version) {
                 self.execute(version, state);
             }
         }
@@ -64,7 +64,7 @@ impl<'a> ScalarMutationResolver<'a> {
             let version = &self.program.versions[self.next_version_index];
             self.retire_before(version.source_order);
             self.next_version_index += 1;
-            if self.is_before_cutoff(version.source_order) {
+            if self.is_version_before_cutoff(version) {
                 self.execute(version, state);
             }
         }
@@ -161,6 +161,18 @@ impl<'a> ScalarMutationResolver<'a> {
             .program
             .evaluation_limit_source_order
             .is_some_and(|limit| source_order >= limit)
+    }
+    fn is_version_before_cutoff(&self, version: &ValidatedBindingVersion) -> bool {
+        !self
+            .program
+            .evaluation_limit_source_order
+            .is_some_and(|limit| {
+                version.source_order >= limit
+                    && !self
+                        .program
+                        .post_stop_binding_ids
+                        .contains(&version.binding_id)
+            })
     }
     fn retire_before(&mut self, source_order: usize) {
         for index in (0..self.frames.len()).rev() {

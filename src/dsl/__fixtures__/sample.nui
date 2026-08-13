@@ -1,4 +1,4 @@
-nui 3
+nui 4
 
 # P7 golden: comments and canonical multiline calls are intentional.
 color pattern-black ("#31322f", name: "基本線", default: true)
@@ -15,16 +15,16 @@ group 前身頃 {
     y: 0
   )
   point B = offset(
-    from: A,
+    from: @A,
     dx: 0,
     dy: -(840 / 4)
   )
   line AB = segment(
-    start: A,
-    end: B
+    start: @A,
+    end: @B
   )
 
-  if 見返し (1) {
+  if (true) {
     point C = coordinate(
       x: 10,
       y: 10
@@ -36,7 +36,7 @@ group 前身頃 {
     )
   }
 
-  for 繰返し (i, from: 0, count: 3, step: 1) {
+  for i in range(from: 0, count: 3, step: 1) {
     point P = coordinate(
       x: i * 10,
       y: 0
@@ -49,7 +49,7 @@ point = coordinate(
   y: 5
 )
 
-@stop
+stop
 
 point after = coordinate(
   x: 99,
@@ -67,5 +67,5 @@ printLayout A4 (
   scale: 1,
   canvas: (410, 584)
 ) {
-  place 前身頃 (at: (0, 15), angle: 0, mirrorX: false)
+  place @前身頃(at: (0, 15), angle: 0, mirrorX: false)
 }

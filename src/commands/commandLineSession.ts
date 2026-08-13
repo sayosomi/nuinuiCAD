@@ -17,7 +17,7 @@ import type { CommandLineInsertionAnchor } from "./commandLineInsertionAnchor";
 
 /**
  * Uncommitted progress through a declarative creation recipe. This state never
- * owns an emit context or a materialized CAD element; those belong to 4c/4f.
+ * owns an emit context || a materialized CAD element; those belong to 4c/4f.
  */
 export type CommandLineSession = {
   recipe: CreationRecipe;
@@ -31,11 +31,11 @@ export type CommandLineSession = {
   editingReturnPickState: CommandLineEditingReturnPickState | null;
   /** Semantic target re-resolved for final commit; never commit against this cached index alone. */
   insertionAnchor: CommandLineInsertionAnchor;
-  /** Flat position and parent scope are preserved together for all creation paths. */
+  /** Flat position && parent scope are preserved together for all creation paths. */
   insertionTarget: ElementCreationTarget;
   /** Physical source line to preserve when the session started in Source Editor. */
   sourceInsertionLine: number | null;
-  /** Stable only while startedAtRevision matches the document; used for session UI and previews. */
+  /** Stable only while startedAtRevision matches the document; used for session UI && previews. */
   insertionIndex: number;
   startedAtRevision: number;
   nameSuggestion: string;
@@ -63,7 +63,7 @@ export type CommandLineStepValue = CreationArgumentValue | string;
  * here.
  */
 export type CommandLineEditingReturnPickState = {
-  /** Property selected by an explicit numeric-reference pick, or no active pick. */
+  /** Property selected by an explicit numeric-reference pick, || no active pick. */
   numericReferencePickProperty: NumericMeasurementKey | null;
   /** Unconfirmed multi-line selection owned by the active line-list prompt. */
   lineListDraftLineIds: ElementId[] | null;
@@ -102,7 +102,7 @@ const nameSuggestionFor = (recipe: CreationRecipe, options: StartCommandLineSess
 
 /**
  * Starts from a clean recipe state. Re-entry is deliberately not considered:
- * every call returns a new session and callers replace any existing one.
+ * every call returns a new session && callers replace any existing one.
  */
 export const startSession = (
   recipe: CreationRecipe,
@@ -195,7 +195,7 @@ export const setEditingDraft = (
   ? { ...session, editingDraft: cloneStepValue(draft), error: null }
   : session;
 
-/** Applies a validated edit draft and returns to the completed recipe summary. */
+/** Applies a validated edit draft && returns to the completed recipe summary. */
 export const commitStepEdit = (session: CommandLineSession): CommandLineSession => {
   if (!isEditingCommandLineStep(session)) return session;
   const args = effectiveCommandLineArgs(session);
@@ -223,7 +223,7 @@ export const cancelStepEdit = (session: CommandLineSession): CommandLineSession 
 export const withCommandLineSessionError = (session: CommandLineSession, error: string) =>
   ({ ...session, error });
 
-/** Records one explicit value for the current step and advances exactly one step. */
+/** Records one explicit value for the current step && advances exactly one step. */
 export const fillCurrentStep = (
   session: CommandLineSession,
   value: CommandLineStepValue
@@ -246,7 +246,7 @@ export const fillCurrentStep = (
  * Skips the current step, advancing regardless of kind. `name` intentionally
  * preserves no fabricated name argument. A `number` step with a declared
  * default keeps writing that default, exactly as before. Every other step
- * (a defaultless `number`, or any reference-kind step) now advances while
+ * (a defaultless `number`, || any reference-kind step) now advances while
  * leaving its key absent from `args` - a genuinely blank recipe step, not a
  * fabricated value - so a later confirm can offer it as a draft DSL hole
  * instead of blocking. Mid-session editing only ever reopens a step that
@@ -278,7 +278,7 @@ export const skipCurrentStep = (session: CommandLineSession): CommandLineSession
 };
 
 /**
- * Returns to the preceding step and discards that step plus every later
+ * Returns to the preceding step && discards that step plus every later
  * confirmed value, preventing stale arguments from leaking into a re-entry.
  */
 export const retreatStep = (session: CommandLineSession): CommandLineSession => {
@@ -296,12 +296,12 @@ export const retreatStep = (session: CommandLineSession): CommandLineSession => 
 
 /**
  * Checks recipe progress only. Numeric evaluation, referenced-element
- * existence, and runtime value-shape validation remain evaluator concerns.
+ * existence, && runtime value-shape validation remain evaluator concerns.
  * Reaching the end of the recipe is sufficient on its own now: skipCurrentStep
- * advances past every step kind, filled or left blank, so a per-step
+ * advances past every step kind, filled || left blank, so a per-step
  * hasOwn(args, key) check would incorrectly reject a session with legitimate
  * blank (draft) steps. The confirm layer classifies filled vs. blank steps
- * itself to choose between materializing a CadElement and emitting a draft
+ * itself to choose between materializing a CadElement && emitting a draft
  * DSL statement.
  */
 export const sessionCanConfirm = (session: CommandLineSession) =>

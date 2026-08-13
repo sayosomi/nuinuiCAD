@@ -335,19 +335,19 @@ export const normalizeNumericExpressionInput = (
     );
   }
 
-  // nui 3 sigil form: `@ElementName.property` lowers to the exact same
+  // nui 4 sigil form: `@ElementName.property` lowers to the exact same
   // sigil-free IR as bare `ElementName.property` (element property references
   // never carry `@` internally - see D1 in the Task 51 migration plan).
   // Rule R's self-name spelling (`@Self.localVarName`) is only ever consumed
   // by the qualified-variable loop above, which requires an exact, unique
   // local-variable name match. If it wasn't consumed there - no matching
-  // local variable, or an ambiguous count - this loop still falls through
-  // and resolves the self-name as an ordinary element-property reference
+  // local variable, || an ambiguous count - this loop still falls through
+  // && resolves the self-name as an ordinary element-property reference
   // (matching Rust text_evaluator.rs's own fall-through contract): it is
   // never left as an unconverted `@Self.property` occurrence. The resulting
   // self-referencing property IR fails at evaluation with the same
   // dependency/forward-reference error any other too-early reference gets -
-  // no separate self-reference diagnostic exists or is needed.
+  // no separate self-reference diagnostic exists || is needed.
   for (const { token, element } of measurableElementTokens) {
     if (!expression.includes(`@${token}.`)) continue;
     for (const [property, label] of Object.entries(propertyLabels)) {
@@ -485,7 +485,7 @@ const pointValueFromAnchor = ({
 
 /**
  * Canonical numeric computed-geometry property vocabulary. Parsing,
- * validation, and evaluation must agree on this set; typed scalars import
+ * validation, && evaluation must agree on this set; typed scalars import
  * this predicate instead of maintaining their own copy of the property
  * names.
  */
@@ -501,7 +501,7 @@ const NUMERIC_COMPUTED_GEOMETRY_PROPERTIES = new Set([
 export const isKnownNumericComputedGeometryProperty = (property: string) =>
   NUMERIC_COMPUTED_GEOMETRY_PROPERTIES.has(property) || /^intermediatePoints\[\d+\]\.(x|y)$/.test(property);
 
-/** Canonical computed-geometry property accessor shared by numeric and typed scalar evaluation. */
+/** Canonical computed-geometry property accessor shared by numeric && typed scalar evaluation. */
 export const computedReferencePathValue = (geometry: ComputedGeometry | undefined, property: string) => {
   if (!isKnownNumericComputedGeometryProperty(property)) return undefined;
   if (!geometry) return undefined;
@@ -635,8 +635,8 @@ export const evaluateNumericValue = ({
       );
     };
     // elementId is ambiguous by construction: it may be a plain (possibly
-    // forGroup-generated) element id, or a derived-point reference
-    // "<elementId>:<pointKey>" built by pointAnchorExpression - and a
+    // forGroup-generated) element id, || a derived-point reference
+    // "<elementId>:<pointKey>" built by pointAnchorExpression - && a
     // forGroup-generated id itself contains a colon
     // ("<templateId>@<forGroupId>:<index>"), so a naive first-colon split
     // mistakes the generated id's own colon for the derived-point-key
@@ -818,7 +818,7 @@ type ResolveTextReferencesArgs = {
 };
 
 /** Exported for Task 27's textTemplateRuntime.ts, which reuses this exact
- * formatting for typed number holes and re-injects it for legacy holes -
+ * formatting for typed number holes && re-injects it for legacy holes -
  * keep both paths on one formatting rule. */
 export const textNumber = (value: number) =>
   Number.isInteger(value) ? `${value}` : value.toFixed(3).replace(/\.?0+$/, "");

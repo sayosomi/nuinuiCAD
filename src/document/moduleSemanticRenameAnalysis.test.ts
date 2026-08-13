@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDslSnapshot } from "../dsl/dslParser";
+import { createModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
 import { analyzeModuleSemanticRename } from "./moduleSemanticRenameAnalysis";
 
 const compileWithIds = (source: string) => {
@@ -13,14 +14,14 @@ const compileWithIds = (source: string) => {
 
 describe("module source-semantic rename analysis", () => {
   const source = [
-    "nui 3",
+    "nui 4",
     "module M(width: number) {",
     "  export point Public = coordinate(x: @width, y: 0)",
     "  point Private = coordinate(x: @width, y: 0)",
     "}",
-    "module I = M(width: 1)",
-    "module J = M(width: 2)",
-    "point X = offset(from: I::Public, dx: 1, dy: 0)"
+    "instance I = M(width: 1)",
+    "instance J = M(width: 2)",
+    "point X = offset(from: @I::Public, dx: 1, dy: 0)"
   ].join("\n");
 
   it("renames a definition, all resolved calls, a parameter, body references, and matching labels", () => {
@@ -47,5 +48,43 @@ describe("module source-semantic rename analysis", () => {
     expect(analyzeModuleSemanticRename(source, compiled, { kind: "moduleInstance", statementId: "statement:test:5" }, "J").verdict).toBe("rejected");
     expect(analyzeModuleSemanticRename(source, compiled, { kind: "moduleDefinition", statementId: "statement:test:1" }, "bad name").verdict).toBe("rejected");
     expect(analyzeModuleSemanticRename(`${source}\n`, compiled, { kind: "moduleDefinition", statementId: "statement:test:1" }, "Renamed").verdict).toBe("rejected");
+  });
+
+  it("renames exported scalar declarations and all instance members without crossing segments", () => {
+    const scalarSource = [
+      "nui 4",
+      "module M() {",
+      "  export const value: number = 1",
+      "  export let label: string = \"\"",
+      "}",
+      "instance a = M()",
+      "instance b = M()",
+      "const rootA: number = @a::value",
+      "const rootB: number = @b::value",
+      "module Consumer() {",
+      "  instance child = M()",
+      "  const inside: number = @child::value",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(scalarSource);
+    const declarationRename = analyzeModuleSemanticRename(scalarSource, compiled, { kind: "moduleSource", statementId: "statement:test:2" }, "height");
+    expect(declarationRename.verdict).toBe("ok");
+    if (declarationRename.verdict === "ok") {
+      expect(declarationRename.entries.map((entry) => entry.oldName)).toEqual(["value", "value", "value", "value"]);
+    }
+
+    const referenceOffset = scalarSource.indexOf("value", scalarSource.indexOf("@a::"));
+    const referenceTarget = createModuleSemanticRangeIndex(compiled).tokens.find((token) => token.from === referenceOffset)?.target;
+    expect(referenceTarget).toEqual({ kind: "moduleSource", statementId: "statement:test:2" });
+    const referenceRename = analyzeModuleSemanticRename(scalarSource, compiled, referenceTarget!, "height");
+    expect(referenceRename.verdict).toBe("ok");
+    if (referenceRename.verdict === "ok") expect(referenceRename.entries.map((entry) => entry.oldName)).toEqual(["value", "value", "value", "value"]);
+
+    const instanceRename = analyzeModuleSemanticRename(scalarSource, compiled, { kind: "moduleInstance", statementId: "statement:test:5" }, "renamedA");
+    expect(instanceRename.verdict).toBe("ok");
+    if (instanceRename.verdict === "ok") {
+      expect(instanceRename.entries.map((entry) => entry.oldName)).toEqual(["a", "a"]);
+      expect(instanceRename.entries.map((entry) => entry.newName)).toEqual(["renamedA", "renamedA"]);
+    }
   });
 });

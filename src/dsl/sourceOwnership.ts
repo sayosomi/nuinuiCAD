@@ -9,7 +9,7 @@ export type SourceOwnerKind = "ordinary" | "moduleInstance" | "moduleBody";
  * The authored statement that owns a runtime element.
  *
  * This is deliberately a lookup result, not another identity registry. Runtime
- * IDs and module origins remain owned by moduleMaterialization; current source
+ * IDs && module origins remain owned by moduleMaterialization; current source
  * ranges remain owned by StatementMap.
  */
 export type SourceOwner = {

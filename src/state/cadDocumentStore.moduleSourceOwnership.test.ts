@@ -5,81 +5,81 @@ import { setParameterValue } from "../parameters/parameterAccess";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 
 const moduleSource = [
-  "nui 3",
+  "nui 4",
   "module M() {",
   "  point P = coordinate(x: 1, y: 2)",
   "}",
-  "module First = M()",
-  "module Second = M()"
+  "instance First = M()",
+  "instance Second = M()"
 ].join("\n");
 
 const geometryParameterModuleSource = [
-  "nui 3",
+  "nui 4",
   "line Base = segment(start: (0, 0), end: (10, 0))",
   "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
-  "module M(path: line, side: choice(right, left) = left) {",
-  "  point P = onLine(from: path.end, ratio: 0.5)",
+  "module M(path: path, side: choice(right, left) = left) {",
+  "  point P = onLine(from: @path.end, ratio: 0.5)",
   "  line Copy = offset(",
-  "    sources: [path],",
+  "    sources: [@path],",
   "    distance: 1,",
   "    side: @side,",
   "    closed: false,",
   "    suppressTrimWarnings: false",
   "  )",
   "}",
-  "module BaseInstance = M(path: Base)",
-  "module ArcInstance = M(path: A)"
+  "instance BaseInstance = M(path: @Base)",
+  "instance ArcInstance = M(path: @A)"
 ].join("\n");
 
 const pointParameterModuleSource = [
-  "nui 3",
+  "nui 4",
   "point BasePoint = coordinate(x: 0, y: 0)",
   "point OtherPoint = coordinate(x: 10, y: 0)",
   "module PointModule(p: point) {",
-  "  point P = offset(from: p, dx: 1, dy: 2)",
+  "  point P = offset(from: @p, dx: 1, dy: 2)",
   "}",
-  "module FirstPoint = PointModule(p: BasePoint)",
-  "module SecondPoint = PointModule(p: OtherPoint)"
+  "instance FirstPoint = PointModule(p: @BasePoint)",
+  "instance SecondPoint = PointModule(p: @OtherPoint)"
 ].join("\n");
 
 const omittedLiteralModuleSource = [
-  "nui 3",
+  "nui 4",
   "module M() {",
   "  point P = coordinate()",
   "}",
-  "module First = M()",
-  "module Second = M()"
+  "instance First = M()",
+  "instance Second = M()"
 ].join("\n");
 
 const multilineOmittedLiteralModuleSource = [
-  "nui 3",
+  "nui 4",
   "module M() {",
   "  point P = coordinate(",
   "    # keep this source comment",
   "  )",
   "}",
-  "module First = M()",
-  "module Second = M()"
+  "instance First = M()",
+  "instance Second = M()"
 ].join("\n");
 
 const coordinateAnchorModuleSource = [
-  "nui 3",
+  "nui 4",
   "module M() {",
   "  line L = segment(start: (0, 0), end: (10, 0))",
   "}",
-  "module First = M()",
-  "module Second = M()"
+  "instance First = M()",
+  "instance Second = M()"
 ].join("\n");
 
 const placementModuleSource = [
-  "nui 3",
+  "nui 4",
   "module M() {",
   "  point A = coordinate(x: 0, y: 0)",
   "  point B = coordinate(x: 10, y: 0)",
-  "  point D = between(start: A, end: B, ratio: 0.5)",
+  "  point D = between(start: @A, end: @B, ratio: 0.5)",
   "}",
-  "module First = M()",
-  "module Second = M()"
+  "instance First = M()",
+  "instance Second = M()"
 ].join("\n");
 
 const seed = (source: string) => {
@@ -105,8 +105,8 @@ describe("module source-owned model mutation", () => {
 
     const state = useCadDocumentStore.getState();
     expect(state.sourceText).toContain("module M() {");
-    expect(state.sourceText).toContain("module First = M()");
-    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.sourceText).toContain("instance First = M()");
+    expect(state.sourceText).toContain("instance Second = M()");
     expect(state.sourceText.match(/point P/g)).toHaveLength(1);
     expect(state.sourceText).toContain("x: 7");
     expect(state.sourceText).not.toContain("x: 1");
@@ -126,14 +126,14 @@ describe("module source-owned model mutation", () => {
     useCadDocumentStore.getState().updateElement(baseCopy.id, { offset: 7 });
 
     const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("module M(path: line, side: choice(right, left) = left) {");
-    expect(state.sourceText).toContain("sources: [path]");
+    expect(state.sourceText).toContain("module M(path: path, side: choice(right, left) = left) {");
+    expect(state.sourceText).toContain("sources: [@path]");
     expect(state.sourceText).toContain("side: @side");
     expect(state.sourceText).not.toContain("sources: [Base]");
     expect(state.sourceText).not.toContain("sources: [A]");
     expect(state.sourceText).toContain("distance: 7");
-    expect(state.sourceText).toContain("module BaseInstance = M(path: Base)");
-    expect(state.sourceText).toContain("module ArcInstance = M(path: A)");
+    expect(state.sourceText).toContain("instance BaseInstance = M(path: @Base)");
+    expect(state.sourceText).toContain("instance ArcInstance = M(path: @A)");
     expect(state.sourceText.match(/line Copy/g)).toHaveLength(1);
     expect((state.elements.find((element) => element.id === baseCopy.id) as Extract<CadElement, { type: "offsetLine" }>).baseLineIds).toEqual([
       state.elements.find((element) => element.name === "Base")!.id
@@ -153,11 +153,11 @@ describe("module source-owned model mutation", () => {
     useCadDocumentStore.getState().updateElement(firstPoint.id, { dy: 9 });
 
     const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("point P = offset(from: p, dx: 1, dy: 9)");
+    expect(state.sourceText).toContain("point P = offset(from: @p, dx: 1, dy: 9)");
     expect(state.sourceText).not.toContain("from: BasePoint");
     expect(state.sourceText).not.toContain("from: OtherPoint");
-    expect(state.sourceText).toContain("module FirstPoint = PointModule(p: BasePoint)");
-    expect(state.sourceText).toContain("module SecondPoint = PointModule(p: OtherPoint)");
+    expect(state.sourceText).toContain("instance FirstPoint = PointModule(p: @BasePoint)");
+    expect(state.sourceText).toContain("instance SecondPoint = PointModule(p: @OtherPoint)");
     const points = state.elements.filter(
       (element): element is Extract<CadElement, { type: "offsetPoint" }> => element.name === "P" && element.type === "offsetPoint"
     );
@@ -177,8 +177,8 @@ describe("module source-owned model mutation", () => {
 
     const state = useCadDocumentStore.getState();
     expect(state.sourceText).toContain("point P = coordinate(x: 7)");
-    expect(state.sourceText).toContain("module First = M()");
-    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.sourceText).toContain("instance First = M()");
+    expect(state.sourceText).toContain("instance Second = M()");
     expect(state.sourceText.match(/point P/g)).toHaveLength(1);
     expect(state.elements.filter((element) => element.name === "P").map((element) => (element as Extract<CadElement, { type: "freePoint" }>).x)).toEqual([7, 7]);
   });
@@ -193,8 +193,8 @@ describe("module source-owned model mutation", () => {
     const state = useCadDocumentStore.getState();
     expect(state.sourceText).toContain("# keep this source comment");
     expect(state.sourceText).toContain("x: 7");
-    expect(state.sourceText).toContain("module First = M()");
-    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.sourceText).toContain("instance First = M()");
+    expect(state.sourceText).toContain("instance Second = M()");
     expect(state.elements.filter((element) => element.name === "P").map((element) => (element as Extract<CadElement, { type: "freePoint" }>).x)).toEqual([7, 7]);
   });
 
@@ -206,8 +206,8 @@ describe("module source-owned model mutation", () => {
     useCadDocumentStore.getState().updateElement(firstPoint.id, { activity: "hidden" });
     let state = useCadDocumentStore.getState();
     expect(state.sourceText).toContain("point P = coordinate(x: 1, y: 2, state: hidden)");
-    expect(state.sourceText).toContain("module First = M()");
-    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.sourceText).toContain("instance First = M()");
+    expect(state.sourceText).toContain("instance Second = M()");
     expect(state.elements.filter((element) => element.name === "P").map((element) => element.activity)).toEqual(["hidden", "hidden"]);
 
     const hiddenPoint = elementNamed("P", first.id)!;
@@ -237,8 +237,8 @@ describe("module source-owned model mutation", () => {
     expect(state.sourceText).toContain("start: (5, 0)");
     expect(state.sourceText).toContain("end: (10, 0)");
     expect(state.sourceText.match(/line L/g)).toHaveLength(1);
-    expect(state.sourceText).toContain("module First = M()");
-    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.sourceText).toContain("instance First = M()");
+    expect(state.sourceText).toContain("instance Second = M()");
     expect(state.elements.filter((element) => element.name === "L").map((element) => (element as Extract<CadElement, { type: "line" }>).startPoint)).toEqual([
       { mode: "coordinate", x: 5, y: 0 },
       { mode: "coordinate", x: 5, y: 0 }
@@ -252,9 +252,9 @@ describe("module source-owned model mutation", () => {
     useCadDocumentStore.getState().updateElement(firstDivision.id, { placement: { kind: "ratio", value: 0.75 } } as Partial<CadElement>);
 
     const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("point D = between(start: A, end: B, ratio: 0.75)");
-    expect(state.sourceText).toContain("module First = M()");
-    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.sourceText).toContain("point D = between(start: @A, end: @B, ratio: 0.75)");
+    expect(state.sourceText).toContain("instance First = M()");
+    expect(state.sourceText).toContain("instance Second = M()");
     expect(state.elements.filter((element) => element.name === "D").map((element) => (element as Extract<CadElement, { type: "divisionPoint" }>).placement)).toEqual([
       { kind: "ratio", value: 0.75 },
       { kind: "ratio", value: 0.75 }
@@ -280,13 +280,13 @@ describe("module source-owned model mutation", () => {
 
   it("keeps module syntax while editing an ordinary geometry outside the module", () => {
     seed([
-      "nui 3",
+      "nui 4",
       "point Outside = coordinate(x: 0, y: 0)",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
-      "module First = M()",
-      "module Second = M()"
+      "instance First = M()",
+      "instance Second = M()"
     ].join("\n"));
     const outside = elementNamed("Outside")!;
     useCadDocumentStore.getState().updateElement(outside.id, { x: 9 } as Partial<CadElement>);
@@ -295,7 +295,7 @@ describe("module source-owned model mutation", () => {
     expect(state.sourceText).toContain("point Outside = coordinate(");
     expect(state.sourceText).toContain("x: 9");
     expect(state.sourceText).toContain("module M() {");
-    expect(state.sourceText.match(/module (First|Second) = M\(\)/g)).toHaveLength(2);
+    expect(state.sourceText.match(/instance (First|Second) = M\(\)/g)).toHaveLength(2);
     expect(state.sourceText.match(/point P/g)).toHaveLength(1);
   });
 
@@ -305,16 +305,16 @@ describe("module source-owned model mutation", () => {
     useCadDocumentStore.getState().updateElement(first.id, { activity: "hidden" } as Partial<CadElement>);
 
     let state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("module First(state: hidden) = M()");
-    expect(state.sourceText).toContain("module Second = M()");
+    expect(state.sourceText).toContain("instance First(state: hidden) = M()");
+    expect(state.sourceText).toContain("instance Second = M()");
     expect(state.sourceText.match(/point P/g)).toHaveLength(1);
     const activities = effectiveElementActivityById(state.elements);
     expect(activities.get(state.elements.find((element) => element.name === "P" && element.parentGroupId === first.id)!.id)?.activity).toBe("hidden");
 
     useCadDocumentStore.getState().updateElement(first.id, { activity: "visible" } as Partial<CadElement>);
     state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("module First = M()");
-    expect(state.sourceText).not.toContain("module First(state:");
+    expect(state.sourceText).toContain("instance First = M()");
+    expect(state.sourceText).not.toContain("instance First(state:");
   });
 
   it("fails closed for a structural runtime mutation instead of flattening the module", () => {
@@ -337,8 +337,8 @@ describe("module source-owned model mutation", () => {
     expect(result).toEqual({ status: "rejected", reason: "invalid-change" });
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
     expect(useCadDocumentStore.getState().sourceText).toContain("module M() {");
-    expect(useCadDocumentStore.getState().sourceText).toContain("module First = M()");
-    expect(useCadDocumentStore.getState().sourceText).toContain("module Second = M()");
+    expect(useCadDocumentStore.getState().sourceText).toContain("instance First = M()");
+    expect(useCadDocumentStore.getState().sourceText).toContain("instance Second = M()");
   });
 
   it("refuses a stale module runtime compatibility rebase instead of serializing its runtime view", () => {

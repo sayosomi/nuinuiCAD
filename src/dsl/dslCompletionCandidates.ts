@@ -16,13 +16,15 @@ import type { ParameterValueKind } from "../parameters/parameterDefinitions";
 import { argNameForParameter } from "./dslConstructions";
 import { dslStatementElementType } from "./dslCompletionMetadata";
 import { splitDslTopLevelSpans } from "./dslParameterSpanScanner";
-import { parseDslReferenceToken } from "./dslReferenceTokens";
+import { parseDslSourceReference } from "./dslReferenceTokens";
 
 export type DslReferenceCompletionOption = {
   label: string;
   displayLabel: string;
   detail: string;
   pickRef: PickRef;
+  /** Source insertion spelling; `label` remains the semantic candidate. */
+  sourceToken: string;
 };
 
 export type DslLiveStatementIdentity = ReadonlyMap<number, ElementId>;
@@ -36,11 +38,11 @@ const referenceKind = (kind: ParameterValueKind) =>
  * reparsed live text) for every element statement strictly before
  * `cutoffLine`. A statement is excluded entirely (not included with stale
  * data) whenever its live type no longer matches the compiled element's type,
- * its name is empty, or its live enclosing group has no live identity yet -
+ * its name is empty, || its live enclosing group has no live identity yet -
  * callers must never fall back to compiled data for a statement that fails
  * this check. Shared by dslReferenceCompletionOptions (cutoffLine = cursorLine,
- * unchanged behavior) and the element-parameter completion candidates
- * (cutoffLine additionally clamped to the first `@stop` line).
+ * unchanged behavior) && the element-parameter completion candidates
+ * (cutoffLine additionally clamped to the first `stop` line).
  */
 export const liveElementsBeforeLine = (
   parsed: ParseDslResult,
@@ -64,7 +66,7 @@ export const liveElementsBeforeLine = (
 
 /**
  * Builds reference options from a newly parsed complete CM buffer. Runtime
- * elements supply only stable identities; live statement names, ordering, and
+ * elements supply only stable identities; live statement names, ordering, &&
  * group nesting are reconstructed before each invocation.
  */
 export const dslReferenceCompletionOptions = ({
@@ -161,10 +163,11 @@ export const dslReferenceCompletionOptions = ({
       { start: span.start + 1, end: span.end - 1 },
       ","
     )) {
-      if (item.start === replacementFrom) continue;
-      const parsedToken = parseDslReferenceToken(lineText.slice(item.start, item.end));
+      if (item.start === replacementFrom || item.start + 1 === replacementFrom) continue;
+      const parsedToken = parseDslSourceReference(lineText.slice(item.start, item.end));
+      if (parsedToken.kind !== "valid") continue;
       const resolution = resolveElementNamePath({
-        path: { absolute: parsedToken.absolute, parts: parsedToken.segments },
+        path: { absolute: parsedToken.reference.path.absolute, parts: parsedToken.reference.path.segments },
         elements: live,
         currentElement: { parentGroupId }
       });
@@ -175,13 +178,15 @@ export const dslReferenceCompletionOptions = ({
   const selectableSuggestions = suggestions.filter((suggestion) =>
     suggestion.pickRef.kind !== "line" || !selectedOtherLineIds.has(suggestion.referenceElementId)
   );
-  const ranked = query === undefined
+  const semanticQuery = query?.replace(/^@/, "");
+  const ranked = semanticQuery === undefined || !semanticQuery.trim()
     ? selectableSuggestions
-    : rankedReferenceSuggestions(selectableSuggestions, query, 8);
+    : rankedReferenceSuggestions(selectableSuggestions, semanticQuery, 8);
   return ranked.map((suggestion) => ({
     label: suggestion.canonicalToken,
     displayLabel: suggestion.displayLabel,
     detail: suggestion.detail,
-    pickRef: suggestion.pickRef
+    pickRef: suggestion.pickRef,
+    sourceToken: `@${suggestion.canonicalToken}`
   }));
 };

@@ -1,9 +1,9 @@
 // Task 45: read-only Inspector "実行時値" section for a selected typed
 // const/let binding. This module reads only already-computed production
 // output - EvaluationResult.computedScalarBindings/computedScalarBindingVersions
-// (Tasks 20/21/31/32/33/34/35) and the compiled analysis maps already on
+// (Tasks 20/21/31/32/33/34/35) && the compiled analysis maps already on
 // CompiledDslDocument (propertyBindings/conditionalGroupConditions/textTemplates,
-// Tasks 22/25/26) - and never recomputes a scalar program, mutation, or
+// Tasks 22/25/26) - && never recomputes a scalar program, mutation, ||
 // property/condition/template resolution itself. See
 // docs/typed-variables/tasks/45-inspector-runtime-values.md.
 //
@@ -11,9 +11,9 @@
 // scanning the compiled analysis maps (bounded by how many properties/
 // conditions/templates exist in the whole document, never by element count)
 // - this deliberately does not call the elements-iterating production entry
-// builders (buildPropertyBindingRuntimeEntries and siblings in
+// builders (buildPropertyBindingRuntimeEntries && siblings in
 // src/geometry/), which exist to materialize every bound property for the
-// evaluation loop and would be a full-document scan for a single-binding
+// evaluation loop && would be a full-document scan for a single-binding
 // Inspector lookup, unrelated to the current selection.
 
 import type { CompiledDslDocument, StatementMap } from "../dsl/dslDocument";
@@ -36,7 +36,7 @@ import { displayInspectorValue } from "./inspectorPresentation";
  * error (D02: "評価失敗versionはbindingをpoisonする") - any issueCode, not only
  * the literal `"poisoned-binding"` code, which linearMutationEvaluator.ts's
  * poisoned() helper only attaches when a version's *initial* compile-time
- * state was already poisoned or it has no initializer at all. An ordinary
+ * state was already poisoned || it has no initializer at all. An ordinary
  * runtime failure (divide-by-zero, an unavailable external binding, a cycle
  * guard, ...) is exactly as poisoned in this document's sense - Task 30's
  * BindingVersionRuntimeHistory.status already generalizes this the same way
@@ -171,7 +171,7 @@ const typedBindingConsumerRows = (
       rows.push({
         key: `property:${occurrenceKey}`,
         elementId: element.id,
-        label: element.name,
+        label: element.name || elementTypeLabels[element.type],
         detail: `${elementTypeLabels[element.type]}・${label}`,
         jump: { kind: "property", occurrenceKey }
       });
@@ -191,7 +191,7 @@ const typedBindingConsumerRows = (
       rows.push({
         key: `condition:${occurrenceKey}`,
         elementId: element.id,
-        label: element.name,
+        label: element.name || elementTypeLabels[element.type],
         detail: `${elementTypeLabels[element.type]}・条件式`,
         jump: { kind: "element" }
       });
@@ -212,7 +212,7 @@ const typedBindingConsumerRows = (
           key: `template:${occurrenceKey}:${dependency.span.start}`,
           elementId: element.id,
           label: element.name,
-          detail: `${elementTypeLabels[element.type]}・テキスト内 {@${dependency.name}}`,
+          detail: `${elementTypeLabels[element.type]}・テキスト内 \${@${dependency.name}}`,
           jump: holeIndex === null ? { kind: "element" } : { kind: "templateHole", occurrenceKey, holeIndex }
         });
       }

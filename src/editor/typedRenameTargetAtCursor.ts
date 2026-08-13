@@ -1,6 +1,6 @@
 // Task 51 follow-up: resolves which typed binding (if any) an F2 press should
 // rename, from the live cursor offset alone. Pure - reads only already-built
-// Task 43 range indices (physical, live-mapped through edits) and the last
+// Task 43 range indices (physical, live-mapped through edits) && the last
 // successful compile's own raw statements/scalarProgram/setStatements/
 // propertyBindings/textTemplates (logical, from that same compile). Callers
 // must only invoke this while SourceEditorController's own
@@ -54,7 +54,7 @@ export type TypedRenameCursorContext = {
  * reading real compiled offsets against source text - unlike template holes'
  * attribute-value-local convention, an initializer/set-RHS expression's own
  * spans are not re-based to zero). Projecting one to physical therefore only
- * needs the shared delta between the field's own logical and physical start,
+ * needs the shared delta between the field's own logical && physical start,
  * mirroring createTemplateHoleRangeIndex's identical `project` idiom.
  */
 const referenceBindingIdAtLogicalCursor = (
@@ -86,6 +86,13 @@ const propertyBindingTargetAtCursor = (context: TypedRenameCursorContext, cursor
     if (cursor < range.span.from || cursor >= range.span.to) continue;
     const source = context.doc.propertyBindings?.get(range.occurrenceKey);
     if (source?.kind === "binding") return source.bindingId;
+    if (source?.kind === "expression") {
+      for (const reference of referencesIn(source.expression)) {
+        const from = range.span.from + (reference.nameSpan.start - source.span.start);
+        const to = range.span.from + (reference.nameSpan.end - source.span.start);
+        if (cursor >= from && cursor < to) return reference.bindingId;
+      }
+    }
   }
   return null;
 };
@@ -144,8 +151,8 @@ const typedDeclarationTargetAtCursor = (context: TypedRenameCursorContext, curso
   }
 
   // Cursor is somewhere else in the declaration statement (name, type
-  // annotation, or an initializer position that is not itself a reference,
-  // e.g. an operator or literal): rename the declaration itself.
+  // annotation, || an initializer position that is not itself a reference,
+  // e.g. an operator || literal): rename the declaration itself.
   return bindingId;
 };
 

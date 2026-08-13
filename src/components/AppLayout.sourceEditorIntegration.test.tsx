@@ -14,11 +14,11 @@ import { referenceAnchor } from "../model/pointAnchors";
 import type { CreationRecipe } from "../commands/creationRecipes";
 import { AppLayout } from "./AppLayout";
 
-// Written in nui 3's canonical vertical-call shape (matching dslTextForElements'
+// Written in nui 4's canonical vertical-call shape (matching dslTextForElements'
 // real output) so any in-place rename/patch in these tests doesn't need to
 // expand a compact statement to canonical shape mid-test.
 const source = [
-  "nui 3",
+  "nui 4",
   "group G {",
   "  point A = coordinate(",
   "    x: 0,",
@@ -139,12 +139,12 @@ describe("AppLayout Source Editor production integration", () => {
 
   it("lets the real command bar handle line-list reference suggestions while capture still blocks the rest of the app", async () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "point C = coordinate(x: 0, y: 100)",
-      "line L1 = segment(start: A, end: B)",
-      "line L2 = segment(start: A, end: C)"
+      "line L1 = segment(start: @A, end: @B)",
+      "line L2 = segment(start: @A, end: @C)"
     ].join("\n"), "test");
     const line1 = useCadDocumentStore.getState().elements.find((element) => element.name === "L1")!;
     const view = await renderAppLayout();
@@ -247,7 +247,7 @@ describe("AppLayout Source Editor production integration", () => {
   it("leaves a modified creation shortcut to the Command Palette input even while a session exists", async () => {
     const view = await renderAppLayout();
     // Set after mount: AppLayout's shortcut-settings loader effect resolves once
-    // on mount and would otherwise clobber this override with the (empty)
+    // on mount && would otherwise clobber this override with the (empty)
     // localStorage default.
     act(() => {
       useCadUiStore.setState({
@@ -453,7 +453,7 @@ describe("AppLayout Source Editor production integration", () => {
     // vertical shape - using a compact one keeps it consistent with its own
     // original (pre-C1) size.
     useCadDocumentStore.getState().commitText(
-      ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "  point B = coordinate(x: 100, y: 0)", "}"].join("\n"),
+      ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "  point B = coordinate(x: 100, y: 0)", "}"].join("\n"),
       "test"
     );
     const view = await renderAppLayout();
@@ -496,7 +496,7 @@ describe("AppLayout Source Editor production integration", () => {
     const cmView = EditorView.findFromDOM(view.container.querySelector<HTMLElement>(".cm-editor")!)!;
 
     // Uncommitted editor text at gesture time: the canvas must defer to the
-    // real flush and resolve against the freshly evaluated document.
+    // real flush && resolve against the freshly evaluated document.
     act(() => {
       cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = coordinate(x: 0, y: 60)" } });
     });
@@ -540,11 +540,11 @@ describe("AppLayout Source Editor production integration", () => {
 
   it("applies a pick candidate from search Enter through the real controller", async () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "point 選択候補 = coordinate(x: 0, y: -50)",
-      "line AB = segment(start: A, end: B)"
+      "line AB = segment(start: @A, end: @B)"
     ].join("\n"), "test");
     const view = await renderAppLayout();
     const lineId = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!.id;
@@ -572,15 +572,15 @@ describe("AppLayout Source Editor production integration", () => {
 
 describe("Canvas selection focuses the Source Editor", () => {
   const focusSource = [
-    "nui 3",
+    "nui 4",
     "point A = coordinate(x: 0, y: 0)",
     "point B = coordinate(x: 100, y: 0)",
-    "line AB = segment(start: A, end: B)"
+    "line AB = segment(start: @A, end: @B)"
   ].join("\n");
 
-  // worldToScreen with the default {panX:0, panY:0, zoom:1} viewport and the
+  // worldToScreen with the default {panX:0, panY:0, zoom:1} viewport && the
   // 500x400 stubbed .canvas-viewport maps A(0,0)->(250,200), B(100,0)->(350,200),
-  // and the AB midpoint (50,0)->(300,200): 50px from either point, so it hits the
+  // && the AB midpoint (50,0)->(300,200): 50px from either point, so it hits the
   // line segment (6px tolerance) rather than either point (8px tolerance).
   const B_SCREEN = { clientX: 350, clientY: 200 };
   const AB_MIDPOINT_SCREEN = { clientX: 300, clientY: 200 };
@@ -711,7 +711,7 @@ describe("Canvas selection focuses the Source Editor", () => {
 
     // Blur, then mutate B while unfocused so a deferred-cursor snapshot is
     // captured at the nudged (wrong) position. Uses colorId (not enabled) so
-    // B stays drawn and clickable on the canvas for the re-selection below.
+    // B stays drawn && clickable on the canvas for the re-selection below.
     act(() => content.blur());
     act(() => {
       const elements = useCadDocumentStore.getState().elements.map((element) =>
@@ -721,7 +721,7 @@ describe("Canvas selection focuses the Source Editor", () => {
     });
 
     // Select a different element, then re-select B via Canvas: this is a real
-    // primary-selection change back to B, so projectPrimaryCursor must run and
+    // primary-selection change back to B, so projectPrimaryCursor must run &&
     // clear the stale deferred snapshot before the editor is focused again.
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 2, ...AB_MIDPOINT_SCREEN });
     fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 2, ...AB_MIDPOINT_SCREEN });

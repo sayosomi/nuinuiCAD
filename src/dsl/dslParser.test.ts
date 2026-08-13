@@ -14,14 +14,14 @@ const single = (source: string): DslStatement => {
 
 describe("DSL parser spans", () => {
   it("parses a continued element as one statement while preserving its physical line range", () => {
-    const parsed = parseDsl("point A = coordinate(x: 10\n  y: 20)");
+    const parsed = parseDsl("point A = coordinate(x: 10\n, y: 20)");
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements).toHaveLength(1);
     expect(parsed.statements[0]).toMatchObject({ line: 1, endLine: 2, kind: "element", type: "freePoint" });
   });
 
   it("records keyword, name, and attribute spans", () => {
-    const source = "point A = coordinate(x: 10 y: 20 color: main)";
+    const source = "point A = coordinate(x: 10, y: 20, color: main)";
     const statement = single(source);
     expect(statement.kind).toBe("element");
     expect(statement.keywordSpan).toEqual({ start: 0, end: 5 });
@@ -34,7 +34,7 @@ describe("DSL parser spans", () => {
   });
 
   it("records coordinate payload spans", () => {
-    const source = "point A = coordinate(x: 10 y: -20.5)";
+    const source = "point A = coordinate(x: 10, y: -20.5)";
     const statement = single(source);
     const xStart = source.indexOf("10");
     expect(statement.payloadSpans.x).toEqual({ start: xStart, end: xStart + 2 });
@@ -44,7 +44,7 @@ describe("DSL parser spans", () => {
   });
 
   it("records line payload spans", () => {
-    const source = "line AB = segment(start: A end: B)";
+    const source = "line AB = segment(start: A, end: B)";
     const statement = single(source);
     expect(statement.kind).toBe("element");
     if (statement.kind === "element") expect(statement.type).toBe("line");
@@ -53,7 +53,7 @@ describe("DSL parser spans", () => {
   });
 
   it("records quoted name spans with the quotes included", () => {
-    const source = "point \"前 上\" = coordinate(x: 0 y: 0)";
+    const source = "point \"前 上\" = coordinate(x: 0, y: 0)";
     const statement = single(source);
     expect(statement.name).toBe("前 上");
     expect(source.slice(statement.nameSpan!.start, statement.nameSpan!.end)).toBe("\"前 上\"");
@@ -62,7 +62,7 @@ describe("DSL parser spans", () => {
 
 describe("DSL parser unnamed statements", () => {
   it("parses unnamed statements when the keyword is followed by =", () => {
-    const statement = single("point = coordinate(x: 1 y: 2)");
+    const statement = single("point = coordinate(x: 1, y: 2)");
     expect(statement.name).toBe("");
     expect(statement.nameSpan).toBeNull();
     expect(statement.kind).toBe("element");
@@ -98,7 +98,7 @@ describe("DSL parser blocks", () => {
       "group A (printEnabled: true",
       ")",
       "{",
-      "  point P = coordinate(x: 0 y: 0)",
+      "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
@@ -109,11 +109,11 @@ describe("DSL parser blocks", () => {
   it("assigns enclosing block info to nested statements", () => {
     const parsed = parseDsl([
       "group 前身頃 {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "  group 襟 {",
-      "    point B = coordinate(x: 1 y: 1)",
+      "    point B = coordinate(x: 1, y: 1)",
       "  }",
-      "  point C = coordinate(x: 2 y: 2)",
+      "  point C = coordinate(x: 2, y: 2)",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
@@ -127,15 +127,15 @@ describe("DSL parser blocks", () => {
 
   it("parses if/else blocks with branch tracking", () => {
     const parsed = parseDsl([
-      "if 分岐 (1) {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "if (@condition) {",
+      "  point A = coordinate(x: 0, y: 0)",
       "} else {",
-      "  point B = coordinate(x: 1 y: 1)",
+      "  point B = coordinate(x: 1, y: 1)",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     const [ifStatement, pointA, blockElse, pointB] = parsed.statements;
-    expect(ifStatement).toMatchObject({ kind: "element", type: "conditionalGroup", name: "分岐", opensBlock: true });
+    expect(ifStatement).toMatchObject({ kind: "element", type: "conditionalGroup", name: "", opensBlock: true });
     expect(pointA.enclosing).toEqual({ statementIndex: 0, branch: "then" });
     expect(blockElse.kind).toBe("blockElse");
     expect(pointB.enclosing).toEqual({ statementIndex: 0, branch: "else" });
@@ -143,13 +143,13 @@ describe("DSL parser blocks", () => {
 
   it("desugars for blocks to forGroup statements", () => {
     const parsed = parseDsl([
-      "for 繰返し (i from: 0 count: 5 step: 1) {",
-      "  point P = coordinate(x: i y: 0)",
+      "for i in range(from: 0, count: 5, step: 1) {",
+      "  point P = coordinate(x: i, y: 0)",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     const statement = parsed.statements[0];
-    expect(statement).toMatchObject({ kind: "element", type: "forGroup", name: "繰返し" });
+    expect(statement).toMatchObject({ kind: "element", type: "forGroup", name: "" });
     // The synthetic positional attr is keyed by the DSL spelling ("variable"),
     // not the CadElement parameter key ("variableName"); applyArgs resolves
     // the parameter key from the construction registry separately.
@@ -157,7 +157,7 @@ describe("DSL parser blocks", () => {
   });
 
   it("parses unnamed for blocks", () => {
-    const parsed = parseDsl(["for (i from: 0 count: 3) {", "}"].join("\n"));
+    const parsed = parseDsl(["for i in range(from: 0, count: 3) {", "}"].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements[0]).toMatchObject({ kind: "element", type: "forGroup", name: "" });
     expect(parsed.statements[0].attrs.find((attr) => attr.key === "variable")?.value).toBe("i");
@@ -168,7 +168,7 @@ describe("DSL parser blocks", () => {
       "group A {",
       "",
       "  # コメント",
-      "  point P = coordinate(x: 0 y: 0) # 行末コメント",
+      "  point P = coordinate(x: 0, y: 0) # 行末コメント",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
@@ -189,15 +189,15 @@ describe("DSL parser blocks", () => {
   });
 
   it("reports statements that cannot open blocks", () => {
-    expect(errors("point A = coordinate(x: 0 y: 0) {")[0].message).toContain("ブロックを開けません");
+    expect(errors("point A = coordinate(x: 0, y: 0) {")[0].message).toContain("ブロックを開けません");
   });
 
   it("reports if without a block", () => {
-    expect(errors("if 分岐 (1)")[0].message).toContain("ブロックが必要");
+    expect(errors("if (@condition)")[0].message).toContain("ブロックが必要");
   });
 
   it("reports mid-line braces", () => {
-    expect(errors("group A { point B = coordinate(x: 0 y: 0)").length).toBeGreaterThan(0);
+    expect(errors("group A { point B = coordinate(x: 0, y: 0)").length).toBeGreaterThan(0);
   });
 });
 
@@ -214,7 +214,7 @@ describe("DSL parser new document statements", () => {
   });
 
   it("parses color statements", () => {
-    const statement = single('color main ("#ff0000" name: "本体" default: true)');
+    const statement = single('color main ("#ff0000", name: "本体", default: true)');
     expect(statement).toMatchObject({ kind: "color", name: "main", hex: "#ff0000", isDefault: true });
     expect(statement.attrs.find((attr) => attr.key === "name")?.value).toBe('"本体"');
   });
@@ -224,14 +224,14 @@ describe("DSL parser new document statements", () => {
     expect(errors("color main (red)")[0].message).toContain("#rrggbb");
   });
 
-  it("parses @stop as a standalone statement", () => {
-    const statement = single("@stop");
+  it("parses stop as a standalone statement", () => {
+    const statement = single("stop");
     expect(statement.kind).toBe("atStop");
-    expect(errors("@stop extra")[0].message).toContain("単独の行");
+    expect(errors("stop extra")[0].message).toContain("単独の行");
   });
 
-  it("rejects more than one @stop", () => {
-    const result = errors(["point A = coordinate(x: 0 y: 0)", "@stop", "point B = coordinate(x: 1 y: 1)", "@stop"].join("\n"));
+  it("rejects more than one stop", () => {
+    const result = errors(["point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)", "stop"].join("\n"));
     expect(result).toHaveLength(1);
     expect(result[0].message).toContain("1つだけ");
   });
@@ -243,25 +243,25 @@ describe("DSL parser new document statements", () => {
 
   it("parses printLayout blocks with place members", () => {
     const parsed = parseDsl([
-      "printLayout 型紙A (output: pdf paper: a4 orientation: portrait columns: 2 rows: 3 overlap: 10 scale: 1) {",
-      "  place 前身頃 (at: (0, 20) angle: 0 mirrorX: false)",
+      "printLayout 型紙A (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 3, overlap: 10, scale: 1) {",
+      "  place @前身頃(at: (0, 20), angle: 0, mirrorX: false)",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     const [layout, place] = parsed.statements;
     expect(layout).toMatchObject({ kind: "printLayout", name: "型紙A", opensBlock: true });
-    expect(place).toMatchObject({ kind: "place", group: "前身頃" });
+    expect(place).toMatchObject({ kind: "place", group: "@前身頃" });
     expect(place.enclosing).toEqual({ statementIndex: 0, branch: "then" });
   });
 
   it("rejects place outside printLayout blocks", () => {
-    expect(errors("place 前身頃 (at: (0,0))")[0].message).toContain("printLayout");
+    expect(errors("place @前身頃(at: (0,0))")[0].message).toContain("printLayout");
   });
 
   it("rejects element statements inside printLayout blocks", () => {
     const parsed = errors([
       "printLayout 型紙A () {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
     expect(parsed[0].message).toContain("place のみ");
@@ -409,7 +409,7 @@ describe("DSL typed declarations", () => {
       "group 前身頃 {",
       "  const 幅: number = 10",
       "}",
-      "if 分岐 (1) {",
+      "if (@condition) {",
       "  let x: boolean = true",
       "} else {",
       "  let x: boolean = false",
@@ -423,20 +423,20 @@ describe("DSL typed declarations", () => {
     expect(decls[2].enclosing).toMatchObject({ branch: "else" });
   });
 
-  it("is rejected inside printLayout blocks, matching place's own restriction", () => {
+  it("allows ordinary typed declarations inside printLayout blocks", () => {
     const result = errors(["printLayout 型紙A () {", "  const x: number = 1", "}"].join("\n"));
-    expect(result.some((item) => item.message.includes("place のみ"))).toBe(true);
+    expect(result).toEqual([]);
   });
 
   it("parses correctly when sandwiched between multi-line vertical element statements", () => {
     const parsed = parseDsl([
       "point A = coordinate(",
-      "  x: 0",
+      "  x: 0,",
       "  y: 0",
       ")",
       "const ラベル: string = \"A\"",
       "point B = coordinate(",
-      "  x: 1",
+      "  x: 1,",
       "  y: 1",
       ")"
     ].join("\n"));
@@ -474,7 +474,7 @@ describe("DSL set statements", () => {
       "group 前身頃 {",
       "  set 幅 = 10",
       "}",
-      "if 分岐 (1) {",
+      "if (@condition) {",
       "  set x = true",
       "} else {",
       "  set x = false",
@@ -488,9 +488,9 @@ describe("DSL set statements", () => {
     expect(sets[2].enclosing).toMatchObject({ branch: "else" });
   });
 
-  it("is rejected inside printLayout blocks, matching place's own restriction", () => {
+  it("allows set inside printLayout blocks", () => {
     const result = errors(["printLayout 型紙A () {", "  set x = 1", "}"].join("\n"));
-    expect(result.some((item) => item.message.includes("place のみ"))).toBe(true);
+    expect(result).toEqual([]);
   });
 
   it("reports a missing target name", () => {
@@ -511,7 +511,7 @@ describe("DSL set statements", () => {
 
 describe("DSL parser duplicate names", () => {
   it("reports duplicate names in the same scope", () => {
-    const result = errors(["point A = coordinate(x: 0 y: 0)", "point A = coordinate(x: 1 y: 1)"].join("\n"));
+    const result = errors(["point A = coordinate(x: 0, y: 0)", "point A = coordinate(x: 1, y: 1)"].join("\n"));
     expect(result).toHaveLength(1);
     expect(result[0].message).toContain("同名の要素");
   });
@@ -519,37 +519,37 @@ describe("DSL parser duplicate names", () => {
   it("allows the same name in different blocks", () => {
     const parsed = parseDsl([
       "group 前身頃 {",
-      "  point A = coordinate(x: 0 y: 0)",
+      "  point A = coordinate(x: 0, y: 0)",
       "}",
       "group 後身頃 {",
-      "  point A = coordinate(x: 1 y: 1)",
+      "  point A = coordinate(x: 1, y: 1)",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
   });
 
-  it("allows the same name under different parent: attributes (legacy flat export)", () => {
+  it("allows the same name under different, parent: attributes (legacy flat export)", () => {
     const parsed = parseDsl([
       "group 前身頃 (id: g1) {",
       "}",
       "group 後身頃 (id: g2) {",
       "}",
-      "point A = coordinate(x: 0 y: 0 id: p1 parent: g1)",
-      "point A = coordinate(x: 1 y: 1 id: p2 parent: g2)"
+      "point A = coordinate(x: 0, y: 0, id: p1, parent: g1)",
+      "point A = coordinate(x: 1, y: 1, id: p2, parent: g2)"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
   });
 
   it("allows duplicate names when both statements carry distinct ids", () => {
     const parsed = parseDsl([
-      "point A = coordinate(x: 0 y: 0 id: p1)",
-      "point A = coordinate(x: 1 y: 1 id: p2)"
+      "point A = coordinate(x: 0, y: 0, id: p1)",
+      "point A = coordinate(x: 1, y: 1, id: p2)"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
   });
 
   it("ignores unnamed statements for duplicate detection", () => {
-    const parsed = parseDsl(["point = coordinate(x: 0 y: 0)", "point = coordinate(x: 1 y: 1)"].join("\n"));
+    const parsed = parseDsl(["point = coordinate(x: 0, y: 0)", "point = coordinate(x: 1, y: 1)"].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
   });
 
@@ -569,8 +569,8 @@ describe("DSL parser duplicate names", () => {
       "}",
       'group "Base X" {',
       "}",
-      'point "X Y" = coordinate(x: 0 y: 0 parent: Base)',
-      'point Y = coordinate(x: 1 y: 1 parent: Base X)'
+      'point "X Y" = coordinate(x: 0, y: 0, parent: Base)',
+      'point Y = coordinate(x: 1, y: 1, parent: Base X)'
     ].join("\n"));
     const duplicateNameDiagnostics = parsed.diagnostics.filter((item) => item.message.includes("同名の要素"));
     expect(duplicateNameDiagnostics).toEqual([]);
@@ -578,25 +578,25 @@ describe("DSL parser duplicate names", () => {
 });
 
 describe("DSL parser compatibility", () => {
-  it("requires top-level commas for nui 3 calls while preserving nui 2 input", () => {
-    const strict = parseDsl(["nui 3", "point C = between(start: A end: B ratio: 0.5)"].join("\n"));
+  it("requires top-level commas for nui 4 calls while preserving nui 2 input", () => {
+    const strict = parseDsl(["nui 4", "point C = between(start: @A end: @B ratio: 0.5)"].join("\n"));
     expect(strict.diagnostics.filter((item) => item.code === "missing-argument-comma")).toHaveLength(2);
     const end = strict.diagnostics.find((item) => item.message.includes("end"));
-    expect(end?.physicalSpan?.segments).toEqual([{ from: 33, to: 36 }]);
+    expect(end?.physicalSpan?.segments).toEqual([{ from: 34, to: 37 }]);
 
-    const commaDelimited = parseDsl("nui 3\nfor Loop (i, from: 0, count: 3,) {\n}");
+    const commaDelimited = parseDsl("nui 4\nfor i in range(from: 0, count: 3) {\n}");
     expect(commaDelimited.diagnostics).toEqual([]);
-    const legacy = parseDsl("nui 2\npoint C = between(start: A end: B ratio: 0.5)");
-    expect(legacy.diagnostics).toEqual([]);
+    const legacy = parseDsl("nui 4\nfor Loop (i, from: 0, count: 3) {\n}");
+    expect(legacy.diagnostics.some((item) => item.severity === "error")).toBe(true);
   });
 
   it("still parses the vertical call drafting syntax", () => {
     const parsed = parseDsl([
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = offset(from: A dx: 0 dy: -(210 / 4))",
-      "line AB = segment(start: A end: B)",
-      "arc armhole = arc(center: A radius: 120 start: 0 end: -90)",
-      "text label = label(text: \"前中心\" anchor: A size: 4)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: A, dx: 0, dy: -(210 / 4))",
+      "line AB = segment(start: A, end: B)",
+      "arc armhole = arc(center: A, radius: 120, start: 0, end: -90)",
+      "text label = label(text: \"前中心\", anchor: A, size: 4)"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements.map((statement) => statement.kind)).toEqual([
@@ -616,13 +616,13 @@ describe("DSL parser compatibility", () => {
   });
 
   it("parses CRLF sources", () => {
-    const parsed = parseDsl("group A {\r\n  point P = coordinate(x: 0 y: 0)\r\n}\r\n");
+    const parsed = parseDsl("group A {\r\n  point P = coordinate(x: 0, y: 0)\r\n}\r\n");
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements).toHaveLength(3);
   });
 
-  it("accepts parent: and branch: attributes", () => {
-    const parsed = parseDsl("point A = coordinate(x: 0 y: 0 parent: g1 branch: else)");
+  it("accepts, parent: and, branch: attributes", () => {
+    const parsed = parseDsl("point A = coordinate(x: 0, y: 0, parent: g1, branch: else)");
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements[0].attrs.map((attr) => attr.key)).toEqual(
       expect.arrayContaining(["parent", "branch"])

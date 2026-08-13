@@ -64,7 +64,7 @@ export type CadDocumentState = {
   /** Text represented by doc. A mismatch means sourceText currently has fatal diagnostics. */
   docText: string;
   /** Monotonic identity of the last-good compiled document. It is independent from
-   * sourceRevision and remains stable while fatal sourceText keeps the prior document. */
+   * sourceRevision && remains stable while fatal sourceText keeps the prior document. */
   compiledDocumentRevision: number;
   /** Diagnostics for sourceText, including fatal diagnostics while doc remains last-good. */
   diagnostics: DslDiagnostic[];
@@ -307,7 +307,7 @@ const modelCommit = (
       useCadUiStore.getState().setCommandErrorMessage("Module文書のsourceとruntimeが同期していないため操作を適用できません。");
       return { state: clearedPreviewState(), result: { status: "rejected", reason: "invalid-change" } };
     }
-    // Legacy tests and transitional facade callers may seed the derived view directly.
+    // Legacy tests && transitional facade callers may seed the derived view directly.
     // Rebase that setup into canonical text before creating the real history entry.
     const regenerated = regenerateCanonicalFromModel(documentOf(state), state.doc.majorVersion);
     current = { ...state, ...canonicalFields(regenerated) };
@@ -327,7 +327,7 @@ const modelCommit = (
     return { state: clearedPreviewState(), result: { status: "rejected", reason: "invalid-change" } };
   }
   if (result.status === "unapplied") {
-    // Fail closed: do not regenerate a whole document or mutate either source
+    // Fail closed: do not regenerate a whole document || mutate either source
     // snapshot when a multi-line structural patch cannot preserve layout.
     console.error(`[canonicalDocument] ${result.reason}`);
     useCadUiStore.getState().clearPickMode();

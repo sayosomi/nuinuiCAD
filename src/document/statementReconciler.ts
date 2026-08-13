@@ -45,7 +45,7 @@ export type ReconcileOptions = {
   createId?: (type: CadElementType) => ElementId;
   /** typed declaration/set/module用のopaque identity生成器。 */
   createStatementId?: (
-    kind: "typedDeclaration" | "set" | "moduleDefinition" | "moduleInstance"
+    kind: "typedDeclaration" | "set" | "moduleDefinition" | "moduleInstance" | "printLayout"
   ) => StatementIdentity;
 };
 
@@ -172,12 +172,14 @@ export const reconcileStatements = (
     statement.kind === "typedDeclaration" ||
     statement.kind === "set" ||
     statement.kind === "moduleDefinition" ||
-    statement.kind === "moduleInstance";
+    statement.kind === "moduleInstance" ||
+    statement.kind === "printLayout";
   const identityKindOf = (statement: DslStatement) =>
     statement.kind === "typedDeclaration" ||
     statement.kind === "set" ||
     statement.kind === "moduleDefinition" ||
-    statement.kind === "moduleInstance"
+    statement.kind === "moduleInstance" ||
+    statement.kind === "printLayout"
       ? statement.kind
       : statementTypeOf(statement);
 
@@ -221,7 +223,6 @@ export const reconcileStatements = (
     if (!oldResidue.has(oldIndex) || !newResidue.has(newIndex)) continue;
     match(oldIndex, newIndex, 1);
   }
-
   // ==== スコープキー(段階が進むと blk: 対応が増えるため都度計算) ====
   const scopeKey = (side: "old" | "new", index: number): string => {
     const statements = side === "old" ? oldStatements : newStatements;
@@ -376,7 +377,8 @@ export const reconcileStatements = (
     const id = statement.kind === "typedDeclaration" ||
       statement.kind === "set" ||
       statement.kind === "moduleDefinition" ||
-      statement.kind === "moduleInstance"
+      statement.kind === "moduleInstance" ||
+      statement.kind === "printLayout"
       ? createStatementId(statement.kind)
       : createId(statementTypeOf(statement));
     assignedIds.set(index, id);

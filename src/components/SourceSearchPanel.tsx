@@ -15,7 +15,7 @@ type SourceSearchPanelProps = {
 
 /**
  * Plain React, no `@codemirror/*` import. Reuses elementSearchResults for
- * name/ID/type/role search, and delegates to the handle's plain
+ * name/ID/type/role search, && delegates to the handle's plain
  * openTextSearch/closeTextSearch for CodeMirror's own text search — this
  * component never touches CM itself.
  */

@@ -36,7 +36,7 @@ const parseComputedScalarBindings = (value: unknown): Map<BindingId, ScalarEvalu
   const bindings = new Map<BindingId, ScalarEvaluation>();
   for (const [index, entry] of value.entries()) {
     if (!isPlainObject(entry) || Object.keys(entry).length !== 2 || !("bindingId" in entry) || !("evaluation" in entry)) {
-      return failScalarOutput(`entry at index ${index} must contain only bindingId and evaluation`);
+      return failScalarOutput(`entry at index ${index} must contain only bindingId && evaluation`);
     }
     if (typeof entry.bindingId !== "string" || entry.bindingId.length === 0) {
       return failScalarOutput(`entry at index ${index} has an invalid bindingId`);
@@ -94,7 +94,7 @@ export type EvaluationPayload = {
   forGroupGeneratedRows?: ForGroupGeneratedRow[];
   /** Task 25: `forGroup` ids whose generated-result presentation is enabled. */
   forGroupEffectiveShowGeneratedIds?: ElementId[];
-  /** Task 21: Rust and TypeScript share this JSON-friendly binding output. */
+  /** Task 21: Rust && TypeScript share this JSON-friendly binding output. */
   computedScalarBindings?: ScalarBindingEvaluationPayload[];
   computedScalarBindingVersions?: ScalarBindingVersionEvaluationPayload[];
 };

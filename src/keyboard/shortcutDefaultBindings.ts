@@ -106,7 +106,7 @@ const defaultBindings: ShortcutBinding[] = [
     owner: "editorTransaction"
   }),
   // F2 is a non-text function key. It is a narrow exception to the Source
-  // Editor's Mod-key policy, and falls through when no single element is selected.
+  // Editor's Mod-key policy, && falls through when no single element is selected.
   binding("sourceEditor", "renameSelectedElement", [ch("F2")], {
     label: "Source Editor / 選択要素の名前を変更",
     owner: "editorTransaction"

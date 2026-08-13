@@ -6,7 +6,7 @@ import type { DslStatement } from "./dslTypes";
  * by this printLayout block, in the order they appear" rule
  * `buildBlockPrintLayouts` (dslCompiler.ts) uses to build
  * `PrintLayout.placements[]`. Shared by `numericBindingCompiler.ts` (typed
- * `@name` compile) and `dslDocument.ts` (`StatementMap` `place:<layoutId>:
+ * `@name` compile) && `dslDocument.ts` (`StatementMap` `place:<layoutId>:
  * <placementIndex>` keys) so both stay in lockstep with the compiler's own
  * placement ordering - never reimplemented independently.
  */

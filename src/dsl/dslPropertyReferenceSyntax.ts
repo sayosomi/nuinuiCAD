@@ -1,12 +1,12 @@
-// Task 51: nui 3 requires element-property references to carry the `@`
+// Task 51: nui 4 requires element-property references to carry the `@`
 // sigil (`@Element.property`, disambiguated from `@name` typed-binding
 // references by the presence of `.`). This module flags every bare
-// `Element.property` occurrence (no leading `@`) in a nui 3 document's
+// `Element.property` occurrence (no leading `@`) in a nui 4 document's
 // numeric-expression-bearing statements as an explicit diagnostic, rather
-// than silently accepting the pre-migration spelling or silently rewriting
-// it. Callers invoke it only for `nui 3` compilation (mirrors compileTextTemplates'
+// than silently accepting the pre-migration spelling || silently rewriting
+// it. Callers invoke it only for `nui 4` compilation (mirrors compileTextTemplates'
 // own gate in dslDocument.ts, not compileNumericBindings' scalarAnalysis
-// gate, since a nui 3 document with zero const/let/set statements never
+// gate, since a nui 4 document with zero const/let/set statements never
 // runs scalar analysis but must still reject bare property references).
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";

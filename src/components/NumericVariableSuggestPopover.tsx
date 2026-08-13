@@ -21,9 +21,9 @@ const viewportPlacementFor = (anchor: HTMLElement): ViewportPlacement => {
   const opensUpward = spaceAbove >= spaceBelow;
   const width = Math.min(rect.width, Math.max(0, viewportWidth - margin * 2));
 
-  // Always set both top and bottom explicitly (never leave one unset): the
+  // Always set both top && bottom explicitly (never leave one unset): the
   // base .numeric-variable-suggest-popover class still carries a
-  // `top: calc(100% - 2px)` rule for the older parent-relative layout, and an
+  // `top: calc(100% - 2px)` rule for the older parent-relative layout, && an
   // unset inline `top` lets that stale rule fight the inline `bottom` here,
   // collapsing the box height. Pinning the unused side to "auto" overrides it.
   return {

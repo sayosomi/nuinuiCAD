@@ -15,7 +15,7 @@ const compile = (source: string) => {
 describe("incremental linear mutation evaluator", () => {
   it("uses before-statement slots for self and cross-binding RHS reads", () => {
     const graph = compile([
-      "nui 3",
+      "nui 4",
       "let x: number = 1",
       "let y: number = 10",
       "set x = @x + @y",
@@ -35,7 +35,7 @@ describe("incremental linear mutation evaluator", () => {
   });
 
   it("records poisoned versions and recovers the same slot with a later valid set", () => {
-    const graph = compile(["nui 3", "let x: number = 1", "set x = 1 / 0", "set x = 3"].join("\n"));
+    const graph = compile(["nui 4", "let x: number = 1", "set x = 1 / 0", "set x = 3"].join("\n"));
     const [declaration, failed, recovered] = graph.versions;
     const final = createIncrementalLinearMutationEvaluator(graph).finalize(afterStatement(recovered.sourceOrder));
 
@@ -48,7 +48,7 @@ describe("incremental linear mutation evaluator", () => {
 
   it("keeps all scalar types in final binding slots", () => {
     const graph = compile([
-      "nui 3",
+      "nui 4",
       'let text: string = "old"',
       "let flag: boolean = false",
       "let side: choice(right, left) = right",
@@ -67,8 +67,8 @@ describe("incremental linear mutation evaluator", () => {
 
   it("records an unselected conditional branch as inactive without writing a current slot", () => {
     const graph = compile([
-      "nui 3",
-      "if C (true) {",
+      "nui 4",
+      "if (true) {",
       "  let x: number = 1",
       "  set x = 2",
       "}"
@@ -85,9 +85,9 @@ describe("incremental linear mutation evaluator", () => {
 
   it("carries an active outer set but retires branch-local slots after the explicit scope exit", () => {
     const graph = compile([
-      "nui 3",
+      "nui 4",
       "let value: number = 1",
-      "if C (true) {",
+      "if (true) {",
       "  set value = 2",
       "  let value: number = 10",
       "  set value = 11",

@@ -1,4 +1,4 @@
-// Task 19 lowering only. Parsing, name resolution, graph analysis, and
+// Task 19 lowering only. Parsing, name resolution, graph analysis, &&
 // typechecking happen once in typedDeclarationAnalysis before this boundary.
 import { selectCompiledProgramBindings } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
@@ -22,8 +22,10 @@ export type ScalarProgramStatement = {
 
 export type ScalarProgram = {
   statements: readonly ScalarProgramStatement[];
-  /** Statement-stream position of @stop, not an elements-array index. */
+  /** Statement-stream position of stop, not an elements-array index. */
   evaluationLimitSourceOrder?: number;
+  /** Resolved lexical bindings in printLayout scopes remain evaluable after stop. */
+  postStopBindingIds?: readonly BindingId[];
 };
 
 export type ScalarProgramPositionMap = {
@@ -42,16 +44,21 @@ export const lowerScalarProgram = ({
   evaluationLimitSourceOrder?: number;
 }): ScalarProgram => {
   const statements: ScalarProgramStatement[] = [];
+  const postStopBindingIds: BindingId[] = [];
   for (const bindingId of selectCompiledProgramBindings(bindingAnalysis).bindingIds) {
     const binding = bindingAnalysis.catalog.bindingsById.get(bindingId);
     // Program eligibility has one shared owner (Task 13R). This type filter
     // only separates iteration bindings from typed declarations.
     if (!binding || binding.kind !== "typed") continue;
+    if (binding.resolutionMode === "preResolvedOnly" && !typedInitializerByBindingId.has(bindingId)) continue;
     if (binding.declaredType === null) {
       throw new Error(`scalarProgram: eligible typed binding ${bindingId} has no declared type`);
     }
     const initializer = typedInitializerByBindingId.get(bindingId);
     if (!initializer) throw new Error(`scalarProgram: eligible binding ${bindingId} lacks a typed initializer`);
+    if (bindingAnalysis.catalog.scopeIndex.scopes.get(binding.effectiveScopeId)?.kind === "printLayout") {
+      postStopBindingIds.push(bindingId);
+    }
     statements.push({
       kind: "declare",
       bindingId,
@@ -66,6 +73,7 @@ export const lowerScalarProgram = ({
   }
   return {
     statements,
+    ...(postStopBindingIds.length > 0 ? { postStopBindingIds } : {}),
     ...(evaluationLimitSourceOrder !== undefined
       ? { evaluationLimitSourceOrder }
       : positionMap.evaluationLimit

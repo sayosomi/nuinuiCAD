@@ -21,6 +21,39 @@ fn valid_entry() -> serde_json::Value {
     })
 }
 
+fn boolean_expression() -> serde_json::Value {
+    json!({
+        "kind": "binary",
+        "span": {"start": 0, "end": 9},
+        "operator": "&&",
+        "left": {
+            "kind": "reference",
+            "span": {"start": 0, "end": 8},
+            "nameSpan": {"start": 1, "end": 8},
+            "name": "enabled",
+            "bindingId": "binding:stmt-1",
+            "type": {"kind": "boolean"}
+        },
+        "right": {"kind": "booleanLiteral", "span": {"start": 8, "end": 9}, "value": true, "type": {"kind": "boolean"}},
+        "type": {"kind": "boolean"}
+    })
+}
+
+#[test]
+fn accepts_a_compound_typed_expression_source() {
+    let mut entry = valid_entry();
+    entry.as_object_mut().unwrap().remove("bindingId");
+    entry["expression"] = boolean_expression();
+    let decoded = validate_control_boolean_bindings_payload(
+        &json!([entry]),
+        &for_group_type_map(),
+        &valid_binding_ids(),
+    )
+    .unwrap();
+    assert!(decoded[0].binding_id.is_none());
+    assert!(decoded[0].expression.is_some());
+}
+
 #[test]
 fn accepts_a_valid_show_generated_binding() {
     let payload = json!([valid_entry()]);
@@ -33,11 +66,11 @@ fn accepts_a_valid_show_generated_binding() {
     assert_eq!(decoded.len(), 1);
     assert_eq!(decoded[0].element_id, "loop");
     assert_eq!(decoded[0].parameter_key, "showGenerated");
-    assert_eq!(decoded[0].binding_id, "binding:stmt-1");
+    assert_eq!(decoded[0].binding_id.as_deref(), Some("binding:stmt-1"));
 }
 
 #[test]
-fn rejects_an_unsupported_element_type_parameter_key_pair() {
+fn accepts_a_schema_driven_control_parameter_without_a_property_allowlist() {
     let mut entry = valid_entry();
     entry["parameterKey"] = json!("count"); // forGroup.count is not a control boolean target
     let payload = json!([entry]);
@@ -46,11 +79,11 @@ fn rejects_an_unsupported_element_type_parameter_key_pair() {
         &for_group_type_map(),
         &valid_binding_ids()
     )
-    .is_err());
+    .is_ok());
 }
 
 #[test]
-fn rejects_an_unsupported_element_type() {
+fn accepts_an_element_type_when_the_compiled_contract_supplies_the_type() {
     let mut type_map = for_group_type_map();
     type_map.insert("cond", "conditionalGroup");
     let mut entry = valid_entry();
@@ -58,12 +91,12 @@ fn rejects_an_unsupported_element_type() {
     let payload = json!([entry]);
     assert!(
         validate_control_boolean_bindings_payload(&payload, &type_map, &valid_binding_ids())
-            .is_err()
+            .is_ok()
     );
 }
 
 #[test]
-fn rejects_an_expected_type_that_does_not_match_the_canonical_type() {
+fn accepts_the_compiled_expected_type_without_a_rust_schema_duplicate() {
     let mut entry = valid_entry();
     entry["expectedType"] = json!({"kind": "number"});
     let payload = json!([entry]);
@@ -72,7 +105,7 @@ fn rejects_an_expected_type_that_does_not_match_the_canonical_type() {
         &for_group_type_map(),
         &valid_binding_ids()
     )
-    .is_err());
+    .is_ok());
 }
 
 #[test]

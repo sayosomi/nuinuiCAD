@@ -39,10 +39,12 @@ import {
   resolveForGroupEffectiveShowGenerated
 } from "./controlBooleanRuntime";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { ScalarEvaluation } from "../scalars/types";
 import type { TextTemplateAst } from "../scalars/textTemplate";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
 import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
+import { computedReferencePathValue } from "./numericExpressions";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -50,7 +52,7 @@ export type EvaluateElementsOptions = {
    * Task 19's compiled declaration program. Task 20 evaluates it (via
    * createDocumentScalarBindingResolver) on this TS reference path only -
    * evaluateElementsWithRust calls the Rust `evaluate_document` command
-   * directly and never runs this function, so Rust has no equivalent output
+   * directly && never runs this function, so Rust has no equivalent output
    * until Task 21 gives it one.
    */
   scalarProgram?: ScalarProgram;
@@ -71,8 +73,8 @@ export type EvaluateElementsOptions = {
   moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
   moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
   /**
-   * Task 23's elementId-keyed standard property bindings (already re-keyed
-   * from CompiledDslDocument.propertyBindings by
+   * Schema-driven elementId-keyed property sources (already re-keyed from
+   * CompiledDslDocument.propertyBindings by
    * propertyBindingRuntime.ts's buildPropertyBindingRuntimeEntries - never
    * built here). Requires `scalarProgram` to also be present; see the throw
    * below for why that combination is a caller-contract violation rather
@@ -99,7 +101,7 @@ export type EvaluateElementsOptions = {
    * Task 27's elementId-keyed compiled TextTemplateAst (already re-keyed by
    * textTemplateRuntime.ts's buildTextTemplateEntriesByElementId - never
    * built here). Unlike every entry above, this does NOT require
-   * `scalarProgram`: Task 26's compileTextTemplates runs for every nui 3
+   * `scalarProgram`: Task 26's compileTextTemplates runs for every nui 4
    * document regardless of typed declarations, so an all-numeric-hole
    * template can be present with no scalarProgram at all.
    */
@@ -143,9 +145,9 @@ export const evaluateElements = (
     );
   }
   // textTemplateEntriesByElementId deliberately has no such guard: Task 26's
-  // compileTextTemplates runs for every nui 3 document regardless of typed
+  // compileTextTemplates runs for every nui 4 document regardless of typed
   // declarations, so it can be non-empty with an all-numeric-hole template
-  // and no scalarProgram at all - see EvaluateElementsOptions's doc comment.
+  // && no scalarProgram at all - see EvaluateElementsOptions's doc comment.
 
   const evaluationLimitIndex = Math.min(
     Math.max(options.evaluationLimitIndex ?? elements.length, 0),
@@ -186,7 +188,7 @@ export const evaluateElements = (
 
   // Built whenever a scalarProgram is present, independent of whether any
   // property bindings exist - computedScalarBindings is Task 21's own
-  // contract and must not depend on Task 23's property wiring.
+  // contract && must not depend on Task 23's property wiring.
   const linearMutationEnabled = options.bindingVersions !== undefined &&
     (hasSetVersions(options.bindingVersions) || options.bindingVersions.requiresExecutionOrdering === true);
   if (linearMutationEnabled && !options.statementInfoByElementId &&
@@ -200,6 +202,14 @@ export const evaluateElements = (
     ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, elementsById })
     : undefined;
   const scalarBindingResolver = linearMutationResolver ?? declarationResolver;
+  const resolveScalarGeometryProperty = (
+    reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>
+  ): ScalarEvaluation => {
+    const value = computedReferencePathValue(computedGeometry.get(reference.elementId!), reference.property);
+    return typeof value === "number" && Number.isFinite(value)
+      ? { status: "ok", type: reference.type, value: { kind: "number", value } }
+      : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  };
   const propertyBindingEntriesByElementId = options.propertyBindingEntries
     ? groupPropertyBindingRuntimeEntriesByElement(options.propertyBindingEntries)
     : undefined;
@@ -364,7 +374,11 @@ export const evaluateElements = (
       // same active branch on every generated iteration.
       const typedCondition = conditionalGroupConditionsByElementId?.get((sourceElement ?? element).id);
       const activeBranch = typedCondition
-        ? resolveConditionalGroupBranch(typedCondition, scalarBindingResolver!.resolveBinding)
+        ? resolveConditionalGroupBranch(
+            typedCondition,
+            scalarBindingResolver!.resolveBinding,
+            resolveScalarGeometryProperty
+          )
         : (() => {
             const conditionValue = numericError(
               element,
@@ -425,11 +439,16 @@ export const evaluateElements = (
       if (start === undefined || count === undefined || step === undefined) return;
 
       // Evaluated once per forGroup entry, alongside start/count/step -
-      // never re-evaluated per iteration. Presentation-only: never gates or
+      // never re-evaluated per iteration. Presentation-only: never gates ||
       // alters the iteration loop below.
       const showGeneratedEntry = controlBooleanEntriesByElementId?.get((sourceElement ?? element).id)?.[0];
       const effectiveShowGenerated = showGeneratedEntry
-        ? resolveForGroupEffectiveShowGenerated(showGeneratedEntry, element.showGenerated, scalarBindingResolver!.resolveBinding)
+        ? resolveForGroupEffectiveShowGenerated(
+            showGeneratedEntry,
+            element.showGenerated,
+            scalarBindingResolver!.resolveBinding,
+            resolveScalarGeometryProperty
+          )
         : element.showGenerated;
       if (effectiveShowGenerated) forGroupEffectiveShowGeneratedIds.add(element.id);
 
@@ -559,7 +578,8 @@ export const evaluateElements = (
       const materialized = materializePropertyBoundElement(
         element,
         propertyBindingEntriesForElement,
-        scalarBindingResolver!.resolveBinding
+        scalarBindingResolver!.resolveBinding,
+        resolveScalarGeometryProperty
       );
       if (!materialized.ok) {
         errors.push(materialized.error);
@@ -568,16 +588,16 @@ export const evaluateElements = (
       elementToEvaluate = materialized.element;
     }
 
-    // Task 27: the bare `@binding` `text.text` property case - its own
-    // allowlist (textTemplateRuntime.ts's TEXT_PROPERTY_TARGETS), materialized
-    // the same way as standard properties above, chained onto whatever
-    // materialization already happened.
+    // Task 27: the bare/compound `text.text` property case is materialized
+    // through its remaining dedicated physical route, chained onto whatever
+    // common property materialization already happened.
     const textPropertyBindingEntriesForElement = textPropertyBindingEntriesByElementId?.get((sourceElement ?? element).id);
     if (textPropertyBindingEntriesForElement?.length) {
       const materialized = materializePropertyBoundElement(
         elementToEvaluate,
         textPropertyBindingEntriesForElement,
-        scalarBindingResolver!.resolveBinding
+        scalarBindingResolver!.resolveBinding,
+        resolveScalarGeometryProperty
       );
       if (!materialized.ok) {
         errors.push(materialized.error);
@@ -614,7 +634,12 @@ export const evaluateElements = (
   const linearFinal = linearMutationResolver
     ? linearMutationResolver.finalize({
         kind: "beforeStatement",
-        sourceOrder: options.bindingVersions!.evaluationLimitSourceOrder ?? Number.POSITIVE_INFINITY
+        // Geometry still stops at the document's stop marker, but a
+        // printLayout-local scalar binding is an explicit post-stop
+        // evaluation exception carried by its resolved BindingId.
+        sourceOrder: options.bindingVersions!.postStopBindingIds?.size
+          ? Number.POSITIVE_INFINITY
+          : options.bindingVersions!.evaluationLimitSourceOrder ?? Number.POSITIVE_INFINITY
       })
     : undefined;
   const computedScalarBindings = linearFinal?.resultsByBindingId ?? declarationResolver?.finalize().resultsByBindingId;

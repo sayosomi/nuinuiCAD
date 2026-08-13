@@ -12,7 +12,7 @@ import {
 } from "./typedBindingRuntimeInspectorPresentation";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
   const result = compileCanonicalText(baseline, source);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
@@ -66,12 +66,12 @@ const consumerRowsFor = (compiled: LastGoodDslDocument, bindingId: BindingId) =>
 describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
   it("offsetLine.side (choice) - exact property jump", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "const 方向: choice(right, left) = right",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 10, side: @方向, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 10, side: @方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "方向");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -82,15 +82,15 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("intersectionPoint.useExtensions (boolean)", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let 延長: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "point C = coordinate(x: 0, y: 10)",
       "point D = coordinate(x: 10, y: 10)",
-      "line AB = segment(start: A, end: B)",
-      "line CD = segment(start: C, end: D)",
-      "point X = intersection(line1: AB, line2: CD, extensions: @延長)"
+      "line AB = segment(start: @A, end: @B)",
+      "line CD = segment(start: @C, end: @D)",
+      "point X = intersection(line1: @AB, line2: @CD, extensions: @延長)"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "延長");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -101,7 +101,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("group.printEnabled", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let 印刷: boolean = true",
       "group G (printEnabled: @印刷) {",
       "}"
@@ -114,21 +114,21 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("forGroup.showGenerated", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let 表示: boolean = true",
-      "for 繰返し (i, from: 0, count: 2, step: 1, showGenerated: @表示) {",
+      "for i in range(from: 0, count: 2, step: 1, showGenerated: @表示) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "表示");
     const rows = consumerRowsFor(compiled, bindingId);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ label: "繰返し", detail: "forブロック・生成結果を表示" });
+    expect(rows[0]).toMatchObject({ label: "forブロック", detail: "forブロック・生成結果を表示" });
   });
 
   it("text.text bare binding", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       'const ラベル: string = "前身頃"',
       "text T = label(text: @ラベル, anchor: none, size: 3)"
     ].join("\n"));
@@ -141,24 +141,24 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("conditionalGroup.condition - falls back to a whole-element jump (no Task 43 span index for a condition expression)", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let flag: boolean = true",
-      "if C (@flag) {",
+      "if (@flag) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "flag");
     const rows = consumerRowsFor(compiled, bindingId);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ label: "C", detail: "ifブロック・条件式" });
+    expect(rows[0]).toMatchObject({ label: "ifブロック", detail: "ifブロック・条件式" });
     expect(rows[0].jump).toEqual({ kind: "element" });
   });
 
   it("a text-template interpolation hole - resolves the exact holeIndex", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       'const ラベル: string = "前身頃"',
-      'text T = label(text: "{@ラベル}を2枚カット", anchor: none, size: 3)'
+      'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "ラベル");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -169,10 +169,10 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("a second hole later in the same template resolves a non-zero holeIndex", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       'const 前: string = "前身頃"',
       'const 後: string = "後身頃"',
-      'text T = label(text: "{@前}と{@後}", anchor: none, size: 3)'
+      'text T = label(text: "${@前}と${@後}", anchor: none, size: 3)'
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "後");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -181,14 +181,14 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
   });
 
   it("a binding with no consumers returns an empty array", () => {
-    const compiled = compileCanonical(["nui 3", "const unused: number = 1"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "const unused: number = 1"].join("\n"));
     const bindingId = bindingIdByName(compiled, "unused");
     expect(consumerRowsFor(compiled, bindingId)).toEqual([]);
   });
 
   it("one binding consumed by two different properties produces two rows", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let 印刷: boolean = true",
       "group G1 (printEnabled: @印刷) {",
       "}",
@@ -202,7 +202,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("does not include a different binding's consumers", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let 印刷A: boolean = true",
       "let 印刷B: boolean = false",
       "group G1 (printEnabled: @印刷A) {",

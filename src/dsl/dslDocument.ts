@@ -20,7 +20,7 @@ import { compileDslToElements } from "./dslCompiler";
 import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
-import type { DiagnosticSpanContext } from "./dslDiagnosticSpan";
+import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
 import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import { compileNumericBindings, type CompiledNumericBinding } from "../scalars/numericBindingCompiler";
 import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
@@ -45,13 +45,13 @@ import {
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleMaterialization } from "./moduleMaterialization";
-import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
+import { compileModuleScalarRuntime, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
-import type { StatementIdentity } from "../document/statementIdentity";
+import { createStatementIdentity, type StatementIdentity } from "../document/statementIdentity";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
-import type { BindingId } from "../scalars/bindingCatalog";
+import type { BindingId, SourceNamespaceBindingResolver } from "../scalars/bindingCatalog";
 import type { ScalarProgram, ScalarProgramPositionMap } from "../scalars/scalarProgram";
 import type {
   MaterializedNumericBindingSource,
@@ -66,7 +66,8 @@ import {
 } from "./dslSerializer";
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
 import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "./dslTypes";
-import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceTokens";
+import { formatDslReferencePath, formatDslReferenceToken, parseDslReferenceToken } from "./dslReferenceTokens";
+import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
 import {
   isSupportedDslMajorVersion,
@@ -81,7 +82,7 @@ export {
   type DslMajorVersion
 } from "./dslVersion";
 
-// `nui 3` 文書全体のcompile / serializeファサード。`.nui` のsourceTextを唯一の
+// `nui 4` 文書全体のcompile / serializeファサード。`.nui` のsourceTextを唯一の
 // 正として扱い、ここではテキストと構造化データの往復だけを担う。
 
 export type DslDocumentData = {
@@ -92,13 +93,13 @@ export type DslDocumentData = {
   activeVisibilityProfileId: string;
   printLayouts: PrintLayout[];
   activePrintLayoutId: string;
-  /** `undefined` means no @stop marker; a numeric value includes an explicit terminal @stop. */
+  /** `undefined` means no stop marker; a numeric value includes an explicit terminal stop. */
   evaluationLimitIndex: number | undefined;
 };
 
 export type SerializeDslDocumentOptions = {
   headerComment?: string;
-  /** Keep the supplied element order and legacy ID references instead of nesting blocks. */
+  /** Keep the supplied element order && legacy ID references instead of nesting blocks. */
   preserveElementOrder?: boolean;
 };
 
@@ -207,7 +208,7 @@ export type CompiledDslDocument = {
   /**
    * Task 26 compiled `label(text: ...)` templates, keyed by
    * propertyBindingOccurrenceKey(statementIndex, "text"). Present for every
-   * nui 3 document with a canonical text occurrence, independent of whether
+   * nui 4 document with a canonical text occurrence, independent of whether
    * the document has any typed declaration at all - unlike propertyBindings/
    * conditionalGroupConditions above, this does not gate on `scalarAnalysis`.
    */
@@ -229,9 +230,9 @@ export type CompiledDslDocument = {
   typedDependencyGraph?: TypedDependencyGraph;
   /** Task 2 source-only lexical declarations, including inert module bodies. */
   sourceLexicalNamespace?: SourceLexicalNamespaceIndex;
-  /** Task 3 source-only module semantic result; never contains runtime geometry or instance IDs. */
+  /** Task 3 source-only module semantic result; never contains runtime geometry || instance IDs. */
   moduleSemanticAnalysis?: ModuleSemanticAnalysis;
-  /** Task 5 runtime expansion and source-origin mapping; never persisted as source. */
+  /** Task 5 runtime expansion && source-origin mapping; never persisted as source. */
   moduleMaterialization?: ModuleMaterialization;
   /** Source-derived scalar order for materialized runtime occurrences. */
   scalarExecutionPositionByRuntimeElementId?: ReadonlyMap<ElementId, number>;
@@ -280,21 +281,19 @@ const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
 
 export const serializePaletteColorLine = (
   color: PaletteColor,
-  defaultColorId: string,
-  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+  defaultColorId: string
 ): string => {
   const args = [
     quoteDslString(color.hex),
     `name: ${quoteDslString(color.name)}`,
     ...(color.id === defaultColorId ? ["default: true"] : [])
   ];
-  return `color ${formatDslName(color.id)} (${args.join(majorVersion >= 3 ? ", " : " ")})`;
+  return `color ${formatDslName(color.id)} (${args.join(", ")})`;
 };
 
 export const serializePaletteLines = (
-  palette: DocumentPalette,
-  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
-): string[] => palette.colors.map((color) => serializePaletteColorLine(color, palette.defaultColorId, majorVersion));
+  palette: DocumentPalette
+): string[] => palette.colors.map((color) => serializePaletteColorLine(color, palette.defaultColorId));
 
 // ==== 印刷レイアウト ====
 
@@ -303,6 +302,9 @@ const resolveGroupToken = (
   groupId: ElementId,
   context: ElementNameContext
 ): string => {
+  // Unresolved print targets retain their canonical source reference so that
+  // a compile -> serialize -> recompile round-trip does not add a second `@`.
+  if (groupId.startsWith("@")) return groupId;
   const target = context.elementsById.get(groupId);
   if (!target || !target.name.trim()) return formatDslReferenceToken(groupId);
   const resolution = resolveElementName({ token: target.name, elements, context });
@@ -320,39 +322,36 @@ const printLayoutBlockLines = (
   displayName: string,
   elements: CadElement[],
   nameContext: ElementNameContext,
-  visibilityProfiles: VisibilityProfile[],
-  majorVersion: DslMajorVersion
+  visibilityProfiles: VisibilityProfile[]
 ): string[] => {
   const profileName = layout.visibilityProfileId
     ? visibilityProfiles.find((profile) => profile.id === layout.visibilityProfileId)?.name ??
       layout.visibilityProfileId
     : undefined;
   const numeric = (value: Parameters<typeof formatNumericValueForDsl>[0]) =>
-    formatNumericValueForDsl(value, elements, [], undefined, nameContext, majorVersion);
+    formatNumericValueForDsl(value, elements, [], undefined, nameContext);
 
-  const argLines = [
+  const headerArgs = [
     `output: ${layout.outputKind}`,
     ...(profileName ? [`view: ${formatDslName(profileName)}`] : []),
-    `paper: ${layout.paperSizeId}`,
+    `paper: ${formatDslName(layout.paperSizeId)}`,
     `orientation: ${layout.orientation}`,
+    `width: ${numeric(layout.svgCanvasWidthMm)}`,
+    `height: ${numeric(layout.svgCanvasHeightMm)}`,
     `columns: ${numeric(layout.columns)}`,
     `rows: ${numeric(layout.rows)}`,
     `overlap: ${numeric(layout.overlapMm)}`,
-    `scale: ${numeric(layout.scale)}`,
-    `canvas: (${numeric(layout.svgCanvasWidthMm)}, ${numeric(layout.svgCanvasHeightMm)})`
+    `scale: ${numeric(layout.scale)}`
   ];
 
-  const memberLines: string[] = [];
-  for (const placement of layout.placements) {
-    const separator = majorVersion >= 3 ? ", " : " ";
-    memberLines.push(
-      `${DSL_INDENT}place ${resolveGroupToken(elements, placement.groupId, nameContext)} (at: (${numeric(placement.x)}, ${numeric(placement.y)})${separator}angle: ${numeric(placement.angleDeg)}${separator}mirrorX: ${placement.mirrorX})`
-    );
-  }
+  const memberLines = layout.placements.map((placement) => {
+    const groupToken = resolveGroupToken(elements, placement.groupId, nameContext);
+    return `${DSL_INDENT}place ${groupToken.startsWith("@") ? "" : "@"}${groupToken}(x: ${numeric(placement.x)}, y: ${numeric(placement.y)}, angle: ${numeric(placement.angleDeg)}, mirrorX: ${placement.mirrorX})`;
+  });
 
   return [
-    `printLayout ${formatDslName(displayName)} (`,
-    ...argLines.map((line, index) => `${DSL_INDENT}${line}${majorVersion >= 3 && index < argLines.length - 1 ? "," : ""}`),
+    `printLayout ${formatDslName(displayName)}(`,
+    ...headerArgs.map((line) => `${DSL_INDENT}${line},`),
     ") {",
     ...memberLines,
     "}"
@@ -371,8 +370,7 @@ export type PrintLayoutSectionPlan = {
 // printLayoutセクションの構造化プラン。全体シリアライズ(serializeDocumentToDsl)と
 // 行パッチ(src/document/textPatch.ts)が同一の名前昇格ロジックを共有する。
 export const planPrintLayoutSection = (
-  data: DslDocumentData,
-  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+  data: DslDocumentData
 ): PrintLayoutSectionPlan => {
   const { printLayouts, activePrintLayoutId, elements, visibilityProfiles } = data;
   if (printLayouts.length === 0) {
@@ -400,7 +398,7 @@ export const planPrintLayoutSection = (
     const displayName = activeLayout && layout.id === activeLayout.id && promotedName ? promotedName : layout.name;
     return {
       layoutId: layout.id,
-      lines: printLayoutBlockLines(layout, displayName, elements, nameContext, visibilityProfiles, majorVersion)
+      lines: printLayoutBlockLines(layout, displayName, elements, nameContext, visibilityProfiles)
     };
   });
   const activePrintLayoutLine = activeLayout
@@ -413,15 +411,15 @@ export const planPrintLayoutSection = (
   return { blocks, activePrintLayoutLine };
 };
 
-const serializePrintLayoutSection = (data: DslDocumentData, majorVersion: DslMajorVersion): string[] => {
-  const plan = planPrintLayoutSection(data, majorVersion);
+const serializePrintLayoutSection = (data: DslDocumentData): string[] => {
+  const plan = planPrintLayoutSection(data);
   return [
     ...plan.blocks.flatMap((block) => block.lines),
     ...(plan.activePrintLayoutLine ? [plan.activePrintLayoutLine] : [])
   ];
 };
 
-// ==== 要素ツリー(ブレースブロック + @stop) ====
+// ==== 要素ツリー(ブレースブロック + stop) ====
 
 type BlockFrame = {
   elementId: ElementId;
@@ -442,7 +440,7 @@ export type ElementTreeRow = {
   role: "statement" | "blockEnd" | "blockElse" | "atStop";
   /** statement 行はその要素、blockEnd / blockElse 行は対応する開き要素のID。 */
   elementId?: ElementId;
-  /** parent:/branch: フォールバックで出力されたトップレベル文。 */
+  /** ,parent:/,branch: フォールバックで出力されたトップレベル文。 */
   fallback?: boolean;
 };
 
@@ -463,8 +461,8 @@ const statementRows = (
   return {
     lines: [
       `${indent}${statement.header}`,
-      ...statement.args.map((arg, index) =>
-        `${argIndent}${arg.text}${statement.argumentSeparator === "comma" && index < statement.args.length - 1 ? "," : ""}`
+      ...statement.args.map((arg) =>
+        `${argIndent}${arg.text}${statement.argumentSeparator === "comma" ? "," : ""}`
       ),
       `${indent}${statement.close}${appendBrace ? " {" : ""}`
     ],
@@ -473,7 +471,7 @@ const statementRows = (
 };
 
 // 非連続な親子配置(並べ替え禁止の帰結として通常のブロック表現が不可能な
-// 場合)の過渡期フォールバック用: parent:/branch: を呼び出しの引数として
+// 場合),の過渡期フォールバック用: ,parent:/,branch: を呼び出しの引数として
 // 差し込む(呼び出し本体を持たない header は
 // expression(...) 呼び出しへ開き直す)。Phase 5で `parent=` パース受理ごと
 // このフォールバック自体を削除する想定。
@@ -528,7 +526,7 @@ export const layoutElementTree = (
   for (const element of elements) {
     if (hasAtStop && emitted === limit) {
       lines.push({
-        lines: [`${DSL_INDENT.repeat(stack.length)}@stop`],
+        lines: [`${DSL_INDENT.repeat(stack.length)}stop`],
         argKeys: [null],
         depth: stack.length,
         role: "atStop"
@@ -540,7 +538,7 @@ export const layoutElementTree = (
     const targetIdx = parentId ? stack.findIndex((frame) => frame.elementId === parentId) : -1;
 
     // 非連続な親子配置(並べ替え禁止の帰結として通常のブロック表現が
-    // 不可能な場合)は、過渡期のフォールバックとして parent:/branch:
+    // 不可能な場合)は、過渡期のフォールバックとして ,parent:/,branch:
     // 引数付きのトップレベル文で無損失に出力する。Phase 1c以降は
     // テキストが正準になりブレースが構造を強制するため、この分岐へは
     // 到達しなくなる想定(Phase 5で `parent=` パース受理ごと削除)。
@@ -600,7 +598,7 @@ export const layoutElementTree = (
   closeTo(0);
   if (hasAtStop && emitted === limit) {
     lines.push({
-      lines: ["@stop"],
+      lines: ["stop"],
       argKeys: [null],
       depth: 0,
       role: "atStop"
@@ -634,10 +632,10 @@ const serializeFlatElementTree = (
   const hasAtStop = evaluationLimitIndex !== undefined;
   const limit = Math.max(0, Math.min(evaluationLimitIndex ?? elements.length, elements.length));
   for (const [index, element] of elements.entries()) {
-    if (hasAtStop && index === limit) lines.push("@stop");
+    if (hasAtStop && index === limit) lines.push("stop");
     lines.push(...serializedFlatStatementLines(element, serializeElementStatementBlock(element, refs)));
   }
-  if (hasAtStop && limit === elements.length) lines.push("@stop");
+  if (hasAtStop && limit === elements.length) lines.push("stop");
   return lines;
 };
 
@@ -646,15 +644,15 @@ export const serializeDocumentToDsl = (
   majorVersion: DslMajorVersion,
   options: SerializeDslDocumentOptions = {}
 ): string => {
-  const refs = options.preserveElementOrder ? flatRefs(majorVersion) : documentDslRefs(data.elements, majorVersion);
+  const refs = options.preserveElementOrder ? flatRefs() : documentDslRefs(data.elements);
   const sections: string[][] = [
     [`nui ${majorVersion}`, ...(options.headerComment ? [`# ${options.headerComment}`] : [])],
-    serializePaletteLines(data.palette, majorVersion),
-    serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId, majorVersion),
+    serializePaletteLines(data.palette),
+    serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
     options.preserveElementOrder
       ? serializeFlatElementTree(data.elements, refs, data.evaluationLimitIndex)
       : serializeElementTree(data.elements, refs, data.evaluationLimitIndex),
-    serializePrintLayoutSection(data, majorVersion)
+    serializePrintLayoutSection(data)
   ];
   return sections
     .filter((section) => section.length > 0)
@@ -685,7 +683,7 @@ const validateVersionStatements = (
   const firstStatement = statements[0];
 
   if (!firstStatement) {
-    diagnostics.push(versionDiagnostic(1, "文書が空です。先頭に `nui 3` が必要です。"));
+    diagnostics.push(versionDiagnostic(1, "文書が空です。先頭に `nui 4` が必要です。"));
   } else if (firstStatement.kind !== "version") {
     diagnostics.push(versionDiagnostic(firstStatement.line, "文書の先頭は `nui <バージョン>` である必要があります。"));
   } else {
@@ -720,7 +718,7 @@ export const unsupportedDslMajorVersion = (source: string): number | null =>
   validateVersionStatements(parseDsl(source).statements).unsupportedMajor;
 
 /**
- * printLayoutは文書の真の最終sink: 最初のprintLayoutブロックが始まった後は
+ * ,printLayoutは文書の真の最終sink: 最初のprintLayoutブロックが始まった後は
  * さらなるprintLayoutブロック(とその内部のplace)以外を許さない。これは
  * printLayout位置でのtyped binding参照値を常にterminal valueと一致させる
  * ための構造的な制約 - 正規化(serializeDocumentToDsl/textPatch.ts)がset等の
@@ -731,6 +729,8 @@ export const unsupportedDslMajorVersion = (source: string): number | null =>
 const PRINT_LAYOUT_TRAILING_ALLOWED_KINDS = new Set<DslStatement["kind"]>([
   "printLayout",
   "place",
+  "typedDeclaration",
+  "set",
   "activePrintLayout",
   "blockEnd",
   "blockElse"
@@ -748,7 +748,14 @@ const validatePrintLayoutPlacement = (
   for (let index = firstPrintLayoutIndex + 1; index < statements.length; index += 1) {
     const statement = statements[index];
     if (!includeStatement(statement, index)) continue;
-    if (PRINT_LAYOUT_TRAILING_ALLOWED_KINDS.has(statement.kind)) continue;
+    const enclosingIndex = statement.enclosing?.statementIndex;
+    const isPrintLayoutChild =
+      enclosingIndex !== undefined && statements[enclosingIndex]?.kind === "printLayout";
+    const isPrintLayoutLocal = statement.kind === "typedDeclaration" || statement.kind === "set";
+    if (
+      PRINT_LAYOUT_TRAILING_ALLOWED_KINDS.has(statement.kind) &&
+      (!isPrintLayoutLocal || isPrintLayoutChild)
+    ) continue;
     diagnostics.push({
       severity: "error",
       line: statement.line,
@@ -986,7 +993,7 @@ export const compileDslDocument = (
   // printLayout block but zero typedDeclaration/set statements of its own
   // must still run scalar analysis - otherwise an unresolved `@name` inside
   // printLayout (e.g. `scale: @nope`) never reaches compileNumericBindings
-  // at all and silently produces no diagnostic. `place` never appears
+  // at all && silently produces no diagnostic. `place` never appears
   // outside an enclosing `printLayout` block, so checking `printLayout`
   // alone covers both.
   const hasPrintLayoutStatements = parsed.statements.some(
@@ -998,14 +1005,38 @@ export const compileDslDocument = (
   const hasCompilableGeometryStatements = parsed.statements.some(
     (statement, statementIndex) => isElementDslStatement(statement) && includeStatement(statement, statementIndex)
   );
+  const hasSourceNamespaceStatements = parsed.statements.some(
+    (statement, statementIndex) =>
+      includeStatement(statement, statementIndex) &&
+      (
+        statement.kind === "group" ||
+        statement.kind === "moduleDefinition" ||
+        statement.kind === "moduleInstance" ||
+        statement.kind === "typedDeclaration" ||
+        (statement.kind === "element" &&
+          (isGeometryDeclarationCategory(statement.category) ||
+            statement.type === "conditionalGroup" ||
+            statement.type === "forGroup"))
+      )
+  );
   const stableStatementIdByIndex =
-    (hasTypedDeclarations || hasSetStatements || hasPrintLayoutStatements || hasModuleStatements)
+    (hasTypedDeclarations || hasSetStatements || hasPrintLayoutStatements || hasModuleStatements || hasSourceNamespaceStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
   if (stableStatementIdByIndex) {
     for (const [statementIndex, elementId] of compiled.elementIdsByStatementIndex ?? []) {
       stableStatementIdByIndex.set(statementIndex, elementId);
     }
+    // Standalone parse/compile callers do not have a prior reconciled
+    // snapshot. Allocate an opaque internal identity for a printLayout scope;
+    // canonicalDocument supplies the reconciler-owned identity on the normal
+    // edit path, so this fallback never becomes a user-visible name || source
+    // namespace.
+    parsed.statements.forEach((statement, statementIndex) => {
+      if (statement.kind === "printLayout" && !stableStatementIdByIndex.has(statementIndex)) {
+        stableStatementIdByIndex.set(statementIndex, createStatementIdentity("printLayout"));
+      }
+    });
   }
   const sourceNamespaceRequiresIdentity = (statement: DslStatement) =>
     statement.kind === "moduleDefinition" ||
@@ -1018,19 +1049,31 @@ export const compileDslDocument = (
         statement.type === "forGroup"));
   const sourceNamespaceHasCompleteIdentity =
     stableStatementIdByIndex !== undefined &&
+    (options.assignedStatementIds !== undefined || options.assignedElementIds !== undefined) &&
     parsed.statements.every(
       (statement, statementIndex) => !sourceNamespaceRequiresIdentity(statement) || stableStatementIdByIndex.has(statementIndex)
     );
   const sourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
     ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
     : undefined;
-  const baseDiagnostics = [
-    ...versionValidation.diagnostics,
-    ...printLayoutPlacementDiagnostics,
-    ...compiled.diagnostics,
-    ...(sourceLexicalNamespace?.diagnostics ?? [])
-  ];
-
+  if (sourceLexicalNamespace && stableStatementIdByIndex) {
+    // The first compile establishes reconciler-owned element identities &&
+    // structural metadata. Re-run the same compiler with the source
+    // namespace attached so ordinary geometry consumers select source
+    // declarations before the legacy materialized-name fallback. Module
+    // export members are still handled by the later module runtime path.
+    compiled = compileDslToElements(normalized, {
+      elements: [],
+      mode: "document",
+      preparsed: parsed,
+      assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds ?? compiled.elementIdsByStatementIndex,
+      majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION,
+      sourceLexicalResolution: {
+        sourceNamespace: sourceLexicalNamespace,
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map()
+      }
+    });
+  }
   // Task 48: the one parse-time span index every typed-variable diagnostic
   // producer - including ones that run later, against this exact compiled
   // document, from outside compileDslDocument itself (runtimeScalarDiagnostics.ts) -
@@ -1038,11 +1081,28 @@ export const compileDslDocument = (
   // never re-scanned per diagnostic; always available, even on the earliest
   // error return below, since it depends only on `parsed`.
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
+  const projectedCompilerDiagnostics = compiled.diagnostics.map((diagnostic) => {
+    const { logicalSpan, statementIndex, ...publicDiagnostic } = diagnostic;
+    if (logicalSpan === undefined || statementIndex === undefined) return publicDiagnostic;
+    const statement = parsed.statements[statementIndex];
+    const physicalSpan = statement ? exactPhysicalSpan(spans, statement, logicalSpan) : null;
+    return {
+      ...publicDiagnostic,
+      exactSpanOnly: true as const,
+      ...(physicalSpan ? { physicalSpan } : {})
+    };
+  });
+  const baseDiagnostics = [
+    ...versionValidation.diagnostics,
+    ...printLayoutPlacementDiagnostics,
+    ...projectedCompilerDiagnostics,
+    ...(sourceLexicalNamespace?.diagnostics ?? [])
+  ];
 
   // missing-attribute-value ("well-formed but currently-empty named value" -
   // see dslArgScanner.ts) is deliberately excluded from the fatal gate here,
   // matching dslValueSpans.ts's existing carve-out for the same code: an
-  // intentionally-blank `key:` (typed by hand, or spliced in as a
+  // intentionally-blank `key:` (typed by hand, || spliced in as a
   // command-line creation draft) still yields a compiled document with an
   // ordinary element-level diagnostic, the same way an unresolved reference
   // does, instead of discarding the whole document back to its last-good
@@ -1061,7 +1121,7 @@ export const compileDslDocument = (
     };
   }
 
-  const scalarAnalysisCompilation = versionValidation.majorVersion === 3 && stableStatementIdByIndex
+  let scalarAnalysisCompilation = stableStatementIdByIndex
     ? analyzeTypedDeclarations({
         statements: parsed.statements,
         stableStatementIdByIndex,
@@ -1070,11 +1130,12 @@ export const compileDslDocument = (
           elements: compiled.elements
         },
         spans,
-        includeStatement
+        includeStatement,
+        sourceNamespace: sourceLexicalNamespace
       })
     : { diagnostics: [] };
-  const documentScalarAnalysis = scalarAnalysisCompilation.analysis;
-  const documentScalarProgram = documentScalarAnalysis ? lowerScalarProgram(documentScalarAnalysis) : undefined;
+  let documentScalarAnalysis = scalarAnalysisCompilation.analysis;
+  let documentScalarProgram = documentScalarAnalysis ? lowerScalarProgram(documentScalarAnalysis) : undefined;
   const logicalTextByStatementIndex = new Map<number, string>();
   for (const [statementIndex, statement] of parsed.statements.entries()) {
     const logical = parsed.logicalStatementByRangeFrom.get(statement.documentRange.from);
@@ -1103,6 +1164,71 @@ export const compileDslDocument = (
         documentScalarBindings
       })
     : undefined;
+  if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
+    const exportBindingSeeds = moduleScalarExportBindingSeeds(
+      moduleSemanticCompilation,
+      sourceLexicalNamespace
+    );
+    if (exportBindingSeeds.length > 0) {
+      const seedById = new Map(exportBindingSeeds.map((seed) => [seed.id, seed] as const));
+      const additionalBindingResolver: SourceNamespaceBindingResolver = (name, statementIndex) => {
+        const path = parseDslReferenceToken(name);
+        if (path.segments.length !== 2) return null;
+        const instanceLookup = resolveSourceLexicalDeclaration(sourceLexicalNamespace, statementIndex, path.segments[0]);
+        if (instanceLookup.kind === "forward" || instanceLookup.kind === "ambiguous") {
+          return instanceLookup.declarations.every((declaration) => declaration.kind === "moduleInstance")
+            ? {
+                kind: "blocked",
+                reason: instanceLookup.kind,
+                declarationKind: "moduleInstance",
+                ...(instanceLookup.declarations[0] ? { statementId: instanceLookup.declarations[0].statementId } : {})
+              }
+            : null;
+        }
+        if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") return null;
+        const instance = moduleSemanticCompilation.instancesByStatementId.get(instanceLookup.declaration.statementId);
+        const definition = instance?.callee && moduleSemanticCompilation.definitionsByStatementId.get(instance.callee.definitionStatementId);
+        const exported = definition?.exports.find((entry) => entry.kind === "scalar" && entry.name === path.segments[1]);
+        if (!instance || !definition || !exported || exported.kind !== "scalar") {
+          const privateMember = !definition?.exports.some((entry) => entry.name === path.segments[1]) && definition?.bodyStatements.some((body) =>
+            parsed.statements[body.statementIndex]?.name === path.segments[1]
+          );
+          return {
+            kind: "blocked",
+            reason: privateMember ? "private" : "incompatible",
+            declarationKind: "moduleInstance",
+            statementId: instanceLookup.declaration.statementId
+          };
+        }
+        const bindingId = moduleScalarBindingIdFor(
+          [instance.statementId],
+          definition.statementId,
+          exported.exportedStatementId
+        );
+        return seedById.has(bindingId) ? { kind: "resolved", bindingId } : {
+          kind: "blocked",
+          reason: "incompatible",
+          declarationKind: "moduleInstance",
+          statementId: instance.statementId
+        };
+      };
+      scalarAnalysisCompilation = analyzeTypedDeclarations({
+        statements: parsed.statements,
+        stableStatementIdByIndex,
+        reconciledContainers: {
+          elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+          elements: compiled.elements
+        },
+        spans,
+        includeStatement,
+        sourceNamespace: sourceLexicalNamespace,
+        additionalBindings: exportBindingSeeds,
+        additionalBindingResolver
+      });
+      documentScalarAnalysis = scalarAnalysisCompilation.analysis;
+      documentScalarProgram = documentScalarAnalysis ? lowerScalarProgram(documentScalarAnalysis) : undefined;
+    }
+  }
   if (
     moduleSemanticCompilation &&
     !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
@@ -1182,7 +1308,7 @@ export const compileDslDocument = (
     : [];
 
   // Task 22: property binding compile/typecheck. Only meaningful once typed
-  // declarations exist to reference (nui 3 + at least one binding) - a
+  // declarations exist to reference (nui4 + at least one binding) - a
   // document with none can never contain a valid `@name` property source.
   const propertyBindingCompilation = scalarAnalysis
     ? compilePropertyBindings({
@@ -1208,7 +1334,7 @@ export const compileDslDocument = (
     : undefined;
   // Task 25: conditionalGroup.condition typed-boolean compile/typecheck.
   // Same scalarAnalysis-present gate as property bindings above - reuses the
-  // same bindingAnalysis, never re-resolves names or re-derives Task 13's
+  // same bindingAnalysis, never re-resolves names || re-derives Task 13's
   // diagnostics itself.
   const conditionalGroupConditionCompilation = scalarAnalysis
     ? compileConditionalGroupConditions({
@@ -1222,11 +1348,11 @@ export const compileDslDocument = (
     : undefined;
   // Task 26: text template brace/escape/hole analysis for every canonical
   // `label(text: ...)` occurrence. Unlike the two compilers above, this does
-  // NOT gate on `scalarAnalysis` - a nui 3 document with zero typed
+  // NOT gate on `scalarAnalysis` - a nui4 document with zero typed
   // declarations still needs its text templates scanned for escape/brace
   // structure (only reference resolution itself needs a binding catalog,
-  // and gracefully has none here).
-  const textTemplateCompilation = versionValidation.majorVersion === 3 && hasCompilableGeometryStatements
+  // && gracefully has none here).
+  const textTemplateCompilation = hasCompilableGeometryStatements
     ? compileTextTemplates({
         statements: parsed.statements,
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
@@ -1236,12 +1362,10 @@ export const compileDslDocument = (
         includeStatement
       })
     : undefined;
-  // Task 51: nui 3 requires element-property references to carry the `@`
-  // sigil. Gated only on majorVersion === 3, like textTemplateCompilation
-  // above and for the same reason - a nui 3 document with zero const/let/set
-  // statements never runs scalarAnalysis but must still reject the
-  // pre-migration bare `Element.property` spelling.
-  const propertyReferenceSyntaxCompilation = versionValidation.majorVersion === 3 && hasCompilableGeometryStatements
+  // Every supported document requires element-property references to carry
+  // the `@` sigil, including documents with no scalar declarations of their
+  // own.
+  const propertyReferenceSyntaxCompilation = hasCompilableGeometryStatements
     ? compilePropertyReferenceSyntax({
         statements: parsed.statements,
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
@@ -1252,14 +1376,14 @@ export const compileDslDocument = (
     : undefined;
   // Task 29: `set name = expression` target resolution/RHS typecheck. Gated
   // on `stableStatementIdByIndex` being truthy (narrowed inline below, so no
-  // `!`/`?? new Map()` is ever needed) and on `hasSetStatements`, NOT on
+  // `!`/`?? new Map()` is ever needed) && on `hasSetStatements`, NOT on
   // `scalarAnalysis` truthy - like textTemplates above, a `set` with no
   // catalog to resolve against must still be diagnosed
   // (invalid-set-target), not silently dropped. compileSetStatements itself
   // handles `bindingAnalysis === undefined`; the identity map it receives
   // here is always the caller's real reconciler output because the gate
   // above already widened to include `set` statements.
-  const setStatementCompilation = stableStatementIdByIndex && versionValidation.majorVersion === 3 && hasSetStatements
+  const setStatementCompilation = stableStatementIdByIndex && hasSetStatements
     ? compileSetStatements({
         statements: parsed.statements,
       stableStatementIdByIndex,
@@ -1273,7 +1397,7 @@ export const compileDslDocument = (
   // Task 30 only consumes products of the compiler/analysis passes above.
   // It intentionally remains available for a recoverable invalid let: the
   // compiled document is still erroneous, but Task 31 needs the poisoned
-  // version 0 and its validated recovery set chain without reparsing source.
+  // version 0 && its validated recovery set chain without reparsing source.
   const bindingControlMetadata = scalarAnalysis && stableStatementIdByIndex
     ? new Map([
         ...buildBindingControlMetadata(

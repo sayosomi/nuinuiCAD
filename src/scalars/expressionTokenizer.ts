@@ -1,17 +1,17 @@
 // Flat, single-pass tokenizer for typed scalar expressions. Handles
-// operators, parentheses, and the `@name` reference sigil itself; delegates
+// operators, parentheses, && the `@qualifiedName` reference sigil itself; delegates
 // every literal-shaped token (quote/digit/identifier start) to
 // scanScalarLiteral (Task 09) so literal classification lives in exactly one
-// place. See docs/typed-variables/tasks/14-ts-expression-parser.md and
+// place. See docs/typed-variables/tasks/14-ts-expression-parser.md &&
 // docs/typed-variables/tasks/09-scalar-literal-scanner.md.
 //
-// Stops at the first error (its own, or scanScalarLiteral's) rather than
+// Stops at the first error (its own, || scanScalarLiteral's) rather than
 // attempting recovery - matches expressionParser.ts's exclusive
-// success/failure contract, and guarantees termination on malformed input.
+// success/failure contract, && guarantees termination on malformed input.
 
-import { scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
+import { isScalarIdentifierCharacterAt, scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
 import type { ScalarExpressionIssueCode } from "./expressionAst";
-import { readExpressionReferenceHead } from "./expressionReferenceGrammar";
+import { parseDslSourceReferenceAt } from "../dsl/dslReferenceTokens";
 
 export type ScalarExpressionOperatorSymbol =
   | "||"
@@ -47,14 +47,35 @@ export interface ScalarExpressionTokenizeResult {
   readonly error: ScalarExpressionTokenizeError | null;
 }
 
-// Checked before 1-char operators so `&&`/`||`/`==`/`!=`/`>=`/`<=` never
+// Checked before 1-char operators so ` && `/` || `/`==`/`!=`/`>=`/`<=` never
 // tokenize as two separate single-char operators.
 const TWO_CHAR_OPERATORS = new Set(["&&", "||", "==", "!=", ">=", "<="]);
 const ONE_CHAR_OPERATORS = new Set(["+", "-", "*", "/", "<", ">", "!"]);
-
-const PROPERTY_PATH_PATTERN = /^[^\s()+*/<>!=&|]*/;
+const WORD_OPERATORS: Readonly<Record<string, ScalarExpressionOperatorSymbol>> = {
+  and: "&&",
+  or: "||",
+  not: "!"
+};
 
 const isWhitespace = (char: string) => char === " " || char === "\t" || char === "\n" || char === "\r";
+
+const wordOperatorAt = (source: string, index: number, start: number, end: number): string | undefined => {
+  return Object.keys(WORD_OPERATORS).find((word) => {
+    if (!source.startsWith(word, index)) return false;
+    const previousIsIdentifier = index > start && isScalarIdentifierCharacterAt(source, index - 1);
+    const nextIndex = index + word.length;
+    const nextIsIdentifier = nextIndex < end && isScalarIdentifierCharacterAt(source, nextIndex);
+    return !previousIsIdentifier && !nextIsIdentifier;
+  });
+};
+
+/** Shared word-operator scan for expression-shape classification. */
+export const containsScalarWordOperator = (source: string): boolean => {
+  for (let index = 0; index < source.length; index += 1) {
+    if (wordOperatorAt(source, index, 0, source.length)) return true;
+  }
+  return false;
+};
 
 const remapLiteralIssueCode = (issueCode: string): ScalarExpressionIssueCode =>
   issueCode === "invalid-literal-token" ? "unexpected-token" : (issueCode as ScalarExpressionIssueCode);
@@ -100,58 +121,43 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
       continue;
     }
 
-    if (char === "@") {
-      const nameStart = index + 1;
-      const head = readExpressionReferenceHead(source, nameStart, end);
-      if (!head) {
-        return {
-          tokens,
-          error: {
-            code: "unexpected-token",
-            span: { start: index, end: index + 1 },
-            message: "「@」の後にbinding名が必要です。"
-          }
-        };
-      }
-      if (head.kind === "invalidScoped") {
-        return {
-          tokens,
-          error: {
-            code: "unexpected-token",
-            span: { start: head.invalidAt, end: head.invalidAt + 1 },
-            message: "scoped element name の各 segment は identifier である必要があります。"
-          }
-        };
-      }
-      const nameSpan: ScalarSpan = { start: nameStart, end: head.end };
-      if (head.kind === "scoped" && source[nameSpan.end] !== ".") {
-        const separatorAt = nameStart + head.name.indexOf("::");
-        return {
-          tokens,
-          error: {
-            code: "unexpected-token",
-            span: { start: separatorAt, end: separatorAt + 2 },
-            message: "scoped element name は geometry property の参照でのみ使用できます。"
-          }
-        };
-      }
-      if (source[nameSpan.end] === ".") {
-        const propertyMatch = PROPERTY_PATH_PATTERN.exec(source.slice(nameSpan.end + 1, end));
-        const propertyPath = propertyMatch?.[0] ?? "";
-        if (!propertyPath) {
-          return { tokens, error: { code: "unexpected-token", span: { start: index, end: nameSpan.end + 1 }, message: "「.」の後にプロパティ名が必要です。" } };
-        }
-        const propertySpan: ScalarSpan = { start: nameSpan.end + 1, end: nameSpan.end + 1 + propertyPath.length };
-        tokens.push({ kind: "geometryProperty", elementName: head.name, elementNameSpan: nameSpan, property: propertyPath, propertySpan, span: { start: index, end: propertySpan.end } });
-        index = propertySpan.end;
-        continue;
-      }
-      tokens.push({ kind: "reference", name: head.name, nameSpan, span: { start: index, end: nameSpan.end } });
-      index = nameSpan.end;
+    const wordOperator = wordOperatorAt(source, index, span.start, end);
+    if (wordOperator) {
+      tokens.push({
+        kind: "operator",
+        value: WORD_OPERATORS[wordOperator],
+        span: { start: index, end: index + wordOperator.length }
+      });
+      index += wordOperator.length;
       continue;
     }
 
-    // Everything else (quote, digit, `.digit`, identifier, or any
+    if (char === "@") {
+      const parsed = parseDslSourceReferenceAt(source, index, end);
+      if (parsed.kind === "invalid") {
+        return {
+          tokens,
+          error: {
+            code: "unexpected-token",
+            span: parsed.error.range,
+            message: parsed.error.message
+          }
+        };
+      }
+      const reference = parsed.reference;
+      const nameSpan: ScalarSpan = reference.pathRange;
+      if (reference.property && reference.propertyRange) {
+        const propertySpan: ScalarSpan = reference.propertyRange;
+        tokens.push({ kind: "geometryProperty", elementName: reference.pathText, elementNameSpan: nameSpan, property: reference.property, propertySpan, span: reference.fullRange });
+        index = parsed.end;
+        continue;
+      }
+      tokens.push({ kind: "reference", name: reference.pathText, nameSpan, span: reference.fullRange });
+      index = parsed.end;
+      continue;
+    }
+
+    // Everything else (quote, digit, `.digit`, identifier, || any
     // unrecognized character) is scanScalarLiteral's call to make - it
     // already owns the "is this the start of a valid literal" decision.
     const result = scanScalarLiteral(source, { start: index, end });

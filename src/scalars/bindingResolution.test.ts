@@ -16,7 +16,7 @@ const catalogFor = (source: string) => {
   expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   const stableStatementIdByIndex = new Map(parsed.statements.map((_, index) => [index, `stable-${index}`]));
   const scopeIndex = buildLexicalScopeIndex(parsed.statements, (index) => stableStatementIdByIndex.get(index)!);
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
   expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   const adapter = buildDslBindingAdapterSeeds({
     statements: parsed.statements,
@@ -33,7 +33,7 @@ const catalogFor = (source: string) => {
 };
 
 /** Neutral local-resolution owner: groups a flat list of element-local
- * bindings by owner/name and builds the range index, entirely independent of
+ * bindings by owner/name && builds the range index, entirely independent of
  * BindingCatalog (see elementLocalRangeIndex.ts's module comment). */
 const indexFor = (locals: readonly ElementLocalBinding[]): ElementLocalRangeIndex => {
   const byOwnerAndName = new Map<string, Map<string, ElementLocalBinding[]>>();
@@ -47,9 +47,9 @@ const indexFor = (locals: readonly ElementLocalBinding[]): ElementLocalRangeInde
   return buildElementLocalRangeIndex(byOwnerAndName);
 };
 
-describe("nui 3 binding resolution", () => {
+describe("nui 4 binding resolution", () => {
   it("resolves an earlier typed declaration and reports a later declaration as forward", () => {
-    const catalog = catalogFor(["nui 3", "const earlier: number = 1", "const later: number = 2"].join("\n"));
+    const catalog = catalogFor(["nui 4", "const earlier: number = 1", "const later: number = 2"].join("\n"));
     expect(resolveBindingReferenceForTests(catalog, "earlier", { scopeId: "root", statementIndex: 2 }))
       .toMatchObject({ kind: "resolved", binding: { name: "earlier", kind: "typed" } });
     expect(resolveBindingReferenceForTests(catalog, "later", { scopeId: "root", statementIndex: 1 }))
@@ -58,8 +58,8 @@ describe("nui 3 binding resolution", () => {
 
   it("keeps the forGroup iteration slot in its lexical scope", () => {
     const catalog = catalogFor([
-      "nui 3",
-      "for Loop (i, from: 0, count: 2) {",
+      "nui 4",
+      "for i in range(from: 0, count: 2) {",
       "  const step: number = @i",
       "}"
     ].join("\n"));
@@ -68,14 +68,14 @@ describe("nui 3 binding resolution", () => {
   });
 });
 
-describe("nui 3 element-local binding resolution (elementLocalRangeIndex.ts, outside BindingCatalog)", () => {
+describe("nui 4 element-local binding resolution (elementLocalRangeIndex.ts, outside BindingCatalog)", () => {
   it("gives element-local precedence over iteration, and iteration precedence over a document typed binding of the same name", () => {
     const local: ElementLocalBinding = { id: "binding:local:point-1:i", name: "i", ownerId: "point-1", startOrder: 0, endOrder: Number.MAX_SAFE_INTEGER };
     const index = indexFor([local]);
     const catalog = catalogFor([
-      "nui 3",
+      "nui 4",
       "const i: number = 99",
-      "for Loop (i, from: 0, count: 2) {",
+      "for i in range(from: 0, count: 2) {",
       "  const body: number = 0",
       "}",
       "const after: number = 0"
@@ -104,9 +104,9 @@ describe("nui 3 element-local binding resolution (elementLocalRangeIndex.ts, out
     ];
     const index = indexFor(locals);
     const catalog = catalogFor([
-      "nui 3",
+      "nui 4",
       "const i: number = 99",
-      "for Loop (i, from: 0, count: 2) {",
+      "for i in range(from: 0, count: 2) {",
       "  const body: number = 0",
       "}"
     ].join("\n"));
@@ -128,7 +128,7 @@ describe("nui 3 element-local binding resolution (elementLocalRangeIndex.ts, out
     const pointOne: ElementLocalBinding = { id: "binding:local:point-1:i", name: "i", ownerId: "point-1", startOrder: 0, endOrder: Number.MAX_SAFE_INTEGER };
     const pointTwo: ElementLocalBinding = { id: "binding:local:point-2:i", name: "i", ownerId: "point-2", startOrder: 0, endOrder: Number.MAX_SAFE_INTEGER };
     const index = indexFor([pointOne, pointTwo]);
-    const catalog = catalogFor(["nui 3", "const document: number = 0"].join("\n"));
+    const catalog = catalogFor(["nui 4", "const document: number = 0"].join("\n"));
 
     expect(resolveBindingReferenceForTests(catalog, "i", {
       scopeId: "root",
@@ -144,9 +144,9 @@ describe("nui 3 element-local binding resolution (elementLocalRangeIndex.ts, out
 
   it("joins non-overlapping element-local ranges without inspecting invisible locals per request", () => {
     const count = 64;
-    const source = ["nui 3", ...Array.from({ length: count }, (_, index) => `const Use${index}: number = @x`)].join("\n");
+    const source = ["nui 4", ...Array.from({ length: count }, (_, index) => `const Use${index}: number = @x`)].join("\n");
     const locals: ElementLocalBinding[] = Array.from({ length: count }, (_, index) => ({
-      id: `binding:local:owner:x:${index}`,
+      id: `,binding:,local:,owner:,x:${index}`,
       name: "x",
       ownerId: "owner",
       startOrder: index,
@@ -172,13 +172,13 @@ describe("nui 3 element-local binding resolution (elementLocalRangeIndex.ts, out
     expect(trace.emittedCandidateCount).toBe(count);
   });
 
-  it("fails fast on element-local range and site orders outside the safe-integer contract", () => {
+  it("fails fast on element-local range && site orders outside the safe-integer contract", () => {
     const invalidLocal: ElementLocalBinding = { id: "binding:local:owner:x", name: "x", ownerId: "owner", startOrder: 0.5, endOrder: 1 };
     expect(() => indexFor([invalidLocal])).toThrow(/non-negative safe integer/);
 
     const validLocal: ElementLocalBinding = { ...invalidLocal, startOrder: 0 };
     const index = indexFor([validLocal]);
-    const catalog = catalogFor(["nui 3", "const use: number = @x"].join("\n"));
+    const catalog = catalogFor(["nui 4", "const use: number = @x"].join("\n"));
     expect(() => resolveInitializerReferences(catalog, [{
       fromBindingId: "binding:stable-1",
       occurrenceIndex: 0,

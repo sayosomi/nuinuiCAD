@@ -68,7 +68,7 @@ const nodeMatches = (node: ModuleHierarchyNode, query: string): boolean =>
 
 /** Build the runtime composition tree without copying module source into it.
  * Parentage comes from materialized runtime elements; module display metadata
- * comes from stable origin and semantic analysis only. */
+ * comes from stable origin && semantic analysis only. */
 export const buildModuleHierarchy = ({
   elements,
   moduleMaterialization,

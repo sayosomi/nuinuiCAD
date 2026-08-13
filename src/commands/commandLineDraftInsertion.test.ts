@@ -37,7 +37,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
   };
 
   it("inserts a fully-blank segment line as a draft skeleton, in one undo entry", () => {
-    useCadDocumentStore.getState().commitText("nui 3", "test");
+    useCadDocumentStore.getState().commitText("nui 4", "test");
     const pastBefore = useCadDocumentStore.getState().past.length;
 
     expect(startAnchored("line")).toBe(true);
@@ -51,7 +51,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     expect(document.sourceText).toContain([
       "line = segment(",
       "  start: ,",
-      "  end: ",
+      "  end: ,",
       ")"
     ].join("\n"));
     // Nothing compiles into an element for a wholly blank statement, so the
@@ -60,7 +60,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
   });
 
   it("renders a blank lineReferenceList as `sources: `, never `sources: []`, end to end", () => {
-    useCadDocumentStore.getState().commitText("nui 3", "test");
+    useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startAnchored("offsetLine")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true); // sources
     expect(submitCommandLineInput("")).toBe(true); // distance
@@ -73,7 +73,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
   });
 
   it("keeps a declared numeric default even inside an otherwise-blank draft", () => {
-    useCadDocumentStore.getState().commitText("nui 3", "test");
+    useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startAnchored("divisionPoint")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true); // startPoint - blank
     expect(submitCommandLineInput("")).toBe(true); // endPoint - blank
@@ -90,7 +90,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
   });
 
   it("does not block confirmation on an unresolved value, and commits the raw expression as-is", () => {
-    useCadDocumentStore.getState().commitText("nui 3", "test");
+    useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startAnchored("freePoint")).toBe(true);
     expect(submitCommandLineInput("@doesNotExist + 5")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true); // y - blank
@@ -101,7 +101,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
   });
 
   it("reports diagnostics for the incomplete statement through the normal compile pipeline", () => {
-    useCadDocumentStore.getState().commitText("nui 3", "test");
+    useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startAnchored("line")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true);
@@ -113,7 +113,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
 
   it("moves Source Editor focus to the end of the inserted draft, without touching Canvas selection", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n"),
+      ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"),
       "test"
     );
     const pointA = useCadDocumentStore.getState().elements[0]!;
@@ -138,7 +138,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     expect(focusSourceEditorAtLineEnd).toHaveBeenCalledTimes(1);
     const calledLine = focusSourceEditorAtLineEnd.mock.calls[0]![0] as number;
     const lines = useCadDocumentStore.getState().sourceText.split("\n");
-    expect(lines[0]).toBe("nui 3");
+    expect(lines[0]).toBe("nui 4");
     expect(lines[1]).toBe("point A = coordinate(x: 0, y: 0)");
     expect(lines[calledLine - 1]).toBe(")");
 
@@ -147,7 +147,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
 
   it("indents a blank-completing draft one level inside an existing group", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n"),
+      ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n"),
       "test"
     );
     const group = useCadDocumentStore.getState().elements.find((element) => element.type === "group")!;
@@ -173,13 +173,13 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     expect(sourceText).toContain([
       "  line = segment(",
       "    start: ,",
-      "    end: ",
+      "    end: ,",
       "  )"
     ].join("\n"));
   });
 
   it("blocks a blank-completing draft when there is no known Source Editor insertion line", () => {
-    useCadDocumentStore.getState().commitText("nui 3", "test");
+    useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startCommandLineCreation("line")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true);
@@ -192,7 +192,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
   });
 
   it("still commits a fully-filled creation without a known Source Editor insertion line (regression)", () => {
-    useCadDocumentStore.getState().commitText("nui 3", "test");
+    useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startCommandLineCreation("freePoint")).toBe(true);
     submitCommandLineInput("1");
     submitCommandLineInput("2");

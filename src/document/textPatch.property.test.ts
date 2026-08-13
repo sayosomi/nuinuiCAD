@@ -2,7 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
-import { isElementDslStatement, parseDsl } from "../dsl/dslParser";
+import { parseDsl } from "../dsl/dslParser";
 import type { CadElementType } from "../types/geometry";
 import {
   applyRandomOp,
@@ -104,6 +104,7 @@ describe("textPatch プロパティ", () => {
               oldStatements: compiled.statements,
               oldLines: compiled.sourceLines,
               oldElementIds: compiled.statementMap!.elementIdByStatementIndex,
+              oldStatementIds: compiled.statementMap!.statementIdByStatementIndex,
               newStatements: parsedNew.statements,
               newLines: normalized.split("\n")
             },
@@ -175,6 +176,7 @@ describe("statementReconciler プロパティ(補助)", () => {
             oldStatements: compiled.statements,
             oldLines: compiled.sourceLines,
             oldElementIds: compiled.statementMap!.elementIdByStatementIndex,
+            oldStatementIds: compiled.statementMap!.statementIdByStatementIndex,
             newStatements: parsedNew.statements,
             newLines: generated.source.split("\n")
           },
@@ -182,8 +184,7 @@ describe("statementReconciler プロパティ(補助)", () => {
         );
         expect(result.createdIds.size).toBe(0);
         expect(result.vanishedIds).toEqual([]);
-        const elementCount = parsedNew.statements.filter(isElementDslStatement).length;
-        expect(result.inheritedCount).toBe(elementCount);
+        expect(result.inheritedCount).toBe(compiled.statementMap!.statementIdByStatementIndex!.size);
         for (const stage of result.stageByNewStatementIndex.values()) expect(stage).toBe(1);
       }),
       FC_OPTIONS

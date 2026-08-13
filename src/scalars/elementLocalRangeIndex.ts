@@ -1,8 +1,8 @@
 // Neutral local-resolution owner for element-local numeric variables
 // (`vars: [...]`). This module is deliberately independent of BindingCatalog:
 // element-local variables are an element-owned local numeric namespace, never
-// document-wide bindings, and must never re-enter the document/iteration
-// catalog lanes those share (see docs/typed-variables/decisions.md D05 and
+// document-wide bindings, && must never re-enter the document/iteration
+// catalog lanes those share (see docs/typed-variables/decisions.md D05 &&
 // the Task 52 legacy-removal manifest's explicit "outside the document
 // binding catalog" contract for this namespace).
 import type { CadElement } from "../types/geometry";
@@ -35,9 +35,9 @@ export type ElementLocalRangeQuery = {
   order: number;
 };
 
-/** Source-order name lookup shared by source semantic analysis and the
+/** Source-order name lookup shared by source semantic analysis && the
  * runtime-owned local namespace. The caller chooses how many entries are
- * visible; no runtime identity or BindingCatalog entry is involved. */
+ * visible; no runtime identity || BindingCatalog entry is involved. */
 export type ElementLocalVariableNameEntry = {
   name: string;
   variableIndex: number;

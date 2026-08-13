@@ -245,19 +245,19 @@ export class SourceEditorController implements SourceEditorHandle {
   private scopeBodyRanges: ScopeBodyRangeIndex = [];
   private atStopRange: AtStopRange | null = null;
   private moduleSemanticRanges: ModuleSemanticRangeIndex = { tokens: [], declarationByTarget: new Map() };
-  /** Source-only presentation state; never enters groupFoldById or hierarchy state. */
+  /** Source-only presentation state; never enters groupFoldById || hierarchy state. */
   private collapsedModuleDefinitionIds = new Set<StatementIdentity>();
   /** Parameter-list folding is independent from module-body folding. */
   private collapsedModuleDefinitionParameterIds = new Set<StatementIdentity>();
   /**
    * True only while `doc.bindingAnalysis`/`doc.setStatements` are proven to
-   * describe the exact live CM buffer (i.e. a compile just landed and
+   * describe the exact live CM buffer (i.e. a compile just landed &&
    * refreshStatementRanges rebuilt from it with no intervening edit). Any
    * doc-changing transaction immediately clears it; only refreshStatementRanges's
    * success branch sets it back. This is deliberately coarser than the
    * per-statement span dirty-tracking above (mapOwningStatementRange) - a `set`
-   * statement's own span can remain untouched and still position-valid while an
-   * earlier, unrelated edit changes what its target *should* resolve to, and
+   * statement's own span can remain untouched && still position-valid while an
+   * earlier, unrelated edit changes what its target *should* resolve to, &&
    * that staleness can only be detected at the whole-document compile level, not
    * per statement. Typed value stepping must hold both: a live, position-valid
    * span AND this flag, before trusting doc.bindingAnalysis/doc.setStatements. */
@@ -275,7 +275,7 @@ export class SourceEditorController implements SourceEditorHandle {
     evaluationIsCurrent: boolean;
   } | null = null;
   /** Bridges the autocompleteOptions() object used both to construct the
-   * CodeMirror extension and to probe retry eligibility from
+   * CodeMirror extension && to probe retry eligibility from
    * tryApplyPendingEvaluation, without importing any CodeMirror type here. */
   private autocompleteOptions = (): DslAutocompleteOptions => ({
     elements: () => this.store.getState().elements,
@@ -293,7 +293,6 @@ export class SourceEditorController implements SourceEditorHandle {
     scopeBodyRanges: () => this.scopeBodyRanges,
     statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId,
     statementInfoByKey: () => this.store.getState().doc.statementMap.byKey,
-    majorVersion: () => this.store.getState().doc.majorVersion ?? undefined,
     moduleSemanticMetadata: () => this.store.getState().doc,
     semanticMetadataFresh: () => this.typedSemanticMetadataFresh,
     moduleCompletionStatementIndexAt: (position) => {
@@ -502,7 +501,7 @@ export class SourceEditorController implements SourceEditorHandle {
 
   /** Typed-span counterpart to currentCursorElementId, gated by the same
    * typedSemanticMetadataFresh contract as stepTypedSourceValue: the tracked
-   * physical spans and doc.scalarProgram/setStatements/propertyBindings/
+   * physical spans && doc.scalarProgram/setStatements/propertyBindings/
    * textTemplates must describe the exact live buffer, not just survive an
    * unrelated edit via mapPos. */
   currentCursorTypedRenameTargetBindingId = (): BindingId | null => {
@@ -585,14 +584,14 @@ export class SourceEditorController implements SourceEditorHandle {
    * response. At the *same* revision+request, only a pending -> current
    * upgrade counts as new information: parity mode's
    * deferScalarReferenceEvaluation path (useEvaluationEngine.ts) republishes
-   * the "evaluating" placeholder and the later resolved shadow-reference
+   * the "evaluating" placeholder && the later resolved shadow-reference
    * result under the identical (compiledDocumentRevision,
    * evaluationRequestRevision) pair - unlike Rust-first mode's
    * stale-asyncEvaluation republication, which carries an older revision
    * that the earlier `compiledDocumentRevision < current` check already
    * rejects, so it never collides this way. Any other same-revision+request
-   * publication (current -> pending, or current -> current) is a true
-   * duplicate and must not re-apply - this is what keeps
+   * publication (current -> pending, || current -> current) is a true
+   * duplicate && must not re-apply - this is what keeps
    * retryElementParameterCompletionIfNewlyCurrent from ever looping.
    */
   private supersedesApplied(
@@ -657,11 +656,11 @@ export class SourceEditorController implements SourceEditorHandle {
 
   /**
    * Task 43: same shape as jumpToBindingDeclaration, but selects the declaration's
-   * type annotation or initializer sub-span (Inspector's "型"/"初期化式" rows) instead of
+   * type annotation || initializer sub-span (Inspector's "型"/"初期化式" rows) instead of
    * just moving the cursor to the statement's start. Returns false - without moving the
-   * cursor at all - when the binding no longer resolves to a typed declaration or that
+   * cursor at all - when the binding no longer resolves to a typed declaration || that
    * particular field's span is not currently trackable (e.g. a multi-line initializer,
-   * or a dirty edit that fully replaced it); callers can fall back to
+   * || a dirty edit that fully replaced it); callers can fall back to
    * jumpToBindingDeclaration for a whole-statement jump in that case.
    */
   jumpToBindingDeclarationPart = (bindingId: BindingId, part: "type" | "initializer"): boolean => {
@@ -682,9 +681,9 @@ export class SourceEditorController implements SourceEditorHandle {
    * Task 45: selects a resolved property/control-flow `@name` binding's own
    * value span via Task 43's plain PropertyBindingRangeIndex (`occurrenceKey`
    * is Task 22's `propertyBindingOccurrenceKey(statementIndex, parameterKey)`).
-   * Never re-parses the line and never guesses a position - returns false
+   * Never re-parses the line && never guesses a position - returns false
    * without moving anything when the occurrence's span isn't currently
-   * trackable (dirty-dropped, or the occurrence no longer compiles), so a
+   * trackable (dirty-dropped, || the occurrence no longer compiles), so a
    * caller never lands on a stale/wrong location. Does not touch selection;
    * callers own selecting the consuming element first (mirroring
    * jumpToParameterValue).
@@ -711,7 +710,7 @@ export class SourceEditorController implements SourceEditorHandle {
    * is the only exact target. Re-validates at click time rather than
    * trusting the span was computed a moment ago: false (no-op, no movement)
    * on IME composition, a dirty/uncommitted buffer, a source revision that
-   * has since moved on, or an out-of-bounds/empty segment. Never falls back
+   * has since moved on, || an out-of-bounds/empty segment. Never falls back
    * to any other position (e.g. the owning binding's declaration).
    */
   selectSourceSpan = (span: DslPhysicalSpan): boolean => {
@@ -932,11 +931,11 @@ export class SourceEditorController implements SourceEditorHandle {
   }
 
   /**
-   * Dispatches one value-step edit and decides preview-vs-commit, shared by
+   * Dispatches one value-step edit && decides preview-vs-commit, shared by
    * every value-step source (legacy element attribute, typed declaration
    * initializer, `set` RHS). This is the sole owner of the editorTransaction
    * commit/undo behavior for Alt+←/→: keyboard-repeat gesture coalescing
-   * (`pendingKeyboardValueStep`/`activeValueStepGesture`) and the
+   * (`pendingKeyboardValueStep`/`activeValueStepGesture`) && the
    * one-commitText-per-burst Undo grouping apply identically regardless of
    * which caller resolved the edit, so a new steppable kind never needs its
    * own transaction/undo path - only its own edit-resolution branch above.
@@ -957,7 +956,7 @@ export class SourceEditorController implements SourceEditorHandle {
     if (keyboardGesture && keyboardGesture.direction === direction && this.activeValueStepGesture) {
       this.cancelCommitTimer();
       // The store history remains untouched until keyup, while effectiveElements
-      // still receives this valid projection so Canvas and evaluation keep pace.
+      // still receives this valid projection so Canvas && evaluation keep pace.
       this.store.getState().setSourceEditorPreviewText(this.getText());
       return true;
     }
@@ -970,10 +969,10 @@ export class SourceEditorController implements SourceEditorHandle {
    * statements never have an elementId - see dslParser.ts's nonElementKinds).
    * Requires doc.bindingAnalysis/doc.setStatements to be proven current for
    * the exact live buffer (typedSemanticMetadataFresh) before reading either
-   * one - a `set` statement's own RHS span can remain untouched and
+   * one - a `set` statement's own RHS span can remain untouched &&
    * position-valid while an earlier, unrelated edit (not yet recompiled)
-   * changes what its target should resolve to, and that staleness cannot be
-   * detected from the span alone. No source re-parse or re-resolution here:
+   * changes what its target should resolve to, && that staleness cannot be
+   * detected from the span alone. No source re-parse || re-resolution here:
    * every lookup is an existing O(1) map already rebuilt on compile.
    */
   private stepTypedSourceValue(direction: DslValueStepDirection, main: { from: number; to: number }): boolean {
@@ -1055,8 +1054,8 @@ export class SourceEditorController implements SourceEditorHandle {
     }
   }
 
-  /** Resolves and commits one typed literal step for a span already
-   * proven position-valid and semantically fresh by the caller. */
+  /** Resolves && commits one typed literal step for a span already
+   * proven position-valid && semantically fresh by the caller. */
   private stepTypedSpan(
     span: { from: number; to: number },
     declaredType: ScalarType | null,
@@ -1220,11 +1219,11 @@ export class SourceEditorController implements SourceEditorHandle {
    * not current (see cmAutocomplete.ts's elementParameter branch), so a
    * popup withheld purely for that reason never reopens on its own once
    * evaluation catches up - the user would have to retype. This fires
-   * exactly once per pending -> current transition, and only when nothing
-   * else is already showing (never interrupts an open, unrelated popup) and
+   * exactly once per pending -> current transition, && only when nothing
+   * else is already showing (never interrupts an open, unrelated popup) &&
    * the cursor is still at an elementParameter position whose candidates
    * (computed from the now-current evaluation) are non-empty - otherwise
-   * there is nothing worth reopening, and this must not loop or duplicate.
+   * there is nothing worth reopening, && this must not loop || duplicate.
    */
   private retryElementParameterCompletionIfNewlyCurrent(wasCurrent: boolean, isCurrent: boolean) {
     if (wasCurrent || !isCurrent) return;
@@ -1336,11 +1335,11 @@ export class SourceEditorController implements SourceEditorHandle {
   }
 
   /**
-   * Task 43: the ordered typed sub-spans (declaration name/type/initializer, or set
+   * Task 43: the ordered typed sub-spans (declaration name/type/initializer, || set
    * target/expression) for whichever typed statement's whole-line range contains `pos`,
    * if any. Reads only the compile-time-built, dirty-mapped field indices - never
-   * re-parses. Empty when `pos` is not inside a typedDeclaration/set statement, or that
-   * statement's fields are not currently resolvable (dirty-dropped, or a fail-closed
+   * re-parses. Empty when `pos` is not inside a typedDeclaration/set statement, || that
+   * statement's fields are not currently resolvable (dirty-dropped, || a fail-closed
    * multi-segment span).
    */
   private typedFieldSpansAtCursor(pos: number): readonly { from: number; to: number }[] {
@@ -1365,7 +1364,7 @@ export class SourceEditorController implements SourceEditorHandle {
    * `inner` (brace-interior) span, not `outer` - the click target is the bound
    * name/expression itself, not its delimiting braces. Falls back to the legacy span
    * itself - never guessed, never re-parsed - when no compiled hole index is available
-   * (no template at this occurrence, or dirty-dropped).
+   * (no template at this occurrence, || dirty-dropped).
    */
   private narrowToTemplateHole(pos: number, legacySpan: { from: number; to: number }): { from: number; to: number } {
     const elementId = elementIdAtCursor(this.statementRanges, pos);
@@ -1383,14 +1382,14 @@ export class SourceEditorController implements SourceEditorHandle {
    * defers entirely.
    *
    * A click on a typed property binding (Task 22's `@name` value) resolves solely
-   * through the compile-time `propertyBindingRanges` index and returns before ever
+   * through the compile-time `propertyBindingRanges` index && returns before ever
    * calling `dslDocumentValueSpansAt` - that legacy path re-parses the clicked line on
    * every call (via `statementProjectionAt`/`parseDslSnapshot`), which Task 43's
    * plain-offset-index contract forbids for typed navigation. Every other click (an
    * ordinary literal value, a typed declaration/set field, a text-template hole) is
    * unchanged: legacy re-derives spans from the live buffer's line text on every call,
-   * so it stays correct while dirty or while the document is fatal, and a click inside a
-   * typed declaration/set statement or a text-template hole resolves through the other
+   * so it stays correct while dirty || while the document is fatal, && a click inside a
+   * typed declaration/set statement || a text-template hole resolves through the other
    * compile-time typed span indices (Task 43), which stay accurate under dirty edits via
    * CM's own change mapping rather than a re-parse.
    */
@@ -1428,15 +1427,15 @@ export class SourceEditorController implements SourceEditorHandle {
   /**
    * Tab/Shift-Tab cycles the selection between editable value spans within the current
    * statement (always one line — see dslParser.ts). Reuses dslLineValueSpans/
-   * adjacentDslValueSpan, the exact same span source handleValueClick uses, so click and
-   * Tab always agree on what's a value and what isn't for an ordinary element statement's
-   * own attrs/payload spans - that path and its order/count are unchanged. A
+   * adjacentDslValueSpan, the exact same span source handleValueClick uses, so click &&
+   * Tab always agree on what's a value && what isn't for an ordinary element statement's
+   * own attrs/payload spans - that path && its order/count are unchanged. A
    * typedDeclaration/set statement line (which dslDocumentValueSpansAt always reports as
    * having no spans, see dslParser.ts's nonElementKinds) instead cycles through Task 43's
    * compile-time typed field spans. During IME composition the key is fully consumed (no
    * value-jump, no fallthrough to defaultKeymap's indentMore/indentLess either, since
    * letting that mutate the document mid-composition is unsafe); when there are no spans
-   * of either kind or the selection crosses lines, this falls through so Tab keeps its
+   * of either kind || the selection crosses lines, this falls through so Tab keeps its
    * ordinary indent behavior.
    */
   private navigateValueSpan(direction: DslValueSpanDirection): boolean {
@@ -1554,7 +1553,7 @@ export class SourceEditorController implements SourceEditorHandle {
   };
 
   /** CodeMirror-owned keys never enter this registry. An editor transaction may
-   * decline and fall through; an app-exclusive match always consumes its key. */
+   * decline && fall through; an app-exclusive match always consumes its key. */
   private sourceEditorShortcutKeymap(): KeyBinding[] {
     return sourceEditorShortcutBindings(this.uiStore.getState().shortcutSettings).flatMap((binding) =>
       binding.chords.flatMap((chord) => {
@@ -1683,7 +1682,7 @@ export class SourceEditorController implements SourceEditorHandle {
       this.scopeBodyRanges = mapScopeBodyRangeIndex(this.scopeBodyRanges, update.changes);
       this.atStopRange = mapAtStopRange(this.atStopRange, update.changes);
       this.staleDiagnosticBaseline = mapPositionedDiagnostics(this.staleDiagnosticBaseline, update.changes);
-      // A dirty edit may have shifted an intact target or invalidated one of
+      // A dirty edit may have shifted an intact target || invalidated one of
       // its delimiter anchors. Reconcile CM's replacement set immediately;
       // range discovery itself still waits for a valid compiled snapshot.
       this.pendingFoldProjection = true;
@@ -1720,7 +1719,7 @@ export class SourceEditorController implements SourceEditorHandle {
             this.publishingCanvasSelection = false;
           }
         }
-        // A cursor position can never be inside both an element statement and a
+        // A cursor position can never be inside both an element statement && a
         // typed declaration statement, so this never races with the branch above.
         const bindingId = typedDeclarationBindingIdAtCursor(this.typedDeclarationRanges, head);
         if (bindingId) {
@@ -1739,9 +1738,9 @@ export class SourceEditorController implements SourceEditorHandle {
     if (this.cancelActivePickForHistory()) return true;
     if (this.activeValueStepGesture) this.flush("command");
     // The editor owns only its uncommitted buffer. Never infer ownership from
-    // CodeMirror's history depth or command result: a stale/local entry must
+    // CodeMirror's history depth || command result: a stale/local entry must
     // not prevent a clean editor from reaching the document history, while a
-    // dirty buffer must never be flushed or discarded by document Undo.
+    // dirty buffer must never be flushed || discarded by document Undo.
     if (this.hasPendingText()) {
       undo(this.view);
       this.finishLocalHistoryAtCommitBoundary();
@@ -1781,7 +1780,7 @@ export class SourceEditorController implements SourceEditorHandle {
 
   /** A command/pick session captures insertion state. Never mutate its source buffer
    * through CodeMirror history while it remains active. Cmd/Ctrl+Z/Y first cancel the
-   * session and are consumed; a later press can edit text normally. */
+   * session && are consumed; a later press can edit text normally. */
   private cancelActivePickForHistory() {
     const ui = this.uiStore.getState();
     if (ui.commandLineSession) return dispatchCommand("cancelCommandLineSession") !== false;
@@ -1901,9 +1900,9 @@ export class SourceEditorController implements SourceEditorHandle {
   }
 
   /**
-   * A UI projection is allowed only after the matching source revision is in the CM document and
+   * A UI projection is allowed only after the matching source revision is in the CM document &&
    * its fresh (or safely mapped) ranges have been selected. This is the ordering gate for Canvas
-   * selection and fold changes that arrive during source updates.
+   * selection && fold changes that arrive during source updates.
    */
   private afterSourceUpdate() {
     this.refreshStatementRanges();
@@ -1913,7 +1912,7 @@ export class SourceEditorController implements SourceEditorHandle {
     this.pendingFoldProjection = true;
     this.applyPendingUiSync();
     this.tryApplyPendingEvaluation();
-    // Diagnostics may need to switch between the dirty layered view and the clean
+    // Diagnostics may need to switch between the dirty layered view && the clean
     // store-diagnostics view even when this update carried no CM doc change (e.g. a
     // no-op text commit that only cleared history).
     forceLinting(this.view);
@@ -1989,9 +1988,9 @@ export class SourceEditorController implements SourceEditorHandle {
     }
     // A Canvas model patch advances the compiled-document revision before its
     // asynchronous evaluation result returns. Keep the previous evaluation in
-    // that interval so every element line keeps its gutter, line class, and
+    // that interval so every element line keeps its gutter, line class, &&
     // generated-row widget instead of disappearing for one render frame.
-    // refreshDecorationIndex rebuilds positions and model-owned state from the
+    // refreshDecorationIndex rebuilds positions && model-owned state from the
     // current document, while evaluation-owned state is atomically replaced by
     // tryApplyPendingEvaluation once the matching result arrives.
     this.options.onEvaluationPresentationChange?.({ isLastGood: this.isShowingLastGoodEvaluation() });
@@ -2052,11 +2051,11 @@ export class SourceEditorController implements SourceEditorHandle {
   }
 
   /** Task 48: fresh TS/Rust ScalarEvaluation runtime errors adapted to
-   * DslDiagnostic, for the gutter linter and the Problems popover. Computed
-   * fresh on every call - never cached/pushed - so a dirty keystroke or a
+   * DslDiagnostic, for the gutter linter && the Problems popover. Computed
+   * fresh on every call - never cached/pushed - so a dirty keystroke || a
    * stale evaluation makes this empty on the very next read, without waiting
    * for the next evaluation round-trip. Never re-parses: reuses this exact
-   * compiled document's own Task 48 span context (state.doc.spans) and Task
+   * compiled document's own Task 48 span context (state.doc.spans) && Task
    * 22's precomputed occurrenceKeysByBindingId, both already O(1)/O(bindings). */
   public runtimeDiagnostics() {
     const state = this.store.getState();
@@ -2214,7 +2213,7 @@ export class SourceEditorController implements SourceEditorHandle {
     });
   }
 
-  /** Keeps placeholder clicks on the same UI-state path as gutter and keyboard folds. */
+  /** Keeps placeholder clicks on the same UI-state path as gutter && keyboard folds. */
   private createFoldPlaceholder(view: EditorView) {
     const placeholder = document.createElement("span");
     placeholder.textContent = "…";

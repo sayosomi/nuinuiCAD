@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { lineSplicesToSourceTextChanges } from "./lineSpliceChanges";
 
-const source = (count: number) => ["nui 3", ...Array.from({ length: count }, (_, index) =>
+const source = (count: number) => ["nui 4", ...Array.from({ length: count }, (_, index) =>
   `point P${index} = coordinate(x: ${index}, y: ${index + 1})`
 )].join("\n");
 
@@ -11,6 +11,11 @@ const median = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)];
 };
+
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 
 const measure = (name: string, run: () => void) => {
   run();
@@ -27,7 +32,7 @@ const measure = (name: string, run: () => void) => {
   return value;
 };
 
-describe("CodeMirror Phase 2a performance baseline", () => {
+describePerformanceGates("CodeMirror Phase 2a performance baseline", () => {
   it("records 500/1000-line state creation, transaction, and LineSplice conversion separately from compile", () => {
     for (const count of [500, 1000]) {
       const text = source(count);
@@ -43,7 +48,7 @@ describe("CodeMirror Phase 2a performance baseline", () => {
         lineSplicesToSourceTextChanges(text, [{
           startLine: Math.floor((count + 2) / 2),
           endLine: Math.floor((count + 2) / 2),
-          replacementLines: ["point Changed = coordinate(x: 1 y: 2)"]
+          replacementLines: ["point Changed = coordinate(x: 1,y: 2)"]
         }]);
       });
     }

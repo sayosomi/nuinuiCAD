@@ -1,9 +1,9 @@
 // AST/diagnostic types for typed scalar expressions (initializers, future
 // `set` RHS, future conditions). Production-unconnected: see
 // docs/typed-variables/tasks/14-ts-expression-parser.md. Consumed later by
-// Task 15 (typecheck, adds binding IDs/types) and Task 17 (Rust payload
+// Task 15 (typecheck, adds binding IDs/types) && Task 17 (Rust payload
 // schema validation) - this module defines the shared shape only, with no
-// name resolution, typecheck, or evaluation logic of its own.
+// name resolution, typecheck, || evaluation logic of its own.
 //
 // `ScalarSpan` is reused directly from literalScanner.ts (Task 09) rather
 // than redefined here - it is already the shared span shape across the
@@ -60,9 +60,10 @@ export interface ScalarUnresolvedChoiceLiteralNode {
 }
 
 /**
- * A single `@name` reference. `span` includes the leading `@`; `nameSpan`
- * covers only the identifier, since name-span exactness (including Unicode
- * names) is required independently of the sigil.
+ * A single `@qualifiedName` reference. `span` includes the leading `@`;
+ * `nameSpan` covers only the qualified path, since name-span exactness
+ * (including Unicode && quoted path segments) is required independently of
+ * the sigil.
  */
 export interface ScalarReferenceNode {
   readonly kind: "reference";
@@ -71,7 +72,7 @@ export interface ScalarReferenceNode {
   readonly name: string;
 }
 
-/** A nui 3 `@Element.property` reference.  Resolution to a stable element
+/** A nui 4 `@Element.property` reference.  Resolution to a stable element
  * identity happens with the compiled document, not in the syntax parser. */
 export interface ScalarGeometryPropertyReferenceNode {
   readonly kind: "geometryProperty";
@@ -138,7 +139,7 @@ export interface ScalarExpressionDiagnostic {
  * - success: `ast` is non-null, `diagnostics` is empty.
  * - failure: `ast` is `null`, `diagnostics` has exactly one entry.
  *
- * There is no partial/leading-AST-plus-diagnostic case. Partial ASTs and
+ * There is no partial/leading-AST-plus-diagnostic case. Partial ASTs &&
  * error recovery are out of scope for this parser; a future task can design
  * that explicitly if it turns out to be needed (e.g. for editor tooling).
  */

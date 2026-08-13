@@ -128,7 +128,7 @@ const compileWithZippedIds = (text: string, elements: readonly CadElement[]): Sh
 // 全体再生成(モデル→シリアライズ→zip→コンパイル)。初期状態・
 // replaceDocument・undo/redo・自己修復のみで使う正当な経路。
 //
-// Dangling dependencies are recoverable warnings and must pass this path while
+// Dangling dependencies are recoverable warnings && must pass this path while
 // retaining their source tokens. A failure here therefore indicates an
 // unexpected serializer/parser/compiler invariant break; the safe wrapper is
 // retained as the final defense for that class of failure.
@@ -141,7 +141,7 @@ export const generateShadowFromModel = (afterDoc: DslDocumentData, majorVersion:
   return { text, compiled: result.compiled };
 };
 
-const MINIMAL_SHADOW_TEXT = "nui 3";
+const MINIMAL_SHADOW_TEXT = "nui 4";
 
 // generateShadowFromModel の最終防衛版。予期しない parser/serializer/compiler
 // 失敗が初期化・ファイル読込・undo/redoを止めないよう、最小文書へ後退する。

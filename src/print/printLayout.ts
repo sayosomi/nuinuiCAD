@@ -275,15 +275,24 @@ const resolveNumericValue = ({
    * no compiled-site concept (none today; kept optional for callers that
    * don't have a lookup at all). */
   statementKey?: string;
-  parameterKey?: string;
+  parameterKey?: string | readonly string[];
   numericBindingLookup?: PrintLayoutNumericBindingLookup;
 }) => {
   if (!isNumericExpression(value)) return value;
   const binding = statementKey && parameterKey
-    ? printLayoutCompiledNumericBinding(numericBindingLookup, statementKey, parameterKey)
+    ? (Array.isArray(parameterKey)
+      ? parameterKey.map((key) => printLayoutCompiledNumericBinding(numericBindingLookup, statementKey, key)).find(Boolean)
+      : printLayoutCompiledNumericBinding(numericBindingLookup, statementKey, parameterKey as string))
     : undefined;
+  const sourceOrder = statementKey ? numericBindingLookup?.byKey.get(statementKey)?.statementIndex : undefined;
   const materialized = binding && binding.expression === value.expression
-    ? materializePrintLayoutNumericBinding(binding, evaluation.computedScalarBindings)
+    ? materializePrintLayoutNumericBinding(
+        binding,
+        evaluation.computedScalarBindings,
+        evaluation.computedScalarBindingVersions,
+        numericBindingLookup?.bindingVersions,
+        sourceOrder
+      )
     : null;
   const effectiveValue: NumericValue = materialized !== null ? { kind: "expression", expression: materialized } : value;
   const result = evaluateNumericValue({
@@ -328,12 +337,12 @@ export const resolvePrintLayout = ({
     0.01
   );
   const svgCanvasWidthMm = clampMin(
-    resolveNumericValue({ value: layout.svgCanvasWidthMm, fallback: DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm as number, elements, evaluation, statementKey, parameterKey: "canvas:x", numericBindingLookup }),
+    resolveNumericValue({ value: layout.svgCanvasWidthMm, fallback: DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm as number, elements, evaluation, statementKey, parameterKey: ["width", "canvas:x"], numericBindingLookup }),
     DEFAULT_PRINT_LAYOUT.svgCanvasWidthMm as number,
     1
   );
   const svgCanvasHeightMm = clampMin(
-    resolveNumericValue({ value: layout.svgCanvasHeightMm, fallback: DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm as number, elements, evaluation, statementKey, parameterKey: "canvas:y", numericBindingLookup }),
+    resolveNumericValue({ value: layout.svgCanvasHeightMm, fallback: DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm as number, elements, evaluation, statementKey, parameterKey: ["height", "canvas:y"], numericBindingLookup }),
     DEFAULT_PRINT_LAYOUT.svgCanvasHeightMm as number,
     1
   );
@@ -354,8 +363,8 @@ export const resolvePrintLayout = ({
       const placementStatementKey = printLayoutPlacementStatementKey(layout.id, placementIndex);
       return {
         ...placement,
-        x: resolveNumericValue({ value: placement.x, fallback: 0, elements, evaluation, statementKey: placementStatementKey, parameterKey: "at:x", numericBindingLookup }),
-        y: resolveNumericValue({ value: placement.y, fallback: 0, elements, evaluation, statementKey: placementStatementKey, parameterKey: "at:y", numericBindingLookup }),
+        x: resolveNumericValue({ value: placement.x, fallback: 0, elements, evaluation, statementKey: placementStatementKey, parameterKey: ["x", "at:x"], numericBindingLookup }),
+        y: resolveNumericValue({ value: placement.y, fallback: 0, elements, evaluation, statementKey: placementStatementKey, parameterKey: ["y", "at:y"], numericBindingLookup }),
         angleDeg: resolveNumericValue({ value: placement.angleDeg, fallback: 0, elements, evaluation, statementKey: placementStatementKey, parameterKey: "angle", numericBindingLookup })
       };
     })

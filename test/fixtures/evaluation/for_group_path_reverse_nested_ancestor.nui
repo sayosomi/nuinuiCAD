@@ -1,9 +1,9 @@
-nui 3
+nui 4
 point P1 = coordinate(x: 0, y: 0)
 point P2 = coordinate(x: 10, y: 0)
-for Outer (i, from: 0, count: 2, step: 1) {
-  line AB = segment(start: P1, end: P2)
-  for Inner (j, from: 0, count: 2, step: 1) {
-    reverse(target: AB)
+for i in range(from: 0, count: 2, step: 1) {
+  line AB = segment(start: @P1, end: @P2)
+  for j in range(from: 0, count: 2, step: 1) {
+    reverse(target: @AB)
   }
 }

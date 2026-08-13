@@ -17,7 +17,7 @@ import { documentDslRefs } from "./dslSerializer";
 /**
  * テスト専用の既定major。
  */
-const TEST_DEFAULT_DSL_MAJOR_VERSION: DslMajorVersion = 3;
+const TEST_DEFAULT_DSL_MAJOR_VERSION: DslMajorVersion = 4;
 
 export const emptyDocument = (): DslDocumentData => ({
   elements: [],
@@ -38,7 +38,7 @@ export const normalizeForComparison = (elements: CadElement[]) => {
   const indexById = new Map(elements.map((element, index) => [element.id, index]));
   const parentIsConditionalGroup = (id: ElementId | undefined) =>
     id !== undefined && elements.find((element) => element.id === id)?.type === "conditionalGroup";
-  const remapId = (id: ElementId | undefined) => (id === undefined ? undefined : indexById.get(id) ?? `unknown:${id}`);
+  const remapId = (id: ElementId | undefined) => (id === undefined ? undefined : indexById.get(id) ?? `unknown:${id.replace(/^@/, "")}`);
   const remapAnchor = (anchor: PointAnchor | null | undefined) => {
     if (!anchor) return anchor;
     if (anchor.mode === "reference") return { mode: "reference", pointId: remapId(anchor.pointId) };
@@ -106,20 +106,20 @@ export const expectSemanticallyEqualDocuments = (a: DslDocumentData, b: DslDocum
 // 要素配列 → DSL本文行(パレット/可視性/印刷レイアウトの定型セクションを含まない、
 // 要素ツリー部分のみ)。グループ/if/forのブロック構造・インデントは
 // layoutElementTree が処理するため、parentGroupId で紐付いたネスト要素もそのまま渡せる。
-// evaluationLimitIndex省略時は全要素を評価対象とする(@stopなし)。テストが
-// @stopマーカーの位置を検証したい場合のみ明示的に渡す。
+// evaluationLimitIndex省略時は全要素を評価対象とする(stopなし)。テストが
+// stopマーカーの位置を検証したい場合のみ明示的に渡す。
 export const dslLinesForElements = (elements: CadElement[], evaluationLimitIndex?: number): string[] => {
-  const refs = documentDslRefs(elements, TEST_DEFAULT_DSL_MAJOR_VERSION);
+  const refs = documentDslRefs(elements);
   return layoutElementTree(elements, refs, evaluationLimitIndex).flatMap((row) => row.lines);
 };
 
-// 要素配列 → `nui 3` ヘッダ付きのDSL本文全体(パレット/可視性設定なし)。
+// 要素配列 → `nui 4` ヘッダ付きのDSL本文全体(パレット/可視性設定なし)。
 // テストが「有効などこかの要素を含む文書」だけを必要とし、v1構文自体は
 // 検証対象でない場合の入力生成に使う。
 export const dslTextForElements = (elements: CadElement[], evaluationLimitIndex?: number): string =>
   [`nui ${TEST_DEFAULT_DSL_MAJOR_VERSION}`, ...dslLinesForElements(elements, evaluationLimitIndex)].join("\n");
 
-// 要素配列 → `nui 3` ヘッダ付きのDSL本文全体、id=/parent=/branch=を明示出力する
+// 要素配列 → `nui 4` ヘッダ付きのDSL本文全体、id=/parent=/branch=を明示出力する
 // flat(非ネスト)モード。id保持の往復(reconciler/rename系のテストが対象
 // element の id を明示的に固定したい場合)に使う。documentDslRefs による
 // 名前解決トークンではなく生IDトークンで参照を書くため、通常の

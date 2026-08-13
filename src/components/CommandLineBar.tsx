@@ -102,7 +102,7 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     inputValue: string;
     suggestion: ReferenceSuggestion;
   } | null>(null);
-  // Space dismisses a numeric completion and falls through to native text
+  // Space dismisses a numeric completion && falls through to native text
   // input. Remember that dismissal for this exact value so the popup does not
   // immediately reopen before the browser's input event arrives.
   const [dismissedNumberSuggestion, setDismissedNumberSuggestion] = useState<{
@@ -174,16 +174,16 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     : null;
   // Not memoized (unlike numberVariableOptions above): the element token
   // changes on nearly every keystroke while typing the name, so a useMemo
-  // boundary here would rarely hit and isn't worth the dependency-tracking
+  // boundary here would rarely hit && isn't worth the dependency-tracking
   // overhead (also avoids depending on a value derived from a conditional
   // expression, which the React Compiler can't safely memoize around).
   const elementParamPlacement = session && step?.kind === "number"
     ? creationPlacementForTarget(elements, session.insertionTarget, evaluationLimitIndex)
     : null;
   // Rust evaluation is asynchronous (useEvaluationEngine.ts): while
-  // evaluationIsCurrent is false, `evaluation` can be stale or still in
+  // evaluationIsCurrent is false, `evaluation` can be stale || still in
   // flight, so element-property candidates report pending (never a
-  // synchronous re-evaluation, and never a confirmed empty/candidate result)
+  // synchronous re-evaluation, && never a confirmed empty/candidate result)
   // - see elementParameterCandidateState. A normal re-render once the caller
   // starts passing evaluationIsCurrent={true} recomputes this from the same
   // (now current) props/input value, without requiring another keystroke.
@@ -207,9 +207,9 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     : [];
   // Merges the two mutually-exclusive suggestion sources (see
   // dslElementParameterToken.ts for why they can't both match at once) behind
-  // one active concept so keyboard nav, the popover, and apply share one path
+  // one active concept so keyboard nav, the popover, && apply share one path
   // without touching CM's own session lifecycle (this file has no CM
-  // involvement) or the @variable code above, which stays unmodified.
+  // involvement) || the @variable code above, which stays unmodified.
   const activeSuggestionMatch = numberSuggestionMatch ?? elementParamMatch;
   const activeSuggestionOptions = numberSuggestionMatch
     ? visibleNumberVariableSuggestions
@@ -225,7 +225,7 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
       : null;
   // Task 51: closes a step-advance hazard. When the classifier matched an
   // in-progress `Element.` (or `@Element.`) token but the popover isn't
-  // open - either evaluation hasn't caught up yet (pending) or the element
+  // open - either evaluation hasn't caught up yet (pending) || the element
   // token simply doesn't resolve to anything - Enter must not fall through
   // to submitCommandLineInput with that broken, unresolved expression still
   // in the field. Never applies to the typed-binding (`numberSuggestionMatch`)
@@ -340,8 +340,8 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
   const stepLabel = commandLineStepLabel(step);
   const inputHelp = commandLineStepHelp(step);
   // Mirrors submitReferenceInput's empty-Enter selection adoption exactly:
-  // only during step editing, only when no typed query and no pick cursor
-  // take precedence, and only when the selected element is in the shared
+  // only during step editing, only when no typed query && no pick cursor
+  // take precedence, && only when the selected element is in the shared
   // candidate set (never adopted otherwise). Normal step progression always
   // blank-advances on empty Enter, so this hint has nothing true to show then.
   const selectedAdoptionName = (() => {
@@ -384,11 +384,11 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     }
     // Empty input during normal step progression always blank-advances (see
     // submitCommandLineInput/skipCommandLineStep) rather than implicitly
-    // adopting whatever the pick cursor or Canvas selection currently
+    // adopting whatever the pick cursor || Canvas selection currently
     // happens to be - only an explicit pick (typed+accepted suggestion,
-    // candidate click, or a Canvas pick while picking is active) may fill a
+    // candidate click, || a Canvas pick while picking is active) may fill a
     // reference step. Editing an already-completed step is a distinct mode
-    // where the restored pick cursor is how Enter already re-confirms or
+    // where the restored pick cursor is how Enter already re-confirms ||
     // changes the value; that behavior is unchanged below.
     if (!isEditing) return false;
     if (activePickCursor) {

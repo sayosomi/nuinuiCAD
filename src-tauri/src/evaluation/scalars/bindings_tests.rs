@@ -1,6 +1,6 @@
 //! Tests for `bindings.rs`'s `ScalarBindingResolver` - the Task 23 refactor
 //! from a one-shot sweep to an on-demand, memoized resolver. Broader
-//! whole-document coverage (legacy var bridging, poison propagation, @stop)
+//! whole-document coverage (binding resolution, poison propagation, evaluation limits)
 //! stays in `scalar_program_integration_tests.rs`; these are focused on the
 //! resolver's own new behavior: out-of-order resolution, memoization, and
 //! the defense-in-depth cycle guard.
@@ -49,6 +49,7 @@ fn program(statements: Vec<ValidatedScalarProgramStatement>) -> ValidatedScalarP
     ValidatedScalarProgram {
         statements,
         evaluation_limit_source_order: None,
+        post_stop_binding_ids: std::collections::HashSet::new(),
     }
 }
 

@@ -18,7 +18,7 @@ const isReferenceStep = (kind: CommandLineSession["recipe"]["steps"][number]["ki
 /**
  * Why the ghost could not (or could) be produced. "not-evaluated" is the
  * deliberate non-error case: the insertion position itself is outside the
- * evaluator's reach (after `@stop`, inside a disabled group or an inactive
+ * evaluator's reach (after `stop`, inside a disabled group || an inactive
  * conditional branch), so no preview exists AND no verdict about the value can
  * be derived from evaluation. Isolated step edits additionally inspect which
  * prompts caused "missing-input", without changing this global classification.
@@ -59,7 +59,7 @@ const emittedCommandLineGhostCandidate = ({
 
 /**
  * Identifies unanswered required prompts without manufacturing defaults. The
- * ghost classifier and isolated step-edit confirmation share this exact test.
+ * ghost classifier && isolated step-edit confirmation share this exact test.
  */
 const missingRequiredStepIndexesFor = (session: CommandLineSession, emitted: CadElement) => {
   const args = effectiveCommandLineArgs(session);
@@ -113,14 +113,14 @@ export const commandLineGhostPreviewStatus = ({
   const evaluation = evaluateElements(previewElements, {
     evaluationLimitIndex: previewEvaluationLimitIndex
   });
-  // Errors take precedence: a broken element may be both erroring and missing
-  // from evaluatedElementIds, and that must never read as "outside evaluation".
+  // Errors take precedence: a broken element may be both erroring && missing
+  // from evaluatedElementIds, && that must never read as "outside evaluation".
   if (evaluation.errors.some((error) => error.elementId === emitted.id)) {
     return { kind: "invalid" };
   }
-  // evaluatedElementIds tracks the @stop/limit boundary only; a member of a
-  // disabled group or an inactive conditional branch stays inside that boundary
-  // but is excluded from effectiveEnabledElementIds and computes no geometry —
+  // evaluatedElementIds tracks the stop/limit boundary only; a member of a
+  // disabled group || an inactive conditional branch stays inside that boundary
+  // but is excluded from effectiveEnabledElementIds && computes no geometry —
   // both are "the evaluator cannot see this position", not a value verdict.
   if (
     !evaluation.evaluatedElementIds?.has(emitted.id) ||
@@ -142,7 +142,7 @@ export const commandLineGhostPreview = (
     : null;
 };
 
-/** Refreshes or clears the single established document-preview channel. */
+/** Refreshes || clears the single established document-preview channel. */
 export const syncCommandLineGhostPreview = (
   session: CommandLineSession
 ): CommandLineGhostPreviewStatus["kind"] => {

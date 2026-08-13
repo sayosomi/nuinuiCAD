@@ -167,7 +167,7 @@ const PrintNumberInput = ({
     : [];
   // Print layout numeric expressions never pass a currentElement (see
   // cmAutocomplete.ts's own comment on this), so element-parameter candidates
-  // here are always global/root-scoped and unsliced by document position -
+  // here are always global/root-scoped && unsliced by document position -
   // matching the existing @variable behavior for this surface.
   const elementParamMatch = !isComposing && !suggestionMatch
     ? elementParameterSuggestionMatch(inputValue, inputSelection.start, inputSelection.end)
@@ -403,9 +403,10 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
   );
   const printLayoutNumericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
   const printLayoutByKey = useCadDocumentStore((state) => state.doc.statementMap.byKey);
+  const printLayoutBindingVersions = useCadDocumentStore((state) => state.doc.bindingVersions);
   const printLayoutNumericBindingLookup: PrintLayoutNumericBindingLookup = useMemo(
-    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey }),
-    [printLayoutNumericBindings, printLayoutByKey]
+    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey, bindingVersions: printLayoutBindingVersions }),
+    [printLayoutBindingVersions, printLayoutNumericBindings, printLayoutByKey]
   );
   const selectedPrintPlacementId = useCadUiStore((state) => state.selectedPrintPlacementId);
   const setSelectedPrintPlacementId = useCadUiStore((state) => state.setSelectedPrintPlacementId);
@@ -728,9 +729,10 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
   );
   const printLayoutNumericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
   const printLayoutByKey = useCadDocumentStore((state) => state.doc.statementMap.byKey);
+  const printLayoutBindingVersions = useCadDocumentStore((state) => state.doc.bindingVersions);
   const printLayoutNumericBindingLookup: PrintLayoutNumericBindingLookup = useMemo(
-    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey }),
-    [printLayoutNumericBindings, printLayoutByKey]
+    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey, bindingVersions: printLayoutBindingVersions }),
+    [printLayoutBindingVersions, printLayoutNumericBindings, printLayoutByKey]
   );
   const printLayoutBindingAnalysis = useCadDocumentStore((state) => state.doc.bindingAnalysis);
   const typedBindingOptions = useMemo(

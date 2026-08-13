@@ -31,7 +31,7 @@ const compileFor = (
   expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const statements = parsed.statements;
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
   expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
   const stableStatementIdByIndex = new Map<number, string>(statements.map((_, index) => [index, `stable-${index}`]));
@@ -169,7 +169,7 @@ describe("compileSetStatements: target resolution", () => {
   it("rejects a forGroup iteration binding target with invalid-set-target (mutability check, not the no-catalog branch)", () => {
     const { statements, stableStatementIdByIndex, bindingAnalysis, spans } = compileFor([
       "let unrelated: number = 1",
-      "for Loop (i from: 0 count: 2) {",
+      "for i in range(from: 0, count: 2) {",
       "  set i = 2",
       "}"
     ].join("\n"));

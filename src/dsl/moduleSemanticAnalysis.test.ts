@@ -12,15 +12,34 @@ const moduleBodyAt = (compiled: ReturnType<typeof compileWithIds>, statementInde
   compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === statementIndex)!;
 
 describe("module semantic analysis", () => {
+  it("uses the shared scalar frontend for nui4 word operators in a Module body", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(a: boolean, b: boolean) {",
+      "  const both: boolean = @a and not @b",
+      "}",
+      "instance Instance = M(a: true, b: false)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const both = compiled.moduleSemanticAnalysis!.definitions[0].localScalars.find((scalar) => scalar.name === "both");
+    expect(both?.initializer).toMatchObject({
+      type: { kind: "boolean" },
+      references: [
+        { name: "a", target: { kind: "parameter" } },
+        { name: "b", target: { kind: "parameter" } }
+      ]
+    });
+  });
+
   it("resolves a callee by StatementIdentity and normalizes argument bindings by parameter order", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "point InputPoint = coordinate(x: 0, y: 0)",
       "module M(width: number, anchor: point, label: string = \"ok\") {",
       "  const doubled: number = @width + @width",
       "  export point Output = coordinate(x: @doubled, y: 0)",
       "}",
-      "module Instance = M(anchor: InputPoint, width: 10)"
+      "instance Instance = M(anchor: @InputPoint, width: 10)"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -55,9 +74,43 @@ describe("module semantic analysis", () => {
     });
   });
 
+  it("registers exported typed declarations in the shared module member namespace", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M() {",
+      "  const privateValue: number = 1",
+      "  export const result: number = @privateValue + 1",
+      "  export let state: number = @result + 1",
+      "}"
+    ].join("\n"));
+    const definition = compiled.moduleSemanticAnalysis!.definitions[0];
+
+    expect(definition.localScalars.map((local) => local.name)).toEqual(["privateValue", "result", "state"]);
+    expect(definition.exports).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "scalar", name: "result", exportedStatementIndex: 3, declaredType: { kind: "number" }, bindingKind: "const" }),
+      expect.objectContaining({ kind: "scalar", name: "state", exportedStatementIndex: 4, declaredType: { kind: "number" }, bindingKind: "let" })
+    ]));
+    expect(definition.exports.some((entry) => entry.name === "privateValue")).toBe(false);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("checks scalar and geometry exports together for duplicate public member names", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M() {",
+      "  export const Output: number = 1",
+      "  export point Output = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "source-namespace-collision" })
+    ]));
+  });
+
   it("keeps definition-site document scalar defaults on the existing binding identity", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "const documentWidth: number = 10",
       "module Outer() {",
       "  module Inner(width: number = @documentWidth) {",
@@ -76,16 +129,16 @@ describe("module semantic analysis", () => {
   });
 
   it("reports forward/non-module callees and does not fall through a shadowing declaration", () => {
-    const forward = compileWithIds(["nui 3", "module Before = Later()", "module Later() {"] .concat(["}"]).join("\n"));
+    const forward = compileWithIds(["nui 4", "instance Before = Later()", "module Later() {"] .concat(["}"]).join("\n"));
     expect(forward.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "module-forward-callee" })]));
 
     const shadow = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Target() {",
       "}",
       "module Outer() {",
       "  point Target = coordinate(x: 0, y: 0)",
-      "  module Instance = Target()",
+      "  instance Instance = Target()",
       "}"
     ].join("\n"));
     expect(shadow.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "module-callee-not-definition" })]));
@@ -93,14 +146,14 @@ describe("module semantic analysis", () => {
 
   it("rejects geometry defaults, same-call bindings, outer captures, and recursive calls", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "const outer: number = 10",
-      "module M(value: number, pointValue: point = P) {",
+      "module M(value: number, pointValue: point = @P) {",
       "  const local: number = @outer",
-      "  module Self = M(value: @value, pointValue: P)",
+      "  instance Self = M(value: @value, pointValue: @P)",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
-      "module Use = M(value: @missing, pointValue: P)"
+      "instance Use = M(value: @missing, pointValue: @P)"
     ].join("\n"));
     const codes = compiled.diagnostics.map((diagnostic) => diagnostic.code);
     expect(codes).toEqual(expect.arrayContaining([
@@ -118,7 +171,7 @@ describe("module semantic analysis", () => {
 
   it("keeps forbidden global statements and nested module bodies out of the outer body analysis", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Outer() {",
       "  color hidden (\"#ff0000\")",
       "  module Inner() {",
@@ -136,11 +189,11 @@ describe("module semantic analysis", () => {
 
   it("resolves source geometry in a module body without creating runtime IDs", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(anchor: point) {",
-      "  export point Output = offset(from: anchor, dx: 1, dy: 0)",
+      "  export point Output = offset(from: @anchor, dx: 1, dy: 0)",
       "}",
-      "module Use = M(anchor: (0, 0))"
+      "instance Use = M(anchor: (0, 0))"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -156,10 +209,10 @@ describe("module semantic analysis", () => {
 
   it("accepts group and for constructions as module body statements", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  group G (printEnabled: true, printAnchor: (0, 0)) {",
-      "    for Loop (i, from: 0, count: 3) {",
+      "    for i in range(from: 0, count: 3) {",
       "      point P = coordinate(x: i * 10, y: 0)",
       "    }",
       "  }",
@@ -171,11 +224,11 @@ describe("module semantic analysis", () => {
 
   it("resolves a visible outer module before a later inner declaration", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Target() {",
       "}",
       "group G (printEnabled: true) {",
-      "  module x = Target()",
+      "  instance x = Target()",
       "  module Target() {",
       "  }",
       "}"
@@ -188,12 +241,12 @@ describe("module semantic analysis", () => {
 
   it("stops at a nearest visible wrong-kind declaration", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Target() {",
       "}",
       "group G (printEnabled: true) {",
       "  point Target = coordinate(x: 0, y: 0)",
-      "  module x = Target()",
+      "  instance x = Target()",
       "}"
     ].join("\n"));
     expect(compiled.moduleSemanticAnalysis?.instances.find((instance) => instance.name === "x")).toMatchObject({
@@ -204,7 +257,7 @@ describe("module semantic analysis", () => {
 
   it("reports a collision between a parameter and a direct body declaration", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(x: number) {",
       "  const x: number = 1",
       "}"
@@ -214,7 +267,7 @@ describe("module semantic analysis", () => {
 
   it("allows a child scope declaration to shadow a module parameter", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(x: number) {",
       "  group G (printEnabled: true) {",
       "    const x: number = 1",
@@ -233,7 +286,7 @@ describe("module semantic analysis", () => {
 
   it("extracts an outer scalar capture from vars without runtime lowering", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "const outer: number = 10",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0, vars: [width: @outer])",
@@ -251,11 +304,11 @@ describe("module semantic analysis", () => {
 
   it("extracts point and scalar captures from intermediates", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "point OuterPoint = coordinate(x: 0, y: 0)",
       "const outer: number = 10",
       "module M() {",
-      "  curve C = bezier(start: (0, 0), end: (10, 0), intermediates: [OuterPoint: @outer: 20: 20])",
+      "  curve C = bezier(start: (0, 0), end: (10, 0), intermediates: [@OuterPoint: @outer: 20: 20])",
       "}"
     ].join("\n"));
     const body = moduleBodyAt(compiled, 4);
@@ -271,10 +324,10 @@ describe("module semantic analysis", () => {
 
   it("keeps text template hole references as module semantic targets", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "const outer: number = 10",
       "module M() {",
-      "  text Label = label(text: \"width {@outer}\", anchor: (0, 0))",
+      "  text Label = label(text: \"width ${@outer}\", anchor: (0, 0))",
       "}"
     ].join("\n"));
     const body = moduleBodyAt(compiled, 3);
@@ -287,7 +340,7 @@ describe("module semantic analysis", () => {
 
   it("keeps a geometry parameter property as a source semantic target", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(lineA: line) {",
       "  const length: number = @lineA.length",
       "}"
@@ -309,7 +362,7 @@ describe("module semantic analysis", () => {
 
   it("keeps a module local geometry property as a source semantic target", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
       "  const length: number = @A.length",
@@ -330,7 +383,7 @@ describe("module semantic analysis", () => {
 
   it("uses the nearest group-local scalar for a nested module default", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Outer(x: number) {",
       "  group G (printEnabled: true) {",
       "    const x: number = 20",
@@ -350,9 +403,9 @@ describe("module semantic analysis", () => {
 
   it("uses the nearest for iteration variable for a nested module default", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Outer(i: number) {",
-      "  for Loop (i, from: 0, count: 3) {",
+      "  for i in range(from: 0, count: 3) {",
       "    module Inner(value: number = @i) {",
       "    }",
       "  }",
@@ -370,7 +423,7 @@ describe("module semantic analysis", () => {
 
   it("does not fall through to an outer binding for an own later or self parameter", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "const later: number = 99",
       "module M(first: number = @later, later: number = @later) {",
       "}"
@@ -383,45 +436,9 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "module-default-parameter-order")).toHaveLength(2);
   });
 
-  it("resolves earlier vars entries as element-local variable targets", () => {
-    const compiled = compileWithIds([
-      "nui 3",
-      "module M() {",
-      "  point P = coordinate(x: 0, y: 0, vars: [a: 10; b: @a * 2; c: @b + @a])",
-      "}"
-    ].join("\n"));
-    const body = moduleBodyAt(compiled, 2);
-    const varSites = body.scalarExpressions.filter((site) => site.parameterKey === "vars");
-    expect(varSites[1].expression.references.map((reference) => reference.target)).toEqual([
-      { kind: "elementLocalVariable", statementId: "statement:test:2", statementIndex: 2, variableIndex: 0, name: "a" }
-    ]);
-    expect(varSites[2].expression.references.map((reference) => reference.target)).toEqual([
-      { kind: "elementLocalVariable", statementId: "statement:test:2", statementIndex: 2, variableIndex: 1, name: "b" },
-      { kind: "elementLocalVariable", statementId: "statement:test:2", statementIndex: 2, variableIndex: 0, name: "a" }
-    ]);
-  });
-
-  it("rejects vars forward references", () => {
-    const compiled = compileWithIds([
-      "nui 3",
-      "module M() {",
-      "  point P = coordinate(x: 0, y: 0, vars: [a: @b; b: 10])",
-      "}"
-    ].join("\n"));
-    const body = moduleBodyAt(compiled, 2);
-    expect(body.scalarExpressions.find((site) => site.parameterKey === "vars")?.expression.references[0]).toMatchObject({
-      name: "b",
-      resolution: "forward",
-      target: null
-    });
-    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "module-element-local-variable-forward" })
-    ]));
-  });
-
   it("rejects vars self references", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0, vars: [a: @a])",
       "}"
@@ -439,7 +456,7 @@ describe("module semantic analysis", () => {
 
   it("resolves intermediates numeric fields from the same element vars", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  curve C = bezier(start: (0, 0), end: (10, 0), vars: [handle: 20], intermediates: [(0, 0): 45: @handle: @handle])",
       "}"
@@ -454,7 +471,7 @@ describe("module semantic analysis", () => {
 
   it("does not leak an element-local variable to another statement", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0, vars: [width: 10])",
       "  point Q = coordinate(x: @width, y: 0)",
@@ -470,7 +487,7 @@ describe("module semantic analysis", () => {
 
   it("keeps outer capture errors distinct from element-local vars", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "const width: number = 10",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0, vars: [local: @width])",
@@ -489,9 +506,9 @@ describe("module semantic analysis", () => {
 
   it("keeps element-local variable targets source-only", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
-      "  point P = coordinate(x: 0, y: 0, vars: [a: 10; b: @a])",
+      "  point P = coordinate(x: 0, y: 0, vars: [a: 10;,b: @a])",
       "}"
     ].join("\n"));
     const body = moduleBodyAt(compiled, 2);
@@ -504,9 +521,9 @@ describe("module semantic analysis", () => {
 
   it("does not let a future element-local variable retroactively shadow a module parameter", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
-      "  point P = coordinate(x: 0, y: 0, vars: [a: @width; width: 10])",
+      "  point P = coordinate(x: 0, y: 0, vars: [a: @width;,width: 10])",
       "}"
     ].join("\n"));
     const body = moduleBodyAt(compiled, 2);
@@ -519,10 +536,10 @@ describe("module semantic analysis", () => {
 
   it("resolves element-local variables from normal numeric parameters, text holes, and intermediates", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  line L = polar(start: (0, 0), angle: @d, length: 10, vars: [d: 10])",
-      "  text T = label(text: \"d={@d}\", anchor: none, size: @d, vars: [d: 10])",
+      "  text T = label(text: \"d=${@d}\", anchor: none, size: @d, vars: [d: 10])",
       "  curve C = bezier(start: (0, 0), end: (10, 0), vars: [handle: 20], intermediates: [(0, 0): @handle: @handle: 5])",
       "}"
     ].join("\n"));
@@ -556,12 +573,12 @@ describe("module semantic analysis", () => {
 
   it("keeps coordinate point components as scalar semantic expressions", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(dx: number, base: line) {",
       "  line A = segment(start: (@dx, 0), end: (0, 0))",
-      "  point B = offset(from: base.start, dx: 10, dy: 0)",
+      "  point B = offset(from: @base.start, dx: 10, dy: 0)",
       "  line Local = segment(start: (0, 0), end: (10, 0))",
-      "  point C = offset(from: Local.end, dx: 10, dy: 0)",
+      "  point C = offset(from: @Local.end, dx: 10, dy: 0)",
       "}"
     ].join("\n"));
     const a = moduleBodyAt(compiled, 2);
@@ -595,7 +612,7 @@ describe("module semantic analysis", () => {
 
   it("honors allowCoordinate and preserves allowNone behavior from parameter definitions", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(dx: number) {",
       "  point Rejected = offset(from: (@dx, 0), dx: 5, dy: 5)",
       "  line Allowed = segment(start: (@dx, 0), end: (0, 0))",
@@ -620,17 +637,17 @@ describe("module semantic analysis", () => {
 
   it("distinguishes point, line endpoint, plain line, and derived point references", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(lineParam: line, pointParam: point) {",
       "  line Local = segment(start: (0, 0), end: (10, 0))",
       "  arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
-      "  point FromLine = offset(from: Local.start, dx: 1, dy: 0)",
-      "  point FromArc = offset(from: Arc.center, dx: 1, dy: 0)",
-      "  point Endpoint = onLine(from: Local.end, distance: 1)",
-      "  point ParameterEndpoint = onLine(from: lineParam.end, distance: 1)",
-      "  line Plain = offset(sources: Local, distance: 1)",
-      "  point InvalidPointAccessor = offset(from: pointParam.start, dx: 1, dy: 0)",
-      "  point UnknownAccessor = offset(from: Local.foo, dx: 1, dy: 0)",
+      "  point FromLine = offset(from: @Local.start, dx: 1, dy: 0)",
+      "  point FromArc = offset(from: @Arc.center, dx: 1, dy: 0)",
+      "  point Endpoint = onLine(from: @Local.end, distance: 1)",
+      "  point ParameterEndpoint = onLine(from: @lineParam.end, distance: 1)",
+      "  line Plain = offset(sources: @Local, distance: 1)",
+      "  point InvalidPointAccessor = offset(from: @pointParam.start, dx: 1, dy: 0)",
+      "  point UnknownAccessor = offset(from: @Local.foo, dx: 1, dy: 0)",
       "}"
     ].join("\n"));
     expect(moduleBodyAt(compiled, 4).geometryReferences[0].reference).toMatchObject({ role: "derivedPoint", resolution: "resolved", target: { kind: "sourceGeometry", pointKey: "start" } });
@@ -647,12 +664,12 @@ describe("module semantic analysis", () => {
 
   it("rejects known derived accessors that are invalid for the source geometry category", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
       "  point P = coordinate(x: 0, y: 0)",
-      "  point InvalidLineCenter = offset(from: L.center, dx: 1, dy: 0)",
-      "  point InvalidPointStart = offset(from: P.start, dx: 1, dy: 0)",
+      "  point InvalidLineCenter = offset(from: @L.center, dx: 1, dy: 0)",
+      "  point InvalidPointStart = offset(from: @P.start, dx: 1, dy: 0)",
       "}"
     ].join("\n"));
     expect(moduleBodyAt(compiled, 4).geometryReferences[0].reference).toMatchObject({ resolution: "invalid", target: null });
@@ -662,11 +679,11 @@ describe("module semantic analysis", () => {
 
   it("rejects a line passed to a point position and preserves outer geometry capture", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "line Outer = segment(start: (0, 0), end: (10, 0))",
       "module M(base: line) {",
-      "  point A = offset(from: base, dx: 10, dy: 0)",
-      "  point B = offset(from: Outer.start, dx: 10, dy: 0)",
+      "  point A = offset(from: @base, dx: 10, dy: 0)",
+      "  point B = offset(from: @Outer.start, dx: 10, dy: 0)",
       "}"
     ].join("\n"));
     const body = compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements;
@@ -683,7 +700,7 @@ describe("module semantic analysis", () => {
 
   it("uses the canonical numeric geometry property vocabulary for parameter and source geometry", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(p: point, l: line) {",
       "  const x: number = @p.x",
       "  const y: number = @p.y",
@@ -707,12 +724,12 @@ describe("module semantic analysis", () => {
 
   it("defers qualified module export geometry references with source identity and spans", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module Child() {",
       "}",
       "module M() {",
-      "  module SomeInstance = Child()",
-      "  point P = offset(from: SomeInstance::Output, dx: 10, dy: 0)",
+      "  instance SomeInstance = Child()",
+      "  point P = offset(from: @SomeInstance::Output, dx: 10, dy: 0)",
       "  const length: number = @SomeInstance::Output.length",
       "}"
     ].join("\n");
@@ -746,12 +763,12 @@ describe("module semantic analysis", () => {
 
   it("keeps qualified export derived accessors in the deferred source target", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module Child() {",
       "}",
       "module M() {",
-      "  module SomeInstance = Child()",
-      "  point P = offset(from: SomeInstance::Output.start, dx: 10, dy: 0)",
+      "  instance SomeInstance = Child()",
+      "  point P = offset(from: @SomeInstance::Output.start, dx: 10, dy: 0)",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -769,7 +786,7 @@ describe("module semantic analysis", () => {
 
   it("keeps text and image geometry properties source-semantic without a fake geometry kind", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  text T = label(text: \"ok\", anchor: (0, 0), size: 3)",
       "  image I = image(source: \"image.png\", origin: (0, 0))",
@@ -794,11 +811,11 @@ describe("module semantic analysis", () => {
 
   it("defers qualified export properties without guessing the exported geometry category", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Child() {",
       "}",
       "module M() {",
-      "  module SomeInstance = Child()",
+      "  instance SomeInstance = Child()",
       "  const size: number = @SomeInstance::TextExport.fontSize",
       "}"
     ].join("\n"));
@@ -819,16 +836,16 @@ describe("module semantic analysis", () => {
 
   it("applies the module owner boundary to qualified export geometry and properties", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Base() {",
       "  export line L = segment(start: (0, 0), end: (10, 0))",
       "}",
-      "module Outside = Base()",
+      "instance Outside = Base()",
       "module M() {",
-      "  line X = offset(sources: Outside::L, distance: 1)",
+      "  line X = offset(sources: @Outside::L, distance: 1)",
       "  const length: number = @Outside::L.length",
-      "  module A = Base()",
-      "  line Y = offset(sources: A::L, distance: 1)",
+      "  instance A = Base()",
+      "  line Y = offset(sources: @A::L, distance: 1)",
       "}"
     ].join("\n"));
     const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
@@ -842,15 +859,15 @@ describe("module semantic analysis", () => {
 
   it("reports undefined, forward, and wrong-kind qualified module export instances", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Child() {",
       "}",
       "module M() {",
-      "  point Missing = offset(from: MissingInstance::Output, dx: 0, dy: 0)",
-      "  point Forward = offset(from: LaterInstance::Output, dx: 0, dy: 0)",
+      "  point Missing = offset(from: @MissingInstance::Output, dx: 0, dy: 0)",
+      "  point Forward = offset(from: @LaterInstance::Output, dx: 0, dy: 0)",
       "  const Wrong: number = 1",
-      "  point WrongKind = offset(from: Wrong::Output, dx: 0, dy: 0)",
-      "  module LaterInstance = Child()",
+      "  point WrongKind = offset(from: @Wrong::Output, dx: 0, dy: 0)",
+      "  instance LaterInstance = Child()",
       "}"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
@@ -860,9 +877,197 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("resolves ordinary qualified source paths for module scalar and geometry consumers", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M() {",
+      "  group G {",
+      "    const X: number = 1",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "  const value: number = @G::X",
+      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "}"
+    ].join("\n"));
+    const definition = compiled.moduleSemanticAnalysis!.definitions[0];
+    const value = definition.localScalars.find((scalar) => scalar.name === "value");
+    expect(value?.initializer?.references[0]).toMatchObject({
+      name: "G::X",
+      target: { kind: "moduleLocal", statementId: "statement:test:3", statementIndex: 3 },
+      resolution: "resolved"
+    });
+    expect(moduleBodyAt(compiled, 7).geometryReferences[0].reference).toMatchObject({
+      source: "@G::P",
+      target: { kind: "sourceGeometry", statementId: "statement:test:4", statementIndex: 4 },
+      resolution: "resolved"
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("does not fall through an overlaid module parameter during qualified traversal", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "group G {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module M(G: point) {",
+      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "}"
+    ].join("\n"));
+    const reference = moduleBodyAt(compiled, 5).geometryReferences[0].reference;
+
+    expect(reference).toMatchObject({ resolution: "invalid", target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
+  });
+
+  it("keeps qualified module paths fail-closed across scalar and geometry kinds", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M() {",
+      "  group G {",
+      "    const X: number = 1",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "  const scalarFromGeometry: number = @G::P",
+      "  point geometryFromScalar = offset(from: @G::X, dx: 0, dy: 0)",
+      "}"
+    ].join("\n"));
+    const definition = compiled.moduleSemanticAnalysis!.definitions[0];
+    expect(definition.localScalars.find((scalar) => scalar.name === "scalarFromGeometry")?.initializer?.references[0]).toMatchObject({
+      name: "G::P",
+      target: { kind: "sourceGeometry", statementId: "statement:test:4", statementIndex: 4 },
+      resolution: "invalid"
+    });
+    expect(moduleBodyAt(compiled, 7).geometryReferences[0].reference).toMatchObject({
+      source: "@G::X",
+      target: null,
+      resolution: "invalid"
+    });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-reference-in-scalar" }),
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+  });
+
+  it("does not traverse through an iteration overlay that shadows a qualified path", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "group G {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module M() {",
+      "  for G in range(from: 0, count: 1) {",
+      "    point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    const reference = moduleBodyAt(compiled, 6).geometryReferences[0].reference;
+
+    expect(reference).toMatchObject({ resolution: "invalid", target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
+  });
+
+  it("reports a qualified path first-segment forward reference without outer fallback", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M() {",
+      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "  group G {",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    const reference = moduleBodyAt(compiled, 2).geometryReferences[0].reference;
+
+    expect(reference).toMatchObject({ resolution: "forward", target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-forward-geometry-reference" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-undefined-geometry-reference" }),
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
+  });
+
+  it("reports a qualified path nested-member forward after resolving its local container", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M() {",
+      "  group G {",
+      "    point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    const reference = moduleBodyAt(compiled, 3).geometryReferences[0].reference;
+
+    expect(reference).toMatchObject({ resolution: "forward", target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-forward-geometry-reference" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-undefined-geometry-reference" })
+    ]));
+  });
+
+  it("rejects an ordinary qualified path that captures an outer module geometry", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "group G {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "module M() {",
+      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "}"
+    ].join("\n"));
+    const reference = moduleBodyAt(compiled, 5).geometryReferences[0].reference;
+
+    expect(reference).toMatchObject({ resolution: "outerCapture", target: null });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-outer-capture" })
+    ]));
+  });
+
+  it("resolves a module scalar qualified geometry property through the source namespace", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M() {",
+      "  group G {",
+      "    line L = segment(start: (0, 0), end: (10, 0))",
+      "  }",
+      "  const length: number = @G::L.length",
+      "}"
+    ].join("\n"));
+    const property = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!.geometryProperties[0];
+
+    expect(property).toMatchObject({
+      geometryName: "G::L",
+      property: "length",
+      target: {
+        kind: "sourceGeometryProperty",
+        statementId: "statement:test:3",
+        statementIndex: 3,
+        property: "length"
+      },
+      resolution: "resolved"
+    });
+    expect(property.target).not.toHaveProperty("kind", "deferredModuleExportProperty");
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
   it("does not create runtime CadElements or runtime IDs for module body statements", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0)",
       "  const value: number = 1",

@@ -67,7 +67,7 @@ const reverseEligible = () => {
  * line, through the same source-backed creation path every other element
  * creation command uses (see containerCreation.ts's addContainer) - no
  * hand-written statement text. A reversal inside a forGroup is a normal
- * element there like any other; pathReverseEvaluator.ts (TS) and
+ * element there like any other; pathReverseEvaluator.ts (TS) &&
  * path_reverse_evaluator.rs (Rust) reject it at evaluation time when the
  * target is outside any forGroup that contains the reverse statement.
  * A target inside all of the reverse statement's enclosing forGroups remains
@@ -75,8 +75,8 @@ const reverseEligible = () => {
 const insertReverseAfterSelectedPath = () => {
   const selected = reverseEligible();
   const document = useCadDocumentStore.getState();
-  if (!selected || document.doc.majorVersion !== 3 || document.docText !== document.sourceText) {
-    useCadUiStore.getState().setCommandErrorMessage("nui 3 の線を1件選択してから実行してください。");
+  if (!selected || document.doc.majorVersion !== 4 || document.docText !== document.sourceText) {
+    useCadUiStore.getState().setCommandErrorMessage("nui 4 の線を1件選択してから実行してください。");
     return false;
   }
   const sourceInsertion = resolveSourceCreationInsertion({
@@ -158,7 +158,7 @@ const openRenameElementPrompt = () => {
  * since the cursor is the more specific signal of what the user is renaming;
  * a typed target only ever comes from `context.currentCursorTypedRenameTargetBindingId`,
  * which is null whenever the cursor is not on a typed construct at all, so
- * ordinary CAD element rename (via Canvas selection or a Source Editor
+ * ordinary CAD element rename (via Canvas selection || a Source Editor
  * cursor parked on an element statement) is completely unaffected.
  */
 const openRenameSelectedElementPrompt = (context?: CommandContext) => {

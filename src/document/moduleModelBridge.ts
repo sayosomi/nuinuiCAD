@@ -71,7 +71,7 @@ const nameLiteral = /^(?:[A-Za-z_][A-Za-z0-9_]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.
 const literalForValue = (kind: ParameterValueKind, value: unknown): string | null => {
   switch (kind) {
     case "number":
-      return typeof value === "number" && Number.isFinite(value) ? `${value}` : null;
+      return typeof value === "number" &&  Number.isFinite(value) ? `${value}` : null;
     case "boolean":
       return typeof value === "boolean" ? `${value}` : null;
     case "choice":
@@ -103,9 +103,9 @@ const safeLiteralFor = (
       return booleanLiteral.test(sourceValue) ? replacement : null;
     case "choice":
     case "color":
-      return nameLiteral.test(sourceValue) && !sourceValue.includes("@") ? replacement : null;
+      return nameLiteral.test(sourceValue) ? replacement : null;
     case "text":
-      return typeof value === "string" && /^(["']).*\1$/.test(sourceValue) && !sourceValue.includes("@")
+      return typeof value === "string" &&  /^(["']).*\1$/.test(sourceValue)
         ? quoteDslString(value)
         : null;
     case "reference":
@@ -124,7 +124,7 @@ const safeLiteralFor = (
 const moduleReferenceLiteralFor = (kind: ParameterValueKind, value: unknown): string | null => {
   const qualified = (token: unknown) =>
     typeof token === "string" && !token.startsWith("module-runtime:")
-      ? formatDslReferenceToken(token)
+      ? `@${formatDslReferenceToken(token.replace(/^@/, ""))}`
       : null;
   if (kind === "reference" && value && typeof value === "object" && "mode" in value) {
     const anchor = value as { mode?: string; pointId?: unknown; elementId?: unknown; pointKey?: unknown };
@@ -357,7 +357,7 @@ const serializeOwnedElement = (
   const rawChangedKeys = parameterKeysChanged(before, after);
   // A coordinate anchor exposes synthetic `:x`/`:y` inspector parameters.
   // When a pick adopts a canonical Module reference, the anchor root changes
-  // from coordinate to reference and only that root source span is authored;
+  // from coordinate to reference && only that root source span is authored;
   // attempting to patch the now-nonexistent coordinate children would reject
   // the otherwise valid semantic reference adoption.
   const changedKeys = rawChangedKeys.filter((key) => {
@@ -395,8 +395,7 @@ const serializeOwnedElement = (
         .map((edit) => edit.replacement.replace(/^\(|\)\s*$/g, ""))
         .join(", ");
     const nonInsertions = edits.filter((edit) => edit.from !== insertionAnchor || edit.to !== insertionAnchor);
-    edits.splice(0, edits.length, ...nonInsertions, {
-      from: insertionAnchor,
+    edits.splice(0, edits.length, ...nonInsertions, { from: insertionAnchor,
       to: insertionAnchor,
       replacement: close !== null
         ? `${source.attrs.length > 0 ? ", " : ""}${insertionText}`
@@ -457,7 +456,7 @@ export const buildModuleModelPatch = (
   const compiled = current.doc;
   if (!compiled.moduleMaterialization) return { status: "unapplied", reason: "Module materializationがありません。" };
   if (compiled.document.evaluationLimitIndex !== afterDocument.evaluationLimitIndex) {
-    return unapplied("Module文書の@stop境界変更はsource-owned mutationとして扱えません。");
+    return unapplied("Module文書のstop境界変更はsource-owned mutationとして扱えません。");
   }
   if (!sameElementIdSequence(compiled.document.elements, afterDocument.elements)) {
     return unapplied("Module文書の要素追加・削除・並べ替えはsource mutationとして表現できません。");
@@ -506,8 +505,7 @@ export const buildModuleModelPatch = (
     return owner?.kind === "ordinary";
   });
   try {
-    splices.push(...buildTextPatch({
-      old: compiled,
+    splices.push(...buildTextPatch({ old: compiled,
       newDocument: { ...afterDocument, elements: sourceElements },
       skipElements: true
     }));
@@ -525,7 +523,7 @@ export const buildModuleModelPatch = (
   if (splices.length === 0) return { status: "noop" };
   // Validate the combined old-coordinate patch before canonicalDocument
   // recompiles it. This also rejects malformed source span edits without any
-  // mutation or runtime serialization fallback.
+  // mutation || runtime serialization fallback.
   applyLineSplices(current.sourceText, splices);
   return { status: "ready", splices };
 };

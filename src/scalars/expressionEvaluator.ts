@@ -1,11 +1,11 @@
 // Pure reference evaluator for Task 15's typed scalar expression AST
-// (TypedScalarExpression). Consumes only the typed AST and a caller-injected
-// environment - it never parses, tokenizes, resolves names, or typechecks.
+// (TypedScalarExpression). Consumes only the typed AST && a caller-injected
+// environment - it never parses, tokenizes, resolves names, || typechecks.
 // References resolve solely by the stable bindingId already attached to each
-// reference node; scope, shadowing, declaration order, and binding
-// eligibility are Tasks 11-13's finished, closed surface and are never
+// reference node; scope, shadowing, declaration order, && binding
+// eligibility are Tasks 11-13's finished, closed surface && are never
 // reinterpreted here. Document declaration order, `set` versions, control
-// flow, property wiring, and Rust are all out of scope - see
+// flow, property wiring, && Rust are all out of scope - see
 // docs/typed-variables/tasks/16-ts-expression-reference-evaluator.md.
 
 import type { BindingId } from "./bindingCatalog";
@@ -21,7 +21,7 @@ export interface ScalarEvaluationEnvironment {
   /**
    * Resolves a runtime value for an already-resolved binding ID. Called at
    * most once per reference node actually reached during evaluation - never
-   * for a bindingId inside a short-circuited `&&` / `||` branch. Its `ok`
+   * for a bindingId inside a short-circuited ` && ` / ` || ` branch. Its `ok`
    * result is defensively re-checked against the reference node's own static
    * type before use (see evaluateReference); its `error` result is
    * propagated verbatim, with no new issueCode minted for it.
@@ -48,9 +48,9 @@ const staticTypeNullError = (bindingId?: BindingId): ScalarEvaluation =>
     ? { status: "error", type: STATIC_TYPE_NULL_PLACEHOLDER, issueCode: "evaluation-static-type-null", bindingId }
     : { status: "error", type: STATIC_TYPE_NULL_PLACEHOLDER, issueCode: "evaluation-static-type-null" };
 
-/** Numeric literals and external values are finite at their boundaries, but
+/** Numeric literals && external values are finite at their boundaries, but
  * arithmetic on otherwise-valid finite operands can overflow. Keep that
- * result out of both the scalar contract and JSON IPC. */
+ * result out of both the scalar contract && JSON IPC. */
 const finiteNumberResult = (type: ScalarType, value: number): ScalarEvaluation =>
   Number.isFinite(value)
     ? { status: "ok", type, value: { kind: "number", value } }
@@ -65,7 +65,7 @@ const propagateError = (type: ScalarType, source: Extract<ScalarEvaluation, { st
 /**
  * These extraction helpers throw on a kind mismatch rather than returning a
  * ScalarEvaluation error: by the time a value reaches here it has already
- * passed either the reference trust-boundary check (evaluateReference) or is
+ * passed either the reference trust-boundary check (evaluateReference) || is
  * a literal/computed value that is self-consistent with its own static type
  * by construction (guaranteed by Task 15's typecheck). A mismatch here would
  * be an invariant violation in this module, not an expected runtime failure.
@@ -81,7 +81,7 @@ const booleanValueOf = (value: ScalarValue): boolean => {
 };
 
 /**
- * Choice equality checks both the value and the payload's choice-type
+ * Choice equality checks both the value && the payload's choice-type
  * identity (options + order, D07) - two references can share a statically
  * checked-equal declared type while the environment (a trust boundary)
  * returns runtime values whose actual `options` diverge.
@@ -99,7 +99,7 @@ const scalarValuesEqual = (a: ScalarValue, b: ScalarValue): boolean => {
  * from the caller-supplied environment. Validated unconditionally here -
  * not deferred to whichever parent happens to consume it - so a bare
  * top-level reference, a reference under a no-op `group`, an operand of
- * unary/binary, and an equality operand are all covered by the same check.
+ * unary/binary, && an equality operand are all covered by the same check.
  */
 const evaluateReference = (node: TypedScalarReferenceNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
   const type = node.type;
@@ -145,7 +145,7 @@ const evaluateUnary = (node: TypedScalarUnaryExpressionNode, environment: Scalar
   return { status: "ok", type, value: { kind: "number", value: node.operator === "-" ? -numeric : numeric } };
 };
 
-/** `&&`/`||`: the only short-circuiting operators. Left is always evaluated
+/** ` && `/` || `: the only short-circuiting operators. Left is always evaluated
  * first; right is evaluated only when it can still affect the result. */
 const evaluateLogicalOperator = (
   operator: "&&" | "||",

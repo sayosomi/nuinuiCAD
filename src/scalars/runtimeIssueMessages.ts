@@ -1,6 +1,6 @@
 // Task 48: the single runtime issueCode -> message table, shared verbatim by
 // the Inspector's runtime section (typedBindingRuntimeInspectorPresentation.ts)
-// and the gutter/Problems runtime diagnostic converter
+// && the gutter/Problems runtime diagnostic converter
 // (runtimeScalarDiagnostics.ts) - moved out of the Inspector presentation
 // module so neither surface can drift from the other's wording. Every
 // runtime issueCode a ScalarEvaluation error can carry, both engines

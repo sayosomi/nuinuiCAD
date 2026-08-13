@@ -20,7 +20,7 @@ const typedDeclaration = (statements: readonly DslStatement[]): Extract<DslState
 
 describe("exactPhysicalSpan", () => {
   it("projects a single-line initializer sub-span to its exact real source position, not the whole statement", () => {
-    const { spans, statements } = spansFor("nui 3\nconst x: number = 1 + 2");
+    const { spans, statements } = spansFor("nui 4\nconst x: number = 1 + 2");
     const statement = typedDeclaration(statements);
     const initializerSpan = statement.payloadSpans.initializer!;
     // The `2` token: offset within the initializer text "1 + 2".
@@ -29,14 +29,14 @@ describe("exactPhysicalSpan", () => {
     expect(physical).not.toBeNull();
     expect(physical!.segments).toHaveLength(1);
     const [segment] = physical!.segments;
-    const projectedText = "nui 3\nconst x: number = 1 + 2".slice(segment.from, segment.to);
+    const projectedText = "nui 4\nconst x: number = 1 + 2".slice(segment.from, segment.to);
     expect(projectedText).toBe("2");
     // Whole-statement span would start at "const", well before the token.
     expect(segment.from).toBeGreaterThan(statement.physicalSpan.segments[0].from);
   });
 
   it("projects an exact sub-span inside a multi-physical-line (continuation) statement", () => {
-    const source = ["nui 3", "point A = coordinate(", "  x: 0,", "  y: 20", ")"].join("\n");
+    const source = ["nui 4", "point A = coordinate(", "  x: 0,", "  y: 20", ")"].join("\n");
     const { spans, statements } = spansFor(source);
     const elementStatement = statements.find((item) => item.kind === "element")!;
     expect(elementStatement.endLine).toBeGreaterThan(elementStatement.line);
@@ -54,7 +54,7 @@ describe("exactPhysicalSpan", () => {
   });
 
   it("fails closed (null, never the whole statement) when the logical statement mapping is missing", () => {
-    const { spans, statements } = spansFor("nui 3\nconst x: number = 1");
+    const { spans, statements } = spansFor("nui 4\nconst x: number = 1");
     const statement = typedDeclaration(statements);
     const fabricated = { documentRange: { ...statement.documentRange, from: -999 } };
     const physical = exactPhysicalSpan(spans, fabricated, { start: 0, end: 1 });
@@ -62,7 +62,7 @@ describe("exactPhysicalSpan", () => {
   });
 
   it("fails closed (null) on a revision mismatch rather than projecting against stale source", () => {
-    const { spans, statements } = spansFor("nui 3\nconst x: number = 1");
+    const { spans, statements } = spansFor("nui 4\nconst x: number = 1");
     const statement = typedDeclaration(statements);
     const staleSpans: DiagnosticSpanContext = {
       ...spans,

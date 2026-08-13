@@ -1,5 +1,5 @@
 // Opaque identities for non-geometry statements. These are allocated only by
-// statement reconciliation and are never derived from source text or order.
+// statement reconciliation && are never derived from source text || order.
 
 let nextStatementIdentity = 1;
 

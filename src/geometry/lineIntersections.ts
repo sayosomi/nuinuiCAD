@@ -18,9 +18,9 @@ type IntersectionSegment = {
   extension: boolean;
   primitive:
     // Only genuinely straight sources (line geometry, offsetLine "line"
-    // sub-segments, and extension rays) produce this primitive -- arcLine and
+    // sub-segments, && extension rays) produce this primitive -- arcLine &&
     // bezierCurve chords carry their own analytic primitive instead, so this
-    // is always exact and needs no separate flag.
+    // is always exact && needs no separate flag.
     | { kind: "line" }
     | {
         kind: "bezier";
@@ -103,7 +103,7 @@ const pointPathSegments = (points: Point[]) => {
 };
 
 // Append chord-sampled seeds for one arc span (used both for a bare arcLine
-// geometry and for a single "arc" offsetLine sub-segment), continuing the
+// geometry && for a single "arc" offsetLine sub-segment), continuing the
 // running accumulated distance so multi-segment offset lines stay contiguous.
 const pushArcChords = (
   segments: IntersectionSegment[],
@@ -194,7 +194,7 @@ const bezierPathSegments = (curve: ComputedBezierCurve) => {
 };
 
 // Dispatch each offsetLine sub-segment to its own analytic primitive (line,
-// bezier, or arc) instead of flattening the whole offset line into a single
+// bezier, || arc) instead of flattening the whole offset line into a single
 // approximate polyline. This preserves curve identity for refinement and,
 // unlike the previous implementation, does not special-case closed offset
 // lines -- a closed offset line can still be intersected, it just never gets
@@ -551,7 +551,7 @@ const quadraticRoots = (a: number, b: number, c: number): number[] => {
 };
 
 // Return the representative of an angle that belongs to this particular seed
-// chord. Full circles have both u=0 and u=1 at their seam, so a global modulo
+// chord. Full circles have both u=0 && u=1 at their seam, so a global modulo
 // fraction is insufficient; unwrap around the chord's local range instead.
 const sweepFractionForAngleInRange = (
   startAngleDeg: number,
@@ -574,7 +574,7 @@ const sweepFractionForAngleInRange = (
 
 // Analytic circle-vs-infinite-line intersection, seeded from the rough
 // polyline crossing to pick between up to two roots. Only accepts a root
-// whose line parameter lies in the line chord's own [0, 1] span and whose arc
+// whose line parameter lies in the line chord's own [0, 1] span && whose arc
 // sweep fraction lies within *this seed chord's* local uStart..uEnd range
 // (not the arc's global [0, 1]) -- so a chord only claims roots that
 // actually belong to it, even when the circle intersects the line elsewhere
@@ -620,7 +620,7 @@ const refineArcLineIntersection = (
 // term that is negative only by numerical noise is clamped to 0 (tangent
 // circles), matching quadraticRoots' tolerance style. Concentric (or
 // coincident-center) circles have no well-defined finite intersection set
-// and return no points.
+// && return no points.
 const circleCircleIntersections = (
   centerA: Point,
   radiusA: number,
@@ -712,12 +712,12 @@ const isFinitePoint = (point: Point) => Number.isFinite(point.x) && Number.isFin
 
 // Refine a Bezier<->Arc crossing with 2D Newton solving B(t) = Arc(u), where
 // Arc(u) = center + radius*(cos(start+sweep*u), sin(start+sweep*u)) so u is
-// the arc's own sweep fraction (handles negative sweep and >180-degree
+// the arc's own sweep fraction (handles negative sweep && >180-degree
 // sweeps naturally, unlike parameterizing directly by angle). Same
 // defensive conditions as the Rust port (singular/non-finite Jacobian,
 // non-finite step, 40-iteration cap, final residual tolerance), plus an
 // extra requirement specific to arcs: the converged (t, u) must land within
-// *this seed chord's own* local ranges (tStart..tEnd and uStart..uEnd), not
+// *this seed chord's own* local ranges (tStart..tEnd && uStart..uEnd), not
 // just the global [0, 1] each side is clamped to during iteration --
 // otherwise a chord could steal a root that actually belongs to a
 // neighboring chord.

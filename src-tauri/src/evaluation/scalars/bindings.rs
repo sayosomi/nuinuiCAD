@@ -1,4 +1,4 @@
-//! Runtime evaluation for an already-resolved nui 3 scalar program.
+//! Runtime evaluation for an already-resolved nui4 scalar program.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -52,9 +52,12 @@ fn is_within_evaluation_limit(
     program: &ValidatedScalarProgram,
     statement: &ValidatedScalarProgramStatement,
 ) -> bool {
-    !program
-        .evaluation_limit_source_order
-        .is_some_and(|limit| statement.source_order >= limit)
+    !program.evaluation_limit_source_order.is_some_and(|limit| {
+        statement.source_order >= limit
+            && !program
+                .post_stop_binding_ids
+                .contains(&statement.binding_id)
+    })
 }
 
 /// Resolves one binding's value on demand, memoized for the lifetime of one

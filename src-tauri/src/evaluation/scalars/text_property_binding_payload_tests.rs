@@ -21,6 +21,37 @@ fn valid_entry() -> serde_json::Value {
     })
 }
 
+fn string_expression() -> serde_json::Value {
+    json!({
+        "kind": "group",
+        "span": {"start": 0, "end": 8},
+        "expression": {
+            "kind": "reference",
+            "span": {"start": 1, "end": 8},
+            "nameSpan": {"start": 2, "end": 8},
+            "name": "label",
+            "bindingId": "binding:stmt-1",
+            "type": {"kind": "string"}
+        },
+        "type": {"kind": "string"}
+    })
+}
+
+#[test]
+fn accepts_a_compound_typed_expression_source() {
+    let mut entry = valid_entry();
+    entry.as_object_mut().unwrap().remove("bindingId");
+    entry["expression"] = string_expression();
+    let decoded = validate_text_property_bindings_payload(
+        &json!([entry]),
+        &text_type_map(),
+        &valid_binding_ids(),
+    )
+    .unwrap();
+    assert!(decoded[0].binding_id.is_none());
+    assert!(decoded[0].expression.is_some());
+}
+
 #[test]
 fn accepts_a_valid_text_binding() {
     let payload = json!([valid_entry()]);
@@ -30,11 +61,11 @@ fn accepts_a_valid_text_binding() {
     assert_eq!(decoded.len(), 1);
     assert_eq!(decoded[0].element_id, "label-1");
     assert_eq!(decoded[0].parameter_key, "text");
-    assert_eq!(decoded[0].binding_id, "binding:stmt-1");
+    assert_eq!(decoded[0].binding_id.as_deref(), Some("binding:stmt-1"));
 }
 
 #[test]
-fn rejects_an_unsupported_element_type_parameter_key_pair() {
+fn accepts_a_schema_driven_parameter_key_without_a_property_allowlist() {
     let mut entry = valid_entry();
     entry["parameterKey"] = json!("fontSize"); // text.fontSize is not a text property binding target
     let payload = json!([entry]);
@@ -43,23 +74,23 @@ fn rejects_an_unsupported_element_type_parameter_key_pair() {
         &text_type_map(),
         &valid_binding_ids()
     )
-    .is_err());
+    .is_ok());
 }
 
 #[test]
-fn rejects_an_unsupported_owner_element_type() {
+fn accepts_an_element_type_when_the_compiled_contract_supplies_the_type() {
     let mut type_map = text_type_map();
     type_map.insert("line-1", "line");
     let mut entry = valid_entry();
     entry["elementId"] = json!("line-1");
     let payload = json!([entry]);
     assert!(
-        validate_text_property_bindings_payload(&payload, &type_map, &valid_binding_ids()).is_err()
+        validate_text_property_bindings_payload(&payload, &type_map, &valid_binding_ids()).is_ok()
     );
 }
 
 #[test]
-fn rejects_an_expected_type_that_does_not_match_the_canonical_type() {
+fn accepts_the_compiled_expected_type_without_a_rust_schema_duplicate() {
     let mut entry = valid_entry();
     entry["expectedType"] = json!({"kind": "number"});
     let payload = json!([entry]);
@@ -68,7 +99,7 @@ fn rejects_an_expected_type_that_does_not_match_the_canonical_type() {
         &text_type_map(),
         &valid_binding_ids()
     )
-    .is_err());
+    .is_ok());
 }
 
 #[test]

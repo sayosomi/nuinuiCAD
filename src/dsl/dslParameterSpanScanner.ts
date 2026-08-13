@@ -55,7 +55,7 @@ export const nonEmptyDslSpans = (spans: readonly DslSpan[]) =>
 const hasText = (span: DslSpan) => span.start < span.end;
 
 /** `(x, y)` coordinate-literal x/y sub-span decomposition. Shared by parameter
- * value-span resolution and completion (which needs the same detection
+ * value-span resolution && completion (which needs the same detection
  * directly against live text). */
 export const coordinateComponent = (source: string, span: DslSpan, component: "x" | "y") => {
   if (source[span.start] !== "(" || source[span.end - 1] !== ")") return null;

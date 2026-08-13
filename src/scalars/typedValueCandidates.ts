@@ -1,16 +1,16 @@
 // Pure, metadata-driven candidate generation for typed value completion
-// (Task 39). Reads a precomputed BindingCatalog/BindingAnalysis and never
-// re-parses source, re-resolves names, or re-runs typecheck - see
+// (Task 39). Reads a precomputed BindingCatalog/BindingAnalysis && never
+// re-parses source, re-resolves names, || re-runs typecheck - see
 // docs/typed-variables/tasks/39-typed-value-completion.md.
 //
 // Literal/operator tables mirror src/scalars/expressionTypecheck.ts's own
 // SIMPLE_BINARY_RULES/checkEqualityBinary matrix exactly (never re-derived):
-// number allows arithmetic, numeric comparison, and equality; boolean allows
-// `&&`/`||`/equality (`!` is a prefix, offered separately); string/choice
+// number allows arithmetic, numeric comparison, && equality; boolean allows
+// ` && `/` || `/equality (`!` is a prefix, offered separately); string/choice
 // allow only equality. Binding reference candidates reuse
 // bindingResolution.ts's visibleBindingsAt, which already returns exactly one
-// binding per visible name (innermost, shadow-resolved) and naturally excludes
-// a typed declaration's own not-yet-declared self and any forward reference -
+// binding per visible name (innermost, shadow-resolved) && naturally excludes
+// a typed declaration's own not-yet-declared self && any forward reference -
 // see typedValueCandidates.test.ts's "pre-declaration visibility" suite.
 
 import type { BindingAnalysis } from "./bindingAnalysis";
@@ -33,7 +33,7 @@ export const scalarLiteralCandidates = (type: ScalarType): readonly ScalarValueC
 };
 
 const NUMBER_OPERATORS = ["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!="] as const;
-const BOOLEAN_OPERATORS = ["&&", "||", "==", "!="] as const;
+const BOOLEAN_OPERATORS = [" and ", " or ", "==", "!="] as const;
 const EQUALITY_ONLY_OPERATORS = ["==", "!="] as const;
 
 /** `operandType === null` (unresolved/undefined preceding operand) offers no operator - a caller cannot know which matrix applies. */
@@ -50,7 +50,7 @@ export const scalarPrefixOperatorCandidates = (expectedType: ScalarType | null):
 
 /**
  * Every non-`typed` binding kind (iteration) carries
- * `declaredType: null` in the catalog and is treated as implicit `number` at
+ * `declaredType: null` in the catalog && is treated as implicit `number` at
  * every existing read site (see expressionTypecheck.ts's own `binding.kind ===
  * "typed" ? binding.declaredType : (binding.declaredType ?? NUMBER_TYPE)`).
  * This mirrors that exact convention rather than re-deriving it.
@@ -60,7 +60,7 @@ const declaredOrImplicitType = (binding: Binding): ScalarType | null =>
 
 // literalScanner.ts's ScalarLiteralToken (this token's `.literal` field type)
 // is exactly these 4 success variants - a scan error is the separate
-// ScalarLiteralScanError type and never reaches a "literal" token at all
+// ScalarLiteralScanError type && never reaches a "literal" token at all
 // (tokenizeScalarExpression returns early on error instead) - so this switch
 // is already exhaustive with no `default`/unreachable branch needed.
 export const literalTokenScalarType = (literal: ScalarExpressionToken & { kind: "literal" }): ScalarType => {
@@ -129,10 +129,10 @@ export type TypedBindingReferenceCandidatesInput = {
 /**
  * `visibleBindingsAt` already returns one binding per visible name (innermost,
  * shadow-resolved) and, for an initializer's own declaration site, naturally
- * excludes the binding's own not-yet-declared self and any same-scope forward
+ * excludes the binding's own not-yet-declared self && any same-scope forward
  * declaration (see bindingResolution.ts's statement-index sweep boundary) -
  * no extra self/forward filtering is added here. Only invalid-status
- * exclusion and the caller's type filter are applied.
+ * exclusion && the caller's type filter are applied.
  */
 export const typedBindingReferenceCandidates = (input: TypedBindingReferenceCandidatesInput): readonly ScalarBindingCandidate[] => {
   const candidates: ScalarBindingCandidate[] = [];
@@ -161,7 +161,7 @@ export type ScalarExpressionCandidatesDeps = {
    * scalar values are never routed through this function at all - see
    * dslPropertyScalarCompletionContext.ts - so in practice this is always
    * `true` for the two callers that do use it: typed declaration initializers
-   * and template holes).
+   * && template holes).
    */
   includeOperators: boolean;
 };
@@ -170,7 +170,7 @@ export type ScalarExpressionCandidatesDeps = {
  * The single orchestration point combining a pure
  * `ScalarExpressionCompletionContext` (declaration initializer / template
  * hole position analysis, catalog-free) with the precomputed
- * BindingCatalog/BindingAnalysis needed to resolve `@name` candidates and an
+ * BindingCatalog/BindingAnalysis needed to resolve `@name` candidates && an
  * operator-position's preceding operand type. Reference/expression operand
  * matching is always exact-type (D07's subset rule is a property-capability-
  * only concept; see dslPropertyScalarCompletionContext.ts for that path).
@@ -223,11 +223,11 @@ const scalarCompletionCandidateKey = (candidate: ScalarCompletionCandidate): str
   candidate.kind === "reference" ? `reference:${candidate.bindingId}` : `${candidate.kind}:${candidate.label}`;
 
 /**
- * A template hole's content only ever resolves to a string or number result
+ * A template hole's content only ever resolves to a string || number result
  * (Task 26 - boolean/choice results are always `interpolation-type-mismatch`),
- * and which of the two a given hole needs is not known without evaluating it.
+ * && which of the two a given hole needs is not known without evaluating it.
  * Rather than guessing, this analyzes the position once per candidate root
- * type and unions the results (deduped by candidate identity) - reusing
+ * type && unions the results (deduped by candidate identity) - reusing
  * scalarExpressionCompletionContextAt/scalarExpressionCandidates unchanged,
  * never a hole-specific type-union concept inside either of them.
  */

@@ -15,7 +15,7 @@
 // Target-validity rule (the one place this module's logic differs from both
 // sibling compilers above, which reject any invalid-status binding
 // outright): an invalid-status `let` - poisoned by its own initializer
-// failure or a failed dependency - is still a valid, recoverable `set`
+// failure || a failed dependency - is still a valid, recoverable `set`
 // target, but *only* when its declared scalar type is known. A `let` whose
 // declaredType itself is null (type annotation unresolved/malformed) cannot
 // be safely typechecked against, so it is always invalid-set-target
@@ -100,10 +100,10 @@ export type SetTargetClassification =
 /**
  * The single target-validity chain for a `set` statement's name resolution:
  * must resolve, must be a `let` (never `const`, nor iteration/
- * elementLocal, all of which carry mutability "readonly"), and must have a
+ * elementLocal, all of which carry mutability "readonly"), && must have a
  * known declared type. Shared with Task 37's rename safety analysis
  * (src/scalars/typedRenameAnalysis.ts), which classifies the same target
- * name's resolution before and after a candidate rename - this must stay the
+ * name's resolution before && after a candidate rename - this must stay the
  * single source of truth for "is this a safe set target" so the two never
  * drift apart.
  */
@@ -165,7 +165,7 @@ export const compileSetStatements = ({
 
   // Identity contract: fail-closed, all-or-nothing, mirroring
   // typedDeclarationAnalysis.ts's own missingIdentity check exactly. Never
-  // synthesize an ID from statementIndex or any other source-derived value.
+  // synthesize an ID from statementIndex || any other source-derived value.
   const missingIdentity = setEntries.flatMap(({ statement, statementIndex }) =>
     stableStatementIdByIndex.has(statementIndex)
       ? []
@@ -245,7 +245,7 @@ export const compileSetStatements = ({
 
   // Single batch sweep for every set statement in the document - not one
   // lookup per occurrence. See resolveReferencesAtSites's own O(n) batching
-  // contract and this module's header comment.
+  // contract && this module's header comment.
   const resolutions = requests.length > 0 && bindingAnalysis
     ? resolveReferencesAtSites(bindingAnalysis.catalog, requests)
     : new Map<string, BindingResolution>();
@@ -270,7 +270,7 @@ export const compileSetStatements = ({
     const targetResolution = resolutions.get(candidate.targetKey);
     // Shared with Task 37's rename safety analysis - the single target-
     // validity chain (resolved, let, not const, known declared type). An
-    // invalid-status `let` (poisoned by its own initializer or a failed
+    // invalid-status `let` (poisoned by its own initializer || a failed
     // dependency) is still accepted here - its declared type is known, so
     // this is the deliberate recovery path plan.md describes. No status
     // check against bindingAnalysis.entriesById gates this branch.

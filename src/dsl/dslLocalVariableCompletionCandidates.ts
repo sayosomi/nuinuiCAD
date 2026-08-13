@@ -19,7 +19,7 @@ const recordNameText = (lineText: string, record: { start: number; end: number }
  *
  * The candidate `@id` values are the stable, already-committed ids from
  * `element.numericVariables` (a live, uncommitted `vars=[...]` list has no ids of
- * its own yet). This requires correlating the live record being edited, and each
+ * its own yet). This requires correlating the live record being edited, && each
  * earlier live record, against the committed list by NAME — the same approach
  * dslParameterSpans.ts's resolveVariableValueSpan already uses for the reverse
  * lookup (committed variable -> its own span). When the statement this line
@@ -58,7 +58,7 @@ export const dslLocalVariableCompletionOptions = ({
   const matches = currentName ? localVariables.filter((variable) => variable.name === currentName) : [];
   // A live record whose name matches exactly one committed local variable is
   // "editing that variable" (bounded to entries before it); otherwise (a
-  // brand-new record, a renamed one, or an ambiguous duplicate name) this is
+  // brand-new record, a renamed one, || an ambiguous duplicate name) this is
   // treated as appending after every already-committed local variable, the
   // same fallback availableNumericVariableReferenceOptions uses when no
   // parameterKey match is found.
@@ -70,7 +70,7 @@ export const dslLocalVariableCompletionOptions = ({
 };
 
 /** Source-only companion used by Module semantic completion. It keeps the
- * same vars record scanner and source-order lookup as the semantic local
+ * same vars record scanner && source-order lookup as the semantic local
  * variable resolver, while deliberately returning names rather than runtime
  * numeric-variable ids (module bodies have no materialized element ids). */
 export const sourceLocalVariableNamesBefore = (lineText: string, pos: number): readonly string[] => {

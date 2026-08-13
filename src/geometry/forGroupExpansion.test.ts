@@ -89,7 +89,7 @@ describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
       expect(generatedDivision).toMatchObject({
         placement: { kind: "ratio", value: 0.2 },
         // line-ab is a document-level sibling, not a forGroup descendant, so it is
-        // outside the template idMap and its reference is left unchanged.
+        // outside the template idMap && its reference is left unchanged.
         endpoint: { lineId: "line-ab", endpointKey: "start" }
       });
     }
@@ -286,7 +286,7 @@ describe("expandForGroupIteration (nested forGroup ownership and iteration conte
       ancestorIterationVariables: [outerExpanded.iterationVariable]
     });
     const generatedP = innerExpanded.generatedElements.find((e) => e.type === "freePoint")!;
-    // evaluateLocalVariables keys localVariableValues by both binding id and
+    // evaluateLocalVariables keys localVariableValues by both binding id &&
     // by plain name, so a `@i` / `@j` numeric expression resolves by name
     // directly.
     const localVariables = evaluateLocalVariables(generatedP, new Map(), new Map(), [], elements);
@@ -347,7 +347,7 @@ describe("expandForGroupIteration (nested forGroup ownership and iteration conte
     const generatedP = generatedElements.find((element) => element.type === "freePoint")!;
     const localVariables = evaluateLocalVariables(generatedP, new Map(), new Map(), [], localElements);
     // The body element's own declared "i" (-1) must win over the loop's own
-    // "i" (42) - this precedence predates this fix and must not change.
+    // "i" (42) - this precedence predates this fix && must not change.
     expect(localVariables?.localVariableValues.get("i")).toBe(-1);
   });
 

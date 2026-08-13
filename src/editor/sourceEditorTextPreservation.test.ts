@@ -12,7 +12,7 @@ describe("SourceEditorController source preservation", () => {
 
   it("keeps escaped literal braces unchanged in the CodeMirror buffer", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       'text Label = label(text: "\\{draft\\}", anchor: none, size: 3)',
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");

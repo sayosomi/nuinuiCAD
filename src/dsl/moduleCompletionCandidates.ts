@@ -6,10 +6,23 @@ import { scalarLiteralCandidates } from "../scalars/typedValueCandidates";
 import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import type { ScalarType } from "../scalars/types";
 import type { DslModuleParameterType } from "./dslTypes";
-import type { ModuleDefinitionSemantic, ModuleGeometryPropertySourceTarget, ModuleGeometrySourceTarget, ModuleInstanceSemantic } from "./moduleSemanticTypes";
+import type {
+  ModuleDefinitionSemantic,
+  ModuleGeometryPropertySourceTarget,
+  ModuleGeometrySourceTarget,
+  ModuleInstanceSemantic,
+  ModuleScalarSourceTarget
+} from "./moduleSemanticTypes";
 import { sourceLocalVariableNamesBefore } from "./dslLocalVariableCompletionCandidates";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import { scanCallArgs } from "./dslArgScanner";
+import {
+  isModuleGeometryInterfaceAssignable,
+  moduleGeometryInterfaceTypeOf,
+  moduleGeometryInterfaceTypeOfElement,
+  moduleRuntimeGeometryKindOf,
+  type ModuleGeometryInterfaceType
+} from "./moduleGeometryInterfaces";
 
 export type ModuleCompletionSite = {
   statementIndex: number;
@@ -35,11 +48,7 @@ export type ModuleCompletionRequest = {
   sourceOrderIndex?: number;
 };
 
-const geometryKindOfCategory = (category: string): "point" | "line" | null =>
-  category === "point" ? "point" : ["line", "curve", "arc"].includes(category) ? "line" : null;
-
-const parameterGeometryKind = (type: DslModuleParameterType | null | undefined): "point" | "line" | null =>
-  type?.kind === "point" || type?.kind === "line" ? type.kind : null;
+const parameterGeometryKind = moduleRuntimeGeometryKindOf;
 
 const scalarTypeOf = (type: DslModuleParameterType | null | undefined): ScalarType | null =>
   type && ["number", "string", "boolean", "choice"].includes(type.kind) ? type as ScalarType : null;
@@ -177,13 +186,37 @@ const geometryCompletions = (compiled: CompiledDslDocument, statementIndex: numb
       continue;
     }
     if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry" || lookup.declaration.statement.kind !== "element") continue;
-    const kind = geometryKindOfCategory(lookup.declaration.statement.category);
+    const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
+    const kind = interfaceType === "point" ? "point" : interfaceType ? "line" : null;
     if (kind === expected) result.push({ label: name, type: "constant" });
     // A line-like source is point-compatible only through its named endpoint;
     // iteration variables intentionally never enter this branch.
     if (expected === "point" && kind === "line") {
       result.push({ label: `${name}.start`, type: "constant" }, { label: `${name}.end`, type: "constant" });
     }
+  }
+  return result;
+};
+
+const geometryInterfaceCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  expected: ModuleGeometryInterfaceType,
+  request?: ModuleCompletionRequest
+): Completion[] => {
+  const result: Completion[] = [];
+  for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
+    const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);
+    if (!resolved) continue;
+    const { lookup } = resolved;
+    if (lookup.kind === "parameter") {
+      const actual = moduleGeometryInterfaceTypeOf(lookup.parameter.value.type);
+      if (isModuleGeometryInterfaceAssignable(actual, expected)) result.push({ label: name, type: "constant" });
+      continue;
+    }
+    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry" || lookup.declaration.statement.kind !== "element") continue;
+    const actual = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
+    if (isModuleGeometryInterfaceAssignable(actual, expected)) result.push({ label: name, type: "constant" });
   }
   return result;
 };
@@ -220,22 +253,110 @@ const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: num
   return definition.parameters.filter((parameter) => !used.has(parameter.name)).map((parameter) => ({ label: parameter.name, apply: `${parameter.name}: `, type: "property" as const }));
 };
 
-const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): Completion[] => {
+const moduleArgumentParameterType = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  argumentIndex: number,
+  request: ModuleCompletionRequest
+): DslModuleParameterType | null => {
   const instance = currentInstance(compiled, statementIndex);
   const definition = instance?.callee && compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
-  if (!definition) return [];
+  if (!definition) return null;
   const liveArgument = liveArguments(request)?.[argumentIndex];
   const binding = instance?.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
   const parameter = liveArgument?.key
     ? definition.parameters.find((candidate) => candidate.name === liveArgument.key)
     : binding && definition.parameters[binding.parameterIndex];
-  const parameterType = parameter?.type ?? binding?.parameterType;
-  const geometryKind = parameterGeometryKind(parameterType);
-  return geometryKind ? geometryCompletions(compiled, statementIndex, geometryKind, request) : scalarCompletions(compiled, statementIndex, parameterType, request);
+  return parameter?.type ?? binding?.parameterType ?? null;
 };
 
-const deferredInstanceIdOf = (target: ModuleGeometrySourceTarget | ModuleGeometryPropertySourceTarget | null) =>
-  target?.kind === "deferredModuleExport" || target?.kind === "deferredModuleExportProperty" ? target.instanceStatementId : null;
+const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): Completion[] => {
+  const parameterType = moduleArgumentParameterType(compiled, statementIndex, argumentIndex, request);
+  if (parameterType?.kind === "point") return geometryCompletions(compiled, statementIndex, "point", request);
+  const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
+  return geometryInterfaceType
+    ? geometryInterfaceCompletions(compiled, statementIndex, geometryInterfaceType, request)
+    : scalarCompletions(compiled, statementIndex, parameterType, request);
+};
+
+const deferredInstanceIdOf = (target: ModuleScalarSourceTarget | ModuleGeometrySourceTarget | ModuleGeometryPropertySourceTarget | null) =>
+  target?.kind === "deferredModuleScalarExport" || target?.kind === "deferredModuleExport" || target?.kind === "deferredModuleExportProperty"
+    ? target.instanceStatementId
+    : null;
+
+type QualifiedMemberContext = {
+  instanceStatementId: string;
+  memberKind: "scalar" | "geometry";
+  expectedScalarType: ScalarType | null;
+};
+
+const containsLogicalPosition = (position: number, span: { start: number; end: number }) =>
+  position >= span.start && position <= span.end;
+
+const qualifiedMemberContextAt = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  request: ModuleCompletionRequest
+): QualifiedMemberContext | null => {
+  const logicalPosition = request.logicalCursorPosition;
+  if (logicalPosition === undefined) return null;
+  const owner = currentModuleDefinition(compiled, statementIndex, request.scopeId);
+  const body = owner?.bodyStatements.find((candidate) => candidate.statementIndex === statementIndex);
+  for (const site of body?.scalarExpressions ?? []) {
+    for (const reference of site.expression.references) {
+      const instanceStatementId = deferredInstanceIdOf(reference.target);
+      if (!instanceStatementId || !containsLogicalPosition(logicalPosition, reference.span)) continue;
+      return {
+        instanceStatementId,
+        memberKind: "scalar",
+        expectedScalarType: site.expression.ast.kind === "reference" ? site.expression.type : null
+      };
+    }
+  }
+  for (const site of body?.textTemplateHoles ?? []) {
+    for (const reference of site.expression.references) {
+      const instanceStatementId = deferredInstanceIdOf(reference.target);
+      if (!instanceStatementId || !containsLogicalPosition(logicalPosition, reference.span)) continue;
+      return { instanceStatementId, memberKind: "scalar", expectedScalarType: site.expression.ast.kind === "reference" ? site.expression.type : null };
+    }
+  }
+  for (const site of body?.geometryReferences ?? []) {
+    const instanceStatementId = deferredInstanceIdOf(site.reference.target);
+    if (instanceStatementId && containsLogicalPosition(logicalPosition, site.reference.span)) {
+      return { instanceStatementId, memberKind: "geometry", expectedScalarType: null };
+    }
+  }
+  for (const site of body?.scalarExpressions ?? []) {
+    for (const reference of site.expression.geometryProperties) {
+      const instanceStatementId = deferredInstanceIdOf(reference.target);
+      if (instanceStatementId && containsLogicalPosition(logicalPosition, reference.span)) {
+        return { instanceStatementId, memberKind: "geometry", expectedScalarType: null };
+      }
+    }
+  }
+  const rootScalarSite = compiled.moduleSemanticAnalysis?.rootScalarExpressionsByStatementId.get(
+    compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex) ?? ""
+  );
+  const rootScalarExpectedType = rootScalarSite?.expression.ast.kind === "reference" ? rootScalarSite.expression.type : null;
+  for (const reference of rootScalarSite?.expression.references ?? []) {
+    const instanceStatementId = deferredInstanceIdOf(reference.target);
+    if (!instanceStatementId || !containsLogicalPosition(logicalPosition, reference.span)) continue;
+    return {
+      instanceStatementId,
+      memberKind: "scalar",
+      expectedScalarType: rootScalarExpectedType
+    };
+  }
+  for (const site of compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(
+    compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex) ?? ""
+  ) ?? []) {
+    const instanceStatementId = deferredInstanceIdOf(site.reference.target);
+    if (instanceStatementId && containsLogicalPosition(logicalPosition, site.reference.span)) {
+      return { instanceStatementId, memberKind: "geometry", expectedScalarType: null };
+    }
+  }
+  return null;
+};
 
 const stableQualifiedInstanceIdAt = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest) => {
   const logicalPosition = request.logicalCursorPosition;
@@ -269,11 +390,49 @@ const stableQualifiedInstanceIdAt = (compiled: CompiledDslDocument, statementInd
 const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): Completion[] => {
   const analysis = compiled.moduleSemanticAnalysis;
   if (!analysis) return [];
-  const instanceStatementId = stableQualifiedInstanceIdAt(compiled, statementIndex, request);
+  const context = qualifiedMemberContextAt(compiled, statementIndex, request);
+  const semanticInstanceStatementId = context?.instanceStatementId ?? stableQualifiedInstanceIdAt(compiled, statementIndex, request);
+  const instanceStatementId = semanticInstanceStatementId ?? (() => {
+    if (!request.qualifiedInstanceName) return null;
+    const resolved = visibleLookup(compiled, statementIndex, request.qualifiedInstanceName, request.scopeId, request.sourceOrderIndex);
+    return resolved?.lookup.kind === "resolved" && resolved.lookup.declaration.kind === "moduleInstance"
+      ? resolved.lookup.declaration.statementId
+      : null;
+  })();
   if (!instanceStatementId) return [];
   const instance = analysis.instancesByStatementId.get(instanceStatementId);
   const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
-  return definition?.exports.map((entry) => ({ label: entry.name, type: "constant" as const })) ?? [];
+  if (!definition) return [];
+  if (request.argumentIndex !== undefined) {
+    const parameterType = moduleArgumentParameterType(compiled, statementIndex, request.argumentIndex, request);
+    const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
+    if (geometryInterfaceType) {
+      return definition.exports
+        .filter((entry): entry is Extract<typeof entry, { kind: "geometry" }> => entry.kind === "geometry")
+        .filter((entry) => isModuleGeometryInterfaceAssignable(
+          moduleGeometryInterfaceTypeOfElement(compiled.statements[entry.exportedStatementIndex]),
+          geometryInterfaceType
+        ))
+        .map((entry) => ({ label: entry.name, type: "constant" as const }));
+    }
+    const expected = scalarTypeOf(parameterType);
+    if (!expected) return [];
+    return definition.exports
+      .filter((entry): entry is Extract<typeof entry, { kind: "scalar" }> => entry.kind === "scalar")
+      .filter((entry) => isScalarTypeAssignable(entry.declaredType, expected))
+      .map((entry) => ({ label: entry.name, type: "constant" as const }));
+  }
+  const scalarContext = context?.memberKind === "scalar" || (!context && request.expectedScalarType !== null && request.expectedScalarType !== undefined);
+  if (scalarContext) {
+    const expected = context?.expectedScalarType ?? request.expectedScalarType ?? null;
+    return definition.exports
+      .filter((entry): entry is Extract<typeof entry, { kind: "scalar" }> => entry.kind === "scalar")
+      .filter((entry) => !expected || isScalarTypeAssignable(entry.declaredType, expected))
+      .map((entry) => ({ label: entry.name, type: "constant" as const }));
+  }
+  return definition.exports
+    .filter((entry) => entry.kind === "geometry")
+    .map((entry) => ({ label: entry.name, type: "constant" as const }));
 };
 
 /** Module candidates are source-semantic. Last-good identities are accepted

@@ -40,7 +40,7 @@ describe("forGroup sequential mutation core", () => {
     const environment = createForGroupMutationEnvironment<number>(new Map([["sum", 0]]));
     environment.run({ loopScopeId: "scope:outer", iterationBindingId: "binding:iteration:i", iterationValues: [1, 2], generatedStatements: ["if", "nested"] }, (frame, context) => {
       if (context.statement === "if") {
-        // Task 33 semantics: an inactive branch never declares, writes, or poisons.
+        // Task 33 semantics: an inactive branch never declares, writes, || poisons.
         const activeBranch = context.iterationIndex === 0 ? "then" : "else";
         if (activeBranch === "then") frame.set("sum", number(frame.read("sum")) + frame.iterationValue);
         return;

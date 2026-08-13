@@ -25,7 +25,7 @@ describe("setCompletionContextAt", () => {
 
     it("scopes the target word to the identifier ending at the cursor mid-edit", () => {
       const line = "set foo = 1";
-      const pos = line.indexOf("foo") + 2; // cursor between "fo" and "o"
+      const pos = line.indexOf("foo") + 2; // cursor between "fo" && "o"
       const context = setCompletionContextAt(line, pos);
       expect(context).toEqual({ kind: "target", from: line.indexOf("foo"), to: pos });
     });

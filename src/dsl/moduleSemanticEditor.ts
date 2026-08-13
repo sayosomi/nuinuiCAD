@@ -13,7 +13,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 
 /** Source identity used by editor operations. It deliberately contains no
- * runtime element id and no name-derived registry key. */
+ * runtime element id && no name-derived registry key. */
 export type ModuleSemanticTarget =
   | { kind: "moduleDefinition"; statementId: StatementIdentity }
   | { kind: "moduleParameter"; slot: ModuleParameterSlot }
@@ -61,8 +61,8 @@ export type ModuleSemanticRangeIndex = {
   declarationByTarget: ReadonlyMap<string, ModuleSemanticToken>;
   /** Existing compiled Module statements usable for completion identity mapping. */
   statementRanges?: ReadonlyMap<number, ModuleSemanticStatementRange>;
-  /** Stale-site markers. These survive token replacement/deletion and never
-   * authorize completion or semantic identity reuse. */
+  /** Stale-site markers. These survive token replacement/deletion && never
+   * authorize completion || semantic identity reuse. */
   staleStatementRanges?: ReadonlyMap<number, ModuleSemanticStatementRange>;
   /** All last-good statement positions, including non-Module anchors used to
    * place a brand-new Module call without fabricating a StatementIdentity. */
@@ -307,7 +307,10 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
           parameterIndex
         }}, true);
         if (parameter.defaultExpression) {
-          for (const reference of parameter.defaultExpression.references) addSourceTarget(statementIndex, reference.target, scalarReferenceSpan(reference));
+          for (const reference of parameter.defaultExpression.references) {
+            if (reference.target?.kind === "deferredModuleScalarExport") addScalarReference(statementIndex, reference, add, addSourceTarget);
+            else addSourceTarget(statementIndex, reference.target, scalarReferenceSpan(reference));
+          }
           for (const reference of parameter.defaultExpression.geometryProperties) addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);
         }
       });
@@ -344,7 +347,10 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
         parameterIndex: binding.parameterIndex
       }});
       if (binding.argumentIndex !== null && binding.value?.kind === "scalar") {
-        for (const reference of binding.value.expression.references) addSourceTarget(statementIndex, reference.target, scalarReferenceSpan(reference));
+        for (const reference of binding.value.expression.references) {
+          if (reference.target?.kind === "deferredModuleScalarExport") addScalarReference(statementIndex, reference, add, addSourceTarget);
+          else addSourceTarget(statementIndex, reference.target, scalarReferenceSpan(reference));
+        }
         for (const reference of binding.value.expression.geometryProperties) addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);
       } else if (binding.argumentIndex !== null && binding.value?.kind === "geometry") {
         addGeometryReference(compiled, statementIndex, binding.value.reference, add, addSourceTarget);
@@ -357,6 +363,13 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     const statement = compiled.statements[statementIndex];
     if (statement) staleStatementRanges.set(statementIndex, { from: statement.documentRange.from, to: statement.documentRange.to });
     for (const site of references) addGeometryReference(compiled, statementIndex, site.reference, add, addSourceTarget);
+  }
+  for (const [statementId, site] of analysis.rootScalarExpressionsByStatementId) {
+    const statementIndex = indexById.get(statementId);
+    if (statementIndex === undefined) continue;
+    for (const reference of site.expression.references) {
+      if (reference.target?.kind === "deferredModuleScalarExport") addScalarReference(statementIndex, reference, add, addSourceTarget);
+    }
   }
   tokens.sort((a, b) => a.from - b.from || b.to - a.to);
   return {
@@ -402,6 +415,21 @@ const addGeometryReference = (
   addSourceTarget(statementIndex, reference.target, reference.nameSpan ?? reference.span);
 };
 
+const addScalarReference = (
+  statementIndex: number,
+  reference: { nameSpan: DslSpan; target: ModuleSourceTarget | null },
+  add: (statementIndex: number, span: DslSpan | null | undefined, target: ModuleSemanticTarget, declaration?: boolean) => void,
+  addSourceTarget: (statementIndex: number, target: ModuleSourceTarget | null, span: DslSpan | null | undefined) => void
+) => {
+  const target = reference.target;
+  if (target?.kind === "deferredModuleScalarExport") {
+    add(statementIndex, target.memberSpan, { kind: "moduleSource", statementId: target.exportedStatementId });
+    add(statementIndex, target.instanceSpan, { kind: "moduleInstance", statementId: target.instanceStatementId });
+    return;
+  }
+  addSourceTarget(statementIndex, target, reference.nameSpan);
+};
+
 const addGeometryPropertyReference = (
   compiled: CompiledDslDocument,
   statementIndex: number,
@@ -432,6 +460,7 @@ const addBodyReferences = (
     for (const reference of site.expression.references) {
       const target = sourceTarget(reference.target);
       if (target?.kind === "moduleParameter") add(statementIndex, reference.nameSpan, target);
+      else if (reference.target?.kind === "deferredModuleScalarExport") addScalarReference(statementIndex, reference, add, addSourceTarget);
       else addSourceTarget(statementIndex, reference.target, reference.nameSpan);
     }
     for (const reference of site.expression.geometryProperties) addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);
@@ -440,7 +469,9 @@ const addBodyReferences = (
   for (const site of body.textTemplateHoles) for (const reference of site.expression.references) {
     const target = sourceTarget(reference.target);
     const span = reference.nameSpan;
-    if (target?.kind === "moduleParameter") add(statementIndex, span, target); else addSourceTarget(statementIndex, reference.target, span);
+    if (target?.kind === "moduleParameter") add(statementIndex, span, target);
+    else if (reference.target?.kind === "deferredModuleScalarExport") addScalarReference(statementIndex, reference, add, addSourceTarget);
+    else addSourceTarget(statementIndex, reference.target, span);
   }
   for (const site of body.textTemplateHoles) {
     for (const reference of site.expression.geometryProperties) addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);

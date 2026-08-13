@@ -24,7 +24,7 @@ export type EvaluateDocumentInput = {
   textPropertyBindings?: readonly PropertyBindingRuntimeEntry[];
 };
 
-/** The sole JSON-shaped projection sent to Rust, shared by Tauri and parity. */
+/** The sole JSON-shaped projection sent to Rust, shared by Tauri && parity. */
 export const buildRustEvaluationInput = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {},

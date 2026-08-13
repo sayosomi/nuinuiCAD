@@ -7,7 +7,7 @@ import {
 } from "./selectionCommands";
 
 const noStopSource = [
-  "nui 3",
+  "nui 4",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 1, y: 1)"
 ].join("\n");
@@ -29,11 +29,11 @@ describe("evaluation divider commands", () => {
     const after = useCadDocumentStore.getState();
     expect(after.evaluationLimitIndex).toBeUndefined();
     expect(after.sourceText).toBe(sourceText);
-    expect(after.sourceText).not.toContain("@stop");
+    expect(after.sourceText).not.toContain("stop");
     expect(after.past).toHaveLength(pastLength);
   });
 
-  it("is a complete noop when an offset reaches document end without @stop", () => {
+  it("is a complete noop when an offset reaches document end without stop", () => {
     useCadDocumentStore.getState().commitText(noStopSource, "test");
     const before = useCadDocumentStore.getState();
     const sourceText = before.sourceText;
@@ -47,11 +47,11 @@ describe("evaluation divider commands", () => {
     expect(after.past).toHaveLength(pastLength);
   });
 
-  it("keeps an explicit terminal @stop when a middle divider moves to the end", () => {
+  it("keeps an explicit terminal stop when a middle divider moves to the end", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
-      "@stop",
+      "stop",
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n"), "test");
 
@@ -59,15 +59,15 @@ describe("evaluation divider commands", () => {
 
     const after = useCadDocumentStore.getState();
     expect(after.evaluationLimitIndex).toBe(after.elements.length);
-    expect(after.sourceText.split("\n").filter((line) => line === "@stop")).toHaveLength(1);
-    expect(after.sourceText.trimEnd().endsWith("@stop")).toBe(true);
+    expect(after.sourceText.split("\n").filter((line) => line === "stop")).toHaveLength(1);
+    expect(after.sourceText.trimEnd().endsWith("stop")).toBe(true);
   });
 
   it("continues to move an explicit divider between elements", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
-      "@stop",
+      "stop",
       "point B = coordinate(x: 1, y: 1)",
       "point C = coordinate(x: 2, y: 2)"
     ].join("\n"), "test");
@@ -77,7 +77,7 @@ describe("evaluation divider commands", () => {
     const after = useCadDocumentStore.getState();
     const lines = after.sourceText.split("\n");
     expect(after.evaluationLimitIndex).toBe(2);
-    expect(lines.indexOf("@stop")).toBeGreaterThan(lines.findIndex((line) => line.startsWith("point B")));
-    expect(lines.indexOf("@stop")).toBeLessThan(lines.findIndex((line) => line.startsWith("point C")));
+    expect(lines.indexOf("stop")).toBeGreaterThan(lines.findIndex((line) => line.startsWith("point B")));
+    expect(lines.indexOf("stop")).toBeLessThan(lines.findIndex((line) => line.startsWith("point C")));
   });
 });

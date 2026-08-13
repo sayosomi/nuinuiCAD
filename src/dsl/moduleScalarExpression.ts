@@ -1,9 +1,9 @@
 import type { DslSpan } from "./dslTypes";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import { parseScalarExpression } from "../scalars/expressionParser";
-import { collectScalarExpressionReferences } from "../scalars/expressionReferenceCollector";
-import { isChoiceOptionMember, isScalarTypeAssignable } from "../scalars/scalarAssignability";
-import { isChoiceScalarType, type ScalarType } from "../scalars/types";
+import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
+import type { ScalarExpressionResolvedReference } from "../scalars/typedExpressionAst";
+import type { ScalarType } from "../scalars/types";
 import type {
   ModuleGeometryPropertyReference,
   ModuleGeometryPropertySourceTarget,
@@ -42,9 +42,6 @@ export type ModuleGeometryPropertyReferenceResolution = {
   diagnostic?: ModuleScalarLocalDiagnostic;
 };
 
-const describeType = (type: ScalarType): string =>
-  type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
-
 const localIssue = (code: string, span: DslSpan, message: string, extra: Partial<ModuleScalarLocalDiagnostic> = {}): ModuleScalarLocalDiagnostic => ({
   code,
   span,
@@ -57,16 +54,14 @@ const scalarTypeFromTarget = (target: ModuleSourceTarget, resolution: ModuleScal
   return resolution.type;
 };
 
-const typecheck = ({
+const resolveAndTypecheck = ({
   ast,
-  references,
   expectedType,
   resolveReference,
   resolveBareReference,
   resolveGeometryProperty
 }: {
   ast: ScalarExpressionAst;
-  references: readonly { name: string; span: DslSpan }[];
   expectedType: ScalarType | null;
   resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
@@ -81,45 +76,47 @@ const typecheck = ({
   const diagnostics: ModuleScalarLocalDiagnostic[] = [];
   const resolvedReferences: ModuleScalarReference[] = [];
   const geometryProperties: ModuleGeometryPropertyReference[] = [];
-  const referenceByStart = new Map(references.map((reference) => [reference.span.start, reference]));
+  const resolvedTypes: ScalarExpressionResolvedReference[] = [];
+  const resolvedChoiceTypes = new Map<number, ScalarType>();
+  let invalidGeometryProperty = false;
+
   const resolveNodeReference = (node: Extract<ScalarExpressionAst, { kind: "reference" }>): ScalarType | null => {
-    const found = referenceByStart.get(node.span.start) ?? { name: node.name, span: node.span };
+    const found = { name: node.name, span: node.span };
     const resolution = resolveReference(found);
     resolvedReferences.push({ ...found, nameSpan: node.nameSpan, target: resolution.target, resolution: resolution.resolution });
     if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
+    resolvedTypes.push({ kind: "resolvedType", bindingId: null, type: resolution.target ? scalarTypeFromTarget(resolution.target, resolution) : null });
     return resolution.target ? scalarTypeFromTarget(resolution.target, resolution) : null;
   };
 
-  const check = (node: ScalarExpressionAst, expected: ScalarType | null): ScalarType | null => {
+  const resolve = (node: ScalarExpressionAst): ScalarExpressionAst => {
     switch (node.kind) {
-      case "numberLiteral": return { kind: "number" };
-      case "stringLiteral": return { kind: "string" };
-      case "booleanLiteral": return { kind: "boolean" };
+      case "numberLiteral":
+      case "stringLiteral":
+      case "booleanLiteral":
+        return node;
       case "unresolvedChoiceLiteral": {
         const bareReference = resolveBareReference?.({ name: node.raw, span: node.span });
         if (bareReference?.diagnostic) diagnostics.push(bareReference.diagnostic);
         if (bareReference?.target && bareReference.type) {
           resolvedReferences.push({ name: node.raw, nameSpan: node.span, span: node.span, target: bareReference.target, resolution: bareReference.resolution });
-          return bareReference.type;
+          resolvedChoiceTypes.set(node.span.start, bareReference.type);
+          if (bareReference.type.kind === "number") return { kind: "numberLiteral", span: node.span, value: 0 };
+          if (bareReference.type.kind === "string") return { kind: "stringLiteral", span: node.span, value: "" };
+          if (bareReference.type.kind === "boolean") return { kind: "booleanLiteral", span: node.span, value: false };
+          return node;
         }
-        if (bareReference) return null;
-        if (expected && isChoiceScalarType(expected) && isChoiceOptionMember(expected, node.raw)) return expected;
-        diagnostics.push(localIssue(
-          "module-invalid-choice-literal",
-          node.span,
-          expected && isChoiceScalarType(expected)
-            ? `choice literal「${node.raw}」は${describeType(expected)}の要素ではありません。`
-            : `choice literal「${node.raw}」を解決できるchoice型の文脈がありません。`,
-          expected && isChoiceScalarType(expected) ? { expectedType: expected } : {}
-        ));
-        return null;
+        return node;
       }
-      case "reference": return resolveNodeReference(node);
+      case "reference":
+        resolveNodeReference(node);
+        return node;
       case "geometryProperty":
         if (!resolveGeometryProperty) {
           diagnostics.push(localIssue("module-geometry-property-reference", node.span, "module の scalar expression では geometry property を解決できません。"));
           geometryProperties.push({ geometryName: node.elementName, property: node.property, elementNameSpan: node.elementNameSpan, propertySpan: node.propertySpan, span: node.span, target: null, resolution: "invalid" });
-          return null;
+          invalidGeometryProperty = true;
+          return node;
         }
         {
           const resolution = resolveGeometryProperty({
@@ -139,52 +136,30 @@ const typecheck = ({
             resolution: resolution.resolution
           });
           if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
-          return resolution.target ? resolution.type : null;
+          if (!resolution.target) invalidGeometryProperty = true;
+          return node;
         }
-      case "group": return check(node.expression, expected);
-      case "unary": {
-        const required: ScalarType = node.operator === "!" ? { kind: "boolean" } : { kind: "number" };
-        const operand = check(node.operand, null);
-        if (operand && !isScalarTypeAssignable(operand, required)) {
-          diagnostics.push(localIssue("module-scalar-type-mismatch", node.operand.span, `型が一致しません(期待: ${describeType(required)}、実際: ${describeType(operand)})。`, { expectedType: required, actualType: operand }));
-          return null;
-        }
-        return operand ? required : null;
-      }
-      case "binary": {
-        if (node.operator === "==" || node.operator === "!=") {
-          const left = check(node.left, null);
-          const right = check(node.right, left?.kind === "choice" ? left : null);
-          if (left && right && !isScalarTypeAssignable(left, right)) {
-            diagnostics.push(localIssue("module-scalar-type-mismatch", node.span, `equality演算子の両辺の型が一致しません(${describeType(left)} vs ${describeType(right)})。`, { expectedType: left, actualType: right }));
-            return null;
-          }
-          return left && right ? { kind: "boolean" } : null;
-        }
-        const required: ScalarType = ["&&", "||"].includes(node.operator) ? { kind: "boolean" } : { kind: "number" };
-        const result: ScalarType = ["<", "<=", ">", ">="].includes(node.operator)
-          ? { kind: "boolean" }
-          : required;
-        const left = check(node.left, null);
-        const right = check(node.right, null);
-        let valid = true;
-        for (const operand of [left, right]) {
-          if (!operand) valid = false;
-          else if (!isScalarTypeAssignable(operand, required)) {
-            diagnostics.push(localIssue("module-scalar-type-mismatch", node.span, `型が一致しません(期待: ${describeType(required)}、実際: ${describeType(operand)})。`, { expectedType: required, actualType: operand }));
-            valid = false;
-          }
-        }
-        return valid ? result : null;
-      }
+      case "group": return { ...node, expression: resolve(node.expression) };
+      case "unary": return { ...node, operand: resolve(node.operand) };
+      case "binary": return { ...node, left: resolve(node.left), right: resolve(node.right) };
     }
   };
 
-  let type = check(ast, expectedType);
-  if (type && expectedType && !isScalarTypeAssignable(type, expectedType)) {
-    diagnostics.push(localIssue("module-scalar-type-mismatch", ast.span, `宣言された型と一致しません(期待: ${describeType(expectedType)}、実際: ${describeType(type)})。`, { expectedType, actualType: type }));
-    type = null;
+  const resolvedAst = resolve(ast);
+  const checked = typecheckScalarExpression(resolvedAst, {
+    expectedType,
+    references: resolvedTypes,
+    resolveChoiceLiteral: (_raw, _expected, span) => resolvedChoiceTypes.get(span.start)
+  });
+  for (const diagnostic of checked.diagnostics) {
+    diagnostics.push(localIssue(
+      diagnostic.code === "invalid-choice-literal" ? "module-invalid-choice-literal" : "module-scalar-type-mismatch",
+      diagnostic.span,
+      diagnostic.message,
+      { expectedType: diagnostic.expectedType, actualType: diagnostic.actualType }
+    ));
   }
+  const type = diagnostics.length === 0 && !invalidGeometryProperty ? checked.type : null;
   return { semantic: { ast, type, references: resolvedReferences, geometryProperties }, diagnostics };
 };
 
@@ -210,9 +185,8 @@ export const parseAndCheckModuleScalarExpression = ({
     diagnostics.push(...parsed.diagnostics.map((item) => localIssue(`module-${item.code}`, item.span, item.message)));
     return null;
   }
-  const checked = typecheck({
+  const checked = resolveAndTypecheck({
     ast: parsed.ast,
-    references: collectScalarExpressionReferences(parsed.ast),
     expectedType,
     resolveReference,
     resolveBareReference,

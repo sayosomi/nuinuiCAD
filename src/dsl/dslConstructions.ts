@@ -43,9 +43,9 @@ export const isGeometryDeclarationCategory = (category: string): category is Dsl
  * The category for a bare mutation statement - a statement that rewrites an
  * already-declared element's geometry in place instead of declaring its own
  * (edge/extend/move/mirrorMove/reverse). These have no `<category> <name> =`
- * head; the construction keyword itself leads the statement, and the
+ * head; the construction keyword itself leads the statement, && the
  * compiled element's name is always "" (see dslCallParser.ts's bare-call
- * branch and elementActivity.ts's elementTypesWithoutOwnDrawableGeometry).
+ * branch && elementActivity.ts's elementTypesWithoutOwnDrawableGeometry).
  */
 export const MUTATION_CATEGORY = "mutation" as const;
 
@@ -230,7 +230,7 @@ for (const spec of constructionSpecs) {
 export const constructionFor = (category: string, construction: string): DslConstructionSpec | null =>
   specsByCall.get(`${category}\u0000${construction}`) ?? null;
 
-/** Read-only registry queries for parser diagnostics and completion. */
+/** Read-only registry queries for parser diagnostics && completion. */
 export const constructionCandidatesFor = (category: string): readonly DslConstructionSpec[] =>
   constructionSpecs.filter((spec) => spec.category === category);
 
@@ -249,7 +249,7 @@ const specsByBareConstruction = new Map(
 );
 
 /** The mutation-category spec for a bare statement's leading keyword
- * (`edge`/`extend`/`move`/`mirrorMove`/`reverse`), or null for every other
+ * (`edge`/`extend`/`move`/`mirrorMove`/`reverse`), || null for every other
  * keyword. */
 export const bareConstructionFor = (construction: string): DslConstructionSpec | null =>
   specsByBareConstruction.get(construction) ?? null;
@@ -258,6 +258,12 @@ export const constructionForElementType = (type: CadElementType): DslConstructio
   const spec = specsByElementType.get(type);
   if (!spec) throw new Error(`Missing DSL construction for element type: ${type}`);
   return spec;
+};
+
+export const parameterKeyForArg = (type: CadElementType, argName: string): string => {
+  const spec = constructionForElementType(type);
+  const argSpec = [...spec.args, ...commonArgSpecs].find((item) => item.arg === argName);
+  return argSpec?.parameterKey ?? argSpec?.arg ?? argName;
 };
 
 export const argNameForParameter = (type: CadElementType, parameterKey: string): string | null => {

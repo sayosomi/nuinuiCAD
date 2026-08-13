@@ -36,7 +36,7 @@ export type GeneratedDoc = {
 
 export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc => {
   const sections: string[][] = [];
-  sections.push(["nui 3"]);
+  sections.push(["nui 4"]);
   sections.push([
     'color main ("#31322f", name: "基本線", default: true)',
     'color accent ("#b42318", name: "裁断線")'
@@ -54,10 +54,10 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
   }
   // 参照を1つ入れる(リネーム伝播の運動場)。
   if (params.pointCount >= 2) {
-    elementLines.push("point Ref0 = offset(from: P0, dx: 5, dy: 5)");
+    elementLines.push("point Ref0 = offset(from: @P0, dx: 5, dy: 5)");
   }
   if (params.withContinuation) {
-    // nui 3の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。palette側で
+    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。palette側で
     // 定義済みの"main"色を参照する(パースはcolorIdの存在検証をしない)。
     elementLines.push("point PC = coordinate(");
     elementLines.push("  x: 5,");
@@ -72,14 +72,14 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
     elementLines.push("}");
   }
   if (params.withIf) {
-    elementLines.push("if IF0 (1) {");
+    elementLines.push("if (true) {");
     elementLines.push("  point IT0 = coordinate(x: 100, y: 1)");
     elementLines.push("} else {");
     elementLines.push("  point IE0 = coordinate(x: 100, y: 2)");
     elementLines.push("}");
   }
   if (params.withFor) {
-    elementLines.push("for F0 (i, from: 0, count: 3, step: 1) {");
+    elementLines.push("for i in range(from: 0, count: 3, step: 1) {");
     elementLines.push("  point FP0 = coordinate(x: @i * 10, y: 0)");
     elementLines.push("}");
   }
@@ -101,7 +101,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
       "  scale: 1,",
       "  canvas: (410, 584)",
       ") {",
-      "  place G0 (at: (0, 15), angle: 0, mirrorX: false)",
+      "  place @G0(at: (0, 15), angle: 0, mirrorX: false)",
       "}"
     ]);
   }
@@ -214,7 +214,7 @@ const CONTAINER_TYPES = new Set(["group", "conditionalGroup", "forGroup"]);
 const isContainer = (element: CadElement) => CONTAINER_TYPES.has(element.type);
 
 const isCanonicalDocumentCompilable = (document: DslDocumentData): boolean => {
-  const compiled = compileDslDocument(serializeDocumentToDsl(document, 3));
+  const compiled = compileDslDocument(serializeDocumentToDsl(document, 4));
   return compiled.document !== null && !compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error");
 };
 
@@ -238,7 +238,7 @@ let generatedNameCounter = 0;
 
 const makeFreePoint = (name: string, x: number, y: number): CadElement => {
   const statement = name ? `point ${name} = coordinate(x: ${x}, y: ${y})` : `point = coordinate(x: ${x}, y: ${y})`;
-  const compiled = compileDslDocument(`nui 3\n${statement}`);
+  const compiled = compileDslDocument(`nui 4\n${statement}`);
   expect(compiled.document, "generator fragment must compile").not.toBeNull();
   return compiled.document!.elements[0];
 };
@@ -272,7 +272,10 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
   const plainGroups = document.elements.filter((element) => element.type === "group");
 
   const fallbackUpdate = (): AppliedOp => {
-    const target = pick(document.elements, op.a);
+    // nui4's canonical if/for headers have no serialized common-attribute
+    // slots. Keep the property generator focused on elements whose activity
+    // can round-trip through the final syntax.
+    const target = pick(document.elements.filter((element) => !["conditionalGroup", "forGroup"].includes(element.type)), op.a);
     if (!target) return { document, insertedIds: [], description: "noop" };
     return {
       document: {

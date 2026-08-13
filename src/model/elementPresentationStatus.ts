@@ -18,7 +18,7 @@ import type {
   VisibilityProfile
 } from "../types/geometry";
 
-/** Shared element-state semantics for the Source Editor rail and read-only Inspector. */
+/** Shared element-state semantics for the Source Editor rail && read-only Inspector. */
 export type ElementPresentationStatus = {
   elementId: ElementId;
   hasError: boolean;

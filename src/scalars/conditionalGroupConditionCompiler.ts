@@ -1,12 +1,11 @@
-// Compiles a `conditionalGroup.condition` DSL value into a typed boolean
-// expression whenever it references a typed binding or uses typed-only
-// syntax. Reference-free numeric conditions remain in the element-local
-// numeric evaluation path.
+// Compiles every condition that the shared scalar parser can represent into a
+// typed boolean expression. Syntax outside that parser remains on the
+// migration-era numeric path until the final cleanup task.
 //
 // Unlike src/scalars/propertyBindingCompiler.ts (Task 22), this module does
 // not route through ParameterDefinition.kind/SCALAR_ELIGIBLE_PARAMETER_KINDS
 // at all: `condition`'s ParameterDefinition intentionally stays `kind:
-// "number"` (its literal/UI shape is unchanged), and the whole
+// "number"` (its literal/UI shape is unchanged), && the whole
 // attribute value here is a full expression - not a single `@name` token -
 // so Task 22's bare-reference-only compiler cannot represent it.
 
@@ -19,12 +18,10 @@ import { resolveReferencesAtSites, type SiteReferenceRequest } from "./bindingRe
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
-import {
-  collectReferences,
-  containsNonNumericScalarSyntax,
-  unresolvedReferenceMessage
-} from "./typedDeclarationAnalysis";
+import { collectReferences, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { createElementNameContext } from "../model/elementNames";
 
 export const CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE = "conditional-group-condition-unresolved";
 export const CONDITIONAL_GROUP_CONDITION_INVALID_CODE = "conditional-group-condition-invalid";
@@ -73,6 +70,9 @@ export const compileConditionalGroupConditions = ({
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
   const sourcesByOccurrenceKey = new Map<string, TypedScalarExpression>();
+  const sourceOrderByElementId = new Map<ElementId, number>();
+  for (const [sourceOrder, elementId] of elementIdByStatementIndex) sourceOrderByElementId.set(elementId, sourceOrder);
+  const nameContext = createElementNameContext([...elements]);
 
   statements.forEach((statement, statementIndex) => {
     if (includeStatement && !includeStatement(statement, statementIndex)) return;
@@ -101,10 +101,8 @@ export const compileConditionalGroupConditions = ({
     const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests);
     const resolutionAt = (index: number) => resolutions.get(requestKey(index));
 
-    if (references.length === 0 && !containsNonNumericScalarSyntax(ast)) return;
-
     // Typed candidate: every reference must resolve to a usable typed
-    // binding, or this occurrence fails closed with a diagnostic.
+    // binding, || this occurrence fails closed with a diagnostic.
     let hasReferenceDiagnostic = false;
     references.forEach((reference, index) => {
       const resolution = resolutionAt(index);
@@ -148,7 +146,24 @@ export const compileConditionalGroupConditions = ({
       return;
     }
 
-    sourcesByOccurrenceKey.set(occurrenceKey, checked.typed);
+    const element = elementsById.get(elementId);
+    const geometryResolution = resolveTypedGeometryProperties(
+      checked.typed,
+      elements,
+      sourceOrderByElementId,
+      {
+        currentElement: element,
+        nameContext,
+        currentSourceOrder: statementIndex
+      }
+    );
+    if (geometryResolution.issues.length > 0) {
+      diagnostics.push(...geometryResolution.issues.map((issue) =>
+        diagnosticAt(spans, statement, issue.span, "geometry-property-invalid", issue.message)
+      ));
+      return;
+    }
+    sourcesByOccurrenceKey.set(occurrenceKey, geometryResolution.expression);
   });
 
   return { sourcesByOccurrenceKey, diagnostics };

@@ -1,6 +1,10 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
+import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
+import { parseScalarExpression } from "../scalars/expressionParser";
+import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { createCadElementId } from "../model/cadIds";
 import { elementTypeSupportsHiddenActivity, elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
+import { isLineLikeElement } from "../model/pointAnchors";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
@@ -12,7 +16,7 @@ import {
   type NameIndex,
 } from "./dslReferences";
 import { splitDslList, splitDslRecords, unquoteDslString } from "./dslTokens";
-import type { DslDiagnostic } from "./dslTypes";
+import type { DslDiagnostic, DslSpan } from "./dslTypes";
 import type { ScannedArg } from "./dslArgScanner";
 import { commonArgSpecs, type DslArgSpec, type DslConstructionSpec } from "./dslConstructions";
 import type { DslMajorVersion } from "./dslVersion";
@@ -35,7 +39,8 @@ export type DslIdResolver = (
   index: NameIndex,
   line: number,
   diagnostics: DslDiagnostic[],
-  currentElement?: CadElement
+  currentElement?: CadElement,
+  sourceSpan?: DslSpan
 ) => ElementId;
 
 export type DslAnchorResolver = (
@@ -44,7 +49,8 @@ export type DslAnchorResolver = (
   line: number,
   diagnostics: DslDiagnostic[],
   numeric: (source: string) => NumericValue,
-  currentElement?: CadElement
+  currentElement?: CadElement,
+  sourceSpan?: DslSpan
 ) => NonNullable<ReturnType<typeof resolveAnchorFromDsl>>;
 
 export type DslEndpointResolver = (
@@ -52,7 +58,8 @@ export type DslEndpointResolver = (
   index: NameIndex,
   line: number,
   diagnostics: DslDiagnostic[],
-  currentElement?: CadElement
+  currentElement?: CadElement,
+  sourceSpan?: DslSpan
 ) => NonNullable<ReturnType<typeof resolveEndpointFromDsl>>;
 
 export type DslGeometryResolverOverrides = {
@@ -113,6 +120,37 @@ const splitRecordFields = (value: string) => {
   return fields.map((item) => item.trim());
 };
 
+const referenceListItems = (value: string): Array<{ text: string; offset: number }> => {
+  const trimmedStart = value.search(/\S|$/);
+  const trimmedEnd = value.length - value.split("").reverse().join("").search(/\S|$/);
+  const bracketed = value.trim().startsWith("[") && value.trim().endsWith("]");
+  const contentStart = bracketed ? value.indexOf("[") + 1 : trimmedStart;
+  const contentEnd = bracketed ? value.lastIndexOf("]") : trimmedEnd;
+  const items: Array<{ text: string; offset: number }> = [];
+  let itemStart = contentStart;
+  let quote: string | null = null;
+  let depth = 0;
+  const push = (end: number) => {
+    let start = itemStart;
+    while (start < end && /\s/.test(value[start])) start += 1;
+    let trimmedEnd = end;
+    while (trimmedEnd > start && /\s/.test(value[trimmedEnd - 1])) trimmedEnd -= 1;
+    if (start < trimmedEnd) items.push({ text: value.slice(start, trimmedEnd), offset: start });
+  };
+  for (let index = contentStart; index < contentEnd; index += 1) {
+    const char = value[index];
+    if ((char === '"' || char === "'") && value[index - 1] !== "\\") quote = quote === char ? null : quote ?? char;
+    else if (!quote && (char === "[" || char === "(")) depth += 1;
+    else if (!quote && (char === "]" || char === ")")) depth -= 1;
+    else if (!quote && depth === 0 && char === ",") {
+      push(index);
+      itemStart = index + 1;
+    }
+  }
+  push(contentEnd);
+  return items;
+};
+
 const remapLocalVariableReferences = (value: NumericValue, ids: ReadonlyMap<string, string>): NumericValue =>
   typeof value === "object" && value !== null && value.kind === "expression"
     ? {
@@ -143,9 +181,9 @@ const roleIdFor = (roles: readonly VisibilityRole[], token: string) => {
 };
 
 /**
- * Applies already-scanned nui 3 arguments without parsing statements or assigning
+ * Applies already-scanned nui 4 arguments without parsing statements || assigning
  * document ownership. `metadata` is deliberately returned for the C1 compiler
- * skeleton to handle IDs and explicit parent/branch fallback rules.
+ * skeleton to handle IDs && explicit parent/branch fallback rules.
  */
 export const applyArgs = (
   element: CadElement,
@@ -173,10 +211,61 @@ export const applyArgs = (
         resolvers.nameContext,
       ),
     );
-  const anchor = (source: string) =>
-    resolveAnchor(source, resolvers.index, resolvers.line, diagnostics, numeric, next);
-  const id = (source: string) =>
-    resolveId(source, resolvers.index, resolvers.line, diagnostics, next);
+  const anchor = (source: string, sourceSpan?: DslSpan) =>
+    resolveAnchor(source, resolvers.index, resolvers.line, diagnostics, numeric, next, sourceSpan);
+  // `lineReference` && `lineReferenceList` are path-only roles. Endpoint &&
+  // derived-point roles use the dedicated resolvers below, where the shared
+  // source-reference parser's property is meaningful.
+  const lineReferenceId = (source: string, sourceSpan?: DslSpan) =>
+    (() => {
+      const resolvedId = resolveId(source, resolvers.index, resolvers.line, diagnostics, next, sourceSpan);
+      const target = resolvers.index.elementsById.get(resolvedId);
+      if (target && !isLineLikeElement(target)) {
+        diagnostics.push({
+          severity: "error",
+          line: resolvers.line,
+          column: (sourceSpan?.start ?? 0) + 1,
+          code: "geometry-reference-type-mismatch",
+          message: "参照先「" + target.name + "」は線・曲線ではありません。",
+          ...(sourceSpan ? { logicalSpan: sourceSpan } : {})
+        });
+      }
+      return resolvedId;
+    })();
+  const rejectUntypedNumericExpression = (source: string, sourceSpan: DslSpan): boolean => {
+    // Named/geometry references are resolved by the later numeric binding
+    // compiler. Keep incomplete && unresolved reference text available to
+    // the normal source-editing path; only reference-free ASTs are safe to
+    // classify at this point.
+    if (source.includes("@") || !isScalarExpressionCandidateSource(source)) return false;
+    const span = { start: 0, end: source.length };
+    const parsed = parseScalarExpression(source, span);
+    if (!parsed.ast) {
+      const issue = parsed.diagnostics[0];
+      if (issue) diagnostics.push({
+        severity: "error",
+        line: resolvers.line,
+        column: sourceSpan.start + issue.span.start + 1,
+        code: issue.code,
+        message: issue.message,
+        logicalSpan: { start: sourceSpan.start + issue.span.start, end: sourceSpan.start + issue.span.end }
+      });
+      return true;
+    }
+    const checked = typecheckScalarExpression(parsed.ast, {
+      expectedType: { kind: "number" },
+      references: []
+    });
+    for (const issue of checked.diagnostics) diagnostics.push({
+      severity: "error",
+      line: resolvers.line,
+      column: sourceSpan.start + issue.span.start + 1,
+      code: issue.code,
+      message: issue.message,
+      logicalSpan: { start: sourceSpan.start + issue.span.start, end: sourceSpan.start + issue.span.end }
+    });
+    return checked.diagnostics.length > 0 || checked.type === null;
+  };
 
   for (const [argName, scanned] of byName) {
     const definition = definitions.get(argName);
@@ -219,7 +308,7 @@ export const applyArgs = (
         // this stays silent here so a valid binding doesn't also get a
         // spurious "must be true/false" error. Any other unparseable value
         // still gets this diagnostic exactly as before.
-        if (parsed === null && !value.startsWith("@")) {
+        if (parsed === null && !isScalarExpressionCandidateSource(value)) {
           diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
         }
         next = setParameterValue(next, parameterKey, parsed ?? false);
@@ -235,19 +324,26 @@ export const applyArgs = (
         ) {
           break;
         }
+        if (parameterKey !== "condition" && rejectUntypedNumericExpression(value, scanned.valueSpan)) break;
         next = setParameterValue(next, parameterKey, numeric(value));
         break;
       case "reference":
-        next = setParameterValue(next, parameterKey, value === "none" ? null : anchor(value));
+        next = setParameterValue(next, parameterKey, value === "none" ? null : anchor(value, scanned.valueSpan));
         break;
       case "lineEndpointReference":
-        next = setParameterValue(next, parameterKey, resolveEndpoint(value, resolvers.index, resolvers.line, diagnostics, next));
+        next = setParameterValue(next, parameterKey, resolveEndpoint(value, resolvers.index, resolvers.line, diagnostics, next, scanned.valueSpan));
         break;
       case "lineReference":
-        next = setParameterValue(next, parameterKey, id(value));
+        next = setParameterValue(next, parameterKey, lineReferenceId(value, scanned.valueSpan));
         break;
       case "lineReferenceList":
-        next = setParameterValue(next, parameterKey, splitDslList(value).map(id));
+        {
+          const refs = referenceListItems(value).map((item) => {
+            const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
+            return lineReferenceId(item.text, itemSpan);
+          });
+          next = setParameterValue(next, parameterKey, refs);
+        }
         break;
       case "text":
       case "choice":
@@ -321,7 +417,7 @@ export const applyArgs = (
         const [point = "none", angle = "0", incoming = "30", outgoing = "30", pointId] = splitRecordFields(record);
         return {
           id: pointId || resolvers.createIntermediateId(),
-          point: anchor(point),
+          point: anchor(point, undefined),
           handleAngleDeg: numeric(angle),
           incomingHandleLength: numeric(incoming),
           outgoingHandleLength: numeric(outgoing),

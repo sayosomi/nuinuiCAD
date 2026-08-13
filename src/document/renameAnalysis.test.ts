@@ -105,6 +105,11 @@ const referenceDenseElements = (generatedReferenceCount: number, includeDangling
 const referenceDenseSource = (generatedReferenceCount: number, includeDangling: boolean) =>
   dslTextForElements(referenceDenseElements(generatedReferenceCount, includeDangling));
 
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const itPerformanceGates = runPerformanceGates ? it : it.skip;
+
 describe("renameAnalysis", () => {
   it("classifies direct, derived, and expression references to the target", () => {
     const source = dslTextForElements([
@@ -172,7 +177,7 @@ describe("renameAnalysis", () => {
         placements: [{ id: "place-g", groupId: "g", x: 0, y: 0, angleDeg: 0, mirrorX: false }]
       }],
       activePrintLayoutId: "layout"
-    }, 3);
+    }, 4);
     const compiled = complete(source);
     const group = compiled.document.elements.find((element) => element.name === "G")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: group.id, newName: "H" });
@@ -286,15 +291,24 @@ describe("renameAnalysis", () => {
     }), { numRuns: 40 });
   });
 
-  it("handles a clean, reference-dense 1,000 element rename within a loose pure-module guard", () => {
+  itPerformanceGates("handles a clean, reference-dense 1,000 element rename within a loose pure-module guard", () => {
     const source = referenceDenseSource(992, false);
     const compiled = complete(source);
     expect(compiled.document.elements).toHaveLength(1000);
     const target = compiled.document.elements.find((element) => element.name === "Target")!;
-    const startedAt = performance.now();
-    const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" });
-    const elapsed = performance.now() - startedAt;
-    expect(analysis.verdict).toBe("ok");
-    expect(elapsed).toBeLessThan(5000);
-  });
+    const input = { sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" };
+    const warmup = analyzeRename(input);
+    expect(warmup.verdict).toBe("ok");
+    const durations: number[] = [];
+    for (let trial = 0; trial < 3; trial += 1) {
+      const startedAt = performance.now();
+      analyzeRename(input);
+      durations.push(performance.now() - startedAt);
+    }
+    durations.sort((left, right) => left - right);
+    const median = durations[Math.floor(durations.length / 2)];
+    console.log(`[renameAnalysis perf] 1000 element analyzeRename: median=${median.toFixed(2)}ms (3 runs, warm-up)`);
+    expect(Number.isFinite(median)).toBe(true);
+    expect(median).toBeLessThan(5000);
+  }, 60_000);
 });

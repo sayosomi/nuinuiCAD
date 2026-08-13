@@ -17,29 +17,29 @@ const compileOrThrow = (source: string): DslDocumentData => {
 describe("assertShadowEquivalent", () => {
   it("正準シリアライズが一致すればtrueを返しconsole.errorを呼ばない", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const afterDoc = compileOrThrow(["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n"));
-    expect(assertShadowEquivalent(afterDoc, afterDoc, 3)).toBe(true);
+    const afterDoc = compileOrThrow(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    expect(assertShadowEquivalent(afterDoc, afterDoc, 4)).toBe(true);
     expect(spy).not.toHaveBeenCalled();
   });
 
   it("シリアライズが食い違えばfalseを返しconsole.errorで警告する", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const afterDoc = compileOrThrow(["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n"));
-    const shadowDoc = compileOrThrow(["nui 3", "point A = coordinate(x: 99, y: 99)"].join("\n"));
-    expect(assertShadowEquivalent(afterDoc, shadowDoc, 3)).toBe(false);
+    const afterDoc = compileOrThrow(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    const shadowDoc = compileOrThrow(["nui 4", "point A = coordinate(x: 99, y: 99)"].join("\n"));
+    expect(assertShadowEquivalent(afterDoc, shadowDoc, 4)).toBe(false);
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it("shadowDocumentがnullならfalseを返しconsole.errorで警告する", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const afterDoc = compileOrThrow(["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n"));
-    expect(assertShadowEquivalent(afterDoc, null, 3)).toBe(false);
+    const afterDoc = compileOrThrow(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    expect(assertShadowEquivalent(afterDoc, null, 4)).toBe(false);
     expect(spy).toHaveBeenCalledOnce();
   });
 });
 
 describe("assertReconcileSane", () => {
-  const baseSource = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
+  const baseSource = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
 
   it("リネームのみ(移動なし)はID継承必須: 正常な場合は警告しない", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -51,7 +51,7 @@ describe("assertReconcileSane", () => {
         element.name === "B" ? ({ ...element, name: "B2" } as CadElement) : element
       )
     };
-    const nextShadowText = serializeDocumentToDsl(afterDoc, 3);
+    const nextShadowText = serializeDocumentToDsl(afterDoc, 4);
     assertReconcileSane(prevCompiled, nextShadowText, afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -62,7 +62,7 @@ describe("assertReconcileSane", () => {
     const prevDoc = prevCompiled.document!;
     const [a, b, c] = prevDoc.elements;
     const afterDoc: DslDocumentData = { ...prevDoc, elements: [a, c, b] };
-    const nextShadowText = serializeDocumentToDsl(afterDoc, 3);
+    const nextShadowText = serializeDocumentToDsl(afterDoc, 4);
     assertReconcileSane(prevCompiled, nextShadowText, afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -77,7 +77,7 @@ describe("assertReconcileSane", () => {
       ...prevDoc,
       elements: [a, { ...c }, { ...b, name: "B2" } as CadElement]
     };
-    const nextShadowText = serializeDocumentToDsl(afterDoc, 3);
+    const nextShadowText = serializeDocumentToDsl(afterDoc, 4);
     assertReconcileSane(prevCompiled, nextShadowText, afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -86,12 +86,12 @@ describe("assertReconcileSane", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const prevCompiled = compileDslDocument(baseSource);
     const prevDoc = prevCompiled.document!;
-    const inserted = compileOrThrow("nui 3\npoint D = coordinate(x: 3, y: 3)").elements[0];
+    const inserted = compileOrThrow("nui 4\npoint D = coordinate(x: 3, y: 3)").elements[0];
     const afterDoc: DslDocumentData = {
       ...prevDoc,
       elements: [...prevDoc.elements.filter((element) => element.name !== "C"), inserted]
     };
-    const nextShadowText = serializeDocumentToDsl(afterDoc, 3);
+    const nextShadowText = serializeDocumentToDsl(afterDoc, 4);
     assertReconcileSane(prevCompiled, nextShadowText, afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -108,8 +108,8 @@ describe("assertReconcileSane", () => {
       diagnostics: [],
       spans: { sourceMap: emptyParsed.sourceMap, logicalStatementByRangeFrom: emptyParsed.logicalStatementByRangeFrom }
     };
-    const afterDoc = compileOrThrow(["nui 3", "point A = coordinate(x: 0, y: 0)"].join("\n"));
-    assertReconcileSane(brokenCompiled, serializeDocumentToDsl(afterDoc, 3), afterDoc);
+    const afterDoc = compileOrThrow(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    assertReconcileSane(brokenCompiled, serializeDocumentToDsl(afterDoc, 4), afterDoc);
     expect(spy).not.toHaveBeenCalled();
   });
 
@@ -132,7 +132,7 @@ describe("assertReconcileSane", () => {
         element.name === "B" ? ({ ...element, name: "B2" } as CadElement) : element
       )
     };
-    const nextShadowText = serializeDocumentToDsl(afterDoc, 3);
+    const nextShadowText = serializeDocumentToDsl(afterDoc, 4);
     assertReconcileSane(corruptedPrev, nextShadowText, afterDoc);
     expect(spy).toHaveBeenCalled();
     const [, detail] = spy.mock.calls[0];

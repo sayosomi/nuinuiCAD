@@ -5,6 +5,7 @@ import type { ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
+import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 
 export type ModuleParameterSlot = {
   definitionStatementId: StatementIdentity;
@@ -16,7 +17,20 @@ export type ModuleScalarSourceTarget =
   | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string }
   | { kind: "elementLocalVariable"; statementId: StatementIdentity; statementIndex: number; variableIndex: number; name: string }
   | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number }
-  | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number };
+  | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number }
+  | {
+      kind: "deferredModuleScalarExport";
+      instanceStatementId: StatementIdentity;
+      instanceStatementIndex: number;
+      instanceName: string;
+      exportName: string;
+      exportedStatementId: StatementIdentity;
+      exportedStatementIndex: number;
+      declaredType: ScalarType;
+      referenceSpan: DslSpan;
+      instanceSpan: DslSpan;
+      memberSpan: DslSpan;
+    };
 
 export type ModuleGeometrySourceTarget =
   | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string })
@@ -35,6 +49,7 @@ export type ModuleGeometrySourceTarget =
       instanceName: string;
       exportName: string;
       expectedGeometryKind: "point" | "line";
+      expectedInterfaceType?: ModuleGeometryInterfaceType;
       pointKey?: string;
       referenceSpan: DslSpan;
       instanceSpan: DslSpan;
@@ -83,7 +98,7 @@ export type ModuleScalarExpressionSemantic = {
 export type ModuleGeometryPropertyReference = {
   geometryName: string;
   property: string;
-  /** Exact tokens supplied by the scalar tokenizer. `span` includes `@` and the property path. */
+  /** Exact tokens supplied by the scalar tokenizer. `span` includes `@` && the property path. */
   elementNameSpan: DslSpan;
   propertySpan: DslSpan;
   span: DslSpan;
@@ -108,7 +123,7 @@ export type ModuleGeometryReferenceRole =
 export type ModuleGeometryReferenceSemantic = {
   source: string;
   span: DslSpan;
-  /** Exact base geometry token when the reference has one (excludes @ and point accessor). */
+  /** Exact base geometry token when the reference has one (excludes @ && point accessor). */
   nameSpan?: DslSpan;
   expectedGeometryKind: "point" | "line";
   role: ModuleGeometryReferenceRole;
@@ -144,14 +159,26 @@ export type ResolvedModuleParameterBinding = {
   value: ModuleArgumentSemantic | null;
 };
 
-export type ResolvedModuleExport = {
+type ResolvedModuleExportBase = {
   ownerModuleDefinitionStatementId: StatementIdentity;
   exportedStatementId: StatementIdentity;
   exportedStatementIndex: number;
   sourceOrder: number;
   name: string;
+};
+
+export type ResolvedModuleGeometryExport = ResolvedModuleExportBase & {
+  kind: "geometry";
   category: DslGeometryDeclarationCategory;
 };
+
+export type ResolvedModuleScalarExport = ResolvedModuleExportBase & {
+  kind: "scalar";
+  declaredType: ScalarType;
+  bindingKind: "const" | "let";
+};
+
+export type ResolvedModuleExport = ResolvedModuleGeometryExport | ResolvedModuleScalarExport;
 
 export type ModuleScalarExpressionSite = {
   parameterKey: string | null;
@@ -196,7 +223,7 @@ export type ModuleDefinitionSemantic = {
   name: string;
   /** Scope containing the module definition statement itself. */
   declarationScopeId: ScopeId;
-  /** Synthetic lexical scope containing the module body and its parameters. */
+  /** Synthetic lexical scope containing the module body && its parameters. */
   bodyScopeId: ScopeId;
   /** @deprecated Use declarationScopeId/bodyScopeId explicitly. */
   scopeId: ScopeId;
@@ -236,6 +263,8 @@ export type ModuleSemanticAnalysis = {
   definitionsByStatementId: ReadonlyMap<StatementIdentity, ModuleDefinitionSemantic>;
   instancesByStatementId: ReadonlyMap<StatementIdentity, ModuleInstanceSemantic>;
   callEdges: readonly ModuleCallEdge[];
+  /** Source-only qualified scalar references in root typed declarations. */
+  rootScalarExpressionsByStatementId: ReadonlyMap<StatementIdentity, ModuleScalarExpressionSite>;
   /** Source-only qualified geometry references in the root document. */
   rootGeometryReferencesByStatementId: ReadonlyMap<StatementIdentity, readonly ModuleGeometryReferenceSite[]>;
   diagnostics: readonly DslDiagnostic[];

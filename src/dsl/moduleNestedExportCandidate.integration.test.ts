@@ -26,21 +26,21 @@ const evaluateSource = (compiled: ReturnType<typeof compileSource>) => {
 };
 
 const source = [
-  "nui 3",
+  "nui 4",
   "module C() {",
   "  export line Out = segment(start: (0, 0), end: (10, 0))",
   "}",
   "module B() {",
-  "  module C1 = C()",
+  "  instance C1 = C()",
   "  line BUse = segment(start: (0, 0), end: (5, 0))",
-  "  export line Forwarded = copy(startPoint: C1::Out.start, endPoint: C1::Out.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [C1::Out])",
+  "  export line Forwarded = copy(startPoint: @C1::Out.start, endPoint: @C1::Out.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@C1::Out])",
   "}",
   "module A() {",
-  "  module B1 = B()",
+  "  instance B1 = B()",
   "  line AUse = segment(start: (0, 0), end: (5, 0))",
-  "  export line ForwardedAgain = copy(startPoint: B1::Forwarded.start, endPoint: B1::Forwarded.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [B1::Forwarded])",
+  "  export line ForwardedAgain = copy(startPoint: @B1::Forwarded.start, endPoint: @B1::Forwarded.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@B1::Forwarded])",
   "}",
-  "module Root = A()",
+  "instance Root = A()",
   "line RootUse = segment(start: (0, 0), end: (5, 0))"
 ].join("\n");
 

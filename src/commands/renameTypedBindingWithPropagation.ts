@@ -35,7 +35,7 @@ const hasCleanCanonicalSource = () => {
  * existing element rename command uses
  * (src/commands/renameElementWithPropagation.ts), swapping element-model-diff
  * patching for direct LineSplice patching since typed bindings have no
- * CadElement to diff. Not registered as a palette command or bound to any
+ * CadElement to diff. Not registered as a palette command || bound to any
  * shortcut - a UI entry point is a later task.
  */
 export const renameTypedBindingWithPropagation = (bindingId: BindingId, requestedName: string): boolean => {

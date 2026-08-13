@@ -1,6 +1,6 @@
 // Task 20: evaluates a Task 19 ScalarProgram's const/let declarations to
 // their version-0 value using Task 16's pure expression evaluator. This
-// module never parses source, never re-resolves a binding name, and never
+// module never parses source, never re-resolves a binding name, && never
 // re-derives Task 13's forward/self/cycle/eligibility diagnostics.
 //
 // Task 23 changed the evaluation strategy from a single eager left-to-right
@@ -9,22 +9,22 @@
 // (recursing into other referenced bindings on demand) rather than always in
 // array order up front. This lets a caller (the per-element evaluation loop)
 // ask for a specific binding's value mid-run, without re-evaluating the whole
-// program and without ever evaluating any single binding more than once. A
-// compiled ScalarProgram is already guaranteed acyclic and forward-reference
+// program && without ever evaluating any single binding more than once. A
+// compiled ScalarProgram is already guaranteed acyclic && forward-reference
 // free (Task 13's `binding-cycle`/`forward-binding-reference`/
 // `self-initialization` diagnostics make the whole document fail to compile
-// otherwise - see `compileDslDocument`'s early-return-on-error and
+// otherwise - see `compileDslDocument`'s early-return-on-error &&
 // `buildBindingProgramEligibility`'s own defensive throw in
 // bindingProgramEligibility.ts), so on-demand recursion always strictly
-// resolves "earlier" statements first and terminates. `evaluateScalarProgram`
-// still exists with its original signature and byte-identical output (same
+// resolves "earlier" statements first && terminates. `evaluateScalarProgram`
+// still exists with its original signature && byte-identical output (same
 // map, same insertion order) - it walks `program.statements` in array order,
 // pulling each value from the (memoized, so free after the first ask)
 // resolver, so callers that only need the whole-document result never see a
 // difference from the prior array-order construction.
 //
-// `set`, control-flow mutation, and Rust evaluation are all out of scope -
-// see docs/typed-variables/tasks/20-ts-const-evaluation.md and
+// `set`, control-flow mutation, && Rust evaluation are all out of scope -
+// see docs/typed-variables/tasks/20-ts-const-evaluation.md &&
 // docs/typed-variables/tasks/23-standard-property-runtime.md.
 
 import type { BindingId } from "./bindingCatalog";
@@ -41,29 +41,36 @@ export type ScalarProgramEvaluation = {
 export type LazyScalarProgramEvaluator = {
   /**
    * Resolves a single binding's value, evaluating its initializer on first
-   * ask and caching the result for every subsequent ask (including asks made
+   * ask && caching the result for every subsequent ask (including asks made
    * recursively while resolving a different binding's initializer).
    */
   resolve: (bindingId: BindingId) => ScalarEvaluation;
 };
 
-const isWithinEvaluationLimit = (program: ScalarProgram, statement: ScalarProgramStatement): boolean =>
-  program.evaluationLimitSourceOrder === undefined || statement.sourceOrder < program.evaluationLimitSourceOrder;
+const isWithinEvaluationLimit = (
+  program: ScalarProgram,
+  statement: ScalarProgramStatement,
+  postStopBindingIds: ReadonlySet<BindingId>
+): boolean =>
+  program.evaluationLimitSourceOrder === undefined ||
+  statement.sourceOrder < program.evaluationLimitSourceOrder ||
+  postStopBindingIds.has(statement.bindingId);
 
 /**
  * Builds an on-demand resolver over `program`. Nothing is evaluated until
  * `resolve` is actually called for a given bindingId; a statement at or after
- * `program.evaluationLimitSourceOrder` (the `@stop` cutoff) is treated as
- * absent, exactly like the array-order sweep this replaces treated it as
- * skipped and unavailable to the resolver.
+ * `program.evaluationLimitSourceOrder` (the `stop` cutoff) is treated as
+ * absent unless its resolved bindingId is explicitly listed in
+ * `postStopBindingIds` for a printLayout-local binding.
  */
 export const createLazyScalarProgramEvaluator = (
   program: ScalarProgram,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation
 ): LazyScalarProgramEvaluator => {
+  const postStopBindingIds = new Set(program.postStopBindingIds ?? []);
   const statementByBindingId = new Map<BindingId, ScalarProgramStatement>();
   for (const statement of program.statements) {
-    if (isWithinEvaluationLimit(program, statement)) statementByBindingId.set(statement.bindingId, statement);
+    if (isWithinEvaluationLimit(program, statement, postStopBindingIds)) statementByBindingId.set(statement.bindingId, statement);
   }
 
   const cache = new Map<BindingId, ScalarEvaluation>();
@@ -108,7 +115,7 @@ export const createLazyScalarProgramEvaluator = (
 };
 
 /**
- * Walks `program.statements` in array order (already source order) and pulls
+ * Walks `program.statements` in array order (already source order) && pulls
  * each statement's value from `evaluator` - a memoized resolver, so anything
  * already resolved (e.g. by a property-materialization lookup made mid-run,
  * per Task 23) is a free cache hit here, never re-evaluated. This is what
@@ -121,16 +128,17 @@ export const finalizeScalarProgramEvaluation = (
   program: ScalarProgram,
   evaluator: LazyScalarProgramEvaluator
 ): ScalarProgramEvaluation => {
+  const postStopBindingIds = new Set(program.postStopBindingIds ?? []);
   const resultsByBindingId = new Map<BindingId, ScalarEvaluation>();
   for (const statement of program.statements) {
-    if (!isWithinEvaluationLimit(program, statement)) continue;
+    if (!isWithinEvaluationLimit(program, statement, postStopBindingIds)) continue;
     resultsByBindingId.set(statement.bindingId, evaluator.resolve(statement.bindingId));
   }
   return { resultsByBindingId };
 };
 
 /**
- * Evaluates every declaration in `program.statements` and returns them keyed
+ * Evaluates every declaration in `program.statements` && returns them keyed
  * by bindingId, in array order. A thin convenience wrapper for callers that
  * only need the whole-document result with no mid-run lookups of their own -
  * see `finalizeScalarProgramEvaluation` for callers (Task 23) that need to

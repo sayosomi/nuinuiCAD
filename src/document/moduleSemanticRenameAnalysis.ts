@@ -42,8 +42,8 @@ const sameScopeCollision = (compiled: CompiledDslDocument, target: ModuleSemanti
     .some((candidate) => candidate.statementId !== target.statementId);
 };
 
-/** Stable-resolution snapshot used by both module rename safety and its
- * compile-after-splice boundary. Names and export labels are intentionally
+/** Stable-resolution snapshot used by both module rename safety && its
+ * compile-after-splice boundary. Names && export labels are intentionally
  * absent; source statement/parameter identities are the comparison keys. */
 export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) => {
   const analysis = compiled.moduleSemanticAnalysis;
@@ -54,11 +54,16 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
     if (value.kind === "parameter" || value.kind === "parameterProperty") return { kind: value.kind, definitionStatementId: value.definitionStatementId, parameterIndex: value.parameterIndex };
     if (value.kind === "sourceGeometry" || value.kind === "sourceGeometryProperty" || value.kind === "moduleLocal" || value.kind === "elementLocalVariable" || value.kind === "iteration") return { kind: value.kind, statementId: value.statementId, variableIndex: value.variableIndex ?? null };
     if (value.kind === "documentBinding") return { kind: value.kind, bindingId: value.bindingId };
-    if (value.kind === "deferredModuleExport" || value.kind === "deferredModuleExportProperty") {
+    if (value.kind === "deferredModuleScalarExport" || value.kind === "deferredModuleExport" || value.kind === "deferredModuleExportProperty") {
       const instance = analysis.instancesByStatementId.get(value.instanceStatementId as string);
       const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
       const exported = definition?.exports.find((entry) => entry.name === value.exportName);
-      return { kind: value.kind, instanceStatementId: value.instanceStatementId, exportedStatementId: exported?.exportedStatementId ?? null, property: value.property ?? null };
+      return {
+        kind: value.kind,
+        instanceStatementId: value.instanceStatementId,
+        exportedStatementId: value.exportedStatementId ?? exported?.exportedStatementId ?? null,
+        property: value.property ?? null
+      };
     }
     return value.kind;
   };
@@ -77,7 +82,9 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
       body: definition.bodyStatementIds,
       parameters: definition.parameters.map((parameter) => ({ index: parameter.parameterIndex, type: parameter.type, default: expressionFingerprint(parameter.defaultExpression) })),
       locals: definition.localScalars.map((local) => ({ id: local.statementId, type: local.type, initializer: expressionFingerprint(local.initializer) })),
-      exports: definition.exports.map((entry) => ({ id: entry.exportedStatementId, category: entry.category }))
+      exports: definition.exports.map((entry) => entry.kind === "geometry"
+        ? { id: entry.exportedStatementId, kind: entry.kind, category: entry.category }
+        : { id: entry.exportedStatementId, kind: entry.kind, declaredType: entry.declaredType, bindingKind: entry.bindingKind })
     })),
     instances: analysis.instances.map((instance) => ({
       id: instance.statementId,
@@ -101,7 +108,8 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
       templates: body.textTemplateHoles.map((site) => expressionFingerprint(site.expression)),
       scalarTarget: targetFingerprint(body.scalarTarget)
     }))),
-    roots: [...analysis.rootGeometryReferencesByStatementId].map(([id, refs]) => [id, refs.map((site) => geometryFingerprint(site.reference))])
+    roots: [...analysis.rootGeometryReferencesByStatementId].map(([id, refs]) => [id, refs.map((site) => geometryFingerprint(site.reference))]),
+    scalarRoots: [...analysis.rootScalarExpressionsByStatementId].map(([id, site]) => [id, expressionFingerprint(site.expression)])
   });
 };
 

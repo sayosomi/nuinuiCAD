@@ -1,24 +1,32 @@
 // One-pass integration of Tasks 11–15 for typed declarations. Task 19
-// lowering consumes this result directly and never repeats this work.
+// lowering consumes this result directly && never repeats this work.
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import { isCompilableDslStatement } from "../dsl/dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import { isElementDslStatement } from "../dsl/dslParser";
+import { parameterKeyForArg } from "../dsl/dslConstructions";
 import { analyzeBindings, type BindingAnalysis, type InitializerReference } from "./bindingAnalysis";
-import { buildBindingCatalog, type BindingId } from "./bindingCatalog";
+import { bindingIdForStableStatementId, buildBindingCatalog, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "./bindingCatalog";
 import { resolveInitializerReferences, type BindingResolution, type InitializerResolutionRequest } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
-import { parseScalarExpression } from "./expressionParser";
+import { isScalarExpressionCandidateSource, parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { ScalarProgramPositionMap } from "./scalarProgram";
 import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { createElementNameContext } from "../model/elementNames";
+import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
+import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
+import {
+  resolveSourceLexicalPath,
+  type SourceLexicalNamespaceIndex
+} from "../dsl/sourceLexicalNamespaceIndex";
 
 export type { DiagnosticSpanContext };
 
@@ -46,7 +54,7 @@ export const collectReferences = (ast: ScalarExpressionAst): readonly { name: st
 
 /** Whether an expression needs scalar-only syntax rather than the separate
  * numeric expression evaluator used by geometry, local numeric variables,
- * and text interpolation. */
+ * && text interpolation. */
 export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolean => {
   switch (ast.kind) {
     case "booleanLiteral":
@@ -66,18 +74,64 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
 
 /** Shared "why this reference isn't usable" message for a non-resolved
  * BindingResolution - same wording Task 25's conditionalGroupConditionCompiler.ts
- * and Task 26's textTemplate.ts both surface for an unresolved/forward/duplicate
+ * && Task 26's textTemplate.ts both surface for an unresolved/forward/duplicate
  * reference inside typed-only syntax. */
 export const unresolvedReferenceMessage = (name: string, resolution: BindingResolution | undefined): string => {
   if (resolution?.kind === "forward") return `"${name}" はこの位置より後で宣言されているため、まだ参照できません。`;
+  if (resolution?.kind === "namespace" && resolution.reason === "forward") return `"${name}" はこの位置より後で宣言されているため、まだ参照できません。`;
   if (resolution?.kind === "duplicate") return `"${name}" は複数の宣言と一致するため一意に解決できません。`;
+  if (resolution?.kind === "namespace" && resolution.reason === "ambiguous") return `"${name}" は複数の宣言と一致するため一意に解決できません。`;
   return `未定義の変数 "${name}" を参照しています。`;
+};
+
+const sourceNamespaceBindingResolverFor = (
+  sourceNamespace: SourceLexicalNamespaceIndex,
+  typedStatementIndexes: ReadonlySet<number>,
+  additionalResolver?: SourceNamespaceBindingResolver
+): SourceNamespaceBindingResolver => (name, statementIndex) => {
+  const additional = additionalResolver?.(name, statementIndex, sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceNamespace.scopeIndex.rootScopeId);
+  if (additional) return additional;
+  const path = parseDslReferenceToken(name);
+  const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
+  if (lookup.kind === "undefined") return null;
+  if (lookup.kind === "resolved") {
+    if (lookup.declaration.kind === "typedDeclaration" && typedStatementIndexes.has(lookup.declaration.statementIndex)) {
+      const bindingId = bindingIdForStableStatementId(lookup.declaration.statementId);
+      return { kind: "resolved", bindingId };
+    }
+    return {
+      kind: "blocked",
+      reason: "incompatible",
+      declarationKind: lookup.declaration.kind,
+      statementId: lookup.declaration.statementId
+    };
+  }
+  if (lookup.kind === "invalidTraversal") {
+    return {
+      kind: "blocked",
+      reason: "invalidTraversal",
+      declarationKind: lookup.declaration.kind,
+      statementId: lookup.declaration.statementId
+    };
+  }
+  // Keep the existing binding sweep as the owner for all-typed duplicate &&
+  // forward buckets for simple names. Qualified paths have already been
+  // resolved by the canonical namespace && must retain its forward/ambiguous
+  // reason even when every candidate is typed. A mixed-kind bucket must remain
+  // blocked so a scalar consumer cannot skip an inner geometry/group &&
+  // capture an outer scalar.
+  const declarations = lookup.declarations;
+  if (
+    path.segments.length === 1 &&
+    declarations.every((declaration) => declaration.kind === "typedDeclaration" && typedStatementIndexes.has(declaration.statementIndex))
+  ) return null;
+  return { kind: "blocked", reason: lookup.kind };
 };
 
 /** Exact-span-or-nothing (Task 48): physicalSpan is set only when the
  * logical->physical projection actually succeeds; a lookup/revision failure
  * never falls back to the whole statement's span - it leaves physicalSpan
- * unset and relies on exactSpanOnly to keep the gutter/Quick Fix/navigation
+ * unset && relies on exactSpanOnly to keep the gutter/Quick Fix/navigation
  * from inventing a wrong position. `bindingId` doubles as the navigation
  * target since every diagnostic here is about one binding's own declaration. */
 const compileDiagnostic = (
@@ -152,13 +206,19 @@ export const analyzeTypedDeclarations = ({
   stableStatementIdByIndex,
   reconciledContainers,
   spans,
-  includeStatement: includeStatementOption
+  includeStatement: includeStatementOption,
+  sourceNamespace,
+  additionalBindings,
+  additionalBindingResolver
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   reconciledContainers: ReconciledCadContainerInput;
   spans: DiagnosticSpanContext;
   includeStatement?: (statement: DslStatement, statementIndex: number) => boolean;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+  additionalBindings?: readonly BindingSeed[];
+  additionalBindingResolver?: SourceNamespaceBindingResolver;
 }): TypedDeclarationAnalysisCompilation => {
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
     isCompilableDslStatement(statements, statementIndex)
@@ -172,12 +232,40 @@ export const analyzeTypedDeclarations = ({
   // bindingAnalysis/catalog (Task 53) even when the document declares no
   // typed const/let of its own - an unresolved `@name` there (e.g.
   // `scale: @nope`) still needs a populated .analysis so
-  // compileNumericBindings can run and diagnose it, not the bare
+  // compileNumericBindings can run && diagnose it, not the bare
   // `{diagnostics: []}` shortcut below.
   const hasPrintLayoutStatements = statements.some((statement, statementIndex) =>
     statement.kind === "printLayout" && includeStatement(statement, statementIndex)
   );
-  if (typedStatements.length === 0 && !hasPrintLayoutStatements) return { diagnostics: [] };
+  // The shared frontend also owns reference-free property expressions,
+  // conditional conditions, && for-group iteration expressions. Build the
+  // empty binding catalog for those consumers even when the document has no
+  // const/let declarations, so they cannot silently fall back to evaluated
+  // literals || numeric truthiness.
+  const elementsById = new Map(reconciledContainers.elements.map((element) => [element.id, element]));
+  const hasScalarExpressionConsumers = statements.some((statement, statementIndex) => {
+    if (!includeStatement(statement, statementIndex)) return false;
+    if (statement.kind !== "element" && statement.kind !== "group") return false;
+    const elementId = reconciledContainers.elementIdByStatementIndex.get(statementIndex);
+    const element = elementId ? elementsById.get(elementId) : undefined;
+    if (!element) return false;
+    if (element.type === "conditionalGroup" || element.type === "forGroup") return true;
+    return statement.attrs.some((attr) => {
+      if (!isScalarExpressionCandidateSource(attr.value)) return false;
+      const parameterKey = parameterKeyForArg(element.type, attr.key);
+      const definition = findParameterDefinition(element, parameterKey);
+      const expectedType = scalarTypeForParameterDefinition(definition);
+      if (!expectedType) return false;
+      if (expectedType.kind !== "number") return true;
+      const localVariableNames = new Set((element.numericVariables ?? []).map((variable) => variable.name));
+      return scanExpressionReferences(attr.value).some((match) =>
+        match.kind === "elementProperty"
+          ? match.sigil
+          : match.sigil && localVariableNames.has(match.query)
+      );
+    });
+  });
+  if (typedStatements.length === 0 && !hasPrintLayoutStatements && !hasScalarExpressionConsumers) return { diagnostics: [] };
 
   const missingIdentity = typedStatements.flatMap(({ statement, statementIndex }) =>
     stableStatementIdByIndex.has(statementIndex)
@@ -188,16 +276,21 @@ export const analyzeTypedDeclarations = ({
 
   const scopeIndex = buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, includeStatement);
   const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers });
+  const typedStatementIndexes = new Set(typedStatements.map(({ statementIndex }) => statementIndex));
   const catalog = buildBindingCatalog({
     scopeIndex,
     stableStatementIdByIndex,
     iterationBindings: adapter.iterationBindings,
-    containerIndex: adapter.containerIndex
+    containerIndex: adapter.containerIndex,
+    ...(additionalBindings?.length ? { additionalBindings } : {}),
+    ...(sourceNamespace
+      ? { sourceNamespaceBindingResolver: sourceNamespaceBindingResolverFor(sourceNamespace, typedStatementIndexes, additionalBindingResolver) }
+      : {})
   });
   const parsedByBindingId = new Map<BindingId, ParsedInitializer>();
   const diagnostics: DslDiagnostic[] = [];
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed") continue;
+    if (binding.kind !== "typed" || binding.resolutionMode === "preResolvedOnly") continue;
     const statement = statements[binding.statementIndex];
     if (!statement || statement.kind !== "typedDeclaration") throw new Error(`typedDeclarationAnalysis: typed binding ${binding.id} has no declaration statement`);
     const parsed = parseInitializer(spans, statement, binding.id);
@@ -208,7 +301,7 @@ export const analyzeTypedDeclarations = ({
 
   const requests: InitializerResolutionRequest[] = [];
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed") continue;
+    if (binding.kind !== "typed" || binding.resolutionMode === "preResolvedOnly") continue;
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: missing parsed initializer for ${binding.id}`);
     const scopeId = scopeIndex.scopeOfStatement.get(binding.statementIndex) ?? scopeIndex.rootScopeId;
@@ -220,6 +313,35 @@ export const analyzeTypedDeclarations = ({
     }));
   }
   const resolved = resolveInitializerReferences(catalog, requests);
+  for (const reference of resolved) {
+    if (reference.resolution.kind !== "namespace") continue;
+    // Cross-kind same-scope collisions already have the source namespace's
+    // single declaration diagnostic. Do not add a second consumer diagnostic
+    // for the ambiguous case; the important invariant is that no outer
+    // scalar was selected.
+    if (reference.resolution.reason === "ambiguous") continue;
+    const statement = statements[reference.site.statementIndex];
+    const span = parsedByBindingId.get(reference.fromBindingId)?.references[reference.occurrenceIndex]?.span;
+    if (!statement || !span) continue;
+    const privateMember = reference.resolution.reason === "private"
+      ? parseDslReferenceToken(reference.name).segments.at(-1) ?? reference.name
+      : null;
+    const message = reference.resolution.reason === "forward"
+      ? `"${reference.name}" はこの位置より後で宣言されているため、まだ参照できません。`
+      : privateMember
+        ? `module member「${privateMember}」はexportされていないため参照できません。`
+        : `"${reference.name}" は${reference.resolution.declarationKind ?? "scalar以外の宣言"}のため、scalar expressionでは参照できません。`;
+    diagnostics.push(compileDiagnostic(
+      spans,
+      statement,
+      span,
+      reference.resolution.reason === "private"
+        ? "module-private-member"
+        : reference.resolution.reason === "forward" ? "forward-binding-reference" : "scalar-namespace-type-mismatch",
+      message,
+      { bindingId: reference.fromBindingId }
+    ));
+  }
   // Typechecking consumes resolutions in each binding's occurrence order.
   // Keep that ordering while indexing the one shared resolved stream once,
   // instead of re-scanning every resolution for every typed binding.
@@ -243,7 +365,7 @@ export const analyzeTypedDeclarations = ({
   for (const [statementIndex, elementId] of reconciledContainers.elementIdByStatementIndex) sourceOrderByElementId.set(elementId, statementIndex);
   const nameContext = createElementNameContext([...reconciledContainers.elements]);
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed") continue;
+    if (binding.kind !== "typed" || binding.resolutionMode === "preResolvedOnly") continue;
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: no parsed initializer for ${binding.id}`);
     const checked = typecheckScalarExpression(parsed.ast, {

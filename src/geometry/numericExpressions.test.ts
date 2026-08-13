@@ -136,8 +136,8 @@ describe("normalizeNumericExpressionInput", () => {
     expect(normalizeNumericExpressionInput("曲線AC.長さ > 0", elements)).toBe(
       "curve-ac.length > 0"
     );
-    expect(normalizeNumericExpressionInput("曲線AC.長さ >= 100 || 曲線AC.長さ == 0", elements)).toBe(
-      "curve-ac.length >= 100 || curve-ac.length == 0"
+    expect(normalizeNumericExpressionInput("曲線AC.長さ >= 100  or  曲線AC.長さ == 0", elements)).toBe(
+      "curve-ac.length >= 100  or  curve-ac.length == 0"
     );
   });
 
@@ -230,7 +230,7 @@ describe("normalizeNumericExpressionInput", () => {
     ).toBe("@local-width");
   });
 
-  it("normalizes the nui 3 sigil form of an element property reference (Task 51)", () => {
+  it("normalizes the nui 4 sigil form of an element property reference (Task 51)", () => {
     const elements: CadElement[] = [
       {
         id: "line-ab",
@@ -248,7 +248,7 @@ describe("normalizeNumericExpressionInput", () => {
     );
   });
 
-  it("normalizes the nui 3 sigil form of a Japanese-label element property reference", () => {
+  it("normalizes the nui 4 sigil form of a Japanese-label element property reference", () => {
     const elements: CadElement[] = [
       {
         id: "curve-ac",
@@ -266,8 +266,8 @@ describe("normalizeNumericExpressionInput", () => {
     ];
 
     expect(normalizeNumericExpressionInput("@曲線AC.長さ + 5", elements)).toBe("curve-ac.length + 5");
-    expect(normalizeNumericExpressionInput("@曲線AC.長さ >= 100 || @曲線AC.長さ == 0", elements)).toBe(
-      "curve-ac.length >= 100 || curve-ac.length == 0"
+    expect(normalizeNumericExpressionInput("@曲線AC.長さ >= 100  or  @曲線AC.長さ == 0", elements)).toBe(
+      "curve-ac.length >= 100  or  curve-ac.length == 0"
     );
   });
 
@@ -297,7 +297,7 @@ describe("normalizeNumericExpressionInput", () => {
     };
 
     // No local variable named "length" exists on 袖 at all (count 0), so
-    // Rule R's local-variable arm never applies; the sigil is dropped and X
+    // Rule R's local-variable arm never applies; the sigil is dropped && X
     // resolves as an ordinary (self-referencing) element-property IR rather
     // than being left as an unconverted `@袖.length`. Evaluation, not
     // normalize, is what later rejects the self-reference.
@@ -347,8 +347,8 @@ describe("normalizeNumericExpressionInput", () => {
     };
 
     // Two local variables share the name "寸法", so Rule R's "exactly one"
-    // condition fails and the qualified-variable loop skips it; the sigil
-    // loop below must still fall through and resolve 袖 as an element-
+    // condition fails && the qualified-variable loop skips it; the sigil
+    // loop below must still fall through && resolve 袖 as an element-
     // property reference rather than leaving `@袖.寸法` unconverted.
     expect(
       normalizeNumericExpressionInput(

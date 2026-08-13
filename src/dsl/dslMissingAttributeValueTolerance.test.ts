@@ -6,9 +6,9 @@ import { compileDslDocument } from "./dslDocument";
  * missing-attribute-value ("well-formed but currently-empty named value" -
  * see dslArgScanner.ts) is deliberately excluded from every fatal
  * severity==="error" gate on the document-compile path (dslDocument.ts's two
- * gates, dslCompiler.ts's compileDslToElements gate, and
+ * gates, dslCompiler.ts's compileDslToElements gate, &&
  * canonicalDocument.ts's compileZippedModelText gate) so that a command-line
- * creation draft - or any hand-typed blank `key:` - degrades to an ordinary
+ * creation draft - || any hand-typed blank `key:` - degrades to an ordinary
  * element-level diagnostic instead of discarding the whole document back to
  * its last-good state. This file locks in that contract directly against
  * the two lowest-level entry points; every other severity==="error"
@@ -17,10 +17,10 @@ import { compileDslDocument } from "./dslDocument";
 describe("missing-attribute-value tolerance", () => {
   it("compileDslDocument still compiles a document with one blank argument, alongside an unrelated valid statement", () => {
     const text = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "line = segment(",
-      "  start: A,",
+      "  start: @A,",
       "  end: ",
       ")"
     ].join("\n");
@@ -39,10 +39,10 @@ describe("missing-attribute-value tolerance", () => {
 
   it("compileDslToElements still builds every other element when one statement has a blank argument", () => {
     const text = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "line = segment(",
-      "  start: A,",
+      "  start: @A,",
       "  end: ",
       ")",
       "point B = coordinate(x: 10, y: 0)"
@@ -54,10 +54,10 @@ describe("missing-attribute-value tolerance", () => {
 
   it("an actual syntax error remains fully fatal", () => {
     const text = [
-      "nui 3",
+      "nui 4",
       "line = segment(",
-      "  start: A",
-      "  end: B", // missing comma - a real nui 3 syntax error, not missing-attribute-value
+      "  start: @A",
+      "  end: @B", // missing comma - a real nui 4 syntax error, not missing-attribute-value
       ")"
     ].join("\n");
     const compiled = compileDslDocument(text, { sourceRevision: 1 });
@@ -68,12 +68,13 @@ describe("missing-attribute-value tolerance", () => {
 
   it("a missing required argument alongside a genuine syntax error elsewhere stays fatal", () => {
     const text = [
-      "nui 3",
+      "nui 4",
       "line = segment(",
       "  start: ,",
-      "  end: A",
+      "  end: @A",
+      "  mirrorX: false",
       ")",
-      "point B = coordinate(x: 0 y: 0)" // missing comma
+      "point B = coordinate(x: 0, y: 0)" // missing comma
     ].join("\n");
     const compiled = compileDslDocument(text, { sourceRevision: 1 });
 

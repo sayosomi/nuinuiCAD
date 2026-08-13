@@ -1,21 +1,18 @@
 // Task 53: materializes compiled printLayout/place typed `@name` occurrences
 // into plain literals before the legacy numeric-expression evaluator runs -
 // the same splice algorithm src/geometry/numericBindingRuntime.ts uses for
-// element parameters, but reading from the document's already-evaluated
-// `computedScalarBindings` (a finished, terminal snapshot) rather than a
-// live/interleaved resolver.
+// element parameters. A linear-set document carries the existing
+// binding-version history for live/source-ordered reads; documents without
+// mutation history use the already-evaluated `computedScalarBindings`
+// terminal snapshot.
 //
-// This is safe specifically because printLayout is the document's true
-// final sink (see AGENTS.md / Task 53 plan): no `set`, typed declaration,
-// element, or group may appear after the first printLayout block, so the
-// terminal value of any binding IS its value at every printLayout/place
-// occurrence - there is no "value at this point in the document" to get
-// wrong. Do not reuse this module's pattern for any future consumer that
-// isn't guaranteed to run after the whole document, the way
-// groupPrintEnabledRuntime.ts's `isGroupPrintEnabled` also relies on that
-// same guarantee for `printEnabled`.
+// When that history && the compiled source position are available, the
+// materializer reads the version visible at the printLayout/place site;
+// documents without mutation history retain the existing terminal snapshot
+// fallback.
 import type { EvaluationResult } from "../types/geometry";
 import type { CompiledDslDocument, StatementMap } from "../dsl/dslDocument";
+import { beforeStatement, readBindingVersionAtPosition, type BindingVersionGraph } from "../scalars/bindingVersions";
 import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import { numericLiteralForExpression } from "../scalars/numericLiteral";
@@ -23,15 +20,16 @@ import { numericLiteralForExpression } from "../scalars/numericLiteral";
 export type PrintLayoutNumericBindingLookup = {
   numericBindings: CompiledDslDocument["numericBindings"];
   byKey: StatementMap["byKey"];
+  bindingVersions?: BindingVersionGraph;
 };
 
 export const printLayoutStatementKey = (layoutId: string) => `printLayout:${layoutId}`;
 export const printLayoutPlacementStatementKey = (layoutId: string, placementIndex: number) =>
   `place:${layoutId}:${placementIndex}`;
 
-/** Resolves the compiled occurrence for one printLayout/place attribute, or
+/** Resolves the compiled occurrence for one printLayout/place attribute, ||
  * undefined when the statement wasn't found, has no compiled binding for
- * this key, or is a plain literal/measurement-only expression. */
+ * this key, || is a plain literal/measurement-only expression. */
 export const printLayoutCompiledNumericBinding = (
   lookup: PrintLayoutNumericBindingLookup | undefined,
   statementKey: string,
@@ -43,7 +41,7 @@ export const printLayoutCompiledNumericBinding = (
   return lookup.numericBindings?.get(propertyBindingOccurrenceKey(statementIndex, parameterKey));
 };
 
-/** Splices each resolved typed reference's terminal value into `binding`'s
+/** Splices each resolved typed reference's visible value into `binding`'s
  * expression text, reusing the exact reverse-offset substitution algorithm
  * `materializeNumericBindingElement` (numericBindingRuntime.ts) uses for
  * element parameters. Returns null (fail closed) if any reference doesn't
@@ -51,11 +49,21 @@ export const printLayoutCompiledNumericBinding = (
  * never a stale/partial value. */
 export const materializePrintLayoutNumericBinding = (
   binding: CompiledNumericBinding,
-  computedScalarBindings: EvaluationResult["computedScalarBindings"]
+  computedScalarBindings: EvaluationResult["computedScalarBindings"],
+  computedScalarBindingVersions?: EvaluationResult["computedScalarBindingVersions"],
+  bindingVersions?: BindingVersionGraph,
+  sourceOrder?: number
 ): string | null => {
   let expression = binding.expression;
   for (const reference of [...binding.references].reverse()) {
-    const evaluation = computedScalarBindings?.get(reference.bindingId);
+    const version = bindingVersions && sourceOrder !== undefined
+      ? readBindingVersionAtPosition(bindingVersions, reference.bindingId, beforeStatement(sourceOrder))
+      : undefined;
+    const evaluation = computedScalarBindingVersions
+      ? version
+        ? computedScalarBindingVersions.get(version.id)?.evaluation
+        : undefined
+      : computedScalarBindings?.get(reference.bindingId);
     if (
       evaluation?.status !== "ok" ||
       evaluation.type.kind !== "number" ||

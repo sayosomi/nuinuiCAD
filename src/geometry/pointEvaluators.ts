@@ -8,7 +8,7 @@ import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 
 /**
  * The only place a divisionPoint/lineDivisionPoint's placement is read leniently:
- * a missing or unrecognized `kind` falls back to the ratio interpretation, matching
+ * a missing || unrecognized `kind` falls back to the ratio interpretation, matching
  * the Rust reference evaluator's identical fallback (see division_placement.rs).
  * Every other consumer can assume `element.placement.kind` is already well-formed.
  */

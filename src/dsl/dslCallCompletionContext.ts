@@ -133,6 +133,14 @@ const argumentContextAt = (
     const span = arg.valueSpan.start === arg.valueSpan.end && arg.rawValueSpan ? arg.rawValueSpan : arg.valueSpan;
     return arg.value === "" && pos >= span.start && pos <= span.end;
   })) return null;
+  const emptyArgumentGap = args.flatMap((arg, index) => {
+    if (arg.value !== "" || !arg.rawValueSpan) return [];
+    const next = args[index + 1];
+    if (!next) return [];
+    const nextStart = source.indexOf(`${next.key ?? ""}:`, arg.rawValueSpan.end);
+    return nextStart >= 0 ? [{ end: nextStart }] : [];
+  });
+  if (emptyArgumentGap.some((gap) => pos > 0 && pos <= gap.end)) return null;
   const from = tokenStartAt(source, pos, content.start);
   const prefix = source.slice(from, pos);
   if (prefix && (!identifierStart.test(prefix[0]) || ![...prefix].every((character) => identifierPart.test(character)))) return null;
@@ -159,7 +167,7 @@ const argumentContextAt = (
   // scanner cannot split `i fr` until `fr:` is complete, so only surface a
   // named-key menu once the user starts that next token; an empty separator
   // must not make the menu race the positional input.
-  if (spec.category === "for" && !args.some((arg) => arg.key !== null) && !prefix) return null;
+  if (spec.category === "for" && !/^for\s+[^\s]+\s+in\s+range\s*\(/.test(source) && !args.some((arg) => arg.key !== null) && !prefix) return null;
   return {
     kind: "argument",
     from,
@@ -184,7 +192,7 @@ const constructionContextAt = (
 };
 
 /**
- * Tolerantly identifies only a call's construction slot or its depth-one
+ * Tolerantly identifies only a call's construction slot || its depth-one
  * argument-key slot. This intentionally runs before a complete parse exists,
  * so partial vertical statements keep completing without a parallel grammar.
  */
@@ -206,7 +214,10 @@ export const dslCallCompletionContextAt = (source: string, pos: number): DslCall
     const open = topLevelOpenParen(source);
     if (open < 0) return null;
     const close = matchingParen(source, open);
-    const spec = constructionFor(category, "");
+    const baseSpec = constructionFor(category, "");
+    const spec = category === "for" && /^for\s+[^\s]+\s+in\s+range\s*\(/.test(source)
+      ? baseSpec && { ...baseSpec, args: baseSpec.args.filter((arg) => !arg.positional) }
+      : baseSpec;
     return spec ? argumentContextAt(source, pos, spec, open, close >= 0 ? close : source.length) : null;
   }
 

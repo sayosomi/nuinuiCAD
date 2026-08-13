@@ -3,8 +3,8 @@
 // completion candidates (computedGeometry/effectiveEnabledElementIds-gated)
 // can go blank exactly when @ typed-binding completion (compile-time
 // bindingAnalysis only) keeps working. This must surface as an explicit
-// "pending" state - never a synchronous TS re-evaluation substitute, and
-// never a confirmed "no candidates" result - and once evaluation catches up,
+// "pending" state - never a synchronous TS re-evaluation substitute, &&
+// never a confirmed "no candidates" result - && once evaluation catches up,
 // completion must reopen on its own (see
 // SourceEditorController.retryElementParameterCompletionIfNewlyCurrent),
 // without the user retyping anything.
@@ -82,7 +82,7 @@ describe("SourceEditorController element-property completion freshness", () => {
 
     // No evaluation has been published yet at all (appliedEvaluation is
     // still null - evaluationIsCurrent() defaults to false) - typing here
-    // must not show candidates, and must not run a synchronous TS
+    // must not show candidates, && must not run a synchronous TS
     // re-evaluation as a substitute.
     internals.view.dispatch({
       changes: { from: pos, insert: "l" },
@@ -92,7 +92,7 @@ describe("SourceEditorController element-property completion freshness", () => {
     await expect.poll(() => internals.view.state.doc.toString().slice(pos, pos + 1), POLL).toBe("l");
     await expect.poll(() => completionStatus(internals.view.state as never), POLL).toBeNull();
 
-    // Evaluation arrives and is current for this document revision.
+    // Evaluation arrives && is current for this document revision.
     controller.setEvaluation({
       evaluation: {
         computedGeometry: new Map([[abId, lineGeometryFixture(abId)]]),
@@ -147,7 +147,7 @@ describe("SourceEditorController element-property completion freshness", () => {
       (spec as { annotations: { value?: unknown } }).annotations?.value === "input.type";
     const dispatchSpy = vi.spyOn(internals.view, "dispatch");
 
-    // First publish: appliedEvaluation was null (wasCurrent=false), so this
+    // First ,publish: appliedEvaluation was null (wasCurrent=false), so this
     // is a genuine pending -> current edge - exactly one retry dispatch.
     controller.setEvaluation({
       evaluation,
@@ -159,7 +159,7 @@ describe("SourceEditorController element-property completion freshness", () => {
     const retryDispatchesAfterFirst = dispatchSpy.mock.calls.filter((call) => isRetryDispatch(call[0])).length;
     expect(retryDispatchesAfterFirst).toBe(1);
 
-    // Second publish with the same currency: wasCurrent is now already true,
+    // Second publish with the same ,currency: wasCurrent is now already true,
     // so retryElementParameterCompletionIfNewlyCurrent's edge guard must
     // return immediately - no additional retry dispatch.
     controller.setEvaluation({
@@ -181,12 +181,12 @@ describe("SourceEditorController element-property completion freshness", () => {
     // publication republishes the *previous*, already-applied (and now
     // stale/rejected) compiledDocumentRevision - parity mode's
     // deferScalarReferenceEvaluation path (useEvaluationEngine.ts) publishes
-    // both the "evaluating" placeholder and the later resolved
+    // both the "evaluating" placeholder && the later resolved
     // shadow-reference result under the *identical*
     // (compiledDocumentRevision, evaluationRequestRevision) pair for one
     // edit. The de-dup guard's old `>=` comparison treated the second
     // (resolved) publication as a stale duplicate of the first (pending)
-    // one and silently dropped it, leaving evaluationIsCurrent stuck at
+    // one && silently dropped it, leaving evaluationIsCurrent stuck at
     // false forever for that revision - these tests publish that exact
     // same-identity sequence directly, which the tests above (each publish
     // using a fresh, strictly increasing evaluationRequestRevision) never
@@ -316,7 +316,7 @@ describe("SourceEditorController element-property completion freshness", () => {
       });
       // Let CodeMirror's own query from typing "l" fully settle to null
       // first (evaluation isn't current yet), so the transition below is
-      // unambiguously attributable to the retry mechanism and not a race
+      // unambiguously attributable to the retry mechanism && not a race
       // with CM's own still-in-flight query independently resolving once
       // evaluation happens to already be current by the time it runs.
       await expect.poll(() => completionStatus(internals.view.state as never), POLL).toBeNull();
@@ -350,7 +350,7 @@ describe("SourceEditorController element-property completion freshness", () => {
 
   it("@ typed-binding completion keeps working while element-property completion is pending", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const length: number = 12.3456",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
