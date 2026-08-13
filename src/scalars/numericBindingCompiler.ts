@@ -33,7 +33,7 @@ import { isNumericExpression } from "../geometry/numericExpressions";
 import { tokenize } from "../geometry/numericExpressionParser";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
-import { resolveReferencesAtSites, type SiteReferenceRequest } from "./bindingResolution";
+import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
 import type { BindingReferenceSite } from "./bindingResolution";
 import { buildElementLocalRangeIndexFromElements } from "./elementLocalRangeIndex";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
@@ -41,6 +41,7 @@ import { unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
+import type { ScalarExpressionResolvedReference } from "./typedExpressionAst";
 
 export type CompiledNumericBindingReference = {
   bindingId: BindingId;
@@ -273,14 +274,15 @@ export const compileNumericBindings = ({
   const sourcesByOccurrenceKey = new Map<string, CompiledNumericBinding>();
   const diagnostics: DslDiagnostic[] = [];
   for (const candidate of candidates) {
-    // Element-local numeric variables remain owned by the legacy evaluator.
-    // Other scalar references, including iteration bindings, still pass
-    // through the shared checker when its AST can represent the expression.
+    // Element-local numeric variables remain owned by the legacy evaluator at
+    // runtime, but their numeric type still participates in the shared
+    // compile-time checker below. Other scalar references, including
+    // iteration bindings, use that checker whenever its AST can represent the
+    // expression.
     const staysInLegacyEvaluator = candidate.references.length > 0 && candidate.references.every((_, index) => {
       const resolution = resolutions.get(`${candidate.key}:${index}`);
       return resolution?.kind === "resolvedLocal";
     });
-    if (staysInLegacyEvaluator) continue;
 
     let rejected = false;
     const typedRefs: { reference: CandidateReference; bindingId: BindingId }[] = [];
@@ -321,15 +323,22 @@ export const compileNumericBindings = ({
     });
     if (rejected) continue;
     const typedResolutions = candidate.references.map((_, index) => resolutions.get(candidate.key + ":" + index));
-    const hasElementLocalReference = typedResolutions.some((resolution) => resolution?.kind === "resolvedLocal");
-    const canTypecheckScalarReferences = typedResolutions.every((resolution) => resolution?.kind === "resolved");
-    if (!hasElementLocalReference && canTypecheckScalarReferences) {
+    const scalarTypecheckReferences: (BindingResolution | ScalarExpressionResolvedReference)[] = typedResolutions.map((resolution) =>
+      resolution?.kind === "resolvedLocal"
+        ? { kind: "resolvedType", bindingId: null, type: { kind: "number" } }
+        : resolution!
+    );
+    const canTypecheckScalarReferences = scalarTypecheckReferences.every((resolution) =>
+      resolution.kind === "resolved" || resolution.kind === "resolvedType"
+    );
+    if (canTypecheckScalarReferences) {
       // Typecheck the original DSL spelling. The normalized numeric spelling
       // intentionally removes `@` from geometry measurements (for example
       // `@AB.length` becomes `AB.length`) for the legacy numeric evaluator,
       // but that representation is not valid input for the shared scalar
       // parser. Geometry properties themselves are already typed as number;
-      // only the typed binding occurrences need the supplied resolutions.
+      // typed and element-local binding occurrences use the supplied
+      // resolutions; geometry properties remain intrinsic numeric nodes.
       const typedParsed = parseScalarExpression(candidate.source, { start: 0, end: candidate.source.length });
       if (!typedParsed.ast) {
         const issue = typedParsed.diagnostics[0];
@@ -347,7 +356,7 @@ export const compileNumericBindings = ({
       } else {
         const typedChecked = typecheckScalarExpression(typedParsed.ast, {
           expectedType: { kind: "number" },
-          references: typedResolutions as Extract<typeof typedResolutions[number], { kind: "resolved" }>[]
+          references: scalarTypecheckReferences
         });
         if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
           for (const issue of typedChecked.diagnostics) diagnostics.push(diagnosticAt(
@@ -361,6 +370,7 @@ export const compileNumericBindings = ({
         }
       }
     }
+    if (staysInLegacyEvaluator) continue;
     let tokens: ReturnType<typeof tokenize>;
     try {
       tokens = tokenize(candidate.expression);

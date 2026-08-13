@@ -257,7 +257,12 @@ export const analyzeTypedDeclarations = ({
       const expectedType = scalarTypeForParameterDefinition(definition);
       if (!expectedType) return false;
       if (expectedType.kind !== "number") return true;
-      return scanExpressionReferences(attr.value).some((match) => match.kind === "elementProperty" && match.sigil);
+      const localVariableNames = new Set((element.numericVariables ?? []).map((variable) => variable.name));
+      return scanExpressionReferences(attr.value).some((match) =>
+        match.kind === "elementProperty"
+          ? match.sigil
+          : match.sigil && localVariableNames.has(match.query)
+      );
     });
   });
   if (typedStatements.length === 0 && !hasPrintLayoutStatements && !hasScalarExpressionConsumers) return { diagnostics: [] };
