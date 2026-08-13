@@ -49,6 +49,7 @@ fn program(statements: Vec<ValidatedScalarProgramStatement>) -> ValidatedScalarP
     ValidatedScalarProgram {
         statements,
         evaluation_limit_source_order: None,
+        post_stop_binding_ids: std::collections::HashSet::new(),
     }
 }
 

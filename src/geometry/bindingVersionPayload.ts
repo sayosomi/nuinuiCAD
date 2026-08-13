@@ -27,6 +27,7 @@ export type RustBindingMutationPayload = {
     exitSourceOrder: number; iterationBindingId: string;
   }[];
   evaluationLimitSourceOrder?: number;
+  postStopBindingIds?: readonly string[];
 };
 
 type StatementInfo = { statementIndex: number };
@@ -127,6 +128,9 @@ export const buildRustBindingMutationPayload = (
     ...(elementSourceExecutionUnits ? { elementSourceExecutionUnits } : {}),
     ...(graph.evaluationLimitSourceOrder === undefined
       ? {}
-      : { evaluationLimitSourceOrder: graph.evaluationLimitSourceOrder })
+      : { evaluationLimitSourceOrder: graph.evaluationLimitSourceOrder }),
+    ...(graph.postStopBindingIds && graph.postStopBindingIds.size > 0
+      ? { postStopBindingIds: [...graph.postStopBindingIds] }
+      : {})
   };
 };

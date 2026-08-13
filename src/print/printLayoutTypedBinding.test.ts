@@ -39,6 +39,82 @@ const resolveScale = (compiled: LastGoodDslDocument) => {
 };
 
 describe("resolvePrintLayout: typed const/let binding materialization (Task 53)", () => {
+  it("evaluates printLayout-local bindings after a preceding stop and moves place coordinates", () => {
+    const compileWithMargin = (margin: number) => compile([
+      "nui 4",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "group Pattern (printEnabled: true, printAnchor: @Origin) {",
+      "  point B = coordinate(x: 100, y: 0)",
+      "  point C = coordinate(x: 100, y: 50)",
+      "  line AB = segment(start: @Origin, end: @B)",
+      "  line BC = segment(start: @B, end: @C)",
+      "}",
+      "stop",
+      "printLayout A4 (width: 210, height: 297) {",
+      `  const margin: number = ${margin}`,
+      "  place @Pattern(x: @margin, y: @margin, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+
+    const resolvedPlacement = (margin: number) => {
+      const compiled = compileWithMargin(margin);
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
+      return resolvePrintLayout({
+        layout,
+        elements: compiled.document.elements,
+        evaluation,
+        numericBindingLookup: {
+          numericBindings: compiled.numericBindings ?? new Map(),
+          byKey: compiled.statementMap.byKey,
+          bindingVersions: compiled.bindingVersions
+        }
+      }).placements[0];
+    };
+
+    const compiled = compileWithMargin(10);
+    const localBinding = compiled.scalarProgram?.statements.find(
+      (statement) => statement.sourceOrder > (compiled.scalarProgram?.evaluationLimitSourceOrder ?? -1)
+    );
+    const placeXBinding = [...(compiled.numericBindings?.values() ?? [])]
+      .find((binding) => binding.parameterKey === "x");
+    expect(localBinding).toBeDefined();
+    expect(compiled.scalarProgram?.postStopBindingIds).toEqual([localBinding!.bindingId]);
+    expect(placeXBinding?.references[0].bindingId).toBe(localBinding!.bindingId);
+
+    expect(resolvedPlacement(10)).toMatchObject({ x: 10, y: 10 });
+    expect(resolvedPlacement(30)).toMatchObject({ x: 30, y: 30 });
+  });
+
+  it("evaluates printLayout-local let/set bindings after a preceding stop", () => {
+    const compiled = compile([
+      "nui 4",
+      "group Pattern {",
+      "  point Origin = coordinate(x: 0, y: 0)",
+      "}",
+      "stop",
+      "printLayout A4 (width: 210, height: 297) {",
+      "  let margin: number = 10",
+      "  set margin = 30",
+      "  place @Pattern(x: @margin, y: @margin, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
+    const resolved = resolvePrintLayout({
+      layout,
+      elements: compiled.document.elements,
+      evaluation,
+      numericBindingLookup: {
+        numericBindings: compiled.numericBindings ?? new Map(),
+        byKey: compiled.statementMap.byKey,
+        bindingVersions: compiled.bindingVersions
+      }
+    });
+
+    expect(resolved.placements[0]).toMatchObject({ x: 30, y: 30 });
+  });
+
   it("resolves a typed const number reference in scale", () => {
     const compiled = compile([
       "nui 4",

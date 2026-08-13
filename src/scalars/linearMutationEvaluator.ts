@@ -169,6 +169,11 @@ export const createIncrementalLinearMutationEvaluator = (
     return "active";
   };
 
+  const isWithinEvaluationLimit = (version: BindingVersion) =>
+    graph.evaluationLimitSourceOrder === undefined ||
+    version.sourceOrder < graph.evaluationLimitSourceOrder ||
+    graph.postStopBindingIds?.has(version.bindingId) === true;
+
   const execute = (version: BindingVersion) => {
     const control = activeControl(version);
     if (control !== "active") {
@@ -236,7 +241,7 @@ export const createIncrementalLinearMutationEvaluator = (
       if (!isBeforeOrAt(version, position)) break;
       retireFramesBefore(version.sourceOrder);
       nextVersionIndex += 1;
-      if (graph.evaluationLimitSourceOrder === undefined || version.sourceOrder < graph.evaluationLimitSourceOrder) execute(version);
+      if (isWithinEvaluationLimit(version)) execute(version);
     }
     retireFramesBefore(position.sourceOrder);
   };
@@ -285,7 +290,7 @@ export const createIncrementalLinearMutationEvaluator = (
       while (versionIndex < loopVersions.length && loopVersions[versionIndex].sourceOrder < sourceOrder) {
         const version = loopVersions[versionIndex];
         versionIndex += 1;
-        if (graph.evaluationLimitSourceOrder === undefined || version.sourceOrder < graph.evaluationLimitSourceOrder) {
+        if (isWithinEvaluationLimit(version)) {
           executeLoopVersion(version, frame);
         }
       }

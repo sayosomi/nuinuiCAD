@@ -634,7 +634,12 @@ export const evaluateElements = (
   const linearFinal = linearMutationResolver
     ? linearMutationResolver.finalize({
         kind: "beforeStatement",
-        sourceOrder: options.bindingVersions!.evaluationLimitSourceOrder ?? Number.POSITIVE_INFINITY
+        // Geometry still stops at the document's stop marker, but a
+        // printLayout-local scalar binding is an explicit post-stop
+        // evaluation exception carried by its resolved BindingId.
+        sourceOrder: options.bindingVersions!.postStopBindingIds?.size
+          ? Number.POSITIVE_INFINITY
+          : options.bindingVersions!.evaluationLimitSourceOrder ?? Number.POSITIVE_INFINITY
       })
     : undefined;
   const computedScalarBindings = linearFinal?.resultsByBindingId ?? declarationResolver?.finalize().resultsByBindingId;

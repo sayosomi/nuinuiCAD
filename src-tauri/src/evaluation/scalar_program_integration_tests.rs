@@ -158,6 +158,32 @@ fn honors_stop_and_keeps_geometry_unchanged_for_empty_or_omitted_programs() {
 }
 
 #[test]
+fn evaluates_resolved_print_layout_bindings_after_stop() {
+    let number_type = json!({"kind": "number"});
+    let mut print_layout_binding = statement(
+        "binding:layout-margin",
+        3,
+        number_type.clone(),
+        number(30.0),
+    );
+    print_layout_binding["scopeId"] = json!("printLayout:layout");
+    let program = json!({
+        "statements": [
+            statement("binding:before-stop", 0, number_type, number(1.0)),
+            print_layout_binding,
+        ],
+        "evaluationLimitSourceOrder": 1,
+        "postStopBindingIds": ["binding:layout-margin"]
+    });
+
+    let result = evaluate_document_input(input(vec![], Some(program)));
+    let bindings = result.computed_scalar_bindings.unwrap();
+    assert_eq!(bindings.len(), 2);
+    assert_eq!(bindings[1]["bindingId"], "binding:layout-margin");
+    assert_eq!(bindings[1]["evaluation"]["value"]["value"], 30.0);
+}
+
+#[test]
 fn poisons_a_decodable_statement_with_a_malformed_initializer() {
     let result = evaluate_document_input(input(
         vec![],
