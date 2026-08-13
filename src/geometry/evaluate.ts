@@ -71,8 +71,8 @@ export type EvaluateElementsOptions = {
   moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
   moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
   /**
-   * Task 23's elementId-keyed standard property bindings (already re-keyed
-   * from CompiledDslDocument.propertyBindings by
+   * Schema-driven elementId-keyed property sources (already re-keyed from
+   * CompiledDslDocument.propertyBindings by
    * propertyBindingRuntime.ts's buildPropertyBindingRuntimeEntries - never
    * built here). Requires `scalarProgram` to also be present; see the throw
    * below for why that combination is a caller-contract violation rather
@@ -568,10 +568,9 @@ export const evaluateElements = (
       elementToEvaluate = materialized.element;
     }
 
-    // Task 27: the bare `@binding` `text.text` property case - its own
-    // allowlist (textTemplateRuntime.ts's TEXT_PROPERTY_TARGETS), materialized
-    // the same way as standard properties above, chained onto whatever
-    // materialization already happened.
+    // Task 27: the bare/compound `text.text` property case is materialized
+    // through its remaining dedicated physical route, chained onto whatever
+    // common property materialization already happened.
     const textPropertyBindingEntriesForElement = textPropertyBindingEntriesByElementId?.get((sourceElement ?? element).id);
     if (textPropertyBindingEntriesForElement?.length) {
       const materialized = materializePropertyBoundElement(

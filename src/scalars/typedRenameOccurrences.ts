@@ -122,15 +122,27 @@ export const collectSiteBatchOccurrences = (
   });
 
   for (const [occurrenceKey, source] of input.propertyBindings ?? []) {
-    if (source.kind !== "binding") continue;
     const statementIndex = statementIndexFromOccurrenceKey(occurrenceKey);
-    occurrences.push({
-      kind: "property-binding",
-      key: `property-binding:${occurrenceKey}`,
-      site: { scopeId: scopeIdForStatement(input.scopeIndex, statementIndex), statementIndex },
-      span: source.nameSpan,
-      currentName: source.name
-    });
+    if (source.kind === "binding") {
+      occurrences.push({
+        kind: "property-binding",
+        key: `property-binding:${occurrenceKey}`,
+        site: { scopeId: scopeIdForStatement(input.scopeIndex, statementIndex), statementIndex },
+        span: source.nameSpan,
+        currentName: source.name
+      });
+    } else if (source.kind === "expression") {
+      referencesIn(source.expression).forEach((reference, index) => {
+        if (reference.bindingId === null) return;
+        occurrences.push({
+          kind: "property-binding",
+          key: `property-binding:${occurrenceKey}:${index}`,
+          site: { scopeId: scopeIdForStatement(input.scopeIndex, statementIndex), statementIndex },
+          span: reference.nameSpan,
+          currentName: reference.name
+        });
+      });
+    }
   }
 
   for (const [occurrenceKey, template] of input.textTemplates ?? []) {

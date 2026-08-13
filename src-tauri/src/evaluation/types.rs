@@ -28,13 +28,13 @@ pub struct EvaluationInput {
     /// `scalar_program`: Rust receives stable IDs, resolved references and
     /// source positions, never source text or names to resolve.
     pub(crate) binding_versions: Option<Value>,
-    /// Task 23's elementId-keyed standard property bindings (re-keyed from
+    /// Schema-driven elementId-keyed property sources (re-keyed from
     /// `CompiledDslDocument.propertyBindings` by TS's
     /// `propertyBindingRuntime.ts`). Requires `scalar_program` to also be
     /// present - see `property_binding_payload.rs`'s validation, which
-    /// rejects every entry when there is no scalar program to resolve
-    /// binding ids against, rather than silently falling back to literal
-    /// values.
+    /// rejects every direct binding entry when there is no scalar program to
+    /// resolve binding ids against, rather than silently falling back to
+    /// literal values.
     pub(crate) property_bindings: Option<Value>,
     /// Task 25's elementId-keyed `forGroup.showGenerated` bindings. Same
     /// fail-closed-without-a-scalar-program contract as `property_bindings`.
@@ -50,9 +50,8 @@ pub struct EvaluationInput {
     /// expression ASTs, while numeric holes retain their local numeric
     /// runtime path.
     pub(crate) text_templates: Option<Value>,
-    /// Validated bare `@binding` sources for `text.text`. Kept separate from
-    /// standard property bindings so its one-target allowlist remains owned
-    /// by the text runtime boundary.
+    /// Validated text-property sources. Kept separate from common property
+    /// bindings only while the text runtime physical route remains in place.
     pub(crate) text_property_bindings: Option<Value>,
 }
 

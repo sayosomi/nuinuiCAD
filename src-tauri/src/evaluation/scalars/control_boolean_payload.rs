@@ -1,32 +1,19 @@
-//! Task 25 IPC payload decode/validation for `forGroup.showGenerated`
-//! typed-boolean property bindings. Mirrors `property_binding_payload.rs`'s
-//! strict-allowlist decode pattern exactly (that file's own doc comment
-//! calls this kind of small, stable per-task duplication deliberate, not a
-//! shortcut), but with its own 1-entry `canonical_expected_type` allowlist -
-//! this is Task 25's own runtime scope boundary, not an extension of Task
-//! 23's `("offsetLine","side")`-style 7-entry list, which explicitly says
-//! extending it is each later task's own responsibility.
+//! IPC payload decode/validation for control-property values. The frontend
+//! supplies the schema-derived expected type and either a stable binding ID
+//! or a typed expression; Rust does not maintain a property allowlist or
+//! parse source text.
 
 use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
+use super::expression_payload::validate_typed_expression_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
-use super::property_binding_payload::ValidatedPropertyBinding;
+use super::property_binding_payload::{
+    validate_expression_expected_type, ValidatedPropertyBinding,
+};
 use super::scalar_payload::decode_scalar_type;
-use super::types::ScalarType;
-
-/// The only (element type, parameter key) pair Task 25 connects through this
-/// module, and its canonical `ScalarType` - kept in sync with TS's
-/// `controlBooleanRuntime.ts`'s `CONTROL_BOOLEAN_PROPERTY_TARGETS`.
-fn canonical_expected_type(element_type: &str, parameter_key: &str) -> Option<ScalarType> {
-    match (element_type, parameter_key) {
-        ("forGroup", "showGenerated") => Some(ScalarType::Boolean),
-        _ => None,
-    }
-}
-
 fn non_empty_string<'a>(json: &'a Value, context: &str) -> Result<&'a str, ScalarPayloadIssue> {
     json.as_str()
         .filter(|value| !value.is_empty())
@@ -47,7 +34,13 @@ fn decode_control_boolean_binding(
     let object = as_object(json, "control boolean binding")?;
     reject_unexpected_fields(
         object,
-        &["elementId", "parameterKey", "bindingId", "expectedType"],
+        &[
+            "elementId",
+            "parameterKey",
+            "bindingId",
+            "expression",
+            "expectedType",
+        ],
         "control boolean binding",
     )?;
 
@@ -61,18 +54,29 @@ fn decode_control_boolean_binding(
         "control boolean binding parameterKey",
     )?
     .to_owned();
-    let binding_id = non_empty_string(
-        require_field(object, "bindingId", "control boolean binding")?,
-        "control boolean binding bindingId",
-    )?
-    .to_owned();
+    let binding_id = object
+        .get("bindingId")
+        .map(|value| {
+            non_empty_string(value, "control boolean binding bindingId").map(ToOwned::to_owned)
+        })
+        .transpose()?;
+    let expression = object
+        .get("expression")
+        .map(validate_typed_expression_payload)
+        .transpose()?;
+    if binding_id.is_some() == expression.is_some() {
+        return Err(issue(
+            Code::InvalidFieldType,
+            "control boolean binding must contain exactly one of bindingId or expression",
+        ));
+    }
     let expected_type = decode_scalar_type(require_field(
         object,
         "expectedType",
         "control boolean binding",
     )?)?;
 
-    let element_type = element_type_by_id.get(element_id.as_str()).ok_or_else(|| {
+    let _element_type = element_type_by_id.get(element_id.as_str()).ok_or_else(|| {
         issue(
             Code::InvalidFieldType,
             format!(
@@ -81,21 +85,6 @@ fn decode_control_boolean_binding(
         )
     })?;
 
-    let canonical = canonical_expected_type(element_type, &parameter_key).ok_or_else(|| {
-        issue(
-            Code::InvalidFieldType,
-            format!("\"{element_type}.{parameter_key}\" is not a supported control boolean binding target"),
-        )
-    })?;
-    if canonical != expected_type {
-        return Err(issue(
-            Code::InvalidFieldType,
-            format!(
-                "\"{element_type}.{parameter_key}\" expectedType does not match its canonical type"
-            ),
-        ));
-    }
-
     if !seen_pairs.insert((element_id.clone(), parameter_key.clone())) {
         return Err(issue(
             Code::UnexpectedField,
@@ -103,19 +92,25 @@ fn decode_control_boolean_binding(
         ));
     }
 
-    if !valid_binding_ids.contains(binding_id.as_str()) {
-        return Err(issue(
-            Code::InvalidBindingId,
-            format!(
-                "control boolean binding bindingId \"{binding_id}\" does not exist in the scalar program"
-            ),
-        ));
+    if let Some(binding_id) = &binding_id {
+        if !valid_binding_ids.contains(binding_id.as_str()) {
+            return Err(issue(
+                Code::InvalidBindingId,
+                format!(
+                    "control boolean binding bindingId \"{binding_id}\" does not exist in the scalar program"
+                ),
+            ));
+        }
+    }
+    if let Some(expression) = &expression {
+        validate_expression_expected_type(expression, &expected_type, "control boolean binding")?;
     }
 
     Ok(ValidatedPropertyBinding {
         element_id,
         parameter_key,
         binding_id,
+        expression,
         expected_type,
     })
 }

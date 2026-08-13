@@ -220,10 +220,9 @@ const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: 
 };
 
 /**
- * Task 39: the only entry point for text/choice/boolean-kind labeled value
- * spans that carry an opt-in `ParameterDefinition.propertyCapability` (the
- * exact same metadata Task 22's compilePropertyBindings reads - no
- * hardcoded property list here either). Tries the property-scalar shape
+ * Entry point for text/choice/boolean-kind labeled value spans. Eligibility
+ * comes from the parameter schema, not the legacy propertyCapability bridge.
+ * Tries the property-scalar shape
  * first (a whole-value `@name` reference, or a bare boolean literal on an
  * opted-in boolean field) since that is the only shape every one of the
  * three kinds can carry; only a "text"-kind value that isn't a `@name`

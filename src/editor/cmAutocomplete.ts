@@ -32,7 +32,7 @@ import type { PrintLayoutRangeIndex, ScopeBodyRangeIndex, StatementRangeIndex, T
 import { deepestContainingScopeId, typedDeclarationBindingIdAtCursor } from "./statementRangeIndex";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { StatementInfo } from "../dsl/dslDocument";
-import { isAssignableToPropertyCapability } from "../scalars/scalarAssignability";
+import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import {
   scalarExpressionCandidates,
   scalarLiteralCandidates,
@@ -478,16 +478,16 @@ const typedReferenceCompletions = (
         normalizeModuleScalarCompletions(module.candidates)
       );
     }
-    const capability = propertyContext.capability;
+    const expectedType = propertyContext.expectedType;
     const scalarCandidates = bindingAnalysis
       ? typedBindingReferenceCandidates({
         catalog: bindingAnalysis.catalog,
         entriesById: bindingAnalysis.entriesById,
         ...(site ? { site } : { liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos) }),
-        accepts: (type) => type !== null && isAssignableToPropertyCapability(type, capability)
+        accepts: (type) => type !== null && isScalarTypeAssignable(type, expectedType)
       }).map((candidate): ScalarCompletionCandidate => ({ kind: "reference", name: candidate.name, bindingId: candidate.bindingId }))
       : [];
-    const module = moduleScalarCompletions(options, input, context, capability.propertyType);
+    const module = moduleScalarCompletions(options, input, context, expectedType);
     const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
     return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
   }

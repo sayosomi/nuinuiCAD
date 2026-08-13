@@ -1,10 +1,7 @@
-// Task 24: resolves group.printEnabled as a print-state axis, independent of
-// Task 23's standard property runtime (propertyBindingRuntime.ts) and of
-// activity (elementActivity.ts). This module deliberately does not add
-// "group"/"printEnabled" to Task 23's STANDARD_PROPERTY_TARGETS allowlist -
-// that allowlist drives per-element materialization before normal
-// evaluation, which groups never go through and must not start going through
-// here (printEnabled must not affect Canvas/evaluation).
+// Resolves group.printEnabled as a print-state axis, independent of normal
+// activity and geometry evaluation. It remains a dedicated physical route
+// during the migration so printEnabled does not affect Canvas/evaluation;
+// its scalar source is still compiled by the common typed-property frontend.
 //
 // No new document-wide map is built. `doc.statementMap.byElementId`
 // (elementId -> StatementInfo, carrying statementIndex) and
@@ -17,6 +14,8 @@
 import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
 import type { CompiledDslDocument, StatementMap } from "../dsl/dslDocument";
 import type { BindingId } from "../scalars/bindingCatalog";
+import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
+import type { ScalarEvaluation } from "../scalars/types";
 import { propertyBindingOccurrenceKey, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 
 /**
@@ -32,20 +31,27 @@ export type GroupPrintEnabledLookup = {
 };
 
 /** One statementIndex lookup + one occurrence-key lookup, both O(1). No scan. */
+const resolveGroupPrintEnabledSource = (
+  groupId: ElementId,
+  lookup: GroupPrintEnabledLookup
+): ScalarValueSource | undefined => {
+  const materializedSource = lookup.materializedBindingsByElementId?.get(groupId);
+  if (materializedSource) return materializedSource;
+  const materialized = lookup.materializedPropertyBindings?.find((entry) =>
+    entry.elementId === groupId && entry.parameterKey === "printEnabled"
+  );
+  if (materialized) return materialized.source;
+  if (!lookup.propertyBindings) return undefined;
+  const statementIndex = lookup.byElementId.get(groupId)?.statementIndex;
+  if (statementIndex === undefined) return undefined;
+  return lookup.propertyBindings.get(propertyBindingOccurrenceKey(statementIndex, "printEnabled"));
+};
+
 export const resolveGroupPrintEnabledBindingId = (
   groupId: ElementId,
   lookup: GroupPrintEnabledLookup
 ): BindingId | undefined => {
-  const materializedSource = lookup.materializedBindingsByElementId?.get(groupId);
-  if (materializedSource?.kind === "binding") return materializedSource.bindingId;
-  const materialized = lookup.materializedPropertyBindings?.find((entry) =>
-    entry.elementId === groupId && entry.parameterKey === "printEnabled"
-  );
-  if (materialized?.source.kind === "binding") return materialized.source.bindingId;
-  if (!lookup.propertyBindings) return undefined;
-  const statementIndex = lookup.byElementId.get(groupId)?.statementIndex;
-  if (statementIndex === undefined) return undefined;
-  const source = lookup.propertyBindings.get(propertyBindingOccurrenceKey(statementIndex, "printEnabled"));
+  const source = resolveGroupPrintEnabledSource(groupId, lookup);
   return source?.kind === "binding" ? source.bindingId : undefined;
 };
 
@@ -61,9 +67,17 @@ export const isGroupPrintEnabled = (
   lookup: GroupPrintEnabledLookup | undefined,
   computedScalarBindings: EvaluationResult["computedScalarBindings"]
 ): boolean => {
-  const bindingId = lookup ? resolveGroupPrintEnabledBindingId(group.id, lookup) : undefined;
-  if (bindingId === undefined) return group.printEnabled === true;
-  const evaluation = computedScalarBindings?.get(bindingId);
+  const source = lookup ? resolveGroupPrintEnabledSource(group.id, lookup) : undefined;
+  if (!source || source.kind === "literal") return group.printEnabled === true;
+  const resolveBinding = (bindingId: BindingId): ScalarEvaluation =>
+    computedScalarBindings?.get(bindingId) ?? {
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "group-print-binding-missing"
+    };
+  const evaluation = source.kind === "expression"
+    ? evaluateTypedExpression(source.expression, { lookupBinding: resolveBinding })
+    : resolveBinding(source.bindingId);
   return (
     evaluation?.status === "ok" &&
     evaluation.type.kind === "boolean" &&

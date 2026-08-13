@@ -65,8 +65,19 @@ pub(crate) fn resolve_for_group_effective_show_generated(
     let Some(entry) = entry else {
         return literal_show_generated;
     };
+    let evaluation = if let Some(expression) = entry.expression.as_ref() {
+        evaluate_typed_expression(expression, &ResolverEnvironment { resolver, state })
+    } else if let Some(binding_id) = entry.binding_id.as_ref() {
+        resolver.resolve_binding(binding_id, state)
+    } else {
+        ScalarEvaluation::Error {
+            r#type: entry.expected_type.clone(),
+            issue_code: "property-binding-missing-source".to_owned(),
+            binding_id: None,
+        }
+    };
     matches!(
-        resolver.resolve_binding(&entry.binding_id, state),
+        evaluation,
         ScalarEvaluation::Ok {
             r#type: ScalarType::Boolean,
             value: super::scalars::ScalarValue::Boolean(true),

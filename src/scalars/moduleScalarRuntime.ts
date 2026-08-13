@@ -15,7 +15,7 @@ import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import type { CadElement, ElementId } from "../types/geometry";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
 import { analyzeBindings } from "./bindingAnalysis";
 import {
@@ -38,7 +38,7 @@ import { collectScalarExpressionReferences } from "./expressionReferenceCollecto
 import type { CompiledNumericBinding } from "./numericBindingCompiler";
 import { numericSourceForModuleSite } from "./moduleNumericRuntime";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
-import { isAssignableToPropertyCapability } from "./scalarAssignability";
+import { isScalarTypeAssignable } from "./scalarAssignability";
 import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
 import { effectiveElementActivityById } from "../model/elementActivity";
@@ -287,23 +287,25 @@ const propertySourceFor = (
   element: CadElement,
   parameterKey: string,
   semantic: ModuleScalarExpressionSemantic,
-  bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined
+  loweredExpression: TypedScalarExpression
 ): ScalarValueSource | undefined => {
-  if (semantic.ast.kind !== "reference" || semantic.references.length !== 1) return undefined;
+  if (semantic.references.length === 0) return undefined;
   const parameter = findParameterDefinition(element, parameterKey);
-  const capability = parameter?.propertyCapability;
-  const target = semantic.references[0].target;
-  if (!capability || !target || !["parameter", "moduleLocal", "documentBinding"].includes(target.kind)) return undefined;
-  const binding = bindingForTarget(target as ModuleScalarSourceTarget, semantic.references[0].name, semantic.references[0].span.start);
-  if (!binding || !binding.declaredType || !isAssignableToPropertyCapability(binding.declaredType, capability)) return undefined;
-  return {
-    kind: "binding",
-    bindingId: binding.id,
-    type: binding.declaredType,
-    span: semantic.references[0].span,
-    nameSpan: { start: semantic.references[0].span.start + 1, end: semantic.references[0].span.end },
-    name: semantic.references[0].name
-  };
+  const expectedType = scalarTypeForParameterDefinition(parameter);
+  if (!expectedType || expectedType.kind === "number" || !loweredExpression.type ||
+      !isScalarTypeAssignable(loweredExpression.type, expectedType)) return undefined;
+  if (loweredExpression.kind === "reference" && loweredExpression.bindingId !== null && semantic.references.length === 1) {
+    const reference = semantic.references[0];
+    return {
+      kind: "binding",
+      bindingId: loweredExpression.bindingId,
+      type: loweredExpression.type,
+      span: reference.span,
+      nameSpan: { start: reference.span.start + 1, end: reference.span.end },
+      name: reference.name
+    };
+  }
+  return { kind: "expression", expression: loweredExpression, type: loweredExpression.type, span: semantic.ast.span };
 };
 
 /**
@@ -822,16 +824,16 @@ export const compileModuleScalarRuntime = ({
       lowerModuleTextTemplate(context, body, runtime);
       for (const site of body.scalarExpressions) {
         if (site.parameterKey === null) continue;
+        const loweredSiteExpression = lowerExpression(
+          site.expression,
+          (target) => resolvedBindingForContext(target, context),
+          bindingsById,
+          (target) => resolvedGeometryPropertyForContext(target, context)
+        );
         if (element.type === "conditionalGroup" && site.parameterKey === "condition") {
-          const lowered = lowerExpression(
-            site.expression,
-            (target) => resolvedBindingForContext(target, context),
-            bindingsById,
-            (target) => resolvedGeometryPropertyForContext(target, context)
-          );
-          materializedConditionalGroupConditions.push({ elementId: runtime.elementId, expression: lowered.expression });
+          materializedConditionalGroupConditions.push({ elementId: runtime.elementId, expression: loweredSiteExpression.expression });
         }
-        const property = propertySourceFor(element, site.parameterKey, site.expression, (target) => resolvedBindingForContext(target, context));
+        const property = propertySourceFor(element, site.parameterKey, site.expression, loweredSiteExpression.expression);
         if (property) {
           materializedPropertyBindings.push({ elementId: runtime.elementId, parameterKey: site.parameterKey, source: property });
           if (site.parameterKey === "printEnabled") materializedGroupPrintEnabledBindings.set(runtime.elementId, property);

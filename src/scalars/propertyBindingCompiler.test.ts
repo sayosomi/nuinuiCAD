@@ -9,7 +9,6 @@ import {
   parsePropertyBindingOccurrenceKey,
   propertyBindingOccurrenceKey,
   PROPERTY_BINDING_INVALID_CODE,
-  PROPERTY_BINDING_NOT_SUPPORTED_CODE,
   PROPERTY_BINDING_TYPE_MISMATCH_CODE,
   PROPERTY_BINDING_UNRESOLVED_CODE,
   type ScalarValueSource
@@ -157,6 +156,19 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "printEnabled"))).toMatchObject({ kind: "binding", type: { kind: "boolean" } });
   });
 
+  it("accepts compound expressions for a scalar property through the common typed AST", () => {
+    const compiled = compileFor([
+      "let 印刷: boolean = true",
+      "let 下書き: boolean = false",
+      "group G (printEnabled: @印刷 && !@下書き) {", "}"
+    ].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
+    expect(diagnostics).toEqual([]);
+    const source = sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(2, "printEnabled"));
+    expect(source).toMatchObject({ kind: "expression", type: { kind: "boolean" } });
+    expect(source?.kind === "expression" ? source.expression.kind : null).toBe("binary");
+  });
+
   it("forGroup.showGenerated", () => {
     const compiled = compileFor([
       "let 表示: boolean = true",
@@ -207,7 +219,7 @@ describe("compilePropertyBindings: type mismatch", () => {
     expect(source.slice(segment.from, segment.to).length).toBeLessThan(compiled.statements[4].physicalSpan.segments[0].to - compiled.statements[4].physicalSpan.segments[0].from);
   });
 
-  it("allows a choice binding whose options are a subset in a different order", () => {
+  it("requires an exact choice type", () => {
     const compiled = compileFor([
       "const 方向: choice(left, right) = left",
       "point A = coordinate(x: 0 y: 0)",
@@ -216,14 +228,12 @@ describe("compilePropertyBindings: type mismatch", () => {
       "line Off = offset(sources: [@AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
-    expect(diagnostics).toEqual([]);
-    expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "side"))).toMatchObject({
-      kind: "binding",
-      type: { kind: "choice", options: ["left", "right"] }
-    });
+    expect(sourcesByOccurrenceKey.size).toBe(0);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].code).toBe(PROPERTY_BINDING_TYPE_MISMATCH_CODE);
   });
 
-  it("allows a single-option choice binding (strict subset)", () => {
+  it("rejects a narrower choice type", () => {
     const compiled = compileFor([
       "const 方向: choice(right) = right",
       "point A = coordinate(x: 0 y: 0)",
@@ -232,8 +242,9 @@ describe("compilePropertyBindings: type mismatch", () => {
       "line Off = offset(sources: [@AB] distance: 10 side: @方向 closed: false suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
-    expect(diagnostics).toEqual([]);
-    expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "side"))?.kind).toBe("binding");
+    expect(sourcesByOccurrenceKey.size).toBe(0);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].code).toBe(PROPERTY_BINDING_TYPE_MISMATCH_CODE);
   });
 
   it("rejects a choice binding with an option outside the property's options (non-subset)", () => {
@@ -251,16 +262,17 @@ describe("compilePropertyBindings: type mismatch", () => {
   });
 });
 
-describe("compilePropertyBindings: non-opt-in rejection", () => {
-  it("rejects a binding attempt on a text property that isn't opted in (image.sourcePath, DSL arg name 'source')", () => {
+describe("compilePropertyBindings: schema-driven properties", () => {
+  it("accepts a binding on image.sourcePath without a property allowlist", () => {
     const compiled = compileFor([
       "const パス: string = \"x.png\"",
       'image IMG = image(source: @パス origin: (0, 0) naturalWidthPx: 1 naturalHeightPx: 1 sourceDpi: 300 targetPixelsPerMm: 11.811023622047244 scale: 1 angleDeg: 0 mirrorX: false)'
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
-    expect(sourcesByOccurrenceKey.size).toBe(0);
-    expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0].code).toBe(PROPERTY_BINDING_NOT_SUPPORTED_CODE);
+    expect(diagnostics).toEqual([]);
+    expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "sourcePath"))).toMatchObject({
+      kind: "binding", type: { kind: "string" }, name: "パス"
+    });
   });
 
   it("does not disturb an ordinary literal group(state/printEnabled) statement", () => {
@@ -313,7 +325,7 @@ describe("compilePropertyBindings: invalid", () => {
     expect(diagnostics[0].code).toBe(PROPERTY_BINDING_INVALID_CODE);
   });
 
-  it("rejects malformed @ syntax on an opted property (not a lone reference)", () => {
+  it("rejects a property expression with the wrong result type", () => {
     const compiled = compileFor([
       "let 印刷: boolean = true",
       "group G (printEnabled: @印刷 + 1) {", "}"
@@ -321,7 +333,7 @@ describe("compilePropertyBindings: invalid", () => {
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
     expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0].code).toBe(PROPERTY_BINDING_INVALID_CODE);
+    expect(diagnostics[0].code).toBe(PROPERTY_BINDING_TYPE_MISMATCH_CODE);
   });
 });
 

@@ -60,6 +60,18 @@ export interface TypedScalarReferenceNode {
   readonly type: ScalarType | null;
 }
 
+/**
+ * A resolved type supplied by a closed frontend such as Module semantics.
+ * The frontend owns the target identity and may lower it to a real
+ * `BindingId` later; the common checker only needs the already-resolved type
+ * and must not perform another name lookup.
+ */
+export type ScalarExpressionResolvedReference = {
+  readonly kind: "resolvedType";
+  readonly bindingId: BindingId | null;
+  readonly type: ScalarType | null;
+};
+
 /** Resolved at compile time. `elementId` is never re-resolved by a runtime. */
 export interface TypedScalarGeometryPropertyReferenceNode {
   readonly kind: "geometryProperty";
@@ -130,7 +142,14 @@ export interface ScalarExpressionTypecheckDiagnostic {
  */
 export interface ScalarExpressionTypecheckContext {
   readonly expectedType: ScalarType | null;
-  readonly references: readonly BindingResolution[];
+  readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
+  /** Optional closed-frontend hook for bare choice tokens that are actually
+   * local semantic values (for example a legacy Module iteration value). */
+  readonly resolveChoiceLiteral?: (
+    raw: string,
+    expectedType: ScalarType | null,
+    span: ScalarSpan
+  ) => ScalarType | null | undefined;
 }
 
 /**

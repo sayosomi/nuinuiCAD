@@ -86,6 +86,13 @@ const propertyBindingTargetAtCursor = (context: TypedRenameCursorContext, cursor
     if (cursor < range.span.from || cursor >= range.span.to) continue;
     const source = context.doc.propertyBindings?.get(range.occurrenceKey);
     if (source?.kind === "binding") return source.bindingId;
+    if (source?.kind === "expression") {
+      for (const reference of referencesIn(source.expression)) {
+        const from = range.span.from + (reference.nameSpan.start - source.span.start);
+        const to = range.span.from + (reference.nameSpan.end - source.span.start);
+        if (cursor >= from && cursor < to) return reference.bindingId;
+      }
+    }
   }
   return null;
 };

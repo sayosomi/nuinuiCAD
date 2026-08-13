@@ -15,8 +15,8 @@ use serde_json::Value;
 
 use super::errors::geometry_error;
 use super::scalars::{
-    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue,
-    ValidatedPropertyBinding,
+    evaluate_typed_expression, ScalarDocumentBindingResolver, ScalarEvaluation,
+    ScalarEvaluationEnvironment, ScalarType, ScalarValue, ValidatedPropertyBinding,
 };
 use super::types::{element_name, DependencyError, EvaluationState};
 
@@ -57,6 +57,17 @@ fn property_binding_failure_message(element: &Value, parameter_key: &str) -> Str
     )
 }
 
+struct ResolverEnvironment<'a> {
+    resolver: &'a dyn ScalarDocumentBindingResolver,
+    state: &'a EvaluationState,
+}
+
+impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
+    fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
+        self.resolver.resolve_binding(binding_id, self.state)
+    }
+}
+
 /// Resolves and applies every bound property for `element` (looked up by
 /// the caller under the appropriate id - the element's own id, or its
 /// forGroup *template* id for a generated clone - before calling this),
@@ -84,7 +95,17 @@ pub(crate) fn apply_property_bindings(
     };
 
     for entry in entries {
-        let evaluation = resolver.resolve_binding(&entry.binding_id, state);
+        let evaluation = if let Some(expression) = entry.expression.as_ref() {
+            evaluate_typed_expression(expression, &ResolverEnvironment { resolver, state })
+        } else if let Some(binding_id) = entry.binding_id.as_ref() {
+            resolver.resolve_binding(binding_id, state)
+        } else {
+            ScalarEvaluation::Error {
+                r#type: entry.expected_type.clone(),
+                issue_code: "property-binding-missing-source".to_owned(),
+                binding_id: None,
+            }
+        };
         match evaluation {
             ScalarEvaluation::Ok { value, .. }
                 if scalar_value_satisfies_expected_type(&value, &entry.expected_type) =>

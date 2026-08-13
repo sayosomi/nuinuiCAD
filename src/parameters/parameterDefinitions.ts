@@ -1,5 +1,6 @@
 import type { CadElement, CadElementType, PointAnchor } from "../types/geometry";
 import type { PropertyBindingCapability } from "../scalars/scalarAssignability";
+import type { ScalarType } from "../scalars/types";
 
 export type ParameterValueKind =
   | "text"
@@ -23,17 +24,40 @@ export type ParameterDefinition = {
   emptyInputDefaultValue?: number;
   stepLevels?: readonly number[];
   choiceOptions?: readonly string[];
-  // Declares that a typed scalar binding may be assigned to this parameter
-  // (see docs/typed-variables/tasks/08-scalar-type-contracts.md). Optional
-  // and unused by existing consumers until a later task opts a property in.
+  // Legacy migration metadata for consumers that still split property routes.
+  // The nui4 scalar frontend derives eligibility from `kind` and
+  // `choiceOptions`, not from this field.
   propertyCapability?: PropertyBindingCapability;
 };
 
-// Task 22 opt-in registry (docs/typed-variables/plan.md "property対応" / D10):
-// the *only* place a property is declared eligible for a typed scalar
-// binding. `getParameterDefinitions` below applies this generically as a
-// post-map, so `parameterDefinitions.ts` stays the sole source of property
-// type info and no compiler elsewhere needs its own list of property names.
+/**
+ * The scalar type of a parameter is part of the parameter schema itself.
+ * Consumers that compile typed values must use this helper instead of a
+ * second property-specific capability registry.  `propertyCapability` is
+ * retained during the nui3 migration as a legacy bridge and is not an
+ * eligibility gate for the common typed-expression frontend.
+ */
+export const scalarTypeForParameterDefinition = (
+  definition: ParameterDefinition | undefined
+): ScalarType | null => {
+  if (!definition) return null;
+  switch (definition.kind) {
+    case "number":
+      return { kind: "number" };
+    case "boolean":
+      return { kind: "boolean" };
+    case "text":
+      return { kind: "string" };
+    case "choice":
+      return { kind: "choice", options: definition.choiceOptions ?? [] };
+    default:
+      return null;
+  }
+};
+
+// Temporary legacy route metadata. It remains only for the physical bridge
+// that is removed in Task 8; no nui4 semantic compiler or common evaluator
+// may use it as an eligibility gate.
 const propertyBindingCapabilities: Partial<Record<CadElementType, Record<string, PropertyBindingCapability>>> = {
   text: {
     text: { propertyType: { kind: "string" } }

@@ -11,8 +11,6 @@ import {
   type DslDocumentData
 } from "./dslDocument";
 import {
-  PROPERTY_BINDING_INVALID_CODE,
-  PROPERTY_BINDING_NOT_SUPPORTED_CODE,
   PROPERTY_BINDING_TYPE_MISMATCH_CODE,
   PROPERTY_BINDING_UNRESOLVED_CODE,
   propertyBindingOccurrenceKey
@@ -851,7 +849,7 @@ describe("Task 22 property binding wiring", () => {
     expect(entry).toMatchObject({ kind: "binding", type: { kind: "boolean" }, name: "印刷" });
   });
 
-  it("keeps the last-good document (null) and surfaces property-binding-not-supported for a non-opted property", () => {
+  it("accepts schema-typed property bindings without a property-name allowlist", () => {
     const compiled = compileDslDocument(
       [
         "nui 3",
@@ -860,10 +858,11 @@ describe("Task 22 property binding wiring", () => {
       ].join("\n"),
       { assignedStatementIds: new Map([[1, "test:path"]]) }
     );
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ severity: "error", code: PROPERTY_BINDING_NOT_SUPPORTED_CODE })])
-    );
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.propertyBindings?.get(propertyBindingOccurrenceKey(2, "sourcePath"))).toMatchObject({
+      kind: "binding", type: { kind: "string" }, name: "パス"
+    });
   });
 
   it("keeps the last-good document (null) and surfaces property-binding-unresolved for an undefined name", () => {
@@ -877,14 +876,14 @@ describe("Task 22 property binding wiring", () => {
     );
   });
 
-  it("keeps the last-good document (null) and surfaces property-binding-invalid for malformed @ syntax", () => {
+  it("keeps the last-good document (null) and surfaces property-binding-type-mismatch for invalid typed property expressions", () => {
     const compiled = compileDslDocument(
       ["nui 3", "let 印刷: boolean = true", "group G (printEnabled: @印刷 + 1) {", "}"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:printEnabled"]]) }
     );
     expect(compiled.document).toBeNull();
     expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ severity: "error", code: PROPERTY_BINDING_INVALID_CODE })])
+      expect.arrayContaining([expect.objectContaining({ severity: "error", code: PROPERTY_BINDING_TYPE_MISMATCH_CODE })])
     );
   });
 

@@ -4,12 +4,9 @@
 // docs/typed-variables/tasks/25-boolean-control-flow-runtime.md.
 //
 // Two independent, related pieces:
-// - showGenerated is a plain single-`@name` property binding (already
-//   compiled by Task 22's propertyBindingCompiler.ts into `doc.propertyBindings`
-//   - no new compile step needed here), deliberately excluded from Task 23's
-//   STANDARD_PROPERTY_TARGETS pending this task. `buildControlBooleanRuntimeEntries`
-//   mirrors `propertyBindingRuntime.ts`'s own re-keying, with its own 1-entry
-//   allowlist - never derived from "has a propertyCapability".
+// - showGenerated is a schema-typed property source compiled by the common
+//   property frontend and kept on this dedicated physical route until Task 8
+//   removes the split.
 // - condition is a full typed boolean expression (conditionalGroupConditionCompiler.ts),
 //   resolved directly through the document's existing binding resolver via
 //   `evaluateTypedExpression` (Task 16) - never re-parsed, never a second
@@ -25,15 +22,11 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import { propertyBindingOccurrenceKey, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
-import type { ScalarEvaluation, ScalarType } from "../scalars/types";
-import { findParameterDefinition } from "../parameters/parameterDefinitions";
+import type { ScalarEvaluation } from "../scalars/types";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 
-/** This task's own runtime scope boundary for `showGenerated` - mirrors
- * propertyBindingRuntime.ts's STANDARD_PROPERTY_TARGETS but kept separate
- * (never merged into it), since `showGenerated`'s presentation-only,
- * never-affects-iteration contract is distinct from the standard properties'
- * literal-override materialization. */
+/** Legacy physical route for `showGenerated`'s presentation-only behavior. */
 const CONTROL_BOOLEAN_PROPERTY_TARGETS: Readonly<Partial<Record<CadElementType, readonly string[]>>> = {
   forGroup: ["showGenerated"]
 };
@@ -83,22 +76,27 @@ export const buildControlBooleanRuntimeEntries = (
 
     for (const parameterKey of parameterKeys) {
       const value = source.propertyBindings.get(propertyBindingOccurrenceKey(statementIndex, parameterKey));
-      if (!value || value.kind !== "binding") continue;
-      const expectedType: ScalarType | undefined = findParameterDefinition(element, parameterKey)?.propertyCapability?.propertyType;
+      if (!value || value.kind === "literal") continue;
+      const expectedType = scalarTypeForParameterDefinition(findParameterDefinition(element, parameterKey));
       if (!expectedType) continue;
-      entries.push({ elementId, parameterKey, bindingId: value.bindingId, expectedType });
+      entries.push({
+        elementId,
+        parameterKey,
+        ...(value.kind === "binding" ? { bindingId: value.bindingId } : { expression: value.expression }),
+        expectedType
+      });
     }
   }
 
   for (const occurrence of source.materializedPropertyBindings ?? []) {
     const element = elementsById.get(occurrence.elementId);
     if (!element || !CONTROL_BOOLEAN_PROPERTY_TARGETS[element.type]?.includes(occurrence.parameterKey)) continue;
-    const expectedType = findParameterDefinition(element, occurrence.parameterKey)?.propertyCapability?.propertyType;
-    if (!expectedType || occurrence.source.kind !== "binding") continue;
+    const expectedType = scalarTypeForParameterDefinition(findParameterDefinition(element, occurrence.parameterKey));
+    if (!expectedType || occurrence.source.kind === "literal") continue;
     entries.push({
       elementId: occurrence.elementId,
       parameterKey: occurrence.parameterKey,
-      bindingId: occurrence.source.bindingId,
+      ...(occurrence.source.kind === "binding" ? { bindingId: occurrence.source.bindingId } : { expression: occurrence.source.expression }),
       expectedType
     });
   }
@@ -123,7 +121,11 @@ export const resolveForGroupEffectiveShowGenerated = (
   resolveBinding: ControlBooleanResolveFn
 ): boolean => {
   if (!entry) return literalShowGenerated;
-  const evaluation = resolveBinding(entry.bindingId);
+  const evaluation = entry.expression
+    ? evaluateTypedExpression(entry.expression, { lookupBinding: resolveBinding })
+    : entry.bindingId
+      ? resolveBinding(entry.bindingId)
+      : { status: "error", type: entry.expectedType, issueCode: "property-binding-missing-source" } as ScalarEvaluation;
   return (
     evaluation.status === "ok" &&
     evaluation.type.kind === "boolean" &&

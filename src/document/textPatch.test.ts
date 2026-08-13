@@ -181,6 +181,28 @@ describe("applyLineSplices", () => {
 });
 
 describe("textPatch 要素の更新", () => {
+  it("モデルの別フィールドを編集してもsource-authored typed property expressionを保持する", () => {
+    const source = [
+      "nui 3",
+      "let 印刷: boolean = true",
+      "let 下書き: boolean = false",
+      "group G (printEnabled: @印刷 && !@下書き) {",
+      "}"
+    ].join("\n");
+    const current = canonicalFrom(source);
+    const group = elementByName(current.doc.document, "G");
+    const result = commitModelBridge(current, {
+      ...current.doc.document,
+      elements: current.doc.document.elements.map((element) =>
+        element.id === group.id ? { ...element, activity: "hidden" } as CadElement : element
+      )
+    });
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.value.sourceText).toContain("printEnabled: @印刷 && !@下書き");
+    expect(result.value.sourceText).toContain("state: hidden");
+  });
+
   it("属性編集はstatementの行群だけを書き換え、隣接行と行末コメントを保存する", () => {
     // v2は要素statementの正準出力が常に縦型callのため、属性を1つ追加すると
     // 物理行数が増える。ヘッダ行の置換(旧行そのまま)と、増えた引数行の挿入

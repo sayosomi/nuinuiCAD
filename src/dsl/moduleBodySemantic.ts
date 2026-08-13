@@ -11,7 +11,7 @@ import { recordField, recordSpans } from "./dslParameterSpanScanner";
 import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
 import { analyzeElementLocalVariables, type ElementLocalVariableResolver } from "./moduleElementLocalVariableSemantic";
 import type { DslSpan, DslStatement } from "./dslTypes";
-import { getParameterDefinitions, type ParameterDefinition } from "../parameters/parameterDefinitions";
+import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ScalarType } from "../scalars/types";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
@@ -87,14 +87,6 @@ const isAllowedModuleBodyStatement = (statement: DslStatement): boolean => {
 
 const isDirectModuleChild = (statement: DslStatement, moduleIndex: number) =>
   statement.enclosing?.statementIndex === moduleIndex;
-
-const scalarTypeFromParameterDefinition = (definition: ParameterDefinition): ScalarType | null => {
-  if (definition.kind === "number") return { kind: "number" };
-  if (definition.kind === "boolean") return { kind: "boolean" };
-  if (definition.kind === "text") return { kind: "string" };
-  if (definition.kind === "choice") return { kind: "choice", options: definition.choiceOptions ?? [] };
-  return null;
-};
 
 const getParameterDefinitionsForType = (type: string) =>
   // The registry is the source of truth. This object is only a shape carrier;
@@ -420,7 +412,7 @@ export const analyzeModuleBody = ({
           } else {
             const expectedType = statement.kind === "element" && statement.type === "conditionalGroup" && parameterKey === "condition"
               ? ({ kind: "boolean" } as const)
-              : scalarTypeFromParameterDefinition(parameter);
+              : scalarTypeForParameterDefinition(parameter);
             if (!expectedType) continue;
             const template = parameter.kind === "text" ? analyzeTextTemplate(statementIndex, bodySemantic, valueSpan, localResolver) : false;
             const expression = template

@@ -20,6 +20,7 @@ import {
 } from "./expressionAst";
 import type { BindingResolution } from "./bindingResolution";
 import type {
+  ScalarExpressionResolvedReference,
   ScalarExpressionTypecheckContext,
   ScalarExpressionTypecheckDiagnostic,
   ScalarExpressionTypecheckResult,
@@ -32,9 +33,10 @@ const NUMBER_TYPE: Extract<ScalarType, { kind: "number" }> = { kind: "number" };
 const BOOLEAN_TYPE: Extract<ScalarType, { kind: "boolean" }> = { kind: "boolean" };
 
 interface TraversalState {
-  readonly references: readonly BindingResolution[];
+  readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   cursor: number;
   readonly diagnostics: ScalarExpressionTypecheckDiagnostic[];
+  readonly resolveChoiceLiteral?: ScalarExpressionTypecheckContext["resolveChoiceLiteral"];
 }
 
 /** Exported for reuse by other diagnostic-message producers (e.g. Task 22's
@@ -51,7 +53,7 @@ const nextReferenceResolution = (
   state: TraversalState,
   name: string,
   offset: number
-): BindingResolution => {
+): BindingResolution | ScalarExpressionResolvedReference => {
   if (state.cursor >= state.references.length) {
     throw new Error(`expressionTypecheck: no BindingResolution supplied for reference "@${name}" at offset ${offset}`);
   }
@@ -161,6 +163,13 @@ const checkNode = (
       return { kind: "booleanLiteral", span: node.span, value: node.value, type: BOOLEAN_TYPE };
 
     case "unresolvedChoiceLiteral": {
+      const resolvedByFrontend = state.resolveChoiceLiteral?.(node.raw, expectedType, node.span);
+      if (resolvedByFrontend !== undefined) {
+        if (resolvedByFrontend !== null) {
+          return { kind: "choiceLiteral", span: node.span, value: node.raw, type: resolvedByFrontend.kind === "choice" ? resolvedByFrontend : null };
+        }
+        return { kind: "choiceLiteral", span: node.span, value: node.raw, type: null };
+      }
       if (expectedType !== null && isChoiceScalarType(expectedType) && isChoiceOptionMember(expectedType, node.raw)) {
         return { kind: "choiceLiteral", span: node.span, value: node.raw, type: expectedType };
       }
@@ -180,6 +189,9 @@ const checkNode = (
 
     case "reference": {
       const resolution = nextReferenceResolution(state, node.name, node.span.start);
+      if (resolution.kind === "resolvedType") {
+        return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: resolution.bindingId, type: resolution.type };
+      }
       if (resolution.kind !== "resolved") {
         return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: null, type: null };
       }
@@ -229,7 +241,12 @@ export const typecheckScalarExpression = (
   ast: ScalarExpressionAst,
   context: ScalarExpressionTypecheckContext
 ): ScalarExpressionTypecheckResult => {
-  const state: TraversalState = { references: context.references, cursor: 0, diagnostics: [] };
+  const state: TraversalState = {
+    references: context.references,
+    cursor: 0,
+    diagnostics: [],
+    resolveChoiceLiteral: context.resolveChoiceLiteral
+  };
   const typed = checkNode(ast, context.expectedType, state);
   if (state.cursor !== state.references.length) {
     throw new Error(

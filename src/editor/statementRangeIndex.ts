@@ -652,7 +652,7 @@ export type PropertyBindingRangeIndex = ReadonlyMap<string, PropertyBindingRange
 
 /**
  * Task 43: a plain compile-time offset index over Task 22's property binding
- * spans (`ScalarValueSource.span`, the whole `@name` token on a text/choice/
+ * spans (`ScalarValueSource.span`, the whole scalar value on a text/choice/
  * boolean element attribute), keyed by the same occurrence key
  * `propertyBindingCompiler.ts` itself uses. Exists so click/jump can resolve
  * a bound property's value span from this index alone - never by re-parsing
@@ -673,7 +673,7 @@ export const createPropertyBindingRangeIndex = (
   const ranges = new Map<string, PropertyBindingRange>();
   if (!propertyBindings) return ranges;
   for (const [occurrenceKey, source] of propertyBindings) {
-    if (source.kind !== "binding") continue;
+    if (source.kind === "literal") continue;
     const statementIndex = statementIndexFromOccurrenceKey(occurrenceKey);
     if (statementIndex === null) continue;
     const info = statementMap.statements[statementIndex];

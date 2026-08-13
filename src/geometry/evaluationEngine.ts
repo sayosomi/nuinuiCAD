@@ -215,7 +215,11 @@ const hasRustSupportedCompiledReferences = (
     ...(options.controlBooleanEntries ?? []),
     ...(options.textPropertyBindingEntries ?? [])
   ];
-  if (propertyEntries.some((entry) => !elementsById.has(entry.elementId) || !hasBinding(entry.bindingId))) return false;
+  if (propertyEntries.some((entry) =>
+    !elementsById.has(entry.elementId) ||
+    (entry.bindingId ? !hasBinding(entry.bindingId) :
+      entry.expression ? referencesIn(entry.expression).some((reference) => reference.bindingId === null || !hasBinding(reference.bindingId)) : true)
+  )) return false;
   if (options.numericBindingEntries?.some((entry) =>
     !elementsById.has(entry.elementId) || entry.references.some((reference) => !hasBinding(reference.bindingId))
   )) return false;
