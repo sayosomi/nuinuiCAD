@@ -105,6 +105,17 @@ export interface ScalarGroupExpressionNode {
   readonly expression: ScalarExpressionAst;
 }
 
+/** A named function call. Semantic function resolution is a later phase. */
+export interface ScalarCallExpressionNode {
+  readonly kind: "call";
+  /** Span from the function name through the closing parenthesis. */
+  readonly span: ScalarSpan;
+  /** Span covering only the bare function name. */
+  readonly nameSpan: ScalarSpan;
+  readonly name: string;
+  readonly args: readonly ScalarExpressionAst[];
+}
+
 export type ScalarExpressionAst =
   | ScalarNumberLiteralNode
   | ScalarStringLiteralNode
@@ -114,7 +125,8 @@ export type ScalarExpressionAst =
   | ScalarGeometryPropertyReferenceNode
   | ScalarUnaryExpressionNode
   | ScalarBinaryExpressionNode
-  | ScalarGroupExpressionNode;
+  | ScalarGroupExpressionNode
+  | ScalarCallExpressionNode;
 
 export type ScalarExpressionIssueCode =
   | "unexpected-token"

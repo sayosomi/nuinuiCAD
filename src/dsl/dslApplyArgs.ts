@@ -1,5 +1,9 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
-import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
+import {
+  containsScalarNamedCall,
+  isScalarExpressionCandidateSource,
+  isScalarNamedCallCandidateSource
+} from "../scalars/expressionParser";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { createCadElementId } from "../model/cadIds";
@@ -238,6 +242,11 @@ export const applyArgs = (
     // the normal source-editing path; only reference-free ASTs are safe to
     // classify at this point.
     if (source.includes("@") || !isScalarExpressionCandidateSource(source)) return false;
+    // Named calls remain owned by the legacy numeric expression path until
+    // the follow-up task supplies call resolution and typing. This also
+    // preserves legacy call arguments that are not scalar-expression syntax,
+    // such as `line:start` endpoint spellings.
+    if (isScalarNamedCallCandidateSource(source)) return false;
     const span = { start: 0, end: source.length };
     const parsed = parseScalarExpression(source, span);
     if (!parsed.ast) {
@@ -252,6 +261,7 @@ export const applyArgs = (
       });
       return true;
     }
+    if (containsScalarNamedCall(parsed.ast)) return false;
     const checked = typecheckScalarExpression(parsed.ast, {
       expectedType: { kind: "number" },
       references: []

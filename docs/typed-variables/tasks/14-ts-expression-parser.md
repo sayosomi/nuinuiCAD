@@ -18,7 +18,15 @@ JSON-serializable `ScalarExpressionAst`、literal/reference/unary/binary/group n
 
 ## 5. 対象
 
-numeric arithmetic、comparison、equality、`!`、`&&`、`||`、parentheses、scalar literals、単一`@name` reference。
+numeric arithmetic、comparison、equality、`!`、`&&`、`||`、parentheses、scalar literals、単一`@name` reference、named function call syntax。
+
+named call は `functionName(arg1, arg2)` の形で、callee は bare function name
+だけを受け付ける。zero / one / multiple arguments、nested call、通常の typed
+expression を使った argument (`max(1 + 2, 3 * 4)`) を構文として扱う。parser は
+`functionName` が builtin かどうかを判定せず、`unknownFunction(10)` も parse
+成功する。unknown function の resolution、arity、引数型、戻り値型は semantic
+phase の後続 task が担当する。将来の user-defined function も同じ call syntax を
+使うが、arbitrary callee、first-class function、postfix-call はこの task の対象外。
 
 ## 6. 対象外
 
@@ -68,6 +76,7 @@ export type ScalarExpressionAst =
   | { kind: "booleanLiteral"; span: ScalarSpan; value: boolean }
   | { kind: "unresolvedChoiceLiteral"; span: ScalarSpan; raw: string } // Task 15 resolves against an expected choice type
   | { kind: "reference"; span: ScalarSpan; nameSpan: ScalarSpan; name: string } // span includes '@'; nameSpan does not
+  | { kind: "call"; span: ScalarSpan; nameSpan: ScalarSpan; name: string; args: readonly ScalarExpressionAst[] }
   | { kind: "unary"; span: ScalarSpan; operator: "!" | "-" | "+"; operand: ScalarExpressionAst }
   | { kind: "binary"; span: ScalarSpan; operator: BinaryOp; left: ScalarExpressionAst; right: ScalarExpressionAst }
   | { kind: "group"; span: ScalarSpan; expression: ScalarExpressionAst }; // span includes both parens

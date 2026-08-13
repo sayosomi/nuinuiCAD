@@ -4,7 +4,8 @@
 // docs/typed-variables/tasks/14-ts-expression-parser.md.
 //
 // Fixed precedence, loosest to tightest (docs/typed-variables/plan.md D09):
-// || &&   ==/!=  </<=/>/>=  +/-  * /   then unary (!, -, +), then primary.
+// || &&   ==/!=  </<=/>/>=  +/-  * /   then unary (!, -, +), then primary
+// (including named calls).
 // This differs from the local numeric parser (src/geometry/numericExpressionParser.ts,
 // not imported here), which conflates comparison+equality into a single
 // non-chained tier - this parser splits them into two tiers per plan.md, &&
@@ -30,6 +31,7 @@ import {
 } from "./expressionAst";
 import { containsScalarWordOperator, tokenizeScalarExpression, type ScalarExpressionToken } from "./expressionTokenizer";
 import type { ScalarLiteralToken } from "./literalScanner";
+import { IDENTIFIER_PATTERN } from "./literalScanner";
 
 /**
  * Bounds recursion depth for parenthesis nesting && unary-prefix chains -
@@ -48,12 +50,35 @@ export const MAX_SCALAR_EXPRESSION_DEPTH = 128;
  * lowering path; this predicate only identifies expression-shaped input,
  * including the nui4 word spellings && the migration-era symbolic aliases.
  */
+export const isScalarNamedCallCandidateSource = (source: string): boolean => {
+  const trimmed = source.trim();
+  const identifier = IDENTIFIER_PATTERN.exec(trimmed)?.[0];
+  return !!identifier && /^\s*\(/.test(trimmed.slice(identifier.length));
+};
+
 export const isScalarExpressionCandidateSource = (source: string): boolean => {
   const trimmed = source.trim();
   if (trimmed.length === 0) return false;
   if (trimmed.startsWith("\"") || trimmed.startsWith("'")) return false;
   if (trimmed.startsWith("@") || trimmed.startsWith("(") || trimmed.startsWith("!")) return true;
+  if (isScalarNamedCallCandidateSource(trimmed)) return true;
   return containsScalarWordOperator(trimmed) || /&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
+};
+
+/** Syntax-only guard for consumers that still own legacy named-call syntax. */
+export const containsScalarNamedCall = (ast: ScalarExpressionAst): boolean => {
+  switch (ast.kind) {
+    case "call":
+      return true;
+    case "unary":
+      return containsScalarNamedCall(ast.operand);
+    case "binary":
+      return containsScalarNamedCall(ast.left) || containsScalarNamedCall(ast.right);
+    case "group":
+      return containsScalarNamedCall(ast.expression);
+    default:
+      return false;
+  }
 };
 
 class ParseFailure extends Error {
@@ -176,6 +201,9 @@ class Parser {
     if (!token) return fail("missing-operand", { start: this.boundaryEnd, end: this.boundaryEnd }, "式が必要です。");
 
     if (token.kind === "literal") {
+      if (token.literal.kind === "choice" && this.peek(1)?.kind === "leftParen") {
+        return this.parseCall(token);
+      }
       this.consume();
       return literalToNode(token.literal);
     }
@@ -206,6 +234,55 @@ class Parser {
     return fail("missing-operand", token.span, "式が必要です。");
   }
 
+  private parseCall(nameToken: Extract<ScalarExpressionToken, { kind: "literal" }>): ScalarExpressionAst {
+    const nameLiteral = nameToken.literal;
+    if (nameLiteral.kind !== "choice") return fail("missing-operand", nameLiteral.span, "式が必要です。");
+
+    const opening = this.peek(1);
+    if (!opening || opening.kind !== "leftParen") return fail("missing-operand", nameLiteral.span, "式が必要です。");
+    this.enterNesting(opening.span);
+    this.consume();
+    this.consume();
+
+    const args: ScalarExpressionAst[] = [];
+    const closing = this.peek();
+    if (closing?.kind === "rightParen") {
+      this.consume();
+      this.depth -= 1;
+      return {
+        kind: "call",
+        span: { start: nameLiteral.span.start, end: closing.span.end },
+        nameSpan: nameLiteral.span,
+        name: nameLiteral.raw,
+        args
+      };
+    }
+
+    for (;;) {
+      const argument = this.parseTier(0);
+      args.push(argument);
+
+      const separator = this.peek();
+      if (separator?.kind === "comma") {
+        this.consume();
+        continue;
+      }
+      if (separator?.kind === "rightParen") {
+        this.consume();
+        this.depth -= 1;
+        return {
+          kind: "call",
+          span: { start: nameLiteral.span.start, end: separator.span.end },
+          nameSpan: nameLiteral.span,
+          name: nameLiteral.raw,
+          args
+        };
+      }
+      if (!separator) return fail("unterminated-group", opening.span, "閉じ括弧 ')' がありません。");
+      return fail("trailing-token", tokenSpan(separator), "引数の区切りまたは閉じ括弧 ')' が必要です。");
+    }
+  }
+
   private enterNesting(span: ScalarSpan): void {
     this.depth += 1;
     if (this.depth > MAX_SCALAR_EXPRESSION_DEPTH) {
@@ -213,8 +290,8 @@ class Parser {
     }
   }
 
-  private peek(): ScalarExpressionToken | undefined {
-    return this.tokens[this.index];
+  private peek(offset = 0): ScalarExpressionToken | undefined {
+    return this.tokens[this.index + offset];
   }
 
   private peekBinaryOperator(operators: readonly ScalarBinaryOperator[]): OperatorMatch | undefined {
