@@ -766,6 +766,7 @@ const PRINT_LAYOUT_TRAILING_ALLOWED_KINDS = new Set<DslStatement["kind"]>([
   "printLayout",
   "place",
   "typedDeclaration",
+  "set",
   "activePrintLayout",
   "blockEnd",
   "blockElse"
@@ -783,8 +784,14 @@ const validatePrintLayoutPlacement = (
   for (let index = firstPrintLayoutIndex + 1; index < statements.length; index += 1) {
     const statement = statements[index];
     if (!includeStatement(statement, index)) continue;
-    if (PRINT_LAYOUT_TRAILING_ALLOWED_KINDS.has(statement.kind) &&
-      (statement.kind !== "typedDeclaration" || statement.enclosing?.statementIndex === firstPrintLayoutIndex)) continue;
+    const enclosingIndex = statement.enclosing?.statementIndex;
+    const isPrintLayoutChild =
+      enclosingIndex !== undefined && statements[enclosingIndex]?.kind === "printLayout";
+    const isPrintLayoutLocal = statement.kind === "typedDeclaration" || statement.kind === "set";
+    if (
+      PRINT_LAYOUT_TRAILING_ALLOWED_KINDS.has(statement.kind) &&
+      (!isPrintLayoutLocal || isPrintLayoutChild)
+    ) continue;
     diagnostics.push({
       severity: "error",
       line: statement.line,

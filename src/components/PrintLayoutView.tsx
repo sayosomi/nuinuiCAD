@@ -403,9 +403,10 @@ export const PrintLayoutCanvas = ({ evaluation, canvasFocusRef }: PrintLayoutCan
   );
   const printLayoutNumericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
   const printLayoutByKey = useCadDocumentStore((state) => state.doc.statementMap.byKey);
+  const printLayoutBindingVersions = useCadDocumentStore((state) => state.doc.bindingVersions);
   const printLayoutNumericBindingLookup: PrintLayoutNumericBindingLookup = useMemo(
-    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey }),
-    [printLayoutNumericBindings, printLayoutByKey]
+    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey, bindingVersions: printLayoutBindingVersions }),
+    [printLayoutBindingVersions, printLayoutNumericBindings, printLayoutByKey]
   );
   const selectedPrintPlacementId = useCadUiStore((state) => state.selectedPrintPlacementId);
   const setSelectedPrintPlacementId = useCadUiStore((state) => state.setSelectedPrintPlacementId);
@@ -728,9 +729,10 @@ export const PrintLayoutPanel = ({ evaluation }: { evaluation: EvaluationResult 
   );
   const printLayoutNumericBindings = useCadDocumentStore((state) => state.doc.numericBindings);
   const printLayoutByKey = useCadDocumentStore((state) => state.doc.statementMap.byKey);
+  const printLayoutBindingVersions = useCadDocumentStore((state) => state.doc.bindingVersions);
   const printLayoutNumericBindingLookup: PrintLayoutNumericBindingLookup = useMemo(
-    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey }),
-    [printLayoutNumericBindings, printLayoutByKey]
+    () => ({ numericBindings: printLayoutNumericBindings, byKey: printLayoutByKey, bindingVersions: printLayoutBindingVersions }),
+    [printLayoutBindingVersions, printLayoutNumericBindings, printLayoutByKey]
   );
   const printLayoutBindingAnalysis = useCadDocumentStore((state) => state.doc.bindingAnalysis);
   const typedBindingOptions = useMemo(

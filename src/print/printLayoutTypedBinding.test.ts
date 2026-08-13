@@ -31,7 +31,8 @@ const resolveScale = (compiled: LastGoodDslDocument) => {
     evaluation,
     numericBindingLookup: {
       numericBindings: compiled.numericBindings ?? new Map(),
-      byKey: compiled.statementMap.byKey
+      byKey: compiled.statementMap.byKey,
+      bindingVersions: compiled.bindingVersions
     }
   });
   return resolved.scale;
@@ -94,7 +95,8 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
       evaluation,
       numericBindingLookup: {
         numericBindings: compiled.numericBindings ?? new Map(),
-        byKey: compiled.statementMap.byKey
+        byKey: compiled.statementMap.byKey,
+        bindingVersions: compiled.bindingVersions
       }
     });
     expect(resolved.placements[0].angleDeg).toBe(30);

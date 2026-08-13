@@ -56,7 +56,8 @@ export const exportPrintPdf = async (evaluation: EvaluationResult | undefined) =
   const layout = activePrintLayout(state.printLayouts, state.activePrintLayoutId);
   const numericBindingLookup = {
     numericBindings: state.doc.numericBindings,
-    byKey: state.doc.statementMap.byKey
+    byKey: state.doc.statementMap.byKey,
+    bindingVersions: state.doc.bindingVersions
   };
   const resolvedLayout = resolvePrintLayout({
     layout,

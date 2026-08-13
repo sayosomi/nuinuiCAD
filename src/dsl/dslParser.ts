@@ -489,8 +489,13 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
       return;
     }
     const top = stack.at(-1);
-    if (top?.kind === "printLayout" && statement.kind !== "place" && statement.kind !== "typedDeclaration") {
-      diagnostics.push(diagnostic(statement.line, "printLayout ブロック内には const / let と place のみ書けます。"));
+    if (
+      top?.kind === "printLayout" &&
+      statement.kind !== "place" &&
+      statement.kind !== "typedDeclaration" &&
+      statement.kind !== "set"
+    ) {
+      diagnostics.push(diagnostic(statement.line, "printLayout ブロック内には const / let / set と place のみ書けます。"));
     }
     if (statement.kind === "place" && top?.kind !== "printLayout") {
       diagnostics.push(diagnostic(statement.line, `${statement.kind} は printLayout ブロック内にのみ書けます。`));

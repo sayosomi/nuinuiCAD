@@ -104,7 +104,11 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
       layout,
       elements: compiled.document.elements,
       evaluation,
-      numericBindingLookup: { numericBindings: compiled.numericBindings ?? new Map(), byKey: compiled.statementMap.byKey }
+      numericBindingLookup: {
+        numericBindings: compiled.numericBindings ?? new Map(),
+        byKey: compiled.statementMap.byKey,
+        bindingVersions: compiled.bindingVersions
+      }
     });
     expect(resolved.svgCanvasWidthMm).toBe(210);
     expect(resolved.svgCanvasHeightMm).toBe(297);
@@ -146,6 +150,105 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
     expect(headerOptions).not.toContain("@later");
     expect(placeOptions).toEqual(expect.arrayContaining(["@outer", "@margin"]));
     expect(placeOptions).not.toContain("@later");
+  });
+
+  it("allows locals in every printLayout without leaking same-named bindings across scopes", () => {
+    const compiled = compile([
+      "nui 3",
+      "group G {",
+      "}",
+      "printLayout A4(",
+      "  width: 210,",
+      "  height: 297,",
+      ") {",
+      "  const margin: number = 10",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}",
+      "printLayout A3(",
+      "  width: 297,",
+      "  height: 420,",
+      ") {",
+      "  const margin: number = 20",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, evaluationOptions(compiled));
+    const resolved = compiled.document.printLayouts.map((layout) => resolvePrintLayout({
+      layout,
+      elements: compiled.document.elements,
+      evaluation,
+      numericBindingLookup: {
+        numericBindings: compiled.numericBindings ?? new Map(),
+        byKey: compiled.statementMap.byKey,
+        bindingVersions: compiled.bindingVersions
+      }
+    }));
+    expect(resolved.map((layout) => layout.placements[0]?.x)).toEqual([10, 20]);
+    const margins = [...compiled.bindingAnalysis!.catalog.bindings].filter((binding) => binding.name === "margin");
+    expect(margins).toHaveLength(2);
+    expect(new Set(margins.map((binding) => binding.effectiveScopeId)).size).toBe(2);
+  });
+
+  it("allows let/set/place in printLayout and uses the updated value", () => {
+    const compiled = compile([
+      "nui 3",
+      "group G {",
+      "}",
+      "printLayout A4(width: 210, height: 297) {",
+      "  let margin: number = 10",
+      "  set margin = 20",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, evaluationOptions(compiled));
+    const resolved = resolvePrintLayout({
+      layout: compiled.document.printLayouts[0],
+      elements: compiled.document.elements,
+      evaluation,
+      numericBindingLookup: {
+        numericBindings: compiled.numericBindings ?? new Map(),
+        byKey: compiled.statementMap.byKey,
+        bindingVersions: compiled.bindingVersions
+      }
+    });
+    expect(resolved.placements[0]?.x).toBe(20);
+  });
+
+  it("evaluates printLayout let/set/place in source order", () => {
+    const compiled = compile([
+      "nui 3",
+      "group G {",
+      "}",
+      "printLayout A4(width: 210, height: 297) {",
+      "  let margin: number = 10",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "  set margin = 20",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, evaluationOptions(compiled));
+    const resolved = resolvePrintLayout({
+      layout: compiled.document.printLayouts[0],
+      elements: compiled.document.elements,
+      evaluation,
+      numericBindingLookup: {
+        numericBindings: compiled.numericBindings ?? new Map(),
+        byKey: compiled.statementMap.byKey,
+        bindingVersions: compiled.bindingVersions
+      }
+    });
+    expect(resolved.placements.map((placement) => placement.x)).toEqual([10, 20]);
+  });
+
+  it("continues rejecting arbitrary geometry statements inside printLayout", () => {
+    const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), [
+      "nui 3",
+      "printLayout A4(width: 210, height: 297) {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n"));
+    expect(result.status).toBe("fatal");
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.message.includes("printLayout"))).toBe(true);
   });
 
   it("keeps for iteration bindings immutable and body-only while allowing prior outer range bindings", () => {

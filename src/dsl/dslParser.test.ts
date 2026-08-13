@@ -488,9 +488,9 @@ describe("DSL set statements", () => {
     expect(sets[2].enclosing).toMatchObject({ branch: "else" });
   });
 
-  it("is rejected inside printLayout blocks, matching place's own restriction", () => {
+  it("allows set inside printLayout blocks", () => {
     const result = errors(["printLayout 型紙A () {", "  set x = 1", "}"].join("\n"));
-    expect(result.some((item) => item.message.includes("place のみ"))).toBe(true);
+    expect(result).toEqual([]);
   });
 
   it("reports a missing target name", () => {

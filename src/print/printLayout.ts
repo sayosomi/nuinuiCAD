@@ -284,8 +284,15 @@ const resolveNumericValue = ({
       ? parameterKey.map((key) => printLayoutCompiledNumericBinding(numericBindingLookup, statementKey, key)).find(Boolean)
       : printLayoutCompiledNumericBinding(numericBindingLookup, statementKey, parameterKey as string))
     : undefined;
+  const sourceOrder = statementKey ? numericBindingLookup?.byKey.get(statementKey)?.statementIndex : undefined;
   const materialized = binding && binding.expression === value.expression
-    ? materializePrintLayoutNumericBinding(binding, evaluation.computedScalarBindings)
+    ? materializePrintLayoutNumericBinding(
+        binding,
+        evaluation.computedScalarBindings,
+        evaluation.computedScalarBindingVersions,
+        numericBindingLookup?.bindingVersions,
+        sourceOrder
+      )
     : null;
   const effectiveValue: NumericValue = materialized !== null ? { kind: "expression", expression: materialized } : value;
   const result = evaluateNumericValue({
