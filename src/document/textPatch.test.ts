@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { parseDsl } from "../dsl/dslParser";
 import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
 import type { CadElement } from "../types/geometry";
+import { evaluateElements } from "../geometry/evaluate";
+import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
+import { activePrintLayout, resolvePrintLayout } from "../print/printLayout";
 import {
   applyLineSplices,
   buildTextPatch,
@@ -10,6 +14,7 @@ import {
   elementUpdateSetFullComparisonForTesting,
   type LineSplice
 } from "./textPatch";
+import { commitModelBridge, type CanonicalDocumentValue, type LastGoodDslDocument } from "./canonicalDocument";
 
 const elementByName = (document: DslDocumentData, name: string): CadElement => {
   const element = document.elements.find((item) => item.name === name);
@@ -50,6 +55,60 @@ const expectLinesUntouched = (splices: LineSplice[], lines: number[]) => {
       `line ${line} should be untouched`
     ).toBe(false);
   }
+};
+
+const canonicalFrom = (source: string): CanonicalDocumentValue => {
+  const parsed = parseDsl(source);
+  expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `statement:test:${index}`]));
+  const compiled = compileDslDocument(source, { assignedStatementIds, preparsed: parsed });
+  expect(compiled.document).not.toBeNull();
+  expect(compiled.statementMap).not.toBeNull();
+  return {
+    sourceText: source,
+    doc: compiled as LastGoodDslDocument,
+    docText: source,
+    diagnostics: compiled.diagnostics,
+    bindingIssueDiagnostics: compiled.bindingIssueDiagnostics ?? [],
+    typedDependencyGraph: compiled.typedDependencyGraph
+  };
+};
+
+const evaluatePrintLayout = (compiled: LastGoodDslDocument) => {
+  const evaluation = evaluateElements(compiled.document.elements, {
+    scalarProgram: compiled.scalarProgram,
+    bindingVersions: compiled.bindingVersions,
+    statementInfoByElementId: compiled.statementMap.byElementId,
+    statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
+    numericBindingEntries: buildNumericBindingRuntimeEntries({
+      numericBindings: compiled.numericBindings ?? new Map(),
+      elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex
+    }, compiled.document.elements)
+  });
+  const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
+  return resolvePrintLayout({
+    layout,
+    elements: compiled.document.elements,
+    evaluation,
+    numericBindingLookup: {
+      numericBindings: compiled.numericBindings ?? new Map(),
+      byKey: compiled.statementMap.byKey,
+      bindingVersions: compiled.bindingVersions
+    }
+  });
+};
+
+const commitPrintLayoutModelEdit = (
+  current: CanonicalDocumentValue,
+  edit: (layout: DslDocumentData["printLayouts"][number]) => DslDocumentData["printLayouts"][number]
+) => {
+  const afterDocument = {
+    ...current.doc.document,
+    printLayouts: current.doc.document.printLayouts.map((layout) =>
+      layout.id === current.doc.document.activePrintLayoutId ? edit(layout) : layout
+    )
+  };
+  return commitModelBridge(current, afterDocument);
 };
 
 const BASE_SOURCE = [
@@ -618,6 +677,122 @@ describe("textPatch 非要素セクション", () => {
     }));
     expect(patched).toContain("columns: 5");
     expect(patched).toContain("place @G ");
+  });
+
+  it("commitModelBridge のprintLayout property editはbody-local let/set/placeを保持する", () => {
+    const current = canonicalFrom([
+      "nui 3",
+      "group G {",
+      "}",
+      "printLayout A4(",
+      "  width: 210,",
+      "  height: 297,",
+      "  columns: 1,",
+      ") {",
+      "  let margin: number = 10",
+      "  set margin = 20",
+      "",
+      "  place @G(",
+      "    x: @margin,",
+      "    y: 0,",
+      "    angle: 0,",
+      "    mirrorX: false,",
+      "  )",
+      "}"
+    ].join("\n"));
+    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    const letIndex = result.value.sourceText.indexOf("let margin: number = 10");
+    const setIndex = result.value.sourceText.indexOf("set margin = 20");
+    const placeIndex = result.value.sourceText.indexOf("place @G");
+    expect(result.value.sourceText).toContain("columns: 3");
+    expect(letIndex).toBeGreaterThanOrEqual(0);
+    expect(setIndex).toBeGreaterThan(letIndex);
+    expect(placeIndex).toBeGreaterThan(setIndex);
+    expect(result.value.doc.document.printLayouts[0].columns).toBe(3);
+  });
+
+  it("commitModelBridge後もprintLayout local setのruntime valueを評価する", () => {
+    const current = canonicalFrom([
+      "nui 3",
+      "group G {",
+      "}",
+      "printLayout A4(width: 210, height: 297, columns: 1) {",
+      "  let margin: number = 10",
+      "  set margin = 20",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(evaluatePrintLayout(result.value.doc).placements[0]?.x).toBe(20);
+  });
+
+  it("commitModelBridgeはplace/set/placeのsource orderを保持する", () => {
+    const current = canonicalFrom([
+      "nui 3",
+      "group G {",
+      "}",
+      "printLayout A4(width: 210, height: 297, columns: 1) {",
+      "  let margin: number = 10",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "  set margin = 20",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    const firstPlaceIndex = result.value.sourceText.indexOf("place @G");
+    const setIndex = result.value.sourceText.indexOf("set margin = 20");
+    const secondPlaceIndex = result.value.sourceText.indexOf("place @G", firstPlaceIndex + 1);
+    expect(firstPlaceIndex).toBeLessThan(setIndex);
+    expect(setIndex).toBeLessThan(secondPlaceIndex);
+    expect(evaluatePrintLayout(result.value.doc).placements.map((placement) => placement.x)).toEqual([10, 20]);
+  });
+
+  it("commitModelBridgeはprintLayout body-local constを保持する", () => {
+    const current = canonicalFrom([
+      "nui 3",
+      "group G {",
+      "}",
+      "printLayout A4(width: 210, height: 297) {",
+      "  const margin: number = 10",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.value.sourceText).toContain("const margin: number = 10");
+    expect(evaluatePrintLayout(result.value.doc).placements[0]?.x).toBe(10);
+  });
+
+  it("複数printLayoutのmodel editは対象外layoutのsource-only bodyを変更しない", () => {
+    const current = canonicalFrom([
+      "nui 3",
+      "group G {",
+      "}",
+      "printLayout A4(width: 210, height: 297, columns: 1) {",
+      "  const margin: number = 10",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}",
+      "printLayout A3(width: 297, height: 420, columns: 1) {",
+      "  const margin: number = 20",
+      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const secondLayoutSource = current.sourceText.slice(current.sourceText.indexOf("printLayout A3"));
+    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 2 }));
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    const secondLayoutStart = result.value.sourceText.indexOf("printLayout A3");
+    expect(secondLayoutStart).toBeGreaterThanOrEqual(0);
+    expect(result.value.sourceText.slice(secondLayoutStart)).toBe(secondLayoutSource);
+    expect(result.value.sourceText).toContain("const margin: number = 10");
+    expect(result.value.sourceText).toContain("const margin: number = 20");
   });
 
   it("printLayout の追加と activePrintLayout の切替", () => {

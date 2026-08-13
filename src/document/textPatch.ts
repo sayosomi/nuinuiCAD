@@ -774,6 +774,117 @@ const patchVisibility = (input: TextPatchInput, ops: PatchOps) => {
 
 // ==== 印刷レイアウトセクション ====
 
+const replaceLineRange = (
+  ops: PatchOps,
+  startLine: number,
+  endLine: number,
+  replacementLines: readonly string[]
+) => {
+  if (startLine > endLine || startLine < 1) {
+    throw new UnappliedTextPatchError(`印刷レイアウトの行範囲が不正です (${startLine}..${endLine})。`);
+  }
+  if (replacementLines.length === 0) {
+    for (let line = startLine; line <= endLine; line += 1) setLineOp(ops, line, null);
+    return;
+  }
+  setLineOp(ops, startLine, replacementLines[0]);
+  if (replacementLines.length > 1) insertBefore(ops, startLine + 1, [...replacementLines].slice(1));
+  for (let line = startLine + 1; line <= endLine; line += 1) setLineOp(ops, line, null);
+};
+
+const directPrintLayoutSourceChildren = (
+  statements: readonly DslStatement[],
+  layoutStatementIndex: number
+) => statements.filter((statement) =>
+  (statement.kind === "typedDeclaration" || statement.kind === "set") &&
+  statement.enclosing?.statementIndex === layoutStatementIndex
+);
+
+const patchPrintLayoutWithSourceChildren = ({
+  ops,
+  oldLayout,
+  newLayout,
+  newBlock,
+  layoutInfo,
+  statementMap,
+  oldStatements
+}: {
+  ops: PatchOps;
+  oldLayout: DslDocumentData["printLayouts"][number];
+  newLayout: DslDocumentData["printLayouts"][number];
+  newBlock: { layoutId: string; lines: string[] };
+  layoutInfo: StatementInfo;
+  statementMap: NonNullable<CompiledDslDocument["statementMap"]>;
+  oldStatements: readonly DslStatement[];
+}) => {
+  const headerEndIndex = newBlock.lines.findIndex((line) => line.trim().endsWith(") {"));
+  if (headerEndIndex < 0 || newBlock.lines.at(-1) !== "}") {
+    throw new UnappliedTextPatchError(`printLayout ${newLayout.id} の正準ブロック範囲を特定できません。`);
+  }
+  const headerLines = newBlock.lines.slice(0, headerEndIndex + 1);
+  const placeLines = newBlock.lines.slice(headerEndIndex + 1, -1);
+  if (placeLines.length !== newLayout.placements.length) {
+    throw new UnappliedTextPatchError(`printLayout ${newLayout.id} のplace文数とモデルの配置数が一致しません。`);
+  }
+
+  const oldPlaceInfos = statementMap.statements
+    .filter((info) =>
+      info.kind === "place" && info.enclosing?.statementIndex === layoutInfo.statementIndex
+    )
+    .sort((left, right) => left.statementIndex - right.statementIndex);
+  if (oldPlaceInfos.length !== oldLayout.placements.length) {
+    throw new UnappliedTextPatchError(`printLayout ${oldLayout.id} のplace文位置をモデル配置へ対応付けられません。`);
+  }
+  if (directPrintLayoutSourceChildren(oldStatements, layoutInfo.statementIndex).length === 0) {
+    throw new UnappliedTextPatchError(`printLayout ${oldLayout.id} にbody-local scalar文がありません。`);
+  }
+
+  const oldPlacementIds = oldLayout.placements.map((placement) => placement.id);
+  const newPlacementIds = newLayout.placements.map((placement) => placement.id);
+  const oldPlacementIdSet = new Set(oldPlacementIds);
+  if (oldPlacementIdSet.size !== oldPlacementIds.length || new Set(newPlacementIds).size !== newPlacementIds.length) {
+    throw new UnappliedTextPatchError(`printLayout ${newLayout.id} の配置identityが一意ではありません。`);
+  }
+  const retainedOldIds = oldPlacementIds.filter((id) => newPlacementIds.includes(id));
+  const retainedNewIds = newPlacementIds.filter((id) => oldPlacementIdSet.has(id));
+  if (retainedOldIds.join("\0") !== retainedNewIds.join("\0")) {
+    throw new UnappliedTextPatchError(
+      `printLayout ${newLayout.id} のplace順序変更はbody-local scalar文を保ったまま適用できません。`
+    );
+  }
+  const lastRetainedNewIndex = Math.max(
+    -1,
+    ...retainedNewIds.map((id) => newPlacementIds.indexOf(id))
+  );
+  if (newPlacementIds.some((id, index) => !oldPlacementIdSet.has(id) && index < lastRetainedNewIndex)) {
+    throw new UnappliedTextPatchError(
+      `printLayout ${newLayout.id} の新規placeをbody-local scalar文の相対位置なしに挿入できません。`
+    );
+  }
+
+  const headerEndLine = Math.max(layoutInfo.endLine, layoutInfo.openBraceLine ?? 0);
+  replaceLineRange(ops, layoutInfo.line, headerEndLine, headerLines);
+
+  oldPlacementIds.forEach((placementId, oldIndex) => {
+    const oldPlaceInfo = oldPlaceInfos[oldIndex];
+    const newIndex = newPlacementIds.indexOf(placementId);
+    const oldPlaceEndLine = Math.max(oldPlaceInfo.line, oldPlaceInfo.endLine);
+    if (newIndex < 0) {
+      replaceLineRange(ops, oldPlaceInfo.line, oldPlaceEndLine, []);
+      return;
+    }
+    replaceLineRange(ops, oldPlaceInfo.line, oldPlaceEndLine, [placeLines[newIndex]]);
+  });
+
+  const addedPlaceLines = newPlacementIds
+    .map((placementId, index) => oldPlacementIdSet.has(placementId) ? undefined : placeLines[index])
+    .filter((line): line is string => line !== undefined);
+  if (addedPlaceLines.length > 0) {
+    const closeLine = layoutInfo.closeBraceLine ?? layoutInfo.range.endLine;
+    insertBefore(ops, closeLine, addedPlaceLines);
+  }
+};
+
 const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
   const { old, newDocument } = input;
   const oldDocument = old.document!;
@@ -797,6 +908,11 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
       .filter((entry): entry is readonly [string, StatementInfo] => entry[1] !== undefined)
   );
   const activeInfo = statementMap.byKey.get("activePrintLayout");
+  const sourceOnlyLayoutIds = new Set(
+    [...infoById.entries()]
+      .filter(([, info]) => directPrintLayoutSourceChildren(old.statements, info.statementIndex).length > 0)
+      .map(([layoutId]) => layoutId)
+  );
 
   if (infoById.size === 0) {
     // セクション新設。printLayoutはcanonicalに常にelementsより後。
@@ -823,6 +939,12 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
   const keptNewOrder = newPlan.blocks
     .map((block) => block.layoutId)
     .filter((id) => oldBlockById.has(id));
+  if (keptOldOrder.some((layoutId, index) => keptNewOrder[index] !== layoutId) &&
+    keptOldOrder.some((layoutId) => sourceOnlyLayoutIds.has(layoutId))) {
+    throw new UnappliedTextPatchError(
+      "body-local scalar文を含むprintLayoutの順序変更は、source orderを保ったまま適用できません。"
+    );
+  }
   if (keptOldOrder.join(" ") !== keptNewOrder.join(" ")) {
     const firstLine = Math.min(...[...infoById.values()].map((info) => info.range.startLine));
     for (const block of oldPlan.blocks) dropRange(block.layoutId);
@@ -845,8 +967,25 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
     if (newBlock.lines.join("\n") === block.lines.join("\n")) continue;
     const info = infoById.get(block.layoutId);
     if (!info) continue;
-    dropRange(block.layoutId);
-    insertBefore(ops, info.range.startLine, newBlock.lines);
+    const oldLayout = oldDocument.printLayouts.find((layout) => layout.id === block.layoutId);
+    const newLayout = newDocument.printLayouts.find((layout) => layout.id === block.layoutId);
+    if (!oldLayout || !newLayout) {
+      throw new UnappliedTextPatchError(`printLayout ${block.layoutId} のモデル対応を特定できません。`);
+    }
+    if (sourceOnlyLayoutIds.has(block.layoutId)) {
+      patchPrintLayoutWithSourceChildren({
+        ops,
+        oldLayout,
+        newLayout,
+        newBlock,
+        layoutInfo: info,
+        statementMap,
+        oldStatements: old.statements
+      });
+    } else {
+      dropRange(block.layoutId);
+      insertBefore(ops, info.range.startLine, newBlock.lines);
+    }
   }
 
   // 追加レイアウト: 新配列順で、直後の既存レイアウトのブロック先頭の直前へ
