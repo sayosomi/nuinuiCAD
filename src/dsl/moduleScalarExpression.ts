@@ -111,6 +111,10 @@ const resolveAndTypecheck = ({
       case "reference":
         resolveNodeReference(node);
         return node;
+      case "call":
+        // Call resolution and argument traversal belong to the follow-up
+        // semantic task. Keep the untyped syntax node intact for now.
+        return node;
       case "geometryProperty":
         if (!resolveGeometryProperty) {
           diagnostics.push(localIssue("module-geometry-property-reference", node.span, "module の scalar expression では geometry property を解決できません。"));

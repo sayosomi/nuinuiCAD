@@ -234,6 +234,11 @@ const checkNode = (
       const expression = checkNode(node.expression, expectedType, state);
       return { kind: "group", span: node.span, expression, type: expression.type };
     }
+
+    case "call":
+      // Named-call typing and the typed call AST are deferred to the next
+      // semantic task; syntax-only parsing must not invent builtin behavior.
+      throw new Error("expressionTypecheck: named call semantics are not implemented yet");
   }
 };
 

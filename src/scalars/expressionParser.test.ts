@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_SCALAR_EXPRESSION_DEPTH, parseScalarExpression } from "./expressionParser";
+import { isScalarExpressionCandidateSource, MAX_SCALAR_EXPRESSION_DEPTH, parseScalarExpression } from "./expressionParser";
 import type { ScalarExpressionAst, ScalarExpressionDiagnostic } from "./expressionAst";
 
 const fullSpan = (source: string) => ({ start: 0, end: source.length });
@@ -134,6 +134,71 @@ describe("parseScalarExpression / unary", () => {
   it("parses unary + and - over a reference", () => {
     expect(parseOk("-@x")).toMatchObject({ kind: "unary", operator: "-", operand: { kind: "reference", name: "x" } });
     expect(parseOk("+@x")).toMatchObject({ kind: "unary", operator: "+", operand: { kind: "reference", name: "x" } });
+  });
+});
+
+describe("parseScalarExpression / named calls", () => {
+  it.each(["abs(-1)", "max(1, 2)", "round(12.34, 1)", "roundTo(@length, 0.5)", "foo(10)", "unknownFunction(10)", "foo()", "関数(10)"]) (
+    "parses %j without builtin-name resolution",
+    (source) => {
+      expect(parseScalarExpression(source, fullSpan(source)).diagnostics).toEqual([]);
+      expect(parseScalarExpression(source, fullSpan(source)).ast).toMatchObject({ kind: "call" });
+    }
+  );
+
+  it("parses nested calls and multiline arguments", () => {
+    const source = "max(\n  abs(@a),\n  round(@b, 2)\n)";
+    expect(parseOk(source)).toMatchObject({
+      kind: "call",
+      name: "max",
+      args: [
+        { kind: "call", name: "abs", args: [{ kind: "reference", name: "a" }] },
+        { kind: "call", name: "round", args: [{ kind: "reference", name: "b" }, { kind: "numberLiteral", value: 2 }] }
+      ]
+    });
+  });
+
+  it("keeps calls at primary precedence", () => {
+    expect(parseOk("1 + max(2, 3) * 4")).toMatchObject({
+      kind: "binary",
+      operator: "+",
+      left: { value: 1 },
+      right: { kind: "binary", operator: "*", left: { kind: "call", name: "max" }, right: { value: 4 } }
+    });
+    expect(parseOk("-max(1, 2)")).toMatchObject({ kind: "unary", operator: "-", operand: { kind: "call", name: "max" } });
+    expect(parseOk("max(1 + 2, 3 * 4)")).toMatchObject({
+      kind: "call",
+      args: [
+        { kind: "binary", operator: "+" },
+        { kind: "binary", operator: "*" }
+      ]
+    });
+  });
+
+  it("preserves the call, name, and argument spans", () => {
+    const source = "max(1, abs(2))";
+    expect(parseOk(source)).toEqual({
+      kind: "call",
+      span: { start: 0, end: source.length },
+      nameSpan: { start: 0, end: 3 },
+      name: "max",
+      args: [
+        { kind: "numberLiteral", span: { start: 4, end: 5 }, value: 1 },
+        {
+          kind: "call",
+          span: { start: 7, end: 13 },
+          nameSpan: { start: 7, end: 10 },
+          name: "abs",
+          args: [{ kind: "numberLiteral", span: { start: 11, end: 12 }, value: 2 }]
+        }
+      ]
+    });
+  });
+
+  it("recognizes only identifier-plus-paren fragments as expression candidates", () => {
+    expect(isScalarExpressionCandidateSource("foo(10)")).toBe(true);
+    expect(isScalarExpressionCandidateSource("foo (10)")).toBe(true);
+    expect(isScalarExpressionCandidateSource("foo")).toBe(false);
   });
 });
 
@@ -337,6 +402,19 @@ describe("parseScalarExpression / error scenarios", () => {
 
   it("propagates an unterminated string from the tokenizer", () => {
     expect(parseErr('"oops').code).toBe("unterminated-string");
+  });
+
+  it.each(["round(", "round(1", "round(1,)", "round(, 1)", "round(1 2)"]) (
+    "rejects malformed call syntax %j",
+    (source) => {
+      expect(parseErr(source)).toBeDefined();
+    }
+  );
+
+  it("does not treat arbitrary callees as named calls", () => {
+    for (const source of ["(@someFunction)(10)", "object.function(10)", "array[0](10)", "@getFunction()(10)"]) {
+      expect(parseErr(source).code).toBeDefined();
+    }
   });
 });
 
