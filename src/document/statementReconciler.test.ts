@@ -261,12 +261,12 @@ describe("statementReconciler 仕様表", () => {
 
   it("branch切替(then⇄else)は段階5でID維持", () => {
     const oldElements: DslDocumentData["elements"] = [
-      { id: "cond", name: "分岐", type: "conditionalGroup", activity: "visible", condition: 1 },
+      { id: "cond", name: "分岐", type: "conditionalGroup", activity: "visible", condition: { kind: "expression", expression: "true" } },
       { id: "c", name: "C", type: "freePoint", activity: "visible", x: 10, y: 10, parentGroupId: "cond", conditionalBranch: "then" },
       { id: "d", name: "D", type: "freePoint", activity: "visible", x: 20, y: 20, parentGroupId: "cond", conditionalBranch: "else" }
     ];
     const newElements: DslDocumentData["elements"] = [
-      { id: "cond", name: "分岐", type: "conditionalGroup", activity: "visible", condition: 1 },
+      { id: "cond", name: "分岐", type: "conditionalGroup", activity: "visible", condition: { kind: "expression", expression: "true" } },
       { id: "d", name: "D", type: "freePoint", activity: "visible", x: 20, y: 20, parentGroupId: "cond", conditionalBranch: "else" },
       { id: "c", name: "C", type: "freePoint", activity: "visible", x: 10, y: 10, parentGroupId: "cond", conditionalBranch: "else" }
     ];

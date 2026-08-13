@@ -41,6 +41,18 @@ describe("tokenizeScalarExpression / parens and operators", () => {
     }
   });
 
+  it("uses the Unicode identifier grammar for nui4 word-operator boundaries", () => {
+    expect(tokenizeOk("and")).toEqual([{ kind: "operator", value: "&&", span: { start: 0, end: 3 } }]);
+    expect(tokenizeOk("or")).toEqual([{ kind: "operator", value: "||", span: { start: 0, end: 2 } }]);
+    expect(tokenizeOk("not")).toEqual([{ kind: "operator", value: "!", span: { start: 0, end: 3 } }]);
+
+    for (const source of ["android", "notch", "orange", "and縫う", "縫うand", "not幅"]) {
+      expect(tokenizeOk(source)).toEqual([
+        { kind: "literal", literal: { kind: "choice", span: { start: 0, end: source.length }, raw: source } }
+      ]);
+    }
+  });
+
   it("skips whitespace including tabs and newlines", () => {
     expect(tokenizeOk(" \t1\n+\r2 ")).toEqual([
       { kind: "literal", literal: { kind: "number", span: { start: 2, end: 3 }, raw: "1", value: 1 } },

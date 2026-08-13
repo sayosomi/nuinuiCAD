@@ -164,7 +164,7 @@ describe("DSL nui 3 element serializer", () => {
     const conditional = minimal("conditionalGroup");
     const loop = minimal("forGroup");
     expect(serializeElementStatementLogical(conditional, documentDslRefs([...referenceElements, conditional])))
-      .toBe("if ifブロック1 (1)");
+      .toBe("if ifブロック1 (true)");
     expect(serializeElementStatementLogical(loop, documentDslRefs([...referenceElements, loop])))
       .toBe("for forブロック1 (i, from: 0, count: 3, step: 1, showGenerated: false)");
   });

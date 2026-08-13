@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
 import { compileDslToElements } from "../dsl/dslCompiler";
+import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { parseDsl } from "../dsl/dslParser";
 import type { DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -149,20 +151,59 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
   });
 });
 
-describe("compileConditionalGroupConditions: numeric-only conditions are left untouched", () => {
-  it("a plain numeric literal produces no entry and no diagnostic", () => {
-    const compiled = compileFor(["const _unused: number = 0", "if C (1) {", "}"].join("\n"));
-    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
-    expect(diagnostics).toEqual([]);
-    expect(sourcesByOccurrenceKey.size).toBe(0);
-    expect(compiled.elements[0]).toMatchObject({ type: "conditionalGroup", condition: 1 });
+describe("compileConditionalGroupConditions: every scalar AST uses boolean expected type", () => {
+  it("wires the boolean expected-type check through the production document compiler without typed declarations", () => {
+    const result = compileCanonicalText(
+      regenerateCanonicalFromModel(emptyDocument(), 3),
+      ["nui 3", "if C (1) {", "}"].join("\n")
+    );
+    expect(result.status).toBe("fatal");
+    expect(result.diagnostics.filter((diagnostic) => diagnostic.code === CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE)).toHaveLength(1);
   });
 
-  it("a zero-reference numeric comparison produces no entry and no diagnostic", () => {
+  it.each([true, false])("accepts boolean literal %s", (value) => {
+    const compiled = compileFor(["const _unused: number = 0", `if C (${value}) {`, "}"].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
+    expect(diagnostics).toEqual([]);
+    expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
+      kind: "booleanLiteral",
+      value,
+      type: { kind: "boolean" }
+    });
+  });
+
+  it.each(["1", "0"])("rejects numeric truthiness for if (%s)", (condition) => {
+    const compiled = compileFor(["const _unused: number = 0", `if C (${condition}) {`, "}"].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].code).toBe(CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE);
+    expect(sourcesByOccurrenceKey.size).toBe(0);
+  });
+
+  it("accepts a zero-reference boolean comparison", () => {
     const compiled = compileFor(["const _unused: number = 0", "if C (1 > 0) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
+    expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
+      kind: "binary",
+      operator: ">",
+      type: { kind: "boolean" }
+    });
+  });
+
+  it("rejects a geometry property used as a condition without a boolean comparison", () => {
+    const compiled = compileFor([
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "if C (@AB.length) {",
+      "}"
+    ].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].code).toBe(CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE);
   });
 
   it("characterization: typed-only condition syntax is not rejected earlier by the generic numeric apply stage", () => {

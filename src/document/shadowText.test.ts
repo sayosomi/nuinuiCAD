@@ -232,7 +232,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
   it("if/elseブロックへの挿入は同一IDのまま反映される", () => {
     const source = [
       "nui 3",
-      "if 分岐 (1) {",
+      "if 分岐 (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
       "  point E = coordinate(x: 5, y: 5)",

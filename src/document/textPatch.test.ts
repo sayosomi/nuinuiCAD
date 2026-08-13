@@ -203,6 +203,53 @@ describe("textPatch 要素の更新", () => {
     expect(result.value.sourceText).toContain("state: hidden");
   });
 
+  it.each([
+    "true and false",
+    "not false",
+    "@enabled and true"
+  ])("@ の有無にかかわらず compound boolean source を保持する: %s", (expression) => {
+    const source = [
+      "nui 3",
+      ...(expression.includes("@enabled") ? ["let enabled: boolean = true"] : []),
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      `line Off = offset(sources: [@AB], distance: 1, side: right, closed: ${expression}, suppressTrimWarnings: false)`
+    ].join("\n");
+    const current = canonicalFrom(source);
+    const offset = elementByName(current.doc.document, "Off");
+    const result = commitModelBridge(current, {
+      ...current.doc.document,
+      elements: current.doc.document.elements.map((element) =>
+        element.id === offset.id ? { ...element, activity: "hidden" } as CadElement : element
+      )
+    });
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.value.sourceText).toContain(`closed: ${expression}`);
+    expect(result.value.sourceText).toContain("state: hidden");
+    expect(result.value.sourceText).toContain("point A = coordinate(x: 0, y: 0)");
+  });
+
+  it("serializes a directly edited authored parameter instead of preserving its old expression", () => {
+    const current = canonicalFrom([
+      "nui 3",
+      "group G (printEnabled: true and false) {",
+      "}"
+    ].join("\n"));
+    const group = elementByName(current.doc.document, "G");
+    const result = commitModelBridge(current, {
+      ...current.doc.document,
+      elements: current.doc.document.elements.map((element) =>
+        element.id === group.id ? { ...element, printEnabled: true } as CadElement : element
+      )
+    });
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    expect(result.value.sourceText).toContain("printEnabled: true");
+    expect(result.value.sourceText).not.toContain("printEnabled: true and false");
+  });
+
   it("属性編集はstatementの行群だけを書き換え、隣接行と行末コメントを保存する", () => {
     // v2は要素statementの正準出力が常に縦型callのため、属性を1つ追加すると
     // 物理行数が増える。ヘッダ行の置換(旧行そのまま)と、増えた引数行の挿入
@@ -279,7 +326,7 @@ describe("textPatch 要素の挿入", () => {
   });
 
   it("else枝への初回挿入は `} else {` 行を生成する", () => {
-    const source = ["nui 3", "if 分岐 (1) {", "  point T = coordinate(x: 0, y: 0)", "}"].join("\n");
+    const source = ["nui 3", "if 分岐 (true) {", "  point T = coordinate(x: 0, y: 0)", "}"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const conditional = elementByName(document, "分岐");
       const inserted = makeElement("point E = coordinate(x: 5, y: 5)", {
@@ -398,7 +445,7 @@ describe("textPatch 要素の削除", () => {
   it("else枝の最後のメンバー削除は `} else {` 行も除去する", () => {
     const source = [
       "nui 3",
-      "if 分岐 (1) {",
+      "if 分岐 (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
       "  point E = coordinate(x: 5, y: 5)",

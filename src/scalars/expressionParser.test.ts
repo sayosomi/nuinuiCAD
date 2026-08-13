@@ -216,6 +216,16 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
+  it("does not split Unicode choice literals that contain a word-operator spelling", () => {
+    for (const source of ["and縫う", "縫うand", "not幅"]) {
+      expect(parseOk(source)).toEqual({
+        kind: "unresolvedChoiceLiteral",
+        raw: source,
+        span: { start: 0, end: source.length }
+      });
+    }
+  });
+
   it("left-associates a chain of + and -", () => {
     const ast = parseOk("1 - 2 - 3");
     expect(ast).toMatchObject({

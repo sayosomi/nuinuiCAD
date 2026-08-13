@@ -150,7 +150,9 @@ export const compileNumericBindings = ({
   ) => {
     if (!value || !isNumericExpression(value) || !valueSpan) return;
     const refs = referencesIn(logicalText.slice(valueSpan.start, valueSpan.end), valueSpan);
-    if (!refs.length) return;
+    const hasGeometryProperty = scanExpressionReferences(logicalText.slice(valueSpan.start, valueSpan.end))
+      .some((match) => match.kind === "elementProperty" && match.sigil);
+    if (!refs.length && !hasGeometryProperty) return;
     candidates.push({
       key,
       statement,
@@ -271,19 +273,14 @@ export const compileNumericBindings = ({
   const sourcesByOccurrenceKey = new Map<string, CompiledNumericBinding>();
   const diagnostics: DslDiagnostic[] = [];
   for (const candidate of candidates) {
-    // Skip only when EVERY reference legitimately belongs to the legacy
-    // numeric evaluator (an element-local var, or a resolved non-typed
-    // binding such as an iteration variable) - never merely because nothing
-    // resolved as typed. A reference that is undefined/forward (or has no
-    // resolution at all) must still reach the per-reference loop below so it
-    // gets NUMERIC_BINDING_UNRESOLVED_CODE instead of silently falling back
-    // to the legacy evaluator, which can't resolve it either and masks the
-    // problem behind a runtime default.
-    const staysInLegacyEvaluator = candidate.references.every((_, index) => {
+    // Element-local numeric variables remain owned by the legacy evaluator.
+    // Other scalar references, including iteration bindings, still pass
+    // through the shared checker when its AST can represent the expression.
+    const staysInLegacyEvaluator = candidate.references.length > 0 && candidate.references.every((_, index) => {
       const resolution = resolutions.get(`${candidate.key}:${index}`);
-      return resolution?.kind === "resolvedLocal" || (resolution?.kind === "resolved" && resolution.binding.kind !== "typed");
+      return resolution?.kind === "resolvedLocal";
     });
-    if (staysInLegacyEvaluator) continue; // Pure local/iteration expression stays in the numeric evaluator.
+    if (staysInLegacyEvaluator) continue;
 
     let rejected = false;
     const typedRefs: { reference: CandidateReference; bindingId: BindingId }[] = [];
@@ -324,10 +321,9 @@ export const compileNumericBindings = ({
     });
     if (rejected) continue;
     const typedResolutions = candidate.references.map((_, index) => resolutions.get(candidate.key + ":" + index));
-    const allReferencesAreTyped = typedResolutions.length > 0 && typedResolutions.every((resolution) =>
-      resolution?.kind === "resolved" && resolution.binding.kind === "typed"
-    );
-    if (allReferencesAreTyped) {
+    const hasElementLocalReference = typedResolutions.some((resolution) => resolution?.kind === "resolvedLocal");
+    const canTypecheckScalarReferences = typedResolutions.every((resolution) => resolution?.kind === "resolved");
+    if (!hasElementLocalReference && canTypecheckScalarReferences) {
       // Typecheck the original DSL spelling. The normalized numeric spelling
       // intentionally removes `@` from geometry measurements (for example
       // `@AB.length` becomes `AB.length`) for the legacy numeric evaluator,
@@ -337,28 +333,32 @@ export const compileNumericBindings = ({
       const typedParsed = parseScalarExpression(candidate.source, { start: 0, end: candidate.source.length });
       if (!typedParsed.ast) {
         const issue = typedParsed.diagnostics[0];
-        if (issue) diagnostics.push(diagnosticAt(
+        // Legacy measurement/function syntax remains owned by the numeric
+        // evaluator when no typed binding is involved. A typed reference,
+        // however, must not silently fall through an unrepresentable AST.
+        if (issue && typedRefs.length > 0) diagnostics.push(diagnosticAt(
           spans,
           candidate.statement,
           { start: candidate.valueSpan.start + issue.span.start, end: candidate.valueSpan.start + issue.span.end },
           issue.code,
           issue.message
         ));
-        continue;
-      }
-      const typedChecked = typecheckScalarExpression(typedParsed.ast, {
-        expectedType: { kind: "number" },
-        references: typedResolutions as Extract<typeof typedResolutions[number], { kind: "resolved" }>[]
-      });
-      if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
-        for (const issue of typedChecked.diagnostics) diagnostics.push(diagnosticAt(
-          spans,
-          candidate.statement,
-          { start: candidate.valueSpan.start + issue.span.start, end: candidate.valueSpan.start + issue.span.end },
-          issue.code,
-          issue.message
-        ));
-        continue;
+        if (typedRefs.length > 0) continue;
+      } else {
+        const typedChecked = typecheckScalarExpression(typedParsed.ast, {
+          expectedType: { kind: "number" },
+          references: typedResolutions as Extract<typeof typedResolutions[number], { kind: "resolved" }>[]
+        });
+        if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
+          for (const issue of typedChecked.diagnostics) diagnostics.push(diagnosticAt(
+            spans,
+            candidate.statement,
+            { start: candidate.valueSpan.start + issue.span.start, end: candidate.valueSpan.start + issue.span.end },
+            issue.code,
+            issue.message
+          ));
+          continue;
+        }
       }
     }
     let tokens: ReturnType<typeof tokenize>;

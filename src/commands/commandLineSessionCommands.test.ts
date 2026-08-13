@@ -702,7 +702,7 @@ describe("command-line session commands", () => {
   it("places group-header creation outside the complete conditional structure", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
-      "if 分岐 (1) {",
+      "if 分岐 (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  group 内側 {",

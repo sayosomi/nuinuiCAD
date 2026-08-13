@@ -260,6 +260,12 @@ export const constructionForElementType = (type: CadElementType): DslConstructio
   return spec;
 };
 
+export const parameterKeyForArg = (type: CadElementType, argName: string): string => {
+  const spec = constructionForElementType(type);
+  const argSpec = [...spec.args, ...commonArgSpecs].find((item) => item.arg === argName);
+  return argSpec?.parameterKey ?? argSpec?.arg ?? argName;
+};
+
 export const argNameForParameter = (type: CadElementType, parameterKey: string): string | null => {
   const specs = constructionSpecs.filter((spec) => spec.elementType === type);
   const match = [...specs.flatMap((spec) => spec.args), ...commonArgSpecs].find(

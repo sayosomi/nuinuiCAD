@@ -24,7 +24,7 @@ group 前身頃 {
     end: @B
   )
 
-  if 見返し (1) {
+  if 見返し (true) {
     point C = coordinate(
       x: 10,
       y: 10

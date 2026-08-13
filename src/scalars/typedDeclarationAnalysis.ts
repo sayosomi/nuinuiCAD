@@ -6,20 +6,23 @@ import { isCompilableDslStatement } from "../dsl/dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import { isElementDslStatement } from "../dsl/dslParser";
+import { parameterKeyForArg } from "../dsl/dslConstructions";
 import { analyzeBindings, type BindingAnalysis, type InitializerReference } from "./bindingAnalysis";
 import { bindingIdForStableStatementId, buildBindingCatalog, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "./bindingCatalog";
 import { resolveInitializerReferences, type BindingResolution, type InitializerResolutionRequest } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
-import { parseScalarExpression } from "./expressionParser";
+import { isScalarExpressionCandidateSource, parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { ScalarProgramPositionMap } from "./scalarProgram";
 import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { createElementNameContext } from "../model/elementNames";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
+import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import {
   resolveSourceLexicalPath,
   type SourceLexicalNamespaceIndex
@@ -234,7 +237,30 @@ export const analyzeTypedDeclarations = ({
   const hasPrintLayoutStatements = statements.some((statement, statementIndex) =>
     statement.kind === "printLayout" && includeStatement(statement, statementIndex)
   );
-  if (typedStatements.length === 0 && !hasPrintLayoutStatements) return { diagnostics: [] };
+  // The shared frontend also owns reference-free property expressions,
+  // conditional conditions, and for-group iteration expressions. Build the
+  // empty binding catalog for those consumers even when the document has no
+  // const/let declarations, so they cannot silently fall back to evaluated
+  // literals or numeric truthiness.
+  const elementsById = new Map(reconciledContainers.elements.map((element) => [element.id, element]));
+  const hasScalarExpressionConsumers = statements.some((statement, statementIndex) => {
+    if (!includeStatement(statement, statementIndex)) return false;
+    if (statement.kind !== "element" && statement.kind !== "group") return false;
+    const elementId = reconciledContainers.elementIdByStatementIndex.get(statementIndex);
+    const element = elementId ? elementsById.get(elementId) : undefined;
+    if (!element) return false;
+    if (element.type === "conditionalGroup" || element.type === "forGroup") return true;
+    return statement.attrs.some((attr) => {
+      if (!isScalarExpressionCandidateSource(attr.value)) return false;
+      const parameterKey = parameterKeyForArg(element.type, attr.key);
+      const definition = findParameterDefinition(element, parameterKey);
+      const expectedType = scalarTypeForParameterDefinition(definition);
+      if (!expectedType) return false;
+      if (expectedType.kind !== "number") return true;
+      return scanExpressionReferences(attr.value).some((match) => match.kind === "elementProperty" && match.sigil);
+    });
+  });
+  if (typedStatements.length === 0 && !hasPrintLayoutStatements && !hasScalarExpressionConsumers) return { diagnostics: [] };
 
   const missingIdentity = typedStatements.flatMap(({ statement, statementIndex }) =>
     stableStatementIdByIndex.has(statementIndex)

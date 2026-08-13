@@ -18,7 +18,7 @@ describe("sourceEditorFolding structural rows", () => {
       "  dx: 10,",
       "  dy: 0",
       ")",
-      "if Choice (1) {",
+      "if Choice (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
       "  point E = coordinate(x: 1, y: 1)",
@@ -82,7 +82,7 @@ describe("sourceEditorFolding structural rows", () => {
   it("places controls on independent brace rows and leaves both markers visible", () => {
     const source = [
       "nui 3",
-      "if Choice (1)",
+      "if Choice (true)",
       "{",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
@@ -105,7 +105,7 @@ describe("sourceEditorFolding structural rows", () => {
   it("projects then and else targets independently when both are collapsed", () => {
     const source = [
       "nui 3",
-      "if Choice (1) {",
+      "if Choice (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
       "  point E = coordinate(x: 1, y: 1)",

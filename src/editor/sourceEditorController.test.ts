@@ -175,7 +175,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   it("places a creation-return cursor after a group's complete closing structure", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
-      "if 分岐 (1) {",
+      "if 分岐 (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -933,7 +933,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   it("projects nested group and else folds from cadUiStore, expanding ancestors before an external jump", () => {
     const source = dslTextForElements([
       { id: "outer", name: "Outer", type: "group", activity: "visible" },
-      { id: "branch", name: "Branch", type: "conditionalGroup", activity: "visible", condition: 1, parentGroupId: "outer" },
+      { id: "branch", name: "Branch", type: "conditionalGroup", activity: "visible", condition: { kind: "expression", expression: "true" }, parentGroupId: "outer" },
       { id: "then", name: "Then", type: "freePoint", activity: "visible", x: 0, y: 0, parentGroupId: "branch", conditionalBranch: "then" },
       { id: "inner", name: "Inner", type: "group", activity: "visible", parentGroupId: "branch", conditionalBranch: "else" },
       { id: "else", name: "Else", type: "freePoint", activity: "visible", x: 1, y: 1, parentGroupId: "inner" }
@@ -971,7 +971,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   it("folds and unfolds every currently valid conditional target", () => {
     const source = [
       "nui 3",
-      "if Choice (1) {",
+      "if Choice (true) {",
       "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
       "  point Else = coordinate(x: 1, y: 1)",
@@ -1138,7 +1138,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   it("applies Fold All and Unfold All as a single store update", () => {
     const source = [
       "nui 3",
-      "if Choice (1) {",
+      "if Choice (true) {",
       "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
       "  point Else = coordinate(x: 1, y: 1)",
@@ -1285,7 +1285,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   it("drives fold and unfold-all through the real keymap", () => {
     const source = [
       "nui 3",
-      "if Choice (1) {",
+      "if Choice (true) {",
       "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
       "  point Else = coordinate(x: 1, y: 1)",

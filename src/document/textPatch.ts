@@ -27,6 +27,7 @@ import { mergeStatementComments } from "./statementCommentMerge";
 import type { CadElement, ElementId } from "../types/geometry";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
 
 // textPatch — モデル差分を「行スプライス」列に変換するパッチ生成器
 // (docs/overhaul/plan.md / Phase 1a)。
@@ -352,9 +353,10 @@ const sourceNamesAndParentsUnchanged = (before: readonly CadElement[], after: re
  * Preserve authored scalar/reference text when a model edit changes another
  * field on the same statement. The model intentionally stores evaluated
  * values for some legacy scalar fields, so ordinary serialization cannot
- * reconstruct a compound source expression such as `@a && !@b` or
- * `@path.property`. Only unchanged parameters are eligible; an actual edit to
- * the authored field still uses the normal serializer/bridge path.
+ * reconstruct a compound source expression such as `@a && !@b`,
+ * `true and false`, or `@path.property`. Only unchanged parameters are
+ * eligible; an actual edit to the authored field still uses the normal
+ * serializer/bridge path.
  */
 const preserveUnchangedAuthoredValues = (
   oldElement: CadElement,
@@ -368,7 +370,7 @@ const preserveUnchangedAuthoredValues = (
   const args = [...next.args];
   const specs = [...constructionForElementType(oldElement.type).args, ...commonArgSpecs];
   for (const attribute of oldStatement.attrs) {
-    if (!attribute.value.includes("@")) continue;
+    if (!isScalarExpressionCandidateSource(attribute.value)) continue;
     const spec = specs.find((candidate) => candidate.arg === attribute.key);
     const parameterKey = spec?.parameterKey ?? spec?.arg;
     if (!parameterKey || changedKeys.has(parameterKey) || parameterKey === "activity") continue;

@@ -11,7 +11,7 @@
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
-import { commonArgSpecs, constructionForElementType } from "../dsl/dslConstructions";
+import { parameterKeyForArg } from "../dsl/dslConstructions";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis } from "./bindingAnalysis";
@@ -125,20 +125,6 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
   };
-};
-
-/**
- * A DSL arg name (e.g. `extensions`) is not always the parameter key
- * `findParameterDefinition` indexes by (e.g. `useExtensions`) - the same
- * remap `dslApplyArgs.ts`'s `applyArgs` already applies via
- * `dslConstructions.ts`'s per-construction `DslArgSpec.parameterKey`. Reused
- * here rather than re-declared so there is exactly one arg-name-to-property
- * mapping in the codebase.
- */
-const parameterKeyForArg = (elementType: CadElement["type"], argName: string): string => {
-  const spec = constructionForElementType(elementType);
-  const argSpec = [...spec.args, ...commonArgSpecs].find((item) => item.arg === argName);
-  return argSpec?.parameterKey ?? argSpec?.arg ?? argName;
 };
 
 const unresolvedMessage = (name: string, resolution: BindingResolution | undefined): string => {

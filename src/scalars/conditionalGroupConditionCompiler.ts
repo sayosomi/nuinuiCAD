@@ -1,7 +1,6 @@
-// Compiles a `conditionalGroup.condition` DSL value into a typed boolean
-// expression whenever it references a typed binding or uses typed-only
-// syntax. Reference-free numeric conditions remain in the element-local
-// numeric evaluation path.
+// Compiles every condition that the shared scalar parser can represent into a
+// typed boolean expression. Syntax outside that parser remains on the
+// migration-era numeric path until the final cleanup task.
 //
 // Unlike src/scalars/propertyBindingCompiler.ts (Task 22), this module does
 // not route through ParameterDefinition.kind/SCALAR_ELIGIBLE_PARAMETER_KINDS
@@ -19,11 +18,7 @@ import { resolveReferencesAtSites, type SiteReferenceRequest } from "./bindingRe
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
-import {
-  collectReferences,
-  containsNonNumericScalarSyntax,
-  unresolvedReferenceMessage
-} from "./typedDeclarationAnalysis";
+import { collectReferences, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
@@ -62,22 +57,6 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
   };
-};
-
-const containsGeometryProperty = (expression: ReturnType<typeof parseScalarExpression>["ast"]): boolean => {
-  if (!expression) return false;
-  switch (expression.kind) {
-    case "geometryProperty":
-      return true;
-    case "unary":
-      return containsGeometryProperty(expression.operand);
-    case "binary":
-      return containsGeometryProperty(expression.left) || containsGeometryProperty(expression.right);
-    case "group":
-      return containsGeometryProperty(expression.expression);
-    default:
-      return false;
-  }
 };
 
 export const compileConditionalGroupConditions = ({
@@ -121,8 +100,6 @@ export const compileConditionalGroupConditions = ({
     }));
     const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests);
     const resolutionAt = (index: number) => resolutions.get(requestKey(index));
-
-    if (references.length === 0 && !containsNonNumericScalarSyntax(ast) && !containsGeometryProperty(ast)) return;
 
     // Typed candidate: every reference must resolve to a usable typed
     // binding, or this occurrence fails closed with a diagnostic.

@@ -72,7 +72,7 @@ export const createCadElement = (
         name: uniqueName(id, `ifブロック${conditionalCount + 1}`),
         type,
         activity: "visible",
-        condition: 1,
+        condition: { kind: "expression", expression: "true" },
       };
     }
     case "forGroup": {

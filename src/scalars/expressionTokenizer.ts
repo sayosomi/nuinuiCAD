@@ -9,7 +9,7 @@
 // attempting recovery - matches expressionParser.ts's exclusive
 // success/failure contract, and guarantees termination on malformed input.
 
-import { scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
+import { isScalarIdentifierCharacterAt, scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
 import type { ScalarExpressionIssueCode } from "./expressionAst";
 import { parseDslSourceReferenceAt } from "../dsl/dslReferenceTokens";
 
@@ -58,8 +58,24 @@ const WORD_OPERATORS: Readonly<Record<string, ScalarExpressionOperatorSymbol>> =
 };
 
 const isWhitespace = (char: string) => char === " " || char === "\t" || char === "\n" || char === "\r";
-const isAsciiIdentifierContinuation = (char: string | undefined) =>
-  char !== undefined && /[A-Za-z0-9_]/.test(char);
+
+const wordOperatorAt = (source: string, index: number, start: number, end: number): string | undefined => {
+  return Object.keys(WORD_OPERATORS).find((word) => {
+    if (!source.startsWith(word, index)) return false;
+    const previousIsIdentifier = index > start && isScalarIdentifierCharacterAt(source, index - 1);
+    const nextIndex = index + word.length;
+    const nextIsIdentifier = nextIndex < end && isScalarIdentifierCharacterAt(source, nextIndex);
+    return !previousIsIdentifier && !nextIsIdentifier;
+  });
+};
+
+/** Shared word-operator scan for expression-shape classification. */
+export const containsScalarWordOperator = (source: string): boolean => {
+  for (let index = 0; index < source.length; index += 1) {
+    if (wordOperatorAt(source, index, 0, source.length)) return true;
+  }
+  return false;
+};
 
 const remapLiteralIssueCode = (issueCode: string): ScalarExpressionIssueCode =>
   issueCode === "invalid-literal-token" ? "unexpected-token" : (issueCode as ScalarExpressionIssueCode);
@@ -105,12 +121,7 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
       continue;
     }
 
-    const wordOperator = Object.keys(WORD_OPERATORS).find((word) => {
-      if (!source.startsWith(word, index)) return false;
-      const previous = index > span.start ? source[index - 1] : undefined;
-      const next = index + word.length < end ? source[index + word.length] : undefined;
-      return !isAsciiIdentifierContinuation(previous) && !isAsciiIdentifierContinuation(next);
-    });
+    const wordOperator = wordOperatorAt(source, index, span.start, end);
     if (wordOperator) {
       tokens.push({
         kind: "operator",

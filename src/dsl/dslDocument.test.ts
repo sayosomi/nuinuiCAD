@@ -91,7 +91,7 @@ describe("dslDocument round-trip matrix", () => {
       "line Length = polar(start: @A, angle: 0, length: 1)",
       "arc Arc = arc(center: @A, radius: 1, start: 0, end: 90)",
       "point Tail = tangentOffset(line: @AB, base: @A, angle: 0, distance: 1)",
-      "if 条件 (1) {",
+      "if 条件 (true) {",
       "  point ConditionalPoint = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n");
@@ -259,7 +259,7 @@ describe("dslDocument nesting", () => {
   });
 
   it("round-trips if/else branches", () => {
-    const source = ["if 分岐 (1) {", "  point A = coordinate(x: 0 y: 0)", "} else {", "  point B = coordinate(x: 1 y: 1)", "}"].join("\n");
+    const source = ["if 分岐 (true) {", "  point A = coordinate(x: 0 y: 0)", "} else {", "  point B = coordinate(x: 1 y: 1)", "}"].join("\n");
     const { document, parsed } = roundTrip(source);
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
@@ -273,7 +273,7 @@ describe("dslDocument nesting", () => {
   it("round-trips deeply nested group/if/for combinations", () => {
     const source = [
       "group 外 {",
-      "  if 内分岐 (1) {",
+      "  if 内分岐 (true) {",
       "    for 内繰返し (i from: 0 count: 2 step: 1) {",
       "      point P = coordinate(x: i y: 0)",
       "    }",

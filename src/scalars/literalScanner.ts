@@ -119,6 +119,21 @@ const NUMBER_PATTERN = /^\d+(?:\.\d+)?|^\.\d+/;
 // token's exact end offset (given a known start) without re-typechecking.
 export const IDENTIFIER_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*/u;
 
+const IDENTIFIER_CHARACTER_PATTERN = /^[\p{L}\p{N}_]$/u;
+
+/** Tests one Unicode code point against the identifier continuation grammar. */
+export const isScalarIdentifierCharacter = (character: string | undefined): boolean =>
+  character !== undefined && IDENTIFIER_CHARACTER_PATTERN.test(character);
+
+/** Tests the code point at a UTF-16 offset, including astral Unicode letters. */
+export const isScalarIdentifierCharacterAt = (source: string, index: number): boolean => {
+  if (index < 0 || index >= source.length) return false;
+  const codeUnit = source.charCodeAt(index);
+  const codePointIndex = codeUnit >= 0xdc00 && codeUnit <= 0xdfff && index > 0 ? index - 1 : index;
+  const codePoint = source.codePointAt(codePointIndex);
+  return codePoint !== undefined && isScalarIdentifierCharacter(String.fromCodePoint(codePoint));
+};
+
 const isQuoteChar = (char: string): char is '"' | "'" => char === "\"" || char === "'";
 
 const invalidLiteralToken = (span: ScalarSpan, message: string): ScalarLiteralScanError => ({

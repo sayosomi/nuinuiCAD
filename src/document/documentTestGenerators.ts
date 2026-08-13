@@ -72,7 +72,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
     elementLines.push("}");
   }
   if (params.withIf) {
-    elementLines.push("if IF0 (1) {");
+    elementLines.push("if IF0 (true) {");
     elementLines.push("  point IT0 = coordinate(x: 100, y: 1)");
     elementLines.push("} else {");
     elementLines.push("  point IE0 = coordinate(x: 100, y: 2)");

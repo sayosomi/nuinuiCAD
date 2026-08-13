@@ -69,7 +69,7 @@ describe("container creation from the Source Editor", () => {
   it("uses the enclosing conditional else branch for a comment-line cursor", () => {
     useCadDocumentStore.getState().commitText([
       "nui 3",
-      "if 分岐 (1) {",
+      "if 分岐 (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  # insert here",

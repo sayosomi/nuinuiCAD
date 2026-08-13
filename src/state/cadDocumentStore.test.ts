@@ -137,7 +137,7 @@ describe("cadDocumentStore file state", () => {
       "  group Inner {",
       "    point A = coordinate(x: 0, y: 0)",
       "  }",
-      "  if Branch (1) {",
+      "  if Branch (true) {",
       "    point B = coordinate(x: 1, y: 1)",
       "  }",
       "}"

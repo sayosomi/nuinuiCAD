@@ -28,7 +28,7 @@ import {
   type ScalarSpan,
   type ScalarUnaryOperator
 } from "./expressionAst";
-import { tokenizeScalarExpression, type ScalarExpressionToken } from "./expressionTokenizer";
+import { containsScalarWordOperator, tokenizeScalarExpression, type ScalarExpressionToken } from "./expressionTokenizer";
 import type { ScalarLiteralToken } from "./literalScanner";
 
 /**
@@ -53,7 +53,7 @@ export const isScalarExpressionCandidateSource = (source: string): boolean => {
   if (trimmed.length === 0) return false;
   if (trimmed.startsWith("\"") || trimmed.startsWith("'")) return false;
   if (trimmed.startsWith("@") || trimmed.startsWith("(") || trimmed.startsWith("!")) return true;
-  return /\b(?:and|or|not)\b/.test(trimmed) || /&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
+  return containsScalarWordOperator(trimmed) || /&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
 };
 
 class ParseFailure extends Error {

@@ -145,10 +145,10 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
     expect(result.conditionInactiveElementIds?.has(idByName(compiled, "B"))).toBe(true);
   });
 
-  it("a plain legacy numeric condition (no typed declarations at all) is unaffected", () => {
+  it("a plain boolean condition (no typed declarations at all) is evaluated", () => {
     const compiled = compileCanonical([
       "nui 3",
-      "if C (1) {",
+      "if C (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",

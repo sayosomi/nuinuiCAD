@@ -233,6 +233,10 @@ export const applyArgs = (
       return resolvedId;
     })();
   const rejectUntypedNumericExpression = (source: string, sourceSpan: DslSpan): boolean => {
+    // Named/geometry references are resolved by the later numeric binding
+    // compiler. Keep incomplete and unresolved reference text available to
+    // the normal source-editing path; only reference-free ASTs are safe to
+    // classify at this point.
     if (source.includes("@") || !isScalarExpressionCandidateSource(source)) return false;
     const span = { start: 0, end: source.length };
     const parsed = parseScalarExpression(source, span);

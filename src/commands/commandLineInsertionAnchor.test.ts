@@ -9,7 +9,7 @@ describe("command-line insertion anchors", () => {
   it("resolves a conditional group's anchor after its complete then/else structure", () => {
     const compiled = compileDslDocument([
       "nui 3",
-      "if 分岐 (1) {",
+      "if 分岐 (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  group 内側 {",
