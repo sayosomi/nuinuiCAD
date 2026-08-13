@@ -151,6 +151,26 @@ The constraints are:
 - Division by zero and other invalid runtime operations are explicit evaluation
   diagnostics.
 
+Named scalar function calls use the following syntax:
+
+```nui
+abs(-1)
+max(1, 2)
+round(@length / 2, 1)
+max(abs(@a), round(@b, 2))
+```
+
+The call syntax is `functionName(arg1, arg2)`. Its callee is a bare function
+name. Zero, one, and multiple arguments are valid syntax, and each argument is
+an ordinary typed expression; nested calls are allowed. The parser does not
+decide whether the callee names a builtin, so `unknownFunction(10)` is also
+syntactically valid. Function resolution, unknown-function diagnostics, arity,
+argument types, and return types are determined during the semantic phase.
+Future user-defined functions may use this same call syntax, but user-defined
+function declarations are not part of the current language surface. Arbitrary
+callees, postfix calls, and first-class functions are not part of the current
+language surface.
+
 This is a typed expression surface for CAD construction, not a general-purpose
 programming language.
 
@@ -484,7 +504,7 @@ reference, or flatten module materialization into source statements.
 
 The following are not part of the initial language:
 
-- user-defined functions
+- user-defined function declarations
 - classes
 - an object model
 - inheritance

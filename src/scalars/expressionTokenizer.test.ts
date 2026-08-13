@@ -15,6 +15,17 @@ describe("tokenizeScalarExpression / parens and operators", () => {
     expect(tokenizeOk(")")).toEqual([{ kind: "rightParen", span: { start: 0, end: 1 } }]);
   });
 
+  it("tokenizes comma separators with exact argument-list spans", () => {
+    expect(tokenizeOk("max(1, 2)")).toEqual([
+      { kind: "literal", literal: { kind: "choice", span: { start: 0, end: 3 }, raw: "max" } },
+      { kind: "leftParen", span: { start: 3, end: 4 } },
+      { kind: "literal", literal: { kind: "number", span: { start: 4, end: 5 }, raw: "1", value: 1 } },
+      { kind: "comma", span: { start: 5, end: 6 } },
+      { kind: "literal", literal: { kind: "number", span: { start: 7, end: 8 }, raw: "2", value: 2 } },
+      { kind: "rightParen", span: { start: 8, end: 9 } }
+    ]);
+  });
+
   it("prefers the 2-char operator over splitting into two 1-char tokens", () => {
     expect(tokenizeOk(" and ")).toEqual([{ kind: "operator", value: "&&", span: { start: 1, end: 4 } }]);
     expect(tokenizeOk(" or ")).toEqual([{ kind: "operator", value: "||", span: { start: 1, end: 3 } }]);
