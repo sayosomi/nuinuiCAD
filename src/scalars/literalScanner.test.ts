@@ -75,12 +75,12 @@ describe("scanScalarLiteral / string literals", () => {
   });
 
   it("distinguishes escaped braces from literal braces via the escapes list", () => {
-    // "a\{b}c\}d{e" -> cooked: a{b}c}d{e, but only the \{ and \} are escapes.
+    // "a\{b}c\}d{e" -> cooked: a{b}c}d{e, but only the \{ && \} are escapes.
     const source = '"a\\{b}c\\}d{e"';
     const token = asString(source);
     expect(token.cooked).toBe("a{b}c}d{e");
     expect(token.escapes.map((escape) => escape.raw)).toEqual(["\\{", "\\}"]);
-    // The un-escaped `}` after b and `{` after d are not present in escapes.
+    // The un-escaped `}` after b && `{` after d are not present in escapes.
     const escapedOffsets = new Set(token.escapes.map((escape) => escape.span.start));
     for (const offset of [contentIndexOf(source, "}c"), contentIndexOf(source, "{e")]) {
       expect(escapedOffsets.has(offset)).toBe(false);

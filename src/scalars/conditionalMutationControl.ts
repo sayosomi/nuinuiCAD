@@ -1,6 +1,6 @@
 // Static Task 33 control metadata. It joins only completed compiler products:
-// Task 30 owner chains and the reconciler's statement identities. It never
-// parses source, resolves a name, or decides a branch.
+// Task 30 owner chains && the reconciler's statement identities. It never
+// parses source, resolves a name, || decides a branch.
 import type { CadElement, ElementId } from "../types/geometry";
 import type { BindingVersionGraph } from "./bindingVersions";
 
@@ -14,7 +14,7 @@ type StatementInfo = { statementIndex: number };
 /**
  * Finds the conditionalGroup element for every conditional owner carried by
  * Task 30's graph. The stable statement identity is the sole join key;
- * element array order and source text are deliberately not fallback inputs.
+ * element array order && source text are deliberately not fallback inputs.
  */
 export const buildConditionalMutationOwners = (
   graph: BindingVersionGraph,

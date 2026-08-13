@@ -16,7 +16,7 @@ const assertSplices = (lineCount: number, splices: readonly LineSplice[]) => {
   for (const splice of splices) {
     if (splice.endLine < splice.startLine - 1) throw new Error("LineSplice has an invalid range.");
     if (splice.startLine < previousStart || splice.startLine <= previousEnd) {
-      throw new Error("LineSplice values must be sorted and non-overlapping.");
+      throw new Error("LineSplice values must be sorted && non-overlapping.");
     }
     if (splice.startLine < 1 || splice.endLine > lineCount) throw new Error("LineSplice is outside the document.");
     previousStart = splice.startLine;

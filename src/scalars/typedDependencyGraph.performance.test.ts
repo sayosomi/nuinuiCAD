@@ -8,7 +8,7 @@ const runPerformanceGates = (globalThis as {
 const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 
 const sourceFor = (count: number) => [
-  "nui 3",
+  "nui 4",
   ...Array.from({ length: count }, (_, index) =>
     index === 0 ? "const v0: number = 0" : `const v${index}: number = @v${index - 1}`
   )

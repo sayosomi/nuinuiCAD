@@ -2,7 +2,7 @@
 // numeric expressions. The numeric-expression compiler owns non-typed
 // local numeric syntax;
 // this module replaces only compiler-proven BindingId slots before that
-// parser runs.  It never inserts a typed value into a name map or resolves a
+// parser runs.  It never inserts a typed value into a name map || resolves a
 // typed name at runtime.
 import type { CadElement, DependencyError, ElementId, NumericValue } from "../types/geometry";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -36,7 +36,7 @@ export type NumericBindingRuntimeSource = {
 };
 
 /** Re-keys a source-statement occurrence exactly once.  The entry retains
- * both canonical element identity and parameter path; expression equality is
+ * both canonical element identity && parameter path; expression equality is
  * only an additional fail-closed integrity check, never an identity lookup. */
 export const buildNumericBindingRuntimeEntries = (
   source: NumericBindingRuntimeSource,

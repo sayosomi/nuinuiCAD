@@ -1,9 +1,9 @@
 // Compiles/typechecks a CAD element's scalar property value through the
-// shared scalar parser, resolver, and typechecker. Direct `@name` values keep
+// shared scalar parser, resolver, && typechecker. Direct `@name` values keep
 // the compact binding source; compound values retain the typed AST.
 //
-// Scope boundary: this module only classifies and typechecks. It never
-// evaluates a binding's runtime value and never writes to a CadElement
+// Scope boundary: this module only classifies && typechecks. It never
+// evaluates a binding's runtime value && never writes to a CadElement
 // field - literal property compile output (src/dsl/dslApplyArgs.ts) is
 // completely untouched. Number args keep their pre-existing numeric-reference
 // compiler; all other scalar schema kinds use this common frontend.
@@ -29,10 +29,9 @@ import { createElementNameContext } from "../model/elementNames";
 /**
  * The compiled source of a property's value. `binding` keeps the existing
  * direct-reference representation; `expression` carries the same typed AST
- * used by scalar initializers and conditions for compound scalar values.
- * `propertyCapability` is intentionally not part of this contract: the
- * parameter schema supplies the expected type. The capability field remains
- * only as a migration bridge for older consumers.
+ * used by scalar initializers && conditions for compound scalar values.
+ * The parameter schema supplies the expected type; there is no separate
+ * property capability registry.
  */
 export type ScalarValueSource =
   | { kind: "literal" }
@@ -58,17 +57,16 @@ export const PROPERTY_BINDING_UNRESOLVED_CODE = "property-binding-unresolved";
 export const PROPERTY_BINDING_INVALID_CODE = "property-binding-invalid";
 export const PROPERTY_BINDING_TYPE_MISMATCH_CODE = "property-binding-type-mismatch";
 
-/** Shared key format between this module's output map and any later reader
+/** Shared key format between this module's output map && any later reader
  * (Tasks 23-26), so the format is never re-derived at a second call site. */
 export const propertyBindingOccurrenceKey = (statementIndex: number, parameterKey: string): string =>
   `${statementIndex}:${parameterKey}`;
 
 /** Inverse of propertyBindingOccurrenceKey - split on the first `:` only, since
- * every registered parameterKey (parameterDefinitions.ts's propertyBindingCapabilities)
- * is a plain identifier with no `:` of its own. Task 45 uses this to resolve a
+ * every parameterKey is a plain identifier with no `:` of its own. Task 45 uses this to resolve a
  * `doc.propertyBindings`/`conditionalGroupConditions`/`textTemplates` entry that
  * matches a selected binding back to its owning statement/parameter without a
- * second document scan or re-parse. */
+ * second document scan || re-parse. */
 export const parsePropertyBindingOccurrenceKey = (occurrenceKey: string): { statementIndex: number; parameterKey: string } | null => {
   const separator = occurrenceKey.indexOf(":");
   if (separator < 0) return null;
@@ -111,7 +109,7 @@ type Candidate = {
 /** Exact-span-or-nothing (Task 48): see typedDeclarationAnalysis.ts's
  * compileDiagnostic for the shared rationale. This module's own diagnostic
  * codes (property-binding-*) are about an occurrence that itself failed to
- * resolve, so - unlike a BindingIssue or runtime diagnostic - there is no
+ * resolve, so - unlike a BindingIssue || runtime diagnostic - there is no
  * separately-resolved index entry to navigate to; these carry an exact span
  * for the gutter but no navigationTarget. */
 const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
@@ -183,9 +181,9 @@ export const compilePropertyBindings = ({
       const definition = findParameterDefinition(element, parameterKey);
       const expectedType = scalarTypeForParameterDefinition(definition);
       if (!definition || !expectedType || expectedType.kind === "number") continue;
-      // Quoted literals and ordinary bare literals remain owned by
+      // Quoted literals && ordinary bare literals remain owned by
       // dslApplyArgs. Compound typed values must reach the common frontend
-      // regardless of whether their first token is `@`, `(`, `not`, or a
+      // regardless of whether their first token is `@`, `(`, `not`, || a
       // boolean literal followed by `and`/`or`.
       if (!isScalarExpressionCandidateSource(attr.value)) continue;
 
@@ -296,7 +294,7 @@ export const compilePropertyBindings = ({
 
   // Task 48: grouped in the same pass that builds sourcesByOccurrenceKey, in
   // source order (statements.forEach/candidates order is already statement
-  // order) - never a second scan or a comparison sort.
+  // order) - never a second scan || a comparison sort.
   const occurrenceKeysByBindingId = new Map<BindingId, string[]>();
   for (const [occurrenceKey, source] of sourcesByOccurrenceKey) {
     const bindingIds = source.kind === "binding"

@@ -34,7 +34,7 @@ const compileFor = (
   expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const statements = parsed.statements;
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
   expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
   const stableStatementIdByIndex = new Map<number, string>(statements.map((_, index) => [index, `stable-${index}`]));
@@ -74,7 +74,7 @@ describe("scanTextTemplateLiteral", () => {
   });
 
   it("distinguishes escaped braces from hole delimiters in one pass", () => {
-    const source = '"cost \\{5\\} yen {@a}"';
+    const source = '"cost \\{5\\} yen ${@a}"';
     const result = scanTextTemplateLiteral(source, fullSpan(source));
     if (result.kind !== "string") throw new Error("expected string");
     expect(result.segments[0]).toMatchObject({ kind: "literal", cooked: "cost {5} yen " });
@@ -94,7 +94,7 @@ describe("scanTextTemplateLiteral", () => {
   });
 
   it("hole cookedInsertOffset accounts for escape-shortened cooked text before it", () => {
-    const source = '"\\n{@a}"'; // raw "\n{@a}" - 2 raw chars before hole, 1 cooked char
+    const source = '"\\n${@a}"'; // raw "\n${@a}" - 2 raw chars before hole, 1 cooked char
     const result = scanTextTemplateLiteral(source, fullSpan(source));
     if (result.kind !== "string") throw new Error("expected string");
     const hole = result.segments.find((segment) => segment.kind === "hole");
@@ -103,13 +103,13 @@ describe("scanTextTemplateLiteral", () => {
   });
 
   it("unclosed hole is unterminated-interpolation", () => {
-    const source = '"prefix {@a"';
+    const source = '"prefix ${@a"';
     const result = scanTextTemplateLiteral(source, fullSpan(source));
     expect(result).toMatchObject({ kind: "error", issueCode: "unterminated-interpolation" });
   });
 
   it("nested unescaped brace is interpolation-nested-not-supported", () => {
-    const source = '"{@a {@b}}"';
+    const source = '"${@a ${@b}}"';
     const result = scanTextTemplateLiteral(source, fullSpan(source));
     expect(result).toMatchObject({ kind: "error", issueCode: "interpolation-nested-not-supported" });
   });
@@ -139,7 +139,7 @@ describe("compileTextTemplates: typed holes", () => {
   it("single string binding hole inserts as a string hole", () => {
     const compiled = compileTemplatesFor([
       'const ラベル: string = "前身頃"',
-      'text T = label(text: "{@ラベル}を2枚カット" anchor: none size: 3)'
+      'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "text"))!;
@@ -154,7 +154,7 @@ describe("compileTextTemplates: typed holes", () => {
     const compiled = compileTemplatesFor([
       "const 幅: number = 10",
       "const 高さ: number = 20",
-      'text T = label(text: "size {@幅 + @高さ}" anchor: none size: 3)'
+      'text T = label(text: "size ${@幅 + @高さ}", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(2, "text"))!;
@@ -166,7 +166,7 @@ describe("compileTextTemplates: typed holes", () => {
   it("boolean-typed hole is interpolation-type-mismatch", () => {
     const compiled = compileTemplatesFor([
       "let 表示する: boolean = true",
-      'text T = label(text: "flag {@表示する}" anchor: none size: 3)'
+      'text T = label(text: "flag ${@表示する}", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toHaveLength(1);
     expect(compiled.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE);
@@ -175,7 +175,7 @@ describe("compileTextTemplates: typed holes", () => {
   it("choice-typed hole is interpolation-type-mismatch", () => {
     const compiled = compileTemplatesFor([
       "const 方向: choice(right, left) = right",
-      'text T = label(text: "dir {@方向}" anchor: none size: 3)'
+      'text T = label(text: "dir ${@方向}", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toHaveLength(1);
     expect(compiled.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE);
@@ -184,7 +184,7 @@ describe("compileTextTemplates: typed holes", () => {
   it("literal true/false hole (no binding) still typechecks as boolean mismatch", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
-      'text T = label(text: "flag {true}" anchor: none size: 3)'
+      'text T = label(text: "flag ${true}", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toHaveLength(1);
     expect(compiled.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE);
@@ -193,7 +193,7 @@ describe("compileTextTemplates: typed holes", () => {
   it("undefined reference is text-template-hole-unresolved", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
-      'text T = label(text: "{!@nope}" anchor: none size: 3)'
+      'text T = label(text: "${not @nope}", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toHaveLength(1);
     expect(compiled.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE);
@@ -202,20 +202,20 @@ describe("compileTextTemplates: typed holes", () => {
   it("reference to an invalid declaration is text-template-hole-invalid", () => {
     const compiled = compileTemplatesFor([
       "const 壊れた: string = @何か",
-      'text T = label(text: "{@壊れた}" anchor: none size: 3)'
+      'text T = label(text: "${@壊れた}", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics.map((d) => d.code)).toContain(TEXT_TEMPLATE_HOLE_INVALID_CODE);
   });
 });
 
 describe("compileTextTemplates: numeric-expression holes", () => {
-  it("element-property syntax outside the typed grammar remains a numeric-expression hole (nui 3 sigil form)", () => {
+  it("element-property syntax outside the typed grammar remains a numeric-expression hole (nui 4 sigil form)", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: @A end: @B)",
-      'text T = label(text: "length {@AB.length}" anchor: none size: 3)'
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      'text T = label(text: "length ${@AB.length}", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "text"))!;
@@ -225,10 +225,10 @@ describe("compileTextTemplates: numeric-expression holes", () => {
   it("flags a bare (non-sigil) element-property reference inside a numeric-expression hole", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
-      "point A = coordinate(x: 0 y: 0)",
-      "point B = coordinate(x: 10 y: 0)",
-      "line AB = segment(start: @A end: @B)",
-      'text T = label(text: "length {AB.length}" anchor: none size: 3)'
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      'text T = label(text: "length ${AB.length}", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toHaveLength(1);
     expect(compiled.diagnostics[0].code).toBe("property-reference-requires-sigil");
@@ -238,7 +238,7 @@ describe("compileTextTemplates: numeric-expression holes", () => {
   it("plain numeric expression hole with no references remains numeric", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
-      'text T = label(text: "sum {2+3}" anchor: none size: 3)'
+      'text T = label(text: "sum ${2+3}", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "text"))!;
@@ -248,7 +248,7 @@ describe("compileTextTemplates: numeric-expression holes", () => {
   it("a hole referencing only an element-local numeric variable compiles as a numeric-expression hole, even alongside an unrelated typed declaration", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
-      'text T = label(text: "幅は{@幅}mm" anchor: none size: 3 vars: [幅: 42])'
+      'text T = label(text: "幅は${@幅}mm", anchor: none, size: 3, vars: [幅: 42])'
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "text"))!;
@@ -259,15 +259,15 @@ describe("compileTextTemplates: numeric-expression holes", () => {
 
 describe("compileTextTemplates: runs without any typed declaration in the document", () => {
   const noTypedDeclarationSource = [
-    "point A = coordinate(x: 0 y: 0)",
-    "point B = coordinate(x: 10 y: 0)",
-    "line AB = segment(start: @A end: @B)",
-    'text T = label(text: "length \\{AB.length\\} = {@AB.length}" anchor: none size: 3)'
+    "point A = coordinate(x: 0, y: 0)",
+    "point B = coordinate(x: 10, y: 0)",
+    "line AB = segment(start: @A, end: @B)",
+    'text T = label(text: "length \\{AB.length\\} = ${@AB.length}", anchor: none, size: 3)'
   ].join("\n");
 
-  it("characterization: analyzeTypedDeclarations produces no analysis for a nui 3 doc with zero typed declarations", () => {
+  it("characterization: analyzeTypedDeclarations produces no analysis for a nui 4 doc with zero typed declarations", () => {
     const parsed = parseDsl(noTypedDeclarationSource);
-    const compiled = compileDslToElements(noTypedDeclarationSource, { elements: [], mode: "document", majorVersion: 3 });
+    const compiled = compileDslToElements(noTypedDeclarationSource, { elements: [], mode: "document", majorVersion: 4 });
     const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
     const stableStatementIdByIndex = new Map<number, string>(parsed.statements.map((_, index) => [index, `stable-${index}`]));
     for (const [statementIndex, elementId] of elementIdByStatementIndex) stableStatementIdByIndex.set(statementIndex, elementId);
@@ -283,7 +283,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
 
   it("still scans brace/escape structure and classifies numeric holes with bindingAnalysis undefined", () => {
     const parsed = parseDsl(noTypedDeclarationSource);
-    const compiled = compileDslToElements(noTypedDeclarationSource, { elements: [], mode: "document", majorVersion: 3 });
+    const compiled = compileDslToElements(noTypedDeclarationSource, { elements: [], mode: "document", majorVersion: 4 });
     const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
     const result = compileTextTemplates({
       statements: parsed.statements,
@@ -301,9 +301,9 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
   });
 
   it("typed-only syntax (no bindingAnalysis) still fails closed on any reference as unresolved", () => {
-    const source = ['text T = label(text: "{!@x}" anchor: none size: 3)'].join("\n");
+    const source = ['text T = label(text: "${not @x}", anchor: none, size: 3)'].join("\n");
     const parsed = parseDsl(source);
-    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
     const result = compileTextTemplates({
       statements: parsed.statements,
       elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
@@ -316,9 +316,9 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
   });
 
   it("a hole referencing only an element-local numeric variable compiles as a numeric-expression hole with bindingAnalysis undefined", () => {
-    const source = ['text T = label(text: "幅は{@幅}mm" anchor: none size: 3 vars: [幅: 42])'].join("\n");
+    const source = ['text T = label(text: "幅は${@幅}mm", anchor: none, size: 3, vars: [幅: 42])'].join("\n");
     const parsed = parseDsl(source);
-    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
     const result = compileTextTemplates({
       statements: parsed.statements,
       elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),

@@ -61,8 +61,8 @@ const conditionalOperators = [
   { operator: "<=", description: "A <= B: AがB以下のとき真" },
   { operator: "==", description: "A == B: AとBが等しいとき真" },
   { operator: "!=", description: "A != B: AとBが等しくないとき真" },
-  { operator: "&&", description: "A && B: AとBの両方が真のとき真" },
-  { operator: "||", description: "A || B: AとBのどちらかが真のとき真" }
+  { operator: " && ", description: "A &&  B: AとBの両方が真のとき真" },
+  { operator: " || ", description: "A ||  B: AとBのどちらかが真のとき真" }
 ] as const;
 
 const clampReferenceHelperPosition = (position: { x: number; y: number }) => {

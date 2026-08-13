@@ -15,7 +15,7 @@ type ControllerInternals = {
   };
 };
 
-const source = ["nui 3", "let base: number = 1", "let derived: number = @base", "const anchor: number = 42"].join("\n");
+const source = ["nui 4", "let base: number = 1", "let derived: number = @base", "const anchor: number = 42"].join("\n");
 
 const typedBindingId = (name: string): BindingId =>
   useCadDocumentStore.getState().doc.bindingAnalysis!.catalog.bindings.find(
@@ -59,13 +59,13 @@ describe("SourceEditorController typed binding rename - selection/cursor preserv
 
   it("preserves blank lines when a declaration and a final-line reference are renamed together", () => {
     const sourceWithFinalReference = [
-      "nui 3",
+      "nui 4",
       "",
       "const zoom_ratio: number = 2",
       "const SA: number = 7 * @zoom_ratio"
     ].join("\n");
     const expected = [
-      "nui 3",
+      "nui 4",
       "",
       "const ZOOM_RATIO: number = 2",
       "const SA: number = 7 * @ZOOM_RATIO"
@@ -85,7 +85,7 @@ describe("SourceEditorController typed binding rename - selection/cursor preserv
   });
 
   it("leaves the CM selection completely untouched on a same-scope collision rejection", () => {
-    useCadDocumentStore.getState().commitText(["nui 3", "const a: number = 1", "const b: number = 2"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 4", "const a: number = 1", "const b: number = 2"].join("\n"), "test");
     const id = typedBindingId("a");
 
     const parent = document.createElement("div");
@@ -104,7 +104,7 @@ describe("SourceEditorController typed binding rename - selection/cursor preserv
   });
 
   it("leaves the CM selection completely untouched on a same-name no-op", () => {
-    useCadDocumentStore.getState().commitText(["nui 3", "const base: number = 1"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 4", "const base: number = 1"].join("\n"), "test");
     const id = typedBindingId("base");
 
     const parent = document.createElement("div");
@@ -226,7 +226,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
 
   it("F2 dispatch falls back to the existing CAD element prompt when the cursor is not on any typed construct", () => {
     useCadDocumentStore.getState().commitText(
-      [source, "point A = coordinate(x: 0 y: 0)"].join("\n"),
+      [source, "point A = coordinate(x: 0, y: 0)"].join("\n"),
       "test"
     );
     const parent = document.createElement("div");
@@ -251,7 +251,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
   });
 
   it("F2 dispatch with no typed context at all (e.g. a Canvas-focused F2) leaves CAD element rename completely unaffected", () => {
-    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
     const elementId = useCadDocumentStore.getState().elements[0]!.id;
     useCadUiStore.getState().setSelectedElementId(elementId);
 
@@ -262,13 +262,13 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     expect(useCadUiStore.getState().renameTypedBindingPromptTargetId).toBeNull();
   });
 
-  it("a single F2-resolved rename from the declaration propagates to an initializer reference, a set target, a set-RHS reference, and a template-hole reference together", () => {
+  it("a single F2-resolved rename from the declaration propagates to an initializer reference, a set target, a set-RHS reference, && a template-hole reference together", () => {
     const combined = [
-      "nui 3",
+      "nui 4",
       "let base: number = 1",
       "let derived: number = @base",
       "set base = @base + 1",
-      'text Label = label(text: "{@base}", anchor: none, size: 3)'
+      'text Label = label(text: "${@base}", anchor: none, size: 3)'
     ].join("\n");
     useCadDocumentStore.getState().commitText(combined, "test");
     const parent = document.createElement("div");
@@ -286,14 +286,14 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     expect(after).toContain("let renamedBase: number = 1");
     expect(after).toContain("let derived: number = @renamedBase");
     expect(after).toContain("set renamedBase = @renamedBase + 1");
-    expect(after).toContain('text Label = label(text: "{@renamedBase}"');
+    expect(after).toContain('text Label = label(text: "${@renamedBase}"');
     expect(after).not.toContain("@base");
 
     controller.destroy();
   });
 
   it("propagates a declaration rename into a compiled numeric expression", () => {
-    const source = ["nui 3", "const length: number = 12", "point B = coordinate(x: @length + 5, y: 0)"].join("\n");
+    const source = ["nui 4", "const length: number = 12", "point B = coordinate(x: @length + 5, y: 0)"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -308,7 +308,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
 
   it("propagates a declaration rename into a printLayout numeric field (Task 53)", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const printScale: number = 120",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
       "}"
@@ -326,8 +326,8 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     controller.destroy();
   });
 
-  it("routes and propagates rename through a multiline numeric attribute using its exact physical span", () => {
-    const source = ["nui 3", "const length: number = 12", "", "point P = coordinate(", "  x: @length,", "  y: 0", ")"].join("\n");
+  it("routes && propagates rename through a multiline numeric attribute using its exact physical span", () => {
+    const source = ["nui 4", "const length: number = 12", "", "point P = coordinate(", "  x: @length,", "  y: 0", ")"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -342,8 +342,8 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     controller.destroy();
   });
 
-  it("neither prompt opens, and no source changes, when nothing is selected and the cursor is not on a typed construct", () => {
-    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)", "test");
+  it("neither prompt opens, && no source changes, when nothing is selected && the cursor is not on a typed construct", () => {
+    useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
     useCadUiStore.getState().reconcileSelectionWithElements([]);
     const beforeSourceText = useCadDocumentStore.getState().sourceText;
 

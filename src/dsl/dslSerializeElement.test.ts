@@ -44,7 +44,7 @@ const calls: ReadonlyArray<readonly [CadElementType, string, string]> = [
 const bareMutationTypes: ReadonlySet<CadElementType> =
   new Set(["edge", "extendTrim", "move", "symmetricMove", "pathReverse"]);
 
-describe("DSL nui 3 element serializer", () => {
+describe("DSL nui 4 element serializer", () => {
   it("serializes all 27 element types from their registry construction", () => {
     for (const [type, category, construction] of calls) {
       const element = minimal(type);
@@ -57,7 +57,7 @@ describe("DSL nui 3 element serializer", () => {
       } else if (type === "conditionalGroup" || type === "forGroup") {
         expect(block.close).toBeNull();
         expect(block.args).toEqual([]);
-        expect(block.header).toMatch(new RegExp(`^${category} ${element.name} \\(`));
+        expect(block.header).toMatch(category === "if" ? /^if \(/ : /^for i in range\(/);
       } else {
         expect(block).toMatchObject({
           header: bareMutationTypes.has(type) ? `${construction}(` : `${category} ${element.name} = ${construction}(`,
@@ -164,13 +164,13 @@ describe("DSL nui 3 element serializer", () => {
     const conditional = minimal("conditionalGroup");
     const loop = minimal("forGroup");
     expect(serializeElementStatementLogical(conditional, documentDslRefs([...referenceElements, conditional])))
-      .toBe("if ifブロック1 (true)");
+      .toBe("if (true)");
     expect(serializeElementStatementLogical(loop, documentDslRefs([...referenceElements, loop])))
-      .toBe("for forブロック1 (i, from: 0, count: 3, step: 1, showGenerated: false)");
+      .toBe("for i in range(from: 0, count: 3, step: 1)");
   });
 });
 
-describe("nui 3 activity serialization", () => {
+describe("nui 4 activity serialization", () => {
   const argTexts = (element: CadElement) =>
     serializeElementStatementBlock(element, flatRefs()).args.map((arg) => arg.text);
 

@@ -4,7 +4,7 @@ import { useCadUiStore, type CadElementSelection } from "../state/cadUiStore";
 
 /**
  * Applies a command's intended selection only after its document commit has
- * compiled and the document-store reconciliation subscriber has run.
+ * compiled && the document-store reconciliation subscriber has run.
  */
 export const commitDocumentChangeAndSelect = (
   change: Partial<DslDocumentData>,

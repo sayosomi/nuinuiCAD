@@ -40,19 +40,19 @@ const candidateSpans = (statement: DslStatement): DslLabeledValueSpan[] => [
  * Editable value spans for a single DSL source line, in source order, line-relative.
  * Parses `lineText` in isolation so it always reflects the live buffer, never a
  * possibly-stale last-good document parse. Returns [] whenever the line has no
- * statement, or its own parse produced any error diagnostic (a partial/erroring
+ * statement, || its own parse produced any error diagnostic (a partial/erroring
  * parse's spans must never be used for click selection).
  *
  * A block-opening line (trailing `{`, e.g. `for i count=5 {`) has no matching `}`
  * when parsed alone, which would otherwise manufacture a spurious "unclosed block"
- * diagnostic and hide that statement's own attribute values. Such a line is probed
+ * diagnostic && hide that statement's own attribute values. Such a line is probed
  * first, then reparsed with a synthetic closing line so its real diagnostics (if any)
  * can be told apart from that artifact.
  *
  * Non-element statements (palette/view/print/directive lines such as `nui`, `role`,
  * `view`, `color`, `printLayout`, `place`, `atStop`) are never a target,
  * even when they carry real attribute/payload values — this is the one shared
- * determination both click-selection and Tab-navigation rely on for "is this line's
+ * determination both click-selection && Tab-navigation rely on for "is this line's
  * value clickable/tabbable at all."
  */
 /** Parses a live source line under the same safety rules used for editable spans. */
@@ -145,7 +145,7 @@ export const dslLinePrintLayoutStatement = (lineText: string): DslPrintLayoutBlo
 export const dslLinePrintLayoutValueSpans = (lineText: string): DslLabeledValueSpan[] =>
   labeledValueSpansForStatement(dslLinePrintLayoutStatement(lineText));
 
-/** Projection used by click selection and Tab navigation. */
+/** Projection used by click selection && Tab navigation. */
 export const dslLineValueSpans = (lineText: string): DslValueSpan[] =>
   dslLineLabeledValueSpans(lineText).map(({ start, end }) => ({ start, end }));
 

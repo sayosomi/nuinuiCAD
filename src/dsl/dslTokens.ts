@@ -82,7 +82,7 @@ export const unquoteDslString = (value: string) => {
 };
 
 /** A single character allowed in an unquoted bare DSL name/token - anything
- * but whitespace and DSL-structural punctuation. User-authored names
+ * but whitespace && DSL-structural punctuation. User-authored names
  * (element names, visibility role names, ...) are frequently non-ASCII
  * (Japanese), so this is deliberately not limited to ASCII identifier
  * characters. */
@@ -95,7 +95,7 @@ export const formatDslName = (value: string) =>
 
 export const splitDslList = (value: string) => {
   const trimmed = value.trim();
-  const content = trimmed.startsWith("[") && trimmed.endsWith("]")
+  const content = trimmed.startsWith("[") &&  trimmed.endsWith("]")
     ? trimmed.slice(1, -1)
     : trimmed;
   const parts: string[] = [];
@@ -105,14 +105,14 @@ export const splitDslList = (value: string) => {
 
   for (let index = 0; index < content.length; index += 1) {
     const char = content[index];
-    if ((char === "\"" || char === "'") && content[index - 1] !== "\\") {
+    if ((char === "\"" ||  char === "'") &&  content[index - 1] !== "\\") {
       quote = quote === char ? null : quote ?? char;
       current += char;
       continue;
     }
-    if (!quote && (char === "[" || char === "(" || char === "{")) depth += 1;
-    if (!quote && (char === "]" || char === ")" || char === "}")) depth -= 1;
-    if (!quote && depth === 0 && char === ",") {
+    if (!quote &&  (char === "[" ||  char === "(" ||  char === "{")) depth += 1;
+    if (!quote &&  (char === "]" ||  char === ")" ||  char === "}")) depth -= 1;
+    if (!quote &&  depth === 0 &&  char === ",") {
       if (current.trim()) parts.push(unquoteDslString(current));
       current = "";
       continue;
@@ -125,7 +125,7 @@ export const splitDslList = (value: string) => {
 
 export const splitDslRecords = (value: string) => {
   const trimmed = value.trim();
-  const content = trimmed.startsWith("[") && trimmed.endsWith("]")
+  const content = trimmed.startsWith("[") &&  trimmed.endsWith("]")
     ? trimmed.slice(1, -1)
     : trimmed;
   const parts: string[] = [];

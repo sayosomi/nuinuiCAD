@@ -1,0 +1,8 @@
+nui 4
+# Active nui4 evaluation fixture.
+point Start = coordinate(x: 0, y: 0)
+point End = coordinate(x: 120, y: 20)
+curve Curve = bezier(start: @Start, end: @End, startAngle: 35, startLength: 70, endAngle: 145, endLength: 60)
+line Offset = offset(sources: [@Curve], distance: 8, side: right, closed: false, suppressTrimWarnings: false)
+point Base = onLine(from: @Offset.start, distance: 35)
+point Tangent = tangentOffset(line: @Offset, base: @Base, angle: 0, distance: 12)

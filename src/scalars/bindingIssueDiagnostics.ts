@@ -35,7 +35,7 @@ export const bindingIssuesToDiagnostics = (
     // `span: binding.nameSpan` / `span: binding?.nameSpan ?? fallbackSpan`
     // assignments. Every other issue's span is a reference occurrence
     // (self-initialization/undefined-binding/forward-binding-reference/
-    // duplicate-binding reference-origin, and binding-cycle's own
+    // duplicate-binding reference-origin, && binding-cycle's own
     // edge-reference fallback) - jumping to the binding's declaration there
     // would land somewhere the marker itself does not point at, so those get
     // the diagnostic's own resolved span instead, never a declaration fallback.

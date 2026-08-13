@@ -29,7 +29,7 @@ const lastStructuredElementIndex = (elements: CadElement[], element: CadElement,
 
 /**
  * Resolves "after element" after its complete serialized structure, including
- * multi-line statements and every child / else branch of a group. Source edits
+ * multi-line statements && every child / else branch of a group. Source edits
  * are rejected by the session revision guard before this is used for commit.
  */
 export const resolveCommandLineInsertionAnchor = (

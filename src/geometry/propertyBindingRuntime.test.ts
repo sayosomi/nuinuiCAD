@@ -100,7 +100,7 @@ describe("buildPropertyBindingRuntimeEntries", () => {
     ]);
   });
 
-  it("never emits an entry for text.text / group.printEnabled / forGroup.showGenerated, even if propertyBindings somehow contained one", () => {
+  it("emits entries for schema-typed text and group properties", () => {
     const text = textElement();
     const group = groupElement();
     const source = bindingSource(
@@ -114,7 +114,10 @@ describe("buildPropertyBindingRuntimeEntries", () => {
       ])
     );
     const entries = buildPropertyBindingRuntimeEntries(source, [text, group]);
-    expect(entries).toEqual([]);
+    expect(entries).toEqual([
+      { elementId: "label", parameterKey: "text", bindingId: "binding:t", expectedType: { kind: "string" } },
+      { elementId: "grp", parameterKey: "printEnabled", bindingId: "binding:p", expectedType: { kind: "boolean" } }
+    ]);
   });
 
   it("ignores a literal (non-binding) occurrence", () => {
@@ -154,7 +157,7 @@ describe("materializePropertyBoundElement", () => {
     expect(result.element).not.toBe(element);
   });
 
-  it("accepts a runtime value from a binding whose declared type is a narrower choice subset than the property (D07)", () => {
+  it("rejects a runtime value from a binding whose declared type is a narrower choice subset than the property", () => {
     const element = offsetLine();
     const evaluation: ScalarEvaluation = {
       status: "ok",
@@ -162,7 +165,7 @@ describe("materializePropertyBoundElement", () => {
       value: { kind: "choice", value: "right", options: ["right"] }
     };
     const result = materializePropertyBoundElement(element, sideEntry("binding:a"), () => evaluation);
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
   });
 
   it("fails closed when the binding is poisoned", () => {

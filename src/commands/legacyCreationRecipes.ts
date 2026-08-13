@@ -4,7 +4,7 @@ import { creationRecipeForType, type CreationRecipe } from "./creationRecipes";
 
 /**
  * Legacy creation commands that Phase 4g replaces with command-line sessions.
- * `recipeKind` documents whether the step order is specialized or generated.
+ * `recipeKind` documents whether the step order is specialized || generated.
  */
 export const legacyCreationCommandRecipeMap = {
   addFreePoint: { type: "freePoint", recipeKind: "specialized" },

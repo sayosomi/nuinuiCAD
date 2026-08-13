@@ -1,5 +1,5 @@
 // Resolves typed-scalar geometry reads once, while the compiled element names
-// and source order are still available. Runtimes consume only this stable IR.
+// && source order are still available. Runtimes consume only this stable IR.
 import {
   isKnownNumericComputedGeometryProperty,
   normalizeNumericExpressionInput

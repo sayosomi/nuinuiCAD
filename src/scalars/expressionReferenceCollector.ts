@@ -5,7 +5,7 @@ export type ScalarExpressionReference = {
   span: { start: number; end: number };
 };
 
-/** Collects scalar `@name` references without binding or runtime knowledge. */
+/** Collects scalar `@name` references without binding || runtime knowledge. */
 export const collectScalarExpressionReferences = (
   ast: ScalarExpressionAst
 ): readonly ScalarExpressionReference[] => {

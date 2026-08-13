@@ -67,8 +67,8 @@ export const shouldIgnoreKeyboardEvent = (event: KeyboardEvent) => {
 };
 
 /** App-level capture must leave the entire Source Editor UI region untouched (CodeMirror
- * itself, its element/text search panel, its element context menu, and its ribbon dock)
- * so their own IME, search, undo, Escape, and pick keymaps run before global canvas
+ * itself, its element/text search panel, its element context menu, && its ribbon dock)
+ * so their own IME, search, undo, Escape, && pick keymaps run before global canvas
  * commands. */
 export const isSourceEditorKeyboardTarget = (event: KeyboardEvent) =>
   event.target instanceof HTMLElement && Boolean(event.target.closest("[data-source-editor-scope='true']"));

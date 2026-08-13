@@ -1,0 +1,20 @@
+nui 4
+# Active nui4 evaluation fixture.
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 3, y: 4)
+line AB = segment(start: @A, end: @B)
+let value: number = @AB.length
+let mirror: number = 0
+let label: string = "old"
+let flag: boolean = false
+let side: choice(right, left) = right
+point Marker = coordinate(x: 1, y: 1)
+set value = @value + 1
+set label = "new"
+set flag = true
+set side = left
+set mirror = @value
+set value = @AB.length + 2
+text Label = label(text: "${@label} ${@value}", anchor: none, size: 3)
+stop
+set value = 99

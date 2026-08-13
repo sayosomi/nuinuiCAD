@@ -264,14 +264,14 @@ describe("createDslCompletionSource", () => {
 
   it("offers @name typed-binding completions for a number-kind field with a live @ prefix", async () => {
     // fromは未定義"A"へのダングリング参照(この文の意味自体はテスト対象外)。
-    const source = ["nui 3", "const Width: number = 10", "point P = offset(from: @A, dx: 10+@Wi, dy: 0)"].join("\n");
+    const source = ["nui 4", "const Width: number = 10", "point P = offset(from: @A, dx: 10+@Wi, dy: 0)"].join("\n");
     // "@Wi" is a deliberately partial (still-being-typed) reference - compile a
     // same-shape baseline with it removed so compileDslDocument doesn't treat
     // this mid-keystroke text as a genuinely unresolved, document-fatal typed
     // binding reference. Only `state`/`pos` below use the real dirty text,
     // mirroring how production completion resolves against the store's
     // last-good bindingAnalysis while the live buffer is still dirty.
-    const compileSource = ["nui 3", "const Width: number = 10", "point P = offset(from: @A, dx: 10, dy: 0)"].join("\n");
+    const compileSource = ["nui 4", "const Width: number = 10", "point P = offset(from: @A, dx: 10, dy: 0)"].join("\n");
     const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
     const compiled = compileDslDocument(compileSource, { assignedStatementIds });
@@ -304,10 +304,10 @@ describe("createDslCompletionSource", () => {
   });
 
   it("resolves attribute + @variable completion on a multi-line vertical-call continuation via the statement's logical projection", async () => {
-    const source = ["nui 3", "const Width: number = 10", "point P = offset(", "  from: @A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
+    const source = ["nui 4", "const Width: number = 10", "point P = offset(", "  from: @A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
     // See the previous test's comment: "@Wi" is deliberately partial, so
     // compile a same-shape (same line count) baseline with it removed.
-    const compileSource = ["nui 3", "const Width: number = 10", "point P = offset(", "  from: @A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
+    const compileSource = ["nui 4", "const Width: number = 10", "point P = offset(", "  from: @A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
     const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
     const compiled = compileDslDocument(compileSource, { assignedStatementIds });
@@ -377,13 +377,13 @@ describe("createDslCompletionSource", () => {
     // canonical vertical layout, so the lens text below is the joined
     // logical statement rather than a single physical row.
     const bodySource = ["point P = offset(", "  from: @A,", "  dx: 10+@Wi,", "  dy: 0", ")"].join("\n");
-    const source = ["nui 3", "const Width: number = 10", bodySource].join("\n");
+    const source = ["nui 4", "const Width: number = 10", bodySource].join("\n");
     // "@Wi" is deliberately partial (still-being-typed) - compile a same-shape
     // baseline with it removed so compileDslDocument doesn't treat this
     // mid-keystroke text as a genuinely unresolved, document-fatal reference.
     // `mainState`/the lens below still carry the real dirty "@Wi" text.
     const compileBodySource = ["point P = offset(", "  from: @A,", "  dx: 10,", "  dy: 0", ")"].join("\n");
-    const compileSource = ["nui 3", "const Width: number = 10", compileBodySource].join("\n");
+    const compileSource = ["nui 4", "const Width: number = 10", compileBodySource].join("\n");
     const statements = parseDsl(compileSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
     const compiled = compileDslDocument(compileSource, { assignedStatementIds });
@@ -434,14 +434,14 @@ describe("createDslCompletionSource", () => {
   // numericBindingCompiler.ts's own scope resolution for the same block).
   it("offers visible top-level typed const/let number bindings for a place attribute, not out-of-scope group-local ones", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const GlobalW: number = 100",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  const GroupW: number = 50",
       "}",
       "printLayout Layout1 (columns: 2) {",
-      "  place G (at: (0, 0), angle: 0+@Gl)",
+      "  place @G(at: (0, 0), angle: 0+@Gl)",
       "}"
     ].join("\n");
     // "@Gl" is deliberately partial (still-being-typed toward "@GlobalW") -
@@ -450,14 +450,14 @@ describe("createDslCompletionSource", () => {
     // document-fatal reference. `state`/`pos` below still use the real dirty
     // text.
     const compileSource = [
-      "nui 3",
+      "nui 4",
       "const GlobalW: number = 100",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  const GroupW: number = 50",
       "}",
       "printLayout Layout1 (columns: 2) {",
-      "  place G (at: (0, 0), angle: 0)",
+      "  place @G(at: (0, 0), angle: 0)",
       "}"
     ].join("\n");
     const statements = parseDsl(compileSource).statements;
@@ -503,7 +503,7 @@ describe("createDslCompletionSource", () => {
   // candidate for every printLayout/place numeric field.
   describe("printLayout/place @Element.property completion (regression)", () => {
     const buildSource = () => [
-      "nui 3",
+      "nui 4",
       "const GlobalW: number = 100",
       "const Flag: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
@@ -516,7 +516,7 @@ describe("createDslCompletionSource", () => {
       "  columns: 2,",
       "  scale: 1+@AB.length",
       ") {",
-      "  place G (at: (0, 0), angle: 0+@AB.length)",
+      "  place @G(at: (0, 0), angle: 0+@AB.length)",
       "}"
     ].join("\n");
 
@@ -628,7 +628,7 @@ describe("createDslCompletionSource", () => {
         numericVariables: [{ id: "local", name: "Local", value: 5 }]
       }
     ]);
-    const source = ["nui 3", "const GlobalLen: number = 15", ...bodyLines].join("\n");
+    const source = ["nui 4", "const GlobalLen: number = 15", ...bodyLines].join("\n");
     const statements = parseDsl(source).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
     const compiled = compileDslDocument(source, { assignedStatementIds });
@@ -782,7 +782,7 @@ describe("createDslCompletionSource", () => {
       expect(await Promise.resolve(completionSource({ state, pos, explicit: true } as never))).toBeNull();
     });
 
-    it("shows a real, visible completion tooltip from natural (non-explicit) typing through a live EditorView, and keeps narrowing it", async () => {
+    it("shows a real, visible completion tooltip from natural (non-explicit) typing through a live EditorView, && keeps narrowing it", async () => {
       // Regression coverage for a real Tauri report: typing `.` after an
       // element name must surface ElementName.property candidates through
       // the actual dslAutocompleteExtension/EditorView wiring - not just
@@ -864,7 +864,7 @@ describe("createDslCompletionSource", () => {
       parent.remove();
     });
 
-    it("Task 51 checklist: @ offers the typed binding, @Element. offers the property, both narrow and apply correctly in one live session", async () => {
+    it("Task 51 checklist: @ offers the typed binding, @Element. offers the property, both narrow && apply correctly in one live session", async () => {
       // The exact acceptance scenario from the Task 51 migration: a plain
       // numeric attribute must offer BOTH a typed const/let binding (@length)
       // and an element-property reference (@AB.length) - through the real
@@ -872,7 +872,7 @@ describe("createDslCompletionSource", () => {
       // same name ("length") shared by the binding and the property so a
       // regression that conflates the two would be caught here.
       const source = [
-        "nui 3",
+        "nui 4",
         "const length: number = 12.3456",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
@@ -920,7 +920,6 @@ describe("createDslCompletionSource", () => {
               typedDeclarationRanges: () => createTypedDeclarationRangeIndex(doc, compiled.statementMap!),
               scopeBodyRanges: () => createScopeBodyRangeIndex(doc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex),
               statementInfoByElementId: () => compiled.statementMap!.byElementId,
-              majorVersion: () => 3
             })
           ]
         }),
@@ -987,9 +986,9 @@ describe("createDslCompletionSource", () => {
       parent.remove();
     });
 
-    it("Task 51 checklist item 7: bare Element. offers no candidates in a nui 3 document", async () => {
+    it("Task 51 checklist item 7: bare Element. offers no candidates in a nui 4 document", async () => {
       const source = [
-        "nui 3",
+        "nui 4",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
         "line AB = segment(start: @A, end: @B)",
@@ -1021,7 +1020,6 @@ describe("createDslCompletionSource", () => {
               typedDeclarationRanges: () => new Map(),
               scopeBodyRanges: () => [],
               statementInfoByElementId: () => compiled.statementMap!.byElementId,
-              majorVersion: () => 3
             })
           ]
         }),
@@ -1051,15 +1049,15 @@ describe("createDslCompletionSource", () => {
 
 describe("choice value completion at a zero-length value (Task 51 manual E2E rerun)", () => {
   it("offers only the choice's own candidates, in declared order, right after a real delete lands the cursor mid-gap, and narrows/applies correctly", async () => {
-    // Real repro: an `offset` line's `side: right` value is selected and
+    // Real repro: an `offset` line's `side: right` value is selected &&
     // deleted (not typed character-by-character down to empty), which is
     // exactly the shape that exposed the bug - the resulting value gap before
-    // the required comma is wider than one separating space, and
+    // the required comma is wider than one separating space, &&
     // a real EditorView delete transaction leaves the cursor right where the
     // deleted text used to start: inside that gap, not at its far edge
     // (where dslArgScanner's trimSpan collapses the empty valueSpan to).
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
         "line AB = segment(start: @A, end: @B)",
@@ -1146,7 +1144,7 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
     });
     const applied = view.state.doc.toString();
     expect(applied).toBe(
-      "nui 3\n" +
+      "nui 4\n" +
       "point A = coordinate(x: 0, y: 0)\n" +
       "point B = coordinate(x: 10, y: 0)\n" +
       "line AB = segment(start: @A, end: @B)\n" +
@@ -1160,7 +1158,7 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
 
   it("does not regress @length / @AB.length numeric-attribute completion (kept alongside the choice fix as a boundary check)", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -1290,7 +1288,7 @@ describe("typed value completion (Task 39)", () => {
       // completion query happens against a separate dirty state with nothing
       // yet typed after "=" (an empty initializer would itself be a parse
       // error, so it can never be what compiledTyped compiles).
-      const committedSource = ["nui 3", "const flag: boolean = true"].join("\n");
+      const committedSource = ["nui 4", "const flag: boolean = true"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committedDoc = EditorState.create({ doc: committedSource }).doc;
       const committedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
@@ -1318,7 +1316,7 @@ describe("typed value completion (Task 39)", () => {
       // Committed/compiled from a fully-resolved reference ("@f" alone would
       // be an unresolved-reference compile error); the in-progress "@f"
       // partial only exists in a separate dirty live state.
-      const committedSource = ["nui 3", "const flagA: boolean = true", "const numA: number = 1", "const target: boolean = @flagA"].join("\n");
+      const committedSource = ["nui 4", "const flagA: boolean = true", "const numA: number = 1", "const target: boolean = @flagA"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committedDoc = EditorState.create({ doc: committedSource }).doc;
       const committedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
@@ -1344,7 +1342,7 @@ describe("typed value completion (Task 39)", () => {
 
     it("automatically opens completion after a Shift+2 DOM input inserts @ in a brand-new number declaration", async () => {
       const committedSource = [
-        "nui 3",
+        "nui 4",
         "const length: number = 12.3456",
         "const label: string = \"front\"",
         "const printed: boolean = true",
@@ -1426,7 +1424,7 @@ describe("typed value completion (Task 39)", () => {
 
     it("waits for a composed @ to finalize, then performs one non-explicit retry", async () => {
       const committedSource = [
-        "nui 3",
+        "nui 4",
         "const length: number = 12.3456",
         "const label: string = \"front\"",
         "const printed: boolean = true",
@@ -1506,7 +1504,7 @@ describe("typed value completion (Task 39)", () => {
     });
 
     it("does not retry a finalized composition when stale metadata has no typed binding candidates", async () => {
-      const committedSource = ["nui 3", "const length: number = 12.3456"].join("\n");
+      const committedSource = ["nui 4", "const length: number = 12.3456"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committedDoc = EditorState.create({ doc: committedSource }).doc;
       const insertion = "\nconst x: number = ";
@@ -1529,7 +1527,7 @@ describe("typed value completion (Task 39)", () => {
               // The range is live, but the catalog cannot resolve its binding
               // id. This is the fail-closed stale-metadata shape.
               bindingAnalysis: () => compiledTyped([
-                "nui 3",
+                "nui 4",
                 "point A = coordinate(x: 0, y: 0)",
                 "const unrelated: number = 1"
               ].join("\n")).bindingAnalysis,
@@ -1590,9 +1588,9 @@ describe("typed value completion (Task 39)", () => {
 
     it("deduplicates a shadowed name for a new declaration using mapped live offsets", async () => {
       const committedSource = [
-        "nui 3",
+        "nui 4",
         "const length: number = 1",
-        "if Scope (true) {",
+        "if (true) {",
         "const length: number = 2",
         "}"
       ].join("\n");
@@ -1621,7 +1619,7 @@ describe("typed value completion (Task 39)", () => {
     });
 
     it("offers boolean operators right after a completed reference operand", async () => {
-      const source = ["nui 3", "const flagA: boolean = true", "const target: boolean = @flagA "].join("\n");
+      const source = ["nui 4", "const flagA: boolean = true", "const target: boolean = @flagA "].join("\n");
       const compiled = compiledTyped(source);
       const doc = EditorState.create({ doc: source }).doc;
       const typedDeclarationRanges = createTypedDeclarationRangeIndex(doc, compiled.statementMap!);
@@ -1636,20 +1634,20 @@ describe("typed value completion (Task 39)", () => {
       const pos = source.length;
       const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
       expect(result).not.toBeNull();
-      expect(result!.options.map((option) => option.label)).toEqual(["&&", "||", "==", "!="]);
+      expect(result!.options.map((option) => option.label)).toEqual([" and ", " or ", "==", "!="]);
       expect(result!.options.every((option) => option.type === "keyword")).toBe(true);
     });
 
     it("keeps completing through a dirty edit made after the last compile, before any recompile settles", async () => {
       // Committed/compiled state: a valid document.
-      const committedSource = ["nui 3", "const flagA: boolean = true", "const target: boolean = true"].join("\n");
+      const committedSource = ["nui 4", "const flagA: boolean = true", "const target: boolean = true"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committedDoc = EditorState.create({ doc: committedSource }).doc;
       const committedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
 
-      // Dirty live buffer: several more characters typed into target's
+      // Dirty live ,buffer: several more characters typed into target's
       // initializer since that last compile - no recompile has run yet.
-      const insertion = " && @fla";
+      const insertion = "  and  @fla";
       const changes = ChangeSet.of({ from: committedSource.length, insert: insertion }, committedSource.length);
       const dirtySource = committedSource + insertion;
       const dirtyRanges = mapTypedDeclarationRangeIndex(committedRanges, changes);
@@ -1669,7 +1667,7 @@ describe("typed value completion (Task 39)", () => {
     });
 
     it("fails closed (no candidates) once the live statement is no longer a typed declaration", async () => {
-      const committedSource = ["nui 3", "const target: boolean = true"].join("\n");
+      const committedSource = ["nui 4", "const target: boolean = true"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committedDoc = EditorState.create({ doc: committedSource }).doc;
       const committedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
@@ -1677,7 +1675,7 @@ describe("typed value completion (Task 39)", () => {
       // so a fresh reparse of the live line no longer sees a typed
       // declaration at all - a structural edit fail-closed guard, not a
       // range-index invalidation.
-      const dirtySource = ["nui 3", "notconst target: boolean = true"].join("\n");
+      const dirtySource = ["nui 4", "notconst target: boolean = true"].join("\n");
       const state = EditorState.create({ doc: dirtySource });
       const completionSource = createDslCompletionSource({
         ...baseOptions(),
@@ -1692,7 +1690,7 @@ describe("typed value completion (Task 39)", () => {
     });
 
     it("fails closed when the tracked bindingId no longer resolves in the (stale) precomputed catalog", async () => {
-      const source = ["nui 3", "const target: boolean = true"].join("\n");
+      const source = ["nui 4", "const target: boolean = true"].join("\n");
       const compiled = compiledTyped(source);
       const doc = EditorState.create({ doc: source }).doc;
       const staleRanges = createTypedDeclarationRangeIndex(doc, compiled.statementMap!);
@@ -1705,7 +1703,7 @@ describe("typed value completion (Task 39)", () => {
         // unrelated declaration is deliberately placed at a different
         // statement index (via the leading extra statement) so its own
         // stable id never coincidentally collides with "target"'s.
-        bindingAnalysis: () => compiledTyped(["nui 3", "point A = coordinate(x: 0, y: 0)", "const other: number = 1"].join("\n")).bindingAnalysis,
+        bindingAnalysis: () => compiledTyped(["nui 4", "point A = coordinate(x: 0, y: 0)", "const other: number = 1"].join("\n")).bindingAnalysis,
         typedDeclarationRanges: () => staleRanges,
         scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
@@ -1716,7 +1714,7 @@ describe("typed value completion (Task 39)", () => {
     });
 
     it("fails closed for a brand-new declaration when no mapped live binding matches stale metadata", async () => {
-      const committedSource = ["nui 3", "const length: number = 1"].join("\n");
+      const committedSource = ["nui 4", "const length: number = 1"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committedDoc = EditorState.create({ doc: committedSource }).doc;
       const insertion = "\nconst x: number = @";
@@ -1728,7 +1726,7 @@ describe("typed value completion (Task 39)", () => {
       const state = EditorState.create({ doc: dirtySource });
       const completionSource = createDslCompletionSource({
         ...baseOptions(),
-        bindingAnalysis: () => compiledTyped(["nui 3", "const unrelated: number = 1"].join("\n")).bindingAnalysis,
+        bindingAnalysis: () => compiledTyped(["nui 4", "const unrelated: number = 1"].join("\n")).bindingAnalysis,
         typedDeclarationRanges: () => ranges,
         scopeBodyRanges: () => [],
         statementInfoByElementId: () => undefined
@@ -1743,7 +1741,7 @@ describe("typed value completion (Task 39)", () => {
       // Committed/compiled from a fully-resolved reference (an unresolved
       // "@gr" would itself be a compile error); the in-progress "@gr" only
       // exists in a separate dirty live state.
-      const committedSource = ["nui 3", "const greeting: string = \"hi\"", "text T = label(text: @greeting, anchor: none, size: 3)"].join("\n");
+      const committedSource = ["nui 4", "const greeting: string = \"hi\"", "text T = label(text: @greeting, anchor: none, size: 3)"].join("\n");
       const compiled = compiledTyped(committedSource);
       const dirtySource = committedSource.replace("@greeting", "@gr");
       const state = EditorState.create({ doc: dirtySource });
@@ -1771,7 +1769,7 @@ describe("typed value completion (Task 39)", () => {
       // required boolean value has no locatable value span at all, let alone
       // being a compile error, so this exercises the realistic in-progress
       // shape instead).
-      const committedSource = ["nui 3", "group G (printEnabled: true) {", "}"].join("\n");
+      const committedSource = ["nui 4", "group G (printEnabled: true) {", "}"].join("\n");
       const compiled = compiledTyped(committedSource);
       const dirtySource = committedSource.replace("printEnabled: true", "printEnabled: t");
       const state = EditorState.create({ doc: dirtySource });
@@ -1795,11 +1793,11 @@ describe("typed value completion (Task 39)", () => {
 
   describe("template hole", () => {
     it("offers string/number @name candidates inside an in-progress hole, excludes boolean/choice", async () => {
-      // The compiled/committed document must be a *complete, valid* nui 3
+      // The compiled/committed document must be a *complete, valid* nui 4
       // document - so the in-progress hole only ever exists in a separate,
       // dirty live EditorState, never in the text `compiledTyped` itself
       // compiles. The dirty string's outer quotes stay properly closed
-      // (`"{@"`, cursor placed right after "@", before the closing quote) so
+      // (`"${@"`, cursor placed right after "@", before the closing quote) so
       // the surrounding statement/attribute parse stays intact - Task 26's
       // scanTextTemplateLiteral is what actually detects the hole as open,
       // by being bounded at the cursor rather than at the real closing quote
@@ -1807,14 +1805,14 @@ describe("typed value completion (Task 39)", () => {
       // string would instead break the whole statement's parse, which is not
       // what this test is exercising.
       const committedSource = [
-        "nui 3",
+        "nui 4",
         "const greeting: string = \"hi\"",
         "const count: number = 1",
         "const flag: boolean = true",
         'text T = label(text: "placeholder", anchor: none, size: 3)'
       ].join("\n");
       const compiled = compiledTyped(committedSource);
-      const dirtySource = committedSource.replace('"placeholder"', '"{@"');
+      const dirtySource = committedSource.replace('"placeholder"', '"${@"');
       const state = EditorState.create({ doc: dirtySource });
       // statementMap's line *numbers* are content-length-independent, so
       // projecting them through the dirty doc directly (rather than the
@@ -1831,7 +1829,7 @@ describe("typed value completion (Task 39)", () => {
         scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
-      const pos = dirtySource.indexOf("{@") + "{@".length;
+      const pos = dirtySource.indexOf("${@") + "${@".length;
       const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
       expect(result).not.toBeNull();
       const labels = result!.options.map((option) => option.label);
@@ -1842,7 +1840,7 @@ describe("typed value completion (Task 39)", () => {
 
     it("offers typed candidates in a template hole on a brand-new element", async () => {
       const committedSource = [
-        "nui 3",
+        "nui 4",
         "const greeting: string = \"hi\"",
         "const count: number = 1",
         "const flag: boolean = true",
@@ -1850,7 +1848,7 @@ describe("typed value completion (Task 39)", () => {
       ].join("\n");
       const compiled = compiledTyped(committedSource);
       const committedDoc = EditorState.create({ doc: committedSource }).doc;
-      const insertion = '\ntext T = label(text: "{@" anchor: none size: 3)';
+      const insertion = '\ntext T = label(text: "${@", anchor: none, size: 3)';
       const dirtySource = committedSource + insertion;
       const ranges = mapTypedDeclarationRangeIndex(
         createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!),
@@ -1866,7 +1864,7 @@ describe("typed value completion (Task 39)", () => {
         scopeBodyRanges: () => [],
         statementInfoByElementId: () => compiled.statementMap!.byElementId
       });
-      const pos = dirtySource.indexOf("{@") + 2;
+      const pos = dirtySource.indexOf("${@") + 2;
       const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
       const labels = result?.options.map((option) => option.label) ?? [];
       expect(labels).toEqual(expect.arrayContaining(["greeting", "count"]));
@@ -1877,17 +1875,17 @@ describe("typed value completion (Task 39)", () => {
     it("Task 51 manual-E2E rerun: natural '{' then '@' through a live EditorView with no closing quote/paren still opens the popup with only string/number candidates", async () => {
       // Regression for the actual Tauri repro (51-manual-e2e-checklist.md
       // Scenario 4 step 4): every other template-hole test above keeps the
-      // *outer string quote* closed (`"{@"`) so only the hole itself is
+      // *outer string quote* closed (`"${@"`) so only the hole itself is
       // in-progress. Here neither the string nor the call `(...)` is ever
       // closed - exactly what natural typing at the end of the buffer looks
       // like before dslCallParser.ts's UNCLOSED_CALL_CODE fix,
       // parseDslCallStatement discarded the whole statement
       // (`statement: null`) once its closing `)` search failed, so
       // dslCompletionContextAt never reached the templateHole branch at all
-      // and no popup opened - through the real dslAutocompleteExtension/
+      // && no popup opened - through the real dslAutocompleteExtension/
       // EditorView wiring, not a direct completionSource call.
       const committedSource = [
-        "nui 3",
+        "nui 4",
         "const label: string = \"hi\"",
         "const length: number = 1",
         "const printed: boolean = true",
@@ -1924,21 +1922,21 @@ describe("typed value completion (Task 39)", () => {
 
       expect(completionStatus(view.state)).toBeNull();
 
-      // Two real typed keystrokes, "{" then "@" - never a closing quote or
+      // Two real typed keystrokes, "${" then "@" - never a closing quote ||
       // paren, matching the exact end-of-buffer natural-input repro.
       const openBrace = dirtySource.length;
       view.dispatch({
-        changes: { from: openBrace, insert: "{" },
-        selection: { anchor: openBrace + 1 },
-        annotations: Transaction.userEvent.of("input.type")
-      });
-      view.dispatch({
-        changes: { from: openBrace + 1, insert: "@" },
+        changes: { from: openBrace, insert: "${" },
         selection: { anchor: openBrace + 2 },
         annotations: Transaction.userEvent.of("input.type")
       });
+      view.dispatch({
+        changes: { from: openBrace + 2, insert: "@" },
+        selection: { anchor: openBrace + 3 },
+        annotations: Transaction.userEvent.of("input.type")
+      });
 
-      await expect.poll(() => view.state.doc.toString().slice(openBrace, openBrace + 2), { timeout: 1000, interval: 20 }).toBe("{@");
+      await expect.poll(() => view.state.doc.toString().slice(openBrace, openBrace + 3), { timeout: 1000, interval: 20 }).toBe("${@");
       await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
       expect(parent.querySelector(".cm-tooltip-autocomplete")).not.toBeNull();
       const labels = currentCompletions(view.state).map((option) => option.label);
@@ -1953,9 +1951,9 @@ describe("typed value completion (Task 39)", () => {
       // apply ("@length") already carries the "@" the user typed, replacing
       // the whole "@" token rather than being appended after it.
       view.dispatch({
-        changes: { from: openBrace + 1, to: openBrace + 2, insert: typeof option.apply === "string" ? option.apply : "@length" }
+        changes: { from: openBrace + 2, to: openBrace + 3, insert: typeof option.apply === "string" ? option.apply : "@length" }
       });
-      expect(view.state.doc.toString().slice(openBrace, openBrace + "{@length".length)).toBe("{@length");
+      expect(view.state.doc.toString().slice(openBrace, openBrace + "${@length".length)).toBe("${@length");
 
       view.destroy();
       parent.remove();
@@ -2054,7 +2052,7 @@ describe("dslAutocompleteExtension candidate navigation", () => {
   });
 
   it("leaves Space to numeric expression input even when its completion list is open", async () => {
-    const source = ["nui 3", "const GlobalWidth: number = 100", "let Copy: number = @Gl"].join("\n");
+    const source = ["nui 4", "const GlobalWidth: number = 100", "let Copy: number = @Gl"].join("\n");
     const statements = parseDsl(source).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
     const compiled = compileDslDocument(source, { assignedStatementIds });
@@ -2155,7 +2153,7 @@ describe("set target/rhs completion (Task 40)", () => {
 
   describe("target completion", () => {
     it("offers every visible let, excluding const, for a brand-new uncommitted \"set \" line in a clean document", async () => {
-      const committedSource = ["nui 3", "let a: number = 1", "const c: number = 2"].join("\n");
+      const committedSource = ["nui 4", "let a: number = 1", "const c: number = 2"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committed = rangesFor(compiled, committedSource);
       const insertion = "\nset ";
@@ -2174,7 +2172,7 @@ describe("set target/rhs completion (Task 40)", () => {
     });
 
     it("keeps target candidates available even while the currently-typed target name is itself unresolved", async () => {
-      const committedSource = ["nui 3", "let a: number = 1"].join("\n");
+      const committedSource = ["nui 4", "let a: number = 1"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committed = rangesFor(compiled, committedSource);
       const insertion = "\nset bogus = 1 +";
@@ -2191,10 +2189,10 @@ describe("set target/rhs completion (Task 40)", () => {
 
     it("resolves scope-appropriate candidates for a brand-new set typed inside a nested forGroup, excluding a let declared afterward", async () => {
       const committedSource = [
-        "nui 3",
+        "nui 4",
         "let outer: number = 1",
-        "if C (true) {",
-        "  for Loop (i, from: 0, count: 2) {",
+        "if (true) {",
+        "  for i in range(from: 0, count: 2) {",
         "  }",
         "}",
         "let after: number = 2"
@@ -2224,7 +2222,7 @@ describe("set target/rhs completion (Task 40)", () => {
 
   describe("RHS completion", () => {
     it("switches from target to RHS candidates within the same uncommitted burst once \"set name = \" is typed", async () => {
-      const committedSource = ["nui 3", "let flag: boolean = true"].join("\n");
+      const committedSource = ["nui 4", "let flag: boolean = true"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committed = rangesFor(compiled, committedSource);
       const insertion = "\nset flag = ";
@@ -2239,7 +2237,7 @@ describe("set target/rhs completion (Task 40)", () => {
     });
 
     it("keeps RHS candidates available for a valid target even while its own RHS is currently incomplete", async () => {
-      const committedSource = ["nui 3", "let a: number = 1", "let target: number = 2"].join("\n");
+      const committedSource = ["nui 4", "let a: number = 1", "let target: number = 2"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committed = rangesFor(compiled, committedSource);
       const insertion = "\nset target = 1 +";
@@ -2255,7 +2253,7 @@ describe("set target/rhs completion (Task 40)", () => {
     });
 
     it("filters reference candidates to the target's own declared type", async () => {
-      const committedSource = ["nui 3", "let flagA: boolean = true", "let numA: number = 1", "let target: boolean = false"].join("\n");
+      const committedSource = ["nui 4", "let flagA: boolean = true", "let numA: number = 1", "let target: boolean = false"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committed = rangesFor(compiled, committedSource);
       const insertion = "\nset target = @f";
@@ -2288,7 +2286,7 @@ describe("set target/rhs completion (Task 40)", () => {
     });
 
     it("returns no RHS candidates when the currently-typed target name does not resolve to any visible let", async () => {
-      const committedSource = ["nui 3", "let a: number = 1"].join("\n");
+      const committedSource = ["nui 4", "let a: number = 1"].join("\n");
       const compiled = compiledTyped(committedSource);
       const committed = rangesFor(compiled, committedSource);
       const insertion = "\nset bogus = ";
@@ -2320,15 +2318,15 @@ describe("set target completion via natural typing (Task 51 manual E2E rerun)", 
     // transaction would never actually exercise that keymap path. This test
     // drives the real two-step sequence instead: a genuine DOM keydown for
     // Space (running the actual keymap command, which closes the open
-    // keyword popup and returns false), then the separate input.type
+    // keyword popup && returns false), then the separate input.type
     // transaction that stands in for the browser's own character insertion.
     const committedSource = [
-      "nui 3",
+      "nui 4",
       "let flag: boolean = true",
       "let total: number = 0",
       "let show: boolean = false",
       "const limit: number = 10",
-      "if Branch (@flag) {",
+      "if (@flag) {",
       "} else {",
       "",
       "}"
@@ -2394,7 +2392,7 @@ describe("set target completion via natural typing (Task 51 manual E2E rerun)", 
 
     // The real Space keystroke: a genuine DOM KeyboardEvent, so
     // dslAutocompleteExtension's own Prec.highest "Space" keymap command
-    // (dismissCompletionForSpace) actually runs and closes the keyword
+    // (dismissCompletionForSpace) actually runs && closes the keyword
     // popup - not a hand-built transaction that bypasses the keymap layer.
     const notPrevented = fireEvent.keyDown(view.contentDOM, { key: " ", code: "Space" });
     expect(notPrevented).toBe(true); // the command returned false: it never consumes Space itself.
@@ -2440,7 +2438,7 @@ describe("set target completion via natural typing (Task 51 manual E2E rerun)", 
 describe("set target completion after a real delete transaction (Task 51 manual E2E rerun)", () => {
   // The actual manual repro was never character-by-character typing into a
   // blank line: an existing "set total = 99" line was duplicated, then the
-  // duplicate's "total = 99" was selected and deleted, landing the cursor at
+  // duplicate's "total = 99" was selected && deleted, landing the cursor at
   // "set |" via a delete transaction - never an input.type one. CodeMirror's
   // own autocomplete update-type classification (getUpdateType,
   // node_modules/@codemirror/autocomplete/dist/index.js) only ever sets its
@@ -2453,12 +2451,12 @@ describe("set target completion after a real delete transaction (Task 51 manual 
   // startCompletion(view) explicitly - CM does not reopen it by itself.
   const buildDeleteRepro = () => {
     const committedSource = [
-      "nui 3",
+      "nui 4",
       "let flag: boolean = true",
       "let total: number = 0",
       "let show: boolean = false",
       "const limit: number = 10",
-      "if Branch (@flag) {",
+      "if (@flag) {",
       "} else {",
       "  set total = 99",
       "  set total = 99",
@@ -2528,7 +2526,7 @@ describe("set target completion after a real delete transaction (Task 51 manual 
     const { view, parent } = buildDeleteRepro();
 
     // No startCompletion(view) call here on purpose: the real repro never
-    // pressed Ctrl-Space, and the popup must appear on its own.
+    // pressed Ctrl-Space, && the popup must appear on its own.
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
     const labels = currentCompletions(view.state).map((option) => option.label);
     expect(labels).toEqual(expect.arrayContaining(["flag", "total", "show"]));
@@ -2540,7 +2538,7 @@ describe("set target completion after a real delete transaction (Task 51 manual 
 
   it("sanity check: explicit startCompletion still resolves the correct candidates right after the same delete", async () => {
     // Isolates which layer is actually broken: if this passes while the test
-    // above fails, the candidate/context computation is fine and only the
+    // above fails, the candidate/context computation is fine && only the
     // automatic (non-explicit) trigger needs a fix - mirrors how the
     // existing zero-length choice-value delete test above already relies on
     // an explicit startCompletion(view) call after its own delete.
@@ -2559,7 +2557,7 @@ describe("set target completion after a real delete transaction (Task 51 manual 
 
 describe("set target recovery from the current dirty source (Task 51)", () => {
   const normalCommittedSource = [
-    "nui 3",
+    "nui 4",
     "let flag: boolean = true",
     "let total: number = 0",
     "let show: boolean = false"
@@ -2603,7 +2601,7 @@ describe("set target recovery from the current dirty source (Task 51)", () => {
 
   const rhsCompletionOptions = (committedType: "number" | "string", liveType: "number" | "string") => {
     const committedSource = [
-      "nui 3",
+      "nui 4",
       `let total: ${committedType} = ${committedType === "string" ? '"old"' : "0"}`,
       "let num: number = 1",
       "let text: string = \"text\""
@@ -2649,7 +2647,7 @@ describe("set target recovery from the current dirty source (Task 51)", () => {
   };
 
   it("keeps Task 40 recovery for an already-committed poisoned let and normal valid lets", async () => {
-    const committedSource = ["nui 3", "let broken: number = @broken"].join("\n");
+    const committedSource = ["nui 4", "let broken: number = @broken"].join("\n");
     const dirtySource = `${committedSource}\nset b`;
     const { source, state } = completionOptions(committedSource, dirtySource);
     const result = await Promise.resolve(source({ state, pos: dirtySource.length, explicit: true } as never));
@@ -2751,7 +2749,7 @@ describe("set target recovery from the current dirty source (Task 51)", () => {
   it("uses a newly typed lexical scope in a real EditorView and drops it outside that scope", async () => {
     const dirtySource = [
       normalCommittedSource,
-      "if Branch (@flag) {",
+      "if (@flag) {",
       "  let broken: number = @broken",
       "  set b",
       "}",

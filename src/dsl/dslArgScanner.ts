@@ -20,15 +20,10 @@ export type DslArgScanError = {
 
 /** A well-formed but currently-empty named value while the user is editing. */
 export const MISSING_ATTRIBUTE_VALUE_CODE = "missing-attribute-value";
-/** nui 3 requires this token before every subsequent call argument. */
+/** nui4 requires this token before every subsequent call argument. */
 export const MISSING_ARGUMENT_COMMA_CODE = "missing-argument-comma";
 /** A comma introduced an empty argument other than an allowed trailing comma. */
 export const EMPTY_ARGUMENT_CODE = "empty-argument";
-
-export type ScanCallArgsOptions = {
-  /** Enables nui 3's strict comma diagnostics. */
-  requireCommas?: boolean;
-};
 
 type NamedArgBoundary = {
   key: string;
@@ -61,7 +56,7 @@ const trimSpan = (source: string, span: DslSpan): DslSpan => {
   return { start, end };
 };
 
-/** Finds whitespace-led `key:` boundaries for recovery and diagnostics. */
+/** Finds whitespace-led `key:` boundaries for recovery && diagnostics. */
 const namedArgBoundaries = (source: string, callSpan: DslSpan): NamedArgBoundary[] => {
   const boundaries: NamedArgBoundary[] = [];
   let quote: string | null = null;
@@ -107,7 +102,7 @@ const namedArgBoundaries = (source: string, callSpan: DslSpan): NamedArgBoundary
   return boundaries;
 };
 
-/** Splits only depth-zero commas; commas in strings, arrays, and nested calls stay in values. */
+/** Splits only depth-zero commas; commas in strings, arrays, && nested calls stay in values. */
 const argumentSegments = (source: string, callSpan: DslSpan): ArgumentSegment[] => {
   const segments: ArgumentSegment[] = [];
   let quote: string | null = null;
@@ -171,13 +166,12 @@ const addNamedArg = (
 
 /**
  * Splits call arguments on top-level commas. Recovery retains whitespace-led
- * `key:` boundaries; strict mode reports every missing
- * comma while retaining the recovered argument spans for editor features.
+ * `key:` boundaries && reports every missing comma while retaining the
+ * recovered argument spans for editor features.
  */
 export const scanCallArgs = (
   logicalText: string,
   callSpan: DslSpan,
-  options: ScanCallArgsOptions = {},
 ): { args: ScannedArg[]; errors: DslArgScanError[] } => {
   const args: ScannedArg[] = [];
   const errors: DslArgScanError[] = [];
@@ -215,7 +209,7 @@ export const scanCallArgs = (
     }
 
     for (const [boundaryIndex, boundary] of boundaries.entries()) {
-      if (options.requireCommas && (boundaryIndex > 0 || positionalSpan.start !== positionalSpan.end)) {
+      if (boundaryIndex > 0 || positionalSpan.start !== positionalSpan.end) {
         errors.push({
           message: `引数「${boundary.key}」の前に「,」が必要です。`,
           span: boundary.keySpan,

@@ -4,7 +4,7 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { cycleElementActivity, setElementActivity, setElementsActivity } from "./selectionCommands";
 
 const twoPointsAndVariableSource = [
-  "nui 3",
+  "nui 4",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 1, y: 1)",
   "line AB = segment(start: @A, end: @B)",

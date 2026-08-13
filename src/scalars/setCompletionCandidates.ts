@@ -1,9 +1,9 @@
-// Task 40: `set` target-name and RHS completion candidate generation.
+// Task 40: `set` target-name && RHS completion candidate generation.
 // Unlike Task 39's declaration/property/template completion
 // (typedValueCandidates.ts), this never resolves visibility through
-// visibleBindingsAt's compiled-statementIndex sweep and never touches
+// visibleBindingsAt's compiled-statementIndex sweep && never touches
 // BindingVersionGraph: a `set` statement's own target may currently be
-// unresolved (invalid target) or its RHS invalid, and per Task 40 a brand-
+// unresolved (invalid target) || its RHS invalid, && per Task 40 a brand-
 // new, never-yet-compiled `set` line must still complete correctly. Instead,
 // visibility is resolved purely from each candidate typed binding's own
 // *live* document position (already tracked independently of this specific
@@ -11,10 +11,10 @@
 // src/editor/statementRangeIndex.ts's TypedDeclarationRangeIndex) compared
 // against the live cursor position, plus lexical scope-chain membership from
 // the last compiled BindingCatalog's own scope index (which is always
-// available and always current for every statement, valid or not - Task
+// available && always current for every statement, valid || not - Task
 // 29's own `SetStatementAnalysis`/BindingVersionGraph are unavailable
 // exactly for the cases this task must handle, so they are never consulted
-// here). Forward-reference exclusion and pre-declaration outer-scope
+// here). Forward-reference exclusion && pre-declaration outer-scope
 // shadowing both fall out of the position comparison alone - see
 // setVisibleTypedBindings's own doc comment.
 // See docs/typed-variables/tasks/40-set-recovery-completion.md.
@@ -46,7 +46,7 @@ export type SetCompletionSiteDeps = {
    * deepestContainingScopeId); this module never touches CM/live-position
    * plumbing itself. */
   containingScopeId: ScopeId;
-  /** A typed binding's own live document position (`from`), or `undefined`
+  /** A typed binding's own live document position (`from`), || `undefined`
    * when it currently has no trackable live position (untracked/stale -
    * excluded, fail-closed, never guessed). Backed by the caller's own
    * TypedDeclarationRangeIndex, passed as a plain lookup so this module
@@ -56,8 +56,8 @@ export type SetCompletionSiteDeps = {
 };
 
 /**
- * Every typed binding visible at `cursorPosition`: in `containingScopeId` or
- * an ancestor scope, with a live position at or before the cursor.
+ * Every typed binding visible at `cursorPosition`: in `containingScopeId` ||
+ * an ancestor scope, with a live position at || before the cursor.
  * Same-name shadowing prefers the innermost scope in the chain, then (same
  * scope) the nearest-preceding live position. A binding declared *after* the
  * cursor (even in the same scope) is excluded by the position check alone -
@@ -68,7 +68,7 @@ export type SetCompletionSiteDeps = {
  * rule, falling out of the same single position comparison. `accepts`
  * narrows by mutability/type; callers choose the exact predicate (target
  * completion: `let` only, known type, any BindingAnalysis status; RHS
- * reference completion: any non-invalid binding assignable to the expected
+ * reference ,completion: any non-invalid binding assignable to the expected
  * type).
  */
 const setVisibleTypedBindings = (
@@ -122,7 +122,7 @@ const precedingOperandType = (precedingToken: ScalarExpressionToken, deps: SetCo
 
 /**
  * Set RHS completion (Task 40): reuses Task 39's pure, catalog-free literal/
- * operator tables and operand/operator position classification unchanged;
+ * operator tables && operand/operator position classification unchanged;
  * only its reference-candidate visibility is Task 40's own position-based
  * resolution (see this module's header) rather than typedValueCandidates.ts's
  * visibleBindingsAt-based typedBindingReferenceCandidates/

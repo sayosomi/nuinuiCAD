@@ -1,5 +1,0 @@
-nui 3
-for Loop (i, from: 0, count: 2, step: 1) {
-  point A = coordinate(x: @i, y: 0)
-  point B = coordinate(x: @A.x + 10, y: 0)
-}

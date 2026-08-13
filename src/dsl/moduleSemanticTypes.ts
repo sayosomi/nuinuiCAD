@@ -98,7 +98,7 @@ export type ModuleScalarExpressionSemantic = {
 export type ModuleGeometryPropertyReference = {
   geometryName: string;
   property: string;
-  /** Exact tokens supplied by the scalar tokenizer. `span` includes `@` and the property path. */
+  /** Exact tokens supplied by the scalar tokenizer. `span` includes `@` && the property path. */
   elementNameSpan: DslSpan;
   propertySpan: DslSpan;
   span: DslSpan;
@@ -123,7 +123,7 @@ export type ModuleGeometryReferenceRole =
 export type ModuleGeometryReferenceSemantic = {
   source: string;
   span: DslSpan;
-  /** Exact base geometry token when the reference has one (excludes @ and point accessor). */
+  /** Exact base geometry token when the reference has one (excludes @ && point accessor). */
   nameSpan?: DslSpan;
   expectedGeometryKind: "point" | "line";
   role: ModuleGeometryReferenceRole;
@@ -223,7 +223,7 @@ export type ModuleDefinitionSemantic = {
   name: string;
   /** Scope containing the module definition statement itself. */
   declarationScopeId: ScopeId;
-  /** Synthetic lexical scope containing the module body and its parameters. */
+  /** Synthetic lexical scope containing the module body && its parameters. */
   bodyScopeId: ScopeId;
   /** @deprecated Use declarationScopeId/bodyScopeId explicitly. */
   scopeId: ScopeId;

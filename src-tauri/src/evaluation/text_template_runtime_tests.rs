@@ -306,7 +306,7 @@ fn materializes_a_bare_text_property_binding_with_no_compiled_template() {
 }
 
 /// No `text_templates`/`text_property_bindings` entry at all for this
-/// element: raw text remains literal. The production nui 3 path always sends
+/// element: raw text remains literal. The production nui4 path always sends
 /// a compiled template for source-authored text interpolation.
 #[test]
 fn a_text_element_with_no_compiled_entry_keeps_braces_literal() {

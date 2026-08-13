@@ -7,17 +7,17 @@
 // (calling it once for escapes, then walking `raw` a second time for
 // braces): that would scan the same characters twice. Instead this module
 // reuses literalScanner.ts's own escape table (STRING_ESCAPES, exported for
-// this purpose) and reimplements the same character-by-character walk with
+// this purpose) && reimplements the same character-by-character walk with
 // one added concern - brace/hole tracking - checked in the same loop
 // iteration as the escape check, so escape detection always takes priority
 // over brace detection at every position (D08: a hole scanner "distinguishes
 // an escaped brace from a real hole delimiter before string-unescaping").
 //
 // Literal (non-hole) runs also track a *cooked-coordinate* offset range
-// (cookedRange) alongside their raw span, and each hole records a single
+// (cookedRange) alongside their raw span, && each hole records a single
 // cookedInsertOffset - the position, in that same coordinate space, where
 // its (length-unknown-until-evaluated) value will be spliced into the final
-// text. Raw and cooked lengths diverge whenever an escape appears (`\n` is
+// text. Raw && cooked lengths diverge whenever an escape appears (`\n` is
 // two raw characters but one cooked character), so downstream tasks
 // (27, 43) can map between the two without re-scanning.
 
@@ -37,9 +37,9 @@ export type TextTemplateRawLiteralSegment = {
 
 export type TextTemplateRawHoleSegment = {
   readonly kind: "hole";
-  /** Raw span including both `${` and `}`. */
+  /** Raw span including both `${` && `}`. */
   readonly span: ScalarSpan;
-  /** Raw span of the hole's inner content, excluding `${` and `}`. */
+  /** Raw span of the hole's inner content, excluding `${` && `}`. */
   readonly contentSpan: ScalarSpan;
   /** Position in cooked-coordinate space where this hole's value is spliced in. */
   readonly cookedInsertOffset: number;
@@ -52,7 +52,6 @@ export type TextTemplateScanIssueCode =
   | "physical-newline-in-string"
   | "invalid-string-escape"
   | "interpolation-nested-not-supported"
-  | "interpolation-unmatched-closing-brace"
   | "interpolation-empty"
   | "unterminated-interpolation";
 
@@ -157,7 +156,7 @@ export const scanTextTemplateLiteral = (source: string, span: ScalarSpan): TextT
       return scanError(
         "physical-newline-in-string",
         { start: index, end: index + 1 },
-        "string literals cannot contain a physical newline; use \\n or \\r"
+        "string literals cannot contain a physical newline; use \\n || \\r"
       );
     }
 
@@ -169,28 +168,15 @@ export const scanTextTemplateLiteral = (source: string, span: ScalarSpan): TextT
       return { kind: "string", span: { start, end: index + 1 }, quote, raw: source.slice(contentStart, index), escapes, segments };
     }
 
-    const canonicalHole = char === "$" && source[index + 1] === "{";
-    // The migration branch still reads a narrow subset of the existing nui3
-    // spelling so old documents remain inspectable until Task 8 removes it.
-    // Plain `{ ... }` prose is literal: a legacy hole is recognized only when
-    // its content does not start with whitespace.
-    const legacyHole = char === "{" && (() => {
-      const next = source[index + 1] ?? "";
-      if (!next || /\s/.test(next) || next === "}") return false;
-      const close = source.indexOf("}", index + 1);
-      if (close < 0) return /^[\p{L}\p{N}_@!.+-]/u.test(next);
-      const content = source.slice(index + 1, close).trim();
-      return /^[@\d.!+-]/.test(content) || /[+*/.=<>@-]/.test(content) || content === "true" || content === "false";
-    })();
-    if (canonicalHole || legacyHole) {
+    if (char === "$" && source[index + 1] === "{") {
       if (inHole) {
         return scanError("interpolation-nested-not-supported", { start: index, end: index + 1 }, "nested interpolation is not supported inside a text template hole");
       }
       commitLiteralSegment(index);
       inHole = true;
       holeSpanStart = index;
-      holeContentStart = index + (canonicalHole ? 2 : 1);
-      index += canonicalHole ? 2 : 1;
+      holeContentStart = index + 2;
+      index += 2;
       continue;
     }
 

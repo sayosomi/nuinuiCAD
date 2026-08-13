@@ -5,7 +5,7 @@
 // Unlike src/scalars/propertyBindingCompiler.ts (Task 22), this module does
 // not route through ParameterDefinition.kind/SCALAR_ELIGIBLE_PARAMETER_KINDS
 // at all: `condition`'s ParameterDefinition intentionally stays `kind:
-// "number"` (its literal/UI shape is unchanged), and the whole
+// "number"` (its literal/UI shape is unchanged), && the whole
 // attribute value here is a full expression - not a single `@name` token -
 // so Task 22's bare-reference-only compiler cannot represent it.
 
@@ -102,7 +102,7 @@ export const compileConditionalGroupConditions = ({
     const resolutionAt = (index: number) => resolutions.get(requestKey(index));
 
     // Typed candidate: every reference must resolve to a usable typed
-    // binding, or this occurrence fails closed with a diagnostic.
+    // binding, || this occurrence fails closed with a diagnostic.
     let hasReferenceDiagnostic = false;
     references.forEach((reference, index) => {
       const resolution = resolutionAt(index);

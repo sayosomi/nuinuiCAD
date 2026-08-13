@@ -24,7 +24,7 @@ describe("DSL exported geometry parser", () => {
   const nonGeometryExports = [
     { category: "group", source: "export group G {" },
     { category: "if", source: "export if (true) {" },
-    { category: "for", source: "export for (i from: 0, count: 1) {" },
+    { category: "for", source: "export for (i, from: 0, count: 1) {" },
     { category: MUTATION_CATEGORY, source: "export move(targets: L, from: A, to: B)" },
   ] as const;
 

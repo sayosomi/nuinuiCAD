@@ -14,7 +14,7 @@ const compile = (source: string) => {
 
 describe("compileDslDocument: BindingIssue diagnostics stay non-gating", () => {
   it("still compiles (document !== null) when the only problem is a duplicate-binding BindingIssue", () => {
-    const compiled = compile(["nui 3", "const x: number = 1", "const x: number = 2"].join("\n"));
+    const compiled = compile(["nui 4", "const x: number = 1", "const x: number = 2"].join("\n"));
     // The pre-existing, unchanged fail-closed contract: a BindingIssue alone
     // degrades only the affected binding, not the whole document.
     expect(compiled.document).not.toBeNull();
@@ -24,7 +24,7 @@ describe("compileDslDocument: BindingIssue diagnostics stay non-gating", () => {
 
   it("excludes only the invalid binding from the scalar program; an independent valid binding still lowers", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "const x: number = 1",
       "const x: number = 2",
       "const y: number = 5"
@@ -39,7 +39,7 @@ describe("compileDslDocument: BindingIssue diagnostics stay non-gating", () => {
   });
 
   it("a document with a genuine compile-time typecheck error still fails to compile (document === null), unaffected by this change", () => {
-    const compiled = compile(["nui 3", 'const x: number = "not a number"'].join("\n"));
+    const compiled = compile(["nui 4", 'const x: number = "not a number"'].join("\n"));
     expect(compiled.document).toBeNull();
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "scalar-type-mismatch")).toBe(true);
   });

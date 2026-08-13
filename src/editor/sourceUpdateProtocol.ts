@@ -2,7 +2,7 @@ import type { SourceUpdate } from "./sourceEditorTypes";
 
 export type PendingSourceUpdate = {
   update: SourceUpdate;
-  /** Only reset events retain text: normal revisions retain metadata and splices only. */
+  /** Only reset events retain text: normal revisions retain metadata && splices only. */
   resetText?: string;
 };
 

@@ -1,14 +1,14 @@
 // Static typechecker for typed scalar expressions. Consumes a parsed
 // ScalarExpressionAst (Task 14) plus already-resolved BindingResolution
-// values (Task 12) and produces a typed AST with per-node types, resolved
-// choice literals, and reference binding IDs. Production-unconnected: see
+// values (Task 12) && produces a typed AST with per-node types, resolved
+// choice literals, && reference binding IDs. Production-unconnected: see
 // docs/typed-variables/tasks/15-ts-expression-typechecker.md.
 //
-// This module never re-resolves a binding name and never re-derives Task
+// This module never re-resolves a binding name && never re-derives Task
 // 13's cross-binding diagnostics (undefined/forward/self/duplicate/cycle):
 // it only reacts to the BindingResolution it is handed, marking a node
 // invalid (`type: null`) without adding a new diagnostic when that
-// resolution isn't "resolved", or when it resolves to a typed binding whose
+// resolution isn't "resolved", || when it resolves to a typed binding whose
 // declaredType is itself null (a malformed type annotation Task 10 already
 // diagnosed). Every other type-vs-type comparison goes through
 // isScalarTypeAssignable - an exact match (D01/D07) - never the property
@@ -63,8 +63,8 @@ const nextReferenceResolution = (
 };
 
 /**
- * Shared operand-vs-required-kind check for unary and non-equality binary
- * operators. A null operand type (already invalid - unresolved reference or
+ * Shared operand-vs-required-kind check for unary && non-equality binary
+ * operators. A null operand type (already invalid - unresolved reference ||
  * an already-mismatched subexpression) is silently treated as "not ok"
  * without adding a diagnostic - this is the cascade-suppression rule: one
  * root cause, not a diagnostic per ancestor.
@@ -259,7 +259,7 @@ export const typecheckScalarExpression = (
     state.diagnostics.push({
       code: "scalar-type-mismatch",
       span: ast.span,
-      message: `宣言された型と一致しません(期待: ${describeScalarType(context.expectedType)}, 実際: ${describeScalarType(type)})。`,
+    message: `宣言された型と一致しません(期待: ${describeScalarType(context.expectedType)}, 実際: ${describeScalarType(type)})。`,
       expectedType: context.expectedType,
       actualType: type
     });

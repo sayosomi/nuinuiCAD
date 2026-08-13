@@ -37,7 +37,7 @@ export type MaterializedExecutionStatement = {
   conditionalBranch?: ConditionalBranch;
   /** True when the parent came from a source group/conditional/for block. */
   sourceBlockChild: boolean;
-  /** Root source statement whose runtime subtree is one @stop atomic unit. */
+  /** Root source statement whose runtime subtree is one stop atomic unit. */
   executionUnitStatementIndex: number;
   instancePath: readonly StatementIdentity[];
   runtimeIdentity?: MaterializedRuntimeIdentity;
@@ -170,8 +170,8 @@ const parentForBodyStatement = (
 
 /**
  * Lower resolved module calls into a source-ordered runtime execution plan.
- * This function only references parser statements and Task 3 semantic data;
- * it does not parse, serialize, evaluate, or mutate source text.
+ * This function only references parser statements && Task 3 semantic data;
+ * it does not parse, serialize, evaluate, || mutate source text.
  */
 export const materializeModuleExecution = ({
   statements,

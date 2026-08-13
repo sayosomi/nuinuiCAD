@@ -8,7 +8,7 @@ describe("DSL set statement parser", () => {
   it("returns null for a non-set keyword", () => {
     expect(parse("const x: number = 1").statement).toBeNull();
     expect(parse("let x: number = 1").statement).toBeNull();
-    expect(parse("point A = coordinate(x: 0 y: 0)").statement).toBeNull();
+    expect(parse("point A = coordinate(x: 0,y: 0)").statement).toBeNull();
     expect(parse("var x = 1").statement).toBeNull();
   });
 

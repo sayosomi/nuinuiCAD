@@ -15,7 +15,7 @@ import {
   resolveParameterTargetAt,
   resolveParameterValueSpan,
 } from "./dslParameterSpans";
-import { nui3CanonicalElementStatements, type Nui3CanonicalElementStatement } from "./__fixtures__/nui3CanonicalStatements";
+import { nui4CanonicalElementStatements, type Nui4CanonicalElementStatement } from "./__fixtures__/nui4CanonicalStatements";
 
 const refs: CadElement[] = [
   { id: "A", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
@@ -30,12 +30,12 @@ const resolvers = (elements: CadElement[]): DslApplyArgsResolvers => ({
   nameContext: createElementNameContext([...refs, ...elements]), visibilityRoles: [{ id: "seam", name: "縫い代" }], createIntermediateId: createDefaultIntermediateId,
 });
 
-const isContainerElementType = (elementType: Nui3CanonicalElementStatement["elementType"]) =>
+const isContainerElementType = (elementType: Nui4CanonicalElementStatement["elementType"]) =>
   elementType === "group" || elementType === "conditionalGroup" || elementType === "forGroup";
 
 /** Parses+applies canonical text the same way the production compiler eventually will (C1), so
  * span resolution is always checked against the element the text actually produces. */
-const applyFixtureText = (fixture: Nui3CanonicalElementStatement, text: string) => {
+const applyFixtureText = (fixture: Nui4CanonicalElementStatement, text: string) => {
   const parsed = parseDslCallStatement(text, { opensBlock: isContainerElementType(fixture.elementType) });
   expect(parsed.diagnostics, text).toEqual([]);
   const statement = parsed.statement!;
@@ -62,14 +62,14 @@ const specialArgNames = new Set(["steps", "vars", "varIds", "id", "roles", "pare
  * `color` is universal for every category except mutation
  * (edge/extendTrim/move/symmetricMove/pathReverse): those types have no
  * drawable geometry of their own, so `color:` is rejected at parse time
- * (dslCallParser.ts's color-unsupported diagnostic) and never appears in
+ * (dslCallParser.ts's color-unsupported diagnostic) && never appears in
  * their fixtures.
  */
 const universalArgNames = new Set(["state", "color"]);
 
 /**
- * Two parameterKeys are never written to nui 3 text directly, by construction
- * of the P1 registry and P5 serializer (not a gap in P9): `placementMode` has
+ * Two parameterKeys are never written to nui 4 text directly, by construction
+ * of the P1 registry && P5 serializer (not a gap in P9): `placementMode` has
  * no arg at all; the inactive distance/ratio side is omitted by
  * `shouldSerializeConstructionArg`. Both are fixed/asserted in dedicated
  * tests below, not in the generic sweep.
@@ -94,11 +94,11 @@ const expectedArgText = (text: string, outer: { start: number; end: number }, pa
  * Bidirectional check for one canonical fixture text:
  *  - every ordinary arg the parser actually found (`payloadSpans`) is claimed by
  *    some parameterKey (catches P1/P9 mapping gaps — this is the "populated:
- *    every emitted arg resolves" requirement, and trivially holds for minimal too).
+ *    every emitted arg resolves" requirement, && trivially holds for minimal too).
  *  - every parameterKey resolves iff its arg is present in the text (this is the
  *    "minimal: present resolves, omitted defaults are null" requirement).
  */
-const checkFixtureSpans = (fixture: Nui3CanonicalElementStatement, text: string) => {
+const checkFixtureSpans = (fixture: Nui4CanonicalElementStatement, text: string) => {
   const { element, statement } = applyFixtureText(fixture, text);
   const present = new Set(Object.keys(statement.payloadSpans));
 
@@ -140,20 +140,21 @@ const checkFixtureSpans = (fixture: Nui3CanonicalElementStatement, text: string)
   }
 };
 
-describe("DSL nui 3 P9 parameter value span resolution", () => {
+describe("DSL nui 4 P9 parameter value span resolution", () => {
   describe("全27要素型の populated/minimal 網羅", () => {
-    for (const fixture of nui3CanonicalElementStatements) {
+    for (const fixture of nui4CanonicalElementStatements) {
       it(`resolves ${fixture.key} (populated)`, () => checkFixtureSpans(fixture, fixture.populated));
       it(`resolves ${fixture.key} (minimal)`, () => checkFixtureSpans(fixture, fixture.minimal));
     }
   });
 
   it("resolves the element name span for every fixture with a name", () => {
-    for (const fixture of nui3CanonicalElementStatements) {
+    for (const fixture of nui4CanonicalElementStatements) {
       // A bare mutation statement (edge/extend/move/mirrorMove/reverse) has
       // no `<category> <name> =` head at all - its compiled name is always
       // "", so there is no name span to resolve.
       if (elementTypesWithoutOwnDrawableGeometry.has(fixture.elementType)) continue;
+      if (fixture.elementType === "conditionalGroup" || fixture.elementType === "forGroup") continue;
       for (const text of [fixture.populated, fixture.minimal]) {
         const { element, statement } = applyFixtureText(fixture, text);
         const span = resolveParameterValueSpan(text, element, "name", {});
@@ -166,7 +167,7 @@ describe("DSL nui 3 P9 parameter value span resolution", () => {
   });
 
   it("resolves numericVariables records with content matching P5's own serialization", () => {
-    for (const fixture of nui3CanonicalElementStatements) {
+    for (const fixture of nui4CanonicalElementStatements) {
       for (const text of [fixture.populated, fixture.minimal]) {
         const { element } = applyFixtureText(fixture, text);
         for (const variable of element.numericVariables ?? []) {
@@ -179,7 +180,7 @@ describe("DSL nui 3 P9 parameter value span resolution", () => {
   });
 
   it("resolves bezierCurve intermediate records with content matching P5's own serialization", () => {
-    const fixture = nui3CanonicalElementStatements.find((item) => item.key === "bezierCurve")!;
+    const fixture = nui4CanonicalElementStatements.find((item) => item.key === "bezierCurve")!;
     const { element } = applyFixtureText(fixture, fixture.populated);
     const bezier = element as Extract<CadElement, { type: "bezierCurve" }>;
     const dslRefs = documentDslRefs([...refs, element]);
@@ -200,7 +201,7 @@ describe("DSL nui 3 P9 parameter value span resolution", () => {
 
   describe("placementMode・非アクティブ側・測定variableのscope(DSL上に直接表現されない)", () => {
     it("fixes placementMode to null and resolves only the active distance/ratio side", () => {
-      for (const fixture of nui3CanonicalElementStatements.filter((item) => item.key === "divisionPoint" || item.key === "lineDivisionPoint")) {
+      for (const fixture of nui4CanonicalElementStatements.filter((item) => item.key === "divisionPoint" || item.key === "lineDivisionPoint")) {
         for (const text of [fixture.populated, fixture.minimal]) {
           const { element } = applyFixtureText(fixture, text);
           const mode = (element as { placement: { kind: "distance" | "ratio" } }).placement.kind;
@@ -213,7 +214,7 @@ describe("DSL nui 3 P9 parameter value span resolution", () => {
     });
 
     it("prefers the element's placementMode over a stray inactive-side argument in hand-edited text", () => {
-      const text = "point p = between(start: A end: B distance: 5 ratio: 0.7)";
+      const text = "point p = between(start: A,end: B,distance: 5,ratio: 0.7)";
       const parsed = parseDslCallStatement(text);
       const spec = constructionFor("point", "between")!;
       const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
@@ -228,7 +229,7 @@ describe("DSL nui 3 P9 parameter value span resolution", () => {
   });
 
   it("resolves x/y sub-spans for a literal coordinate anchor (line accepts coordinate literals for any reference-kind parameter)", () => {
-    const text = "line L = segment(start: (12, -8) end: (0, 0))";
+    const text = "line L = segment(start: (12, -8),end: (0, 0))";
     const parsed = parseDslCallStatement(text);
     const spec = constructionFor("line", "segment")!;
     const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
@@ -246,7 +247,7 @@ describe("DSL nui 3 P9 parameter value span resolution", () => {
   });
 
   it("resolves x/y sub-spans nested inside a bezierCurve intermediate record", () => {
-    const text = "curve C = bezier(start: A end: B startAngle: 0 startLength: 30 endAngle: 0 endLength: 30 intermediates: [(5, 9):10:15:20])";
+    const text = "curve C = bezier(start: A,end: B,startAngle: 0,startLength: 30,endAngle: 0,endLength: 30,intermediates: [(5, 9):10:15:20])";
     const parsed = parseDslCallStatement(text);
     const spec = constructionFor("curve", "bezier")!;
     const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
@@ -261,7 +262,7 @@ describe("DSL nui 3 P9 parameter value span resolution", () => {
   });
 
   it("resolves spans in reordered, whitespace-padded, non-canonical text", () => {
-    const text = "point   p  =  offset( dy: 5   from: A  dx:  -3 )";
+    const text = "point   p  =  offset( dy: 5,from: A, dx:  -3 )";
     const parsed = parseDslCallStatement(text);
     const spec = constructionFor("point", "offset")!;
     const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
@@ -278,7 +279,7 @@ describe("DSL nui 3 P9 parameter value span resolution", () => {
 
   describe("resolveParameterTargetAt / resolveParameterKeyForValueSpan", () => {
     it("picks the most specific span containing the caret, and the reverse lookup agrees", () => {
-      const text = "point p = offset(from: A dx: 12 dy: -8)";
+      const text = "point p = offset(from: A, dx: 12, dy: -8)";
       const parsed = parseDslCallStatement(text);
       const spec = constructionFor("point", "offset")!;
       const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });
@@ -291,7 +292,7 @@ describe("DSL nui 3 P9 parameter value span resolution", () => {
     });
 
     it("returns null outside any resolvable span", () => {
-      const text = "point p = offset(from: A dx: 12 dy: -8)";
+      const text = "point p = offset(from: A, dx: 12, dy: -8)";
       const parsed = parseDslCallStatement(text);
       const spec = constructionFor("point", "offset")!;
       const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });

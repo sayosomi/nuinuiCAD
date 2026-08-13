@@ -1,7 +1,6 @@
 import { documentDslRefs, serializedStatementLines } from "../dsl/dslSerializer";
 import { serializeElementStatementBlockWithBlanks } from "../dsl/dslSerializeElement";
 import { DSL_INDENT } from "../dsl/dslTokens";
-import type { DslMajorVersion } from "../dsl/dslVersion";
 import { useCadDocumentStore, type DocumentMutationResult } from "../state/cadDocumentStore";
 import type { CadElement, ElementId } from "../types/geometry";
 
@@ -36,17 +35,15 @@ export const commitSourceCreationDraftInsertion = ({
   sourceInsertionLine,
   element,
   blankParameterKeys,
-  majorVersion,
   parentGroupId
 }: {
   elements: CadElement[];
   sourceInsertionLine: number;
   element: CadElement;
   blankParameterKeys: ReadonlySet<string>;
-  majorVersion: DslMajorVersion;
   parentGroupId?: ElementId;
 }): SourceCreationDraftCommit => {
-  const refs = documentDslRefs(elements, majorVersion);
+  const refs = documentDslRefs(elements);
   const statement = serializeElementStatementBlockWithBlanks(element, refs, blankParameterKeys);
   const depth = containerNestingDepth(elements, parentGroupId);
   const replacementLines = serializedStatementLines(statement, DSL_INDENT.repeat(depth));

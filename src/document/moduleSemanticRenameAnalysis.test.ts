@@ -14,13 +14,13 @@ const compileWithIds = (source: string) => {
 
 describe("module source-semantic rename analysis", () => {
   const source = [
-    "nui 3",
+    "nui 4",
     "module M(width: number) {",
     "  export point Public = coordinate(x: @width, y: 0)",
     "  point Private = coordinate(x: @width, y: 0)",
     "}",
-    "module I = M(width: 1)",
-    "module J = M(width: 2)",
+    "instance I = M(width: 1)",
+    "instance J = M(width: 2)",
     "point X = offset(from: @I::Public, dx: 1, dy: 0)"
   ].join("\n");
 
@@ -52,7 +52,7 @@ describe("module source-semantic rename analysis", () => {
 
   it("renames exported scalar declarations and all instance members without crossing segments", () => {
     const scalarSource = [
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  export const value: number = 1",
       "  export let label: string = \"\"",

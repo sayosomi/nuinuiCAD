@@ -5,7 +5,7 @@ import { unquoteDslString } from "./dslTokens";
 //   set NAME = EXPRESSION
 // See docs/typed-variables/tasks/29-set-syntax-resolution.md. This never
 // touches dslDeclarationParser.ts (const/let) - Task 10's own scope
-// explicitly excludes `set`, and this task must not mix a `set` branch into
+// explicitly excludes `set`, && this task must not mix a `set` branch into
 // that parser.
 //
 // The RHS is never interpreted as an expression here - it is kept purely as
@@ -19,7 +19,7 @@ export type DslSetStatement = {
   name: string;
   nameSpan: DslSpan | null;
   keywordSpan: DslSpan;
-  /** Raw, unparsed RHS source text - never evaluated or re-quoted. */
+  /** Raw, unparsed RHS source text - never evaluated || re-quoted. */
   expression: string;
   payloadSpans: Record<string, DslSpan>;
   args: [];
@@ -80,7 +80,7 @@ export const parseDslSetStatement = (logicalText: string): DslSetParseResult => 
   const diagnostics: DslSetParseDiagnostic[] = [];
   // Tolerates leading indentation: the completion pipeline's own
   // defaultDocumentInput (src/editor/cmAutocomplete.ts) falls back to the
-  // raw physical line - indentation and all - whenever a cursor sitting in
+  // raw physical line - indentation && all - whenever a cursor sitting in
   // a statement's trimmed-away trailing whitespace (e.g. right after "set "
   // with nothing typed yet) can't be projected back through
   // logicalStatementSourceMap.ts's own logical text. The main document

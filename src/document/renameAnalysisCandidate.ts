@@ -1,6 +1,5 @@
 import {
   compileDslDocument,
-  NEW_DOCUMENT_DSL_MAJOR_VERSION,
   planPrintLayoutSection,
   type CompiledDslDocument,
   type DslDocumentData
@@ -25,7 +24,7 @@ export type SerializerChangedStatements = {
   changedElementIds: Set<ElementId>;
   changedPrintLayoutIds: Set<string>;
   /**
-   * Present only when the printLayout plan and the source statement range
+   * Present only when the printLayout plan && the source statement range
    * prove an exact line-for-line correspondence. Callers must retain block
    * granularity when a layout is absent from this map.
    */
@@ -41,9 +40,8 @@ export const serializerChangedStatementLines = (
   // `document` non-null guarantees `majorVersion` non-null too (compileDslDocument only
   // returns a document once version validation succeeded); the fallback below is
   // defensive only, to satisfy the nullable static type.
-  const majorVersion = before.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION;
-  const refsBefore = documentDslRefs(before.document.elements, majorVersion);
-  const refsAfter = documentDslRefs(afterDocument.elements, majorVersion);
+  const refsBefore = documentDslRefs(before.document.elements);
+  const refsAfter = documentDslRefs(afterDocument.elements);
   const afterElementsById = new Map(afterDocument.elements.map((element) => [element.id, element]));
   const lines = new Set<number>();
   const changedElementIds = new Set<ElementId>();
@@ -78,7 +76,7 @@ export const serializerChangedStatementLines = (
       // printLayout is patched as one block. We may nevertheless narrow
       // occurrence metadata when (and only when) the generated plan has the
       // exact same number of lines as the source statement range. This is a
-      // structural proof, not a best-effort alignment across comments or
+      // structural proof, not a best-effort alignment across comments ||
       // other source-only lines.
       const rangeLength = info.range.endLine - info.range.startLine + 1;
       if (rangeLength === block.lines.length && block.lines.length === next.lines.length) {

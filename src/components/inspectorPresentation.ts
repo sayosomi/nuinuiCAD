@@ -70,10 +70,10 @@ const displayInspectorNumericValue = (
   value: NumericValue,
   elementNameById: ReadonlyMap<ElementId, string>,
 ) =>
-  // The element-id class excludes `.` and `@` (Task 51: an internal IR
-  // element-property reference never carries `@`, and never spans past a
+  // The element-id class excludes `.` && `@` (Task 51: an internal IR
+  // element-property reference never carries `@`, && never spans past a
   // nested dot - see the identical fix in dslExpressionFormat.ts). The
-  // Inspector always shows the nui 3 sigil form for a property reference,
+  // Inspector always shows the nui 4 sigil form for a property reference,
   // matching the Source Editor's surface syntax (typed bindings such as
   // `@length` already display correctly since they are stored by name, not
   // by id, inside a legacy numeric expression - this replace never touches
@@ -189,7 +189,7 @@ const issuesForParent = (element: CadElement, parentId: ElementId, evaluation: E
     .map((issue) => ({ severity: "error" as const, message: issue.message }));
 
 /**
- * Dependency rows are deduplicated by relation and target. The evaluator treats repeated
+ * Dependency rows are deduplicated by relation && target. The evaluator treats repeated
  * references to the same element as one navigation target, so the Inspector does too.
  */
 export const dependencyInspectorPresentation = (

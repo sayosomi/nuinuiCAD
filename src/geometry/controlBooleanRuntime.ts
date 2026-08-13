@@ -5,7 +5,7 @@
 //
 // Two independent, related pieces:
 // - showGenerated is a schema-typed property source compiled by the common
-//   property frontend and kept on this dedicated physical route until Task 8
+//   property frontend && kept on this dedicated physical route until Task 8
 //   removes the split.
 // - condition is a full typed boolean expression (conditionalGroupConditionCompiler.ts),
 //   resolved directly through the document's existing binding resolver via
@@ -43,9 +43,9 @@ export type ControlBooleanRuntimeSource = {
 
 /** Re-keys Task 25's compiled `conditionalGroupConditions` (statementIndex-
  * keyed occurrence map) into an elementId-keyed map, exactly once per
- * compiled document - mirrors `buildControlBooleanRuntimeEntries` above and
+ * compiled document - mirrors `buildControlBooleanRuntimeEntries` above &&
  * Task 23's `buildPropertyBindingRuntimeEntries`, never rebuilt per element
- * or per evaluation call. */
+ * || per evaluation call. */
 export const buildConditionalGroupConditionsByElementId = (
   conditionalGroupConditions: ReadonlyMap<string, TypedScalarExpression>,
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>
@@ -114,7 +114,7 @@ export type ControlBooleanGeometryResolveFn = (
  * (today's evaluation-inert behavior, exact parity); the resolved binding
  * value when bound, failing closed to `false` on anything other than
  * `{status:"ok", type.kind:"boolean", value.value:true}` (poison, wrong
- * runtime type, or an evaluation error) - mirrors
+ * runtime type, || an evaluation error) - mirrors
  * groupPrintEnabledRuntime.ts's `isGroupPrintEnabled` fail-closed shape.
  * Never affects iteration count/rows - this is a presentation-only signal.
  */

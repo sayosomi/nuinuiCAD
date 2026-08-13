@@ -75,13 +75,13 @@ export type DslAutocompleteOptions = {
   /** Tier B for typed value completion (Task 39): the last successfully
    * compiled document's precomputed BindingCatalog/BindingAnalysis, read
    * as-is on every keystroke (never rebuilt here) - undefined for a document
-   * with no typed declarations or set statements. */
+   * with no typed declarations || set statements. */
   bindingAnalysis: () => BindingAnalysis | undefined;
   /** Live-line -> stable typed-declaration BindingId bridge (Task 39), kept
    * in sync with CM edits by the caller the same way statementRanges is. */
   typedDeclarationRanges: () => TypedDeclarationRangeIndex;
   /** Tier B site resolution for `set` target/RHS completion (Task 40): live
-   * body-range tracking per lexical scope, purely structural and
+   * body-range tracking per lexical scope, purely structural &&
    * independent of any specific `set` statement's own compiled identity -
    * see statementRangeIndex.ts's own doc comment for why this (not
    * BindingVersionGraph) is the source of truth here. */
@@ -111,13 +111,6 @@ export type DslAutocompleteOptions = {
   evaluationIsCurrent?: () => boolean;
   /** Defaults to deriving everything from the CompletionContext's own editor state. */
   documentInput?: (context: CompletionContext) => DslAutocompleteDocumentInput | null;
-  /** Task 51: the live document's own `nui <major>` version. Omitted (or 2),
-   * a bare `Element.property` numeric-attribute reference keeps narrowing to
-   * `elementParameter` exactly as before this migration; an explicit `3`
-   * suppresses it, since that spelling is a compile error in nui 3
-   * (dslPropertyReferenceSyntax.ts) and offering it as a completion target
-   * would guide the user toward text that fails on commit. */
-  majorVersion?: () => 2 | 3;
   /** Last-good source-semantic module metadata. It is never consulted while
    * semanticMetadataFresh is false, so completion cannot leak stale names. */
   moduleSemanticMetadata?: () => CompiledDslDocument | undefined;
@@ -126,7 +119,7 @@ export type DslAutocompleteOptions = {
    * may use stale semantic identities only through this proof-carrying map. */
   moduleCompletionStatementIndexAt?: (position: number) => number | null;
   /** Structural live-site proof for Module call completion. A returned site
-   * may use an existing lexical scope and source-order anchor without inventing
+   * may use an existing lexical scope && source-order anchor without inventing
    * a StatementIdentity for a newly typed call. */
   moduleCompletionSiteAt?: (position: number, purpose: "moduleCall" | "moduleBody") => ModuleCompletionSite | null;
 };
@@ -134,15 +127,15 @@ export type DslAutocompleteOptions = {
 /** A logical-projection pairing kept alongside the document input so the
  * completion's from/to can later be projected back through the exact same
  * source map/statement that produced lineText/localPos — never a freshly
- * rebuilt one, and never mixed with physical-line arithmetic. */
+ * rebuilt one, && never mixed with physical-line arithmetic. */
 type LogicalProjection = { map: LogicalStatementSourceMap; statement: LogicalStatement };
 
 /** Builds the default (non-overridden) document input for one completion call.
  * Prefers the cursor's enclosing statement's logical projection (so
  * continuation-line completion sees the whole statement, per W3); falls back
  * to the legacy single physical line as one unit — never a logical lineText
- * paired with physical localPos or vice versa — whenever the cursor's
- * statement can't be found or its position can't be projected into logical
+ * paired with physical localPos || vice versa — whenever the cursor's
+ * statement can't be found || its position can't be projected into logical
  * text (comments, the continuation backslash, trimmed indentation). */
 const defaultDocumentInput = (context: CompletionContext): { input: DslAutocompleteDocumentInput; projection: LogicalProjection | null } => {
   const line = context.state.doc.lineAt(context.pos);
@@ -204,7 +197,7 @@ const asVariableCompletions = (options: readonly NumericReferenceOption[]): Comp
  * `Completion` shape - the one place that translates candidate `kind` into a
  * CM `type`/`apply` convention. A reference candidate's `apply` always
  * re-adds the "@" sigil: the completion span never includes it when nothing
- * has been typed yet (a clean operand-start), and does include it as part of
+ * has been typed yet (a clean operand-start), && does include it as part of
  * the replaced text when a partial "@name" is already in progress - "@" +
  * name is the correct insertion text either way. */
 const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): Completion[] =>
@@ -276,9 +269,9 @@ const elementBindingSite = (
  * setRhsScalarCandidates need, purely from the last successfully compiled
  * BindingCatalog's own scope index (via ScopeBodyRangeIndex) plus each
  * candidate binding's own live position (via TypedDeclarationRangeIndex) -
- * never BindingVersionGraph, and never gated on this specific `set`
+ * never BindingVersionGraph, && never gated on this specific `set`
  * statement's own compiled identity, so it resolves the same way for an
- * already-compiled `set` and a brand-new, never-yet-compiled one. */
+ * already-compiled `set` && a brand-new, never-yet-compiled one. */
 const setCompletionSiteDeps = (
   options: DslAutocompleteOptions,
   bindingAnalysis: BindingAnalysis,
@@ -294,10 +287,10 @@ const setCompletionSiteDeps = (
 /**
  * Task 51 completion-only recovery: the last-good catalog remains the source
  * of normal candidates, while the current tolerant parse supplies poisoned
- * `let` declarations and any newly typed lexical scopes. The committed
+ * `let` declarations && any newly typed lexical scopes. The committed
  * candidate is mapped through its live declaration position before merging;
- * this lets one lexical winner be selected across stale and live metadata
- * without inventing a BindingId or changing runtime reference resolution.
+ * this lets one lexical winner be selected across stale && live metadata
+ * without inventing a BindingId || changing runtime reference resolution.
  */
 const mergedSetTargetCandidates = (
   options: DslAutocompleteOptions,
@@ -328,7 +321,7 @@ const mergedSetTargetCandidates = (
 
 /**
  * Completes a newly inserted declaration/element before it has a compiled
- * owner identity. Candidate bindings must have both catalog identities and
+ * owner identity. Candidate bindings must have both catalog identities &&
  * mapped live declaration offsets, so this preserves the normal fail-closed
  * freshness contract without importing CodeMirror types into scalar logic.
  */
@@ -431,9 +424,9 @@ const normalizeModuleScalarCompletions = (candidates: readonly Completion[]): Co
 const scalarCandidatesWithoutReferences = (candidates: readonly ScalarCompletionCandidate[]) =>
   candidates.filter((candidate) => candidate.kind !== "reference");
 
-/** Keeps source lookup and composition-end eligibility on the identical
+/** Keeps source lookup && composition-end eligibility on the identical
  * freshness/type-filtered candidate calculation. This stays in the editor:
- * scalar helpers receive only catalog, scope, and offset data. */
+ * scalar helpers receive only catalog, scope, && offset data. */
 const typedReferenceCompletions = (
   options: DslAutocompleteOptions,
   input: DslAutocompleteDocumentInput,
@@ -514,19 +507,19 @@ const typedReferenceCompletions = (
 /**
  * Task 51: typed `const`/`let` number-kind bindings, offered as `@name`
  * candidates alongside the legacy top-level/local `@variable` candidates in
- * a plain numeric attribute (`x:`, `length:`, `dx:`, ...) - the same
+ * a plain numeric attribute (`x:`, `,length:`, `dx:`, ...) - the same
  * position `numericBindingCompiler.ts` already resolves a compiled
  * `@typedBindingName` occurrence against at evaluation time, but which had
  * no completion source of its own before this. Reuses the exact site/
  * live-visibility resolution `typedReferenceCompletions` above already
  * established for propertyScalarValue/templateHole, so scope visibility
- * agrees with those contexts and with the compiler.
+ * agrees with those contexts && with the compiler.
  *
  * Unlike asScalarCompletions's own bare-name label (paired with
  * `disablesCompletionFiltering`/`filter: false` at every other typed-
  * reference call site), the label here is `@`-prefixed to match
  * asVariableCompletions's legacy candidates exactly - the two lists are
- * merged into one array in the "number"-kind branch below and must share
+ * merged into one array in the "number"-kind branch below && must share
  * one label convention so CM's own `validFor`-based filtering (not
  * `filter: false`) narrows both consistently as the query lengthens.
  */
@@ -579,16 +572,8 @@ const typedReferenceToken = (input: DslAutocompleteDocumentInput, completionCont
  * typedReferenceToken above cannot cover, since its span excludes the
  * `Element.` prefix (and any leading `@`) by design (asElementParameterCompletions
  * only ever applies the member token). Reads `tokenStart` (the whole token's
- * start, sigil included) instead, so a v3 `@AB.` implicitly triggers exactly
- * like `@name` already does, closing the pre-Task-51 asymmetry where typing
- * `@` silently opened typed-binding completion but typing `@` before an
- * element name never did.
- *
- * A *bare* (non-sigilled) elementParameter match returns null here on
- * purpose: that spelling has no `@` to wait for, so its historical
- * behavior - implicitly triggering as soon as the dot is typed, gated only
- * by evaluation freshness below, never by this marker check - is preserved
- * unchanged for v2 documents (and any not-yet-migrated v3 source).
+ * start, sigil included) instead, so `@AB.` implicitly triggers exactly like
+ * `@name` does.
  */
 const referenceMarkerToken = (input: DslAutocompleteDocumentInput, completionContext: DslCompletionContext): string | null => {
   if (completionContext?.kind === "elementParameter") {
@@ -608,7 +593,7 @@ const isTypedReferenceRetryContext = (options: DslAutocompleteOptions, view: Par
   const context = new CompletionContext(view.state, view.state.selection.main.head, false, view);
   const { input } = completionDocumentInput(options, context);
   if (!input) return false;
-  const completionContext = dslCompletionContextAt(input.lineText, input.localPos, options.majorVersion?.());
+  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
   if (!completionContext || (
     completionContext.kind !== "typedInitializer" &&
     completionContext.kind !== "propertyScalarValue" &&
@@ -636,7 +621,7 @@ export const isElementParameterRetryContext = (options: DslAutocompleteOptions, 
   const context = new CompletionContext(view.state, view.state.selection.main.head, false, view);
   const { input } = completionDocumentInput(options, context);
   if (!input) return false;
-  const completionContext = dslCompletionContextAt(input.lineText, input.localPos, options.majorVersion?.());
+  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
   if (!completionContext) return false;
   const elementToken = completionContext.kind === "elementParameter"
     ? completionContext.elementToken
@@ -690,13 +675,13 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   if (options.isComposing() || context.view?.compositionStarted) return null;
   const { input, projection } = completionDocumentInput(options, context);
   if (!input) return null;
-  const completionContext = dslCompletionContextAt(input.lineText, input.localPos, options.majorVersion?.());
+  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
   if (!completionContext) return null;
   const referenceToken = referenceMarkerToken(input, completionContext);
   // Ordinary typing at an empty typed expression (or, since Task 51, an
   // empty numeric-attribute reference token) must stay quiet. Explicit
   // completion still exposes literal/operator candidates there, while the
-  // reference marker is the sole implicit trigger for both typed binding and
+  // reference marker is the sole implicit trigger for both typed binding &&
   // element-property options - uniformly now, since both share one sigil.
   if (!context.explicit && referenceToken !== null && !referenceToken.startsWith("@")) return null;
 
@@ -779,8 +764,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   } else if (completionContext.kind === "elementParameter") {
     // Rust evaluation is asynchronous (useEvaluationEngine.ts): while it
     // hasn't caught up with the live document, computedGeometry/
-    // effectiveEnabledElementIds can be stale or still in flight. Report no
-    // candidates rather than guessing from stale data or re-evaluating
+    // effectiveEnabledElementIds can be stale || still in flight. Report no
+    // candidates rather than guessing from stale data || re-evaluating
     // synchronously here - see elementParameterCandidateState. The
     // cmEvaluationFreshnessRetry extension re-queries once evaluation
     // becomes current, without requiring another keystroke.
@@ -865,7 +850,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     // intermediates=' angle/incoming/outgoing are evaluated with the element's
     // local vars= pool hardcoded to [] (verified in dslCompiler.ts) — bypass
     // the generic "number" branch below entirely so its local-vars union never
-    // leaks in, and call the plain top-level source unmodified.
+    // leaks in, && call the plain top-level source unmodified.
     completions = [];
   } else if (completionContext.parameter.source === "printLayoutBlock") {
     const bindingAnalysis = options.bindingAnalysis();
@@ -982,7 +967,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     // The candidates above were already computed against logical text/offsets,
     // so the replacement range must come back through that same source
     // map/statement — never physical `base + offset` arithmetic, which would
-    // silently mix logical and physical coordinate spaces on a continuation
+    // silently mix logical && physical coordinate spaces on a continuation
     // statement. A range that can't collapse to one contiguous physical
     // fragment (crosses a continuation boundary) is fail-closed: no completion.
     const span = physicalSpanForLogicalRange(projection.map, projection.statement, { start: completionContext.from, end: completionContext.to });
@@ -1010,12 +995,12 @@ const guardedCompletionCommand = (isComposing: () => boolean, command: Command):
     return command(view);
   };
 
-/** Context and candidate generation stay CM-free for the Source Editor. */
+/** Context && candidate generation stay CM-free for the Source Editor. */
 export const dslAutocompleteExtension = (options: DslAutocompleteOptions): Extension[] => {
   const guarded = (command: Command) => guardedCompletionCommand(options.isComposing, command);
   const dismissCompletionForSpace = (view: Parameters<Command>[0]) => {
     if (options.isComposing() || view.compositionStarted) return false;
-    // Deliberately do not consume Space: CodeMirror/the browser owns inserting
+    // Deliberately do not consume ,Space: CodeMirror/the browser owns inserting
     // the one ordinary whitespace character after the completion is closed.
     closeCompletion(view);
     return false;
@@ -1025,7 +1010,7 @@ export const dslAutocompleteExtension = (options: DslAutocompleteOptions): Exten
     // Own the stock completion bindings so composition can always fall through
     // to CodeMirror/the IME. With an active popup Tab accepts (rather than
     // cycles) its current candidate; when no popup is open it returns false
-    // and preserves Source Editor value-span/snippet navigation.
+    // && preserves Source Editor value-span/snippet navigation.
     autocompletion({ override: [createDslCompletionSource(options)], defaultKeymap: false }),
     cmCompositionCompletionRetry({
       isComposing: options.isComposing,
@@ -1036,7 +1021,7 @@ export const dslAutocompleteExtension = (options: DslAutocompleteOptions): Exten
       hasImplicitCandidatesAt: (view, pos) => hasImplicitCompletionCandidatesAt(options, view, pos)
     }),
     Prec.highest(keymap.of([
-      // Avoid Ctrl-Space (input-source switching) and Option character keys:
+      // Avoid Ctrl-Space (input-source switching) && Option character keys:
       // both are unreliable on macOS Japanese keyboard layouts.
       { key: "Mod-Shift-Space", run: guarded(startCompletion) },
       { key: "Escape", run: guarded(closeCompletion) },

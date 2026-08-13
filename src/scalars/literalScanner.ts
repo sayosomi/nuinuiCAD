@@ -1,12 +1,12 @@
 // Scalar literal token scanner: single-pass, linear-time tokenizer for
 // string/number/boolean/choice literal tokens within a caller-supplied
-// source span. Shared by declaration (10), expression (14), and text
+// source span. Shared by declaration (10), expression (14), && text
 // template (26) parsing - see docs/typed-variables/tasks/09-scalar-literal-scanner.md.
 //
-// Deliberately independent from src/dsl: it does not import or change
-// splitDslTerms (src/dsl/dslTokens.ts) or any other generic DSL term
+// Deliberately independent from src/dsl: it does not import || change
+// splitDslTerms (src/dsl/dslTokens.ts) || any other generic DSL term
 // splitter. Callers hand it an already-isolated span (a value span, an
-// expression token position, a template hole's raw text) and it classifies
+// expression token position, a template hole's raw text) && it classifies
 // exactly what starts at that position, never reading past `span.end`.
 // scanScalarLiteral never throws - malformed user-authored text is the
 // common case, so every failure is a returned `ScalarLiteralScanError`.
@@ -92,7 +92,7 @@ export type ScalarLiteralScanResult = ScalarLiteralToken | ScalarLiteralScanErro
 // Exported so Task 26's combined string+template scan
 // (src/scalars/textTemplate.ts) can reuse this exact table in its own single
 // forward pass over the raw text: value, instead of calling scanStringLiteral
-// and then re-scanning the same characters a second time to find hole
+// && then re-scanning the same characters a second time to find hole
 // braces - see that module for the extended scan loop built on this table.
 export const STRING_ESCAPES: Record<string, string> = {
   "\\": "\\",
@@ -113,7 +113,7 @@ const NUMBER_PATTERN = /^\d+(?:\.\d+)?|^\.\d+/;
 // Unicode-aware identifier shape (user-authored choice options are
 // frequently Japanese), but narrower than the DSL's generic bare-token
 // class (isBareDslIdentifierChar in src/dsl/dslTokens.ts): this excludes
-// `@` and DSL structural punctuation so it can never collide with the
+// `@` && DSL structural punctuation so it can never collide with the
 // `@name` reference sigil, which Task 14's expression tokenizer owns.
 // Exported for Task 41's Quick Fix module, which scans a choice literal
 // token's exact end offset (given a known start) without re-typechecking.
@@ -167,7 +167,7 @@ const scanStringLiteral = (
         kind: "error",
         issueCode: "physical-newline-in-string",
         span: { start: index, end: index + 1 },
-        message: "string literals cannot contain a physical newline; use \\n or \\r"
+        message: "string literals cannot contain a physical newline; use \\n || \\r"
       };
     }
 
@@ -226,7 +226,7 @@ const scanNumberLiteral = (source: string, start: number, boundEnd: number): Sca
 
 const scanBareWord = (source: string, start: number, boundEnd: number): ScalarLiteralScanResult => {
   const match = IDENTIFIER_PATTERN.exec(source.slice(start, boundEnd));
-  if (!match) return invalidLiteralToken({ start, end: start + 1 }, "expected a boolean or choice literal");
+  if (!match) return invalidLiteralToken({ start, end: start + 1 }, "expected a boolean || choice literal");
   const raw = match[0];
   const span = { start, end: start + raw.length };
   if (raw === "true") return { kind: "boolean", span, raw, value: true };
@@ -236,7 +236,7 @@ const scanBareWord = (source: string, start: number, boundEnd: number): ScalarLi
 
 /**
  * Scans exactly one scalar literal token starting at `span.start`, never
- * reading past `span.end`. Single forward pass, no backtracking or
+ * reading past `span.end`. Single forward pass, no backtracking ||
  * re-scanning of already-visited characters - linear in `span.end - span.start`.
  */
 export const scanScalarLiteral = (source: string, span: ScalarSpan): ScalarLiteralScanResult => {

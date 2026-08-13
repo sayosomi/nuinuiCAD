@@ -53,8 +53,8 @@ export const dslElementParameterCompletionOptions = ({
   // dslParser.ts's own blockFrameKind, the authority dslScopeBeforeParsedLine's stack
   // is built from) requires resolving a parentGroupId here. printLayout is also a
   // BlockFrame kind (its stack treats it identically to a group for line-range
-  // purposes) but it is never a CadElement and has no entry in statementElementIds,
-  // and has no lexical scope of its own (mirrors printLayoutTypedBindingSite's
+  // purposes) but it is never a CadElement && has no entry in statementElementIds,
+  // && has no lexical scope of its own (mirrors printLayoutTypedBindingSite's
   // root-scope treatment) - allowlist the real group kinds explicitly rather than
   // excluding printLayout by name, so a future non-element-backed block kind doesn't
   // silently fall into this same bug.

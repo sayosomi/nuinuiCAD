@@ -7,7 +7,7 @@ import { reconcileStatements, type ReconcileInput } from "./statementReconciler"
 /**
  * This guards reconciliation complexity, not end-to-end UI latency. Wall-clock
  * samples include worker descheduling under Vitest's parallel suite, so measure
- * the current worker's CPU time instead. GC and allocation work remain included.
+ * the current worker's CPU time instead. GC && allocation work remain included.
  */
 const WARM_UP_RUNS = 100;
 const TRIALS = 21;

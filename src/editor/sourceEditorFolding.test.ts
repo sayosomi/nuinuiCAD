@@ -9,7 +9,7 @@ import { createStatementRangeIndex } from "./statementRangeIndex";
 describe("sourceEditorFolding structural rows", () => {
   it("resolves only collapsed folds from their visible opening and terminal rows", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
@@ -18,7 +18,7 @@ describe("sourceEditorFolding structural rows", () => {
       "  dx: 10,",
       "  dy: 0",
       ")",
-      "if Choice (true) {",
+      "if (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
       "  point E = coordinate(x: 1, y: 1)",
@@ -30,7 +30,7 @@ describe("sourceEditorFolding structural rows", () => {
     const ranges = createStatementRangeIndex(doc, compiled.statementMap!);
     const group = compiled.document!.elements.find((element) => element.name === "G")!;
     const multiline = compiled.document!.elements.find((element) => element.name === "B")!;
-    const conditional = compiled.document!.elements.find((element) => element.name === "Choice")!;
+    const conditional = compiled.document!.elements.find((element) => element.type === "conditionalGroup")!;
     const collapsed = new Map([
       [group.id, { expanded: false }],
       [multiline.id, { statementExpanded: false }],
@@ -55,7 +55,7 @@ describe("sourceEditorFolding structural rows", () => {
 
   it("offers an expanded-by-default target for an ordinary multiline statement", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  from: @A,",
@@ -81,8 +81,8 @@ describe("sourceEditorFolding structural rows", () => {
 
   it("places controls on independent brace rows and leaves both markers visible", () => {
     const source = [
-      "nui 3",
-      "if Choice (true)",
+      "nui 4",
+      "if (true)",
       "{",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
@@ -104,8 +104,8 @@ describe("sourceEditorFolding structural rows", () => {
 
   it("projects then and else targets independently when both are collapsed", () => {
     const source = [
-      "nui 3",
-      "if Choice (true) {",
+      "nui 4",
+      "if (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
       "  point E = coordinate(x: 1, y: 1)",
@@ -139,12 +139,12 @@ describe("sourceEditorFolding module definitions", () => {
 
   it("creates a source-only target keyed by the compiled StatementIdentity", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module M(a: number) {",
       "  let x: number = @a",
       "  point P = coordinate(x: @x, y: 0)",
       "}",
-      "module I = M(a: 10)"
+      "instance I = M(a: 10)"
     ].join("\n");
     const compiled = compileModule(source);
     const definition = compiled.moduleSemanticAnalysis!.definitions[0]!;
@@ -167,8 +167,8 @@ describe("sourceEditorFolding module definitions", () => {
 
   it("uses the opening brace row for multiline headers and standalone braces", () => {
     for (const source of [
-      ["nui 3", "module M(", "  a: number", ") {", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n"),
-      ["nui 3", "module M(a: number)", "{", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n")
+      ["nui 4", "module M(", "  a: number", ") {", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n"),
+      ["nui 4", "module M(a: number)", "{", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n")
     ]) {
       const compiled = compileModule(source);
       const definition = compiled.moduleSemanticAnalysis!.definitions[0]!;
@@ -190,14 +190,14 @@ describe("sourceEditorFolding module definitions", () => {
 
   it("creates an independent parameter-list target only for multiline non-empty lists", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module M(",
       "  a: choice(通常, 反転),",
       "  b: number",
       ") {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
-      "module I = M(a: 通常, b: 10)"
+      "instance I = M(a: 通常, b: 10)"
     ].join("\n");
     const compiled = compileModule(source);
     const definition = compiled.moduleSemanticAnalysis!.definitions[0]!;
@@ -222,8 +222,8 @@ describe("sourceEditorFolding module definitions", () => {
     ]);
 
     for (const singleLineSource of [
-      "nui 3\nmodule M(a: number, b: number) {\n}",
-      "nui 3\nmodule M() {\n}"
+      "nui 4\nmodule M(a: number, b: number) {\n}",
+      "nui 4\nmodule M() {\n}"
     ]) {
       const singleLine = compileModule(singleLineSource);
       const singleDefinition = singleLine.moduleSemanticAnalysis!.definitions[0]!;

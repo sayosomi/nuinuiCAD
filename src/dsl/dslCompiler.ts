@@ -95,7 +95,7 @@ const profileIdByToken = (profiles: VisibilityProfile[], token: string) => {
 
 const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
 
-// printLayout/place predates source-level geometry references and is kept on
+// printLayout/place predates source-level geometry references && is kept on
 // its existing group-name path for this task. Ordinary construction geometry
 // continues through the strict `@` resolver in dslReferences.ts.
 const resolvePrintGroupId = (token: string, index: NameIndex, line: number, diagnostics: DslDiagnostic[]) => {
@@ -675,13 +675,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         ).length;
     } else {
       const stopStatement = parsed.statements[atStopIndex];
-      const stopText = parsed.logicalStatementByRangeFrom.get(stopStatement.documentRange.from)?.logicalText ?? "";
-      diagnostics.push(warning(
-        stopStatement.line,
-        stopText.trimStart().startsWith("@stop")
-          ? "@stop は文書全体の適用でのみ有効なため無視されます。"
-          : "stop は文書全体の適用でのみ有効なため無視されます。"
-      ));
+      diagnostics.push(warning(stopStatement.line, "stop は文書全体の適用でのみ有効なため無視されます。"));
     }
   }
 

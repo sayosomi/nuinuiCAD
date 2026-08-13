@@ -41,7 +41,7 @@ export type LogicalStatementSourceMap = {
 export type SourceMapResult<T> = { ok: true; value: T } | { ok: false; reason: "revision-mismatch" };
 
 /** Maps a logical offset to a real source position. A normalized continuation
- * separator is associated with the preceding or following physical fragment. */
+ * separator is associated with the preceding || following physical fragment. */
 export const logicalOffsetToPhysical = (
   map: LogicalStatementSourceMap,
   statement: LogicalStatement,
@@ -64,8 +64,8 @@ export const logicalOffsetToPhysical = (
 
 /** Inverse of logicalOffsetToPhysical: maps a real source position to its
  * logical offset. Positions that fall outside every physical fragment (a
- * trailing comment, a full-line comment inside an open call, or trimmed
- * continuation-line indentation) have no logical counterpart and return null. */
+ * trailing comment, a full-line comment inside an open call, || trimmed
+ * continuation-line indentation) have no logical counterpart && return null. */
 export const physicalToLogicalOffset = (
   map: LogicalStatementSourceMap,
   statement: LogicalStatement,
@@ -116,7 +116,7 @@ const netDepthDelta = (code: string) => {
 };
 
 /**
- * Derived projection only. Callers retain ownership of the normalized source and
+ * Derived projection only. Callers retain ownership of the normalized source &&
  * revision; all multi-line parsing clients must consume this projection rather
  * than reimplementing continuation recognition.
  */
@@ -177,7 +177,7 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
       const nextCode = nextLine !== null ? splitDslComment(nextLine).code : "";
       const nextIsStructural = nextLine !== null && structuralKind(nextCode) !== null;
       if (nextIsBlank || nextIsStructural) {
-        // Containment boundary: a blank line, a structural line, or EOF
+        // Containment boundary: a blank line, a structural line, || EOF
         // terminates an unclosed call as an error scoped to this statement
         // only, instead of swallowing the rest of the document.
         invalidContinuationLines.push(cursor + 1);

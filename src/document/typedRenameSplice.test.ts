@@ -39,7 +39,7 @@ const entriesForRename = (
 
 describe("buildTypedRenameSplices", () => {
   it("produces one splice per touched physical line, in ascending order", () => {
-    const source = ["nui 3", "const base: number = 1", "let derived: number = @base"].join("\n");
+    const source = ["nui 4", "const base: number = 1", "let derived: number = @base"].join("\n");
     const compiled = compile(source);
     const result = buildTypedRenameSplices(source, compiled, entriesForRename(compiled, "base", "renamed"));
     expect(result.ok).toBe(true);
@@ -47,23 +47,23 @@ describe("buildTypedRenameSplices", () => {
     expect(result.splices.map((splice) => splice.startLine)).toEqual([2, 3]);
     expect(result.splices).toEqual([...result.splices].sort((a, b) => a.startLine - b.startLine));
     const patched = applyLineSplices(source, result.splices);
-    expect(patched).toBe(["nui 3", "const renamed: number = 1", "let derived: number = @renamed"].join("\n"));
+    expect(patched).toBe(["nui 4", "const renamed: number = 1", "let derived: number = @renamed"].join("\n"));
   });
 
   it("merges two occurrences of the same binding on one physical line into a single splice", () => {
-    const source = ["nui 3", "let a: number = 1", "let total: number = @a + @a"].join("\n");
+    const source = ["nui 4", "let a: number = 1", "let total: number = @a + @a"].join("\n");
     const compiled = compile(source);
     const result = buildTypedRenameSplices(source, compiled, entriesForRename(compiled, "a", "renamed"));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.splices.map((splice) => splice.startLine)).toEqual([2, 3]);
     const patched = applyLineSplices(source, result.splices);
-    expect(patched).toBe(["nui 3", "let renamed: number = 1", "let total: number = @renamed + @renamed"].join("\n"));
+    expect(patched).toBe(["nui 4", "let renamed: number = 1", "let total: number = @renamed + @renamed"].join("\n"));
   });
 
   it("leaves comments, blank lines, and unrelated statements byte-identical", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "# a leading comment",
       "const base: number = 1",
       "",
@@ -85,7 +85,7 @@ describe("buildTypedRenameSplices", () => {
   });
 
   it("patches only the declaration line for a rename with zero referencing occurrences", () => {
-    const source = ["nui 3", "const lonely: number = 1"].join("\n");
+    const source = ["nui 4", "const lonely: number = 1"].join("\n");
     const compiled = compile(source);
     const result = buildTypedRenameSplices(source, compiled, entriesForRename(compiled, "lonely", "renamed"));
     expect(result.ok).toBe(true);
@@ -94,13 +94,13 @@ describe("buildTypedRenameSplices", () => {
   });
 
   it("returns no splices when the entry list is empty", () => {
-    const source = ["nui 3", "const lonely: number = 1"].join("\n");
+    const source = ["nui 4", "const lonely: number = 1"].join("\n");
     const compiled = compile(source);
     expect(buildTypedRenameSplices(source, compiled, [])).toEqual({ ok: true, splices: [] });
   });
 
   it("rejects atomically when a projected span does not match the expected old name", () => {
-    const source = ["nui 3", "const base: number = 1", "let derived: number = @base"].join("\n");
+    const source = ["nui 4", "const base: number = 1", "let derived: number = @base"].join("\n");
     const compiled = compile(source);
     const entries = entriesForRename(compiled, "base", "renamed").map((entry) =>
       entry.oldName === "base" ? { ...entry, oldName: "wrong" } : entry
@@ -110,7 +110,7 @@ describe("buildTypedRenameSplices", () => {
   });
 
   it("rejects atomically on duplicate/overlapping projected spans", () => {
-    const source = ["nui 3", "const base: number = 1", "let derived: number = @base"].join("\n");
+    const source = ["nui 4", "const base: number = 1", "let derived: number = @base"].join("\n");
     const compiled = compile(source);
     const entries = entriesForRename(compiled, "base", "renamed");
     const duplicated = [...entries, entries[entries.length - 1]];
@@ -119,7 +119,7 @@ describe("buildTypedRenameSplices", () => {
   });
 
   it("rejects atomically on a non-contiguous (out-of-range) projection", () => {
-    const source = ["nui 3", "const base: number = 1"].join("\n");
+    const source = ["nui 4", "const base: number = 1"].join("\n");
     const compiled = compile(source);
     const target = compiled.bindingAnalysis!.catalog.bindingsById.get(typedBindingIdByName(compiled, "base"))!;
     const entries: TypedRenameSpliceEntry[] = [
@@ -135,7 +135,7 @@ describe("buildTypedRenameSplices", () => {
   });
 
   it("rejects atomically when statementIndex is out of range", () => {
-    const source = ["nui 3", "const base: number = 1"].join("\n");
+    const source = ["nui 4", "const base: number = 1"].join("\n");
     const compiled = compile(source);
     const entries: TypedRenameSpliceEntry[] = [
       { statementIndex: 999, span: { start: 0, end: 4 }, oldName: "base", newName: "renamed" }

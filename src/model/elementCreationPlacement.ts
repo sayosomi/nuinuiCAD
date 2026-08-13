@@ -42,7 +42,7 @@ const sharedPath = (left: readonly ElementId[], right: readonly ElementId[]) => 
 /**
  * Resolves the structural scope at a bare flat index without consulting UI
  * folding. Anchored creation uses creationPlacementForTarget instead; this
- * fallback only adopts a scope that exists on both sides of the boundary, or
+ * fallback only adopts a scope that exists on both sides of the boundary, ||
  * immediately after a group header before its first child.
  */
 const parentGroupAtInsertionIndex = (elements: CadElement[], insertionIndex: number) => {
@@ -72,7 +72,7 @@ const branchForConditionalGroupInsertion = (
 /**
  * Resolves a creation target independently from the evaluator cutoff. The
  * target determines group membership; references must remain both earlier than
- * the target and within the manual evaluation boundary.
+ * the target && within the manual evaluation boundary.
  */
 export const creationPlacementForInsertion = (
   elements: CadElement[],

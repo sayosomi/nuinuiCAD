@@ -1,8 +1,8 @@
-// End-to-end coverage for Task 25: compiles real nui 3 source through the
+// End-to-end coverage for Task 25: compiles real nui 4 source through the
 // production document pipeline, builds the elementId-keyed control-boolean
-// entries/condition map, and evaluates through evaluateElements - proving
+// entries/condition map, && evaluates through evaluateElements - proving
 // the whole compile -> build -> resolve -> evaluate path works together for
-// both conditionalGroup.condition and forGroup.showGenerated.
+// both conditionalGroup.condition && forGroup.showGenerated.
 
 import { describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "../document/canonicalDocument";
@@ -14,14 +14,18 @@ import {
 } from "./controlBooleanRuntime";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
   const result = compileCanonicalText(baseline, source);
   expect(result.status).not.toBe("fatal");
   return result.doc;
 };
 
 const idByName = (compiled: LastGoodDslDocument, name: string): string => {
-  const element = compiled.document.elements.find((candidate) => candidate.name === name);
+  const fallbackIndex = name === "Inner" ? 1 : 0;
+  const element = compiled.document.elements.find((candidate) => candidate.name === name) ??
+    (name === "Outer" || name === "Inner" || name === "Loop" || name === "繰返し"
+      ? compiled.document.elements.filter((candidate) => candidate.type === "forGroup")[fallbackIndex]
+      : undefined);
   if (!element) throw new Error(`no element named "${name}" in compiled document`);
   return element.id;
 };
@@ -43,9 +47,9 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
     // A leading unrelated typed declaration is required for scalarAnalysis
     // (and therefore this compiler) to run at all in production wiring.
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "const _unused: number = 0",
-      "if C (true) {",
+      "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -59,9 +63,9 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("bare boolean binding reference condition selects the correct branch", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let flag: boolean = false",
-      "if C (@flag) {",
+      "if (@flag) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -75,9 +79,9 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("comparison condition (typed number binding) selects the correct branch", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "const n: number = 5",
-      "if C (@n > 10) {",
+      "if (@n > 10) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -91,12 +95,12 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("resolves a geometry-property condition against earlier computed geometry", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
-      "if C (@AB.length > 0) {",
+      "if (@AB.length > 0) {",
       "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
       "  point Else = coordinate(x: 1, y: 1)",
@@ -108,12 +112,12 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
     expect(result.conditionInactiveElementIds?.has(idByName(compiled, "Else"))).toBe(true);
   });
 
-  it("logical && condition (typed boolean bindings) selects the correct branch", () => {
+  it("logical  and  condition (typed boolean bindings) selects the correct branch", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let a: boolean = true",
       "let b: boolean = false",
-      "if C (@a && @b) {",
+      "if (@a  and  @b) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -127,12 +131,12 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("a poisoned typed condition disables both branches (matches legacy poison semantics)", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
       "line D = segment(start: @Z1, end: @Z2, state: disabled)",
       "let flag: boolean = @D.length > 0",
-      "if C (@flag) {",
+      "if (@flag) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -147,8 +151,8 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("a plain boolean condition (no typed declarations at all) is evaluated", () => {
     const compiled = compileCanonical([
-      "nui 3",
-      "if C (true) {",
+      "nui 4",
+      "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -162,13 +166,13 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("a typed condition inside a forGroup template resolves the same active branch on every generated iteration", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let flag: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
-      "for 繰返し (i, from: 0, count: 3, step: 1) {",
-      "  if C (@flag) {",
+      "for i in range(from: 0, count: 3, step: 1) {",
+      "  if (@flag) {",
       "    line Then = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "  } else {",
       "    line Else = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: true, baseLines: [@AB])",
@@ -196,11 +200,11 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler", () => {
   it("showGenerated: false (literal) never affects iteration count or generated rows", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
-      "for 繰返し (i, from: 0, count: 3, step: 1, showGenerated: false) {",
+      "for i in range(from: 0, count: 3, step: 1, showGenerated: false) {",
       "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
@@ -212,12 +216,12 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
 
   it("showGenerated: false (bound to a typed boolean binding) never affects iteration count or generated rows", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let 表示: boolean = false",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
-      "for 繰返し (i, from: 0, count: 3, step: 1, showGenerated: @表示) {",
+      "for i in range(from: 0, count: 3, step: 1, showGenerated: @表示) {",
       "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
@@ -237,12 +241,12 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
 
   it("showGenerated: true (bound) is reflected in forGroupEffectiveShowGeneratedIds without affecting rows", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let 表示: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
-      "for 繰返し (i, from: 0, count: 3, step: 1, showGenerated: @表示) {",
+      "for i in range(from: 0, count: 3, step: 1, showGenerated: @表示) {",
       "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
@@ -254,11 +258,11 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
 
   it("an outer hidden loop removes every nested generated descendant from the draw mask", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let outerShown: boolean = false",
       "let innerShown: boolean = true",
-      "for Outer (i, from: 0, count: 2, step: 1, showGenerated: @outerShown) {",
-      "  for Inner (j, from: 0, count: 2, step: 1, showGenerated: @innerShown) {",
+      "for i in range(from: 0, count: 2, step: 1, showGenerated: @outerShown) {",
+      "  for j in range(from: 0, count: 2, step: 1, showGenerated: @innerShown) {",
       "    point P = coordinate(x: 10, y: 20)",
       "  }",
       "}"
@@ -280,7 +284,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
 
   it("a poisoned showGenerated binding fails closed to hidden without affecting iteration/rows", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
       "line D = segment(start: @Z1, end: @Z2, state: disabled)",
@@ -288,7 +292,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
-      "for 繰返し (i, from: 0, count: 3, step: 1, showGenerated: @表示) {",
+      "for i in range(from: 0, count: 3, step: 1, showGenerated: @表示) {",
       "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { lineSplicesToSourceTextChanges } from "./lineSpliceChanges";
 
-const source = (count: number) => ["nui 3", ...Array.from({ length: count }, (_, index) =>
+const source = (count: number) => ["nui 4", ...Array.from({ length: count }, (_, index) =>
   `point P${index} = coordinate(x: ${index}, y: ${index + 1})`
 )].join("\n");
 
@@ -48,7 +48,7 @@ describePerformanceGates("CodeMirror Phase 2a performance baseline", () => {
         lineSplicesToSourceTextChanges(text, [{
           startLine: Math.floor((count + 2) / 2),
           endLine: Math.floor((count + 2) / 2),
-          replacementLines: ["point Changed = coordinate(x: 1 y: 2)"]
+          replacementLines: ["point Changed = coordinate(x: 1,y: 2)"]
         }]);
       });
     }

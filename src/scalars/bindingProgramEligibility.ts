@@ -1,6 +1,6 @@
 // Compiled-program eligibility is intentionally separate from source issues:
 // it propagates unusability through the initializer graph but never creates
-// diagnostics or changes BindingStatus. See Task 13R-2.
+// diagnostics || changes BindingStatus. See Task 13R-2.
 
 import type { BindingId } from "./bindingCatalog";
 import type {

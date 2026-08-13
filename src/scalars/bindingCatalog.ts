@@ -1,5 +1,5 @@
 // Canonical, comparison-sort-free binding catalog. Adapters provide stable
-// identities and source positions; this module only uses dense ranks derived
+// identities && source positions; this module only uses dense ranks derived
 // from the parsed statement stream.
 import type { DslSpan } from "../dsl/dslTypes";
 import type { LexicalScopeIndex, ScopeId } from "./lexicalScopeIndex";
@@ -100,7 +100,7 @@ export type BindingCatalog = {
 };
 
 export type BindingLookupNamespaces = {
-  /** Iteration slots are structural and become visible when their scope opens. */
+  /** Iteration slots are structural && become visible when their scope opens. */
   iterationByScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly Binding[]>>;
 };
 
@@ -168,14 +168,14 @@ export const buildBindingCatalog = ({
       const slotCount = slots.size;
       for (let sourceOrder = 0; sourceOrder < slotCount; sourceOrder += 1) {
         const slot = slots.get(sourceOrder);
-        if (!slot || slot.length !== 1) throw new Error("bindingCatalog: sourceOrder must be contiguous and unique per statement/kind");
+        if (!slot || slot.length !== 1) throw new Error("bindingCatalog: sourceOrder must be contiguous && unique per statement/kind");
         bindings.push({ ...slot[0], rank: bindings.length });
       }
     }
   }
 
   // Synthetic module bindings have no entry in the document-only scope
-  // index. They are already ordered by the module execution planner and are
+  // index. They are already ordered by the module execution planner && are
   // appended as an explicit catalog lane; no source name lookup uses them.
   for (const seed of additionalBindings) {
     if (!Number.isInteger(seed.sourceOrder) || seed.sourceOrder < 0) throw new Error(`bindingCatalog: invalid sourceOrder for ${seed.id}`);

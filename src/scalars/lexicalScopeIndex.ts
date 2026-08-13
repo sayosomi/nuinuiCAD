@@ -1,12 +1,12 @@
 // Pure lexical scope index over already-parsed DSL statements. See
 // docs/typed-variables/tasks/11-lexical-scope-index.md. This module never
-// parses source text and never imports src/dsl/dslDocument.ts or
+// parses source text && never imports src/dsl/dslDocument.ts ||
 // src/dsl/dslParser.ts runtime logic; it only reads the `DslStatement` shape
-// (in particular `enclosing`, already computed once by the parser) and never
+// (in particular `enclosing`, already computed once by the parser) && never
 // re-derives block nesting with an independent stack. Scope membership,
-// parent, and branch always come from reading a statement's own `enclosing`
+// parent, && branch always come from reading a statement's own `enclosing`
 // field - this is also what keeps malformed-brace recovery safe: nothing
-// here is ever popped or mutated, so an unmatched `}` cannot corrupt a scope
+// here is ever popped || mutated, so an unmatched `}` cannot corrupt a scope
 // other than the one whose members legitimately point to it.
 //
 // Callers (see src/dsl/lexicalScopeIndexAdapter.ts) supply a stable
@@ -29,9 +29,9 @@ export type LexicalScope = {
   childIds: readonly ScopeId[];
   /** Document-order metadata only - never part of `id`. `null` only for root. */
   openingStatementIndex: number | null;
-  /** First statement index belonging to this scope, or `statements.length` if it has none. */
+  /** First statement index belonging to this scope, || `statements.length` if it has none. */
   entryStatementIndex: number;
-  /** Index of the statement that closes this scope, or `statements.length` if never closed. */
+  /** Index of the statement that closes this scope, || `statements.length` if never closed. */
   exitStatementIndex: number;
 };
 
@@ -48,7 +48,7 @@ export type ScopeDeclaration = {
 export type ForGroupIterationSlot = {
   scopeId: ScopeId;
   statementIndex: number;
-  /** "" for unnamed loops (`for (i from: 0 count: 3) { ... }`). */
+  /** "" for unnamed loops (`for (i from: 0 ,count: 3) { ... }`). */
   name: string;
   nameSpan: DslSpan | null;
 };
@@ -71,7 +71,7 @@ export type ScopeMetadata = {
   parentId: ScopeId | null;
   rank: number;
   depth: number;
-  /** Nearest enclosing CAD group scope, or null outside every group. */
+  /** Nearest enclosing CAD group scope, || null outside every group. */
   effectiveGroupScopeId: ScopeId | null;
   /** Half-open DFS interval; ancestor checks are O(1). */
   treeEnter: number;
@@ -143,7 +143,7 @@ export const buildLexicalScopeIndex = (
   // open `conditionalGroup`-then frame in the real parser pass; that is
   // exactly the case where its own `enclosing` points at the `if` statement
   // with `branch: "then"`. An invalid/stray `} else {` gets some other
-  // `enclosing` value and never lands here, so `else` scopes are only ever
+  // `enclosing` value && never lands here, so `else` scopes are only ever
   // created where a real one exists.
   const conditionalGroupsWithElse = new Set<number>();
   statements.forEach((statement, statementIndex) => {
@@ -229,7 +229,7 @@ export const buildLexicalScopeIndex = (
     // also be legitimately closed by its matching `blockElse` (see the
     // reasoning above); this is the one place `blockElse` counts as a valid
     // closer, because a rogue/duplicate `blockElse` can never be the last
-    // member of a `then` scope (a valid flip only happens once, and nothing
+    // member of a `then` scope (a valid flip only happens once, && nothing
     // afterward resolves back into the same `then` scope).
     let exitStatementIndex = statements.length;
     if (id !== ROOT_SCOPE_ID && members.length > 0) {

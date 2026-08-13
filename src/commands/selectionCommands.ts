@@ -317,7 +317,7 @@ export const setEvaluationLimitIndex = (evaluationLimitIndex: number) => {
   const { elements, evaluationLimitIndex: currentIndex } = useCadDocumentStore.getState();
   const nextIndex = clampEvaluationLimitIndex(elements, evaluationLimitIndex);
   // No marker means full evaluation. Moving an implicit boundary to the end
-  // must not materialize a new manual @stop or an Undo entry.
+  // must not materialize a new manual stop || an Undo entry.
   if (currentIndex === undefined && nextIndex === elements.length) return;
   if (currentIndex === nextIndex) return;
   useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: nextIndex });

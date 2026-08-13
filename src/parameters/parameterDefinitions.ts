@@ -1,5 +1,4 @@
-import type { CadElement, CadElementType, PointAnchor } from "../types/geometry";
-import type { PropertyBindingCapability } from "../scalars/scalarAssignability";
+import type { CadElement, PointAnchor } from "../types/geometry";
 import type { ScalarType } from "../scalars/types";
 
 export type ParameterValueKind =
@@ -24,18 +23,12 @@ export type ParameterDefinition = {
   emptyInputDefaultValue?: number;
   stepLevels?: readonly number[];
   choiceOptions?: readonly string[];
-  // Legacy migration metadata for consumers that still split property routes.
-  // The nui4 scalar frontend derives eligibility from `kind` and
-  // `choiceOptions`, not from this field.
-  propertyCapability?: PropertyBindingCapability;
 };
 
 /**
  * The scalar type of a parameter is part of the parameter schema itself.
- * Consumers that compile typed values must use this helper instead of a
- * second property-specific capability registry.  `propertyCapability` is
- * retained during the nui3 migration as a legacy bridge and is not an
- * eligibility gate for the common typed-expression frontend.
+ * Consumers that compile typed values must use this helper as the single
+ * schema-to-scalar-type mapping.
  */
 export const scalarTypeForParameterDefinition = (
   definition: ParameterDefinition | undefined
@@ -53,50 +46,6 @@ export const scalarTypeForParameterDefinition = (
     default:
       return null;
   }
-};
-
-// Temporary legacy route metadata. It remains only for the physical bridge
-// that is removed in Task 8; no nui4 semantic compiler or common evaluator
-// may use it as an eligibility gate.
-const propertyBindingCapabilities: Partial<Record<CadElementType, Record<string, PropertyBindingCapability>>> = {
-  text: {
-    text: { propertyType: { kind: "string" } }
-  },
-  offsetLine: {
-    side: { propertyType: { kind: "choice", options: ["right", "left"] } },
-    closed: { propertyType: { kind: "boolean" } },
-    suppressTrimWarnings: { propertyType: { kind: "boolean" } }
-  },
-  intersectionPoint: {
-    useExtensions: { propertyType: { kind: "boolean" } }
-  },
-  copyLine: {
-    mirrorX: { propertyType: { kind: "boolean" } }
-  },
-  move: {
-    mirrorX: { propertyType: { kind: "boolean" } }
-  },
-  image: {
-    mirrorX: { propertyType: { kind: "boolean" } }
-  },
-  group: {
-    printEnabled: { propertyType: { kind: "boolean" } }
-  },
-  forGroup: {
-    showGenerated: { propertyType: { kind: "boolean" } }
-  }
-};
-
-const withPropertyBindingCapabilities = (
-  type: CadElementType,
-  definitions: ParameterDefinition[]
-): ParameterDefinition[] => {
-  const capabilities = propertyBindingCapabilities[type];
-  if (!capabilities) return definitions;
-  return definitions.map((definition) => {
-    const capability = capabilities[definition.key];
-    return capability ? { ...definition, propertyCapability: capability } : definition;
-  });
 };
 
 export const defaultNumericParameterStep = 1;
@@ -619,7 +568,7 @@ const parameterDefinitionsForElement = (
 export const getParameterDefinitions = (
   element: CadElement,
 ): ParameterDefinition[] =>
-  withPropertyBindingCapabilities(element.type, parameterDefinitionsForElement(element));
+  parameterDefinitionsForElement(element);
 
 export const findParameterDefinition = (
   element: CadElement,

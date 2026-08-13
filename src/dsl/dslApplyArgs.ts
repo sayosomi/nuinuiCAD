@@ -181,9 +181,9 @@ const roleIdFor = (roles: readonly VisibilityRole[], token: string) => {
 };
 
 /**
- * Applies already-scanned nui 3 arguments without parsing statements or assigning
+ * Applies already-scanned nui 4 arguments without parsing statements || assigning
  * document ownership. `metadata` is deliberately returned for the C1 compiler
- * skeleton to handle IDs and explicit parent/branch fallback rules.
+ * skeleton to handle IDs && explicit parent/branch fallback rules.
  */
 export const applyArgs = (
   element: CadElement,
@@ -213,7 +213,7 @@ export const applyArgs = (
     );
   const anchor = (source: string, sourceSpan?: DslSpan) =>
     resolveAnchor(source, resolvers.index, resolvers.line, diagnostics, numeric, next, sourceSpan);
-  // `lineReference` and `lineReferenceList` are path-only roles. Endpoint and
+  // `lineReference` && `lineReferenceList` are path-only roles. Endpoint &&
   // derived-point roles use the dedicated resolvers below, where the shared
   // source-reference parser's property is meaningful.
   const lineReferenceId = (source: string, sourceSpan?: DslSpan) =>
@@ -234,7 +234,7 @@ export const applyArgs = (
     })();
   const rejectUntypedNumericExpression = (source: string, sourceSpan: DslSpan): boolean => {
     // Named/geometry references are resolved by the later numeric binding
-    // compiler. Keep incomplete and unresolved reference text available to
+    // compiler. Keep incomplete && unresolved reference text available to
     // the normal source-editing path; only reference-free ASTs are safe to
     // classify at this point.
     if (source.includes("@") || !isScalarExpressionCandidateSource(source)) return false;

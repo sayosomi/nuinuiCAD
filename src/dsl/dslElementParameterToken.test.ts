@@ -82,7 +82,7 @@ describe("dslElementParameterTokenEndingAt", () => {
   });
 
   it("requires a boundary character or start-of-string immediately before elementToken", () => {
-    // No boundary char between "AB" and a hypothetical second token isn't
+    // No boundary char between "AB" && a hypothetical second token isn't
     // representable directly, but a bare mid-identifier case should still
     // resolve via a preceding operator/space/paren.
     expect(dslElementParameterTokenEndingAt("(直線AB.length", 12)).toEqual({

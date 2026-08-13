@@ -1,9 +1,9 @@
 # nui4 migration plan
 
 This plan freezes the nui4 language contract and defines a direct, destructive
-replacement of the implemented nui3 surface. There is no compatibility layer,
-converter, importer, or migration wizard. The existing `docs/dsl.md` remains the
-nui3 user documentation until the final cutover in Task 8.
+replacement of the former nui3 surface. There is no compatibility layer,
+converter, importer, or migration wizard. Task 8 is the completed final
+cutover, and `docs/dsl.md` documents the implemented nui4 language.
 
 ## Task 1 — language contract / policy freeze
 
@@ -116,6 +116,10 @@ Keep the Rust/TypeScript boundary deterministic:
   connection between frontend resolution and runtime evaluation.
 
 ## Task 8 — nui4-only cutover / cleanup / final gates
+
+Status: implemented. The repository now supports and documents nui4 only; the
+remaining checklist below records the final-cutover contract and verification
+scope.
 
 Make nui4 the only supported language and remove temporary nui3-only paths:
 

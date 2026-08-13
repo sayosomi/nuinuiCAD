@@ -5,23 +5,20 @@ import { propertyScalarValueCompletionContext } from "./dslPropertyScalarComplet
 const textCapabilityDefinition: ParameterDefinition = {
   key: "text",
   label: "テキスト",
-  kind: "text",
-  propertyCapability: { propertyType: { kind: "string" } }
+  kind: "text"
 };
 
 const choiceCapabilityDefinition: ParameterDefinition = {
   key: "side",
   label: "側",
   kind: "choice",
-  choiceOptions: ["right", "left"],
-  propertyCapability: { propertyType: { kind: "choice", options: ["right", "left"] } }
+  choiceOptions: ["right", "left"]
 };
 
 const booleanCapabilityDefinition: ParameterDefinition = {
   key: "printEnabled",
   label: "印刷",
-  kind: "boolean",
-  propertyCapability: { propertyType: { kind: "boolean" } }
+  kind: "boolean"
 };
 
 const nonOptedTextDefinition: ParameterDefinition = { key: "name", label: "名前", kind: "text" };
@@ -42,7 +39,7 @@ describe("propertyScalarValueCompletionContext", () => {
     expect(context).toEqual({ kind: "reference", from: span.start, to: line.length, expectedType: { kind: "choice", options: ["right", "left"] } });
   });
 
-  it("also offers a reference context when the legacy capability metadata is absent", () => {
+  it("uses the schema type for a text property", () => {
     const line = "name: @x";
     const span = { start: "name: ".length, end: line.length };
     expect(propertyScalarValueCompletionContext(line, span, line.length, nonOptedTextDefinition)).toEqual({
@@ -57,7 +54,7 @@ describe("propertyScalarValueCompletionContext", () => {
     expect(context).toEqual({ kind: "booleanLiteral", from: span.start, to: line.length });
   });
 
-  it("also offers a boolean literal context when the legacy capability metadata is absent", () => {
+  it("uses the schema kind for a boolean property", () => {
     const line = "visible: ";
     const span = { start: "visible: ".length, end: line.length };
     expect(propertyScalarValueCompletionContext(line, span, line.length, nonOptedBooleanDefinition)).toEqual({

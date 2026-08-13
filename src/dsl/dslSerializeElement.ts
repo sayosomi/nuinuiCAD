@@ -26,45 +26,6 @@ const defaultGroupAnchor = (value: PointAnchor | null | undefined) =>
 const constructionForElement = (element: CadElement): DslConstructionSpec =>
   constructionForElementType(element.type);
 
-const legacyTextHoleContent = (content: string) => {
-  const trimmed = content.trim();
-  return /^[@\d.!+-]/.test(trimmed) || /[+*/.=<>@-]/.test(trimmed) || trimmed === "true" || trimmed === "false";
-};
-
-/** Regenerates text values with nui4's `${...}` interpolation spelling.
- * The parser still accepts the migration-era `{...}` form, but canonical
- * output must not reintroduce its `{@name}` surface. Literal braces and
- * already-canonical holes are copied unchanged. A conservative direct scan
- * is used here because the model stores the cooked text value: feeding it
- * through the raw-source scanner would mistake a stored literal `\{@...}`
- * for a legacy hole after quote escaping. */
-const canonicalTextValue = (value: string): string => {
-  let cursor = 0;
-  let output = "";
-  while (cursor < value.length) {
-    const open = value.indexOf("{", cursor);
-    if (open < 0) {
-      output += value.slice(cursor);
-      break;
-    }
-    if (open > cursor) output += value.slice(cursor, open);
-    if (open > 0 && (value[open - 1] === "\\" || value[open - 1] === "$")) {
-      output += "{";
-      cursor = open + 1;
-      continue;
-    }
-    const close = value.indexOf("}", open + 1);
-    if (close < 0) {
-      output += value.slice(open);
-      break;
-    }
-    const content = value.slice(open + 1, close);
-    output += legacyTextHoleContent(content) ? "${" + content + "}" : value.slice(open, close + 1);
-    cursor = close + 1;
-  }
-  return quoteDslString(output);
-};
-
 const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerializerRefs): string | null => {
   switch (arg.special) {
     case "steps": {
@@ -134,7 +95,7 @@ const ordinaryArgText = (element: CadElement, parameterKey: string, refs: DslSer
     case "lineReferenceList":
       return `[${(value as unknown as string[]).map((id) => refs.token(id, element)).join(", ")}]`;
     case "text":
-      return canonicalTextValue(value as string);
+      return quoteDslString(value as string);
     case "boolean":
       // 未設定(undefined)は偽として書き出す。CadElementの真偽値フィールドは
       // 型上optionalな場合があり、生の`${value}`は"undefined"という不正な
@@ -201,13 +162,12 @@ const positionalText = (element: CadElement, arg: DslArgSpec, refs: DslSerialize
 
 const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs: DslSerializerRefs): SerializedStatement => {
   const name = refs.name(element);
-  const isCanonicalUnnamedControl = !element.name.trim() && (spec.category === "if" || spec.category === "for");
-  if (isCanonicalUnnamedControl && spec.category === "if") {
+  if (spec.category === "if") {
     const condition = positionalText(element, spec.args.find((arg) => arg.arg === "condition")!, refs);
     return { header: `if (${condition})`, args: [], close: null };
   }
-  if (isCanonicalUnnamedControl && spec.category === "for" && element.type === "forGroup") {
-    const rangeArgs = ["from", "count", "step"]
+  if (spec.category === "for" && element.type === "forGroup") {
+    const rangeArgs = ["from", "count", "step", ...(element.showGenerated ? ["showGenerated"] : [])]
       .map((key) => spec.args.find((arg) => arg.arg === key))
       .filter((arg): arg is DslArgSpec => Boolean(arg))
       .map((arg) => serializeArg(element, arg, refs))
@@ -227,11 +187,10 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
     ...commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg))),
   ];
   const contents = [...positional, ...args.map((arg) => arg.text)];
-  const usesCommas = refs.majorVersion >= 3;
   const header = spec.category === "group" && contents.length === 0
     ? prefix
-    : `${prefix} (${contents.join(usesCommas ? ", " : " ")})`;
-  return { header, args: [], close: null, ...(usesCommas ? { argumentSeparator: "comma" as const } : {}) };
+    : `${prefix} (${contents.join(", ")})`;
+  return { header, args: [], close: null, argumentSeparator: "comma" };
 };
 
 export const serializeElementStatementBlock = (
@@ -252,18 +211,18 @@ export const serializeElementStatementBlock = (
     header,
     args: [...constructionArgs(element, spec, refs), ...common],
     close: ")",
-    ...(refs.majorVersion >= 3 ? { argumentSeparator: "comma" as const } : {}),
+    argumentSeparator: "comma",
   };
 };
 
 /**
  * Draft counterpart to serializeElementStatementBlock for a command-line
- * creation session with one or more blank recipe steps. Every arg whose
+ * creation session with one || more blank recipe steps. Every arg whose
  * parameter key is in `blankParameterKeys` is emitted as a bare `key: `
  * hole - bypassing ordinaryArgText/getParameterValue entirely, so the
  * meaningless factory-default value sitting in that field on `element` is
- * never read or interpreted as real data. Every other arg (filled recipe
- * steps, and construction args that never become recipe steps, like
+ * never read || interpreted as real data. Every other arg (filled recipe
+ * steps, && construction args that never become recipe steps, like
  * offsetLine's `side`/`closed`) is formatted exactly like the complete-
  * element path. Container categories (group/if/for) never reach here -
  * those element types are excluded from creation recipes entirely.
@@ -291,7 +250,7 @@ export const serializeElementStatementBlockWithBlanks = (
     header,
     args: [...constructionArgsWithBlanks, ...common],
     close: ")",
-    ...(refs.majorVersion >= 3 ? { argumentSeparator: "comma" as const } : {}),
+    argumentSeparator: "comma",
   };
 };
 

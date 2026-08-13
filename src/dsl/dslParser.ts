@@ -38,7 +38,6 @@ import { isCompilableDslStatement } from "./dslCompilationGuard";
  */
 export const dslStatementKeywords = {
   stop: "stop",
-  atStop: "@stop",
   version: "nui",
   for: "for",
   place: "place",
@@ -69,11 +68,7 @@ export const dslStatementKeywords = {
   export: "export"
 } as const;
 
-// `@stop` remains parseable only as a temporary migration spelling; editor
-// completion offers the nui4 keyword and never teaches the old surface to new
-// documents.
-export const dslStatementKeywordCompletions = Object.values(dslStatementKeywords)
-  .filter((keyword) => keyword !== dslStatementKeywords.atStop);
+export const dslStatementKeywordCompletions = Object.values(dslStatementKeywords);
 
 // category キーワードは P3(dslCallParser)へ、設定文キーワードは P4(dslSettingsParser)へ。
 // 集合は互いに素(重複キーワードなし)。
@@ -101,7 +96,7 @@ const settingsKeywords = new Set<string>([
 ]);
 
 // const/let route to their own focused parser (P5, dslDeclarationParser),
-// disjoint from the call-category and settings keyword sets above.
+// disjoint from the call-category && settings keyword sets above.
 const declarationKeywords = new Set<string>([dslStatementKeywords.constDeclaration, dslStatementKeywords.letDeclaration]);
 
 // set routes to its own focused parser (P7, dslSetParser), independent of
@@ -395,10 +390,9 @@ const parseLine = (
   endLine: number,
   opensOnNextLine: boolean,
   project: (span: DslSpan) => DslPhysicalSpan | null,
-  requireArgumentCommas: boolean,
 ): ParsedLine => {
-  if (/^(?:stop|@stop)(?:\s|$)/.test(logicalText)) {
-    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine);
+  if (/^stop(?:\s|$)/.test(logicalText)) {
+    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine);
   }
   const keyword = logicalText.match(leadingIdentifier)?.[0] ?? "";
   if (keyword === dslStatementKeywords.module) {
@@ -408,7 +402,7 @@ const parseLine = (
     return fromModule(parseDslModuleStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
   }
   if (keyword === dslStatementKeywords.export) {
-    const parsed = parseDslExportStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas });
+    const parsed = parseDslExportStatement(logicalText, { opensBlock: opensOnNextLine });
     if (parsed.kind === "geometry" && parsed.call) {
       return fromCall(parsed.call, line, endLine, project, { exportSpan: parsed.exportSpan });
     }
@@ -422,10 +416,10 @@ const parseLine = (
     };
   }
   if (callCategoryKeywords.has(keyword) || mutationKeywords.has(keyword)) {
-    return fromCall(parseDslCallStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine, project);
+    return fromCall(parseDslCallStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
   }
   if (settingsKeywords.has(keyword)) {
-    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine, requireArgumentCommas }), line, endLine);
+    return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine);
   }
   if (declarationKeywords.has(keyword)) {
     return fromDeclaration(parseDslTypedDeclarationStatement(logicalText), line, endLine, project);
@@ -436,12 +430,6 @@ const parseLine = (
   return {
     diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]
   };
-};
-
-/** Parse-time grammar choice is determined only by an unambiguous first header. */
-const nui3RequiresArgumentCommas = (logicalStatements: readonly LogicalStatement[]) => {
-  const first = logicalStatements.find((statement) => !statement.structural && statement.logicalText.trim());
-  return first ? /^nui\s+3\s*$/.test(first.logicalText.trim()) : false;
 };
 
 type BlockFrame = {
@@ -596,7 +584,6 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   const statements: DslStatement[] = [];
   const diagnostics: DslDiagnostic[] = [];
   const sourceMap = createLogicalStatementSourceMap(snapshot);
-  const requireArgumentCommas = nui3RequiresArgumentCommas(sourceMap.statements);
   // Built once per parse, from the same loop that already visits every
   // LogicalStatement - never re-scanned per diagnostic. This is the only
   // lookup a later exact-span diagnostic projection needs: statement's own
@@ -607,7 +594,7 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
     // Same UNCLOSED_CALL_CODE as dslCallParser.ts's own "closing `)` not
     // found" diagnostic - this is the multi-line-join layer's version of the
     // identical condition (a call's depth never returns to 0 before EOF, a
-    // blank line, or a structural line ends the continuation search). A
+    // blank line, || a structural line ends the continuation search). A
     // single-line probe parse (dslLineElementStatement) reaches this branch
     // whenever the probed text's own call is unclosed at end-of-text, which
     // is exactly the mid-edit shape its carve-out already tolerates for this
@@ -633,7 +620,7 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
     const next = sourceMap.statements[index + 1];
     const opensOnNextLine = next?.structural === "open";
     const project = (span: DslSpan) => physicalSpanForLogicalRange(sourceMap, logical, span);
-    const parsed = parseLine(logical.logicalText, logical.range.startLine, logical.range.endLine, opensOnNextLine, project, requireArgumentCommas);
+    const parsed = parseLine(logical.logicalText, logical.range.startLine, logical.range.endLine, opensOnNextLine, project);
     if (parsed.statement) {
       const statement = decorateStatement(parsed.statement, logical, sourceMap);
       if (opensOnNextLine) statement.openBraceLine = next!.range.startLine;

@@ -41,28 +41,28 @@ describe("stepDslNumericLiteral", () => {
 
 describe("resolveDslValueStep", () => {
   it("uses the 3a target resolver for normal, dirty coordinate, and configured numeric values", () => {
-    const pointSource = "point A = coordinate(x: 0.1 y: 2)";
+    const pointSource = "point A = coordinate(x: 0.1,y: 2)";
     const point = { ...compileElement(pointSource), numericParameterSteps: { x: 0.2 } };
     expect(stepAt(pointSource, point, "0.1", 1)).toMatchObject({ parameterKey: "x", insert: "0.3" });
 
-    const committed = "line L = segment(start: A end: B)";
+    const committed = "line L = segment(start: A,end: B)";
     const line = compileElement(committed);
-    const dirty = "line L = segment(start: (1, 2) end: B)";
+    const dirty = "line L = segment(start: (1, 2),end: B)";
     expect(stepAt(dirty, line, "1", 1, committed)).toMatchObject({ parameterKey: "startPoint:x", insert: "2" });
   });
 
   it("uses the current configured ratio and angle step without adding level switching", () => {
-    const divisionSource = "point M = between(start: A end: B ratio: 0.25)";
+    const divisionSource = "point M = between(start: A,end: B,ratio: 0.25)";
     const division = { ...compileElement(divisionSource), numericParameterSteps: { ratio: 0.01 } };
     expect(stepAt(divisionSource, division, "0.25", 1)).toMatchObject({ parameterKey: "ratio", insert: "0.26" });
 
-    const arcSource = "arc Arc = arc(center: A radius: 10 start: 15 end: 90)";
+    const arcSource = "arc Arc = arc(center: A,radius: 10,start: 15,end: 90)";
     const arc = { ...compileElement(arcSource), numericParameterSteps: { startAngleDeg: 15 } };
     expect(stepAt(arcSource, arc, "15", 1)).toMatchObject({ parameterKey: "startAngleDeg", insert: "30" });
   });
 
   it("steps only the selected numeric literal inside expressions, including quoted expressions", () => {
-    const pointSource = "point B = offset(from: A dx: 13 + 1 dy: 0)";
+    const pointSource = "point B = offset(from: A, dx: 13 + 1, dy: 0)";
     const point = compileElement(pointSource);
     expect(stepAt(pointSource, point, "13", 1)).toMatchObject({
       parameterKey: "dx", from: pointSource.indexOf("13"), to: pointSource.indexOf("13") + 2, insert: "14"
@@ -72,7 +72,7 @@ describe("resolveDslValueStep", () => {
       parameterKey: "dx", from: trailingOne, to: trailingOne + 1, insert: "2"
     });
 
-    const offsetSource = 'point B = offset(from: A dx: "@幅 * 2" dy: 0)';
+    const offsetSource = 'point B = offset(from: A, dx: "@幅 * 2", dy: 0)';
     const offset = { ...compileElement(offsetSource), numericParameterSteps: { dx: 0.25 } };
     expect(stepAt(offsetSource, offset, "2", 1)).toMatchObject({
       parameterKey: "dx", from: offsetSource.lastIndexOf("2"), to: offsetSource.lastIndexOf("2") + 1, insert: "2.25"
@@ -80,9 +80,9 @@ describe("resolveDslValueStep", () => {
   });
 
   it("uses the default step for synthetic coordinates and preserves signed literal selection", () => {
-    const committed = "line L = segment(start: A end: B)";
+    const committed = "line L = segment(start: A,end: B)";
     const line = compileElement(committed);
-    const dirty = "line L = segment(start: (-0.5 + 1, 2) end: B)";
+    const dirty = "line L = segment(start: (-0.5 + 1, 2),end: B)";
     const start = dirty.indexOf("-0.5");
     expect(resolveDslValueStep(dirty, line, { start, end: start }, 1, { committedLineText: committed })).toMatchObject({
       parameterKey: "startPoint:x", from: start, to: start + 4, insert: "0.5",
@@ -91,7 +91,7 @@ describe("resolveDslValueStep", () => {
   });
 
   it("rejects expression-wide and partial selections, terminal carets before another token, and non-literals", () => {
-    const source = "point B = offset(from: A dx: 12+3 dy: 0)";
+    const source = "point B = offset(from: A, dx: 12+3, dy: 0)";
     const element = compileElement(source);
     const expressionStart = source.indexOf("12+3");
     expect(resolveDslValueStep(source, element, { start: expressionStart, end: expressionStart + 4 }, 1)).toBeNull();
@@ -104,43 +104,43 @@ describe("resolveDslValueStep", () => {
       expect(resolveDslValueStep(live, element, { start, end: start }, 1)).toBeNull();
     }
 
-    const textSource = 'text Label = label(text: "version 2" anchor: A size: 4)';
+    const textSource = 'text Label = label(text: "version 2",anchor: A,size: 4)';
     const text = compileElement(textSource);
     const textStart = textSource.indexOf("2");
     expect(resolveDslValueStep(textSource, text, { start: textStart, end: textStart }, 1)).toBeNull();
   });
 
   it("toggles booleans and cycles choices, but leaves other parameter kinds untouched", () => {
-    const booleanSource = "line L = offset(sources: [AB] distance: 10 side: right closed: false)";
+    const booleanSource = "line L = offset(sources: [AB],distance: 10,side: right,closed: false)";
     const booleanLine = compileElement(booleanSource);
     expect(stepAt(booleanSource, booleanLine, "false", 1)).toMatchObject({ parameterKey: "closed", insert: "true" });
     expect(stepAt(booleanSource, booleanLine, "false", -1)).toMatchObject({ parameterKey: "closed", insert: "true" });
 
-    const choiceSource = "line L = offset(sources: [AB] distance: 10 side: right)";
+    const choiceSource = "line L = offset(sources: [AB],distance: 10,side: right)";
     const choiceLine = compileElement(choiceSource);
     expect(stepAt(choiceSource, choiceLine, "right", 1)).toMatchObject({ parameterKey: "side", insert: "left" });
     expect(stepAt(choiceSource, choiceLine, "right", -1)).toMatchObject({ parameterKey: "side", insert: "left" });
-    const wrappedChoiceSource = "line L = offset(sources: [AB] distance: 10 side: left)";
+    const wrappedChoiceSource = "line L = offset(sources: [AB],distance: 10,side: left)";
     const wrappedLine = compileElement(wrappedChoiceSource);
     expect(stepAt(wrappedChoiceSource, wrappedLine, "left", 1)).toMatchObject({ parameterKey: "side", insert: "right" });
     expect(stepAt(wrappedChoiceSource, wrappedLine, "left", -1)).toMatchObject({ parameterKey: "side", insert: "right" });
 
-    const textSource = 'text Label = label(text: "true" anchor: A size: 4)';
+    const textSource = 'text Label = label(text: "true",anchor: A,size: 4)';
     const text = compileElement(textSource);
     expect(stepAt(textSource, text, "true", 1)).toBeNull();
 
-    const lineSource = "line L = segment(start: A end: B)";
+    const lineSource = "line L = segment(start: A,end: B)";
     const line = compileElement(lineSource);
     expect(stepAt(lineSource, line, "A", 1)).toBeNull();
     expect(stepAt(lineSource, line, "line", 1)).toBeNull();
 
-    const coloredLineSource = "line L = segment(start: A end: B color: red)";
+    const coloredLineSource = "line L = segment(start: A,end: B,color: red)";
     const coloredLine = compileElement(coloredLineSource);
     expect(stepAt(coloredLineSource, coloredLine, "red", 1)).toBeNull();
   });
 
   it("accepts a caret at a target start or end, and exact target selection, never a partial selection", () => {
-    const source = "point A = coordinate(x: 12 y: 0)";
+    const source = "point A = coordinate(x: 12,y: 0)";
     const point = compileElement(source);
     const start = source.indexOf("12");
     expect(resolveDslValueStep(source, point, { start, end: start + 2 }, 1)).toMatchObject({ insert: "13" });
@@ -150,11 +150,11 @@ describe("resolveDslValueStep", () => {
 
   it("keeps the updated literal selected across digit, sign, and decimal changes", () => {
     const cases: Array<{ source: string; direction: 1 | -1; expected: string }> = [
-      { source: "point B = offset(from: A dx: 130 dy: 9)", direction: 1, expected: "10" },
-      { source: "point B = offset(from: A dx: 130 dy: 99)", direction: 1, expected: "100" },
-      { source: "point B = offset(from: A dx: 130 dy: 10)", direction: -1, expected: "9" },
-      { source: "point B = offset(from: A dx: 130 dy: -1)", direction: -1, expected: "-2" },
-      { source: "point B = offset(from: A dx: 130 dy: -0.5)", direction: 1, expected: "0.5" }
+      { source: "point B = offset(from: A, dx: 130, dy: 9)", direction: 1, expected: "10" },
+      { source: "point B = offset(from: A, dx: 130, dy: 99)", direction: 1, expected: "100" },
+      { source: "point B = offset(from: A, dx: 130, dy: 10)", direction: -1, expected: "9" },
+      { source: "point B = offset(from: A, dx: 130, dy: -1)", direction: -1, expected: "-2" },
+      { source: "point B = offset(from: A, dx: 130, dy: -0.5)", direction: 1, expected: "0.5" }
     ];
     for (const { source, direction, expected } of cases) {
       const element = compileElement(source);

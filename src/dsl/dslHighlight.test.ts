@@ -19,7 +19,7 @@ describe("DSL highlighting", () => {
   });
 
   it("classifies strings and references", () => {
-    expect(tokenKinds("text Label = label(text: \"前中心\" anchor: A.start size: 4)")).toEqual(
+    expect(tokenKinds("text Label = label(text: \"前中心\", anchor: A.start, size: 4)")).toEqual(
       expect.arrayContaining(["keyword", "string", "attributeKey", "reference", "number"])
     );
   });
@@ -33,35 +33,33 @@ describe("DSL highlighting", () => {
     expect(tokenKinds("group G {")).toEqual(["keyword", "plain", "reference", "plain", "operator"]);
     expect(tokenKinds("}")).toEqual(["operator"]);
     expect(tokenKinds("} else {")).toEqual(["operator", "plain", "keyword", "plain", "operator"]);
-    expect(tokenKinds("if Branch (1) {")).toEqual(
-      expect.arrayContaining(["keyword", "reference", "number", "operator"])
-    );
-    expect(tokenKinds("for Loop (i from: 0 count: 3) {")).toEqual(
+    expect(tokenKinds("if (1) {")).toEqual(expect.arrayContaining(["keyword", "number", "operator"]));
+    expect(tokenKinds("for i in range(from: 0, count: 3) {")).toEqual(
       expect.arrayContaining(["keyword", "reference", "attributeKey", "number", "operator"])
     );
   });
 
-  it("classifies @stop as a keyword, not a reference", () => {
-    expect(tokenKinds("@stop")).toEqual(["keyword"]);
+  it("classifies stop as a keyword, not a reference", () => {
+    expect(tokenKinds("stop")).toEqual(["keyword"]);
   });
 
-  it("classifies the nui 3 sigil form @Element.property as one reference token (Task 51)", () => {
-    expect(highlightDslLine("point P = coordinate(x: @AB.length y: 0)")).toEqual(
+  it("classifies the nui 4 sigil form @Element.property as one reference token (Task 51)", () => {
+    expect(highlightDslLine("point P = coordinate(x: @AB.length,y: 0)")).toEqual(
       expect.arrayContaining([{ kind: "reference", text: "@AB.length" }])
     );
     // A plain @name binding still highlights as its own reference token,
     // unaffected by the new dotted alternative.
-    expect(highlightDslLine("point P = coordinate(x: @length y: 0)")).toEqual(
+    expect(highlightDslLine("point P = coordinate(x: @length,y: 0)")).toEqual(
       expect.arrayContaining([{ kind: "reference", text: "@length" }])
     );
   });
 
   it("classifies nui, color, place, activePrintLayout, default", () => {
     expect(tokenKinds("nui 2")[0]).toBe("keyword");
-    expect(tokenKinds('color pattern-black ("#31322f" name: "基本線" default: true)')).toEqual(
+    expect(tokenKinds('color pattern-black ("#31322f", name: "基本線",default: true)')).toEqual(
       expect.arrayContaining(["keyword", "string", "attributeKey"])
     );
-    expect(tokenKinds("place G (at: (0, 0))")[0]).toBe("keyword");
+    expect(tokenKinds("place @G(at: (0, 0))")[0]).toBe("keyword");
     expect(tokenKinds("activePrintLayout A4")[0]).toBe("keyword");
   });
 
@@ -78,7 +76,7 @@ describe("DSL highlighting", () => {
         { kind: "reference", text: "seam" }
       ])
     );
-    expect(highlightDslLine("  vars: [Width: 10; Height: @W]")).toEqual(
+    expect(highlightDslLine("  vars: [Width: 10; ,Height: @W]")).toEqual(
       expect.arrayContaining([
         { kind: "attributeKey", text: "vars" },
         { kind: "attributeKey", text: "Width" },

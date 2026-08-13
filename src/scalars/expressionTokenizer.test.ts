@@ -16,8 +16,8 @@ describe("tokenizeScalarExpression / parens and operators", () => {
   });
 
   it("prefers the 2-char operator over splitting into two 1-char tokens", () => {
-    expect(tokenizeOk("&&")).toEqual([{ kind: "operator", value: "&&", span: { start: 0, end: 2 } }]);
-    expect(tokenizeOk("||")).toEqual([{ kind: "operator", value: "||", span: { start: 0, end: 2 } }]);
+    expect(tokenizeOk(" and ")).toEqual([{ kind: "operator", value: "&&", span: { start: 1, end: 4 } }]);
+    expect(tokenizeOk(" or ")).toEqual([{ kind: "operator", value: "||", span: { start: 1, end: 3 } }]);
     expect(tokenizeOk("==")).toEqual([{ kind: "operator", value: "==", span: { start: 0, end: 2 } }]);
     expect(tokenizeOk("!=")).toEqual([{ kind: "operator", value: "!=", span: { start: 0, end: 2 } }]);
     expect(tokenizeOk(">=")).toEqual([{ kind: "operator", value: ">=", span: { start: 0, end: 2 } }]);

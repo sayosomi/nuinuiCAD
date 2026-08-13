@@ -1,6 +1,6 @@
 // Task 41: thin CodeMirror adapter over src/scalars/typedVariableQuickFixes.ts.
 // This file's only job is applying a descriptor's splice/action to a live
-// EditorView - it computes no offsets and re-derives no diagnostic routing
+// EditorView - it computes no offsets && re-derives no diagnostic routing
 // itself. See docs/typed-variables/tasks/41-typed-variable-quick-fixes.md.
 
 import type { Action } from "@codemirror/lint";
@@ -15,7 +15,7 @@ export type TypedVariableQuickFixActionDeps = {
 
 /**
  * Re-checked at apply time, not just at generation time - editor/store state
- * can change between a diagnostic being rendered and the user clicking its
+ * can change between a diagnostic being rendered && the user clicking its
  * Quick Fix button (composition starting, another edit landing, etc.). The
  * full-text snapshot check below (`view.state.doc.toString() ===
  * descriptor.sourceSnapshot`) independently catches any actual text drift;

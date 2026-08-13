@@ -14,8 +14,8 @@ const versionFromRawSource = (source: string): number | null => {
  */
 export const nuiMajorVersionFromRawSource = (source: string) => versionFromRawSource(source);
 
-/** Returns every header other than `nui 3` for fail-closed file opening. */
+/** Returns every header other than `nui 4` for fail-closed file opening. */
 export const unsupportedNuiMajorVersion = (source: string) => {
   const major = nuiMajorVersionFromRawSource(source);
-  return major === 3 ? null : major ?? "missing";
+  return major === 4 ? null : major ?? "missing";
 };

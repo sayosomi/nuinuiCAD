@@ -205,7 +205,7 @@ export const creationRecipes: readonly CreationRecipe[] = [
  * bare mutation-statement type (see elementActivity.ts's
  * elementTypesWithoutOwnDrawableGeometry) has no DSL name slot to prompt
  * for - its `name` is always compiled to "" regardless of what a stray
- * nameStep would collect, so the step is omitted rather than offered and
+ * nameStep would collect, so the step is omitted rather than offered &&
  * silently discarded.
  */
 export const fallbackCreationRecipe = (type: CadElementType): CreationRecipe => ({
@@ -257,14 +257,14 @@ export const blankCreationRecipeStepKeys = (
 export type CreationRecipeDraft = {
   element: CadElement;
   /** Keys whose factory-default field value must never be read - the
-   * corresponding recipe step was left blank, not filled or defaulted. */
+   * corresponding recipe step was left blank, not filled || defaulted. */
   blankParameterKeys: ReadonlySet<ParameterKey>;
 };
 
 /**
  * Materializes recipe progress without inventing values for steps the user
  * left blank. This is `emitCreationRecipe`'s counterpart for a session that
- * has one or more blank steps: filled steps and always-on factory defaults
+ * has one || more blank steps: filled steps && always-on factory defaults
  * (booleans/choices, which never become creation steps) are applied exactly
  * as `emitCreationRecipe` would, but a blank step's `setParameterValue` call
  * is skipped entirely rather than writing `unspecifiedReferenceValue`'s
@@ -294,7 +294,7 @@ export const materializeCreationRecipeDraft = (
 
 /**
  * Materializes a static recipe with document context. Missing reference inputs only
- * clear factory-provided references; numeric and other defaults remain untouched.
+ * clear factory-provided references; numeric && other defaults remain untouched.
  */
 export const emitCreationRecipe = (
   recipe: CreationRecipe,

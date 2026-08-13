@@ -114,7 +114,7 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 describe("module scalar runtime integration", () => {
   it("publishes one instance-local scalar export binding for each module call", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Child(input: number) {",
       "  const twice: number = @input * 2",
       "  export const value: number = @twice + 1",
@@ -153,7 +153,7 @@ describe("module scalar runtime integration", () => {
 
   it("resolves an exported scalar from a module instance in a root scalar initializer", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(input: number) {",
       "  export let result: number = 0",
       "  set result = @input * 2",
@@ -175,7 +175,7 @@ describe("module scalar runtime integration", () => {
 
   it("resolves a root sibling scalar export when it is used as a module argument", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Producer(input: number) {",
       "  export const value: number = @input * 2",
       "}",
@@ -196,7 +196,7 @@ describe("module scalar runtime integration", () => {
 
   it("keeps visible and hidden scalar exports usable but disables later references from disabled instances", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(input: number) {",
       "  export const value: number = @input * 2",
       "  export point P = coordinate(x: @value, y: 0)",
@@ -229,7 +229,7 @@ describe("module scalar runtime integration", () => {
 
   it("resolves nested sibling scalar exports per repeated parent instance", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Producer(input: number) {",
       "  export const value: number = @input * 2",
       "}",
@@ -258,7 +258,7 @@ describe("module scalar runtime integration", () => {
 
   it("resolves same-named module instances within their own lexical groups", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Producer(input: number) {",
       "  export const value: number = @input * 2",
       "}",
@@ -283,7 +283,7 @@ describe("module scalar runtime integration", () => {
 
   it("diagnoses private members without publishing them as scalar bindings", () => {
     const scoped = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Producer(input: number) {",
       "  const privateValue: number = @input * 3",
       "  export const value: number = @input * 2",
@@ -311,7 +311,7 @@ describe("module scalar runtime integration", () => {
     expect(scoped.bindingAnalysis?.catalog.bindings.some((binding) => binding.name === "foo::privateValue")).toBe(false);
 
     const unknown = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Producer(input: number) {",
       "  const privateValue: number = @input * 3",
       "  export const value: number = @input * 2",
@@ -324,13 +324,13 @@ describe("module scalar runtime integration", () => {
 
   it("materializes parameter and local numeric bindings independently for repeated instances", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
       "  const doubled: number = @width + 1",
       "  point P = coordinate(x: @doubled, y: 0)",
       "}",
-      "module A = M(width: 10)",
-      "module B = M(width: 20)"
+      "instance A = M(width: 10)",
+      "instance B = M(width: 20)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -352,14 +352,14 @@ describe("module scalar runtime integration", () => {
 
   it("uses a default scalar parameter and connects a materialized choice property", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(side: choice(right, left) = left) {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
       "  line AB = segment(start: @A, end: @B)",
       "  line Off = offset(sources: [@AB], distance: 5, side: @side, closed: false, suppressTrimWarnings: false)",
       "}",
-      "module Instance = M()"
+      "instance Instance = M()"
     ].join("\n"));
     expectValid(compiled);
     expect(compiled.materializedPropertyBindings).toHaveLength(1);
@@ -372,15 +372,15 @@ describe("module scalar runtime integration", () => {
 
   it("evaluates instance-local let/set chains in body source order", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(value: number) {",
       "  let local: number = @value",
       "  point Before = coordinate(x: @local, y: 0)",
       "  set local = @local + 1",
       "  point After = coordinate(x: @local, y: 0)",
       "}",
-      "module A = M(value: 10)",
-      "module B = M(value: 20)"
+      "instance A = M(value: 10)",
+      "instance B = M(value: 20)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -403,12 +403,12 @@ describe("module scalar runtime integration", () => {
 
   it("connects a materialized string property through the text binding runtime", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(label: string) {",
       "  text T = label(text: @label, anchor: none, size: 3)",
       "}",
-      'module A = M(label: "A")',
-      'module B = M(label: "B")'
+      'instance A = M(label: "A")',
+      'instance B = M(label: "B")'
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -423,14 +423,14 @@ describe("module scalar runtime integration", () => {
 
   it("captures caller scalar state at each call position", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "let value: number = 1",
       "module M(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
-      "module First = M(width: @value)",
+      "instance First = M(width: @value)",
       "set value = 10",
-      "module Second = M(width: @value)"
+      "instance Second = M(width: @value)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -446,16 +446,16 @@ describe("module scalar runtime integration", () => {
 
   it("keeps nested module instances independent and stops at the outer call boundary", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module Inner(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
       "module Outer(width: number) {",
-      "  module Nested = Inner(width: @width)",
+      "  instance Nested = Inner(width: @width)",
       "}",
-      "module First = Outer(width: 3)",
-      "@stop",
-      "module Second = Outer(width: 7)"
+      "instance First = Outer(width: 3)",
+      "stop",
+      "instance Second = Outer(width: 7)"
     ].join("\n");
     const compiled = compileWithIds(source);
     expectValid(compiled);
@@ -470,16 +470,16 @@ describe("module scalar runtime integration", () => {
 
   it("lowers an outer module local directly into a nested call argument", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Inner(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
       "module Outer(width: number) {",
       "  let local: number = @width + 2",
-      "  module Nested = Inner(width: @local)",
+      "  instance Nested = Inner(width: @local)",
       "}",
-      "module First = Outer(width: 3)",
-      "module Second = Outer(width: 7)"
+      "instance First = Outer(width: 3)",
+      "instance Second = Outer(width: 7)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -495,13 +495,13 @@ describe("module scalar runtime integration", () => {
 
   it("preserves module binding identities through a reconciled body edit", () => {
     const beforeSource = [
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
       "  let local: number = @width",
       "  set local = @local + 1",
       "  point P = coordinate(x: @local, y: 0)",
       "}",
-      "module Instance = M(width: 10)"
+      "instance Instance = M(width: 10)"
     ].join("\n");
     const before = compileWithIds(beforeSource, "stable");
     expectValid(before);
@@ -534,12 +534,12 @@ describe("module scalar runtime integration", () => {
 
   it("does not leak private module parameters into caller source lookup", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
-      "module A = M(width: 10)",
-      "module B = M(width: 20)",
+      "instance A = M(width: 10)",
+      "instance B = M(width: 20)",
       "point Q = coordinate(x: @width, y: 0)"
     ].join("\n"));
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "numeric-binding-unresolved")).toBe(true);
@@ -552,7 +552,7 @@ describe("module scalar runtime integration", () => {
 
   it("keeps child and sibling module lexical scopes independent", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  group First {",
       "    const x: number = 1",
@@ -565,7 +565,7 @@ describe("module scalar runtime integration", () => {
       "    point Q = coordinate(x: @y, y: 0)",
       "  }",
       "}",
-      "module A = M()"
+      "instance A = M()"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -576,16 +576,16 @@ describe("module scalar runtime integration", () => {
 
   it("does not execute an inactive module conditional set", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(enabled: boolean) {",
       "  let value: number = 1",
-      "  if Branch (@enabled) {",
+      "  if (@enabled) {",
       "    set value = 2",
       "  }",
       "  point P = coordinate(x: @value, y: 0)",
       "}",
-      "module A = M(enabled: false)",
-      "module B = M(enabled: true)"
+      "instance A = M(enabled: false)",
+      "instance B = M(enabled: true)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -598,14 +598,14 @@ describe("module scalar runtime integration", () => {
 
   it("runs module forGroup scalar locals per iteration", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
-      "  for Loop (i, from: 1, count: 2, step: 1) {",
+      "  for i in range(from: 1, count: 2, step: 1) {",
       "    const local: number = @i",
       "    point P = coordinate(x: @local, y: 0)",
       "  }",
       "}",
-      "module A = M()"
+      "instance A = M()"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -616,12 +616,12 @@ describe("module scalar runtime integration", () => {
 
   it("inherits a document forGroup caller and its iteration binding into a root module call", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(x: number) {",
       "  point P = coordinate(x: @x, y: 0)",
       "}",
-      "for Loop (i, from: 1, count: 2, step: 1) {",
-      "  module A = M(x: @i)",
+      "for i in range(from: 1, count: 2, step: 1) {",
+      "  instance A = M(x: @i)",
       "}"
     ].join("\n"));
     expectValid(compiled);
@@ -632,15 +632,15 @@ describe("module scalar runtime integration", () => {
 
   it("activates only the module call in the active document conditional", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(x: number) {",
       "  point P = coordinate(x: @x, y: 0)",
       "}",
-      "if Disabled (false) {",
-      "  module Off = M(x: 1)",
+      "if (false) {",
+      "  instance Off = M(x: 1)",
       "}",
-      "if Enabled (true) {",
-      "  module On = M(x: 2)",
+      "if (true) {",
+      "  instance On = M(x: 2)",
       "}"
     ].join("\n"));
     expectValid(compiled);
@@ -651,14 +651,14 @@ describe("module scalar runtime integration", () => {
 
   it("keeps typed module bindings in a mixed module numeric expression", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(base: number) {",
-      "  for Loop (i, from: 1, count: 2, step: 1) {",
+      "  for i in range(from: 1, count: 2, step: 1) {",
       "    const local: number = @base",
       "    point P = coordinate(x: @local + @i, y: 0)",
       "  }",
       "}",
-      "module A = M(base: 10)"
+      "instance A = M(base: 10)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -668,11 +668,11 @@ describe("module scalar runtime integration", () => {
 
   it("maps a module scalar in a materialized element-local vars expression", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
       "  point P = coordinate(x: @width + @local, y: 0, vars: [local: 5])",
       "}",
-      "module A = M(width: 10)"
+      "instance A = M(width: 10)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -682,11 +682,11 @@ describe("module scalar runtime integration", () => {
 
   it("materializes a module scalar in an element-local vars initializer", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(width: number) {",
       "  point P = coordinate(x: @local, y: 0, vars: [local: @width + 5])",
       "}",
-      "module A = M(width: 10)"
+      "instance A = M(width: 10)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -696,16 +696,16 @@ describe("module scalar runtime integration", () => {
 
   it("passes an iteration-local scalar into a nested module call", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module Inner(width: number = 9) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
       "module Outer() {",
-      "  for Loop (i, from: 1, count: 2, step: 1) {",
-      "    module Nested = Inner(width: @i)",
+      "  for i in range(from: 1, count: 2, step: 1) {",
+      "    instance Nested = Inner(width: @i)",
       "  }",
       "}",
-      "module A = Outer()"
+      "instance A = Outer()"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -715,13 +715,13 @@ describe("module scalar runtime integration", () => {
 
   it("lowers module geometry properties to fixed runtime targets", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
       "  const length: number = @A.length",
       "  point P = coordinate(x: @length, y: 0)",
       "}",
-      "module X = M()"
+      "instance X = M()"
     ].join("\n"));
     expectValid(compiled);
     const initializer = compiled.scalarProgram?.statements.find((statement) => statement.bindingId.includes("module-binding"))?.declaration.initializer;
@@ -733,12 +733,12 @@ describe("module scalar runtime integration", () => {
 
   it("lowers an ordinary document geometry property in a module argument", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "point Base = coordinate(x: 10, y: 0)",
       "module M(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
-      "module X = M(width: @Base.x)"
+      "instance X = M(width: @Base.x)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -748,12 +748,12 @@ describe("module scalar runtime integration", () => {
 
   it("materializes quoted module text templates from resolved semantic holes", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(label: string) {",
-      '  text T = label(text: "value={@label}", anchor: none, size: 3)',
+      '  text T = label(text: "value=${@label}", anchor: none, size: 3)',
       "}",
-      'module A = M(label: "A")',
-      'module B = M(label: "B")'
+      'instance A = M(label: "A")',
+      'instance B = M(label: "B")'
     ].join("\n"));
     expectValid(compiled);
     expect(compiled.materializedTextTemplates).toHaveLength(2);
@@ -767,14 +767,14 @@ describe("module scalar runtime integration", () => {
 
   it("applies materialized group.printEnabled per module instance", () => {
     const compiled = compileWithIds([
-      "nui 3",
+      "nui 4",
       "module M(enabled: boolean) {",
       "  group G (printEnabled: @enabled) {",
       "    point P = coordinate(x: 0, y: 0)",
       "  }",
       "}",
-      "module A = M(enabled: false)",
-      "module B = M(enabled: true)"
+      "instance A = M(enabled: false)",
+      "instance B = M(enabled: true)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);

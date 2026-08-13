@@ -34,9 +34,9 @@ describe("evaluation payload conversion", () => {
   });
 
   it("round-trips ok and error computedScalarBindings entries (Task 20)", () => {
-    const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+    const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
     const compiled = compileCanonicalText(baseline, [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
       "line AB = segment(start: @A, end: @B, state: disabled)",

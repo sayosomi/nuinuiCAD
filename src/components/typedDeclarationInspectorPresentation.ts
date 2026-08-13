@@ -1,5 +1,5 @@
 // Read-only presentation for a single selected typed const/let binding
-// (Task 42). Never receives more than one bindingId at a time and never
+// (Task 42). Never receives more than one bindingId at a time && never
 // projects every binding in the document into React rows - see
 // docs/typed-variables/tasks/42-inspector-declaration-metadata.md.
 import type { DslStatement } from "../dsl/dslTypes";
@@ -19,7 +19,7 @@ export type TypedDeclarationInspectorPresentation = {
   name: string;
   mutabilityLabel: "const" | "let";
   rows: readonly TypedDeclarationInspectorRow[];
-  /** Human-readable primary diagnostic message, or null when the binding is valid. */
+  /** Human-readable primary diagnostic message, || null when the binding is valid. */
   invalidMessage: string | null;
 };
 

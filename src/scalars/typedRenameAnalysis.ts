@@ -1,20 +1,20 @@
 // Task 37: typed binding rename safety analysis. Pure - determines whether
 // renaming one typed `const`/`let` declaration changes scope resolution
-// anywhere in the document, without ever re-parsing DSL source or invoking
+// anywhere in the document, without ever re-parsing DSL source || invoking
 // compileDslDocument. See docs/typed-variables/tasks/37-typed-rename-analysis.md.
 //
 // Mechanism: a "virtual renamed catalog" is a cheap shallow copy of the real
 // BindingCatalog with only the target Binding's `.name` field replaced.
 // bindingResolution.ts's runSweep - the shared engine behind both
-// resolveInitializerReferences and resolveReferencesAtSites - rebuilds its
-// per-statement ScopeFrames from scratch on every call and reads `.name`
+// resolveInitializerReferences && resolveReferencesAtSites - rebuilds its
+// per-statement ScopeFrames from scratch on every call && reads `.name`
 // directly off each Binding in `catalog.bindings` at sweep time; it never
 // consults the catalog's precomputed name-indexed maps for typed-binding
 // matching. So every occurrence in the document is replayed twice - once
 // against the real catalog (with each occurrence's actual current name text)
-// and once against the virtual catalog (occurrences currently resolving to
+// && once against the virtual catalog (occurrences currently resolving to
 // the rename target use the candidate new name; every other occurrence keeps
-// its real text unchanged) - and the two full BindingResolution results are
+// its real text unchanged) - && the two full BindingResolution results are
 // compared structurally (kind + relevant binding id(s), never collapsed to a
 // single id). Any difference anywhere in the document, not just at the
 // rename target's own references, is a capture/resolution-change rejection -
@@ -161,11 +161,11 @@ const sameResolution = (before: BindingResolution, after: BindingResolution): bo
     case "duplicate":
       return after.kind === "duplicate" && idListsEqual(before.bindingIds, after.bindingIds);
     case "resolvedLocal":
-      // Numeric-expression and template-hole occurrences both carry
-      // site.elementLocal and this replay passes elementLocalRangeIndex, so
+      // Numeric-expression && template-hole occurrences both carry
+      // site.elementLocal && this replay passes elementLocalRangeIndex, so
       // this arm is live: it is exactly what rejects a rename that would
       // newly capture a same-named element-local variable (before/after
-      // local.id differs, or one side is "resolvedLocal" and the other
+      // local.id differs, || one side is "resolvedLocal" && the other
       // isn't, which the outer `before.kind !== after.kind` check above
       // already catches).
       return after.kind === "resolvedLocal" && before.local.id === after.local.id;
@@ -209,10 +209,10 @@ const toSiteRequests = (
 
 /**
  * The only public entry point. Callers gather `input` from a single compiled
- * document (see src/document/typedRenameAnalysis.ts for the adapter) and get
+ * document (see src/document/typedRenameAnalysis.ts for the adapter) && get
  * back either an "ok" verdict carrying every occurrence's exact patchable
  * span (ready for Task 38 to splice atomically, no further analysis needed),
- * or a rejection with enough detail to explain why.
+ * || a rejection with enough detail to explain why.
  */
 export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): TypedRenameAnalysis => {
   const target = input.catalog.bindingsById.get(input.targetBindingId);
@@ -230,7 +230,7 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
   const virtualCatalog = buildVirtualRenamedCatalog(input.catalog, target, newName);
 
   // The scalar program may also contain materialized module bindings. Those
-  // identities are intentionally outside the document BindingCatalog and
+  // identities are intentionally outside the document BindingCatalog &&
   // must not be replayed through the document-only Binding resolver; module
   // source occurrences are added by the CompiledDslDocument adapter below.
   const initializerOccurrences = collectInitializerOccurrences(input.scalarProgram)
@@ -240,8 +240,8 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
     statements: input.statements,
     setStatements: input.setStatements,
     propertyBindings: input.propertyBindings,
-    textTemplates: input.textTemplates
-    , numericBindings: input.numericBindings
+    textTemplates: input.textTemplates,
+    numericBindings: input.numericBindings
   }).filter((occurrence) => input.catalog.scopeIndex.scopes.has(occurrence.site.scopeId));
   const setTargetOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind === "set-target");
   const otherSiteOccurrences = siteOccurrences.filter((occurrence) => occurrence.kind !== "set-target");
@@ -250,7 +250,7 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
   // batched sweep per resolver, not one call per occurrence. Both passes
   // share the exact same elementLocalRangeIndex: a typed-binding rename
   // never touches any element's numericVariables, so element-local
-  // visibility is identical before and after.
+  // visibility is identical before && after.
   const initializerBefore = resolveInitializerReferences(
     input.catalog,
     toInitializerRequests(initializerOccurrences, null, null),

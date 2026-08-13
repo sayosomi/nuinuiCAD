@@ -1,6 +1,6 @@
 // Task 27: evaluates Task 26's compiled TextTemplateAst by walking its
-// already-scanned/typechecked segments - never re-scans or re-parses the raw
-// template source. Geometry-agnostic: numeric-expression holes and number formatting are
+// already-scanned/typechecked segments - never re-scans || re-parses the raw
+// template source. Geometry-agnostic: numeric-expression holes && number formatting are
 // injected by the caller (src/geometry/textTemplateRuntime.ts) so this module
 // never imports anything geometry-specific, per plan.md's src/scalars/ file
 // organization policy.
@@ -41,7 +41,7 @@ const typedHoleError = (
 
 /**
  * Evaluates a compiled template against a scalar binding environment (Task
- * 16), a numeric-expression-hole callback, and a number formatter. Fails closed on the
+ * 16), a numeric-expression-hole callback, && a number formatter. Fails closed on the
  * first failing hole in source order - a deliberate simplification of the
  * old regex evaluator's "last error overwrites firstError" quirk, only
  * observable when multiple holes in one string fail simultaneously.

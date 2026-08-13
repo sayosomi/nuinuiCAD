@@ -1,7 +1,7 @@
 // Task 53: the shared low-level owner for "which typed number const/let
 // bindings are visible to this printLayout block's numeric fields" -
 // consumed by both PrintLayoutView's own React popover
-// (src/components/PrintLayoutView.tsx) and CodeMirror's printLayoutBlock
+// (src/components/PrintLayoutView.tsx) && CodeMirror's printLayoutBlock
 // completion (src/editor/cmAutocomplete.ts), so the two surfaces can never
 // silently drift apart on scope/visibility rules.
 import type { BindingAnalysis } from "./bindingAnalysis";
@@ -12,10 +12,10 @@ import type { NumericReferenceOption } from "../geometry/numericReferenceOptions
 
 /**
  * Resolves the BindingReferenceSite shared by a printLayout block's header
- * attributes (columns=/rows=/overlap=/scale=/canvas=) and a `place` member.
+ * attributes (columns=/rows=/overlap=/scale=/canvas=) && a `place` member.
  * The header site is the printLayout statement itself; a place site is the
  * place statement's own position, so earlier local declarations are visible
- * and later declarations are not.
+ * && later declarations are not.
  */
 export const printLayoutTypedBindingSite = (
   layoutId: string | undefined,
@@ -31,7 +31,7 @@ export const printLayoutTypedBindingSite = (
 
 /** Visible typed `number` const/let candidates for a printLayout block's
  * numeric fields, as `NumericReferenceOption`s - the shape both the React
- * PrintNumberInput popover and CodeMirror's own `Completion` mapping
+ * PrintNumberInput popover && CodeMirror's own `Completion` mapping
  * consume as their input. */
 export const printLayoutTypedBindingReferenceOptions = (
   layoutId: string | undefined,

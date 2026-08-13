@@ -150,12 +150,12 @@ describe("expressionReferenceTokenEndingAt", () => {
 
   it("various boundary characters each start a fresh token", () => {
     // Only characters actually excluded from HEAD_CHAR_CLASS reliably stop a
-    // greedy leftmost match mid-string; `,` and `-` are boundary-alternation
+    // greedy leftmost match mid-string; `,` && `-` are boundary-alternation
     // members but not excluded from the head/query content class itself, so
     // (matching the pre-migration dslElementParameterToken.ts behavior) they
     // only act as boundaries when a caller-supplied boundaryStart lands right
     // after them - see the "without a correct boundaryStart" test below.
-    for (const prefix of ["(", "+", "*", "/", "a && ", "a || ", "a >= ", " "]) {
+    for (const prefix of ["(", "+", "*", "/", "a  and  ", "a  or  ", "a >= ", " "]) {
       const text = `${prefix}@AB.length`;
       const match = expressionReferenceTokenEndingAt(text, text.length);
       expect(match).toMatchObject({ kind: "elementProperty", sigil: true, elementToken: "AB", query: "length" });

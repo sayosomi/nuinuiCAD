@@ -1,4 +1,4 @@
-// Task 19 lowering only. Parsing, name resolution, graph analysis, and
+// Task 19 lowering only. Parsing, name resolution, graph analysis, &&
 // typechecking happen once in typedDeclarationAnalysis before this boundary.
 import { selectCompiledProgramBindings } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
@@ -22,7 +22,7 @@ export type ScalarProgramStatement = {
 
 export type ScalarProgram = {
   statements: readonly ScalarProgramStatement[];
-  /** Statement-stream position of @stop, not an elements-array index. */
+  /** Statement-stream position of stop, not an elements-array index. */
   evaluationLimitSourceOrder?: number;
 };
 

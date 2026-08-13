@@ -17,7 +17,7 @@ import type { CadElement, CadElementType } from "../types/geometry";
 import { InspectorPanel } from "./InspectorPanel";
 
 const source = [
-  "nui 3",
+  "nui 4",
   "point A = coordinate(x: 0, y: 0)",
   "point B = offset(from: @A, dx: 10, dy: 20)",
   "line AB = segment(start: @A, end: @B)"
@@ -111,7 +111,7 @@ describe("InspectorPanel mouse-only actions", () => {
 
   it("shows element names rather than internal IDs inside numeric expressions", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "const length: number = 12.3456",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: @length, y: 0)",
@@ -195,10 +195,10 @@ describe("InspectorPanel mouse-only actions", () => {
 
   it("does not show escaped braces or typed template holes as unresolved geometry parents", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "const length: number = 12.3456",
       'const label: string = "前身頃"',
-      'text Label = label(text: "\\{draft\\} {@label} {@length}", anchor: none, size: 3)'
+      'text Label = label(text: "\\{draft\\} ${@label} ${@length}", anchor: none, size: 3)'
     ].join("\n"), "test");
     const elements = useCadDocumentStore.getState().elements;
     const label = elements.find((element) => element.name === "Label")!;
@@ -213,9 +213,9 @@ describe("InspectorPanel mouse-only actions", () => {
 
   it("shows a text template's raw source escapes instead of a re-serialized value", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       'const label: string = "前身頃"',
-      'text Label = label(text: "\\{draft\\} {@label}\\n", anchor: none, size: 3)'
+      'text Label = label(text: "\\{draft\\} ${@label}\\n", anchor: none, size: 3)'
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const elements = state.elements;
@@ -232,18 +232,18 @@ describe("InspectorPanel mouse-only actions", () => {
 
     const textRow = screen.getByText("テキスト（ソース）").closest(".inspector-row");
     if (!(textRow instanceof HTMLElement)) throw new Error("Missing text row");
-    expect(within(textRow).getByText("\\{draft\\} {@label}\\n")).toBeInTheDocument();
+    expect(within(textRow).getByText("\\{draft\\} ${@label}\\n")).toBeInTheDocument();
     expect(within(textRow).queryByText("\\\\{draft\\\\}")).not.toBeInTheDocument();
     unmount();
   });
 
   it("shows template source and its fresh runtime result without altering escapes or newlines", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "const length: number = 12.3456",
       'const label: string = "前身頃"',
       "point A = coordinate(x: 0, y: 0)",
-      'text Label = label(text: "\\{draft\\} {@label} {@length}\\n", anchor: @A, size: 3)',
+      'text Label = label(text: "\\{draft\\} ${@label} ${@length}\\n", anchor: @A, size: 3)',
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const textTemplates = buildTextTemplateEntriesByElementId({
@@ -272,14 +272,14 @@ describe("InspectorPanel mouse-only actions", () => {
 
     expect(sourceRow.parentElement?.parentElement).toBe(parameterList);
     expect(resultRow.parentElement?.parentElement).toBe(parameterList);
-    expect(screen.getByText("\\{draft\\} {@label} {@length}\\n")).toBeInTheDocument();
+    expect(screen.getByText("\\{draft\\} ${@label} ${@length}\\n")).toBeInTheDocument();
     expect(resultRow.textContent).toBe("評価結果{draft} 前身頃 12.346\n");
     view.unmount();
   });
 
   it("keeps matching literal text as one row and hides stale runtime text", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       'text Bare = label(text: "前身頃", anchor: @A, size: 3)',
     ].join("\n"), "test");
@@ -437,7 +437,7 @@ describe("InspectorPanel typed declaration metadata", () => {
   };
 
   it("shows kind/type/initializer/ID rows for a selected typed const, and clears any element selection", () => {
-    renderInspectorForBinding(["nui 3", "const width: number = 12"].join("\n"), "width");
+    renderInspectorForBinding(["nui 4", "const width: number = 12"].join("\n"), "width");
 
     expect(screen.getByText("width")).toBeInTheDocument();
     expect(within(screen.getByText("種別").closest(".inspector-row")!).getByText("const")).toBeInTheDocument();
@@ -450,7 +450,7 @@ describe("InspectorPanel typed declaration metadata", () => {
 
   it("jumps to the declaration when the declaration row is clicked", () => {
     const { handle, bindingId } = renderInspectorForBinding(
-      ["nui 3", "let shown: boolean = true"].join("\n"),
+      ["nui 4", "let shown: boolean = true"].join("\n"),
       "shown",
     );
 
@@ -461,7 +461,7 @@ describe("InspectorPanel typed declaration metadata", () => {
 
   it("jumps to just the type/initializer sub-span (Task 43) when those rows are clicked, not the whole declaration", () => {
     const { handle, bindingId } = renderInspectorForBinding(
-      ["nui 3", "let shown: boolean = true"].join("\n"),
+      ["nui 4", "let shown: boolean = true"].join("\n"),
       "shown",
     );
 
@@ -476,7 +476,7 @@ describe("InspectorPanel typed declaration metadata", () => {
 
   it("falls back to the whole-statement jump when the type/initializer sub-span does not resolve", () => {
     const { handle, bindingId } = renderInspectorForBinding(
-      ["nui 3", "let shown: boolean = true"].join("\n"),
+      ["nui 4", "let shown: boolean = true"].join("\n"),
       "shown",
     );
     vi.mocked(handle.jumpToBindingDeclarationPart).mockReturnValue(false);
@@ -489,7 +489,7 @@ describe("InspectorPanel typed declaration metadata", () => {
 
   it("does not attach a click handler to the non-span kind/ID rows", () => {
     const { handle } = renderInspectorForBinding(
-      ["nui 3", "let shown: boolean = true"].join("\n"),
+      ["nui 4", "let shown: boolean = true"].join("\n"),
       "shown",
     );
 
@@ -501,7 +501,7 @@ describe("InspectorPanel typed declaration metadata", () => {
 
   it("shows an invalid marker and diagnostic message for an invalid declaration", () => {
     renderInspectorForBinding(
-      ["nui 3", "const broken: number = @missing", "const valid: number = 3"].join("\n"),
+      ["nui 4", "const broken: number = @missing", "const valid: number = 3"].join("\n"),
       "broken",
     );
 
@@ -510,14 +510,14 @@ describe("InspectorPanel typed declaration metadata", () => {
   });
 
   it("keeps a recoverable invalid let's metadata visible without an invalid marker being required", () => {
-    renderInspectorForBinding(["nui 3", "let base: number = 1", "let derived: number = @base"].join("\n"), "derived");
+    renderInspectorForBinding(["nui 4", "let base: number = 1", "let derived: number = @base"].join("\n"), "derived");
 
     expect(screen.getByText("derived")).toBeInTheDocument();
     expect(screen.queryByText("無効")).not.toBeInTheDocument();
   });
 
   it("shows the empty state when neither an element nor a binding is selected", () => {
-    useCadDocumentStore.getState().commitText(["nui 3", "const width: number = 12"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 4", "const width: number = 12"].join("\n"), "test");
     const handle = makeHandle();
     const sourceEditorRef = createRef<SourceEditorHandle>();
     sourceEditorRef.current = handle;
@@ -601,7 +601,7 @@ describe("InspectorPanel runtime values (Task 45)", () => {
 
   it("shows the final value and jumps to the initializer when the value row is clicked", () => {
     const { handle, bindingId } = renderInspectorForRuntimeBinding(
-      ["nui 3", "let total: number = 1", "set total = 5"].join("\n"),
+      ["nui 4", "let total: number = 1", "set total = 5"].join("\n"),
       "total"
     );
 
@@ -613,7 +613,7 @@ describe("InspectorPanel runtime values (Task 45)", () => {
   });
 
   it("shows poisoned status and a diagnostic message when the final value is a runtime error", () => {
-    renderInspectorForRuntimeBinding(["nui 3", "const bad: number = 1 / 0"].join("\n"), "bad");
+    renderInspectorForRuntimeBinding(["nui 4", "const bad: number = 1 / 0"].join("\n"), "bad");
 
     expect(within(screen.getByText("最終値").closest(".inspector-row")!).getByText("無効(poisoned)")).toBeInTheDocument();
     expect(screen.getByText("実行時値").closest(".dependency-group")!.querySelector(".inspector-diagnostic.error")).not.toBeNull();
@@ -621,7 +621,7 @@ describe("InspectorPanel runtime values (Task 45)", () => {
 
   it("shows unknown instead of the last value when the evaluation is stale, and hides consumer rows", () => {
     renderInspectorForRuntimeBinding(
-      ["nui 3", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"),
+      ["nui 4", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"),
       "印刷",
       { isEvaluationStale: true }
     );
@@ -632,7 +632,7 @@ describe("InspectorPanel runtime values (Task 45)", () => {
 
   it("lists a consumer row and jumps to its exact property value span when clicked", () => {
     const { handle } = renderInspectorForRuntimeBinding(
-      ["nui 3", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"),
+      ["nui 4", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"),
       "印刷"
     );
 

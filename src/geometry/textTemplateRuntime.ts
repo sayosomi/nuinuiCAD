@@ -1,18 +1,18 @@
-// Task 27: connects Task 26's compiled TextTemplateAst and Task 22's
+// Task 27: connects Task 26's compiled TextTemplateAst && Task 22's
 // bare-`@binding` `text.text` property source to Task 16's expression
-// evaluator and Task 20/21's scalar binding resolver, for the TS reference
+// evaluator && Task 20/21's scalar binding resolver, for the TS reference
 // evaluation path. Mirrors propertyBindingRuntime.ts/controlBooleanRuntime.ts's
 // three-step shape (re-key once per compiled document -> group/lookup by
 // elementId -> resolve/materialize via a caller-supplied resolver), never
-// re-parsing source or re-resolving a binding name.
+// re-parsing source || re-resolving a binding name.
 //
-// Two independent pieces remain only because quoted templates and plain text
+// Two independent pieces remain only because quoted templates && plain text
 // property values have different presentation behavior:
-// - `text.text` bare `@name` or a compound string expression is compiled by
-//   the common property frontend and routed through this physical path.
+// - `text.text` bare `@name` || a compound string expression is compiled by
+//   the common property frontend && routed through this physical path.
 // - A quoted `"...{...}..."` value is a compiled TextTemplateAst (Task 26);
 //   `evaluateElementTextTemplate` walks its segments via Task 16's
-//   evaluateTypedExpression for typed holes and uses the existing local
+//   evaluateTypedExpression for typed holes && uses the existing local
 //   numeric-expression evaluator for numeric holes, scoped to one compiled
 //   hole rather than a whole-string scan.
 
@@ -40,7 +40,7 @@ export type TextTemplateRuntimeSource = {
  * has exactly one `text:` attribute per statement), mirroring
  * controlBooleanRuntime.ts's buildConditionalGroupConditionsByElementId
  * shape rather than the array-based standard-property builders. Call this
- * exactly once per compiled document, never per element or per evaluation.
+ * exactly once per compiled document, never per element || per evaluation.
  */
 export const buildTextTemplateEntriesByElementId = (
   source: TextTemplateRuntimeSource
@@ -54,9 +54,9 @@ export const buildTextTemplateEntriesByElementId = (
   return byElementId;
 };
 
-/** Evaluation-only projection for Rust: spans and dependency metadata remain
+/** Evaluation-only projection for Rust: spans && dependency metadata remain
  * TypeScript-only compiler/editor data, while Rust receives the compiled
- * segment content and already-resolved typed expression AST unchanged. */
+ * segment content && already-resolved typed expression AST unchanged. */
 export type RustTextTemplateSegment =
   | { kind: "literal"; cooked: string }
   | { kind: "hole"; holeKind: "numeric"; raw: string }

@@ -1,6 +1,6 @@
 // Task 48 correction: controller-level integration tests for
 // runtimeDiagnostics() freshness (including the live, uncommitted CM buffer)
-// and the forceLinting-on-evaluation-apply hook. Mirrors
+// && the forceLinting-on-evaluation-apply hook. Mirrors
 // sourceEditorController.typedSpanNavigation.test.ts's harness conventions.
 import { diagnosticCount, forEachDiagnostic } from "@codemirror/lint";
 import type { EditorState } from "@codemirror/state";
@@ -67,7 +67,7 @@ describe("SourceEditorController Task 48 correction: runtimeDiagnostics() live-b
   beforeEach(setUp);
   afterEach(() => vi.restoreAllMocks());
 
-  const source = ["nui 3", "const x: number = 1"].join("\n");
+  const source = ["nui 4", "const x: number = 1"].join("\n");
 
   it("reports a fresh runtime error once published", () => {
     useCadDocumentStore.getState().commitText(source, "test");
@@ -98,7 +98,7 @@ describe("SourceEditorController Task 48 correction: runtimeDiagnostics() live-b
     expect(controller.runtimeDiagnostics()).toEqual([]);
     // This is the real CodeMirror diagnostic state backing the gutter, not
     // only the controller getter. It must clear synchronously instead of
-    // waiting for the linter's delayed pass or a source commit.
+    // waiting for the linter's delayed pass || a source commit.
     expect(diagnosticCount(internals.view.state)).toBe(0);
     controller.destroy();
   });
@@ -141,7 +141,7 @@ describe("SourceEditorController Task 48 correction: forceLinting on evaluation 
   beforeEach(setUp);
   afterEach(() => vi.restoreAllMocks());
 
-  const source = ["nui 3", "const x: number = 1"].join("\n");
+  const source = ["nui 4", "const x: number = 1"].join("\n");
 
   it("re-runs the linter so a fresh runtime error appears in CodeMirror's own diagnostic state without any doc change", async () => {
     useCadDocumentStore.getState().commitText(source, "test");
@@ -200,7 +200,7 @@ describe("SourceEditorController Task 48 correction: forceLinting on evaluation 
   });
 
   it("keeps compile-time BindingIssue diagnostics while directly replacing runtime diagnostics", () => {
-    const bindingIssueSource = ["nui 3", "const missing: number = @notFound", "const y: number = 1"].join("\n");
+    const bindingIssueSource = ["nui 4", "const missing: number = @notFound", "const y: number = 1"].join("\n");
     useCadDocumentStore.getState().commitText(bindingIssueSource, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -220,7 +220,7 @@ describe("SourceEditorController Task 48 correction: forceLinting on evaluation 
   });
 
   it("uses the dirty-buffer layer when an evaluation arrives during an edit, never restoring a shifted BindingIssue marker", () => {
-    const bindingIssueSource = ["nui 3", "const missing: number = @notFound", "const y: number = 1"].join("\n");
+    const bindingIssueSource = ["nui 4", "const missing: number = @notFound", "const y: number = 1"].join("\n");
     useCadDocumentStore.getState().commitText(bindingIssueSource, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -246,14 +246,14 @@ describe("SourceEditorController Task 48 correction: selectSourceSpan", () => {
   beforeEach(setUp);
   afterEach(() => vi.restoreAllMocks());
 
-  const source = ["nui 3", "const x: number = @missing"].join("\n");
+  const source = ["nui 4", "const x: number = @missing"].join("\n");
 
   const selectedText = (internals: ControllerInternals) => {
     const main = internals.view.state.selection.main;
     return internals.view.state.doc.toString().slice(main.from, main.to);
   };
 
-  it("selects exactly the given exact span and focuses the editor", () => {
+  it("selects exactly the given exact span && focuses the editor", () => {
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -336,7 +336,7 @@ describe("SourceEditorController Task 48 correction: end-to-end BindingIssue Pro
 
   it("an undefined-binding Problems row selects exactly the `@missing` reference, using real production diagnostics", async () => {
     const { bindingIssuesToDiagnostics } = await import("../scalars/bindingIssueDiagnostics");
-    const source = ["nui 3", "const x: number = @missing"].join("\n");
+    const source = ["nui 4", "const x: number = @missing"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -355,7 +355,7 @@ describe("SourceEditorController Task 48 correction: end-to-end BindingIssue Pro
   });
 
   it("a duplicate-binding Problems row (declaration-origin) jumps to the matching declaration, not a reference", () => {
-    const source = ["nui 3", "const x: number = 1", "const x: number = 2"].join("\n");
+    const source = ["nui 4", "const x: number = 1", "const x: number = 2"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);

@@ -17,14 +17,16 @@ import {
 import { commitModelBridge, type CanonicalDocumentValue, type LastGoodDslDocument } from "./canonicalDocument";
 
 const elementByName = (document: DslDocumentData, name: string): CadElement => {
-  const element = document.elements.find((item) => item.name === name);
+  const element = document.elements.find((item) => item.name === name)
+    ?? (name === "分岐" ? document.elements.find((item) => item.type === "conditionalGroup") : undefined)
+    ?? (name === "繰返し" ? document.elements.find((item) => item.type === "forGroup") : undefined);
   expect(element, `element ${name}`).toBeDefined();
   return element!;
 };
 
 // 小さなDSL片から挿入用の要素オブジェクトを作る(IDは新規=挿入として扱われる)。
 const makeElement = (statement: string, overrides: Partial<CadElement> = {}): CadElement => {
-  const compiled = compileDslDocument(`nui 3\n${statement}`);
+  const compiled = compileDslDocument(`nui 4\n${statement}`);
   expect(compiled.document).not.toBeNull();
   return { ...compiled.document!.elements[0], ...overrides } as CadElement;
 };
@@ -112,7 +114,7 @@ const commitPrintLayoutModelEdit = (
 };
 
 const BASE_SOURCE = [
-  "nui 3",
+  "nui 4",
   "",
   "# パレット注釈",
   'color main ("#112233", name: "本体", default: true)',
@@ -183,10 +185,10 @@ describe("applyLineSplices", () => {
 describe("textPatch 要素の更新", () => {
   it("モデルの別フィールドを編集してもsource-authored typed property expressionを保持する", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "let 印刷: boolean = true",
       "let 下書き: boolean = false",
-      "group G (printEnabled: @印刷 && !@下書き) {",
+      "group G (printEnabled: @印刷  and  not @下書き) {",
       "}"
     ].join("\n");
     const current = canonicalFrom(source);
@@ -199,7 +201,7 @@ describe("textPatch 要素の更新", () => {
     });
     expect(result.status).toBe("committed");
     if (result.status !== "committed") return;
-    expect(result.value.sourceText).toContain("printEnabled: @印刷 && !@下書き");
+    expect(result.value.sourceText).toContain("printEnabled: @印刷  and  not @下書き");
     expect(result.value.sourceText).toContain("state: hidden");
   });
 
@@ -209,7 +211,7 @@ describe("textPatch 要素の更新", () => {
     "@enabled and true"
   ])("@ の有無にかかわらず compound boolean source を保持する: %s", (expression) => {
     const source = [
-      "nui 3",
+      "nui 4",
       ...(expression.includes("@enabled") ? ["let enabled: boolean = true"] : []),
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -233,7 +235,7 @@ describe("textPatch 要素の更新", () => {
 
   it("serializes a directly edited authored parameter instead of preserving its old expression", () => {
     const current = canonicalFrom([
-      "nui 3",
+      "nui 4",
       "group G (printEnabled: true and false) {",
       "}"
     ].join("\n"));
@@ -326,7 +328,7 @@ describe("textPatch 要素の挿入", () => {
   });
 
   it("else枝への初回挿入は `} else {` 行を生成する", () => {
-    const source = ["nui 3", "if 分岐 (true) {", "  point T = coordinate(x: 0, y: 0)", "}"].join("\n");
+    const source = ["nui 4", "if (true) {", "  point T = coordinate(x: 0, y: 0)", "}"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const conditional = elementByName(document, "分岐");
       const inserted = makeElement("point E = coordinate(x: 5, y: 5)", {
@@ -365,14 +367,14 @@ describe("textPatch 要素の挿入", () => {
   });
 
   it("要素セクションが空の文書への挿入はセクションを新設する", () => {
-    const source = ["nui 3", "", 'color main ("#112233", name: "本体", default: true)'].join("\n");
+    const source = ["nui 4", "", 'color main ("#112233", name: "本体", default: true)'].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [makeElement("point Z = coordinate(x: 9, y: 9)")],
       evaluationLimitIndex: undefined
     }));
     expect(patched.split("\n")).toEqual([
-      "nui 3",
+      "nui 4",
       "",
       'color main ("#112233", name: "本体", default: true)',
       "",
@@ -444,8 +446,8 @@ describe("textPatch 要素の削除", () => {
 
   it("else枝の最後のメンバー削除は `} else {` 行も除去する", () => {
     const source = [
-      "nui 3",
-      "if 分岐 (true) {",
+      "nui 4",
+      "if (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
       "  point E = coordinate(x: 5, y: 5)",
@@ -463,7 +465,7 @@ describe("textPatch 要素の削除", () => {
 
 describe("textPatch 要素の移動・親変更", () => {
   it("同一スコープ内の並べ替えは削除+挿入で表現される", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const [a, b, c] = document.elements;
       return { ...document, elements: [a, c, b] };
@@ -492,7 +494,7 @@ describe("textPatch 要素の移動・親変更", () => {
   });
 
   it("非連続な親子順序は parent: フォールバックで表現される", () => {
-    const source = ["nui 3", "group G {", "  point A = coordinate(x: 0, y: 0)", "}", "point C = coordinate(x: 2, y: 2)"].join("\n");
+    const source = ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "}", "point C = coordinate(x: 2, y: 2)"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = elementByName(document, "G");
       const inserted = makeElement("point B = coordinate(x: 1, y: 1)", { parentGroupId: group.id });
@@ -508,7 +510,7 @@ describe("textPatch 要素の移動・親変更", () => {
     // ヘッダ)とstatement自身の内容の相対順序がinsertBeforeの呼び出し順に
     // 依存してしまい、子の内容がgroupヘッダより前に出てしまう回帰があった
     // (発見・修正はW2実装時)。ここで固定する。
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = makeElement("group G {\n}");
       return {
@@ -535,7 +537,7 @@ describe("textPatch 要素の移動・親変更", () => {
 // パッチ挙動を主題として検証するため、手書きリテラルのまま残す。
 describe("textPatch 複数行statement(括弧継続)", () => {
   const CONTINUATION_SOURCE = [
-    "nui 3",
+    "nui 4",
     "point A = coordinate(",
     "  x: 0,",
     "  y: 0,",
@@ -558,7 +560,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
   });
 
   it("内容変更のない継続statementの移動(既存groupへのdepth変更)も全範囲を置換する", () => {
-    const source = ["nui 3", "group G {", "}", "point A = coordinate(", "  x: 0,", "  y: 0,", "  color: main", ")"].join("\n");
+    const source = ["nui 4", "group G {", "}", "point A = coordinate(", "  x: 0,", "  y: 0,", "  color: main", ")"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = elementByName(document, "G");
       return {
@@ -601,7 +603,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     // だけを見ていると、無変更の複数行文が文書末尾にあるとき、新規要素が
     // ヘッダ行と継続行の間に挟まってしまい継続が壊れる回帰があった
     // (property testで発見・修正)。
-    const source = ["nui 3", "point B = coordinate(x: 1, y: 1)", "point A = coordinate(", "  x: 0,", "  y: 0,", "  color: main", ")"].join("\n");
+    const source = ["nui 4", "point B = coordinate(x: 1, y: 1)", "point A = coordinate(", "  x: 0,", "  y: 0,", "  color: main", ")"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [...document.elements, makeElement("point Z = coordinate(x: 9, y: 9)")],
@@ -619,7 +621,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
 describe("textPatch リネーム伝播", () => {
   it("参照元のリネームで参照行が書き換わり、無関係行は不変", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "# 注釈",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 2)",
@@ -638,13 +640,23 @@ describe("textPatch リネーム伝播", () => {
 
   it("配置済みグループのリネームで printLayout ブロックが書き換わる", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "group 前身頃 {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
       "",
-      "printLayout A4 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "  place 前身頃 (at: (0, 0), angle: 0, mirrorX: false)",
+      "printLayout A4(",
+      "  output: pdf,",
+      "  paper: a4,",
+      "  orientation: portrait,",
+      "  width: 410,",
+      "  height: 584,",
+      "  columns: 2,",
+      "  rows: 2,",
+      "  overlap: 10,",
+      "  scale: 1,",
+      ") {",
+      "  place @前身頃(x: 0, y: 0, angle: 0, mirrorX: false)",
       "}"
     ].join("\n");
     const { patched } = applyChange(source, (document) => ({
@@ -653,7 +665,7 @@ describe("textPatch リネーム伝播", () => {
         element.name === "前身頃" ? ({ ...element, name: "後身頃" } as CadElement) : element
       )
     }));
-    expect(patched).toContain("place @後身頃 ");
+    expect(patched).toContain("place @後身頃(");
     expect(patched.split("\n").some((line) => line.startsWith("group 後身頃") && line.endsWith("{"))).toBe(true);
   });
 });
@@ -661,7 +673,7 @@ describe("textPatch リネーム伝播", () => {
 describe("textPatch 非要素セクション", () => {
   it("色の追加・編集・default移動・削除", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "",
       'color main ("#112233", name: "本体", default: true)',
       'color sub ("#445566", name: "サブ")',
@@ -689,7 +701,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("ロール追加は各view行を個別に書き換え、行間コメントを保存する", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       'role seam (name: "縫い代")',
       "view 通常 (default: true, seam: false)",
       "# ビュー間コメント",
@@ -713,7 +725,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("activeView の切替はその行だけを書き換える", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       'role seam (name: "縫い代")',
       "view 通常 (default: true, seam: false)",
       "view 印刷 (default: true, seam: true)",
@@ -732,12 +744,22 @@ describe("textPatch 非要素セクション", () => {
 
   it("printLayout の属性変更はブロック単位で置換される", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
-      "printLayout A4 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "  place G (at: (0, 15), angle: 0, mirrorX: false)",
+      "printLayout A4(",
+      "  output: pdf,",
+      "  paper: a4,",
+      "  orientation: portrait,",
+      "  width: 410,",
+      "  height: 584,",
+      "  columns: 2,",
+      "  rows: 2,",
+      "  overlap: 10,",
+      "  scale: 1,",
+      ") {",
+      "  place @G(x: 0, y: 15, angle: 0, mirrorX: false)",
       "}"
     ].join("\n");
     const { patched } = applyChange(source, (document) => ({
@@ -745,12 +767,12 @@ describe("textPatch 非要素セクション", () => {
       printLayouts: document.printLayouts.map((layout) => ({ ...layout, columns: 5 }))
     }));
     expect(patched).toContain("columns: 5");
-    expect(patched).toContain("place @G ");
+    expect(patched).toContain("place @G(");
   });
 
   it("commitModelBridge のprintLayout property editはbody-local let/set/placeを保持する", () => {
     const current = canonicalFrom([
-      "nui 3",
+      "nui 4",
       "group G {",
       "}",
       "printLayout A4(",
@@ -784,7 +806,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("commitModelBridge後もprintLayout local setのruntime valueを評価する", () => {
     const current = canonicalFrom([
-      "nui 3",
+      "nui 4",
       "group G {",
       "}",
       "printLayout A4(width: 210, height: 297, columns: 1) {",
@@ -801,7 +823,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("commitModelBridgeはplace/set/placeのsource orderを保持する", () => {
     const current = canonicalFrom([
-      "nui 3",
+      "nui 4",
       "group G {",
       "}",
       "printLayout A4(width: 210, height: 297, columns: 1) {",
@@ -824,7 +846,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("commitModelBridgeはprintLayout body-local constを保持する", () => {
     const current = canonicalFrom([
-      "nui 3",
+      "nui 4",
       "group G {",
       "}",
       "printLayout A4(width: 210, height: 297) {",
@@ -841,7 +863,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("複数printLayoutのmodel editは対象外layoutのsource-only bodyを変更しない", () => {
     const current = canonicalFrom([
-      "nui 3",
+      "nui 4",
       "group G {",
       "}",
       "printLayout A4(width: 210, height: 297, columns: 1) {",
@@ -866,7 +888,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("printLayout の追加と activePrintLayout の切替", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
       "}"
@@ -885,12 +907,12 @@ describe("textPatch 非要素セクション", () => {
         activePrintLayoutId: "二枚目"
       };
     });
-    expect(patched).toContain("printLayout 二枚目 ");
+    expect(patched).toContain("printLayout 二枚目(");
     expect(patched).toContain("activePrintLayout 二枚目");
   });
 
   it("printLayoutが存在しない文書に新規追加すると、既存elementsセクションより後に挿入される", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       printLayouts: [
@@ -920,10 +942,10 @@ describe("textPatch 非要素セクション", () => {
     expect(printLayoutLine).toBeGreaterThan(pointBLine);
   });
 
-  it("末尾に@stopがある文書に新規printLayoutを追加すると、@stopより後に挿入される", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "@stop"].join("\n");
+  it("末尾にstopがある文書に新規printLayoutを追加すると、stopより後に挿入される", () => {
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop"].join("\n");
     // applyChange itself already asserts the patched text reparses with zero
-    // error diagnostics - if printLayout landed before @stop, that assertion
+    // error diagnostics - if printLayout landed before stop, that assertion
     // would fail on validatePrintLayoutPlacement's structural diagnostic
     // ("printLayoutブロック以降には...") before this test body even runs.
     const { patched } = applyChange(source, (document) => ({
@@ -949,7 +971,7 @@ describe("textPatch 非要素セクション", () => {
       activePrintLayoutId: "レイアウト1"
     }));
     const lines = patched.split("\n");
-    const atStopLine = lines.findIndex((line) => line.startsWith("@stop"));
+    const atStopLine = lines.findIndex((line) => line.startsWith("stop"));
     const printLayoutLine = lines.findIndex((line) => line.startsWith("printLayout"));
     expect(atStopLine).toBeGreaterThanOrEqual(0);
     expect(printLayoutLine).toBeGreaterThan(atStopLine);
@@ -957,7 +979,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("printLayoutが既に存在する文書へ新規elementを追加すると、printLayoutセクションより前に挿入される", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
       "}"
@@ -974,28 +996,28 @@ describe("textPatch 非要素セクション", () => {
     expect(printLayoutLine).toBeGreaterThan(pointBLine);
   });
 
-  it("@stop の移動は削除+挿入", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "@stop", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
+  it("stop の移動は削除+挿入", () => {
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       evaluationLimitIndex: 2
     }));
     const lines = patched.split("\n");
-    expect(lines.filter((line) => line === "@stop")).toHaveLength(1);
-    const stopIndex = lines.indexOf("@stop");
+    expect(lines.filter((line) => line === "stop")).toHaveLength(1);
+    const stopIndex = lines.indexOf("stop");
     const bIndex = lines.findIndex((line) => line.startsWith("point B "));
     const cIndex = lines.findIndex((line) => line.startsWith("point C "));
     expect(stopIndex).toBeGreaterThan(bIndex);
     expect(stopIndex).toBeLessThan(cIndex);
   });
 
-  it("@stop を明示的に除去したら行も除去される", () => {
-    const source = ["nui 3", "point A = coordinate(x: 0, y: 0)", "@stop", "point B = coordinate(x: 1, y: 1)"].join("\n");
+  it("stop を明示的に除去したら行も除去される", () => {
+    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       evaluationLimitIndex: undefined
     }));
-    expect(patched).not.toContain("@stop");
+    expect(patched).not.toContain("stop");
   });
 });
 
@@ -1055,7 +1077,7 @@ describe("diffDocuments", () => {
 // full比較と一致することを検証する。
 describe("elementUpdateSet 高速経路とfull比較の等価性", () => {
   const NESTED_SOURCE = [
-    "nui 3",
+    "nui 4",
     "group Outer {",
     "  group Inner {",
     "    point P1 = coordinate(x: 0, y: 0)",

@@ -1,0 +1,15 @@
+nui 4
+# Active nui4 evaluation fixture.
+
+point 外の点 = coordinate(x: 0, y: 0)
+
+module M(enabled: boolean) {
+  let 値: number = 0
+  if (@enabled) {
+    set 値 = 1
+  }
+  point P = coordinate(x: @値, y: 0)
+}
+
+instance False = M(enabled: false)
+instance True = M(enabled: true)

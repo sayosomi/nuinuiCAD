@@ -34,8 +34,8 @@ export type DependencyIndex = {
 };
 
 /**
- * Compiled nui 3 text templates retain the distinction between literal,
- * typed, and numeric holes that the cooked `TextElement.text` value loses.
+ * Compiled nui 4 text templates retain the distinction between literal,
+ * typed, && numeric holes that the cooked `TextElement.text` value loses.
  * Callers with a compiled document should provide this map so only compiled
  * holes participate in geometry dependency collection.
  */
@@ -66,7 +66,7 @@ const textGeometryParentReferences = (
     segment.kind === "hole" && segment.holeKind === "numeric"
       // Task 51: `segment.raw` is unnormalized *name*-form source text (no
       // element-name context is available here to run the full
-      // normalizeNumericExpressionInput lowering), so a nui 3
+      // normalizeNumericExpressionInput lowering), so a nui 4
       // `@Element.property` occurrence must have its sigil stripped before
       // this ID-oriented tokenizer sees it - otherwise it mis-tokenizes as a
       // local-variable reference followed by a garbage bare `.property`

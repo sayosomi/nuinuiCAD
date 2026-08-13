@@ -11,8 +11,8 @@ import {
 } from "./groupPrintEnabledRuntime";
 
 const compile = (statements: string[]): LastGoodDslDocument => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
-  const result = compileCanonicalText(baseline, ["nui 3", ...statements].join("\n"));
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+  const result = compileCanonicalText(baseline, ["nui 4", ...statements].join("\n"));
   expect(result.status).not.toBe("fatal");
   return result.doc;
 };
@@ -80,7 +80,7 @@ describe("isGroupPrintEnabled", () => {
     const doc = compile([
       "let 印刷: boolean = true",
       "let 下書き: boolean = false",
-      "group G (printEnabled: @印刷 && !@下書き) {",
+      "group G (printEnabled: @印刷  and  not @下書き) {",
       "}"
     ]);
     const group = groupNamed(doc, "G");

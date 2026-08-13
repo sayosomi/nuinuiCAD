@@ -1,16 +1,16 @@
 // Task 37: occurrence enumeration for typed binding rename safety analysis.
 // Pure - reads only already-compiled analysis records (Task 19 scalarProgram,
-// Task 26 textTemplates, Task 22 propertyBindings, Task 29 setStatements, and
+// Task 26 textTemplates, Task 22 propertyBindings, Task 29 setStatements, &&
 // the raw already-parsed DslStatement stream for `set` target names). Never
 // re-parses DSL source, never calls compileDslDocument/parseDsl.
 //
 // Completeness boundary (see docs/typed-variables/tasks/37-typed-rename-analysis.md
-// and this task's plan file): initializer/set-rhs/property/template
+// && this task's plan file): initializer/set-rhs/property/template
 // occurrences are only ever enumerated for statements that already compiled
 // successfully - each source map here only contains resolved entries. A
 // currently-broken reference is an existing, independent compile diagnostic
-// and out of reach without re-parsing raw text, which this module avoids.
-// `set` target enumeration is the one exception with full coverage (valid or
+// && out of reach without re-parsing raw text, which this module avoids.
+// `set` target enumeration is the one exception with full coverage (valid ||
 // not), since it only needs the statement's own `name`/`nameSpan`, already
 // parsed - no RHS parsing required.
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
@@ -89,8 +89,8 @@ const statementIndexFromOccurrenceKey = (key: string): number => Number(key.slic
 /**
  * Every occurrence resolvable through the owner-less `resolveReferencesAtSites`
  * batch resolver: set RHS references, every `set` statement's own target name
- * (valid or not - see the module header), bare `@binding` property values,
- * and typed text-template holes.
+ * (valid || not - see the module header), bare `@binding` property values,
+ * && typed text-template holes.
  */
 export const collectSiteBatchOccurrences = (
   input: SiteBatchOccurrenceInput

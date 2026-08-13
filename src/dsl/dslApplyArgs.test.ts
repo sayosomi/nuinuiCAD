@@ -73,7 +73,7 @@ const specs = [
   ["image", "image"], ["group", ""], ["if", ""], ["for", ""],
 ] as const;
 
-describe("DSL nui 3 compiler argument application", () => {
+describe("DSL nui 4 compiler argument application", () => {
   it("applies populated and minimal arguments for every registry construction", () => {
     for (const [category, construction] of specs) {
       const spec = constructionFor(category, construction)!;
@@ -271,7 +271,7 @@ describe("DSL nui 3 compiler argument application", () => {
   });
 
   it("consumes P2 scanned argument output without depending on parser wiring", () => {
-    const source = "point A = coordinate(x: 10 y: -5)";
+    const source = "point A = coordinate(x: 10,y: -5)";
     const open = source.indexOf("(");
     const scanned = scanCallArgs(source, { start: open + 1, end: source.length - 1 });
     const result = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, scanned.args, resolvers);
@@ -279,7 +279,7 @@ describe("DSL nui 3 compiler argument application", () => {
   });
 });
 
-describe("nui 3 state syntax lowering", () => {
+describe("nui 4 state syntax lowering", () => {
   it("lowers each of the 3 state literals to ElementActivity", () => {
     const visible = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "visible")], resolvers);
     expect(visible.diagnostics).toEqual([]);

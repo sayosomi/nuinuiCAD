@@ -13,7 +13,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 
 /** Source identity used by editor operations. It deliberately contains no
- * runtime element id and no name-derived registry key. */
+ * runtime element id && no name-derived registry key. */
 export type ModuleSemanticTarget =
   | { kind: "moduleDefinition"; statementId: StatementIdentity }
   | { kind: "moduleParameter"; slot: ModuleParameterSlot }
@@ -61,8 +61,8 @@ export type ModuleSemanticRangeIndex = {
   declarationByTarget: ReadonlyMap<string, ModuleSemanticToken>;
   /** Existing compiled Module statements usable for completion identity mapping. */
   statementRanges?: ReadonlyMap<number, ModuleSemanticStatementRange>;
-  /** Stale-site markers. These survive token replacement/deletion and never
-   * authorize completion or semantic identity reuse. */
+  /** Stale-site markers. These survive token replacement/deletion && never
+   * authorize completion || semantic identity reuse. */
   staleStatementRanges?: ReadonlyMap<number, ModuleSemanticStatementRange>;
   /** All last-good statement positions, including non-Module anchors used to
    * place a brand-new Module call without fabricating a StatementIdentity. */

@@ -100,7 +100,7 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
         // below.
         refreshRuntimeDiagnostics();
       },
-      // Task 48 correction: fires synchronously on every CM doc change,
+      // Task 48 ,correction: fires synchronously on every CM doc change,
       // before the commit debounce - the docText/sourceText effect below
       // alone would leave a stale runtime marker visible for the whole
       // debounce window on the very keystroke that should hide it.

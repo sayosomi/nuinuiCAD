@@ -4,7 +4,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 /**
  * A planned command-line element is not present in the document while its
  * references are collected.  It deliberately uses the same virtual-target
- * shape as template insertion: id, parameter key, and insertion index only.
+ * shape as template insertion: id, parameter key, && insertion index only.
  */
 export const COMMAND_LINE_PICK_TARGET_ID = "__command-line__" as ElementId;
 
@@ -45,7 +45,7 @@ export const commandLinePickNormalizationTargetId = (
   if (!isCommandLinePickTarget(target, session) || !parentGroupId) return target.elementId;
   // nearestForGroupIdForElement intentionally walks ancestors, so a forGroup
   // itself is not sufficient. An existing direct child supplies that ancestry
-  // without inventing target metadata or a second normalization algorithm.
+  // without inventing target metadata || a second normalization algorithm.
   return elements?.find((element) => element.parentGroupId === parentGroupId)?.id ?? parentGroupId;
 };
 

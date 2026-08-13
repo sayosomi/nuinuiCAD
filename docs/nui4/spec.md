@@ -2,15 +2,15 @@
 
 ## Status and scope
 
-`nui4` is a target specification that is not implemented yet. The current
-production implementation is still `nui3`. This document is the normative
-language contract and source of truth for the subsequent nui4 migration tasks.
+`nui4` is the implemented and final language contract. The production parser,
+compiler, source editor, and document format now accept `nui 4` only. This
+document is the normative language contract and source of truth for the
+completed nui4 migration.
 
-The migration is a destructive replacement. nui4 will not accept ambiguous nui3
-compatibility syntax, and the project will not add a nui3 compatibility layer,
-converter, importer, or migration wizard. Until the cutover is complete,
-`docs/dsl.md` remains documentation for the implemented nui3 language; it is not
-changed by this specification freeze.
+The migration is a destructive replacement. nui4 does not accept ambiguous nui3
+compatibility syntax, and the project has no nui3 compatibility layer,
+converter, importer, or migration wizard. `docs/dsl.md` documents the
+implemented nui4 language.
 
 The persisted document remains one `.nui` source-text file. Source text is the
 durable source of truth, and source edits preserve statement-level identity and
@@ -41,7 +41,7 @@ nui 4
 
 The parser and compiler must not design an ambiguous compatibility grammar that
 accepts both nui3 and nui4 spellings. The final supported document format is
-nui4, while the current production format during this migration remains nui3.
+nui4, and it is the current production format.
 
 ## References and names
 

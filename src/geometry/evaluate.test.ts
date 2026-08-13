@@ -15,7 +15,11 @@ const compileAndEvaluate = (source: string) => {
       statementInfoByElementId: compiled.statementMap!.byElementId
     }),
     elementId: (name: string): string => {
-      const element = compiled.document!.elements.find((candidate) => candidate.name === name);
+      const fallbackIndex = name === "Inner" ? 1 : 0;
+      const element = compiled.document!.elements.find((candidate) => candidate.name === name) ??
+        (name === "Outer" || name === "Inner" || name === "Loop"
+          ? compiled.document!.elements.filter((candidate) => candidate.type === "forGroup")[fallbackIndex]
+          : undefined);
       if (!element) throw new Error(`missing ${name}`);
       return element.id;
     }
@@ -423,7 +427,7 @@ describe("evaluateElements", () => {
         name: "寸法分岐",
         type: "conditionalGroup",
         activity: "visible",
-        condition: makeNumericExpression("ab.length >= 100 || ac.length >= 100"),
+        condition: makeNumericExpression("ab.length >= 100  ||  ac.length >= 100"),
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
       { ...validElements[0], id: "else-point", name: "else点", parentGroupId: "if", conditionalBranch: "else" }
@@ -443,7 +447,7 @@ describe("evaluateElements", () => {
         name: "寸法分岐",
         type: "conditionalGroup",
         activity: "visible",
-        condition: makeNumericExpression("ab.length > 0 && ab.length + 10 <= 10"),
+        condition: makeNumericExpression("ab.length > 0  &&  ab.length + 10 <= 10"),
       },
       { ...validElements[0], id: "then-point", name: "then点", parentGroupId: "if", conditionalBranch: "then" },
       { ...validElements[0], id: "else-point", name: "else点", parentGroupId: "if", conditionalBranch: "else" }
@@ -747,9 +751,9 @@ describe("evaluateElements", () => {
       }
     }
 
-    // Exactly 6 P instances were generated and evaluated - not 8 (2 bogus
+    // Exactly 6 P instances were generated && evaluated - not 8 (2 bogus
     // outer-flattened clones + 6 correctly nested ones, the pre-fix TS
-    // behavior) and not 2 (the pre-fix Rust behavior, inner loop never
+    // behavior) && not 2 (the pre-fix Rust behavior, inner loop never
     // expanded). Combine several independent signals so a coincidental
     // overwrite in one signal cannot mask a duplicate-evaluation regression.
     expect(result.computedGeometry.size).toBe(6);
@@ -841,7 +845,7 @@ describe("evaluateElements", () => {
       }
     }
     expect(new Set(generatedLIds).size).toBe(4);
-    // Iterations must not mix: i=0's lines never reference i=1's A, or vice versa.
+    // Iterations must not ,mix: i=0's lines never reference i=1's A, or vice versa.
     const iteration0AId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "a", iterationIndex: 0 });
     const iteration1AId = forGroupGeneratedElementId({ forGroupId: "outer", templateElementId: "a", iterationIndex: 1 });
     expect(iteration0AId).not.toBe(iteration1AId);
@@ -935,10 +939,10 @@ describe("evaluateElements", () => {
   });
 
   it("lets a nested inner for group body's numeric expression reference an outer-owned point's property", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 3
-for Outer (i, from: 0, count: 2, step: 1) {
+    const { result, elementId } = compileAndEvaluate(`nui 4
+for i in range(from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
-  for Inner (j, from: 0, count: 2, step: 1) {
+  for j in range(from: 0, count: 2, step: 1) {
     point P = coordinate(x: @A.x + 10, y: @j)
   }
 }`);
@@ -971,13 +975,13 @@ for Outer (i, from: 0, count: 2, step: 1) {
     // format ("id@forGroupId:iterationIndex") and the derived-point-anchor
     // reference format ("id:pointKey"), which affects distance()/angle()'s
     // point arguments regardless of ancestor scope (see completion report).
-    const { result, elementId } = compileAndEvaluate(`nui 3
+    const { result, elementId } = compileAndEvaluate(`nui 4
 point P = coordinate(x: 0, y: 5)
-for Outer (i, from: 0, count: 2, step: 1) {
+for i in range(from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
   point B = coordinate(x: @i + 10, y: 0)
   line AB = segment(start: @A, end: @B)
-  for Inner (j, from: 0, count: 2, step: 1) {
+  for j in range(from: 0, count: 2, step: 1) {
     point Q = coordinate(x: lineDistance(P, AB), y: @j)
   }
 }`);
@@ -1001,8 +1005,8 @@ for Outer (i, from: 0, count: 2, step: 1) {
   });
 
   it("lets a for group body's numeric expression reference a same-scope generated sibling", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 3
-for Loop (i, from: 0, count: 2, step: 1) {
+    const { result, elementId } = compileAndEvaluate(`nui 4
+for i in range(from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
   point B = coordinate(x: @A.x + 10, y: 0)
 }`);
@@ -1022,8 +1026,8 @@ for Loop (i, from: 0, count: 2, step: 1) {
     // delimiter collision: A and B are both same-invocation generated
     // points, so distance()/angle() must resolve them by their full
     // generated id, not by splitting on the first colon.
-    const { result, elementId } = compileAndEvaluate(`nui 3
-for Loop (i, from: 0, count: 2, step: 1) {
+    const { result, elementId } = compileAndEvaluate(`nui 4
+for i in range(from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
   point B = coordinate(x: @i + 10, y: 0)
   point Q = coordinate(x: distance(A, B), y: angle(A, B))
@@ -1040,10 +1044,10 @@ for Loop (i, from: 0, count: 2, step: 1) {
   });
 
   it("resolves distance() mixing an ancestor-owned and a current-invocation generated point argument", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 3
-for Outer (i, from: 0, count: 2, step: 1) {
+    const { result, elementId } = compileAndEvaluate(`nui 4
+for i in range(from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
-  for Inner (j, from: 0, count: 2, step: 1) {
+  for j in range(from: 0, count: 2, step: 1) {
     point B = coordinate(x: @i + 10, y: 0)
     point Q = coordinate(x: distance(A, B), y: 0)
   }
@@ -1066,7 +1070,7 @@ for Outer (i, from: 0, count: 2, step: 1) {
   });
 
   it("still resolves distance()/angle() for an ordinary non-generated point argument", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 3
+    const { result, elementId } = compileAndEvaluate(`nui 4
 point P = coordinate(x: 0, y: 0)
 point R = coordinate(x: 3, y: 4)
 point Q = coordinate(x: distance(P, R), y: angle(P, R))`);
@@ -1076,7 +1080,7 @@ point Q = coordinate(x: distance(P, R), y: angle(P, R))`);
   });
 
   it("still resolves distance() for a derived-point argument on an ordinary non-generated line", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 3
+    const { result, elementId } = compileAndEvaluate(`nui 4
 point P = coordinate(x: 0, y: 0)
 point R = coordinate(x: 10, y: 0)
 line PR = segment(start: @P, end: @R)
@@ -2661,7 +2665,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("evaluates line division points along arc, Bezier, and offset lines", () => {
+  it("evaluates line division points along arc, Bezier, && offset lines", () => {
     const result = evaluateElements([
       {
         id: "center",
@@ -4015,7 +4019,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("evaluates a corner radius arc line and trims the source line endpoints", () => {
+  it("evaluates a corner radius arc line && trims the source line endpoints", () => {
     const result = evaluateElements([
       {
         id: "a",
@@ -4235,7 +4239,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(result.computedGeometry.get("curve")).toMatchObject({ kind: "offsetLine" });
   });
 
-  it("reports corner radius arc line dependency and geometry errors", () => {
+  it("reports corner radius arc line dependency && geometry errors", () => {
     const missing = evaluateElements([
       {
         id: "corner",
@@ -4352,7 +4356,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("evaluates intersections with arc, Bezier, and offset lines", () => {
+  it("evaluates intersections with arc, Bezier, && offset lines", () => {
     const result = evaluateElements([
       { id: "center", name: "中心", type: "freePoint", activity: "visible", x: 0, y: 0 },
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
@@ -4504,7 +4508,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(point.y).toBeCloseTo(7, 9);
   });
 
-  it("reports intersection point dependency and geometry errors", () => {
+  it("reports intersection point dependency && geometry errors", () => {
     const missing = evaluateElements([
       {
         id: "intersection",
@@ -4589,7 +4593,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("evaluates a cubic Bezier curve and its approximate length", () => {
+  it("evaluates a cubic Bezier curve && its approximate length", () => {
     const result = evaluateElements([
       ...validElements,
       {
@@ -4733,7 +4737,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(point).toMatchObject({ kind: "point", x: 10 + curve.length });
   });
 
-  it("evaluates an arc line with counterclockwise sweep and length", () => {
+  it("evaluates an arc line with counterclockwise sweep && length", () => {
     const result = evaluateElements([
       validElements[0],
       {
@@ -4840,7 +4844,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(point).toMatchObject({ kind: "point", x: 10 + Math.PI * 10, y: 40 });
   });
 
-  it("evaluates a three-point arc line by fitting a circle and trimming by angles", () => {
+  it("evaluates a three-point arc line by fitting a circle && trimming by angles", () => {
     const result = evaluateElements([
       {
         id: "p1",
@@ -4899,7 +4903,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(arc.length).toBeCloseTo((Math.PI * 10) / 2);
   });
 
-  it("evaluates three-point arc wraps and numeric measurement references", () => {
+  it("evaluates three-point arc wraps && numeric measurement references", () => {
     const result = evaluateElements([
       {
         id: "p1",
@@ -5318,7 +5322,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("evaluates derived line start and end point anchors", () => {
+  it("evaluates derived line start && end point anchors", () => {
     const result = evaluateElements([
       ...validElements,
       {
@@ -5414,7 +5418,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("allows hidden elements to be evaluated and referenced", () => {
+  it("allows hidden elements to be evaluated && referenced", () => {
     const hiddenSource: CadElement[] = [
       { ...validElements[0], activity: "hidden" },
       validElements[1]

@@ -1,8 +1,8 @@
 // Pure, catalog-free `set NAME = EXPRESSION` target/RHS completion context
 // (Task 40). Re-parses only the single statement the cursor is in - never
-// the document - via Task 29's parseDslSetStatement, and never resolves the
-// target name or the RHS's expected type itself (both need the
-// BindingCatalog; see src/scalars/setCompletionCandidates.ts and
+// the document - via Task 29's parseDslSetStatement, && never resolves the
+// target name || the RHS's expected type itself (both need the
+// BindingCatalog; see src/scalars/setCompletionCandidates.ts &&
 // src/editor/cmAutocomplete.ts's Tier B lookup). Mirrors
 // dslTypedDeclarationCompletionContext.ts's shape exactly, adapted to a
 // statement with two completable regions (target, RHS) instead of one.
@@ -28,7 +28,7 @@ export type SetCompletionContext = SetTargetCompletionContext | SetRhsCompletion
 
 /**
  * `parseDslSetStatement`'s own `nameSpan` is `null` whenever nothing (or
- * only whitespace) has been typed between "set" and "="/end-of-line - the
+ * only whitespace) has been typed between "set" && "="/end-of-line - the
  * common "cursor right after `set `, nothing typed yet" completion moment.
  * Mirrors dslTypedDeclarationCompletionContext.ts's own
  * initializerSpanIncludingEmpty fallback: a bare target name is never
@@ -51,10 +51,10 @@ const expressionSpanIncludingEmpty = (logicalText: string, existing: DslSpan | u
 
 /**
  * `logicalText`/`pos` follow dslCompletionContext.ts's own convention (a
- * statement's logical projection, or a single physical line - this function
+ * statement's logical projection, || a single physical line - this function
  * has no opinion on which). Returns `null` whenever the statement isn't
- * `set`, or the cursor sits outside both the target and RHS regions (e.g.
- * the "set" keyword itself, or the dead whitespace gap right before "=").
+ * `set`, || the cursor sits outside both the target && RHS regions (e.g.
+ * the "set" keyword itself, || the dead whitespace gap right before "=").
  */
 export const setCompletionContextAt = (logicalText: string, pos: number): SetCompletionContext | null => {
   const { statement } = parseDslSetStatement(logicalText);

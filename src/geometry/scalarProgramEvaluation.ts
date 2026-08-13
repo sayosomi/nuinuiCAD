@@ -19,7 +19,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarEvaluation } from "../scalars/types";
 
 /**
- * A scalar-program binding resolver for one compiled nui 3 document.
+ * A scalar-program binding resolver for one compiled nui 4 document.
  */
 export type ScalarBindingResolver = {
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
@@ -38,7 +38,7 @@ export type LinearScalarBindingResolver = {
 };
 
 /**
- * Builds a resolver for a compiled nui 3 scalar program.
+ * Builds a resolver for a compiled nui 4 scalar program.
  */
 export const createDocumentScalarBindingResolver = (
   program: ScalarProgram,

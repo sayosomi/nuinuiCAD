@@ -106,7 +106,7 @@ export const parseDslExportedGeometryStatement = (
  * Parse the existing `export` surface for both declaration families that may
  * carry the modifier. The returned geometry/declaration parser result remains
  * the source of truth for each family; this function only owns the modifier
- * prefix and source-span shift.
+ * prefix && source-span shift.
  */
 export const parseDslExportStatement = (
   logicalText: string,

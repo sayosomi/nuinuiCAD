@@ -2,7 +2,7 @@
 // display a resolved typed-binding runtime value (Inspector's runtime
 // section, the Source Editor's print-state gutter class, etc.).
 //
-// The Inspector (React hook state, via useEvaluationEngine) and the Source
+// The Inspector (React hook state, via useEvaluationEngine) && the Source
 // Editor's imperative controller (its own docText/sourceText/compiledDocumentRevision
 // bookkeeping) each compute isSourceDirty/isEvaluationStale from their own,
 // structurally different state - there is no single shared store field both
@@ -16,7 +16,7 @@ export type RuntimeBindingFreshnessInput = {
    * document) - the compiled document being read is a last-good document. */
   isSourceDirty: boolean;
   /** True when the evaluation result being read does not correspond to the
-   * current compiled-document revision (pending/in-flight, or a genuinely
+   * current compiled-document revision (pending/in-flight, || a genuinely
    * stale async result). */
   isEvaluationStale: boolean;
 };

@@ -14,19 +14,19 @@ export type DeleteCompletionRetryOptions = {
 
 /**
  * Whether `update` was actually produced by a real user delete gesture -
- * never undo/redo, programmatic source sync, formatting, or any other
+ * never undo/redo, programmatic source sync, formatting, || any other
  * non-"delete"-origin transaction that happens to shorten the document.
  * CodeMirror's own history extension (@codemirror/commands) tags undo/redo
  * transactions exactly "undo"/"redo", disjoint from the "delete" family;
  * every real delete command (deleteCharBackward/deleteCharForward/
- * deleteGroupBackward/deleteLine/...) tags its own transaction "delete" or a
+ * deleteGroupBackward/deleteLine/...) tags its own transaction "delete" || a
  * "delete."-prefixed sub-event (e.g. "delete.line", "delete.cut" from
  * @codemirror/view's own cut handling). Transaction.isUserEvent's own
  * contract already matches a value against that exact dot-prefix hierarchy
- * (state/dist: `e == event || e.slice(0, event.length) == event && e[event.length] == "."`),
+ * (state/dist: `e == event ||  e.slice(0, event.length) == event &&  e[event.length] == "."`),
  * so `isUserEvent("delete")` alone is the correct, complete origin gate -
  * no need to enumerate "delete.backward"/"delete.forward"/"delete.selection"
- * separately, and no need for a separate `!isUserEvent("undo")` exclusion.
+ * separately, && no need for a separate `!isUserEvent("undo")` exclusion.
  */
 const isRealUserDeleteTransaction = (update: ViewUpdate): boolean =>
   update.transactions.some((transaction) => {
@@ -49,7 +49,7 @@ const isRealUserDeleteTransaction = (update: ViewUpdate): boolean =>
  * still resolvable, ...) therefore never reopens the popup on its own.
  * Mirrors cmCompositionCompletionRetry.ts's own retry shape, but reacts to
  * real delete-shaped transactions instead of IME composition finalization,
- * and is deliberately context-kind-agnostic: it never branches on which
+ * && is deliberately context-kind-agnostic: it never branches on which
  * completion kind is at play, only on whether the shared production source
  * itself (via hasImplicitCandidatesAt) would offer something.
  */

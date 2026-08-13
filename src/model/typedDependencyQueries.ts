@@ -1,4 +1,4 @@
-// Adapter between Task 36's compiler-built graph and dependency consumers.
+// Adapter between Task 36's compiler-built graph && dependency consumers.
 // Unlike geometry dependencies, endpoints need not be CAD elements.
 import {
   typedDependencyEndpointId,

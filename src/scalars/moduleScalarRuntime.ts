@@ -311,7 +311,7 @@ const propertySourceFor = (
 /**
  * Lowers Task 3 module scalar targets into the ordinary typed scalar
  * catalog/program/version graph. It deliberately receives semantic targets
- * and materialized identities; it never performs a second lexical lookup.
+ * && materialized identities; it never performs a second lexical lookup.
  */
 export const compileModuleScalarRuntime = ({
   statements,
@@ -952,7 +952,7 @@ export const compileModuleScalarRuntime = ({
     };
   };
   // Every module binding uses its source lexical scope qualified by the call
-  // path. The document control map is rebuilt by dslDocument and merged
+  // path. The document control map is rebuilt by dslDocument && merged
   // separately; materialized module owners use the explicit qualified IDs.
   for (const context of contextsByKey.values()) {
     const relevantScopeIds = new Set<string>([context.bodyScopeId]);

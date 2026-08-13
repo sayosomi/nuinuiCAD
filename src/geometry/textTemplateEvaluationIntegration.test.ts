@@ -2,8 +2,8 @@
 // builders AppLayout.tsx uses -> the same evaluateElements/
 // canUseRustEvaluationForElements functions useEvaluationEngine.ts calls for
 // production evaluation routing. Proves escaped braces, typed string holes,
-// and the bare `@binding` text.text property all evaluate via the AST path
-// once wired the way the live document wires them, and that such documents
+// && the bare `@binding` text.text property all evaluate via the AST path
+// once wired the way the live document wires them, && that such documents
 // are kept off the (not-yet-typed-template-aware) Rust path.
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
@@ -58,16 +58,16 @@ const evaluateSource = (source: string, assignedStatementIds?: Map<number, strin
 describe("Task 27 production routing: compileDslDocument -> evaluateElements/canUseRustEvaluationForElements", () => {
   it("前身頃を2枚カット: a typed string hole evaluates via the AST path", () => {
     const { result, textElementId } = evaluateSource(
-      ["nui 3", 'const ラベル: string = "前身頃"', 'text T = label(text: "{@ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
+      ["nui 4", 'const ラベル: string = "前身頃"', 'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
       new Map([[1, "test:label"]])
     );
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get(textElementId!)).toMatchObject({ kind: "text", text: "前身頃を2枚カット" });
   });
 
-  it("nui 3 numeric interpolation: a typed number hole formats to max 3 decimals", () => {
+  it("nui 4 numeric interpolation: a typed number hole formats to max 3 decimals", () => {
     const { result, textElementId } = evaluateSource(
-      ["nui 3", "const 寸法: number = 12.3456", 'text T = label(text: "寸法={@寸法}mm", anchor: none, size: 3)'].join("\n"),
+      ["nui 4", "const 寸法: number = 12.3456", 'text T = label(text: "寸法=${@寸法}mm", anchor: none, size: 3)'].join("\n"),
       new Map([[1, "test:size"]])
     );
     expect(result.errors).toHaveLength(0);
@@ -75,20 +75,20 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
   });
 
   it("escaped braces are literal, not holes, even though the cooked element.text would fool the old regex evaluator", () => {
-    const { result, textElementId } = evaluateSource(["nui 3", 'text T = label(text: "cost \\{5\\} yen", anchor: none, size: 3)'].join("\n"));
+    const { result, textElementId } = evaluateSource(["nui 4", 'text T = label(text: "cost \\{5\\} yen", anchor: none, size: 3)'].join("\n"));
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get(textElementId!)).toMatchObject({ kind: "text", text: "cost {5} yen" });
   });
 
   it("\\n escape produces a real newline in the evaluated text", () => {
-    const { result, textElementId } = evaluateSource(["nui 3", 'text T = label(text: "line1\\nline2", anchor: none, size: 3)'].join("\n"));
+    const { result, textElementId } = evaluateSource(["nui 4", 'text T = label(text: "line1\\nline2", anchor: none, size: 3)'].join("\n"));
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get(textElementId!)).toMatchObject({ kind: "text", text: "line1\nline2" });
   });
 
   it("poison: a hole referencing a binding whose initializer fails evaluates to a fail-closed error, no computed geometry", () => {
     const { result, textElementId } = evaluateSource(
-      ["nui 3", "const 割り算: number = 1 / 0", 'text T = label(text: "{@割り算}", anchor: none, size: 3)'].join("\n"),
+      ["nui 4", "const 割り算: number = 1 / 0", 'text T = label(text: "${@割り算}", anchor: none, size: 3)'].join("\n"),
       new Map([[1, "test:divide"]])
     );
     expect(result.computedGeometry.get(textElementId!)).toBeUndefined();
@@ -99,10 +99,10 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
   it("multi-hole order: the first failing hole in source order is the one reported", () => {
     const { result, textElementId } = evaluateSource(
       [
-        "nui 3",
+        "nui 4",
         "const 割り算: number = 1 / 0",
         "const 有効: number = 5",
-        'text T = label(text: "first={@割り算} second={@有効}", anchor: none, size: 3)'
+        'text T = label(text: "first=${@割り算} second=${@有効}", anchor: none, size: 3)'
       ].join("\n"),
       new Map([
         [1, "test:divide"],
@@ -116,7 +116,7 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
 
   it("bare @binding text.text materializes the bound string, evaluated through the (holeless) AST path", () => {
     const { result, textElementId } = evaluateSource(
-      ["nui 3", 'const ラベル: string = "前身頃"', "text T = label(text: @ラベル, anchor: none, size: 3)"].join("\n"),
+      ["nui 4", 'const ラベル: string = "前身頃"', "text T = label(text: @ラベル, anchor: none, size: 3)"].join("\n"),
       new Map([[1, "test:label"]])
     );
     expect(result.errors).toHaveLength(0);
@@ -125,7 +125,7 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
 
   it("evaluates the declarations/templates fixture while retaining typed template dependencies", () => {
     const { compiled, elements, options, result } = evaluateSource([
-      "nui 3",
+      "nui 4",
       "const length: number = 12.3456",
       'const label: string = "前身頃"',
       "const printed: boolean = true",
@@ -133,7 +133,7 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: @length, y: 0)",
       "line AB = segment(start: @A, end: @B)",
-      'text Label = label(text: "\\{draft\\} {@label} {@length}\\n", anchor: none, size: 3)',
+      'text Label = label(text: "\\{draft\\} ${@label} ${@length}\\n", anchor: none, size: 3)',
       "text Bare = label(text: @label, anchor: none, size: 3)"
     ].join("\n"), new Map([
       [1, "fixture:length"],
@@ -160,24 +160,24 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
     expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
 
-  it("makes a nui 3 document with a typed text hole Rust-eligible", () => {
+  it("makes a nui 4 document with a typed text hole Rust-eligible", () => {
     const { elements, options } = evaluateSource(
-      ["nui 3", 'const ラベル: string = "前身頃"', 'text T = label(text: "{@ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
+      ["nui 4", 'const ラベル: string = "前身頃"', 'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
       new Map([[1, "test:label"]])
     );
     expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
 
-  it("makes a nui 3 document with a bare @binding text.text property Rust-eligible", () => {
+  it("makes a nui 4 document with a bare @binding text.text property Rust-eligible", () => {
     const { elements, options } = evaluateSource(
-      ["nui 3", 'const ラベル: string = "前身頃"', "text T = label(text: @ラベル, anchor: none, size: 3)"].join("\n"),
+      ["nui 4", 'const ラベル: string = "前身頃"', "text T = label(text: @ラベル, anchor: none, size: 3)"].join("\n"),
       new Map([[1, "test:label"]])
     );
     expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
 
-  it("makes literal-only nui 3 text Rust-eligible without a scalar program", () => {
-    const { elements, options } = evaluateSource(["nui 3", 'text T = label(text: "plain text", anchor: none, size: 3)'].join("\n"));
+  it("makes literal-only nui 4 text Rust-eligible without a scalar program", () => {
+    const { elements, options } = evaluateSource(["nui 4", 'text T = label(text: "plain text", anchor: none, size: 3)'].join("\n"));
     expect(options.scalarProgram).toBeUndefined();
     expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });

@@ -1,5 +1,5 @@
 // Thin typed-scalar adapter over the DSL reference path reader. The source
-// reference grammar owns `@`, path quoting, and `::`; this module retains the
+// reference grammar owns `@`, path quoting, && `::`; this module retains the
 // historical head result shape used by the scalar tokenizer.
 import { readDslReferencePath } from "../dsl/dslReferenceTokens";
 

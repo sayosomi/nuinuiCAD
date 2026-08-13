@@ -91,7 +91,7 @@ const isDirectModuleChild = (statement: DslStatement, moduleIndex: number) =>
 
 const getParameterDefinitionsForType = (type: string) =>
   // The registry is the source of truth. This object is only a shape carrier;
-  // no ID, element, or runtime geometry is created by semantic analysis.
+  // no ID, element, || runtime geometry is created by semantic analysis.
   getParameterDefinitions({ type, intermediatePoints: [] } as never);
 
 const textParameterSemantic = (raw: string, span: DslSpan): ModuleScalarExpressionSemantic => ({

@@ -55,21 +55,21 @@ const statusIndexFor = (state: CadDocumentState, evaluation: EvaluationResult, f
 
 describe("createElementPresentationStatusIndex: printEnabled", () => {
   it("resolves a bound printEnabled through the runtime binding when a lookup is supplied (fresh)", () => {
-    const state = commit(["nui 3", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"));
+    const state = commit(["nui 4", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"));
     const evaluation = evaluateElements(state.elements, optionsFor(state));
     const status = statusIndexFor(state, evaluation, true);
     expect(status.get(groupNamed(state.elements, "G").id)?.printEnabled).toBe(true);
   });
 
   it("resolves a bound printEnabled: false through the runtime binding", () => {
-    const state = commit(["nui 3", "let 印刷: boolean = false", "group G (printEnabled: @印刷) {", "}"].join("\n"));
+    const state = commit(["nui 4", "let 印刷: boolean = false", "group G (printEnabled: @印刷) {", "}"].join("\n"));
     const evaluation = evaluateElements(state.elements, optionsFor(state));
     const status = statusIndexFor(state, evaluation, true);
     expect(status.get(groupNamed(state.elements, "G").id)?.printEnabled).toBe(false);
   });
 
   it("falls back to the literal field when no lookup is supplied - the unchanged default contract", () => {
-    const state = commit(["nui 3", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"));
+    const state = commit(["nui 4", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"));
     const evaluation = evaluateElements(state.elements, optionsFor(state));
     const status = statusIndexFor(state, evaluation, false);
     // Literal field on a bound group defaults to false regardless of the binding's value.
@@ -77,7 +77,7 @@ describe("createElementPresentationStatusIndex: printEnabled", () => {
   });
 
   it("a literal printEnabled: true still resolves true with no lookup at all", () => {
-    const state = commit(["nui 3", "group G (printEnabled: true) {", "}"].join("\n"));
+    const state = commit(["nui 4", "group G (printEnabled: true) {", "}"].join("\n"));
     const evaluation = evaluateElements(state.elements, optionsFor(state));
     const status = statusIndexFor(state, evaluation, false);
     expect(status.get(groupNamed(state.elements, "G").id)?.printEnabled).toBe(true);

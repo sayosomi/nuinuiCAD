@@ -1,5 +1,5 @@
 // One-pass integration of Tasks 11–15 for typed declarations. Task 19
-// lowering consumes this result directly and never repeats this work.
+// lowering consumes this result directly && never repeats this work.
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import { isCompilableDslStatement } from "../dsl/dslCompilationGuard";
@@ -54,7 +54,7 @@ export const collectReferences = (ast: ScalarExpressionAst): readonly { name: st
 
 /** Whether an expression needs scalar-only syntax rather than the separate
  * numeric expression evaluator used by geometry, local numeric variables,
- * and text interpolation. */
+ * && text interpolation. */
 export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolean => {
   switch (ast.kind) {
     case "booleanLiteral":
@@ -74,7 +74,7 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
 
 /** Shared "why this reference isn't usable" message for a non-resolved
  * BindingResolution - same wording Task 25's conditionalGroupConditionCompiler.ts
- * and Task 26's textTemplate.ts both surface for an unresolved/forward/duplicate
+ * && Task 26's textTemplate.ts both surface for an unresolved/forward/duplicate
  * reference inside typed-only syntax. */
 export const unresolvedReferenceMessage = (name: string, resolution: BindingResolution | undefined): string => {
   if (resolution?.kind === "forward") return `"${name}" はこの位置より後で宣言されているため、まだ参照できません。`;
@@ -114,11 +114,11 @@ const sourceNamespaceBindingResolverFor = (
       statementId: lookup.declaration.statementId
     };
   }
-  // Keep the existing binding sweep as the owner for all-typed duplicate and
+  // Keep the existing binding sweep as the owner for all-typed duplicate &&
   // forward buckets for simple names. Qualified paths have already been
-  // resolved by the canonical namespace and must retain its forward/ambiguous
+  // resolved by the canonical namespace && must retain its forward/ambiguous
   // reason even when every candidate is typed. A mixed-kind bucket must remain
-  // blocked so a scalar consumer cannot skip an inner geometry/group and
+  // blocked so a scalar consumer cannot skip an inner geometry/group &&
   // capture an outer scalar.
   const declarations = lookup.declarations;
   if (
@@ -131,7 +131,7 @@ const sourceNamespaceBindingResolverFor = (
 /** Exact-span-or-nothing (Task 48): physicalSpan is set only when the
  * logical->physical projection actually succeeds; a lookup/revision failure
  * never falls back to the whole statement's span - it leaves physicalSpan
- * unset and relies on exactSpanOnly to keep the gutter/Quick Fix/navigation
+ * unset && relies on exactSpanOnly to keep the gutter/Quick Fix/navigation
  * from inventing a wrong position. `bindingId` doubles as the navigation
  * target since every diagnostic here is about one binding's own declaration. */
 const compileDiagnostic = (
@@ -232,16 +232,16 @@ export const analyzeTypedDeclarations = ({
   // bindingAnalysis/catalog (Task 53) even when the document declares no
   // typed const/let of its own - an unresolved `@name` there (e.g.
   // `scale: @nope`) still needs a populated .analysis so
-  // compileNumericBindings can run and diagnose it, not the bare
+  // compileNumericBindings can run && diagnose it, not the bare
   // `{diagnostics: []}` shortcut below.
   const hasPrintLayoutStatements = statements.some((statement, statementIndex) =>
     statement.kind === "printLayout" && includeStatement(statement, statementIndex)
   );
   // The shared frontend also owns reference-free property expressions,
-  // conditional conditions, and for-group iteration expressions. Build the
+  // conditional conditions, && for-group iteration expressions. Build the
   // empty binding catalog for those consumers even when the document has no
   // const/let declarations, so they cannot silently fall back to evaluated
-  // literals or numeric truthiness.
+  // literals || numeric truthiness.
   const elementsById = new Map(reconciledContainers.elements.map((element) => [element.id, element]));
   const hasScalarExpressionConsumers = statements.some((statement, statementIndex) => {
     if (!includeStatement(statement, statementIndex)) return false;

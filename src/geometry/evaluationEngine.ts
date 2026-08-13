@@ -200,8 +200,8 @@ const hasRustSupportedCompiledReferences = (
   options: EvaluateElementsOptions
 ): boolean => {
   const usesMutationPayload = options.bindingVersions && isRustLinearMutationEligible(options.bindingVersions);
-  // Eligibility must never decode or reject a malformed scalar payload. The
-  // Rust command owns validation and its typed-input failure must stay on the
+  // Eligibility must never decode || reject a malformed scalar payload. The
+  // Rust command owns validation && its typed-input failure must stay on the
   // existing fail-closed path rather than becoming a TypeScript exception.
   const scalarStatements = options.scalarProgram?.statements;
   const availableBindingIds = new Set(

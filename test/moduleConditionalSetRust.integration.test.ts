@@ -12,33 +12,33 @@ import {
 } from "./evaluationParitySupport";
 
 const exactFalseSource = [
-  "nui 3",
+  "nui 4",
   "",
   "point 外の点 = coordinate(x: 0, y: 0)",
   "",
   "module M() {",
   "  let 値: number = 0",
-  "  if 条件 (false) {",
+  "  if (false) {",
   "    set 値 = 1",
   "  }",
   "}",
   "",
-  "module I = M()"
+  "instance I = M()"
 ].join("\n");
 
 const exactTrueSource = exactFalseSource.replace("false", "true");
 
 const independentInstancesSource = [
-  "nui 3",
+  "nui 4",
   "module M(enabled: boolean) {",
   "  let 値: number = 0",
-  "  if 条件 (@enabled) {",
+  "  if (@enabled) {",
   "    set 値 = 1",
   "  }",
   "  point P = coordinate(x: @値, y: 0)",
   "}",
-  "module False = M(enabled: false)",
-  "module True = M(enabled: true)"
+  "instance False = M(enabled: false)",
+  "instance True = M(enabled: true)"
 ].join("\n");
 
 const evaluatedPoints = (fixture: ReturnType<typeof fixtureFromSource>, payload: ReturnType<typeof evaluateWithRustFixture>) => {
@@ -111,7 +111,7 @@ describe("Rust-first Module conditional set runtime", () => {
   }, 30000);
 
   it("evaluates the convex-notch manual fixture through the Rust/parity payload", () => {
-    const source = readFileSync("docs/module/manual-fixtures/nui3-convex-notch.nui", "utf8");
+    const source = readFileSync("docs/module/manual-fixtures/nui4-convex-notch.nui", "utf8");
     const fixture = fixtureFromSource(source);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, optionsFor(fixture));
     const rustPayload = evaluateWithRustFixture(process.cwd(), fixture);

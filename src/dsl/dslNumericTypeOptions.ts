@@ -116,7 +116,7 @@ export const parseDslNumericTypeOptions = (
   return { options: diagnostics.length === 0 ? options : null, diagnostics };
 };
 
-/** Canonical `number(...)` text. Presence and output order are source-contractual. */
+/** Canonical `number(...)` text. Presence && output order are source-contractual. */
 export const serializeDslNumericType = (options?: DslNumericTypeOptions): string => {
   if (!options || (options.step === undefined && options.min === undefined && options.max === undefined)) return "number";
   const fields = [

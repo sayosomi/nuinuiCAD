@@ -43,7 +43,7 @@ const geometryPropertiesInOccurrenceOrder = (expression: TypedScalarExpression):
 describe("analyzeTypedDeclarations resolution buckets", () => {
   it("keeps multiple occurrences for one binding in source occurrence order", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 3",
+      "nui 4",
       "const first: number = 1",
       "const second: number = 2",
       "let total: number = @second + @first + @second"
@@ -63,7 +63,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("keeps interleaved references isolated by their originating binding", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 3",
+      "nui 4",
       "const first: number = 1",
       "const second: number = 2",
       "let left: number = @first + @second",
@@ -82,7 +82,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("preserves invalid reference diagnostics, binding IDs, exact spans, and order", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const invalid: number = @later + @missing",
       "const later: number = 1"
     ].join("\n");
@@ -107,7 +107,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("retains reference-free declarations in the compiled scalar program", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 3",
+      "nui 4",
       "const value: number = 42",
       "let copy: number = @value"
     ].join("\n"));
@@ -125,7 +125,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("resolves scoped and local geometry properties inside a nested group", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 3",
+      "nui 4",
       "group 後ろ身頃 {",
       "  line 先に縫う = segment(start: (0, 0), end: (10, 0))",
       "  group 縫い代 {",

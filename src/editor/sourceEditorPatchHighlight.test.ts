@@ -243,7 +243,7 @@ describe("buildDecorations line resolution", () => {
     const doc = "line oneline two\nline three";
     const state = EditorState.create({ doc });
     const mergedLine = state.doc.line(1);
-    const boundaryPoint = 8; // where "line one" ended and "line two" began
+    const boundaryPoint = 8; // where "line one" ended && "line two" began
 
     const entries = decorationEntries(state, { ...emptyPayload, deletionPoints: [boundaryPoint] });
     expect(entries).toEqual([{ from: mergedLine.from, to: mergedLine.from, className: "cm-patch-highlight-line" }]);

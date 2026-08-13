@@ -10,7 +10,7 @@ import {
 import type { DslReferencePath } from "./dslReferenceTokens";
 
 /** The synthetic bindings which module semantic analysis overlays on the real
- * source namespace. The value is deliberately generic so completion and
+ * source namespace. The value is deliberately generic so completion &&
  * semantic analysis cannot grow two subtly different lookup algorithms. */
 export type ModuleLexicalParameterOverlay<T, D = unknown> = {
   bodyScopeId: ScopeId;
@@ -54,7 +54,7 @@ const statementIdAt = (ids: ReadonlyMap<number, StatementIdentity>, index: numbe
 
 /** Resolves one name with the module parameter/iteration overlays applied.
  * This is the sole source-order + nearest-scope lookup used by module
- * semantic analysis and module completion. */
+ * semantic analysis && module completion. */
 export const resolveModuleLexicalDeclaration = <T, D = unknown>(
   input: ModuleLexicalResolutionInput<T, D>,
   statementIndex: number,
@@ -90,7 +90,7 @@ export const resolveModuleLexicalDeclaration = <T, D = unknown>(
 /** Resolve a qualified module-body path without duplicating source namespace
  * traversal. Only the first segment is overlay-aware; once it resolves to a
  * source declaration, the canonical source path helper owns the remaining
- * segments and their source-order diagnostics. */
+ * segments && their source-order diagnostics. */
 export const resolveModuleLexicalPath = <T, D = unknown>(
   input: ModuleLexicalResolutionInput<T, D>,
   statementIndex: number,

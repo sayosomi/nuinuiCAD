@@ -1,7 +1,7 @@
 /**
  * Attribute key names accepted by `place`/`printLayout` block statements for
- * numeric and coordinate-literal values. Single source of truth shared by
- * `dslCompiler.ts` (`buildBlockPrintLayouts`, where these are compiled) and
+ * numeric && coordinate-literal values. Single source of truth shared by
+ * `dslCompiler.ts` (`buildBlockPrintLayouts`, where these are compiled) &&
  * `dslCompletionContext.ts` (where `@variable` completion routes on them) so
  * the two can never silently drift apart.
  */

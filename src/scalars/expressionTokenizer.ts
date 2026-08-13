@@ -1,13 +1,13 @@
 // Flat, single-pass tokenizer for typed scalar expressions. Handles
-// operators, parentheses, and the `@qualifiedName` reference sigil itself; delegates
+// operators, parentheses, && the `@qualifiedName` reference sigil itself; delegates
 // every literal-shaped token (quote/digit/identifier start) to
 // scanScalarLiteral (Task 09) so literal classification lives in exactly one
-// place. See docs/typed-variables/tasks/14-ts-expression-parser.md and
+// place. See docs/typed-variables/tasks/14-ts-expression-parser.md &&
 // docs/typed-variables/tasks/09-scalar-literal-scanner.md.
 //
-// Stops at the first error (its own, or scanScalarLiteral's) rather than
+// Stops at the first error (its own, || scanScalarLiteral's) rather than
 // attempting recovery - matches expressionParser.ts's exclusive
-// success/failure contract, and guarantees termination on malformed input.
+// success/failure contract, && guarantees termination on malformed input.
 
 import { isScalarIdentifierCharacterAt, scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
 import type { ScalarExpressionIssueCode } from "./expressionAst";
@@ -47,7 +47,7 @@ export interface ScalarExpressionTokenizeResult {
   readonly error: ScalarExpressionTokenizeError | null;
 }
 
-// Checked before 1-char operators so `&&`/`||`/`==`/`!=`/`>=`/`<=` never
+// Checked before 1-char operators so ` && `/` || `/`==`/`!=`/`>=`/`<=` never
 // tokenize as two separate single-char operators.
 const TWO_CHAR_OPERATORS = new Set(["&&", "||", "==", "!=", ">=", "<="]);
 const ONE_CHAR_OPERATORS = new Set(["+", "-", "*", "/", "<", ">", "!"]);
@@ -157,7 +157,7 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
       continue;
     }
 
-    // Everything else (quote, digit, `.digit`, identifier, or any
+    // Everything else (quote, digit, `.digit`, identifier, || any
     // unrecognized character) is scanScalarLiteral's call to make - it
     // already owns the "is this the start of a valid literal" decision.
     const result = scanScalarLiteral(source, { start: index, end });

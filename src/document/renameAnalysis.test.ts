@@ -177,7 +177,7 @@ describe("renameAnalysis", () => {
         placements: [{ id: "place-g", groupId: "g", x: 0, y: 0, angleDeg: 0, mirrorX: false }]
       }],
       activePrintLayoutId: "layout"
-    }, 3);
+    }, 4);
     const compiled = complete(source);
     const group = compiled.document.elements.find((element) => element.name === "G")!;
     const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: group.id, newName: "H" });

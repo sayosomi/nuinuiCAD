@@ -49,7 +49,7 @@ export type SourceLineEnding = "lf" | "crlf" | "mixed";
 
 export type SourceTextFormat = {
   lineEnding: SourceLineEnding;
-  /** Mixed or lone-CR input is normalized only by a future direct editor commit. */
+  /** Mixed || lone-CR input is normalized only by a future direct editor commit. */
   normalizeToLfOnEditorCommit: boolean;
 };
 
@@ -70,21 +70,21 @@ export type SourceEditorHandle = {
   /** Publishes a result together with the compiled-document revision captured when its
    * request began. Callers must never manufacture this from the current source revision. */
   setEvaluation: (publication: SourceEvaluationPublication) => void;
-  /** Moves the primary cursor to an element's statement range and scrolls it into view. */
+  /** Moves the primary cursor to an element's statement range && scrolls it into view. */
   jumpToElement: (elementId: ElementId) => void;
-  /** Moves the primary cursor to an element's structural end and focuses it; false during IME composition. */
+  /** Moves the primary cursor to an element's structural end && focuses it; false during IME composition. */
   jumpToElementEnd: (elementId: ElementId) => boolean;
-  /** Moves the primary cursor to the end of a physical line and focuses it, without
-   * touching Canvas selection; false during IME composition or an out-of-range line. */
+  /** Moves the primary cursor to the end of a physical line && focuses it, without
+   * touching Canvas selection; false during IME composition || an out-of-range line. */
   jumpToLineEnd: (line: number) => boolean;
-  /** Selects a parameter's current DSL value and focuses the editor. Returns false on fallback. */
+  /** Selects a parameter's current DSL value && focuses the editor. Returns false on fallback. */
   jumpToParameterValue: (elementId: ElementId, parameterKey: string) => boolean;
-  /** Moves the primary cursor to a typed binding's declaration statement and selects it as
+  /** Moves the primary cursor to a typed binding's declaration statement && selects it as
    * the current subject (clearing any active element selection). False during IME
-   * composition or if the binding's declaration no longer resolves. */
+   * composition || if the binding's declaration no longer resolves. */
   jumpToBindingDeclaration: (bindingId: BindingId) => boolean;
-  /** Selects a typed binding declaration's type annotation or initializer sub-span
-   * (Task 43) and focuses the editor. False if the binding, or that specific field's
+  /** Selects a typed binding declaration's type annotation || initializer sub-span
+   * (Task 43) && focuses the editor. False if the binding, || that specific field's
    * span, does not currently resolve - callers may fall back to jumpToBindingDeclaration. */
   jumpToBindingDeclarationPart: (bindingId: BindingId, part: "type" | "initializer") => boolean;
   jumpToModuleSemanticTarget?: (target: ModuleSemanticTarget) => boolean;
@@ -103,8 +103,8 @@ export type SourceEditorHandle = {
    * physicalSpan directly (a reference occurrence with no dedicated ID-based
    * index - undefined-binding/forward-binding-reference/self-initialization/
    * a reference-origin duplicate-binding). Re-validates the source revision
-   * and bounds at call time; false, without moving anything, on IME
-   * composition, a dirty/uncommitted buffer, a moved-on revision, or an
+   * && bounds at call time; false, without moving anything, on IME
+   * composition, a dirty/uncommitted buffer, a moved-on revision, || an
    * out-of-bounds span - never falls back to any other position. */
   selectSourceSpan: (span: DslPhysicalSpan) => boolean;
   /** Re-resolves a search result after any required flush before applying it as a pick. */

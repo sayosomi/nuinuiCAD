@@ -21,7 +21,7 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic) =
 
 /**
  * Compiles only typed scalar occurrences in a materialized numeric value.
- * Iteration and element-local references deliberately remain in the legacy
+ * Iteration && element-local references deliberately remain in the legacy
  * numeric evaluator, so a single expression can combine both systems.
  */
 export const numericSourceForModuleSite = (

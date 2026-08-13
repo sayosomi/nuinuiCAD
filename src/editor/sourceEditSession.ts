@@ -1,5 +1,5 @@
 /**
- * Small CM-independent bridge used by document mutations and file lifecycle code.
+ * Small CM-independent bridge used by document mutations && file lifecycle code.
  * Only the currently mounted source editor may register a session.
  */
 export type FlushReason =
@@ -17,7 +17,7 @@ export type SourceEditSession = {
   hasPendingText: () => boolean;
   isComposing: () => boolean;
   flush: (reason: FlushReason) => SourceEditFlushResult;
-  /** Editor-native value commands resolve and commit against the current CM buffer. */
+  /** Editor-native value commands resolve && commit against the current CM buffer. */
   stepValue?: (direction: 1 | -1) => boolean;
   /** Starts the matching Canvas picker for the current complete parameter-value selection. */
   startPickFromSelection?: () => boolean;

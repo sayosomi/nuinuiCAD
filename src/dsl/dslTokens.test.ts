@@ -25,10 +25,10 @@ describe("splitDslTerms", () => {
   });
 
   it("keeps quoted terms with spaces as one term", () => {
-    const line = "var 'バスト 寸法' = 840";
+    const line = "const 'バスト 寸法' = 840";
     const terms = splitDslTerms(line);
-    expect(terms.map((term) => term.text)).toEqual(["var", "'バスト 寸法'", "=", "840"]);
-    expect(terms[1]).toMatchObject({ start: 4, end: 12 });
+    expect(terms.map((term) => term.text)).toEqual(["const", "'バスト 寸法'", "=", "840"]);
+    expect(terms[1]).toMatchObject({ start: 6, end: 14 });
   });
 
   it("keeps bracketed lists and parenthesized expressions as one term", () => {
@@ -84,12 +84,12 @@ describe("splitDslTerms", () => {
   });
 
   it("records spans for terms separated by repeated whitespace", () => {
-    const terms = splitDslTerms("var   x  =  5");
+    const terms = splitDslTerms("const   x  =  5");
     expect(terms).toEqual([
-      { text: "var", start: 0, end: 3 },
-      { text: "x", start: 6, end: 7 },
-      { text: "=", start: 9, end: 10 },
-      { text: "5", start: 12, end: 13 }
+      { text: "const", start: 0, end: 5 },
+      { text: "x", start: 8, end: 9 },
+      { text: "=", start: 11, end: 12 },
+      { text: "5", start: 14, end: 15 }
     ]);
   });
 });

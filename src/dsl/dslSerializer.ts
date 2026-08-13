@@ -18,9 +18,8 @@ import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceT
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
 import type { SerializeDslOptions } from "./dslTypes";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
-import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslMajorVersion } from "./dslVersion";
 
-// 要素→DSL文の変換は、参照の書き方(生ID or 解決可能な名前トークン)を
+// 要素→DSL文の変換は、参照の書き方(生ID || 解決可能な名前トークン)を
 // DslSerializerRefs として注入する。正準経路(dslDocument.ts の文書グラマーと
 // textPatch.ts の行パッチ)は名前トークン解決の documentDslRefs を使う。
 // serializeElementsToDsl は生ID参照のフラット書き出しで、現在は決定的な
@@ -32,8 +31,6 @@ export type DslSerializerRefs = {
   numeric: (value: NumericValue, source: CadElement) => string;
   name: (element: CadElement) => string;
   includeRecordIds: boolean;
-  /** The sole supported nui 3 document dialect. */
-  majorVersion: DslMajorVersion;
 };
 
 const flatAnchor = (value: PointAnchor | null | undefined) => {
@@ -45,14 +42,13 @@ const flatAnchor = (value: PointAnchor | null | undefined) => {
 
 const sourceToken = (token: string) => token.startsWith("@") ? token : `@${token}`;
 
-export const flatRefs = (majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION): DslSerializerRefs => ({
+export const flatRefs = (): DslSerializerRefs => ({
   token: (id) => sourceToken(id),
   anchor: (value) => flatAnchor(value),
   endpoint: (value) => `${sourceToken(value.lineId)}.${value.endpointKey}`,
   numeric: (value) => numericValueExpression(value),
   name: (element) => formatDslName(element.name || element.id),
-  includeRecordIds: true,
-  majorVersion
+  includeRecordIds: true
 });
 
 // 文書グラマー用: 参照を解決可能な名前トークンで書き、id= / parent= /
@@ -60,8 +56,7 @@ export const flatRefs = (majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_
 // 参照先が無名・消滅している場合は生IDトークンのまま出力し、決して例外を
 // 投げない(再パース時に明示的な依存診断になる)。
 export const documentDslRefs = (
-  elements: CadElement[],
-  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+  elements: CadElement[]
 ): DslSerializerRefs => {
   const nameContext = createElementNameContext(elements);
   const elementsById = nameContext.elementsById;
@@ -79,7 +74,7 @@ export const documentDslRefs = (
     });
   };
   const numeric = (value: NumericValue, source: CadElement) =>
-    formatNumericValueForDsl(value, elements, source.numericVariables ?? [], source, nameContext, majorVersion);
+    formatNumericValueForDsl(value, elements, source.numericVariables ?? [], source, nameContext);
   return {
     token: (id, source) => `@${token(id, source)}`,
     anchor: (value, source) => {
@@ -95,8 +90,7 @@ export const documentDslRefs = (
     // 「文自身の名前」には適用しない — さもないと無名要素が
     // 「IDという名前を持つ要素」として再パースされてしまう。
     name: (element) => (element.name.trim() ? formatDslName(element.name) : ""),
-    includeRecordIds: false,
-    majorVersion
+    includeRecordIds: false
   };
 };
 
@@ -121,7 +115,7 @@ export const serializeElementsToDsl = (
   options: SerializeDslOptions = {}
 ) => {
   // Test-fixture-only helper predating version-aware output; always v2 flat form.
-  const refs = flatRefs(NEW_DOCUMENT_DSL_MAJOR_VERSION);
+  const refs = flatRefs();
   return [
     ...visibilitySettingsDsl(options),
     ...elements.flatMap((element) => serializedStatementLines(serializeElementStatementBlock(element, refs), ""))
@@ -136,8 +130,7 @@ export const serializeRoleLine = (role: VisibilityRole): string =>
 
 export const serializeViewLine = (
   profile: VisibilityProfile,
-  roles: VisibilityRole[],
-  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+  roles: VisibilityRole[]
 ): string => {
   const knownRoleIds = new Set(roles.map((role) => role.id));
   const roleArgs = [
@@ -155,7 +148,7 @@ export const serializeViewLine = (
     `default: ${profile.defaultRoleVisible}`,
     ...roleArgs
   ];
-  return `view ${formatDslName(profile.name || profile.id)} (${args.join(majorVersion >= 3 ? ", " : " ")})`;
+  return `view ${formatDslName(profile.name || profile.id)} (${args.join(", ")})`;
 };
 
 export const serializeActiveViewLine = (activeProfileId: string): string =>
@@ -164,11 +157,10 @@ export const serializeActiveViewLine = (activeProfileId: string): string =>
 export const serializeVisibilitySettingsLines = (
   roles: VisibilityRole[],
   profiles: VisibilityProfile[],
-  activeProfileId: string | undefined,
-  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+  activeProfileId: string | undefined
 ): string[] => [
   ...roles.map(serializeRoleLine),
-  ...profiles.map((profile) => serializeViewLine(profile, roles, majorVersion)),
+  ...profiles.map((profile) => serializeViewLine(profile, roles)),
   ...(activeProfileId ? [serializeActiveViewLine(activeProfileId)] : [])
 ];
 
@@ -184,7 +176,7 @@ const visibilitySettingsDsl = (options: SerializeDslOptions) => {
   for (const layout of printLayouts) {
     if (!layout.visibilityProfileId) continue;
     lines.push(
-      `printLayout ${formatDslName(layout.name.trim() || layout.id)} (output: ${layout.outputKind} view: ${formatDslName(layout.visibilityProfileId)})`
+      `printLayout ${formatDslName(layout.name.trim() || layout.id)} (output: ${layout.outputKind}, view: ${formatDslName(layout.visibilityProfileId)})`
     );
   }
   return lines.length > 0 ? [...lines, ""] : [];

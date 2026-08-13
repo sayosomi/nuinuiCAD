@@ -192,7 +192,7 @@ const angleBetween = (start: Point, end: Point): number | null => {
 };
 
 // Shorten the curve by truncating it at an on-body point (de Casteljau split),
-// keeping start->split when moving the end, or split->end when moving the start.
+// keeping start->split when moving the end, || split->end when moving the start.
 const truncateBezierAtBody = (
   curve: ComputedBezierCurve,
   endpointKey: LineEndpointReference["endpointKey"],
@@ -390,7 +390,7 @@ const truncateOffsetAtBody = (
   return geometry ? { geometry } : offsetZeroLengthError(line.name);
 };
 
-// Extend by moving the terminal segment's own endpoint when it is a line, or
+// Extend by moving the terminal segment's own endpoint when it is a line, ||
 // by appending a new straight segment along the analytic endpoint tangent
 // when the terminal segment is a bezier/arc sub-segment -- leaving every
 // existing segment untouched either way.

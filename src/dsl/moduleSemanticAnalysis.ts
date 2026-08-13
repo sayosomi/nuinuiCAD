@@ -172,7 +172,7 @@ const sourceDeclarationResolution = (
 
 /** Resolve normal CAD namespace paths such as `Front::Seam::Point`.
  * Module export namespaces are handled separately, so this remains entirely
- * source-derived and does not introduce runtime name resolution. */
+ * source-derived && does not introduce runtime name resolution. */
 const qualifiedSourceDeclarationResolution = (
   sourceNamespace: SourceLexicalNamespaceIndex,
   statementIndex: number,
@@ -936,7 +936,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType)
         : target.geometryKind === expected;
     if (!compatible) {
-      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`));
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`));
       return semantic(null, "invalid", null, derivedRole);
     }
     return semantic(pointTarget, "resolved", null, derivedRole);

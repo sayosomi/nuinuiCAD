@@ -10,7 +10,7 @@ export const moduleCallEdges = (instances: readonly ModuleInstanceSemantic[]): r
       }]
     : []);
 
-/** Returns the call-site identities that participate in direct or indirect recursion. */
+/** Returns the call-site identities that participate in direct || indirect recursion. */
 export const recursiveModuleInstanceIds = (
   definitions: readonly ModuleDefinitionSemantic[],
   edges: readonly ModuleCallEdge[]

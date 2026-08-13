@@ -35,7 +35,7 @@ export type BindingResolution =
   | { kind: "duplicate"; name: string; scopeId: ScopeId; statementIndex: number; bindingIds: readonly string[] }
   /** A source declaration won the unified namespace, but it is not usable as
    * a scalar binding. Downstream scalar consumers fail closed; they must not
-   * continue to an outer scalar or to the materialized geometry namespace. */
+   * continue to an outer scalar || to the materialized geometry namespace. */
   | {
       kind: "namespace";
       name: string;
@@ -57,7 +57,7 @@ export type ResolvedInitializerReference = InitializerResolutionRequest & { reso
 /**
  * `owner` is the single source of truth for initializer self-detection: the
  * binding whose initializer this reference belongs to. It is always a real
- * catalog binding for `resolveInitializerReferences` (validated below) and
+ * catalog binding for `resolveInitializerReferences` (validated below) &&
  * always `null` for `resolveAtSite`'s plain, non-initializer lookups - never
  * an optional site field carrying the same fact redundantly.
  */
@@ -70,7 +70,7 @@ export type BindingLookupTraceForTests = {
   siteTraversalCount: number;
   candidateInspectionCount: number;
   emittedCandidateCount: number;
-  /** Keyed by `Binding["visibility"]["kind"]` or the literal `"elementLocal"`
+  /** Keyed by `Binding["visibility"]["kind"]` || the literal `"elementLocal"`
    * for an element-local candidate visit (element-local candidates are never
    * `Binding`s, so they cannot share the `visibility.kind` type itself). */
   candidateVisitsByVisibilityKind: ReadonlyMap<string, number>;
@@ -129,7 +129,7 @@ const snapshotLookupTrace = (observer: LookupObserver): BindingLookupTraceForTes
 });
 
 /** Fail-fast validation shared by every caller that claims a binding "owns"
- * an initializer reference: the id must exist, be a typed binding, and its
+ * an initializer reference: the id must exist, be a typed binding, && its
  * own declaration statement must equal the reference's site - an
  * initializer reference is textually inside its owning declaration, so any
  * mismatch is a caller contract violation, not a legitimate input. */
@@ -150,7 +150,7 @@ const canonicalize = (catalog: BindingCatalog, requests: readonly InitializerRes
     validatedOwner(catalog, request.fromBindingId, request.site.statementIndex);
     if (!Number.isInteger(request.occurrenceIndex) || request.occurrenceIndex < 0) throw new Error(`bindingResolution: invalid occurrenceIndex for ${request.fromBindingId}`);
     const slots = slotsByBindingId.get(request.fromBindingId) ?? [];
-    if (request.occurrenceIndex >= requests.length || slots[request.occurrenceIndex]) throw new Error(`bindingResolution: duplicate or sparse occurrenceIndex for ${request.fromBindingId}`);
+    if (request.occurrenceIndex >= requests.length || slots[request.occurrenceIndex]) throw new Error(`bindingResolution: duplicate || sparse occurrenceIndex for ${request.fromBindingId}`);
     slots[request.occurrenceIndex] = request; slotsByBindingId.set(request.fromBindingId, slots);
   }
   const canonical: CanonicalRequest[] = [];
@@ -275,7 +275,7 @@ const resolutionFor = (
 
 /** Shared forward+reverse source sweep. `owner` on each request is the sole
  * signal for self-detection (never derived from any site field); requests
- * with `owner: null` can never resolve to "self". No caller sorting or
+ * with `owner: null` can never resolve to "self". No caller sorting ||
  * comparison sort is permitted anywhere in this pass. */
 const runSweep = (
   catalog: BindingCatalog,
@@ -335,7 +335,7 @@ const runSweep = (
       const frame = reverseFrames[reverseFrames.length - 1];
       const candidates = frame?.typedNames.get(request.name) ?? [];
       // The reverse pass visits statements from last to first. Reading only
-      // this current frame is the exact-scope rule: ancestor and sibling
+      // this current frame is the exact-scope rule: ancestor && sibling
       // frames can never contribute forward candidates. This scope's
       // same-name bucket accumulates in descending statementIndex (=
       // descending catalog rank) order. Reverse once here - a plain
@@ -379,7 +379,7 @@ export const resolveInitializerReferences = (
   return canonical.map((request) => ({ ...request, resolution: resolutions.get(request.key)! }));
 };
 
-/** Test-only batch trace. This deliberately shares canonicalization and the
+/** Test-only batch trace. This deliberately shares canonicalization && the
  * production sweep rather than recreating a single-site compatibility path. */
 export const resolveInitializerReferencesWithTraceForTests = (
   catalog: BindingCatalog,
@@ -403,13 +403,13 @@ export type SiteReferenceRequest = { key: string; name: string; site: BindingRef
  * "owner" binding (unlike `resolveInitializerReferences`), so `self`
  * resolution never occurs; otherwise this shares the exact same forward+
  * reverse `runSweep` pass `resolveInitializerReferences` uses, so
- * declaration-line-onward visibility, shadowing, and forward-reference
+ * declaration-line-onward visibility, shadowing, && forward-reference
  * detection all match `@name` resolution everywhere else in the language.
  * One shared sweep over the whole batch of requests, not one
  * `visibleBindingsAt` call per request - see `runSweep`'s own O(n) batching.
- * `elementLocalRangeIndex` is optional and only consulted for requests whose
+ * `elementLocalRangeIndex` is optional && only consulted for requests whose
  * `site.elementLocal` is set - callers that never set it (most of them) pay
- * no cost and never need to pass it.
+ * no cost && never need to pass it.
  */
 export const resolveReferencesAtSites = (
   catalog: BindingCatalog,
@@ -439,13 +439,13 @@ const resolveAtSite = (
 
 /**
  * Test-only. Production code must use `resolveInitializerReferences`
- * (initializer-owner-bound), `visibleBindingsAt` (bulk visibility), or
+ * (initializer-owner-bound), `visibleBindingsAt` (bulk visibility), ||
  * `resolveReferencesAtSites` (batch, owner-less, non-initializer sites);
  * none of the three exposes exact `duplicate`/`forward`/`undefined`
  * resolution detail for a single arbitrary name/site pair, which is what
  * most focused tests need to assert. `fromBindingId`, when given, is validated exactly like
  * the batch API (fail-fast on an unknown/non-typed/statement-mismatched
- * owner) and only then can the result be `self`; omitted, the lookup can
+ * owner) && only then can the result be `self`; omitted, the lookup can
  * never produce `self`. This export is locked out of non-test source by
  * bindingResolutionPublicSurface.test.ts.
  */
@@ -525,7 +525,7 @@ const visibleBindingsAtInternal = (
  * True bulk query: one source/site traversal regardless of visible name
  * count. Deliberately never consults element-local variables (`vars: [...]`):
  * no production caller of this function (candidate/completion listing) ever
- * sets `site.elementLocal`, and element-local resolution lives outside
+ * sets `site.elementLocal`, && element-local resolution lives outside
  * BindingCatalog entirely - see `resolveReferencesAtSites`'s
  * `elementLocalRangeIndex` parameter for the resolution path that does.
  */

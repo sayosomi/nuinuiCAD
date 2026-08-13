@@ -35,7 +35,7 @@ export const forGroupTemplateElements = (
 
 /**
  * Source-order body statements owned directly by one forGroup entry
- * (mutation-scheduler owned or plain generic iteration). A nested forGroup
+ * (mutation-scheduler owned || plain generic iteration). A nested forGroup
  * opener stays in the parent body, but its descendants are owned by the
  * nested invocation instead.
  */
@@ -112,7 +112,7 @@ export const expandForGroupIteration = ({
   );
   // Current invocation's own idMap wins over an inherited ancestor entry on
   // key conflict - in practice this never actually happens (an element
-  // cannot simultaneously be a descendant of this forGroup and directly
+  // cannot simultaneously be a descendant of this forGroup && directly
   // owned by an ancestor), but the ordering documents the intended
   // precedence should that guarantee ever loosen.
   const effectiveIdMap = new Map([...ancestorElementIdMap, ...idMap]);

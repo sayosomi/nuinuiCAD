@@ -38,7 +38,7 @@ const catalogFor = (source: string): BindingCatalog => {
   const statements: readonly DslStatement[] = parsed.statements;
   const stableIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
   const scopeIndex = buildLexicalScopeIndex(statements, (index) => stableIds.get(index)!);
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 3 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
   const reconciledContainers = { elements: compiled.elements, elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map() };
   const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex: stableIds, reconciledContainers });
   return buildBindingCatalog({
@@ -111,14 +111,14 @@ describe("typecheckScalarExpression / numeric comparison (< <= > >=)", () => {
   });
 });
 
-describe("typecheckScalarExpression / logical operators (&& ||)", () => {
-  it.each(["&&", "||"])("accepts boolean %s boolean and yields boolean", (op) => {
+describe("typecheckScalarExpression / logical operators ( and   or )", () => {
+  it.each([" and ", " or "])("accepts boolean %s boolean and yields boolean", (op) => {
     const result = check(`true ${op} false`);
     expect(result.type).toEqual({ kind: "boolean" });
     expect(result.diagnostics).toEqual([]);
   });
 
-  it.each(["&&", "||"])("flags only the non-boolean left operand for %s, no evaluation/short-circuit performed", (op) => {
+  it.each([" and ", " or "])("flags only the non-boolean left operand for %s, no evaluation/short-circuit performed", (op) => {
     const result = check(`1 ${op} true`);
     expect(result.type).toBeNull();
     expect(result.diagnostics).toHaveLength(1);
@@ -155,7 +155,7 @@ describe("typecheckScalarExpression / unary operators", () => {
     const expr = '!(1 + "a")';
     const result = check(expr);
     // Cascade suppression: only the inner arithmetic's own mismatch is
-    // reported; the group and the outer `!` both propagate `null` silently.
+    // reported; the group && the outer `!` both propagate `null` silently.
     expect(result.diagnostics).toHaveLength(1);
     const start = expr.indexOf('"a"');
     expect(result.diagnostics[0]).toMatchObject({ code: "scalar-type-mismatch", span: { start, end: start + 3 } });
@@ -163,7 +163,7 @@ describe("typecheckScalarExpression / unary operators", () => {
   });
 });
 
-// --- equality: kind pairing and choice identity/order (D07) ----------------
+// --- equality: kind pairing && choice identity/order (D07) ----------------
 
 describe("typecheckScalarExpression / equality operand-kind pairing", () => {
   it.each([
@@ -317,7 +317,7 @@ describe("typecheckScalarExpression / reference binding ID attachment", () => {
   });
 
   it("infers an implicit number type for a resolved iteration binding (null declaredType)", () => {
-    const catalog = catalogFor(["for Loop (i, from: 0, count: 2) {", "  const use: number = @i", "}"].join("\n"));
+    const catalog = catalogFor(["for i in range(from: 0, count: 2) {", "  const use: number = @i", "}"].join("\n"));
     const resolution = resolveBindingReferenceForTests(catalog, "i", { scopeId: "for:stable-0", statementIndex: 1 });
     expect(resolution.kind).toBe("resolved");
     if (resolution.kind === "resolved") expect(resolution.binding.kind).toBe("iteration");
@@ -328,9 +328,9 @@ describe("typecheckScalarExpression / reference binding ID attachment", () => {
 
   it("resolves interleaved references across a tree in correct left-to-right order", () => {
     const catalog = catalogFor([
-      "for A (a, from: 0, count: 1) {",
-      "  for B (b, from: 0, count: 1) {",
-      "    for C (c, from: 0, count: 1) {",
+      "for a in range(from: 0, count: 1) {",
+      "  for b in range(from: 0, count: 1) {",
+      "    for c in range(from: 0, count: 1) {",
       "      const use: number = @a",
       "    }",
       "  }",

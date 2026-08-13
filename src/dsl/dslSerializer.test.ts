@@ -11,35 +11,35 @@ const buildElements = () => {
     [
       "group 前身頃 (id: g1) {",
       "}",
-      "point A = coordinate(x: 0 y: 0 id: p1)",
-      "point inGroup = coordinate(x: 1 y: 1 id: p9 parent: @g1)",
-      "point B = offset(from: @A dx: 10 dy: -(210 / 4) id: p2)",
-      "point C = polar(from: @A angle: -45 distance: 80 id: p3)",
-      "line AB = segment(start: @A end: @B id: l1)",
-      "line shoulder = polar(start: @A angle: -12 length: 130 id: l2)",
-      "arc armhole = arc(center: @A radius: 120 start: 0 end: -90 id: a1)",
-      "point D = between(start: @A end: @B ratio: 0.5 id: p4)",
-      "point E = onLine(from: @AB.end distance: 20 id: p5)",
-      "point X = intersection(line1: @AB line2: @shoulder index: 0 extensions: false id: p6)",
-      "point H = tangentOffset(line: @armhole base: @A angle: 90 distance: 12 id: p7)",
-      "arc r = corner(end1: @AB.end end2: @shoulder.start radius: 10 index: 0 id: a2)",
-      "line lower = split(source: @armhole at: @D id: l3)",
-      "extend(end: @shoulder.end to: @E id: l4)",
-      "line seam = offset(sources: [@AB, @shoulder] distance: 10 side: left closed: false id: l5)",
-      "curve neckline = bezier(start: @A end: @B startAngle: -90 startLength: 35 endAngle: 180 endLength: 45 intermediates: [@C:45:20:25:i1] id: c1)",
-      "arc three = through(point1: @A point2: @B point3: @C start: 180 end: 270 id: a3)",
-      'text label = label(text: "前中心" anchor: @A size: 4 id: t1)',
-      "edge(end1: @AB.start end2: @shoulder.end index: 0 id: e1)",
-      "line cp = copy(startPoint: @A endPoint: @B scale: 1 angleDeg: 0 mirrorX: false baseLines: [@AB] id: e2)",
-      "line sym = mirrorCopy(axis1: @A axis2: @B baseLines: [@AB] id: e3)",
-      "move(targets: [@AB] from: @A to: @B scale: 1 angleDeg: 0 mirrorX: false id: e4)",
-      "mirrorMove(targets: [@AB] axis1: @A axis2: @B id: e5)",
-      "if cond (1 id: e6) {",
+      "point A = coordinate(x: 0,y: 0, id: p1)",
+      "point inGroup = coordinate(x: 1,y: 1, id: p9,parent: @g1)",
+      "point B = offset(from: @A, dx: 10, dy: -(210 / 4), id: p2)",
+      "point C = polar(from: @A,angle: -45,distance: 80, id: p3)",
+      "line AB = segment(start: @A,end: @B, id: l1)",
+      "line shoulder = polar(start: @A,angle: -12,length: 130, id: l2)",
+      "arc armhole = arc(center: @A,radius: 120,start: 0,end: -90, id: a1)",
+      "point D = between(start: @A,end: @B,ratio: 0.5, id: p4)",
+      "point E = onLine(from: @AB.end,distance: 20, id: p5)",
+      "point X = intersection(line1: @AB,line2: @shoulder,index: 0,extensions: false, id: p6)",
+      "point H = tangentOffset(line: @armhole,base: @A,angle: 90,distance: 12, id: p7)",
+      "arc r = corner(end1: @AB.end, end2: @shoulder.start,radius: 10,index: 0, id: a2)",
+      "line lower = split(source: @armhole, at: @D, id: l3)",
+      "extend(end: @shoulder.end, to: @E, id: l4)",
+      "line seam = offset(sources: [@AB, @shoulder],distance: 10,side: left,closed: false, id: l5)",
+      "curve neckline = bezier(start: @A,end: @B,startAngle: -90,startLength: 35,endAngle: 180,endLength: 45,intermediates: [@C:45:20:25:i1], id: c1)",
+      "arc three = through(point1: @A,point2: @B,point3: @C,start: 180,end: 270, id: a3)",
+      'text label = label(text: "前中心",anchor: @A,size: 4, id: t1)',
+      "edge(end1: @AB.start, end2: @shoulder.end, index: 0, id: e1)",
+      "line cp = copy(startPoint: @A,endPoint: @B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [@AB], id: e2)",
+      "line sym = mirrorCopy(axis1: @A,axis2: @B,baseLines: [@AB], id: e3)",
+      "move(targets: [@AB], from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: false, id: e4)",
+      "mirrorMove(targets: [@AB], axis1: @A, axis2: @B, id: e5)",
+      "if (1) {",
       "}",
-      "for rep (i from: 0 count: 5 step: 1 showGenerated: false id: e7) {",
+      "for i in range(from: 0,count: 5,step: 1,showGenerated: false, id: e7) {",
       "}",
-      'image img = image(source: "assets/ref.png" origin: @A scale: 1 angleDeg: 0 mirrorX: false id: e8)',
-      "point hidden = coordinate(x: 5 y: 5 id: p8 state: disabled color: main)"
+      'image img = image(source: "assets/ref.png",origin: @A,scale: 1,angleDeg: 0,mirrorX: false, id: e8)',
+      "point hidden = coordinate(x: 5,y: 5, id: p8,state: disabled,color: main)"
     ].join("\n"),
     { elements: [] }
   );
@@ -209,8 +209,8 @@ describe("serializeElementsToDsl flat output", () => {
         axis2: @p2,
         id: e5
       )
-      if cond (1, id: e6)
-      for rep (i, from: 0, count: 5, step: 1, showGenerated: false, id: e7)
+      if (1)
+      for i in range(from: 0, count: 5, step: 1)
       image img = image(
         source: "assets/ref.png",
         origin: @p1,
@@ -293,7 +293,7 @@ describe("serializeElementStatementLogical with documentDslRefs", () => {
 describe("extended lossless attributes", () => {
   it("round-trips element local variables through vars:", () => {
     const first = compileDslToElements(
-      "point P = coordinate(x: 0 y: 0 id: p1 vars: [高さ: 10; 幅: @高さ * 2])",
+      "point P = coordinate(x: 0, y: 0, id: p1, vars: [高さ: 10; 幅: @高さ * 2])",
       { elements: [] }
     );
     expect(first.diagnostics).toEqual([]);
@@ -322,7 +322,7 @@ describe("extended lossless attributes", () => {
 
   it("round-trips group printEnabled and printAnchor", () => {
     const first = compileDslToElements(
-      "group G (id: g1 printEnabled: true printAnchor: (10, 20)) {\n}",
+      "group G (id: g1,printEnabled: true,printAnchor: (10, 20)) {\n}",
       { elements: [] }
     );
     expect(first.diagnostics).toEqual([]);

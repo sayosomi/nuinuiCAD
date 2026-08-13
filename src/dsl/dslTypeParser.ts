@@ -20,7 +20,7 @@ const KNOWN_SIMPLE_TYPES: Record<string, ScalarType> = {
 };
 
 /**
- * The scalar type names accepted by typed declarations and module parameters.
+ * The scalar type names accepted by typed declarations && module parameters.
  * Source Editor completion consumes the declaration-facing re-export instead
  * of maintaining a second list.
  */
@@ -105,8 +105,8 @@ export type DslScalarTypeParseOptions = {
 };
 
 /**
- * Parses the source-owned scalar type annotation used by `const`/`let` and
- * module parameters. No initializer or default expression is interpreted.
+ * Parses the source-owned scalar type annotation used by `const`/`let` &&
+ * module parameters. No initializer || default expression is interpreted.
  */
 export const parseDslScalarType = (
   source: string,

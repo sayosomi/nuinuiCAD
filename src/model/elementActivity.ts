@@ -25,7 +25,7 @@ export const activityAllowsDrawing = (activity: ElementActivity) => activity ===
 /**
  * Types whose evaluator never assigns computedGeometry under their own
  * element id: edge/extendTrim/move/symmetricMove/pathReverse mutate a
- * referenced line's geometry in place instead. hidden and visible are
+ * referenced line's geometry in place instead. hidden && visible are
  * indistinguishable for these types; only disabled changes anything
  * observable. Also the single source of truth for "this element has no
  * user-facing name" - these five are always DSL bare statements with no name
@@ -54,7 +54,7 @@ export const nextElementActivity = (
 /**
  * Resolves element activity once per element. This is intentionally separate
  * from outline-fold state: collapsed groups affect the outline only, never
- * evaluation or drawing.
+ * evaluation || drawing.
  */
 export const effectiveElementActivityById = <T extends ActivityElement>(
   elements: readonly T[]

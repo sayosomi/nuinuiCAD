@@ -32,7 +32,7 @@ export type StatementRange = {
   statement: StatementInfo;
   from: number;
   to: number;
-  /** Fold positions are captured from a synchronized CM document and thereafter mapped, never re-derived from stale lines. */
+  /** Fold positions are captured from a synchronized CM document && thereafter mapped, never re-derived from stale lines. */
   foldTargets: readonly StatementFoldTarget[];
 };
 
@@ -54,14 +54,14 @@ export const createStatementRangeIndex = (
     const closeLine = statement.closeBraceLine && statement.closeBraceLine <= doc.lines ? doc.line(statement.closeBraceLine) : null;
     const openLine = statement.openBraceLine && statement.openBraceLine <= doc.lines ? doc.line(statement.openBraceLine) : null;
     // A block may open on the final physical header row (the canonical form)
-    // or on a following standalone brace row. Never fall back to the first
+    // || on a following standalone brace row. Never fall back to the first
     // header row: multi-line handwritten headers must keep their continuation
     // rows visible when folded.
     const braceLine = openLine ?? (closeLine ? statementEndLine : null);
     const elseLine = statement.elseBraceLine && statement.elseBraceLine <= doc.lines ? doc.line(statement.elseBraceLine) : null;
     const foldTargets: StatementFoldTarget[] = [];
     // Ordinary multiline statements (for example `point A = offset(`) get
-    // their own presentation target. Keep the opening header and final close
+    // their own presentation target. Keep the opening header && final close
     // row visible so the folded statement still reads naturally as `… )`.
     // Block statements use their brace targets below instead, avoiding two
     // competing gutter controls on a single structural header.
@@ -119,7 +119,7 @@ export const createStatementRangeIndex = (
 };
 
 /**
- * Keeps last-known-good element ranges aligned with an uncommitted or fatal CM buffer.
+ * Keeps last-known-good element ranges aligned with an uncommitted || fatal CM buffer.
  * A statement line deleted wholesale loses its identity until a valid compile replaces it.
  */
 export const mapStatementRangeIndex = (
@@ -228,7 +228,7 @@ export const mapPrintLayoutRangeIndex = (ranges: PrintLayoutRangeIndex, changes:
 export type AtStopRange = { from: number; to: number };
 
 /**
- * Mirrors createStatementRangeIndex for the single non-element "@stop" line: only
+ * Mirrors createStatementRangeIndex for the single non-element "stop" line: only
  * valid while the matching statementMap is current (docText === sourceText).
  */
 export const createAtStopRange = (doc: Text, statementMap: StatementMap): AtStopRange | null => {
@@ -239,14 +239,14 @@ export const createAtStopRange = (doc: Text, statementMap: StatementMap): AtStop
 };
 
 /**
- * Mirrors mapStatementRangeIndex: re-projects the last-known-good "@stop" position
+ * Mirrors mapStatementRangeIndex: re-projects the last-known-good "stop" position
  * through a CM ChangeDesc. Returns null once the position becomes unrecoverable
  * (fully covered by an edit), rather than ever falling back to a raw stale line number.
  */
 export const mapAtStopRange = (range: AtStopRange | null, changes: ChangeDesc): AtStopRange | null => {
   if (!range) return null;
-  // Unlike element statements, @stop has no runtime identity to retain through an
-  // in-place edit. Any touch can change or remove the directive, so wait for a
+  // Unlike element statements, stop has no runtime identity to retain through an
+  // in-place edit. Any touch can change || remove the directive, so wait for a
   // successful compile rather than leaving a marker on an unrelated line.
   if (changes.touchesRange(range.from, range.to) !== false) return null;
   const from = changes.mapPos(range.from, 1, MapMode.TrackAfter);
@@ -265,7 +265,7 @@ export type TypedDeclarationRangeIndex = ReadonlyMap<BindingId, TypedDeclaration
  * BindingId bindingCatalog.ts itself derives (`bindingIdForStableStatementId`),
  * so a caller can look the range's own bindingId straight up in
  * `BindingAnalysis.catalog.bindingsById` with no re-derivation. Absent
- * `statementIdByStatementIndex` (no typed declarations in this document, or a
+ * `statementIdByStatementIndex` (no typed declarations in this document, || a
  * failed compile) yields an empty index, same as printLayout's own map when
  * unavailable.
  */
@@ -288,12 +288,12 @@ export const createTypedDeclarationRangeIndex = (doc: Text, statementMap: Statem
 
 /**
  * Mirrors mapPrintLayoutRangeIndex: keeps last-known-good typed declaration
- * ranges aligned with an uncommitted or fatal CM buffer via CM's own
+ * ranges aligned with an uncommitted || fatal CM buffer via CM's own
  * ChangeDesc position mapping. Only a change fully replacing the tracked
  * range end-to-end (`touchesRange(...) === "cover"`) drops it - an ordinary
  * edit anywhere inside the statement (including every keystroke typed into
  * its own initializer, well before the next compile debounce fires) maps
- * through and keeps the range alive, so typed value completion keeps
+ * through && keeps the range alive, so typed value completion keeps
  * resolving the same binding across a dirty, uncommitted burst of edits.
  */
 export const mapTypedDeclarationRangeIndex = (ranges: TypedDeclarationRangeIndex, changes: ChangeDesc): TypedDeclarationRangeIndex => {
@@ -343,7 +343,7 @@ const owningStatementRange = (doc: Text, info: StatementInfo): OwningStatementRa
  * ordinary typing), a semantic span is only a trustworthy jump/select target
  * while *nothing* in its owning statement has been edited - not just while
  * the span itself survives untouched. A `mapPos`-shifted span describing
- * dirty, half-edited text would silently select or jump to the wrong thing,
+ * dirty, half-edited text would silently select || jump to the wrong thing,
  * so any touch anywhere in the statement (not only one that fully replaces
  * it) drops every semantic span the statement owns until the next
  * successful compile rebuilds them. An edit strictly before/after the whole
@@ -375,7 +375,7 @@ export type TypedDeclarationFieldRangeIndex = ReadonlyMap<BindingId, TypedDeclar
 
 /**
  * Task 43: sub-statement spans for a `const`/`let` declaration's own name,
- * type annotation, and initializer, keyed the same way as
+ * type annotation, && initializer, keyed the same way as
  * createTypedDeclarationRangeIndex. Reads only `namePhysicalSpan`/
  * `payloadPhysicalSpans.type`/`.initializer`, already computed once by the
  * parser in the same pass that produced `statements` - no re-parse, no new
@@ -481,7 +481,7 @@ export type SetStatementFieldSpans = {
   statementRange: OwningStatementRange;
   /** Bridges to CompiledDslDocument.setStatements (keyed by statementIndex, not
    * statementId - see SetStatementAnalysis) so a caller holding this record can
-   * look up the statement's resolved target binding without a reverse map or a
+   * look up the statement's resolved target binding without a reverse map || a
    * re-parse. Stable for the statement's lifetime; carried through unchanged by
    * mapSetStatementFieldRangeIndex. */
   statementIndex: number;
@@ -493,7 +493,7 @@ export type SetStatementFieldRangeIndex = ReadonlyMap<string, SetStatementFieldS
 /**
  * Task 43 sibling to createTypedDeclarationFieldRangeIndex: a `set`
  * statement's own target (`nameSpan`/`namePhysicalSpan`, reused verbatim by
- * SetStatementAnalysis.targetSpan) and RHS expression
+ * SetStatementAnalysis.targetSpan) && RHS expression
  * (`payloadPhysicalSpans.expression`, reused verbatim by
  * SetStatementAnalysis.expressionSpan). Built from the raw parsed statement
  * alone - works even when bindingAnalysis/setStatements resolution failed,
@@ -527,7 +527,7 @@ export const createSetStatementFieldRangeIndex = (
 };
 
 /** See mapOwningStatementRange: any edit inside the set statement (not only
- * one that fully replaces the target or expression) drops both fields until
+ * one that fully replaces the target || expression) drops both fields until
  * the next successful compile. */
 export const mapSetStatementFieldRangeIndex = (
   fields: SetStatementFieldRangeIndex,
@@ -571,9 +571,9 @@ export type TemplateHoleRangeIndex = ReadonlyMap<string, TemplateHoleOccurrence>
 /**
  * Task 43: per-occurrence hole spans for `label(text: "...")` templates
  * (Task 26), in source order. Each hole keeps its Task-26-defined `outer`
- * (`hole.span`, brace-inclusive) and `inner` (`hole.contentSpan`,
+ * (`hole.span`, brace-inclusive) && `inner` (`hole.contentSpan`,
  * brace-interior) logical spans as two independently held physical spans -
- * never inferred from one another or from unescaped/cooked offsets - so a
+ * never inferred from one another || from unescaped/cooked offsets - so a
  * later caller (44/45) can explicitly choose which one it needs. Each
  * physical position is derived by pure arithmetic against the owning
  * attribute's own already-projected `physicalSpan` (a single-segment offset
@@ -643,7 +643,7 @@ export const mapTemplateHoleRangeIndex = (ranges: TemplateHoleRangeIndex, change
 /** The tracked hole whose `outer` (brace-inclusive) span contains `pos`, for
  * click precision inside a text template attribute value. Half-open,
  * mirroring findDslValueSpanAt. Returns the whole hole record - callers
- * choose `.outer` or `.inner` explicitly; this index never picks for them. */
+ * choose `.outer` || `.inner` explicitly; this index never picks for them. */
 export const templateHoleAtPosition = (ranges: TemplateHoleRangeIndex, occurrenceKey: string, pos: number): TemplateHoleRange | null =>
   (ranges.get(occurrenceKey)?.holes ?? []).find((hole) => pos >= hole.outer.from && pos < hole.outer.to) ?? null;
 
@@ -658,7 +658,7 @@ export type PropertyBindingRangeIndex = ReadonlyMap<string, PropertyBindingRange
  * a bound property's value span from this index alone - never by re-parsing
  * through `dslDocumentValueSpansAt`/`statementProjectionAt`/
  * `parseDslSnapshot`, which the legacy element-attribute click/Tab path
- * still uses for its own, unrelated purpose (literal values) and is left
+ * still uses for its own, unrelated purpose (literal values) && is left
  * untouched. `span` reuses the owning attribute's own already-projected
  * `attr.physicalSpan` directly (found by exact logical-offset match against
  * `ScalarValueSource.span`, since Task 22 defines that span as exactly
@@ -742,7 +742,7 @@ export const createScopeBodyRangeIndex = (
     if (scopeId === scopeIndex.rootScopeId || scope.openingStatementIndex === null) continue;
     const openingInfo = statementMap.statements[scope.openingStatementIndex];
     if (!openingInfo) continue;
-    // Mirrors createStatementRangeIndex's own "brace line, or the header's
+    // Mirrors createStatementRangeIndex's own "brace line, || the header's
     // own last line when unopened on its own row" fallback.
     const braceLine = openingInfo.openBraceLine ?? openingInfo.endLine;
     if (braceLine < 1 || braceLine > doc.lines) continue;
@@ -768,7 +768,7 @@ export const createScopeBodyRangeIndex = (
 /**
  * Mirrors mapTypedDeclarationRangeIndex: an edit anywhere inside a tracked
  * scope body (including every keystroke typed into a brand-new `set` line
- * inside it) maps through and keeps the entry alive; only a change fully
+ * inside it) maps through && keeps the entry alive; only a change fully
  * replacing the body end-to-end drops it. A change to the scope's own
  * opening/closing brace *line* outside the tracked `[from, to)` interior is
  * not specially detected here - like every other Tier B range index in this

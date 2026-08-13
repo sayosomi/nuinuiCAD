@@ -9,7 +9,7 @@ describe("templateHoleContentSpanAt", () => {
   });
 
   it("finds the content span of an in-progress hole with a partial reference typed", () => {
-    const text = 'label(text: "hi ${@fo';
+    const text = 'label(text: "hi $${@fo';
     const valueSpan = { start: text.indexOf('"'), end: text.length };
     const holeOpen = text.indexOf("${") + 2;
     expect(templateHoleContentSpanAt(text, valueSpan, text.length)).toEqual({ start: holeOpen, end: text.length });
@@ -22,7 +22,7 @@ describe("templateHoleContentSpanAt", () => {
   });
 
   it("returns null right after a hole has already closed", () => {
-    const text = 'label(text: "{@a} more';
+    const text = 'label(text: "${@a} more';
     const valueSpan = { start: text.indexOf('"'), end: text.length };
     expect(templateHoleContentSpanAt(text, valueSpan, text.length)).toBeNull();
   });
@@ -34,7 +34,7 @@ describe("templateHoleContentSpanAt", () => {
   });
 
   it("returns null outside the value span", () => {
-    const text = 'label(text: "{@a';
+    const text = 'label(text: "${@a';
     const valueSpan = { start: text.indexOf('"'), end: text.length };
     expect(templateHoleContentSpanAt(text, valueSpan, 0)).toBeNull();
   });

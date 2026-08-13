@@ -5,12 +5,12 @@ import { createModuleSemanticRangeIndex, moduleSemanticDeclarationRange, moduleS
 import { analyzeModuleSemanticRename } from "../document/moduleSemanticRenameAnalysis";
 
 const source = [
-  "nui 3",
+  "nui 4",
   "module M(width: number) {",
   "  export point Public = coordinate(x: @width, y: 0)",
   "  point Private = coordinate(x: @width, y: 0)",
   "}",
-  "module I = M(width: 1)",
+  "instance I = M(width: 1)",
   "point X = offset(from: @I::Public, dx: 1, dy: 0)"
 ].join("\n");
 
@@ -34,7 +34,7 @@ describe("module semantic editor range view", () => {
 
   it("uses tokenizer-owned element/property spans for geometry property source targets", () => {
     const propertySource = [
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  line lineA = segment(start: (0, 0), end: (10, 0))",
       "  const length: number = @lineA.length",
@@ -53,12 +53,12 @@ describe("module semantic editor range view", () => {
 
   it("connects deferred export property instance and member tokens to stable source targets", () => {
     const deferredSource = [
-      "nui 3",
+      "nui 4",
       "module Child() {",
       "  export line Output = segment(start: (0, 0), end: (10, 0))",
       "}",
       "module M() {",
-      "  module SomeInstance = Child()",
+      "  instance SomeInstance = Child()",
       "  const length: number = @SomeInstance::Output.length",
       "}"
     ].join("\n");
@@ -71,7 +71,7 @@ describe("module semantic editor range view", () => {
 
   it("connects scalar export declarations and qualified members to one source target", () => {
     const scalarSource = [
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  export const value: number = 1",
       "  export let label: string = \"\"",
@@ -116,14 +116,14 @@ describe("module semantic editor range view", () => {
 
   it("collects scalar and geometry-property occurrences from text-template holes", () => {
     const templateSource = [
-      "nui 3",
+      "nui 4",
       "module Child() {",
       "  export line Export = segment(start: (0, 0), end: (10, 0))",
       "}",
       "module M(lineParam: line) {",
       "  line lineA = segment(start: (0, 0), end: (10, 0))",
-      "  module instance = Child()",
-      "  text Label = label(text: \"private={@lineA.length} parameter={@lineParam.length} export={@instance::Export.length}\", anchor: (0, 0))",
+      "  instance instance = Child()",
+      "  text Label = label(text: \"private=${@lineA.length} parameter=${@lineParam.length} export=${@instance::Export.length}\", anchor: (0, 0))",
       "}"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: templateSource, sourceRevision: 0 });

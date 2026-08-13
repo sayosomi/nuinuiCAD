@@ -5,7 +5,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import { typedDeclarationInspectorPresentation } from "./typedDeclarationInspectorPresentation";
 
 const compileCanonical = (source: string) => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
   const result = compileCanonicalText(baseline, source);
   expect(result.status).not.toBe("fatal");
   return result.doc;
@@ -20,7 +20,7 @@ const bindingIdByName = (
 
 describe("typedDeclarationInspectorPresentation", () => {
   it("projects a const number declaration", () => {
-    const compiled = compileCanonical(["nui 3", "const width: number = 12"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "const width: number = 12"].join("\n"));
     const bindingId = bindingIdByName(compiled, "width");
     const presentation = typedDeclarationInspectorPresentation(compiled.bindingAnalysis!, compiled.statements, bindingId);
     expect(presentation).toEqual({
@@ -38,7 +38,7 @@ describe("typedDeclarationInspectorPresentation", () => {
   });
 
   it("projects a let boolean declaration", () => {
-    const compiled = compileCanonical(["nui 3", "let shown: boolean = true"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "let shown: boolean = true"].join("\n"));
     const bindingId = bindingIdByName(compiled, "shown");
     const presentation = typedDeclarationInspectorPresentation(compiled.bindingAnalysis!, compiled.statements, bindingId);
     expect(presentation?.mutabilityLabel).toBe("let");
@@ -48,7 +48,7 @@ describe("typedDeclarationInspectorPresentation", () => {
   });
 
   it("formats a string declaration's raw (unescaped) initializer", () => {
-    const compiled = compileCanonical(["nui 3", 'const label: string = "front piece"'].join("\n"));
+    const compiled = compileCanonical(["nui 4", 'const label: string = "front piece"'].join("\n"));
     const bindingId = bindingIdByName(compiled, "label");
     const presentation = typedDeclarationInspectorPresentation(compiled.bindingAnalysis!, compiled.statements, bindingId);
     expect(presentation?.rows).toContainEqual({ key: "type", label: "型", value: "string" });
@@ -56,7 +56,7 @@ describe("typedDeclarationInspectorPresentation", () => {
   });
 
   it("formats a choice declaration's type", () => {
-    const compiled = compileCanonical(["nui 3", "const side: choice(right, left) = right"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "const side: choice(right, left) = right"].join("\n"));
     const bindingId = bindingIdByName(compiled, "side");
     const presentation = typedDeclarationInspectorPresentation(compiled.bindingAnalysis!, compiled.statements, bindingId);
     expect(presentation?.rows).toContainEqual({ key: "type", label: "型", value: "choice(right, left)" });
@@ -64,7 +64,7 @@ describe("typedDeclarationInspectorPresentation", () => {
 
   it("surfaces an invalid declaration's diagnostic message", () => {
     const compiled = compileCanonical(
-      ["nui 3", "const broken: number = @missing", "const valid: number = 3"].join("\n")
+      ["nui 4", "const broken: number = @missing", "const valid: number = 3"].join("\n")
     );
     const bindingId = bindingIdByName(compiled, "broken");
     const presentation = typedDeclarationInspectorPresentation(compiled.bindingAnalysis!, compiled.statements, bindingId);
@@ -74,7 +74,7 @@ describe("typedDeclarationInspectorPresentation", () => {
 
   it("keeps a recoverable invalid let's metadata visible (Task 40's recovery target stays inspectable)", () => {
     const compiled = compileCanonical(
-      ["nui 3", "let broken: number = @missing", "set broken = 5"].join("\n")
+      ["nui 4", "let broken: number = @missing", "set broken = 5"].join("\n")
     );
     const bindingId = bindingIdByName(compiled, "broken");
     const presentation = typedDeclarationInspectorPresentation(compiled.bindingAnalysis!, compiled.statements, bindingId);
@@ -83,7 +83,7 @@ describe("typedDeclarationInspectorPresentation", () => {
   });
 
   it("returns null for an unknown binding id", () => {
-    const compiled = compileCanonical(["nui 3", "const width: number = 12"].join("\n"));
+    const compiled = compileCanonical(["nui 4", "const width: number = 12"].join("\n"));
     const presentation = typedDeclarationInspectorPresentation(
       compiled.bindingAnalysis!,
       compiled.statements,
@@ -94,7 +94,7 @@ describe("typedDeclarationInspectorPresentation", () => {
 
   it("returns null for a non-typed (forGroup iteration) binding kind", () => {
     const compiled = compileCanonical(
-      ["nui 3", "for 繰返し (i, from: 0, count: 3, step: 1) {", "  const y: number = 1", "}"].join("\n")
+      ["nui 4", "for i in range(from: 0, count: 3, step: 1) {", "  const y: number = 1", "}"].join("\n")
     );
     const iterationBinding = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "iteration");
     expect(iterationBinding).toBeTruthy();

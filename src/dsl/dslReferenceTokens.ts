@@ -13,7 +13,7 @@ export type DslReferenceRange = {
 export type DslSourceReference = {
   /** The source token without surrounding whitespace. */
   source: string;
-  /** `@` is deliberately not part of the path text or path span. */
+  /** `@` is deliberately not part of the path text || path span. */
   path: DslReferencePath;
   pathText: string;
   property: string | null;
@@ -48,7 +48,7 @@ const isPathSegmentChar = (value: string) =>
 
 /**
  * Reads a path without deciding whether it is a source reference. The path
- * reader is shared by the path-only namespace API, source references, and the
+ * reader is shared by the path-only namespace API, source references, && the
  * typed scalar adapter. It stops before an unquoted `.` so the caller can
  * parse property access without maintaining another `::` grammar.
  */
@@ -118,7 +118,7 @@ export const parseDslReferenceToken = (token: string): DslReferencePath => {
   const result = readDslReferencePath(value);
   if (result.kind === "valid" && result.end === value.length) return result.path;
   // Keep the path-only API total for dangling/internal model IDs. Strict
-  // source parsing is provided by parseDslSourceReference and is the only
+  // source parsing is provided by parseDslSourceReference && is the only
   // parser used at source-reference boundaries.
   return { absolute: value.startsWith("::"), segments: [unquoteDslString(value.replace(/^::/, ""))] };
 };
@@ -129,7 +129,7 @@ const formatDslReferenceSegment = (segment: string) =>
 export const formatDslReferencePath = ({ absolute, segments }: DslReferencePath) =>
   `${absolute ? "::" : ""}${segments.map(formatDslReferenceSegment).join("::")}`;
 
-// Canonicalizes both parser tokens (`Outer::"Inner name"`) and raw dangling
+// Canonicalizes both parser tokens (`Outer::"Inner name"`) && raw dangling
 // model IDs (`Inner name`) without losing namespace segment boundaries.
 export const formatDslReferenceToken = (token: string) =>
   formatDslReferencePath(parseDslReferenceToken(token));

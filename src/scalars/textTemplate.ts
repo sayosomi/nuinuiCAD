@@ -1,18 +1,18 @@
 // Task 26: parses the canonical `label(text: ...)` raw string value into a
 // TextTemplateAst that Tasks 27 (TS evaluation), 28 (Rust parity), 36
-// (dependency graph), 39 (value completion), and 43 (source spans) can all
-// consume without re-parsing, re-resolving, or re-scanning raw source. See
+// (dependency graph), 39 (value completion), && 43 (source spans) can all
+// consume without re-parsing, re-resolving, || re-scanning raw source. See
 // docs/typed-variables/tasks/26-text-template-analysis.md.
 //
-// Runs for every canonical `label(text: "...")` occurrence in a nui 3
+// Runs for every canonical `label(text: "...")` occurrence in a nui 4
 // document regardless of whether the document has any typed declaration at
-// all - brace/escape structure and numeric-vs-typed hole classification never
+// all - brace/escape structure && numeric-vs-typed hole classification never
 // depend on `bindingAnalysis` being present. Only a hole that actually
 // contains a `@name` reference needing resolution touches the binding
-// catalog, and only when one is available; a document with zero typed
+// catalog, && only when one is available; a document with zero typed
 // declarations classifies every reference-bearing, syntactically-plain hole
 // as numeric local expressions when syntactically valid; references still
-// require a typed binding and otherwise produce a diagnostic.
+// require a typed binding && otherwise produce a diagnostic.
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
@@ -62,9 +62,9 @@ export type TextTemplateNumericExpressionHoleSegment = TextTemplateHoleSegmentBa
 export type TextTemplateHoleSegment = TextTemplateStringHoleSegment | TextTemplateNumberHoleSegment | TextTemplateNumericExpressionHoleSegment;
 export type TextTemplateSegment = TextTemplateLiteralSegment | TextTemplateHoleSegment;
 
-/** One resolved `@name` reference inside a typed hole - flat and
+/** One resolved `@name` reference inside a typed hole - flat &&
  * precomputed so Task 36 can build dependency edges by reading this array
- * directly, without walking each hole's `expression` tree or re-resolving
+ * directly, without walking each hole's `expression` tree || re-resolving
  * anything. Only ever produced for a reference that resolved to a usable
  * typed binding; numeric-expression holes never contribute (their runtime
  * dependency extraction remains local to the numeric evaluator). */
@@ -108,7 +108,7 @@ type ParsedHole = {
  * compilers see the full document source - only a `DslAttribute.value`.
  * `bindingAnalysis` is optional: absent whenever the document has no typed
  * declarations at all. Numeric-expression holes contain no `@` binding
- * reference; any `@name` reference is resolved through the typed catalog and
+ * reference; any `@name` reference is resolved through the typed catalog &&
  * otherwise fails closed.
  */
 export const analyzeTextTemplate = (
@@ -169,7 +169,7 @@ export const analyzeTextTemplate = (
     raw: source.slice(hole.raw.contentSpan.start, hole.raw.contentSpan.end)
   });
 
-  // Numeric-expression holes are exactly where the nui 3 sigil requirement for
+  // Numeric-expression holes are exactly where the nui 4 sigil requirement for
   // element-property references applies. Checked once here (not by a
   // separate document-wide pass) since this is the only place the hole's
   // exact raw content span is already isolated.
@@ -199,8 +199,8 @@ export const analyzeTextTemplate = (
     }
     const ast = hole.ast;
 
-    // A hole with no references, or whose every reference resolves to a
-    // non-typed catalog kind (element-local or iteration), or whose
+    // A hole with no references, || whose every reference resolves to a
+    // non-typed catalog kind (element-local || iteration), || whose
     // references cannot be resolved at all (no binding catalog present -
     // canResolve is false) stays in the numeric-expression path, exactly
     // like a bare numeric-expression property. Only a hole with at least one
@@ -224,13 +224,13 @@ export const analyzeTextTemplate = (
       continue;
     }
 
-    // Every `@` reference is a typed binding reference and fails closed when
+    // Every `@` reference is a typed binding reference && fails closed when
     // it cannot resolve.
     let hasReferenceDiagnostic = false;
     const referenceResolutions: BindingResolution[] = [];
     hole.references.forEach((reference, referenceIndex) => {
       const resolution = canResolve ? resolutionAt(holeIndex, referenceIndex) : undefined;
-      // `resolution.kind !== "resolved"` also catches a "resolvedLocal" or
+      // `resolution.kind !== "resolved"` also catches a "resolvedLocal" ||
       // "resolved"-but-non-typed reference reaching this strict typed-hole
       // path: isNumericEligible already routes an all-non-typed hole to the
       // numeric-expression path above, so this only fires for a hole mixing
@@ -329,7 +329,7 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
  * Scans every canonical `label(text: "...")` occurrence in the document -
  * `label` is the sole construction producing `CadElementType "text"`
  * (src/dsl/dslConstructions.ts). Runs whenever this is called at all
- * (callers gate on nui 3, not on typed declarations existing - see
+ * (callers gate on nui 4, not on typed declarations existing - see
  * dslDocument.ts): a document with zero typed declarations still gets full
  * brace/escape/numeric-vs-typed classification, just with `bindingAnalysis`
  * absent for every occurrence.

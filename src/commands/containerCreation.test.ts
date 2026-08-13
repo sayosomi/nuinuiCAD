@@ -4,7 +4,7 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { addContainer } from "./containerCreation";
 
 const source = [
-  "nui 3",
+  "nui 4",
   "",
   "const ZOOM_RATIO: number = 2",
   "const SA: number = 7 * @ZOOM_RATIO",
@@ -38,14 +38,15 @@ describe("container creation from the Source Editor", () => {
       const next = useCadDocumentStore.getState();
       const inserted = next.elements.at(-1)!;
       expect(inserted.type).toBe(type);
-      expect(next.sourceText.indexOf("const BANGS_WIDTH")).toBeLessThan(next.sourceText.indexOf(` ${inserted.name}`));
+      const insertedHeader = type === "group" ? "group" : type === "conditionalGroup" ? "if" : "for";
+      expect(next.sourceText.indexOf("const BANGS_WIDTH")).toBeLessThan(next.sourceText.indexOf(insertedHeader));
       expect(useCadUiStore.getState().selectedElementId).toBe(inserted.id);
     }
   );
 
   it("keeps a declaration cursor's established after-statement behavior", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
@@ -68,8 +69,8 @@ describe("container creation from the Source Editor", () => {
 
   it("uses the enclosing conditional else branch for a comment-line cursor", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
-      "if 分岐 (true) {",
+      "nui 4",
+      "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  # insert here",

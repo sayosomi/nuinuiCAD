@@ -38,7 +38,7 @@ const evaluateCompiled = (compiled: ReturnType<typeof runtimeNames>) => {
 describe("module materialization blocking regressions", () => {
   it("connects document-level linear mutation to a materialized call execution unit", () => {
     const compiled = runtimeNames([
-      "nui 3",
+      "nui 4",
       "let value: number = 0",
       "point Before = coordinate(x: @value, y: 0)",
       "set value = 10",
@@ -46,7 +46,7 @@ describe("module materialization blocking regressions", () => {
       "  point P = coordinate(x: 10, y: 20)",
       "  point Q = offset(from: @P, dx: 1, dy: 2)",
       "}",
-      "module A = M()",
+      "instance A = M()",
       "set value = 20",
       "point After = coordinate(x: @value, y: 0)"
     ].join("\n"));
@@ -73,16 +73,16 @@ describe("module materialization blocking regressions", () => {
     expect(result.computedScalarBindings).toBeDefined();
   });
 
-  it("keeps a document set after a module call out of @stop evaluation", () => {
+  it("keeps a document set after a module call out of stop evaluation", () => {
     const compiled = runtimeNames([
-      "nui 3",
+      "nui 4",
       "let value: number = 0",
       "set value = 1",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}",
-      "module A = M()",
-      "@stop",
+      "instance A = M()",
+      "stop",
       "set value = 2",
       "point After = coordinate(x: @value, y: 0)"
     ].join("\n"));
@@ -96,13 +96,13 @@ describe("module materialization blocking regressions", () => {
 
   it("keeps private refs instance-local and opaque to ordinary callers", () => {
     const repeated = runtimeNames([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "  point Q = offset(from: @P, dx: 1, dy: 2)",
       "}",
-      "module A = M()",
-      "module B = M()"
+      "instance A = M()",
+      "instance B = M()"
     ].join("\n"));
     const repeatedElements = repeated.document!.elements;
     const a = repeatedElements.find((element) => element.name === "A")!;
@@ -116,18 +116,18 @@ describe("module materialization blocking regressions", () => {
     expect(aQ).not.toMatchObject({ fromPoint: { pointId: bP.id } });
 
     const caller = compileDslDocument([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}",
-      "module A = M()",
+      "instance A = M()",
       "point Q = offset(from: @A::P, dx: 1, dy: 2)"
     ].join("\n"), { assignedStatementIds: stableIdsFor([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}",
-      "module A = M()",
+      "instance A = M()",
       "point Q = offset(from: @A::P, dx: 1, dy: 2)"
     ].join("\n")) });
     expect(caller.document).toBeNull();
@@ -136,15 +136,15 @@ describe("module materialization blocking regressions", () => {
 
   it("retains ordinary group qualified lookup while nested module refs stay local", () => {
     const compiled = runtimeNames([
-      "nui 3",
+      "nui 4",
       "module Inner() {",
       "  point P = coordinate(x: 1, y: 2)",
       "  point Q = offset(from: @P, dx: 3, dy: 4)",
       "}",
       "module Outer() {",
-      "  module Nested = Inner()",
+      "  instance Nested = Inner()",
       "}",
-      "module A = Outer()",
+      "instance A = Outer()",
       "group G {",
       "  point Child = coordinate(x: 5, y: 6)",
       "}",
@@ -162,7 +162,7 @@ describe("module materialization blocking regressions", () => {
 
   it("propagates instance activity through materialized geometry evaluation", () => {
     const compiled = runtimeNames([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",

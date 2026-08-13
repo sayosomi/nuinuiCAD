@@ -167,7 +167,7 @@ const PrintNumberInput = ({
     : [];
   // Print layout numeric expressions never pass a currentElement (see
   // cmAutocomplete.ts's own comment on this), so element-parameter candidates
-  // here are always global/root-scoped and unsliced by document position -
+  // here are always global/root-scoped && unsliced by document position -
   // matching the existing @variable behavior for this surface.
   const elementParamMatch = !isComposing && !suggestionMatch
     ? elementParameterSuggestionMatch(inputValue, inputSelection.start, inputSelection.end)

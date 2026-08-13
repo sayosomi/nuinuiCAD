@@ -6,7 +6,7 @@
 // mutation history use the already-evaluated `computedScalarBindings`
 // terminal snapshot.
 //
-// When that history and the compiled source position are available, the
+// When that history && the compiled source position are available, the
 // materializer reads the version visible at the printLayout/place site;
 // documents without mutation history retain the existing terminal snapshot
 // fallback.
@@ -27,9 +27,9 @@ export const printLayoutStatementKey = (layoutId: string) => `printLayout:${layo
 export const printLayoutPlacementStatementKey = (layoutId: string, placementIndex: number) =>
   `place:${layoutId}:${placementIndex}`;
 
-/** Resolves the compiled occurrence for one printLayout/place attribute, or
+/** Resolves the compiled occurrence for one printLayout/place attribute, ||
  * undefined when the statement wasn't found, has no compiled binding for
- * this key, or is a plain literal/measurement-only expression. */
+ * this key, || is a plain literal/measurement-only expression. */
 export const printLayoutCompiledNumericBinding = (
   lookup: PrintLayoutNumericBindingLookup | undefined,
   statementKey: string,

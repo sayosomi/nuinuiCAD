@@ -119,7 +119,7 @@ describe("imageCreationCommands", () => {
 
   it("captures a Source Editor insertion line and uses it after image configuration", async () => {
     useCadStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "# insert image here",
       "point B = coordinate(x: 10, y: 0)"
@@ -157,7 +157,7 @@ describe("imageCreationCommands", () => {
   });
 
   it("rejects an image import when its captured source revision is stale", async () => {
-    useCadStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)", "test");
+    useCadStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
     const document = useCadStore.getState();
     dialogMock.open.mockResolvedValue("/Users/yosomi/Documents/underlay.png");
     tauriCoreMock.invoke.mockResolvedValue({ widthPx: 5000, heightPx: 5000, dpi: 300 });
@@ -170,7 +170,7 @@ describe("imageCreationCommands", () => {
       })
     });
     const pending = useCadStore.getState().pendingImageImport!;
-    useCadStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)\n# changed", "test");
+    useCadStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\n# changed", "test");
 
     expect(commitPendingImageImport({
       sourcePath: pending.sourcePath,

@@ -9,7 +9,7 @@ import { reverseComputedPathGeometry } from "./reversePathGeometry";
  * Reverses the target line's already-computed geometry in place. Unlike
  * every other evaluator in this module, this never writes computedGeometry
  * under its own element id (see elementActivity.ts's
- * elementTypesWithoutOwnDrawableGeometry) - the target keeps its own id, and
+ * elementTypesWithoutOwnDrawableGeometry) - the target keeps its own id, &&
  * every statement after this one in document order observes the reversed
  * traversal.
  */

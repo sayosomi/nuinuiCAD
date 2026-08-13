@@ -9,14 +9,14 @@ import { sourceEditSession } from "./sourceEditSession";
  * Phase 2e integration scaling smoke regression. Unlike codemirrorFoundationCost.test.ts
  * (pure EditorState/pure-function costs), this drives the production
  * SourceEditorController: real EditorView transactions, evaluation decoration
- * updates, and store→controller model-patch reflection.
+ * updates, && store→controller model-patch reflection.
  *
  * The timings are logged for local profiling only. Normal correctness runs do
  * not use absolute wall-clock thresholds because Vitest worker contention,
- * garbage collection, JIT warm-up, and OS scheduling can vary substantially.
+ * garbage collection, JIT warm-up, && OS scheduling can vary substantially.
  */
 
-const source = (count: number) => ["nui 3", ...Array.from({ length: count }, (_, index) =>
+const source = (count: number) => ["nui 4", ...Array.from({ length: count }, (_, index) =>
   `point P${index} = coordinate(x: ${index}, y: ${index + 1})`
 )].join("\n");
 

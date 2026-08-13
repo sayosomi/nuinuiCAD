@@ -10,7 +10,7 @@ import { collectInitializerOccurrences, collectSiteBatchOccurrences } from "./ty
 // TypedDependencyKind edge kinds in one document, plus `set` targets (which
 // Task 36 does not model as an edge kind at all, so it is checked directly).
 const source = [
-  "nui 3",
+  "nui 4",
   "const base: number = 1",
   "let derived: number = @base",
   "let counter: number = 0",
@@ -18,13 +18,13 @@ const source = [
   "let flag: boolean = true",
   "group G (printEnabled: @flag) {",
   "}",
-  'text T = label(text: "{@base}", anchor: none, size: 3)'
+  'text T = label(text: "${@base}", anchor: none, size: 3)'
 ].join("\n");
 
 const compile = () => {
   const parsed = parseDsl(source);
   expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-  const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `statement:test:${index}`]));
+  const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `statement:,test:${index}`]));
   const compiled = compileDslDocument(source, { assignedStatementIds, preparsed: parsed });
   expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   return compiled;

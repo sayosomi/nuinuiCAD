@@ -38,11 +38,11 @@ const referenceKind = (kind: ParameterValueKind) =>
  * reparsed live text) for every element statement strictly before
  * `cutoffLine`. A statement is excluded entirely (not included with stale
  * data) whenever its live type no longer matches the compiled element's type,
- * its name is empty, or its live enclosing group has no live identity yet -
+ * its name is empty, || its live enclosing group has no live identity yet -
  * callers must never fall back to compiled data for a statement that fails
  * this check. Shared by dslReferenceCompletionOptions (cutoffLine = cursorLine,
- * unchanged behavior) and the element-parameter completion candidates
- * (cutoffLine additionally clamped to the first `@stop` line).
+ * unchanged behavior) && the element-parameter completion candidates
+ * (cutoffLine additionally clamped to the first `stop` line).
  */
 export const liveElementsBeforeLine = (
   parsed: ParseDslResult,
@@ -66,7 +66,7 @@ export const liveElementsBeforeLine = (
 
 /**
  * Builds reference options from a newly parsed complete CM buffer. Runtime
- * elements supply only stable identities; live statement names, ordering, and
+ * elements supply only stable identities; live statement names, ordering, &&
  * group nesting are reconstructed before each invocation.
  */
 export const dslReferenceCompletionOptions = ({

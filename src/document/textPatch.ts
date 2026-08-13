@@ -1,13 +1,11 @@
 import {
   layoutElementTree,
-  NEW_DOCUMENT_DSL_MAJOR_VERSION,
   planPrintLayoutSection,
   serializePaletteColorLine,
   serializePaletteLines,
   withFallbackParentArgs,
   type CompiledDslDocument,
   type DslDocumentData,
-  type DslMajorVersion,
   type ElementTreeRow,
   type StatementInfo
 } from "../dsl/dslDocument";
@@ -177,7 +175,6 @@ const namesAndParentsUnchanged = (oldDoc: DslDocumentData, newDoc: DslDocumentDa
 const elementUpdateSet = (
   oldDoc: DslDocumentData,
   newDoc: DslDocumentData,
-  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION,
   precomputedRefsNew?: DslSerializerRefs
 ): Set<ElementId> => {
   const oldById = new Map(oldDoc.elements.map((element) => [element.id, element]));
@@ -194,8 +191,8 @@ const elementUpdateSet = (
     return updates;
   }
 
-  const refsOld = documentDslRefs(oldDoc.elements, majorVersion);
-  const refsNew = precomputedRefsNew ?? documentDslRefs(newDoc.elements, majorVersion);
+  const refsOld = documentDslRefs(oldDoc.elements);
+  const refsNew = precomputedRefsNew ?? documentDslRefs(newDoc.elements);
   for (const element of newDoc.elements) {
     const oldElement = oldById.get(element.id);
     if (!oldElement) continue;
@@ -214,11 +211,10 @@ const elementUpdateSet = (
 // 高速経路と結果が常に一致することの検証にのみ使う。
 export const elementUpdateSetFullComparisonForTesting = (
   oldDoc: DslDocumentData,
-  newDoc: DslDocumentData,
-  majorVersion: DslMajorVersion = NEW_DOCUMENT_DSL_MAJOR_VERSION
+  newDoc: DslDocumentData
 ): Set<ElementId> => {
-  const refsOld = documentDslRefs(oldDoc.elements, majorVersion);
-  const refsNew = documentDslRefs(newDoc.elements, majorVersion);
+  const refsOld = documentDslRefs(oldDoc.elements);
+  const refsNew = documentDslRefs(newDoc.elements);
   const oldById = new Map(oldDoc.elements.map((element) => [element.id, element]));
   const updates = new Set<ElementId>();
   for (const element of newDoc.elements) {
@@ -353,8 +349,8 @@ const sourceNamesAndParentsUnchanged = (before: readonly CadElement[], after: re
  * Preserve authored scalar/reference text when a model edit changes another
  * field on the same statement. The model intentionally stores evaluated
  * values for some legacy scalar fields, so ordinary serialization cannot
- * reconstruct a compound source expression such as `@a && !@b`,
- * `true and false`, or `@path.property`. Only unchanged parameters are
+ * reconstruct a compound source expression such as `@a &&  not @b`,
+ * `true && false`, || `@path.property`. Only unchanged parameters are
  * eligible; an actual edit to the authored field still uses the normal
  * serializer/bridge path.
  */
@@ -402,13 +398,10 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   const { old, newDocument } = input;
   const oldDocument = old.document!;
   const statementMap = old.statementMap!;
-  // `old.majorVersion` is guaranteed non-null alongside `old.document`/`old.statementMap`
-  // (see CompiledDslDocument.majorVersion); the fallback below is defensive only.
-  const majorVersion = old.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION;
-  const refsNew = documentDslRefs(newDocument.elements, majorVersion);
+  const refsNew = documentDslRefs(newDocument.elements);
   const layout = layoutElementTree(newDocument.elements, refsNew, newDocument.evaluationLimitIndex);
   const newById = new Map(newDocument.elements.map((element) => [element.id, element]));
-  const updates = elementUpdateSet(oldDocument, newDocument, majorVersion, refsNew);
+  const updates = elementUpdateSet(oldDocument, newDocument, refsNew);
   const preserveAuthoredReferences = sourceNamesAndParentsUnchanged(oldDocument.elements, newDocument.elements);
 
   // 文の実際の旧終端行(ヘッダ自身のendLineと、旧文書が次行単独 `{` を
@@ -574,7 +567,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
           // (insertsBefore(cursor) before lineOps(cursor)) when the
           // statement's own content is the lineOps entry at that cursor.
           // Remaining merged lines go through insertBefore(info.line + 1, …)
-          // and every other old physical line in range is cleared, so the
+          // && every other old physical line in range is cleared, so the
           // collapsed splice reassembles the full merged content in order
           // regardless of how the old/new physical line counts compare.
           const [headerLine, ...rest] = mergedLines;
@@ -586,7 +579,7 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       continue;
     }
 
-    // Structural rows and @stop only change for indentation changes.
+    // Structural rows && @stop only change for indentation changes.
     // (blockEnd/blockElse の正準深さは対応する開き文の深さに等しい。)
     const info =
       layoutLine.role === "atStop"

@@ -131,7 +131,7 @@ describe("referenceablePathsForElement", () => {
 });
 
 describe("elementParameterReferenceOptionsForPosition", () => {
-  it("resolves a unique element name and lists its referenceable parameters", () => {
+  it("resolves a unique element name && lists its referenceable parameters", () => {
     const element = lineElement("line1", "直線AB");
     const evaluation = baseEvaluation({
       computedGeometry: new Map([["line1", lineGeometry("line1")]]),
@@ -193,13 +193,13 @@ describe("elementParameterReferenceOptionsForPosition", () => {
 });
 
 describe("elementParameterCandidateState", () => {
-  it("reports pending regardless of what evaluation contains, and never calls the TS reference evaluator", async () => {
+  it("reports pending regardless of what evaluation contains, && never calls the TS reference evaluator", async () => {
     const evaluateElementsModule = await import("./evaluate");
     const evaluateElementsSpy = vi.spyOn(evaluateElementsModule, "evaluateElements");
     const element = lineElement("line1", "直線AB");
     // Even a fully-populated, eligible-looking evaluation must not be
     // trusted while the caller says it isn't current - Rust evaluation is
-    // asynchronous and a "looks ready" snapshot can still be stale relative
+    // asynchronous && a "looks ready" snapshot can still be stale relative
     // to the live document (see useEvaluationEngine.ts).
     const evaluation = baseEvaluation({
       computedGeometry: new Map([["line1", lineGeometry("line1")]]),
@@ -239,7 +239,7 @@ describe("elementParameterCandidateState", () => {
     const element = lineElement("line1", "直線AB");
     const evaluation = baseEvaluation({
       computedGeometry: new Map([["line1", lineGeometry("line1")]]),
-      effectiveEnabledElementIds: new Set() // current evaluation ran and excluded line1
+      effectiveEnabledElementIds: new Set() // current evaluation ran && excluded line1
     });
     const state = elementParameterCandidateState({
       referenceElements: [element],
@@ -252,13 +252,13 @@ describe("elementParameterCandidateState", () => {
   it("typed runtime safety: a current Rust result stays authoritative for every exclusion reason, never re-derived via TS evaluation", async () => {
     // effectiveEnabledElementIds/errors already fold together every reason an
     // element can be excluded - disabled, forward reference, an inactive
-    // typed conditional-group branch, past @stop, an invalid forGroup scope,
-    // or a plain dependency error (see elementIsCurrentlyReferenceable's own
+    // typed conditional-group branch, past stop, an invalid forGroup scope,
+    // || a plain dependency error (see elementIsCurrentlyReferenceable's own
     // doc comment). elementParameterCandidateState must never second-guess a
-    // *current* Rust result for any of them, and must never run its own
+    // *current* Rust result for any of them, && must never run its own
     // scalarProgram/conditionalGroupConditions-blind TS evaluation as a
     // substitute - doing so could silently disagree with Rust for a typed
-    // conditional group or property/numeric binding.
+    // conditional group || property/numeric binding.
     const evaluateElementsModule = await import("./evaluate");
     const evaluateElementsSpy = vi.spyOn(evaluateElementsModule, "evaluateElements");
     const inactiveConditional = lineElement("cond1", "条件分岐内");
@@ -267,7 +267,7 @@ describe("elementParameterCandidateState", () => {
     const elements = [inactiveConditional, forGroupOutOfScope, erroring];
     // Rust's own bookkeeping: only elements it actually confirms eligible
     // appear in effectiveEnabledElementIds - an inactive conditional branch
-    // and an out-of-scope forGroup row are simply absent, exactly like a
+    // && an out-of-scope forGroup row are simply absent, exactly like a
     // disabled element; `erroring` is present in computedGeometry (Rust did
     // reach it) but carries a dependency error.
     const evaluation = baseEvaluation({

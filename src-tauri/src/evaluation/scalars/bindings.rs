@@ -1,4 +1,4 @@
-//! Runtime evaluation for an already-resolved nui 3 scalar program.
+//! Runtime evaluation for an already-resolved nui4 scalar program.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};

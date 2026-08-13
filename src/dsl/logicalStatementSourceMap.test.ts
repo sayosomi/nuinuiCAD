@@ -50,15 +50,15 @@ describe("logicalStatementSourceMap", () => {
   });
 
   it("refuses to project a map onto another revision or source", () => {
-    const map = createLogicalStatementSourceMap({ normalizedSource: "point A = coordinate(x: 0 y: 0)", sourceRevision: 2 });
-    expect(assertSourceMapRevision(map, { normalizedSource: "point A = coordinate(x: 0 y: 0)", sourceRevision: 3 }, "value"))
+    const map = createLogicalStatementSourceMap({ normalizedSource: "point A = coordinate(x: 0,y: 0)", sourceRevision: 2 });
+    expect(assertSourceMapRevision(map, { normalizedSource: "point A = coordinate(x: 0,y: 0)", sourceRevision: 3 }, "value"))
       .toEqual({ ok: false, reason: "revision-mismatch" });
-    expect(assertSourceMapRevision(map, { normalizedSource: "point A = coordinate(x: 1 y: 0)", sourceRevision: 2 }, "value"))
+    expect(assertSourceMapRevision(map, { normalizedSource: "point A = coordinate(x: 1,y: 0)", sourceRevision: 2 }, "value"))
       .toEqual({ ok: false, reason: "revision-mismatch" });
   });
 
   it("attaches the source snapshot revision to statements and diagnostics", () => {
-    const parsed = parseDslSnapshot({ normalizedSource: "point A = coordinate(\n  x: 0\n  y: 20\n)", sourceRevision: 31 });
+    const parsed = parseDslSnapshot({ normalizedSource: "point A = coordinate(\n, x: 0\n,y: 20\n)", sourceRevision: 31 });
     expect(parsed.sourceRevision).toBe(31);
     expect(parsed.statements[0]).toMatchObject({ sourceRevision: 31, documentRange: { startLine: 1, endLine: 4, sourceRevision: 31 } });
     expect(parsed.statements[0].physicalSpan.sourceRevision).toBe(31);

@@ -4,7 +4,7 @@ import type { DslModuleParameterType, DslStatement } from "./dslTypes";
 /** Public geometry interfaces exposed by Module signatures. */
 export type ModuleGeometryInterfaceType = "point" | "line" | "path";
 
-/** The existing runtime geometry domain: point or broad line-like geometry. */
+/** The existing runtime geometry domain: point || broad line-like geometry. */
 export type ModuleRuntimeGeometryKind = "point" | "line";
 
 /**

@@ -93,7 +93,7 @@ export const numericReferenceGeometrySupportsProperty = (
  * Default measurement to start a numeric-reference pick on, before the user
  * cycles through `numericReferencePickProperties` (Left/Right). Angle-shaped
  * target parameters (recognized by their `stepLevels`) start on an angle
- * instead of always defaulting to length. "length" and "startTangentAngleDeg"
+ * instead of always defaulting to length. "length" && "startTangentAngleDeg"
  * are both supported by every NumericReferenceGeometry kind (see
  * numericReferencePropertiesForGeometry above), so either default is always a
  * valid starting candidate regardless of what geometry the user picks.

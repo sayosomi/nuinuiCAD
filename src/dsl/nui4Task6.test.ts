@@ -10,7 +10,7 @@ import { printLayoutTypedBindingReferenceOptions } from "../scalars/printLayoutT
 import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
 
 const compileValue = (source: string) => {
-  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), source);
+  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result;
 };
@@ -31,7 +31,7 @@ const evaluationOptions = (compiled: LastGoodDslDocument) => ({
 describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
   it("parses unnamed if, range for, bare stop, and keeps control names empty", () => {
     const parsed = parseDsl([
-      "nui 3",
+      "nui 4",
       "if (@condition) {",
       "}",
       "for i in range(from: 0, count: 5, step: 1) {",
@@ -60,7 +60,7 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
 
   it("connects canonical interpolation to the existing typed template AST", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       'const label: string = "縫い代"',
       'text T = label(text: "縫い代 ${@label} mm", anchor: none, size: 3)'
     ].join("\n"));
@@ -69,24 +69,24 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
     expect(template?.segments.find((segment) => segment.kind === "hole")).toMatchObject({
       contentSpan: expect.objectContaining({ start: expect.any(Number), end: expect.any(Number) })
     });
-    const serialized = serializeDocumentToDsl(compiled.document, 3);
+    const serialized = serializeDocumentToDsl(compiled.document, 4);
     expect(serialized).toContain("${@label}");
-    expect(serialized).not.toContain('text: "{@label}');
+    expect(serialized).not.toContain('text: "${@label}');
   });
 
   it("does not turn escaped literal braces into interpolation while regenerating text", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       'text T = label(text: "literal \\{@notAReference\\}", anchor: none, size: 3)'
     ].join("\n"));
-    const serialized = serializeDocumentToDsl(compiled.document, 3);
+    const serialized = serializeDocumentToDsl(compiled.document, 4);
     expect(serialized).toContain('text: "literal \\\\{@notAReference\\\\}"');
     expect(serialized).not.toContain("${@notAReference}");
   });
 
   it("evaluates printLayout locals through the shared scalar and numeric binding path", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "group G {",
       "}",
       "printLayout A4(",
@@ -118,7 +118,7 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
 
   it("keeps printLayout binding candidates source-ordered and scoped to the body", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "const outer: number = 1",
       "group G {",
       "  point Anchor = coordinate(x: 0, y: 0)",
@@ -154,7 +154,7 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
 
   it("allows locals in every printLayout without leaking same-named bindings across scopes", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "group G {",
       "}",
       "printLayout A4(",
@@ -191,7 +191,7 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
 
   it("allows let/set/place in printLayout and uses the updated value", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "group G {",
       "}",
       "printLayout A4(width: 210, height: 297) {",
@@ -216,7 +216,7 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
 
   it("evaluates printLayout let/set/place in source order", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "group G {",
       "}",
       "printLayout A4(width: 210, height: 297) {",
@@ -241,8 +241,8 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
   });
 
   it("continues rejecting arbitrary geometry statements inside printLayout", () => {
-    const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), [
-      "nui 3",
+    const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), [
+      "nui 4",
       "printLayout A4(width: 210, height: 297) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
@@ -253,7 +253,7 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
 
   it("keeps for iteration bindings immutable and body-only while allowing prior outer range bindings", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "const start: number = 1",
       "for i in range(from: @start, count: 2, step: 1) {",
       "  point P = coordinate(x: @i, y: 0)",
@@ -271,7 +271,7 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
 
   it("keeps control statement identities across source edits without deriving them from user-visible names", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const condition: boolean = true",
       "if (@condition) {",
       "  point A = coordinate(x: 0, y: 0)",
@@ -299,7 +299,7 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
 
   it("regenerates unnamed controls and bare stop without inventing user names", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "const condition: boolean = true",
       "if (@condition) {",
       "}",
@@ -307,7 +307,7 @@ describe("nui4 Task 6 syntax lowering and lexical behavior", () => {
       "}",
       "stop"
     ].join("\n"));
-    const serialized = serializeDocumentToDsl(compiled.document, 3);
+    const serialized = serializeDocumentToDsl(compiled.document, 4);
     expect(serialized).toContain("if (@condition) {");
     expect(serialized).toContain("for i in range(from: 0, count: 2, step: 1) {");
     expect(serialized).toContain("stop");

@@ -95,7 +95,7 @@ describe("document file lifecycle", () => {
   });
 
   it("opens .nui text verbatim and resets file history", async () => {
-    const content = "\uFEFFnui 3\r\n# keep this\r\npoint A = coordinate(x: 0, y: 0)\r\n";
+    const content = "\uFEFFnui 4\r\n# keep this\r\npoint A = coordinate(x: 0, y: 0)\r\n";
     dialogMock.open.mockResolvedValue("/tmp/loaded.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
@@ -111,14 +111,14 @@ describe("document file lifecycle", () => {
     expect(state.future).toEqual([]);
   });
 
-  it("opens, saves, and reopens typed nui 3 source without invoking a serializer", async () => {
+  it("opens, saves, and reopens typed nui 4 source without invoking a serializer", async () => {
     const content = [
-      "nui 3",
+      "nui 4",
       "# preserve layout and escapes",
       "const   note : string = 'front \\{'",
       "let enabled: boolean = true",
       "set enabled = false",
-      'text label = label(text: "{@note}: \\{")'
+      'text label = label(text: "${@note}: \\{")'
     ].join("\n");
     dialogMock.open.mockResolvedValue("/tmp/typed.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
@@ -143,12 +143,12 @@ describe("document file lifecycle", () => {
 
   it("saves and reloads source-owned module mutations without flattening instances", async () => {
     const content = [
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
-      "module First = M()",
-      "module Second = M()"
+      "instance First = M()",
+      "instance Second = M()"
     ].join("\n");
     useCadDocumentStore.getState().replaceTextDocument(content, {
       currentFilePath: "/tmp/module.nui",
@@ -169,7 +169,7 @@ describe("document file lifecycle", () => {
       content: edited
     });
     expect(edited.match(/point P/g)).toHaveLength(1);
-    expect(edited.match(/module (First|Second) = M\(\)/g)).toHaveLength(2);
+    expect(edited.match(/instance (First|Second) = M\(\)/g)).toHaveLength(2);
 
     dialogMock.open.mockResolvedValue("/tmp/module.nui");
     tauriCoreMock.invoke.mockResolvedValue(edited);
@@ -182,13 +182,13 @@ describe("document file lifecycle", () => {
     );
     expect(reopenedPoints.map((element) => element.x)).toEqual([7, 7]);
     expect(reopened.sourceText).toContain("module M() {");
-    expect(reopened.sourceText).toContain("module First = M()");
-    expect(reopened.sourceText).toContain("module Second = M()");
+    expect(reopened.sourceText).toContain("instance First = M()");
+    expect(reopened.sourceText).toContain("instance Second = M()");
   });
 
   it("preserves escaped literal braces through open, save, and reopen", async () => {
     const content = [
-      "nui 3",
+      "nui 4",
       'text Label = label(text: "\\{draft\\}", anchor: none, size: 3)'
     ].join("\n");
     dialogMock.open.mockResolvedValue("/tmp/escaped-template.nui");
@@ -211,7 +211,7 @@ describe("document file lifecycle", () => {
 
 
   it("opens fatal text with an empty last-good document instead of leaking the previous document", async () => {
-    const content = "nui 3\npoint Broken = coordinate(";
+    const content = "nui 4\npoint Broken = coordinate(";
     dialogMock.open.mockResolvedValue("/tmp/broken.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
     expect(useCadDocumentStore.getState().elements.length).toBeGreaterThan(0);
@@ -230,9 +230,9 @@ describe("document file lifecycle", () => {
   it("rejects only an unsupported major before replacing the current document", async () => {
     const before = useCadDocumentStore.getState().sourceText;
     dialogMock.open.mockResolvedValue("/tmp/future.nui");
-    tauriCoreMock.invoke.mockResolvedValue("nui 4\npoint A = coordinate(x: 0, y: 0)");
+    tauriCoreMock.invoke.mockResolvedValue("nui 5\npoint A = coordinate(x: 0, y: 0)");
 
-    await expect(openDocument()).rejects.toThrow("nui 3 文書のみ開けます（検出: 4）。");
+    await expect(openDocument()).rejects.toThrow("nui 4 文書のみ開けます（検出: 5）。");
 
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
   });
@@ -242,7 +242,7 @@ describe("document file lifecycle", () => {
     dialogMock.open.mockResolvedValue("/tmp/zero.nui");
     tauriCoreMock.invoke.mockResolvedValue("nui 0\npoint A = coordinate(x: 0, y: 0)");
 
-    await expect(openDocument()).rejects.toThrow("nui 3 文書のみ開けます（検出: 0）。");
+    await expect(openDocument()).rejects.toThrow("nui 4 文書のみ開けます（検出: 0）。");
 
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
   });
@@ -256,13 +256,13 @@ describe("document file lifecycle", () => {
     dialogMock.open.mockResolvedValue("/tmp/missing-version.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
 
-    await expect(openDocument()).rejects.toThrow("nui 3 文書のみ開けます（検出: missing）。");
+    await expect(openDocument()).rejects.toThrow("nui 4 文書のみ開けます（検出: missing）。");
 
     expect(useCadDocumentStore.getState().sourceText).toBe(before);
   });
 
-  it("opens malformed nui 3 text with fatal diagnostics instead of rejecting", async () => {
-    const content = "nui 3\nnui 3";
+  it("opens malformed nui 4 text with fatal diagnostics instead of rejecting", async () => {
+    const content = "nui 4\nnui 4";
     dialogMock.open.mockResolvedValue("/tmp/fatal.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
 
@@ -275,7 +275,7 @@ describe("document file lifecycle", () => {
   });
 
   it("saves sourceText byte-for-byte and clears dirty only after write succeeds", async () => {
-    const content = "nui 3\r\n# keep\r\npoint A = coordinate(x: 0, y: 0)\r\n";
+    const content = "nui 4\r\n# keep\r\npoint A = coordinate(x: 0, y: 0)\r\n";
     useCadDocumentStore.getState().replaceTextDocument(content, {
       currentFilePath: "/tmp/current.nui",
       dirtySinceSave: false
@@ -294,8 +294,8 @@ describe("document file lifecycle", () => {
   });
 
   it("flushes pending editor text and rereads state before saving", async () => {
-    const flushedText = "nui 3\npoint A = coordinate(x: 9, y: 0)";
-    useCadDocumentStore.getState().replaceTextDocument("nui 3\npoint A = coordinate(x: 0, y: 0)", {
+    const flushedText = "nui 4\npoint A = coordinate(x: 9, y: 0)";
+    useCadDocumentStore.getState().replaceTextDocument("nui 4\npoint A = coordinate(x: 0, y: 0)", {
       currentFilePath: "/tmp/current.nui",
       dirtySinceSave: false
     });
@@ -329,7 +329,7 @@ describe("document file lifecycle", () => {
 
   it("rebases image paths on Save As and restores dirty state across undo and redo", async () => {
     const source = [
-      "nui 3",
+      "nui 4",
       'image img = image(source: "images/ref.png", origin: (0, 0), scale: 1, angleDeg: 0, mirrorX: false)'
     ].join("\n");
     useCadDocumentStore.getState().replaceTextDocument(source, {
@@ -367,8 +367,8 @@ describe("document file lifecycle", () => {
   });
 
   it("returns to clean when redo restores text saved by Save", async () => {
-    const before = "nui 3\npoint A = coordinate(x: 0, y: 0)";
-    const savedText = "nui 3\npoint A = coordinate(x: 5, y: 0)";
+    const before = "nui 4\npoint A = coordinate(x: 0, y: 0)";
+    const savedText = "nui 4\npoint A = coordinate(x: 5, y: 0)";
     useCadDocumentStore.getState().replaceTextDocument(before, {
       currentFilePath: "/tmp/current.nui",
       dirtySinceSave: false
@@ -387,8 +387,8 @@ describe("document file lifecycle", () => {
   });
 
   it("keeps the document dirty when it changes while a save write is in flight", async () => {
-    const savedText = "nui 3\npoint A = coordinate(x: 5, y: 0)";
-    const laterText = "nui 3\npoint A = coordinate(x: 6, y: 0)";
+    const savedText = "nui 4\npoint A = coordinate(x: 5, y: 0)";
+    const laterText = "nui 4\npoint A = coordinate(x: 6, y: 0)";
     useCadDocumentStore.getState().replaceTextDocument(savedText, {
       currentFilePath: "/tmp/current.nui",
       dirtySinceSave: true

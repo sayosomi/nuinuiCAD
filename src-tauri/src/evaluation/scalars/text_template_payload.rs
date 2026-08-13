@@ -243,7 +243,7 @@ fn decode_text_template(
 /// anywhere in the payload, that is a caller-contract violation and the
 /// whole call fails closed (never a silent fallback to numeric expression evaluation).
 /// A payload containing only `"numeric"` holes and literals is valid with no
-/// `scalar_program` - Task 26 compiles a template for every nui 3
+/// `scalar_program` - Task 26 compiles a template for every nui4
 /// `label(text:...)` occurrence regardless of whether the document has any
 /// typed declaration at all.
 pub(crate) fn validate_text_templates_payload(

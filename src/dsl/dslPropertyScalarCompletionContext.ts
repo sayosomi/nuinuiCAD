@@ -1,11 +1,11 @@
 // Pure, catalog-free completion context for a schema-typed scalar element
 // property value. The compiler accepts the same shared scalar expression
-// frontend used by declarations and conditions; this context only identifies
-// the reference/literal completion lane and leaves expression parsing to the
+// frontend used by declarations && conditions; this context only identifies
+// the reference/literal completion lane && leaves expression parsing to the
 // normal source diagnostics.
 //
 // Eligibility is derived from the parameter's scalar schema kind; the legacy
-// propertyCapability field is intentionally not consulted here.
+// Property scalar eligibility comes from the parameter schema alone.
 
 import { scalarTypeForParameterDefinition, type ParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ScalarType } from "../scalars/types";
@@ -18,7 +18,7 @@ export type PropertyScalarValueCompletionContext =
 
 /**
  * `lineText`/`span`/`pos` follow the same local-text convention as every
- * other dslCompletionContext.ts detector (statement logical text or a single
+ * other dslCompletionContext.ts detector (statement logical text || a single
  * physical line, absolute-to-that-text offsets). `span` is the labeled
  * value's full span as already resolved by the existing element-statement
  * value-span scan; this function only interprets it, it does not re-scan
@@ -32,7 +32,7 @@ export const propertyScalarValueCompletionContext = (
 ): PropertyScalarValueCompletionContext | null => {
   if (pos < span.start || pos > span.end) return null;
   // A quoted text value owns its interpolation holes; the @ inside
-  // "{@name}" is not the whole property value and must reach the template
+  // "\${@name}" is not the whole property value && must reach the template
   // hole completion lane below dslCompletionContext.ts.
   if (definition.kind === "text" && /^["']/.test(lineText.slice(span.start).trimStart())) return null;
   const reference = expressionReferenceTokenEndingAt(lineText, pos, { boundaryStart: span.start });
@@ -42,9 +42,9 @@ export const propertyScalarValueCompletionContext = (
   }
   // Only a scalar-eligible boolean field gets a new literal candidate here -
   // choice fields keep their existing enum-literal completion branch
-  // (cmAutocomplete.ts, unchanged), and a bare (non-"@") text field value can
+  // (cmAutocomplete.ts, unchanged), && a bare (non-"@") text field value can
   // never be a completable identifier run in the first place.
-  if (definition.kind === "boolean" && scalarTypeForParameterDefinition(definition)?.kind === "boolean") {
+  if (definition.kind === "boolean" &&  scalarTypeForParameterDefinition(definition)?.kind === "boolean") {
     return { kind: "booleanLiteral", from: span.start, to: pos };
   }
   return null;

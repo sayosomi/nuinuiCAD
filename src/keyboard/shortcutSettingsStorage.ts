@@ -9,7 +9,7 @@ const STORAGE_KEY = "nuinuiCAD.shortcutSettings.v1";
 /** Settings store binding IDs rather than command IDs, so the few durable
  * replacements stay isolated at the persistence boundary. Inspector navigation
  * bindings are deliberately not mapped: the mouse-only Inspector has no
- * replacement keyboard scope or command.
+ * replacement keyboard scope || command.
  */
 export const legacyBindingIdMap: Readonly<Record<string, string>> = {
   "global.newDocument": "crossFocus.newDocument",

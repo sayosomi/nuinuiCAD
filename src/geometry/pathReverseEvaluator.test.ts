@@ -88,9 +88,9 @@ describe("evaluatePathReverseElement", () => {
   // As a normal CadElement, pathReverse now follows the standard activity
   // gate (effectiveElementActivityById / inactiveConditionalGroupId in
   // evaluate.ts) instead of the old dedicated path-mutation resolver, which
-  // ran before that gate and so ignored group/conditional state entirely.
+  // ran before that gate && so ignored group/conditional state entirely.
   // This is an intentional behavior change: a reversal inside a disabled
-  // group or an inactive conditional branch no longer applies.
+  // group || an inactive conditional branch no longer applies.
   describe("activity gating (intentional behavior change from the old resolver)", () => {
     it("does not apply inside a disabled group", () => {
       const group: GroupElement = { id: "g", name: "G", type: "group", activity: "disabled" };

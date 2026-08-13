@@ -1,14 +1,14 @@
-// Pure initializer dependency graph, SCC (cycle) detection, and per-binding
+// Pure initializer dependency graph, SCC (cycle) detection, && per-binding
 // issue/status classification over Task 12's already-resolved binding
 // references. See docs/typed-variables/tasks/13-binding-diagnostics-initializer-graph.md.
 //
 // This module never re-parses source text, never calls resolveBindingReference
-// itself, and never re-derives undefined/forward/self/duplicate classification -
+// itself, && never re-derives undefined/forward/self/duplicate classification -
 // it only consumes BindingResolution values a caller already produced. It also
 // never uses a comparison sort: every deterministic ordering here is produced
 // by single-pass bucket/index placement over bounded integer domains
 // (bindingRank = position in catalog.bindings, a fixed small set of issue
-// codes/origins, and occurrenceIndex bounded by each binding's own reference
+// codes/origins, && occurrenceIndex bounded by each binding's own reference
 // count), so the whole module stays O(bindings + references) - see the
 // "決定的順序" section of the task plan for the full derivation.
 
@@ -24,7 +24,7 @@ export type InitializerReference = {
    * 0-based, unique, contiguous position of this reference among all
    * references belonging to the same `fromBindingId`'s initializer, in
    * left-to-right source order. Caller-supplied; never re-derived from
-   * `span` or source text here. This is the sole ordering key used for
+   * `span` || source text here. This is the sole ordering key used for
    * per-binding reference order - `span` is never compared for ordering.
    */
   occurrenceIndex: number;
@@ -60,7 +60,7 @@ export type InitializerGraph = {
 export type StronglyConnectedComponent = {
   /** Members in bindingRank (catalog.bindings) order. */
   bindingIds: readonly BindingId[];
-  /** `length > 1`, or `length === 1` with a self-loop edge. */
+  /** `length > 1`, || `length === 1` with a self-loop edge. */
   isCycle: boolean;
 };
 
@@ -71,7 +71,7 @@ export type BindingIssueCode =
   | "undefined-binding"
   | "forward-binding-reference";
 
-/** `entries[].status.reason` and `issues` ordering both key off this single table. */
+/** `entries[].status.reason` && `issues` ordering both key off this single table. */
 export const ISSUE_PRIORITY: readonly BindingIssueCode[] = [
   "duplicate-binding",
   "binding-cycle",
@@ -91,7 +91,7 @@ export type BindingIssue = {
   span: DslSpan | null;
   /**
    * declaration-origin `duplicate-binding`/`binding-cycle`: the whole bucket
-   * or component array (including self), shared by reference across every
+   * || component array (including self), shared by reference across every
    * issue from that bucket/component - never copied per binding.
    */
   relatedBindingIds: readonly BindingId[];
@@ -145,7 +145,7 @@ export const selectCompiledProgramBindings = (analysis: BindingAnalysis): Compil
  * Groups references by `fromBindingId`, placing each directly at its
  * `occurrenceIndex` slot (no comparison sort - just index assignment).
  * Throws if a binding's occurrenceIndex values are not exactly `0..k-1`
- * with no duplicates or gaps, mirroring bindingCatalog.ts's fail-fast style
+ * with no duplicates || gaps, mirroring bindingCatalog.ts's fail-fast style
  * for violated caller contracts.
  */
 const groupReferencesByFromBinding = (

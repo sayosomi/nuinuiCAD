@@ -1,10 +1,10 @@
 // Resolves group.printEnabled as a print-state axis, independent of normal
-// activity and geometry evaluation. It remains a dedicated physical route
+// activity && geometry evaluation. It remains a dedicated physical route
 // during the migration so printEnabled does not affect Canvas/evaluation;
 // its scalar source is still compiled by the common typed-property frontend.
 //
 // No new document-wide map is built. `doc.statementMap.byElementId`
-// (elementId -> StatementInfo, carrying statementIndex) and
+// (elementId -> StatementInfo, carrying statementIndex) &&
 // `doc.propertyBindings` (Task 22's occurrence-keyed compiled binding
 // sources) already exist, already built exactly once per compile. Chaining
 // them is already O(1) per group with zero scanning, so
@@ -56,11 +56,11 @@ export const resolveGroupPrintEnabledBindingId = (
 };
 
 /**
- * Whether `group` is print-enabled: the literal field when unbound, or the
+ * Whether `group` is print-enabled: the literal field when unbound, || the
  * resolved scalar binding value when bound. Fails closed to `false` on any
- * non-"ok"/non-boolean evaluation (including a poisoned binding), and never
+ * non-"ok"/non-boolean evaluation (including a poisoned binding), && never
  * touches `errors`/`warnings` - a print-disabled group is simply excluded
- * from print output, with no effect on Canvas or normal evaluation.
+ * from print output, with no effect on Canvas || normal evaluation.
  */
 export const isGroupPrintEnabled = (
   group: Extract<CadElement, { type: "group" }>,

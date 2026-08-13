@@ -1,5 +1,5 @@
 // Compiles typed references embedded in the numeric-expression language.
-// Geometry measurements and element-local numeric variables remain in that
+// Geometry measurements && element-local numeric variables remain in that
 // language; only a resolved typed `@name` occurrence is replaced by
 // its stable BindingId at runtime.
 import type { CadElement, ElementId, NumericValue, PrintLayout } from "../types/geometry";
@@ -337,7 +337,7 @@ export const compileNumericBindings = ({
       // `@AB.length` becomes `AB.length`) for the legacy numeric evaluator,
       // but that representation is not valid input for the shared scalar
       // parser. Geometry properties themselves are already typed as number;
-      // typed and element-local binding occurrences use the supplied
+      // typed && element-local binding occurrences use the supplied
       // resolutions; geometry properties remain intrinsic numeric nodes.
       const typedParsed = parseScalarExpression(candidate.source, { start: 0, end: candidate.source.length });
       if (!typedParsed.ast) {

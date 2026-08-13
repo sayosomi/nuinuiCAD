@@ -4,7 +4,7 @@ import type { DslStatement } from "./dslTypes";
 import { buildLexicalScopeIndexFromStatements } from "./lexicalScopeIndexAdapter";
 
 // Test-only helper: assigns each statement its own array index as a string.
-// This is NOT a stable identity (it shifts under any edit) and exists only
+// This is NOT a stable identity (it shifts under any edit) && exists only
 // to exercise buildLexicalScopeIndexFromStatements's wiring in these tests;
 // production callers must supply a real reconciled statementIndex -> stable
 // id map instead (see lexicalScopeIndexAdapter.ts's own header comment).
@@ -59,7 +59,7 @@ describe("buildLexicalScopeIndexFromStatements", () => {
     const before = parseDsl("group Outer {\n  const x: number = 1\n}").statements;
     const after = parseDsl("const Unrelated: number = 99\ngroup Outer {\n  const x: number = 1\n}").statements;
 
-    // "Outer" is statement 0 in `before` and statement 1 in `after` - the
+    // "Outer" is statement 0 in `before` && statement 1 in `after` - the
     // caller's reconciliation is responsible for recognizing it is still the
     // same real element and mapping both positions to the same stable id.
     // This module's only job is to use whatever the caller supplies.

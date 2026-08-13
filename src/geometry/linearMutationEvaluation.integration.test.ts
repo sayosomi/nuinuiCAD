@@ -14,7 +14,7 @@ import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 import { forGroupGeneratedElementId } from "./forGroupExpansion";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
   const result = compileCanonicalText(baseline, source);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
@@ -66,7 +66,11 @@ const optionsFor = (compiled: LastGoodDslDocument): EvaluateElementsOptions => {
 };
 
 const elementId = (compiled: LastGoodDslDocument, name: string): string => {
-  const element = compiled.document.elements.find((candidate) => candidate.name === name);
+  const fallbackIndex = name === "Inner" ? 1 : 0;
+  const element = compiled.document.elements.find((candidate) => candidate.name === name) ??
+    (name === "Outer" || name === "Inner" || name === "Loop"
+      ? compiled.document.elements.filter((candidate) => candidate.type === "forGroup")[fallbackIndex]
+      : undefined);
   if (!element) throw new Error(`missing ${name}`);
   return element.id;
 };
@@ -74,7 +78,7 @@ const elementId = (compiled: LastGoodDslDocument, name: string): string => {
 describe("Task 31 linear mutation production wiring", () => {
   it("evaluates an earlier geometry property in a number set RHS", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -89,7 +93,7 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("does not let a delayed read make a later geometry property valid in a set RHS", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let x: number = 0",
       "set x = @Later.length",
       "point A = coordinate(x: 0, y: 0)",
@@ -103,11 +107,11 @@ describe("Task 31 linear mutation production wiring", () => {
   });
   it("keeps hidden generated metadata and mutation carry while removing generated clones from the draw mask", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let flag: boolean = true",
       "let total: number = 0",
       "let show: boolean = false",
-      "if Branch (@flag) {",
+      "if (@flag) {",
       "  set total = @total + 3",
       "} else {",
       "  set total = 99",
@@ -115,11 +119,11 @@ describe("Task 31 linear mutation production wiring", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
-      "for Loop (i, from: 0, count: 2, step: 1, showGenerated: @show) {",
+      "for i in range(from: 0, count: 2, step: 1, showGenerated: @show) {",
       "  set total = @total + 1",
       "  line Copy = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 90, mirrorX: false, baseLines: [@AB])",
       "}",
-      'text Final = label(text: "{@total}", anchor: none, size: 3)'
+      'text Final = label(text: "${@total}", anchor: none, size: 3)'
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const loopId = elementId(compiled, "Loop");
@@ -143,13 +147,13 @@ describe("Task 31 linear mutation production wiring", () => {
     }
   });
 
-  it("keeps versions before an in-loop @stop and excludes later loop work", () => {
+  it("keeps versions before an in-loop stop and excludes later loop work", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let total: number = 0",
-      "for Loop (i, from: 0, count: 3, step: 1) {",
+      "for i in range(from: 0, count: 3, step: 1) {",
       "  set total = @total + 1",
-      "  @stop",
+      "  stop",
       "  point P = coordinate(x: @total, y: 0)",
       "}"
     ].join("\n"));
@@ -163,9 +167,9 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("keeps a one-iteration loop version scheduler-owned", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let total: number = 0",
-      "for Loop (i, from: 0, count: 1, step: 1) {",
+      "for i in range(from: 0, count: 1, step: 1) {",
       "  set total = @total + 1",
       "  point P = coordinate(x: @total, y: 0)",
       "}"
@@ -179,9 +183,9 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("records a disabled loop version as skipped-control", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let total: number = 0",
-      "for Loop (i, from: 0, count: 2, step: 1, state: disabled) {",
+      "for i in range(from: 0, count: 2, step: 1, state: disabled) {",
       "  set total = @total + 1",
       "  point P = coordinate(x: @total, y: 0)",
       "}"
@@ -195,9 +199,9 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("drives loop versions at generated-element boundaries without retroactive property reads", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let value: number = 0",
-      "for Loop (i, from: 0, count: 3, step: 1) {",
+      "for i in range(from: 0, count: 3, step: 1) {",
       "  set value = @value + 1",
       "  point P = coordinate(x: 0, y: 0)",
       "  set value = @value + 10",
@@ -214,31 +218,31 @@ describe("Task 31 linear mutation production wiring", () => {
   });
   it("enables Rust for canonical controlled and forGroup mutation graphs only", () => {
     const linear = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let value: number = 1",
       "point Marker = coordinate(x: 0, y: 0)",
       "set value = 2"
     ].join("\n"));
     const controlled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let value: number = 1",
-      "if C (true) {",
+      "if (true) {",
       "  set value = 2",
       "}"
     ].join("\n"));
     const loop = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let value: number = 0",
-      "for Loop (i, from: 0, count: 2, step: 1) {",
+      "for i in range(from: 0, count: 2, step: 1) {",
       "  set value = @value + 1",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
     const loopWithNestedControl = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let value: number = 0",
-      "for Loop (i, from: 0, count: 2, step: 1) {",
-      "  if C (true) {",
+      "for i in range(from: 0, count: 2, step: 1) {",
+      "  if (true) {",
       "    set value = @value + 1",
       "  }",
       "  point P = coordinate(x: 0, y: 0)",
@@ -260,16 +264,16 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("keeps nested conditional results iteration-local while nested loops carry outer slots", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let total: number = 0",
-      "for Outer (i, from: 0, count: 2, step: 1) {",
-      "  if Branch (@total == 0) {",
+      "for i in range(from: 0, count: 2, step: 1) {",
+      "  if (@total == 0) {",
       "    let scratch: number = 1",
       "    set total = @total + @scratch",
       "  } else {",
       "    set total = @total + 10",
       "  }",
-      "  for Inner (j, from: 0, count: 2, step: 1) {",
+      "  for j in range(from: 0, count: 2, step: 1) {",
       "    set total = @total + 1",
       "    point P = coordinate(x: 0, y: 0)",
       "  }",
@@ -282,18 +286,18 @@ describe("Task 31 linear mutation production wiring", () => {
     expect(canUseRustEvaluationForElements(compiled.document.elements, options)).toBe(true);
     expect(result.errors).toEqual([]);
     expect(result.computedScalarBindings?.get(total)).toMatchObject({ value: { value: 15 } });
-    // The loop/conditional-local declaration has retired and is not a final binding.
+    // The loop/conditional-local declaration has retired && is not a final binding.
     expect(result.computedScalarBindings?.size).toBe(1);
   });
 
   it("lets a mutation-owned nested forGroup body reference geometry generated by an outer iteration", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let total: number = 0",
       "point B = coordinate(x: 10, y: 0)",
-      "for Outer (i, from: 0, count: 2, step: 1) {",
+      "for i in range(from: 0, count: 2, step: 1) {",
       "  point A = coordinate(x: @i, y: 0)",
-      "  for Inner (j, from: 0, count: 2, step: 1) {",
+      "  for j in range(from: 0, count: 2, step: 1) {",
       "    set total = @total + 1",
       "    line L = segment(start: @A, end: @B)",
       "  }",
@@ -323,10 +327,10 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("gives a mutation-owned nested forGroup's geometry body access to both the outer and inner iteration variables", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let total: number = 0",
-      "for Outer (i, from: 0, count: 2, step: 1) {",
-      "  for Inner (j, from: 0, count: 3, step: 1) {",
+      "for i in range(from: 0, count: 2, step: 1) {",
+      "  for j in range(from: 0, count: 3, step: 1) {",
       "    set total = @total + 1",
       "    point P = coordinate(x: @i, y: @j)",
       "  }",
@@ -362,10 +366,10 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("resolves a nested forGroup's bound showGenerated by its source template id, not the runtime generated instance id", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let showInner: boolean = true",
-      "for Outer (i, from: 0, count: 2, step: 1) {",
-      "  for Inner (j, from: 0, count: 1, step: 1, showGenerated: @showInner) {",
+      "for i in range(from: 0, count: 2, step: 1) {",
+      "  for j in range(from: 0, count: 1, step: 1, showGenerated: @showInner) {",
       "    point P = coordinate(x: 0, y: 0)",
       "  }",
       "}"
@@ -388,14 +392,14 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("advances binding slots with source order: A sees old value, B sees set value, and set reads the live measurement", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 3, y: 4)",
       "line D = segment(start: @P, end: @Q, state: hidden)",
       "let value: number = @D.length",
-      'text A = label(text: "A={@value}", anchor: none, size: 3)',
+      'text A = label(text: "A=${@value}", anchor: none, size: 3)',
       "set value = @D.length + 1",
-      'text B = label(text: "B={@value}", anchor: none, size: 3)'
+      'text B = label(text: "B=${@value}", anchor: none, size: 3)'
     ].join("\n"));
     const options = optionsFor(compiled);
     const result = evaluateElements(compiled.document.elements, options);
@@ -412,14 +416,14 @@ describe("Task 31 linear mutation production wiring", () => {
     expect(canUseRustEvaluationForElements(compiled.document.elements, options)).toBe(true);
   });
 
-  it("does not execute a set at or after @stop, including during finalization", () => {
+  it("does not execute a set at or after stop, including during finalization", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let value: number = 1",
-      'text A = label(text: "A={@value}", anchor: none, size: 3)',
-      "@stop",
+      'text A = label(text: "A=${@value}", anchor: none, size: 3)',
+      "stop",
       "set value = 2",
-      'text B = label(text: "B={@value}", anchor: none, size: 3)'
+      'text B = label(text: "B=${@value}", anchor: none, size: 3)'
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const declaration = compiled.bindingVersions!.versions[0];
@@ -431,14 +435,14 @@ describe("Task 31 linear mutation production wiring", () => {
     expect(result.computedScalarBindingVersions?.has(set.id)).toBe(false);
   });
 
-  it("executes a set before @stop but excludes declarations after the cutoff", () => {
+  it("executes a set before stop but excludes declarations after the cutoff", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let value: number = 1",
       "set value = 2",
-      "@stop",
+      "stop",
       "const later: number = 3",
-      'text A = label(text: "A={@value}", anchor: none, size: 3)'
+      'text A = label(text: "A=${@value}", anchor: none, size: 3)'
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const [declaration, set, later] = compiled.bindingVersions!.versions;
@@ -451,7 +455,7 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("finalizes the same one-way stream after the last element and preserves declaration map order", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let x: number = 1",
       "let y: number = 2",
       "point Marker = coordinate(x: 0, y: 0)",
@@ -470,15 +474,15 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("resolves typed conditional controls from the current slot at each group statement", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "let flag: boolean = false",
-      "if Before (@flag) {",
+      "if (@flag) {",
       "  point ThenBefore = coordinate(x: 0, y: 0)",
       "} else {",
       "  point ElseBefore = coordinate(x: 1, y: 0)",
       "}",
       "set flag = true",
-      "if After (@flag) {",
+      "if (@flag) {",
       "  point ThenAfter = coordinate(x: 2, y: 0)",
       "} else {",
       "  point ElseAfter = coordinate(x: 3, y: 0)",
@@ -494,14 +498,14 @@ describe("Task 31 linear mutation production wiring", () => {
 
   it("uses the just-advanced slot and live measurement once at the conditional opener", () => {
     const compiled = compileCanonical([
-      "nui 3",
+      "nui 4",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 3, y: 4)",
       "line D = segment(start: @P, end: @Q, state: hidden)",
       "let flag: boolean = false",
       "let result: number = 0",
       "set flag = @D.length == 5",
-      "if C (@flag) {",
+      "if (@flag) {",
       "  set result = @D.length + 2",
       "} else {",
       "  set result = 99",

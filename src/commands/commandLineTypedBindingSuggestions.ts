@@ -108,7 +108,7 @@ const scopeIdForInsertionTarget = ({
 /**
  * Typed-number candidates for a command-line numeric field. The session's
  * insertion boundary is resolved against the same physical source structure
- * that final creation uses; unavailable or stale metadata returns no options.
+ * that final creation uses; unavailable || stale metadata returns no options.
  */
 export const commandLineTypedBindingSuggestions = ({
   session,
@@ -150,7 +150,7 @@ export const commandLineTypedBindingSuggestions = ({
     catalog: bindingAnalysis.catalog,
     containingScopeId: scopeId,
     // The statement is inserted *before* its physical boundary. A declaration
-    // on that boundary is therefore forward and must remain unavailable.
+    // on that boundary is therefore forward && must remain unavailable.
     cursorOffset: insertionOffset - 0.5,
     offsetForBinding: bindingOffset
   }, () => true);

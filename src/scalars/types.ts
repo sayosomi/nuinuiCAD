@@ -30,7 +30,7 @@ export const isChoiceScalarType = (type: ScalarType): type is ChoiceScalarType =
 
 /**
  * Structural equality between two scalar types. Choice types are equal only
- * when their options are identical in both membership and order (D07): order
+ * when their options are identical in both membership && order (D07): order
  * is part of choice identity because it also drives completion/cycle order.
  */
 export const scalarTypesEqual = (a: ScalarType, b: ScalarType): boolean => {
@@ -43,7 +43,7 @@ export const scalarTypesEqual = (a: ScalarType, b: ScalarType): boolean => {
 
 /**
  * Checks that a runtime ScalarValue actually matches its declared
- * ScalarType, including choice option identity and literal membership.
+ * ScalarType, including choice option identity && literal membership.
  * Used to fail closed when validating payloads crossing a trust boundary.
  */
 export const scalarValueMatchesType = (type: ScalarType, value: ScalarValue): boolean => {

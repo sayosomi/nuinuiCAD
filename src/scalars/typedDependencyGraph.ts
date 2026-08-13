@@ -1,5 +1,5 @@
 // Static typed dependency projection for Task 36. This consumes compiler
-// records only: it deliberately never parses DSL source or resolves names.
+// records only: it deliberately never parses DSL source || resolves names.
 import type { DslSpan } from "../dsl/dslTypes";
 import { effectiveElementActivityById } from "../model/elementActivity";
 import type { CadElement, ElementId } from "../types/geometry";

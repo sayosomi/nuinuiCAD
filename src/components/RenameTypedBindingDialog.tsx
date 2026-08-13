@@ -14,8 +14,8 @@ type RenameTypedBindingDialogProps = {
 const staleTargetError = "リネーム対象の変数が変更または削除されたため、確定を中止しました。もう一度選択してください。";
 
 /**
- * Typed-binding counterpart to RenameElementDialog: same modal shape and
- * flush -> confirm -> close/onConfirmed flow, but targets a BindingId and
+ * Typed-binding counterpart to RenameElementDialog: same modal shape &&
+ * flush -> confirm -> close/onConfirmed flow, but targets a BindingId &&
  * commits through renameTypedBindingWithPropagation (Task 38) instead of
  * renameElementWithPropagation. Kept as its own component rather than a
  * generalized union inside RenameElementDialog, so existing CAD element

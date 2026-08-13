@@ -15,7 +15,7 @@ describe("SourceEditor element state gutter", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
-    useCadDocumentStore.getState().commitText("nui 3\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 10, y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 10, y: 0)", "test");
     Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
     Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 500 });
     Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 400 });
@@ -110,7 +110,7 @@ describe("SourceEditor element state gutter", () => {
     parent.remove();
   });
 
-  it("uses line treatment for evaluation errors and warnings, while leaving @stop as a source-line boundary", () => {
+  it("uses line treatment for evaluation errors and warnings, while leaving stop as a source-line boundary", () => {
     useCadDocumentStore.getState().commitText(dslTextForElements([
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 }
@@ -184,7 +184,7 @@ describe("SourceEditor element state gutter", () => {
     expect(markerFor(lineOfA.from)).not.toBeNull();
     expect(markerFor(lineOfB.from)).not.toBeNull();
 
-    // Alt+Right must still resolve and step a value span on the untouched line A.
+    // Alt+Right must still resolve && step a value span on the untouched line A.
     const xPos = view.state.doc.toString().indexOf("x: 0") + "x: ".length;
     view.dispatch({ selection: EditorSelection.cursor(xPos) });
     const stepRight = { key: "ArrowRight", code: "ArrowRight", altKey: true };

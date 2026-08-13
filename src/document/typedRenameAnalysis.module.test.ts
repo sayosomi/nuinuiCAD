@@ -16,11 +16,11 @@ const compileWithIds = (source: string) => {
 describe("typed BindingId rename occurrences inside Module semantics", () => {
   it("patches module defaults and explicit scalar arguments through the existing atomic splice path", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "const outer: number = 10",
       "module M(width: number = @outer) {",
       "}",
-      "module I = M(width: @outer)"
+      "instance I = M(width: @outer)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const target = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "outer")!;

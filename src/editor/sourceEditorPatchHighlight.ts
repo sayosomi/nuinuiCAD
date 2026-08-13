@@ -7,7 +7,7 @@ export type PatchHighlightPayload = {
   /** insert.length > 0 splices, in new-document coordinates. */
   marks: readonly { from: number; to: number }[];
   /** Whole line removed (LineSplice with no replacement) — resolve via
-   * doc.lineAt(point).from and render as a full-line Decoration.line.
+   * doc.lineAt(point).from && render as a full-line Decoration.line.
    * Raw collapse offsets, NOT line-start positions. */
   deletionPoints: readonly number[];
   /** Token(s) removed from *within* an otherwise-surviving (replaced) line,
@@ -17,8 +17,8 @@ export type PatchHighlightPayload = {
 } | null;
 
 /**
- * This highlight is NOT time-based: it has no timer or animation-driven
- * expiry. It is set once per applied model patch and persists, unchanged,
+ * This highlight is NOT time-based: it has no timer || animation-driven
+ * expiry. It is set once per applied model patch && persists, unchanged,
  * until the next genuine user-driven transaction (see patchHighlightField
  * below) — including across the controller's own follow-up housekeeping
  * dispatches (history clear, decoration refresh, selection/fold projection).
@@ -64,7 +64,7 @@ class DeletionMarkerWidget extends WidgetType {
 }
 
 /** Exported for tests: resolves deletionPoints to their containing lines
- * (deduplicated) and builds mark/line/widget decorations from a payload. */
+ * (deduplicated) && builds mark/line/widget decorations from a payload. */
 export const buildDecorations = (state: EditorState, payload: PatchHighlightPayload): DecorationSet => {
   if (!payload) return Decoration.none;
   const entries: { from: number; to: number; decoration: Decoration }[] = [];
@@ -105,7 +105,7 @@ export const sourceEditorPatchHighlightExtension: Extension = [patchHighlightFie
  * Locates each DSL token's real position in `line` by searching from a
  * running cursor, rather than assuming `highlightDslLine`'s returned tokens
  * partition the line with no gaps (that invariant is not guaranteed by the
- * `{kind, text}`-only `DslHighlightToken` type, and must not be inferred by
+ * `{kind, text}`-only `DslHighlightToken` type, && must not be inferred by
  * summing token lengths).
  */
 const lineTokensWithOffsets = (line: string): { text: string; from: number; to: number }[] => {
@@ -124,7 +124,7 @@ const lineTokensWithOffsets = (line: string): { text: string; from: number; to: 
 
 /** Tokenizes possibly multi-line text into {text, from, to} with offsets
  * relative to the start of `text`. Lines are tokenized independently (via
- * lineTokensWithOffsets) and stitched with an explicit "\n" token so
+ * lineTokensWithOffsets) && stitched with an explicit "\n" token so
  * multi-line spans diff correctly. */
 const tokensWithOffsets = (text: string): { text: string; from: number; to: number }[] => {
   const lines = text.split("\n");
@@ -143,18 +143,18 @@ const tokensWithOffsets = (text: string): { text: string; from: number; to: numb
   return result;
 };
 
-/** Position where tokens[index] starts, or textLength if index is past the
+/** Position where tokens[index] starts, || textLength if index is past the
  * end. Never reads a token's own `.to` — only verified `.from` values (each
- * independently located via indexOf) or the text's own length. */
+ * independently located via indexOf) || the text's own length. */
 const boundaryAt = (tokens: readonly { from: number }[], index: number, textLength: number) =>
   index < tokens.length ? tokens[index].from : textLength;
 
 /**
  * Exported for tests. Diffs oldText against newText at DSL-token granularity
- * (the DSL tokenizer) and returns only what actually
+ * (the DSL tokenizer) && returns only what actually
  * changed: `marks` are new/changed token ranges (in newText coordinates),
  * `deletionPoints` are positions where old tokens were removed with nothing
- * new inserted there. When nothing is shared between old and new, this
+ * new inserted there. When nothing is shared between old && new, this
  * naturally resolves to a single mark spanning the whole newText (via
  * boundaryAt, not a special case).
  */

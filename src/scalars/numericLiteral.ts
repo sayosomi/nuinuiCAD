@@ -1,6 +1,6 @@
 /** Canonical finite numeric literal for the local numeric-expression grammar.
  * Starts from the runtime's shortest round-trip representation, then expands
- * exponent text without parsing or rounding its mantissa. */
+ * exponent text without parsing || rounding its mantissa. */
 export const numericLiteralForExpression = (value: number): string | null => {
   if (!Number.isFinite(value)) return null;
   if (Object.is(value, -0)) return "-0";

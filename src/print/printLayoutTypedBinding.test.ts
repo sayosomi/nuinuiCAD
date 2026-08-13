@@ -6,7 +6,7 @@ import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRun
 import { activePrintLayout, resolvePrintLayout } from "./printLayout";
 
 const compile = (source: string): LastGoodDslDocument => {
-  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 3), source);
+  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
 };
@@ -41,7 +41,7 @@ const resolveScale = (compiled: LastGoodDslDocument) => {
 describe("resolvePrintLayout: typed const/let binding materialization (Task 53)", () => {
   it("resolves a typed const number reference in scale", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "const printScale: number = 2.5",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
       "}"
@@ -51,7 +51,7 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
 
   it("resolves a typed let reassigned via set to its terminal value (Task 53 binding version semantics)", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "let v: number = 1",
       "set v = 3",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @v, canvas: (410, 584)) {",
@@ -62,7 +62,7 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
 
   it("matches the value an element numeric parameter sees for the same let+set binding", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "let v: number = 1",
       "set v = 3",
       "point A = coordinate(x: @v, y: 0)",
@@ -78,13 +78,13 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
 
   it("resolves place's angle/at against a typed binding", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "const ang: number = 30",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "  place G (at: (0, 0), angle: @ang, mirrorX: false)",
+      "  place @G(at: (0, 0), angle: @ang, mirrorX: false)",
       "}"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -104,7 +104,7 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
 
   it("keeps the typed binding reference and its resolved value across a save -> reopen round-trip", () => {
     const original = [
-      "nui 3",
+      "nui 4",
       "const printScale: number = 2.5",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
       "}"
@@ -128,7 +128,7 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
 
   it("falls back to the literal default when the numericBindingLookup is omitted", () => {
     const compiled = compile([
-      "nui 3",
+      "nui 4",
       "const printScale: number = 2.5",
       "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
       "}"
@@ -137,7 +137,7 @@ describe("resolvePrintLayout: typed const/let binding materialization (Task 53)"
     const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
     const resolved = resolvePrintLayout({ layout, elements: compiled.document.elements, evaluation });
     // Unmaterialized `@printScale` isn't a recognized local variable, so the
-    // legacy evaluator fails and the field falls back to its literal default.
+    // legacy evaluator fails && the field falls back to its literal default.
     expect(resolved.scale).toBe(1);
   });
 });

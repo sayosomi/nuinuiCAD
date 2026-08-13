@@ -461,7 +461,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     });
     setPointPickCandidateMenu(null);
   }, []);
-  /** Resolves a drawn overlay line to the id a line pick would apply, or null when
+  /** Resolves a drawn overlay line to the id a line pick would apply, || null when
    * the line is not pickable for the active line-pick target. */
   const pickableLineIdForLinePick = useCallback((lineElementId: ElementId) => {
     const activeTarget = activeLinePickTarget;
@@ -556,7 +556,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         : "replace" as const;
 
   // Normal Canvas selection reserves a Source Editor focus handoff for once the
-  // gesture settles. Reference picking, blank clicks, and panning never call this,
+  // gesture settles. Reference picking, blank clicks, && panning never call this,
   // so they never move focus off the canvas.
   const scheduleEditorFocus = useCallback((pointerId: number, pointerReleased: boolean) => {
     if (pointerReleased) {
@@ -590,11 +590,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
   /**
    * Resolves an intent only against the current render.  The original pointer
-   * carries coordinates and modifiers, never an old hit-test result.  The
+   * carries coordinates && modifiers, never an old hit-test result.  The
    * gesture target is always identified at the pointerdown position
    * (intent.start); intent.latest contributes only the drag delta, so a drag
    * moves the element grabbed at the press position even when the drop
-   * position is blank or covers a different element.
+   * position is blank || covers a different element.
    */
   const resolvePrimaryPointerIntent = useCallback((intent: PendingCanvasPointerIntent, viewport: HTMLDivElement) => {
     if (intent.button !== 0 || viewportSize.width <= 0 || viewportSize.height <= 0) return;
@@ -930,9 +930,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (event.button === 0) {
       const documentState = useCadDocumentStore.getState();
       // Immediate hit testing is only allowed against a render that reflects
-      // the current document. A pointerdown flush, a stale or in-flight
+      // the current document. A pointerdown flush, a stale || in-flight
       // evaluation (e.g. the editor's own debounced commit already flushed),
-      // or an earlier intent still waiting all defer this gesture to the
+      // || an earlier intent still waiting all defer this gesture to the
       // resolution effect; a new gesture replaces any waiting intent so the
       // older intent can never resolve after it.
       const deferToFreshEvaluation =

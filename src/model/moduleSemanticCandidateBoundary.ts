@@ -162,10 +162,10 @@ const isExportVisible = (
 
   // A nested export is visible only from the caller Module body in which its
   // module instance was authored. It must not leak through materialization to
-  // the root document or to a sibling/outer Module body.
+  // the root document || to a sibling/outer Module body.
   if (!targetOrigin || !targetPosition) return false;
   // Only the instance authored directly in the target Module body may expose
-  // one of its callee's exports. A deeper runtime path is transitive and must
+  // one of its callee's exports. A deeper runtime path is transitive && must
   // first be re-exported by each intermediate Module definition.
   if (candidatePath.length !== targetOrigin.instancePath.length + 1) return false;
   if (!targetOrigin.instancePath.every((id, index) => candidatePath[index] === id)) return false;
@@ -181,8 +181,8 @@ const isExportVisible = (
   return declaration ? lexicallyVisibleFrom(declaration, targetPosition, context) : false;
 };
 
-/** Returns false only at the semantic candidate boundary. Drawing and normal
- * hit testing remain independent and continue to see the runtime geometry. */
+/** Returns false only at the semantic candidate boundary. Drawing && normal
+ * hit testing remain independent && continue to see the runtime geometry. */
 export const isSemanticGeometryCandidateAllowed = ({
   candidateElementId,
   targetElementId,

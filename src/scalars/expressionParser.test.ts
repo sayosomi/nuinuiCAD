@@ -168,8 +168,8 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
-  it("binds equality tighter than &&", () => {
-    const ast = parseOk("1 == 1 && true");
+  it("binds equality tighter than  and ", () => {
+    const ast = parseOk("1 == 1  and  true");
     expect(ast).toMatchObject({
       kind: "binary",
       operator: "&&",
@@ -178,8 +178,8 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
-  it("binds && tighter than ||", () => {
-    const ast = parseOk("true || false && false");
+  it("binds  and  tighter than  or ", () => {
+    const ast = parseOk("true  or  false  and  false");
     expect(ast).toMatchObject({
       kind: "binary",
       operator: "||",
@@ -246,8 +246,8 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
-  it("left-associates a chain of &&", () => {
-    const ast = parseOk("true && true && true");
+  it("left-associates a chain of  and ", () => {
+    const ast = parseOk("true  and  true  and  true");
     expect(ast).toMatchObject({
       kind: "binary",
       operator: "&&",
@@ -255,8 +255,8 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
-  it("left-associates a chain of ||", () => {
-    const ast = parseOk("false || false || true");
+  it("left-associates a chain of  or ", () => {
+    const ast = parseOk("false  or  false  or  true");
     expect(ast).toMatchObject({
       kind: "binary",
       operator: "||",
@@ -314,7 +314,7 @@ describe("parseScalarExpression / error scenarios", () => {
 
   it("reports a missing left operand", () => {
     expect(parseErr("* 2").code).toBe("missing-operand");
-    expect(parseErr("&& true").code).toBe("missing-operand");
+    expect(parseErr(" and  true").code).toBe("missing-operand");
   });
 
   it("reports a missing right operand", () => {
@@ -373,7 +373,7 @@ describe("parseScalarExpression / exact spans", () => {
 });
 
 describe("parseScalarExpression / JSON round-trip", () => {
-  const sources = ['1 + 2 * 3 == 4 && !@flag || (5 - 1)', '"hi" ', "right", "@名前_1"];
+  const sources = ['1 + 2 * 3 == 4  and  not @flag  or  (5 - 1)', '"hi" ', "right", "@名前_1"];
 
   it.each(sources)("round-trips %j through JSON.stringify/JSON.parse", (source) => {
     const ast = parseOk(source);

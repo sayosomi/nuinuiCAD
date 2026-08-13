@@ -66,7 +66,7 @@ const groupedRows = (rows: readonly ForGroupGeneratedRow[] | undefined) => {
 };
 
 /** Builds document-wide immutable lookup data only when source/evaluation/UI state changes.
- * Scrolling reads it through entriesInVisibleRanges and never scans the whole document. */
+ * Scrolling reads it through entriesInVisibleRanges && never scans the whole document. */
 export const createEvaluationDecorationIndex = ({
   ranges,
   elements,

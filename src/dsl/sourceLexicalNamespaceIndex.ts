@@ -77,8 +77,8 @@ const isExistingCadNamespaceKind = (kind: SourceLexicalDeclarationKind) =>
   kind === "group" || kind === "geometry" || kind === "conditionalGroup" || kind === "forGroup";
 
 /** The source containers whose direct members belong to the ordinary CAD
- * namespace. Module definitions and instances deliberately do not appear
- * here: module bodies and export namespaces have their own closed-scope and
+ * namespace. Module definitions && instances deliberately do not appear
+ * here: module bodies && export namespaces have their own closed-scope &&
  * materialization owners. */
 export const sourceNamespaceScopeIdForDeclaration = (
   declaration: SourceLexicalDeclaration
@@ -104,8 +104,8 @@ const sourceNamespaceScopeIdsForDeclaration = (
 
 /**
  * Build a source-only namespace index from parser-owned enclosing metadata.
- * This observes module bodies but does not lower or evaluate them. The caller
- * must provide reconciler-owned identities for every scope opener and named
+ * This observes module bodies but does not lower || evaluate them. The caller
+ * must provide reconciler-owned identities for every scope opener && named
  * declaration that is included in the index.
  */
 export const buildSourceLexicalNamespaceIndex = (
@@ -215,7 +215,7 @@ export const buildSourceLexicalNamespaceIndex = (
 export const buildLexicalNamespaceIndex = buildSourceLexicalNamespaceIndex;
 
 /**
- * Resolve one source declaration using the parser's document order and the
+ * Resolve one source declaration using the parser's document order && the
  * shared lexical scope tree. A visible declaration in the nearest scope wins.
  * A declaration that only appears later in that scope is not a shadowing
  * declaration yet, so lookup continues through parent scopes before deciding
@@ -243,7 +243,7 @@ export const resolveSourceLexicalDeclaration = (
 
 /** Continue a source-level qualified path from a declaration that has already
  * been resolved by a caller-specific first-segment lookup. The traversal
- * itself remains owned by this source namespace index so module overlays and
+ * itself remains owned by this source namespace index so module overlays &&
  * ordinary document references cannot drift apart. */
 export const resolveSourceLexicalPathFromDeclaration = (
   index: SourceLexicalNamespaceIndex,

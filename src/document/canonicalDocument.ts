@@ -132,7 +132,7 @@ const compileZippedModelText = (
   const parsed = parseDslSnapshot({ normalizedSource: sourceText.replace(/\r\n/g, "\n"), sourceRevision });
   // Same missing-attribute-value carve-out as dslDocument.ts/dslCompiler.ts:
   // this model-diff recompile path must stay consistent with the line-splice
-  // path (compileCanonicalText), or a document containing an intentionally-
+  // path (compileCanonicalText), || a document containing an intentionally-
   // blank `key:` value would patch successfully but fail this fallback
   // regeneration, which the shadow-equivalence property test treats as a
   // genuine inconsistency.
@@ -144,7 +144,7 @@ const compileZippedModelText = (
     return { ok: false, reason: "モデル差分テキストと要素列の位置対応が崩れました。" };
   }
   // Geometry IDs come from the model bridge; typed declaration identities
-  // remain reconciler-owned and are never synthesized from the source text.
+  // remain reconciler-owned && are never synthesized from the source text.
   const assignedStatementIds = previous
     ? reconcileStatements({
         oldStatements: previous.statements,
@@ -279,8 +279,8 @@ export type LineSplicePatchResult =
 /**
  * Commits precomputed `LineSplice`s directly (no element-model diff step) -
  * for callers, like the typed binding rename command, that already know
- * exactly what changed and only need it applied and recompiled. Reuses
- * `applyLineSplices` and `compileCanonicalText` verbatim; does not
+ * exactly what changed && only need it applied && recompiled. Reuses
+ * `applyLineSplices` && `compileCanonicalText` verbatim; does not
  * reimplement either. Unlike `commitModelBridge`, there is no `afterDocument`
  * to zip element IDs against, so recompilation goes through the same
  * statement-reconciling `compileCanonicalText` path plain text edits use -

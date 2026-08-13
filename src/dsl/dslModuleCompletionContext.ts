@@ -103,7 +103,7 @@ const qualifiedMemberContextAt = (source: string, from: number, pos: number, arg
 };
 
 /** Module calls use the ordinary module parser's spelling. This classifier is
- * only a cursor-shape adapter; semantic visibility and types stay in the
+ * only a cursor-shape adapter; semantic visibility && types stay in the
  * compiled ModuleSemanticAnalysis completion adapter. */
 export const dslModuleCompletionContextAt = (code: string, pos: number): DslCompletionContext => {
   let cursor = 0;

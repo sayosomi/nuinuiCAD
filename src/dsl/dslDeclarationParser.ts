@@ -16,9 +16,9 @@ export { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationType
 //
 // The initializer is never interpreted as an expression here - it is kept
 // purely as a raw {text, span} pair for Task 14 to re-tokenize. This parser
-// only classifies literal tokens inside a choice(...) type annotation, and
+// only classifies literal tokens inside a choice(...) type annotation, &&
 // does so exclusively through scanScalarLiteral (Task 09) - no separate
-// identifier or true/false reserved-word check is implemented here.
+// identifier || true/false reserved-word check is implemented here.
 
 export type DslDeclarationDiagnostic = DslTypeDiagnostic;
 
@@ -37,7 +37,7 @@ export type DslTypedDeclarationStatement = {
   choiceOptionSpans: readonly DslSpan[];
   /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
   numericTypeOptions?: DslScalarTypeParseResult["numericTypeOptions"];
-  /** Raw, unparsed initializer source text - never evaluated or re-quoted. */
+  /** Raw, unparsed initializer source text - never evaluated || re-quoted. */
   initializer: string;
   payloadSpans: Record<string, DslSpan>;
   args: [];

@@ -12,7 +12,7 @@ import { evaluateElements } from "../geometry/evaluate";
 
 const forGroupSource = () => dslTextForElements([
   { id: "loop", name: "繰返し", type: "forGroup", activity: "visible", variableName: "i", start: 0, count: 2, step: 1, showGenerated: true },
-  { id: "p", name: "P", type: "freePoint", activity: "visible", x: { kind: "expression", expression: "i" }, y: 0, parentGroupId: "loop" }
+  { id: "p", name: "P", type: "freePoint", activity: "visible", x: { kind: "expression", expression: "@i" }, y: 0, parentGroupId: "loop" }
 ]);
 
 const twoPointSource = () => dslTextForElements([
@@ -20,7 +20,7 @@ const twoPointSource = () => dslTextForElements([
   { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
 ]);
 
-// @stopの直前で評価を打ち切った文書(A有効・B以降は評価対象外)。
+// stopの直前で評価を打ち切った文書(A有効・B以降は評価対象外)。
 const stoppedSource = (elements: DslDocumentData["elements"]) => dslTextForElements(elements, 1);
 
 vi.mock("../commands/commands", async (importOriginal) => ({
@@ -273,7 +273,7 @@ describe("SourceEditorController evaluation revision gating", () => {
   });
 });
 
-describe("SourceEditorController @stop mapping", () => {
+describe("SourceEditorController stop mapping", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -286,7 +286,7 @@ describe("SourceEditorController @stop mapping", () => {
     vi.useRealTimers();
   });
 
-  it("resolves the @stop marker to the committed line when clean", () => {
+  it("resolves the stop marker to the committed line when clean", () => {
     useCadDocumentStore.getState().commitText(stoppedSource([
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
@@ -301,7 +301,7 @@ describe("SourceEditorController @stop mapping", () => {
     controller.destroy();
   });
 
-  it("remaps the @stop range through a dirty edit above it instead of using a stale line number", () => {
+  it("remaps the stop range through a dirty edit above it instead of using a stale line number", () => {
     useCadDocumentStore.getState().commitText(stoppedSource([
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
@@ -318,7 +318,7 @@ describe("SourceEditorController @stop mapping", () => {
     controller.destroy();
   });
 
-  it("hides the @stop marker when an edit fully covers its line, rather than drawing it at a wrong position", () => {
+  it("hides the stop marker when an edit fully covers its line, rather than drawing it at a wrong position", () => {
     useCadDocumentStore.getState().commitText(stoppedSource([
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
@@ -336,13 +336,13 @@ describe("SourceEditorController @stop mapping", () => {
     controller.destroy();
   });
 
-  it("invalidates @stop when any part of its token changes", () => {
-    // @stopは末尾要素の後に何も続かない場合serializer(layoutElementTree)からは
-    // 出力されない(次要素の直前にのみ挿入される仕組みのため)が、@stop自体は
+  it("invalidates stop when any part of its token changes", () => {
+    // stopは末尾要素の後に何も続かない場合serializer(layoutElementTree)からは
+    // 出力されない(次要素の直前にのみ挿入される仕組みのため)が、stop自体は
     // v1/v2間で不変のキーワードなので末尾に直接付与しても構文上問題ない。
     const source = `${dslTextForElements([
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 }
-    ])}\n@stop`;
+    ])}\nstop`;
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -594,7 +594,7 @@ describe("SourceEditorController structural shortcuts", () => {
 
   it("moves a collapsed element as one unit from its visible closing row with Option+Arrow", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 3",
+      "nui 4",
       "point Before = coordinate(x: 0, y: 0)",
       "group G {",
       "  point Child = coordinate(x: 1, y: 1)",

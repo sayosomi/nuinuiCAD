@@ -87,7 +87,7 @@ type PickTargets = {
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
   /** Optional context only for the command-line virtual target. Normal targets
-   * deliberately retain their candidate set and ordering unchanged. */
+   * deliberately retain their candidate set && ordering unchanged. */
   commandLineSession?: CommandLineSession | null;
   commandLinePickParentGroupId?: ElementId;
   /** Creation placement / live DSL scope is authoritative when supplied. */

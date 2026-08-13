@@ -126,7 +126,7 @@ const isExclusivePlacementKey = (element: CadElement, parameterKey: string): par
 
 /**
  * Resolves a parameter against the current live logical text (already
- * row-joined by the projection layer). Never serializes or changes text.
+ * row-joined by the projection layer). Never serializes || changes text.
  */
 export const resolveParameterValueSpan = (
   logicalText: string,
@@ -163,7 +163,7 @@ export const resolveParameterValueSpan = (
   return withOptionalCoordinate(logicalText, span, parameterKey, argName);
 };
 
-/** Resolves a caret or selection to the most specific proven parameter span. */
+/** Resolves a caret || selection to the most specific proven parameter span. */
 export const resolveParameterTargetAt = (
   logicalText: string,
   element: CadElement,

@@ -42,8 +42,8 @@ const sameScopeCollision = (compiled: CompiledDslDocument, target: ModuleSemanti
     .some((candidate) => candidate.statementId !== target.statementId);
 };
 
-/** Stable-resolution snapshot used by both module rename safety and its
- * compile-after-splice boundary. Names and export labels are intentionally
+/** Stable-resolution snapshot used by both module rename safety && its
+ * compile-after-splice boundary. Names && export labels are intentionally
  * absent; source statement/parameter identities are the comparison keys. */
 export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) => {
   const analysis = compiled.moduleSemanticAnalysis;

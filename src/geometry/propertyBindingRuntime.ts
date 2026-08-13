@@ -1,12 +1,10 @@
 // Connects schema-typed property sources to resolved scalar values at
-// evaluation time. The common nui4 route accepts every scalar parameter; only
-// the three physical legacy routes remain excluded here until Task 8 removes
-// their separate runtime wiring.
+// evaluation time through the single nui4 runtime route.
 //
-// This module never re-parses source and never re-resolves a binding name:
+// This module never re-parses source && never re-resolves a binding name:
 // `buildPropertyBindingRuntimeEntries` only re-keys Task 22's already-
 // compiled, already-name-resolved `propertyBindings` map (statementIndex-
-// keyed) into an elementId-keyed list, and `materializePropertyBoundElement`
+// keyed) into an elementId-keyed list, && `materializePropertyBoundElement`
 // only ever does one binding-resolver lookup per bound property per element,
 // via a caller-supplied resolver (Task 23's `ScalarBindingResolver` from
 // scalarProgramEvaluation.ts) - it never evaluates a scalar program itself.
@@ -14,19 +12,12 @@
 import type { CadElement, DependencyError, ElementId } from "../types/geometry";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
-import { scalarValueSatisfiesPropertyCapability } from "../scalars/scalarAssignability";
+import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import type { ScalarEvaluation, ScalarType } from "../scalars/types";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import { geometryError } from "./evaluationContext";
-
-/**
- * Physical routes that still have dedicated runtime handling. This is not a
- * semantic allowlist: all other scalar schema parameters are materialized by
- * the common path above.
- */
-const LEGACY_PROPERTY_ROUTES = new Set(["text:text", "group:printEnabled", "forGroup:showGenerated"]);
 
 export type PropertyBindingRuntimeEntry = {
   elementId: ElementId;
@@ -49,9 +40,8 @@ export type PropertyBindingRuntimeSource = {
 };
 
 /**
- * Re-keys the common compiled `propertyBindings` (keyed by
- * `${statementIndex}:${parameterKey}`) into an elementId-keyed list. The
- * remaining legacy routes are skipped here until Task 8 removes them.
+ * Re-keys compiled `propertyBindings` (keyed by
+ * `${statementIndex}:${parameterKey}`) into an elementId-keyed list.
  * Call this exactly once per compiled
  * document (e.g. alongside `scalarProgram` at the same production call
  * site) - never per element, never per render frame beyond normal memoization.
@@ -72,7 +62,6 @@ export const buildPropertyBindingRuntimeEntries = (
     const element = elementsById.get(elementId);
     if (!element) continue;
     const parameterKey = occurrenceKey.slice(separator + 1);
-    if (LEGACY_PROPERTY_ROUTES.has(`${element.type}:${parameterKey}`)) continue;
     const expectedType = scalarTypeForParameterDefinition(findParameterDefinition(element, parameterKey));
     if (!expectedType || value.kind === "literal") continue;
     entries.push({
@@ -86,7 +75,6 @@ export const buildPropertyBindingRuntimeEntries = (
   for (const occurrence of source.materializedPropertyBindings ?? []) {
     const element = elementsById.get(occurrence.elementId);
     if (!element) continue;
-    if (LEGACY_PROPERTY_ROUTES.has(`${element.type}:${occurrence.parameterKey}`)) continue;
     const expectedType = scalarTypeForParameterDefinition(findParameterDefinition(element, occurrence.parameterKey));
     const value = occurrence.source;
     if (!expectedType || value.kind === "literal") continue;
@@ -135,11 +123,11 @@ const propertyBindingFailureMessage = (
 };
 
 /**
- * Resolves and applies every bound property on `element`, in one lookup per
+ * Resolves && applies every bound property on `element`, in one lookup per
  * property via `resolveBinding` (never re-evaluating a scalar program).
  * Fails closed - per docs/typed-variables/tasks/23-standard-property-runtime.md
- * - on eval failure/poison (`status !== "ok"`), runtime type mismatch, or
- * choice-option mismatch: the caller must not evaluate or draw the element
+ * - on eval failure/poison (`status !== "ok"`), runtime type mismatch, ||
+ * choice-option mismatch: the caller must not evaluate || draw the element
  * in that case. Returns the original element unchanged (no clone) when it
  * has no bound properties.
  */
@@ -161,10 +149,7 @@ export const materializePropertyBoundElement = (
       : entry.bindingId
         ? resolveBinding(entry.bindingId)
         : { status: "error", type: entry.expectedType, issueCode: "property-binding-missing-source" } as ScalarEvaluation;
-    const satisfies =
-      evaluation.status === "ok" &&
-      evaluation.type.kind === entry.expectedType.kind &&
-      scalarValueSatisfiesPropertyCapability(evaluation.value, { propertyType: entry.expectedType });
+    const satisfies = evaluation.status === "ok" && isScalarTypeAssignable(evaluation.type, entry.expectedType);
     if (!satisfies) {
       return { ok: false, error: geometryError(element, propertyBindingFailureMessage(element, entry.parameterKey, evaluation)) };
     }

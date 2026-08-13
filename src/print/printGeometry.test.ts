@@ -295,8 +295,8 @@ describe("printGeometry", () => {
 // not just the isGroupPrintEnabled unit (see groupPrintEnabledRuntime.test.ts).
 describe("printGeometry: group.printEnabled binding", () => {
   const compileCanonical = (statements: string[]): LastGoodDslDocument => {
-    const baseline = regenerateCanonicalFromModel(emptyDocument(), 3);
-    const result = compileCanonicalText(baseline, ["nui 3", ...statements].join("\n"));
+    const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+    const result = compileCanonicalText(baseline, ["nui 4", ...statements].join("\n"));
     expect(result.status).not.toBe("fatal");
     return result.doc;
   };

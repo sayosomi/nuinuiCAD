@@ -20,7 +20,7 @@ const runtimeNames = (source: string) => {
 describe("module materialization", () => {
   it("keeps a module definition inert without an instance", () => {
     const compiled = runtimeNames([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}"
@@ -32,13 +32,13 @@ describe("module materialization", () => {
 
   it("emits a container and body in source execution order with private name resolution", () => {
     const compiled = runtimeNames([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "  point Q = offset(from: @P, dx: 1, dy: 2)",
       "}",
       "point Before = coordinate(x: 0, y: 0)",
-      "module A = M()",
+      "instance A = M()",
       "point After = coordinate(x: 30, y: 40)"
     ].join("\n"));
 
@@ -56,16 +56,16 @@ describe("module materialization", () => {
 
   it("derives non-colliding IDs and origin mappings for repeated and nested instances", () => {
     const source = [
-      "nui 3",
+      "nui 4",
       "module Inner() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
       "module Outer() {",
-      "  module Nested = Inner()",
+      "  instance Nested = Inner()",
       "  point Q = coordinate(x: 3, y: 4)",
       "}",
-      "module First = Outer()",
-      "module Second = Outer()"
+      "instance First = Outer()",
+      "instance Second = Outer()"
     ].join("\n");
     const compiled = runtimeNames(source);
     const elements = compiled.document!.elements;
@@ -101,11 +101,11 @@ describe("module materialization", () => {
 
   it("preserves a materialized subtree when reconciliation carries statement identities", () => {
     const beforeSource = [
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}",
-      "module A = M()"
+      "instance A = M()"
     ].join("\n");
     const afterSource = beforeSource.replace("x: 10", "x: 11");
     const beforeParsed = parseDsl(beforeSource);
@@ -132,25 +132,25 @@ describe("module materialization", () => {
     );
   });
 
-  it("treats a module call as one @stop atomic unit", () => {
+  it("treats a module call as one stop atomic unit", () => {
     const callBeforeStop = runtimeNames([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
-      "module A = M()",
-      "@stop",
+      "instance A = M()",
+      "stop",
       "point After = coordinate(x: 3, y: 4)"
     ].join("\n"));
     expect(callBeforeStop.document!.evaluationLimitIndex).toBe(2);
 
     const callAfterStop = runtimeNames([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
-      "@stop",
-      "module A = M()",
+      "stop",
+      "instance A = M()",
       "point After = coordinate(x: 3, y: 4)"
     ].join("\n"));
     expect(callAfterStop.document!.evaluationLimitIndex).toBe(0);
@@ -158,14 +158,14 @@ describe("module materialization", () => {
 
   it("maps outer and inner source containers to runtime parents without changing group semantics", () => {
     const compiled = runtimeNames([
-      "nui 3",
+      "nui 4",
       "module M() {",
       "  group Inner {",
       "    point P = coordinate(x: 1, y: 2)",
       "  }",
       "}",
       "group Outer {",
-      "  module A = M()",
+      "  instance A = M()",
       "}"
     ].join("\n"));
     const elements = compiled.document!.elements;
@@ -183,12 +183,12 @@ describe("module materialization", () => {
 
   it("inherits hidden and disabled module instance activity through the generic container path", () => {
     const compiled = runtimeNames([
-      "nui 3",
+      "nui 4",
       "module M(state: boolean = true) {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
-      "module Hidden(state: hidden) = M()",
-      "module Disabled(state: disabled) = M()"
+      "instance Hidden(state: hidden) = M()",
+      "instance Disabled(state: disabled) = M()"
     ].join("\n"));
     const elements = compiled.document!.elements;
     const hidden = elements.find((element) => element.name === "Hidden")!;
@@ -203,12 +203,12 @@ describe("module materialization", () => {
     expect(activities.get(disabledPoint.id)?.activity).toBe("disabled");
   });
 
-  it("preserves ordinary source order and @stop behavior when no module is present", () => {
+  it("preserves ordinary source order and stop behavior when no module is present", () => {
     const compiled = runtimeNames([
-      "nui 3",
+      "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 1)",
-      "@stop",
+      "stop",
       "point C = coordinate(x: 2, y: 2)"
     ].join("\n"));
 
