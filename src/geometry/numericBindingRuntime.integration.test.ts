@@ -36,6 +36,18 @@ describe("general numeric typed binding runtime", () => {
     expect(geometry.x).toBe(12.3456);
   });
 
+  it("keeps arithmetic typed-number construction arguments numeric", () => {
+    const compiled = compile([
+      "nui 3",
+      "const offset: number = 3",
+      "point B = coordinate(x: @offset + 2, y: 0)"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const geometry = result.computedGeometry.get(point(compiled, "B").id) as { x: number };
+    expect(result.errors).toEqual([]);
+    expect(geometry.x).toBe(5);
+  });
+
   it("uses the current version at each geometry statement", () => {
     const compiled = compile([
       "nui 3",

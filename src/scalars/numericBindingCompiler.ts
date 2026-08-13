@@ -39,6 +39,8 @@ import { buildElementLocalRangeIndexFromElements } from "./elementLocalRangeInde
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
+import { parseScalarExpression } from "./expressionParser";
+import { typecheckScalarExpression } from "./expressionTypecheck";
 
 export type CompiledNumericBindingReference = {
   bindingId: BindingId;
@@ -76,6 +78,9 @@ type Candidate = {
   statementIndex: number;
   parameterKey: string;
   expression: string;
+  /** Original DSL value, before numeric normalization removes geometry sigils. */
+  source: string;
+  valueSpan: DslSpan;
   references: readonly CandidateReference[];
   /** Absent for printLayout/place occurrences - they have no element-local pool. */
   elementId?: ElementId;
@@ -146,7 +151,17 @@ export const compileNumericBindings = ({
     if (!value || !isNumericExpression(value) || !valueSpan) return;
     const refs = referencesIn(logicalText.slice(valueSpan.start, valueSpan.end), valueSpan);
     if (!refs.length) return;
-    candidates.push({ key, statement, statementIndex, parameterKey, expression: value.expression, references: refs, elementId });
+    candidates.push({
+      key,
+      statement,
+      statementIndex,
+      parameterKey,
+      expression: value.expression,
+      source: logicalText.slice(valueSpan.start, valueSpan.end),
+      valueSpan,
+      references: refs,
+      elementId
+    });
     const scopeId = bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId;
     refs.forEach((reference, index) => requests.push({
       key: `${key}:${index}`,
@@ -308,6 +323,44 @@ export const compileNumericBindings = ({
       typedRefs.push({ reference, bindingId: binding.id });
     });
     if (rejected) continue;
+    const typedResolutions = candidate.references.map((_, index) => resolutions.get(candidate.key + ":" + index));
+    const allReferencesAreTyped = typedResolutions.length > 0 && typedResolutions.every((resolution) =>
+      resolution?.kind === "resolved" && resolution.binding.kind === "typed"
+    );
+    if (allReferencesAreTyped) {
+      // Typecheck the original DSL spelling. The normalized numeric spelling
+      // intentionally removes `@` from geometry measurements (for example
+      // `@AB.length` becomes `AB.length`) for the legacy numeric evaluator,
+      // but that representation is not valid input for the shared scalar
+      // parser. Geometry properties themselves are already typed as number;
+      // only the typed binding occurrences need the supplied resolutions.
+      const typedParsed = parseScalarExpression(candidate.source, { start: 0, end: candidate.source.length });
+      if (!typedParsed.ast) {
+        const issue = typedParsed.diagnostics[0];
+        if (issue) diagnostics.push(diagnosticAt(
+          spans,
+          candidate.statement,
+          { start: candidate.valueSpan.start + issue.span.start, end: candidate.valueSpan.start + issue.span.end },
+          issue.code,
+          issue.message
+        ));
+        continue;
+      }
+      const typedChecked = typecheckScalarExpression(typedParsed.ast, {
+        expectedType: { kind: "number" },
+        references: typedResolutions as Extract<typeof typedResolutions[number], { kind: "resolved" }>[]
+      });
+      if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
+        for (const issue of typedChecked.diagnostics) diagnostics.push(diagnosticAt(
+          spans,
+          candidate.statement,
+          { start: candidate.valueSpan.start + issue.span.start, end: candidate.valueSpan.start + issue.span.end },
+          issue.code,
+          issue.message
+        ));
+        continue;
+      }
+    }
     let tokens: ReturnType<typeof tokenize>;
     try {
       tokens = tokenize(candidate.expression);

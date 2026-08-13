@@ -169,6 +169,57 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
     expect(source?.kind === "expression" ? source.expression.kind : null).toBe("binary");
   });
 
+  it("accepts nui4 compound property expressions and resolves geometry-property leaves", () => {
+    const compiled = compileFor([
+      "let 下書き: boolean = false",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: @A end: @B)",
+      "line Off = offset(sources: [@AB] distance: 5 side: right closed: not @下書き suppressTrimWarnings: false)"
+    ].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
+    expect(diagnostics).toEqual([]);
+    const source = sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "closed"));
+    expect(source).toMatchObject({ kind: "expression", type: { kind: "boolean" } });
+    expect(source?.kind === "expression" ? source.expression : null).toMatchObject({
+      kind: "unary",
+      operator: "!",
+      operand: { kind: "reference", name: "下書き" }
+    });
+
+    const geometryCompiled = compileFor([
+      "let _unused: boolean = true",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: @A end: @B)",
+      "line Off = offset(sources: [@AB] distance: 5 side: right closed: @AB.length > 0 suppressTrimWarnings: false)"
+    ].join("\n"));
+    const geometry = compilePropertyBindings(geometryCompiled);
+    expect(geometry.diagnostics).toEqual([]);
+    expect(geometry.sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "closed"))).toMatchObject({
+      kind: "expression",
+      expression: {
+        kind: "binary",
+        left: { kind: "geometryProperty", elementId: expect.any(String), targetSourceOrder: 3 }
+      }
+    });
+  });
+
+  it("rejects a forward geometry property in a property expression before runtime", () => {
+    const compiled = compileFor([
+      "let _unused: boolean = true",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line Off = offset(sources: [@Later] distance: 5 side: right closed: @Later.length > 0 suppressTrimWarnings: false)",
+      "line Later = segment(start: @A end: @B)"
+    ].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
+    expect(sourcesByOccurrenceKey.size).toBe(0);
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: PROPERTY_BINDING_INVALID_CODE, message: expect.stringContaining("後") })
+    ]));
+  });
+
   it("forGroup.showGenerated", () => {
     const compiled = compileFor([
       "let 表示: boolean = true",

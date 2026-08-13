@@ -115,6 +115,9 @@ export const groupPropertyBindingRuntimeEntriesByElement = (
 };
 
 export type PropertyBindingResolveFn = (bindingId: BindingId) => ScalarEvaluation;
+export type PropertyBindingGeometryResolveFn = (
+  reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>
+) => ScalarEvaluation;
 
 export type PropertyMaterializationResult =
   | { ok: true; element: CadElement }
@@ -143,14 +146,18 @@ const propertyBindingFailureMessage = (
 export const materializePropertyBoundElement = (
   element: CadElement,
   entriesForElement: readonly PropertyBindingRuntimeEntry[] | undefined,
-  resolveBinding: PropertyBindingResolveFn
+  resolveBinding: PropertyBindingResolveFn,
+  resolveGeometryProperty?: PropertyBindingGeometryResolveFn
 ): PropertyMaterializationResult => {
   if (!entriesForElement || entriesForElement.length === 0) return { ok: true, element };
 
   const overrides: Record<string, unknown> = {};
   for (const entry of entriesForElement) {
     const evaluation = entry.expression
-      ? evaluateTypedExpression(entry.expression, { lookupBinding: resolveBinding })
+      ? evaluateTypedExpression(entry.expression, {
+          lookupBinding: resolveBinding,
+          ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {})
+        })
       : entry.bindingId
         ? resolveBinding(entry.bindingId)
         : { status: "error", type: entry.expectedType, issueCode: "property-binding-missing-source" } as ScalarEvaluation;

@@ -51,8 +51,15 @@ export interface ScalarExpressionTokenizeResult {
 // tokenize as two separate single-char operators.
 const TWO_CHAR_OPERATORS = new Set(["&&", "||", "==", "!=", ">=", "<="]);
 const ONE_CHAR_OPERATORS = new Set(["+", "-", "*", "/", "<", ">", "!"]);
+const WORD_OPERATORS: Readonly<Record<string, ScalarExpressionOperatorSymbol>> = {
+  and: "&&",
+  or: "||",
+  not: "!"
+};
 
 const isWhitespace = (char: string) => char === " " || char === "\t" || char === "\n" || char === "\r";
+const isAsciiIdentifierContinuation = (char: string | undefined) =>
+  char !== undefined && /[A-Za-z0-9_]/.test(char);
 
 const remapLiteralIssueCode = (issueCode: string): ScalarExpressionIssueCode =>
   issueCode === "invalid-literal-token" ? "unexpected-token" : (issueCode as ScalarExpressionIssueCode);
@@ -95,6 +102,22 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
     if (ONE_CHAR_OPERATORS.has(char)) {
       tokens.push({ kind: "operator", value: char as ScalarExpressionOperatorSymbol, span: { start: index, end: index + 1 } });
       index += 1;
+      continue;
+    }
+
+    const wordOperator = Object.keys(WORD_OPERATORS).find((word) => {
+      if (!source.startsWith(word, index)) return false;
+      const previous = index > span.start ? source[index - 1] : undefined;
+      const next = index + word.length < end ? source[index + word.length] : undefined;
+      return !isAsciiIdentifierContinuation(previous) && !isAsciiIdentifierContinuation(next);
+    });
+    if (wordOperator) {
+      tokens.push({
+        kind: "operator",
+        value: WORD_OPERATORS[wordOperator],
+        span: { start: index, end: index + wordOperator.length }
+      });
+      index += wordOperator.length;
       continue;
     }
 

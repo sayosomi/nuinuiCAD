@@ -10,6 +10,7 @@
 import { scalarTypeForParameterDefinition, type ParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ScalarType } from "../scalars/types";
 import type { DslSpan } from "./dslTypes";
+import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
 
 export type PropertyScalarValueCompletionContext =
   | { readonly kind: "reference"; readonly from: number; readonly to: number; readonly expectedType: ScalarType }
@@ -30,10 +31,14 @@ export const propertyScalarValueCompletionContext = (
   definition: ParameterDefinition
 ): PropertyScalarValueCompletionContext | null => {
   if (pos < span.start || pos > span.end) return null;
-  const typedSoFar = lineText.slice(span.start, pos);
-  if (typedSoFar.startsWith("@")) {
+  // A quoted text value owns its interpolation holes; the @ inside
+  // "{@name}" is not the whole property value and must reach the template
+  // hole completion lane below dslCompletionContext.ts.
+  if (definition.kind === "text" && /^["']/.test(lineText.slice(span.start).trimStart())) return null;
+  const reference = expressionReferenceTokenEndingAt(lineText, pos, { boundaryStart: span.start });
+  if (reference?.kind === "binding") {
     const expectedType = scalarTypeForParameterDefinition(definition);
-    return expectedType ? { kind: "reference", from: span.start, to: pos, expectedType } : null;
+    return expectedType ? { kind: "reference", from: reference.from, to: reference.to, expectedType } : null;
   }
   // Only a scalar-eligible boolean field gets a new literal candidate here -
   // choice fields keep their existing enum-literal completion branch

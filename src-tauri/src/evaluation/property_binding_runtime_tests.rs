@@ -80,6 +80,27 @@ fn line(id: &str, start: &str, end: &str) -> Value {
     })
 }
 
+fn geometry_length_positive_expression(element_id: &str, target_source_order: usize) -> Value {
+    json!({
+        "kind": "binary",
+        "span": {"start": 0, "end": 16},
+        "operator": ">",
+        "left": {
+            "kind": "geometryProperty",
+            "span": {"start": 0, "end": 11},
+            "elementNameSpan": {"start": 1, "end": 3},
+            "propertySpan": {"start": 4, "end": 10},
+            "elementName": "ab",
+            "elementId": element_id,
+            "property": "length",
+            "targetSourceOrder": target_source_order,
+            "type": {"kind": "number"}
+        },
+        "right": {"kind": "numberLiteral", "span": {"start": 14, "end": 15}, "value": 0, "type": {"kind": "number"}},
+        "type": {"kind": "boolean"}
+    })
+}
+
 fn offset_line(id: &str, base_line_id: &str, side: &str) -> Value {
     json!({
         "id": id, "name": id, "type": "offsetLine", "activity": "visible",
@@ -95,6 +116,28 @@ fn geometry<'a>(result: &'a EvaluationPayload, id: &str) -> Option<&'a Value> {
 }
 
 const CHOICE_RIGHT_LEFT: [&str; 2] = ["right", "left"];
+
+#[test]
+fn evaluates_a_resolved_geometry_property_expression_on_a_common_property() {
+    let result = evaluate_document_input(input(
+        vec![
+            point("a", 0.0, 0.0),
+            point("b", 10.0, 0.0),
+            line("ab", "a", "b"),
+            offset_line("off", "ab", "right"),
+        ],
+        Some(program(vec![])),
+        Some(json!([{
+            "elementId": "off",
+            "parameterKey": "closed",
+            "expression": geometry_length_positive_expression("ab", 2),
+            "expectedType": {"kind": "boolean"}
+        }])),
+    ));
+
+    assert!(result.errors.is_empty());
+    assert!(geometry(&result, "off").is_some());
+}
 
 #[test]
 fn offset_line_side_bound_to_a_choice_binding_flips_the_offset_direction() {

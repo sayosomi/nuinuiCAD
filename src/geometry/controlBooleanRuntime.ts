@@ -105,6 +105,9 @@ export const buildControlBooleanRuntimeEntries = (
 };
 
 export type ControlBooleanResolveFn = (bindingId: BindingId) => ScalarEvaluation;
+export type ControlBooleanGeometryResolveFn = (
+  reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>
+) => ScalarEvaluation;
 
 /**
  * `showGenerated`'s effective value: the literal, unchanged, when unbound
@@ -118,11 +121,15 @@ export type ControlBooleanResolveFn = (bindingId: BindingId) => ScalarEvaluation
 export const resolveForGroupEffectiveShowGenerated = (
   entry: PropertyBindingRuntimeEntry | undefined,
   literalShowGenerated: boolean,
-  resolveBinding: ControlBooleanResolveFn
+  resolveBinding: ControlBooleanResolveFn,
+  resolveGeometryProperty?: ControlBooleanGeometryResolveFn
 ): boolean => {
   if (!entry) return literalShowGenerated;
   const evaluation = entry.expression
-    ? evaluateTypedExpression(entry.expression, { lookupBinding: resolveBinding })
+    ? evaluateTypedExpression(entry.expression, {
+        lookupBinding: resolveBinding,
+        ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {})
+      })
     : entry.bindingId
       ? resolveBinding(entry.bindingId)
       : { status: "error", type: entry.expectedType, issueCode: "property-binding-missing-source" } as ScalarEvaluation;
@@ -147,9 +154,13 @@ export const resolveForGroupEffectiveShowGenerated = (
  */
 export const resolveConditionalGroupBranch = (
   expression: TypedScalarExpression,
-  resolveBinding: ControlBooleanResolveFn
+  resolveBinding: ControlBooleanResolveFn,
+  resolveGeometryProperty?: ControlBooleanGeometryResolveFn
 ): "then" | "else" | null => {
-  const evaluation = evaluateTypedExpression(expression, { lookupBinding: resolveBinding });
+  const evaluation = evaluateTypedExpression(expression, {
+    lookupBinding: resolveBinding,
+    ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {})
+  });
   if (evaluation.status !== "ok" || evaluation.type.kind !== "boolean") return null;
   return evaluation.value.value ? "then" : "else";
 };

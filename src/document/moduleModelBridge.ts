@@ -103,9 +103,9 @@ const safeLiteralFor = (
       return booleanLiteral.test(sourceValue) ? replacement : null;
     case "choice":
     case "color":
-      return nameLiteral.test(sourceValue) && !sourceValue.includes("@") ? replacement : null;
+      return nameLiteral.test(sourceValue) ? replacement : null;
     case "text":
-      return typeof value === "string" && /^(["']).*\1$/.test(sourceValue) && !sourceValue.includes("@")
+      return typeof value === "string" && /^(["']).*\1$/.test(sourceValue)
         ? quoteDslString(value)
         : null;
     case "reference":

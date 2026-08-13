@@ -49,6 +49,23 @@ const geometryShape = (value: unknown): unknown => {
 };
 
 describe("Task 23 standard property runtime, end-to-end through the real compiler", () => {
+  it("evaluates a resolved geometry-property expression in a common boolean property", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: @AB.length > 0, suppressTrimWarnings: false)"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, {
+      scalarProgram: compiled.scalarProgram,
+      propertyBindingEntries: entriesFor(compiled)
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.has(idByName(compiled, "Off"))).toBe(true);
+  });
+
   it("offsetLine.side bound to a choice const flips the offset direction, matching a literal side of the same value", () => {
     const bound = compileCanonical([
       "nui 3",

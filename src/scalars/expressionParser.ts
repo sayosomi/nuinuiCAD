@@ -42,6 +42,20 @@ import type { ScalarLiteralToken } from "./literalScanner";
  */
 export const MAX_SCALAR_EXPRESSION_DEPTH = 128;
 
+/**
+ * Returns whether a property value should be offered to the shared typed
+ * expression frontend. Literal-only values remain owned by the normal model
+ * lowering path; this predicate only identifies expression-shaped input,
+ * including the nui4 word spellings and the migration-era symbolic aliases.
+ */
+export const isScalarExpressionCandidateSource = (source: string): boolean => {
+  const trimmed = source.trim();
+  if (trimmed.length === 0) return false;
+  if (trimmed.startsWith("\"") || trimmed.startsWith("'")) return false;
+  if (trimmed.startsWith("@") || trimmed.startsWith("(") || trimmed.startsWith("!")) return true;
+  return /\b(?:and|or|not)\b/.test(trimmed) || /&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
+};
+
 class ParseFailure extends Error {
   constructor(readonly diagnostic: ScalarExpressionDiagnostic) {
     super(diagnostic.message);

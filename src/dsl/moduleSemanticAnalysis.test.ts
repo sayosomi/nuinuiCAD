@@ -12,6 +12,25 @@ const moduleBodyAt = (compiled: ReturnType<typeof compileWithIds>, statementInde
   compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === statementIndex)!;
 
 describe("module semantic analysis", () => {
+  it("uses the shared scalar frontend for nui4 word operators in a Module body", () => {
+    const compiled = compileWithIds([
+      "nui 3",
+      "module M(a: boolean, b: boolean) {",
+      "  const both: boolean = @a and not @b",
+      "}",
+      "module Instance = M(a: true, b: false)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const both = compiled.moduleSemanticAnalysis!.definitions[0].localScalars.find((scalar) => scalar.name === "both");
+    expect(both?.initializer).toMatchObject({
+      type: { kind: "boolean" },
+      references: [
+        { name: "a", target: { kind: "parameter" } },
+        { name: "b", target: { kind: "parameter" } }
+      ]
+    });
+  });
+
   it("resolves a callee by StatementIdentity and normalizes argument bindings by parameter order", () => {
     const compiled = compileWithIds([
       "nui 3",

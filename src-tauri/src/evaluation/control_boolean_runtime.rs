@@ -6,6 +6,7 @@
 //! never re-parses/re-resolves a name; only calls the caller-supplied
 //! resolver, at most once per condition/showGenerated per group entry.
 
+use super::numeric_expression::computed_reference_value;
 use super::scalars::{
     evaluate_typed_expression, ScalarDocumentBindingResolver, ScalarEvaluation,
     ScalarEvaluationEnvironment, ScalarType, TypedScalarExpression, ValidatedPropertyBinding,
@@ -24,6 +25,32 @@ struct ResolverEnvironment<'a> {
 impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         self.resolver.resolve_binding(binding_id, self.state)
+    }
+
+    fn lookup_geometry_property(
+        &self,
+        element_id: &str,
+        property: &str,
+        _target_source_order: usize,
+    ) -> ScalarEvaluation {
+        let Some(geometry) = self.state.computed_geometry.get(element_id) else {
+            return ScalarEvaluation::Error {
+                r#type: ScalarType::Number,
+                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+                binding_id: None,
+            };
+        };
+        let Some(value) = computed_reference_value(geometry, property) else {
+            return ScalarEvaluation::Error {
+                r#type: ScalarType::Number,
+                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+                binding_id: None,
+            };
+        };
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: super::scalars::ScalarValue::Number(value),
+        }
     }
 }
 

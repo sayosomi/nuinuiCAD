@@ -18,11 +18,13 @@ import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
 import { describeScalarType, typecheckScalarExpression } from "./expressionTypecheck";
-import { parseScalarExpression } from "./expressionParser";
+import { isScalarExpressionCandidateSource, parseScalarExpression } from "./expressionParser";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { isScalarTypeAssignable } from "./scalarAssignability";
 import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { createElementNameContext } from "../model/elementNames";
 
 /**
  * The compiled source of a property's value. `binding` keeps the existing
@@ -98,6 +100,7 @@ export type PropertyBindingCompilation = {
 type Candidate = {
   key: string;
   statement: DslStatement;
+  statementIndex: number;
   parameterKey: string;
   expectedType: ScalarType;
   span: DslSpan;
@@ -174,6 +177,9 @@ export const compilePropertyBindings = ({
   const diagnostics: DslDiagnostic[] = [];
   const candidates: Candidate[] = [];
   const requests: SiteReferenceRequest[] = [];
+  const sourceOrderByElementId = new Map<ElementId, number>();
+  for (const [sourceOrder, elementId] of elementIdByStatementIndex) sourceOrderByElementId.set(elementId, sourceOrder);
+  const nameContext = createElementNameContext([...elements]);
 
   statements.forEach((statement, statementIndex) => {
     if (includeStatement && !includeStatement(statement, statementIndex)) return;
@@ -187,14 +193,15 @@ export const compilePropertyBindings = ({
     if (!element) return;
 
     for (const attr of statement.attrs) {
-      // Quoted literals and ordinary bare literals are already represented by
-      // dslApplyArgs. An unquoted `@` starts the common typed-expression path;
-      // numeric parameters remain owned by numericBindingCompiler.
-      if (!attr.value.startsWith("@")) continue;
       const parameterKey = parameterKeyForArg(element.type, attr.key);
       const definition = findParameterDefinition(element, parameterKey);
       const expectedType = scalarTypeForParameterDefinition(definition);
       if (!definition || !expectedType || expectedType.kind === "number") continue;
+      // Quoted literals and ordinary bare literals remain owned by
+      // dslApplyArgs. Compound typed values must reach the common frontend
+      // regardless of whether their first token is `@`, `(`, `not`, or a
+      // boolean literal followed by `and`/`or`.
+      if (!isScalarExpressionCandidateSource(attr.value)) continue;
 
       const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };
       const parsed = parseScalarExpression(" ".repeat(attr.valueStart) + attr.value, span);
@@ -211,6 +218,7 @@ export const compilePropertyBindings = ({
       candidates.push({
         key,
         statement,
+        statementIndex,
         parameterKey,
         expectedType,
         span,
@@ -260,6 +268,26 @@ export const compilePropertyBindings = ({
       continue;
     }
 
+    const element = elementIdByStatementIndex.get(candidate.statementIndex)
+      ? elementsById.get(elementIdByStatementIndex.get(candidate.statementIndex)!)
+      : undefined;
+    const geometryResolution = resolveTypedGeometryProperties(
+      checked.typed,
+      elements,
+      sourceOrderByElementId,
+      {
+        currentElement: element,
+        nameContext,
+        currentSourceOrder: candidate.statementIndex
+      }
+    );
+    if (geometryResolution.issues.length > 0) {
+      diagnostics.push(...geometryResolution.issues.map((issue) =>
+        diagnosticAt(spans, candidate.statement, issue.span, PROPERTY_BINDING_INVALID_CODE, issue.message)
+      ));
+      continue;
+    }
+
     if (candidate.ast.kind === "reference" && candidate.references.length === 1) {
       const resolution = referenceResolutions[0];
       if (!resolution || resolution.kind !== "resolved" || !resolution.binding.declaredType || !isScalarTypeAssignable(resolution.binding.declaredType, candidate.expectedType)) {
@@ -276,7 +304,7 @@ export const compilePropertyBindings = ({
         name: candidate.ast.name
       });
     } else {
-      sourcesByOccurrenceKey.set(candidate.key, { kind: "expression", expression: checked.typed, type: checked.type, span: candidate.span });
+      sourcesByOccurrenceKey.set(candidate.key, { kind: "expression", expression: geometryResolution.expression, type: checked.type, span: candidate.span });
     }
   }
 

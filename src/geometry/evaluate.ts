@@ -39,10 +39,12 @@ import {
   resolveForGroupEffectiveShowGenerated
 } from "./controlBooleanRuntime";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { ScalarEvaluation } from "../scalars/types";
 import type { TextTemplateAst } from "../scalars/textTemplate";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
 import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
+import { computedReferencePathValue } from "./numericExpressions";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -200,6 +202,14 @@ export const evaluateElements = (
     ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, elementsById })
     : undefined;
   const scalarBindingResolver = linearMutationResolver ?? declarationResolver;
+  const resolveScalarGeometryProperty = (
+    reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>
+  ): ScalarEvaluation => {
+    const value = computedReferencePathValue(computedGeometry.get(reference.elementId!), reference.property);
+    return typeof value === "number" && Number.isFinite(value)
+      ? { status: "ok", type: reference.type, value: { kind: "number", value } }
+      : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  };
   const propertyBindingEntriesByElementId = options.propertyBindingEntries
     ? groupPropertyBindingRuntimeEntriesByElement(options.propertyBindingEntries)
     : undefined;
@@ -364,7 +374,11 @@ export const evaluateElements = (
       // same active branch on every generated iteration.
       const typedCondition = conditionalGroupConditionsByElementId?.get((sourceElement ?? element).id);
       const activeBranch = typedCondition
-        ? resolveConditionalGroupBranch(typedCondition, scalarBindingResolver!.resolveBinding)
+        ? resolveConditionalGroupBranch(
+            typedCondition,
+            scalarBindingResolver!.resolveBinding,
+            resolveScalarGeometryProperty
+          )
         : (() => {
             const conditionValue = numericError(
               element,
@@ -429,7 +443,12 @@ export const evaluateElements = (
       // alters the iteration loop below.
       const showGeneratedEntry = controlBooleanEntriesByElementId?.get((sourceElement ?? element).id)?.[0];
       const effectiveShowGenerated = showGeneratedEntry
-        ? resolveForGroupEffectiveShowGenerated(showGeneratedEntry, element.showGenerated, scalarBindingResolver!.resolveBinding)
+        ? resolveForGroupEffectiveShowGenerated(
+            showGeneratedEntry,
+            element.showGenerated,
+            scalarBindingResolver!.resolveBinding,
+            resolveScalarGeometryProperty
+          )
         : element.showGenerated;
       if (effectiveShowGenerated) forGroupEffectiveShowGeneratedIds.add(element.id);
 
@@ -559,7 +578,8 @@ export const evaluateElements = (
       const materialized = materializePropertyBoundElement(
         element,
         propertyBindingEntriesForElement,
-        scalarBindingResolver!.resolveBinding
+        scalarBindingResolver!.resolveBinding,
+        resolveScalarGeometryProperty
       );
       if (!materialized.ok) {
         errors.push(materialized.error);
@@ -576,7 +596,8 @@ export const evaluateElements = (
       const materialized = materializePropertyBoundElement(
         elementToEvaluate,
         textPropertyBindingEntriesForElement,
-        scalarBindingResolver!.resolveBinding
+        scalarBindingResolver!.resolveBinding,
+        resolveScalarGeometryProperty
       );
       if (!materialized.ok) {
         errors.push(materialized.error);

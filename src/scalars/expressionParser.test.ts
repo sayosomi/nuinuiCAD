@@ -198,6 +198,24 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
+  it("accepts nui4 word operators while retaining the internal operator representation", () => {
+    const ast = parseOk("@a or @b and not @c");
+    expect(ast).toMatchObject({
+      kind: "binary",
+      operator: "||",
+      right: {
+        kind: "binary",
+        operator: "&&",
+        right: { kind: "unary", operator: "!", operand: { kind: "reference", name: "c" } }
+      }
+    });
+    expect(parseOk("(@a and @b) or @c")).toMatchObject({
+      kind: "binary",
+      operator: "||",
+      left: { kind: "group", expression: { kind: "binary", operator: "&&" } }
+    });
+  });
+
   it("left-associates a chain of + and -", () => {
     const ast = parseOk("1 - 2 - 3");
     expect(ast).toMatchObject({

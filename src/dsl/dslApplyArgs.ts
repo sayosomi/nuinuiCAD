@@ -1,6 +1,10 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
+import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
+import { parseScalarExpression } from "../scalars/expressionParser";
+import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { createCadElementId } from "../model/cadIds";
 import { elementTypeSupportsHiddenActivity, elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
+import { isLineLikeElement } from "../model/pointAnchors";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
@@ -213,7 +217,51 @@ export const applyArgs = (
   // derived-point roles use the dedicated resolvers below, where the shared
   // source-reference parser's property is meaningful.
   const lineReferenceId = (source: string, sourceSpan?: DslSpan) =>
-    resolveId(source, resolvers.index, resolvers.line, diagnostics, next, sourceSpan);
+    (() => {
+      const resolvedId = resolveId(source, resolvers.index, resolvers.line, diagnostics, next, sourceSpan);
+      const target = resolvers.index.elementsById.get(resolvedId);
+      if (target && !isLineLikeElement(target)) {
+        diagnostics.push({
+          severity: "error",
+          line: resolvers.line,
+          column: (sourceSpan?.start ?? 0) + 1,
+          code: "geometry-reference-type-mismatch",
+          message: "参照先「" + target.name + "」は線・曲線ではありません。",
+          ...(sourceSpan ? { logicalSpan: sourceSpan } : {})
+        });
+      }
+      return resolvedId;
+    })();
+  const rejectUntypedNumericExpression = (source: string, sourceSpan: DslSpan): boolean => {
+    if (source.includes("@") || !isScalarExpressionCandidateSource(source)) return false;
+    const span = { start: 0, end: source.length };
+    const parsed = parseScalarExpression(source, span);
+    if (!parsed.ast) {
+      const issue = parsed.diagnostics[0];
+      if (issue) diagnostics.push({
+        severity: "error",
+        line: resolvers.line,
+        column: sourceSpan.start + issue.span.start + 1,
+        code: issue.code,
+        message: issue.message,
+        logicalSpan: { start: sourceSpan.start + issue.span.start, end: sourceSpan.start + issue.span.end }
+      });
+      return true;
+    }
+    const checked = typecheckScalarExpression(parsed.ast, {
+      expectedType: { kind: "number" },
+      references: []
+    });
+    for (const issue of checked.diagnostics) diagnostics.push({
+      severity: "error",
+      line: resolvers.line,
+      column: sourceSpan.start + issue.span.start + 1,
+      code: issue.code,
+      message: issue.message,
+      logicalSpan: { start: sourceSpan.start + issue.span.start, end: sourceSpan.start + issue.span.end }
+    });
+    return checked.diagnostics.length > 0 || checked.type === null;
+  };
 
   for (const [argName, scanned] of byName) {
     const definition = definitions.get(argName);
@@ -256,7 +304,7 @@ export const applyArgs = (
         // this stays silent here so a valid binding doesn't also get a
         // spurious "must be true/false" error. Any other unparseable value
         // still gets this diagnostic exactly as before.
-        if (parsed === null && !value.startsWith("@")) {
+        if (parsed === null && !isScalarExpressionCandidateSource(value)) {
           diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
         }
         next = setParameterValue(next, parameterKey, parsed ?? false);
@@ -272,6 +320,7 @@ export const applyArgs = (
         ) {
           break;
         }
+        if (parameterKey !== "condition" && rejectUntypedNumericExpression(value, scanned.valueSpan)) break;
         next = setParameterValue(next, parameterKey, numeric(value));
         break;
       case "reference":

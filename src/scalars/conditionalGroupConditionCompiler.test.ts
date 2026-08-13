@@ -113,6 +113,40 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
       type: { kind: "boolean" }
     });
   });
+
+  it("accepts nui4 word operators and resolves an earlier geometry property", () => {
+    const compiled = compileFor([
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "line AB = segment(start: @A end: @B)",
+      "if C (@AB.length > 0) {",
+      "}"
+    ].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
+    expect(diagnostics).toEqual([]);
+    expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "condition"))).toMatchObject({
+      kind: "binary",
+      operator: ">",
+      left: { kind: "geometryProperty", elementId: expect.any(String), targetSourceOrder: 3 }
+    });
+  });
+
+  it("rejects a forward geometry property in a conditional expression", () => {
+    const compiled = compileFor([
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0 y: 0)",
+      "point B = coordinate(x: 10 y: 0)",
+      "if C (@Later.length > 0) {",
+      "}",
+      "line Later = segment(start: @A end: @B)"
+    ].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
+    expect(sourcesByOccurrenceKey.size).toBe(0);
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "geometry-property-invalid", message: expect.stringContaining("後") })
+    ]));
+  });
 });
 
 describe("compileConditionalGroupConditions: numeric-only conditions are left untouched", () => {

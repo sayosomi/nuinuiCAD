@@ -188,6 +188,28 @@ describe("DSL nui 3 compiler argument application", () => {
     });
   });
 
+  it("does not coerce a comparison result into a numeric construction argument", () => {
+    const result = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [
+      arg("x", "1 < 2")
+    ], resolvers);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "scalar-type-mismatch" })
+    ]);
+    expect(result.element.type).toBe("freePoint");
+    if (result.element.type === "freePoint") expect(result.element.x).toBe(0);
+  });
+
+  it("rejects a point inside a line-reference array", () => {
+    const result = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
+      arg("sources", "[@A]")
+    ], resolvers);
+    expect(result.element.type).toBe("offsetLine");
+    if (result.element.type === "offsetLine") expect(result.element.baseLineIds).toEqual(["p1"]);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "geometry-reference-type-mismatch" })
+    ]);
+  });
+
   it("remaps local variable references after applying vars and varIds in either source order", () => {
     const result = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [
       arg("varIds", "[width-id, half-id]"),

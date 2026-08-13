@@ -9,6 +9,7 @@ import { isElementDslStatement } from "./dslParser";
 import { splitDslList, unquoteDslString } from "./dslTokens";
 import { recordField, recordSpans } from "./dslParameterSpanScanner";
 import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
+import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
 import { analyzeElementLocalVariables, type ElementLocalVariableResolver } from "./moduleElementLocalVariableSemantic";
 import type { DslSpan, DslStatement } from "./dslTypes";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
@@ -417,7 +418,7 @@ export const analyzeModuleBody = ({
             const template = parameter.kind === "text" ? analyzeTextTemplate(statementIndex, bodySemantic, valueSpan, localResolver) : false;
             const expression = template
               ? null
-              : parameter.kind === "text" && !value.trim().startsWith("@")
+              : parameter.kind === "text" && !isScalarExpressionCandidateSource(value)
                 ? textParameterSemantic(value, valueSpan)
                 : analyzeExpression(
                   statementIndex,

@@ -89,6 +89,25 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
     expect(result.conditionInactiveElementIds?.has(idByName(compiled, "A"))).toBe(true);
   });
 
+  it("resolves a geometry-property condition against earlier computed geometry", () => {
+    const compiled = compileCanonical([
+      "nui 3",
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "if C (@AB.length > 0) {",
+      "  point Then = coordinate(x: 0, y: 0)",
+      "} else {",
+      "  point Else = coordinate(x: 1, y: 1)",
+      "}"
+    ].join("\n"));
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.has(idByName(compiled, "Then"))).toBe(true);
+    expect(result.conditionInactiveElementIds?.has(idByName(compiled, "Else"))).toBe(true);
+  });
+
   it("logical && condition (typed boolean bindings) selects the correct branch", () => {
     const compiled = compileCanonical([
       "nui 3",

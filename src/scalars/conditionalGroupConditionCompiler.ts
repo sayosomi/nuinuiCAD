@@ -25,6 +25,8 @@ import {
   unresolvedReferenceMessage
 } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
+import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { createElementNameContext } from "../model/elementNames";
 
 export const CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE = "conditional-group-condition-unresolved";
 export const CONDITIONAL_GROUP_CONDITION_INVALID_CODE = "conditional-group-condition-invalid";
@@ -62,6 +64,22 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
   };
 };
 
+const containsGeometryProperty = (expression: ReturnType<typeof parseScalarExpression>["ast"]): boolean => {
+  if (!expression) return false;
+  switch (expression.kind) {
+    case "geometryProperty":
+      return true;
+    case "unary":
+      return containsGeometryProperty(expression.operand);
+    case "binary":
+      return containsGeometryProperty(expression.left) || containsGeometryProperty(expression.right);
+    case "group":
+      return containsGeometryProperty(expression.expression);
+    default:
+      return false;
+  }
+};
+
 export const compileConditionalGroupConditions = ({
   statements,
   elementIdByStatementIndex,
@@ -73,6 +91,9 @@ export const compileConditionalGroupConditions = ({
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
   const sourcesByOccurrenceKey = new Map<string, TypedScalarExpression>();
+  const sourceOrderByElementId = new Map<ElementId, number>();
+  for (const [sourceOrder, elementId] of elementIdByStatementIndex) sourceOrderByElementId.set(elementId, sourceOrder);
+  const nameContext = createElementNameContext([...elements]);
 
   statements.forEach((statement, statementIndex) => {
     if (includeStatement && !includeStatement(statement, statementIndex)) return;
@@ -101,7 +122,7 @@ export const compileConditionalGroupConditions = ({
     const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests);
     const resolutionAt = (index: number) => resolutions.get(requestKey(index));
 
-    if (references.length === 0 && !containsNonNumericScalarSyntax(ast)) return;
+    if (references.length === 0 && !containsNonNumericScalarSyntax(ast) && !containsGeometryProperty(ast)) return;
 
     // Typed candidate: every reference must resolve to a usable typed
     // binding, or this occurrence fails closed with a diagnostic.
@@ -148,7 +169,24 @@ export const compileConditionalGroupConditions = ({
       return;
     }
 
-    sourcesByOccurrenceKey.set(occurrenceKey, checked.typed);
+    const element = elementsById.get(elementId);
+    const geometryResolution = resolveTypedGeometryProperties(
+      checked.typed,
+      elements,
+      sourceOrderByElementId,
+      {
+        currentElement: element,
+        nameContext,
+        currentSourceOrder: statementIndex
+      }
+    );
+    if (geometryResolution.issues.length > 0) {
+      diagnostics.push(...geometryResolution.issues.map((issue) =>
+        diagnosticAt(spans, statement, issue.span, "geometry-property-invalid", issue.message)
+      ));
+      return;
+    }
+    sourcesByOccurrenceKey.set(occurrenceKey, geometryResolution.expression);
   });
 
   return { sourcesByOccurrenceKey, diagnostics };
