@@ -1236,7 +1236,12 @@ describe("typed value completion (Task 39)", () => {
     const pos = source.indexOf("isClose") + 2;
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result?.options).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: "isClose", apply: "isClose(", type: "function" })
+      expect.objectContaining({
+        label: "isClose",
+        apply: "isClose(",
+        detail: "isClose(number, number, number) -> boolean",
+        type: "function"
+      })
     ]));
   });
 
@@ -1301,6 +1306,29 @@ describe("typed value completion (Task 39)", () => {
   };
 
   describe("typed declaration initializer", () => {
+    it("shows all builtin overload signatures in the completion detail", async () => {
+      const source = ["nui 4", "const value: number = round(1)"].join("\n");
+      const compiled = compiledTyped(source);
+      const doc = EditorState.create({ doc: source }).doc;
+      const state = EditorState.create({ doc: source });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => createTypedDeclarationRangeIndex(doc, compiled.statementMap!),
+        scopeBodyRanges: () => [],
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = source.indexOf("round") + 2;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result?.options).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          label: "round",
+          detail: "round(number) -> number | round(number, number) -> number",
+          type: "function"
+        })
+      ]));
+    });
+
     it("offers boolean literal and unary ! candidates at a clean operand start", async () => {
       // Committed/compiled from a complete, valid initializer; the actual
       // completion query happens against a separate dirty state with nothing

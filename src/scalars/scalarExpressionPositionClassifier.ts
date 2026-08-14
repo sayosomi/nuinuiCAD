@@ -116,9 +116,18 @@ const builtinArgumentTypeAt = (
   }
   const definition = getBuiltinFunctionDefinition(functionToken.literal.raw);
   if (!definition) return expectedOperandType(precedingToken, rootType);
-  const argumentIndex = tokens
-    .slice(openingIndex + 1, precedingIndex + (precedingToken.kind === "comma" ? 1 : 0))
-    .filter((token) => token.kind === "comma").length;
+  let nestedDepth = 0;
+  let argumentIndex = 0;
+  for (let index = openingIndex + 1; index <= precedingIndex; index += 1) {
+    const token = tokens[index];
+    if (token.kind === "leftParen") {
+      nestedDepth += 1;
+    } else if (token.kind === "rightParen") {
+      nestedDepth = Math.max(0, nestedDepth - 1);
+    } else if (token.kind === "comma" && nestedDepth === 0) {
+      argumentIndex += 1;
+    }
+  }
   return definition.signatures.find((signature) => signature.argumentTypes.length > argumentIndex)?.argumentTypes[argumentIndex]
     ?? expectedOperandType(precedingToken, rootType);
 };

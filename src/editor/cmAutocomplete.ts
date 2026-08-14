@@ -33,6 +33,7 @@ import { deepestContainingScopeId, typedDeclarationBindingIdAtCursor } from "./s
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { StatementInfo } from "../dsl/dslDocument";
 import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
+import { formatBuiltinFunctionSignatures, getBuiltinFunctionDefinition } from "../scalars/builtinFunctions";
 import {
   scalarExpressionCandidates,
   scalarFunctionCandidates,
@@ -213,7 +214,15 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
       };
     }
     if (candidate.kind === "operator") return { label: candidate.label, type: "keyword" };
-    if (candidate.kind === "function") return { label: candidate.name, apply: `${candidate.name}(`, type: "function" };
+    if (candidate.kind === "function") {
+      const definition = getBuiltinFunctionDefinition(candidate.name);
+      return {
+        label: candidate.name,
+        apply: `${candidate.name}(`,
+        ...(definition ? { detail: formatBuiltinFunctionSignatures(definition) } : {}),
+        type: "function"
+      };
+    }
     return { label: candidate.label, type: "enum" };
   });
 
@@ -778,6 +787,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         } : {}),
         ...(completionContext.kind === "moduleArgumentLabel" || completionContext.kind === "moduleArgumentValue" || completionContext.kind === "moduleQualifiedMember"
           ? { argumentIndex: completionContext.argumentIndex } : {}),
+        ...(completionContext.kind === "moduleArgumentValue"
+          ? { argumentValueSpan: { start: completionContext.from, end: completionContext.to } } : {}),
         ...(completionContext.kind === "moduleQualifiedMember" && completionContext.expectedScalarType
           ? { expectedScalarType: completionContext.expectedScalarType } : {}),
         ...(completionContext.kind === "moduleQualifiedMember"

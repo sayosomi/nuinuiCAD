@@ -140,7 +140,9 @@ export const dslModuleCompletionContextAt = (code: string, pos: number): DslComp
   const scanned = scanCallArgs(code, { start: contentStart, end: pos }).args;
   const containing = [...scanned].reverse().find((argument) => {
     const span = argument.valueSpan.start === argument.valueSpan.end && argument.rawValueSpan ? argument.rawValueSpan : argument.valueSpan;
-    return pos >= (argument.keySpan?.start ?? span.start) && pos <= Math.max(span.end, argument.keySpan?.end ?? span.end);
+    const argumentStart = argument.keySpan?.start ?? span.start;
+    const isCurrentUnterminatedValue = argument === scanned[scanned.length - 1] && topLevelComma(code, argumentStart, pos) < 0;
+    return pos >= argumentStart && (pos <= Math.max(span.end, argument.keySpan?.end ?? span.end) || isCurrentUnterminatedValue);
   });
   if (containing?.keySpan) {
     if (pos <= containing.keySpan.end) return { kind: "moduleArgumentLabel", from: containing.keySpan.start, to: pos, argumentIndex: scanned.indexOf(containing) };

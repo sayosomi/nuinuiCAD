@@ -102,9 +102,66 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     ].join("\n");
     const result = await completionFor(source, source.indexOf("round") + 2);
     expect(result?.options).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: "round", apply: "round(", type: "function" }),
+      expect.objectContaining({
+        label: "round",
+        apply: "round(",
+        detail: "round(number) -> number | round(number, number) -> number",
+        type: "function"
+      }),
       expect.objectContaining({ label: "roundTo", apply: "roundTo(", type: "function" })
     ]));
+  });
+
+  it("uses nested builtin argument types for boolean module scalar arguments", async () => {
+    const lastGood = [
+      "nui 4",
+      "module M(enabled: boolean) {",
+      "}",
+      "instance X = M(enabled: isClose(1, 2, 3))"
+    ].join("\n");
+    const source = lastGood.replace("isClose(1, 2, 3)", "isClose(1, )");
+    const cursor = source.indexOf("isClose(1, ") + "isClose(1, ".length;
+    const compiled = compileWithIds(lastGood);
+    const statementIndex = compiled.statements.length - 1;
+    const result = await completionForWithLastGoodMetadata(source, lastGood, cursor, {
+      statementIndex,
+      scopeId: "root",
+      sourceOrderIndex: statementIndex
+    });
+    expect(result?.options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "abs", type: "function" }),
+      expect.objectContaining({
+        label: "round",
+        detail: "round(number) -> number | round(number, number) -> number",
+        type: "function"
+      }),
+      expect.objectContaining({ label: "roundTo", type: "function" })
+    ]));
+    expect(result?.options.some((option) => option.label === "isClose")).toBe(false);
+  });
+
+  it("keeps the outer numeric argument type after a nested numeric builtin call", async () => {
+    const lastGood = [
+      "nui 4",
+      "module M(enabled: boolean) {",
+      "}",
+      "instance X = M(enabled: isClose(round(1, 2), 3))"
+    ].join("\n");
+    const source = lastGood.replace("isClose(round(1, 2), 3)", "isClose(round(1, 2), )");
+    const cursor = source.indexOf("isClose(round(1, 2), ") + "isClose(round(1, 2), ".length;
+    const compiled = compileWithIds(lastGood);
+    const statementIndex = compiled.statements.length - 1;
+    const result = await completionForWithLastGoodMetadata(source, lastGood, cursor, {
+      statementIndex,
+      scopeId: "root",
+      sourceOrderIndex: statementIndex
+    });
+    expect(result?.options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "abs", type: "function" }),
+      expect.objectContaining({ label: "round", type: "function" }),
+      expect.objectContaining({ label: "roundTo", type: "function" })
+    ]));
+    expect(result?.options.some((option) => option.label === "isClose")).toBe(false);
   });
 
   it("preserves point Module argument endpoint completions", async () => {
