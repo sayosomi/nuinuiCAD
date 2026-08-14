@@ -11,10 +11,12 @@
 import type { BindingId } from "./bindingCatalog";
 import type {
   TypedScalarBinaryExpressionNode,
+  TypedScalarCallExpressionNode,
   TypedScalarExpression,
   TypedScalarReferenceNode,
   TypedScalarUnaryExpressionNode
 } from "./typedExpressionAst";
+import { evaluateBuiltinFunction } from "./builtinFunctionSemantics";
 import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarType, type ScalarValue } from "./types";
 
 export interface ScalarEvaluationEnvironment {
@@ -235,6 +237,34 @@ const evaluateBinary = (node: TypedScalarBinaryExpressionNode, environment: Scal
   return evaluateArithmeticOrComparisonOperator(node.operator, node.left, node.right, type, environment);
 };
 
+const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
+  const type = node.type;
+  if (type === null || node.target === null) return staticTypeNullError();
+
+  const args: number[] = [];
+  for (const argumentNode of node.args) {
+    const argument = evaluateTypedExpression(argumentNode, environment);
+    if (argument.status === "error") return propagateError(type, argument);
+    args.push(numberValueOf(argument.value));
+  }
+
+  const result = evaluateBuiltinFunction(node.target.name, args);
+  if (result.status === "error") {
+    return {
+      status: "error",
+      type,
+      issueCode:
+        result.reason === "invalid-argument"
+          ? "evaluation-invalid-builtin-argument"
+          : "evaluation-non-finite-result"
+    };
+  }
+  if (typeof result.value === "boolean") {
+    return { status: "ok", type, value: { kind: "boolean", value: result.value } };
+  }
+  return finiteNumberResult(type, result.value);
+};
+
 export const evaluateTypedExpression = (
   node: TypedScalarExpression,
   environment: ScalarEvaluationEnvironment
@@ -265,6 +295,6 @@ export const evaluateTypedExpression = (
       return evaluateTypedExpression(node.expression, environment);
     }
     case "call":
-      throw new Error("expressionEvaluator: named scalar calls are not evaluated yet");
+      return evaluateCall(node, environment);
   }
 };

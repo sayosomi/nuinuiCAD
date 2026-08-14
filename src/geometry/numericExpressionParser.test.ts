@@ -73,6 +73,26 @@ describe("numeric expression token spans", () => {
   });
 });
 
+describe("legacy numeric sqrt", () => {
+  it("keeps the existing negative-argument error", () => {
+    expect(() => evaluate("sqrt(-1)")).toThrow("sqrt の引数は0以上である必要があります。");
+  });
+
+  it("uses shared sqrt semantics and rejects a non-finite argument", () => {
+    const parser = new Parser(
+      tokenize("sqrt(value.length)"),
+      () => Number.POSITIVE_INFINITY,
+      () => 0,
+      () => 0
+    );
+    expect(() => parser.parse()).toThrow("sqrt の計算結果が不正です。");
+  });
+
+  it("continues to evaluate valid legacy sqrt expressions", () => {
+    expect(evaluate("sqrt(9) + 1")).toBe(4);
+  });
+});
+
 describe("numeric expression literal spans", () => {
   it("selects only lexer-proven numeric literals, including contiguous unary signs", () => {
     expect(findNumericExpressionLiteralSpanAt("-0.5 + 2", { start: 1, end: 1 })).toEqual({ start: 0, end: 4 });
