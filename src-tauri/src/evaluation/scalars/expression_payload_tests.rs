@@ -1,8 +1,7 @@
 use serde_json::{json, Map, Value};
 
 use super::expression_payload::{
-    validate_typed_expression_payload, MAX_TYPED_EXPRESSION_NODE_COUNT,
-    MAX_UNARY_GROUP_NESTING_DEPTH,
+    validate_typed_expression_payload, MAX_SCALAR_EXPRESSION_DEPTH, MAX_TYPED_EXPRESSION_NODE_COUNT,
 };
 use super::issue::ScalarPayloadIssueCode as Code;
 use super::types::{ScalarType, TypedScalarExpression};
@@ -24,7 +23,7 @@ const FIXTURE_JSON: &str = include_str!(concat!(
     "/../test/fixtures/typed-expressions.json"
 ));
 
-const AST_NODE_KINDS: [&str; 8] = [
+const AST_NODE_KINDS: [&str; 9] = [
     "numberLiteral",
     "stringLiteral",
     "booleanLiteral",
@@ -33,9 +32,10 @@ const AST_NODE_KINDS: [&str; 8] = [
     "unary",
     "binary",
     "group",
+    "call",
 ];
 
-/// Only injects into AST-node objects (`kind` is one of the 8 node kinds)
+/// Only injects into AST-node objects (`kind` is one of the 9 node kinds)
 /// and only recurses through AST child fields (`operand`/`left`/`right`/
 /// `expression`) - deliberately does *not* walk into `type` (a
 /// `ScalarType`, whose objects also happen to have a `kind` field, e.g.
@@ -57,6 +57,11 @@ fn inject_dummy_spans(value: &mut Value) {
     for key in ["operand", "left", "right", "expression"] {
         if let Some(child) = map.get_mut(key) {
             inject_dummy_spans(child);
+        }
+    }
+    if let Some(Value::Array(args)) = map.get_mut("args") {
+        for argument in args {
+            inject_dummy_spans(argument);
         }
     }
 }
@@ -156,6 +161,141 @@ fn reference_literal() -> Value {
         "kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1},
         "name": "x", "bindingId": "binding:x", "type": {"kind": "number"}
     })
+}
+
+fn geometry_property_literal() -> Value {
+    json!({
+        "kind": "geometryProperty", "span": {"start": 0, "end": 1},
+        "elementNameSpan": {"start": 0, "end": 1}, "propertySpan": {"start": 0, "end": 1},
+        "elementName": "line", "elementId": "element:line", "property": "length",
+        "targetSourceOrder": 0, "type": {"kind": "number"}
+    })
+}
+
+fn builtin_call(name: &str, args: Vec<Value>) -> Value {
+    json!({
+        "kind": "call", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1},
+        "name": name, "target": {"kind": "builtin", "name": name}, "args": args,
+        "type": {"kind": "number"}
+    })
+}
+
+fn builtin_call_with_target_name(name: &str, target_name: &str, args: Vec<Value>) -> Value {
+    json!({
+        "kind": "call", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1},
+        "name": name, "target": {"kind": "builtin", "name": target_name}, "args": args,
+        "type": {"kind": "number"}
+    })
+}
+
+#[test]
+fn decodes_builtin_call_and_preserves_nested_argument_order_and_references() {
+    let payload = builtin_call(
+        "min",
+        vec![
+            builtin_call("abs", vec![reference_literal()]),
+            geometry_property_literal(),
+        ],
+    );
+    let decoded = validate_typed_expression_payload(&payload).unwrap();
+    match &decoded {
+        TypedScalarExpression::Call {
+            name, args, target, ..
+        } => {
+            assert_eq!(name, "min");
+            assert_eq!(args.len(), 2);
+            assert!(matches!(
+                target,
+                super::types::TypedScalarCallTarget::Builtin(_)
+            ));
+            assert!(matches!(args[0], TypedScalarExpression::Call { .. }));
+            assert!(matches!(
+                args[1],
+                TypedScalarExpression::GeometryProperty { .. }
+            ));
+        }
+        other => panic!("expected a call node, got {other:?}"),
+    }
+}
+
+#[test]
+fn call_dispatch_identity_does_not_re_resolve_the_source_name() {
+    let payload = builtin_call_with_target_name("not-a-builtin", "abs", vec![number_literal()]);
+    assert!(validate_typed_expression_payload(&payload).is_ok());
+}
+
+#[test]
+fn rejects_unknown_call_target_kind() {
+    let mut payload = builtin_call("abs", vec![number_literal()]);
+    payload["target"]["kind"] = json!("userFunction");
+    let error = validate_typed_expression_payload(&payload).unwrap_err();
+    assert_eq!(error.code, Code::UnknownKind);
+}
+
+#[test]
+fn rejects_unknown_builtin_target_name() {
+    let payload = builtin_call_with_target_name("abs", "unknown", vec![number_literal()]);
+    let error = validate_typed_expression_payload(&payload).unwrap_err();
+    assert_eq!(error.code, Code::UnknownKind);
+}
+
+#[test]
+fn rejects_null_call_target() {
+    let mut payload = builtin_call("abs", vec![number_literal()]);
+    payload["target"] = Value::Null;
+    let error = validate_typed_expression_payload(&payload).unwrap_err();
+    assert_eq!(error.code, Code::NotAnObject);
+}
+
+#[test]
+fn rejects_malformed_call_target_and_unexpected_target_fields() {
+    let mut missing_name = builtin_call("abs", vec![number_literal()]);
+    missing_name["target"] = json!({"kind": "builtin"});
+    assert_eq!(
+        validate_typed_expression_payload(&missing_name)
+            .unwrap_err()
+            .code,
+        Code::MissingField
+    );
+
+    let mut extra_field = builtin_call("abs", vec![number_literal()]);
+    extra_field["target"]["extra"] = json!(true);
+    assert_eq!(
+        validate_typed_expression_payload(&extra_field)
+            .unwrap_err()
+            .code,
+        Code::UnexpectedField
+    );
+}
+
+#[test]
+fn rejects_malformed_call_args_and_unexpected_call_fields() {
+    let mut missing_args = builtin_call("abs", vec![number_literal()]);
+    missing_args.as_object_mut().unwrap().remove("args");
+    assert_eq!(
+        validate_typed_expression_payload(&missing_args)
+            .unwrap_err()
+            .code,
+        Code::MissingField
+    );
+
+    let mut non_array_args = builtin_call("abs", vec![number_literal()]);
+    non_array_args["args"] = json!("not-an-array");
+    assert_eq!(
+        validate_typed_expression_payload(&non_array_args)
+            .unwrap_err()
+            .code,
+        Code::InvalidFieldType
+    );
+
+    let mut extra_field = builtin_call("abs", vec![number_literal()]);
+    extra_field["extra"] = json!(true);
+    assert_eq!(
+        validate_typed_expression_payload(&extra_field)
+            .unwrap_err()
+            .code,
+        Code::UnexpectedField
+    );
 }
 
 #[test]
@@ -291,7 +431,7 @@ fn accepts_choice_literal_with_a_null_type() {
 /// Builds a flat left-deep `+` chain, `depth` levels deep, whose innermost
 /// leaf is a `reference` node (exercising `nameSpan` decode, not just
 /// `span`). A `binary` node never increments the unary/group nesting
-/// counter (see `MAX_UNARY_GROUP_NESTING_DEPTH`'s doc in
+/// counter (see `MAX_SCALAR_EXPRESSION_DEPTH`'s doc in
 /// expression_payload.rs), so this is bounded only by the node-count guard.
 ///
 /// Deliberately does **not** use the `json!({"left": node, ...})` macro
@@ -370,6 +510,32 @@ fn build_nested_group_chain(depth: usize) -> Value {
     node
 }
 
+fn build_nested_call_chain(depth: usize) -> Value {
+    let mut node = number_literal();
+    for _ in 0..depth {
+        let mut object = Map::new();
+        object.insert("kind".to_owned(), Value::String("call".to_owned()));
+        object.insert("span".to_owned(), json!({"start": 0, "end": 1}));
+        object.insert("nameSpan".to_owned(), json!({"start": 0, "end": 1}));
+        object.insert("name".to_owned(), Value::String("abs".to_owned()));
+        object.insert(
+            "target".to_owned(),
+            json!({"kind": "builtin", "name": "abs"}),
+        );
+        object.insert("args".to_owned(), Value::Array(vec![node]));
+        object.insert("type".to_owned(), json!({"kind": "number"}));
+        node = Value::Object(object);
+    }
+    node
+}
+
+fn build_wide_call_tree(call_count: usize) -> Value {
+    let args = (0..call_count)
+        .map(|_| builtin_call("abs", vec![number_literal()]))
+        .collect();
+    builtin_call("abs", args)
+}
+
 /// Spawns a worker thread with an explicit 2 MiB stack - the default size
 /// for a spawned/worker thread, and the realistic conservative case for
 /// where a Tauri command handler might actually run (deliberately not
@@ -435,7 +601,7 @@ fn accepts_a_long_flat_binary_chain_within_the_node_count_budget() {
 
 #[test]
 fn accepts_unary_group_nesting_exactly_at_the_limit() {
-    let payload = build_nested_group_chain(MAX_UNARY_GROUP_NESTING_DEPTH);
+    let payload = build_nested_group_chain(MAX_SCALAR_EXPRESSION_DEPTH);
     let result = validate_typed_expression_payload(&payload);
     assert!(
         result.is_ok(),
@@ -447,13 +613,33 @@ fn accepts_unary_group_nesting_exactly_at_the_limit() {
 #[test]
 fn rejects_unary_group_nesting_one_level_past_the_limit() {
     // Unlike a flat binary chain, TS's own parser genuinely cannot produce
-    // a payload past this - see MAX_UNARY_GROUP_NESTING_DEPTH's doc comment
+    // a payload past this - see MAX_SCALAR_EXPRESSION_DEPTH's doc comment
     // in expression_payload.rs for the exact TS-side wire contract this
     // mirrors (verified against expressionParser.ts's `enterNesting` call
     // sites, not assumed).
-    let payload = build_nested_group_chain(MAX_UNARY_GROUP_NESTING_DEPTH + 1);
+    let payload = build_nested_group_chain(MAX_SCALAR_EXPRESSION_DEPTH + 1);
     let error = validate_typed_expression_payload(&payload).unwrap_err();
     assert_eq!(error.code, Code::DepthExceeded);
+}
+
+#[test]
+fn accepts_nested_calls_exactly_at_the_shared_expression_depth_limit() {
+    let payload = build_nested_call_chain(MAX_SCALAR_EXPRESSION_DEPTH);
+    assert!(validate_typed_expression_payload(&payload).is_ok());
+}
+
+#[test]
+fn rejects_nested_calls_one_level_past_the_shared_expression_depth_limit() {
+    let payload = build_nested_call_chain(MAX_SCALAR_EXPRESSION_DEPTH + 1);
+    let error = validate_typed_expression_payload(&payload).unwrap_err();
+    assert_eq!(error.code, Code::DepthExceeded);
+}
+
+#[test]
+fn call_nodes_count_toward_the_existing_node_count_limit() {
+    let payload = build_wide_call_tree(MAX_TYPED_EXPRESSION_NODE_COUNT / 2);
+    let error = validate_typed_expression_payload(&payload).unwrap_err();
+    assert_eq!(error.code, Code::NodeCountExceeded);
 }
 
 #[test]

@@ -9,11 +9,14 @@
 //! Mirrors `src/scalars/expressionEvaluator.ts` field-for-field, including
 //! its exact `evaluation-*` issue-code vocabulary.
 
+use super::builtin_function_semantics::{
+    evaluate_builtin_function, BuiltinFunctionError, BuiltinFunctionValue,
+};
 use super::expression_evaluator::{EvalWork, ScalarEvaluationEnvironment};
 use super::scalar_payload::scalar_value_matches_type;
 use super::types::{
     BindingId, ScalarBinaryOperator, ScalarEvaluation, ScalarType, ScalarUnaryOperator,
-    ScalarValue, TypedScalarExpression,
+    ScalarValue, TypedScalarCallTarget, TypedScalarExpression,
 };
 
 /// Documented placeholder used only when a node's static `type` is `None`.
@@ -106,6 +109,81 @@ fn finite_number_result(r#type: ScalarType, value: f64) -> ScalarEvaluation {
             issue_code: "evaluation-non-finite-result".to_owned(),
             binding_id: None,
         }
+    }
+}
+
+fn finish_builtin_call(
+    target: TypedScalarCallTarget,
+    r#type: ScalarType,
+    values: &[f64],
+) -> ScalarEvaluation {
+    let TypedScalarCallTarget::Builtin(name) = target;
+    match evaluate_builtin_function(name, values) {
+        super::builtin_function_semantics::BuiltinFunctionEvaluation::Ok(
+            BuiltinFunctionValue::Number(value),
+        ) => finite_number_result(r#type, value),
+        super::builtin_function_semantics::BuiltinFunctionEvaluation::Ok(
+            BuiltinFunctionValue::Boolean(value),
+        ) => ScalarEvaluation::Ok {
+            r#type,
+            value: ScalarValue::Boolean(value),
+        },
+        super::builtin_function_semantics::BuiltinFunctionEvaluation::Error(error) => {
+            let issue_code = match error {
+                BuiltinFunctionError::InvalidArgument => "evaluation-invalid-builtin-argument",
+                BuiltinFunctionError::NonFiniteResult => "evaluation-non-finite-result",
+            };
+            ScalarEvaluation::Error {
+                r#type,
+                issue_code: issue_code.to_owned(),
+                binding_id: None,
+            }
+        }
+    }
+}
+
+/// Evaluates call arguments one at a time from left to right. A continuation
+/// is re-pushed only after the current argument succeeds, so an argument
+/// error prevents every later argument from being evaluated.
+pub(crate) fn continue_builtin_call<'a>(
+    target: TypedScalarCallTarget,
+    r#type: ScalarType,
+    args: &'a [TypedScalarExpression],
+    next_index: usize,
+    mut values: Vec<f64>,
+    work: &mut Vec<EvalWork<'a>>,
+    output: &mut Vec<ScalarEvaluation>,
+) {
+    if next_index >= args.len() {
+        output.push(finish_builtin_call(target, r#type, &values));
+        return;
+    }
+
+    let argument = output
+        .pop()
+        .expect("builtin argument must already be resolved before its continuation");
+    let ScalarEvaluation::Ok { value, .. } = &argument else {
+        output.push(propagate_error(r#type, argument));
+        return;
+    };
+    let Some(number) = number_value_of(value) else {
+        output.push(runtime_value_type_mismatch(r#type));
+        return;
+    };
+    values.push(number);
+
+    let next_index = next_index + 1;
+    if next_index < args.len() {
+        work.push(EvalWork::ContinueBuiltinCall {
+            target,
+            r#type,
+            args,
+            next_index,
+            values,
+        });
+        work.push(EvalWork::Eval(&args[next_index]));
+    } else {
+        output.push(finish_builtin_call(target, r#type, &values));
     }
 }
 

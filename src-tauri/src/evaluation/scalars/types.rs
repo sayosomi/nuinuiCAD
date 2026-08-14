@@ -5,7 +5,7 @@
 //!
 //! Mirrors (field-for-field): `src/scalars/types.ts` (`ScalarType`,
 //! `ScalarValue`, `ScalarEvaluation`) and `src/scalars/typedExpressionAst.ts`
-//! (`TypedScalarExpression` and its 8 node kinds). `BindingId` is an opaque
+//! (`TypedScalarExpression` and its 9 node kinds). `BindingId` is an opaque
 //! string (format `binding:<id>`, per `src/scalars/bindingCatalog.ts`) that
 //! Rust never parses or resolves - see the module doc on
 //! `expression_payload.rs` for why.
@@ -86,8 +86,49 @@ pub(crate) enum ScalarBinaryOperator {
     Div,
 }
 
+/// Closed identity for the builtins that TypeScript has already resolved.
+/// Rust never resolves a source-level function name; it only accepts one of
+/// these identities at the payload boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BuiltinFunctionName {
+    Abs,
+    Min,
+    Max,
+    Sqrt,
+    Round,
+    Floor,
+    Ceil,
+    RoundTo,
+    IsClose,
+}
+
+impl BuiltinFunctionName {
+    pub(crate) fn from_wire_name(name: &str) -> Option<Self> {
+        match name {
+            "abs" => Some(Self::Abs),
+            "min" => Some(Self::Min),
+            "max" => Some(Self::Max),
+            "sqrt" => Some(Self::Sqrt),
+            "round" => Some(Self::Round),
+            "floor" => Some(Self::Floor),
+            "ceil" => Some(Self::Ceil),
+            "roundTo" => Some(Self::RoundTo),
+            "isClose" => Some(Self::IsClose),
+            _ => None,
+        }
+    }
+}
+
+/// A call target is resolved before it crosses into Rust. Keeping this as a
+/// closed type prevents the evaluator from re-resolving source names or
+/// accepting an arbitrary callee shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypedScalarCallTarget {
+    Builtin(BuiltinFunctionName),
+}
+
 /// Mirrors `src/scalars/typedExpressionAst.ts`'s `TypedScalarExpression`.
-/// Every node kind except the three literal leaves carries a nullable
+/// Every node kind except the four literal leaves carries a nullable
 /// `type: Option<ScalarType>` - per that TS module's own documented
 /// invariant, this nullability is the sole in-band "this node/subtree is
 /// invalid" signal (no separate failure-case node kind exists).
@@ -156,6 +197,14 @@ pub(crate) enum TypedScalarExpression {
         expression: Box<TypedScalarExpression>,
         r#type: Option<ScalarType>,
     },
+    Call {
+        span: ScalarSpan,
+        name_span: ScalarSpan,
+        name: String,
+        target: TypedScalarCallTarget,
+        args: Vec<TypedScalarExpression>,
+        r#type: Option<ScalarType>,
+    },
 }
 
 /// Decoding a `TypedScalarExpression` from JSON is iterative (see
@@ -216,6 +265,7 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
                 childless_placeholder(),
             )]
         }
+        TypedScalarExpression::Call { args, .. } => std::mem::take(args),
         TypedScalarExpression::NumberLiteral { .. }
         | TypedScalarExpression::StringLiteral { .. }
         | TypedScalarExpression::BooleanLiteral { .. }

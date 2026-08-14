@@ -29,12 +29,12 @@
 //! the decode side.
 
 use super::expression_evaluator_ops::{
-    continue_logical, evaluate_reference, finish_eager_binary, finish_logical_right, finish_unary,
-    static_type_null_error,
+    continue_builtin_call, continue_logical, evaluate_reference, finish_eager_binary,
+    finish_logical_right, finish_unary, static_type_null_error,
 };
 use super::types::{
     ScalarBinaryOperator, ScalarEvaluation, ScalarType, ScalarUnaryOperator, ScalarValue,
-    TypedScalarExpression,
+    TypedScalarCallTarget, TypedScalarExpression,
 };
 
 /// Resolves a runtime value for an already-resolved binding ID. Mirrors TS's
@@ -90,6 +90,13 @@ pub(super) enum EvalWork<'a> {
         operator: ScalarBinaryOperator,
         r#type: ScalarType,
     },
+    ContinueBuiltinCall {
+        target: TypedScalarCallTarget,
+        r#type: ScalarType,
+        args: &'a [TypedScalarExpression],
+        next_index: usize,
+        values: Vec<f64>,
+    },
 }
 
 /// Entry point: evaluates a validated `TypedScalarExpression` against
@@ -120,6 +127,21 @@ pub(crate) fn evaluate_typed_expression(
             EvalWork::FinishEagerBinary { operator, r#type } => {
                 finish_eager_binary(operator, r#type, &mut output)
             }
+            EvalWork::ContinueBuiltinCall {
+                target,
+                r#type,
+                args,
+                next_index,
+                values,
+            } => continue_builtin_call(
+                target,
+                r#type,
+                args,
+                next_index,
+                values,
+                &mut work,
+                &mut output,
+            ),
         }
     }
 
@@ -129,7 +151,7 @@ pub(crate) fn evaluate_typed_expression(
 }
 
 /// Processes one `Eval` work item: literals/`reference` push a fully-resolved
-/// result straight onto `output`; `unary`/`binary`/`group` either fail closed
+/// result straight onto `output`; `unary`/`binary`/`group`/`call` either fail closed
 /// immediately on a `null` static type (their child/children are never
 /// touched - no `lookup_binding` call is reachable through a type-null node)
 /// or push follow-up work. `group` is the one case with **no** `Finish`
@@ -244,6 +266,26 @@ fn eval_node<'a>(
                     work.push(EvalWork::Eval(left));
                 }
             },
+        },
+        TypedScalarExpression::Call {
+            target,
+            args,
+            r#type,
+            ..
+        } => match r#type {
+            None => output.push(static_type_null_error(None)),
+            Some(concrete_type) => {
+                work.push(EvalWork::ContinueBuiltinCall {
+                    target: *target,
+                    r#type: concrete_type.clone(),
+                    args,
+                    next_index: 0,
+                    values: Vec::with_capacity(args.len()),
+                });
+                if let Some(first_argument) = args.first() {
+                    work.push(EvalWork::Eval(first_argument));
+                }
+            }
         },
     }
 }
