@@ -7,8 +7,13 @@ import {
   decodeTypedExpressionNode,
   decodeVectorBindings
 } from "./testSupport/typedExpressionVectorFixture";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import type {
+  ScalarExpressionResolvedGeometryTarget,
+  TypedBuiltinArgument,
+  TypedScalarExpression
+} from "./typedExpressionAst";
 import type { ScalarEvaluation } from "./types";
+import type { ComputedGeometry, ComputedLine, ComputedPoint } from "../types/geometry";
 
 type TypedExpressionVector = {
   name: string;
@@ -31,7 +36,7 @@ const builtinCall = (
   nameSpan: { start: 0, end: 0 },
   name: name ?? targetName,
   target: { kind: "builtin", name: targetName },
-  args,
+  args: args.map((expression) => ({ kind: "scalar", expression })),
   type: targetName === "isClose" ? { kind: "boolean" } : { kind: "number" }
 });
 
@@ -40,6 +45,53 @@ const numberLiteral = (value: number): TypedScalarExpression => ({
   span: { start: 0, end: 0 },
   value,
   type: { kind: "number" }
+});
+
+const geometryTarget = (
+  statementId: string,
+  statementIndex: number,
+  geometryType: "point" | "line" | "path"
+): ScalarExpressionResolvedGeometryTarget => ({ statementId, statementIndex, geometryType });
+
+const geometryReference = (
+  expectedGeometryType: "point" | "line",
+  target: ScalarExpressionResolvedGeometryTarget | null
+): TypedBuiltinArgument => ({ kind: "geometryReference", expectedGeometryType, target });
+
+const geometryBuiltinCall = (
+  targetName: Extract<BuiltinFunctionName, "distance" | "angle" | "lineDistance">,
+  args: readonly TypedBuiltinArgument[]
+): Extract<TypedScalarExpression, { kind: "call" }> => ({
+  kind: "call",
+  span: { start: 0, end: 0 },
+  nameSpan: { start: 0, end: 0 },
+  name: targetName,
+  target: { kind: "builtin", name: targetName },
+  args,
+  type: { kind: "number" }
+});
+
+const computedPoint = (elementId: string, x: number, y: number): ComputedPoint => ({
+  kind: "point",
+  elementId,
+  name: elementId,
+  x,
+  y
+});
+
+const computedLine = (elementId: string, start: ComputedPoint, end: ComputedPoint): ComputedLine => ({
+  kind: "line",
+  elementId,
+  name: elementId,
+  startPointId: start.elementId,
+  endPointId: end.elementId,
+  start,
+  end,
+  length: Math.hypot(end.x - start.x, end.y - start.y),
+  startAngleDeg: null,
+  endAngleDeg: null,
+  startTangentAngleDeg: null,
+  endTangentAngleDeg: null
 });
 
 const evaluateVector = (vector: TypedExpressionVector): ScalarEvaluation => {
@@ -339,6 +391,151 @@ describe("evaluateTypedExpression / builtin calls", () => {
       type: { kind: "number" },
       issueCode: "evaluation-static-type-null"
     });
+  });
+
+  it("fails closed for geometryReference arguments without scalar lookup", () => {
+    const lookupBinding = () => {
+      throw new Error("geometry references must not use scalar lookup");
+    };
+    const node = {
+      ...builtinCall("distance", [numberLiteral(1), numberLiteral(2)]),
+      args: [
+        {
+          kind: "geometryReference" as const,
+          expectedGeometryType: "point" as const,
+          target: { statementId: "stable-A", statementIndex: 1, geometryType: "point" as const }
+        },
+        {
+          kind: "geometryReference" as const,
+          expectedGeometryType: "point" as const,
+          target: { statementId: "stable-B", statementIndex: 2, geometryType: "point" as const }
+        }
+      ]
+    };
+    expect(evaluateTypedExpression(node, { lookupBinding })).toEqual({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-geometry-builtin-unavailable"
+    });
+  });
+});
+
+describe("evaluateTypedExpression / geometry measurement builtins", () => {
+  const start = computedPoint("start", 0, 0);
+  const threeFour = computedPoint("three-four", 3, 4);
+  const horizontalLine = computedLine("horizontal", computedPoint("line-start", 0, 0), computedPoint("line-end", 1, 0));
+
+  it("evaluates distance from runtime points and passes the stable target IDs to lookup", () => {
+    const firstTarget = geometryTarget("stable-A", 1, "point");
+    const secondTarget = geometryTarget("stable-B", 2, "point");
+    const lookedUp: ScalarExpressionResolvedGeometryTarget[] = [];
+    const result = evaluateTypedExpression(
+      geometryBuiltinCall("distance", [geometryReference("point", firstTarget), geometryReference("point", secondTarget)]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: (target) => {
+          lookedUp.push(target);
+          return target.statementId === "stable-A" ? start : threeFour;
+        }
+      }
+    );
+    expect(result).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 5 } });
+    expect(lookedUp).toEqual([firstTarget, secondTarget]);
+  });
+
+  it("returns zero for distance between the same point", () => {
+    const target = geometryTarget("same", 1, "point");
+    expect(evaluateTypedExpression(
+      geometryBuiltinCall("distance", [geometryReference("point", target), geometryReference("point", target)]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: () => start
+      }
+    )).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 0 } });
+  });
+
+  it.each([
+    ["right", 1, 0, 0],
+    ["up", 0, 1, 90],
+    ["left", -1, 0, 180],
+    ["down", 0, -1, 270],
+    ["diagonal", 1, 1, 45],
+    ["same", 0, 0, 0]
+  ])("normalizes angle (%s) into [0, 360)", (_name, x, y, expected) => {
+    const from = geometryTarget("from", 1, "point");
+    const to = geometryTarget("to", 2, "point");
+    expect(evaluateTypedExpression(
+      geometryBuiltinCall("angle", [geometryReference("point", from), geometryReference("point", to)]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: (target) => target.statementId === "from" ? start : computedPoint("to", x, y)
+      }
+    )).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: expected } });
+  });
+
+  it("measures distance to the infinite line without endpoint clamping", () => {
+    const pointTarget = geometryTarget("point", 3, "point");
+    const lineTarget = geometryTarget("line", 4, "line");
+    expect(evaluateTypedExpression(
+      geometryBuiltinCall("lineDistance", [geometryReference("point", pointTarget), geometryReference("line", lineTarget)]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: (target) => target.statementId === "point" ? computedPoint("point", 10, 3) : horizontalLine
+      }
+    )).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 3 } });
+  });
+
+  it("fails with evaluation-invalid-builtin-argument for a zero-length line", () => {
+    const pointTarget = geometryTarget("point", 1, "point");
+    const lineTarget = geometryTarget("line", 2, "line");
+    const zeroLengthLine = computedLine("zero", computedPoint("zero-start", 4, 4), computedPoint("zero-end", 4, 4));
+    expect(evaluateTypedExpression(
+      geometryBuiltinCall("lineDistance", [geometryReference("point", pointTarget), geometryReference("line", lineTarget)]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: (target) => target.statementId === "point" ? start : zeroLengthLine
+      }
+    )).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-invalid-builtin-argument" });
+  });
+
+  it.each([
+    ["null target", geometryBuiltinCall("distance", [geometryReference("point", null), geometryReference("point", geometryTarget("B", 2, "point"))]), undefined],
+    ["missing lookup", geometryBuiltinCall("distance", [geometryReference("point", geometryTarget("A", 1, "point")), geometryReference("point", geometryTarget("B", 2, "point"))]), undefined],
+    ["geometry metadata mismatch", geometryBuiltinCall("distance", [geometryReference("point", geometryTarget("A", 1, "line")), geometryReference("point", geometryTarget("B", 2, "point"))]), () => start],
+    ["unavailable runtime geometry", geometryBuiltinCall("distance", [geometryReference("point", geometryTarget("A", 1, "point")), geometryReference("point", geometryTarget("B", 2, "point"))]), () => undefined]
+  ])("fails closed for %s", (_name, node, lookup) => {
+    const result = evaluateTypedExpression(node, {
+      lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+      ...(lookup ? { lookupGeometryTarget: lookup as (target: ScalarExpressionResolvedGeometryTarget) => ComputedGeometry | undefined } : {})
+    });
+    expect(result).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-builtin-unavailable" });
+  });
+
+  it("rejects a point builtin argument backed by a runtime line", () => {
+    const pointTarget = geometryTarget("line-runtime", 1, "point");
+    const otherTarget = geometryTarget("point-runtime", 2, "point");
+    expect(evaluateTypedExpression(
+      geometryBuiltinCall("distance", [geometryReference("point", pointTarget), geometryReference("point", otherTarget)]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: (target) => target.statementId === "line-runtime" ? horizontalLine : start
+      }
+    )).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-builtin-unavailable" });
+  });
+
+  it.each([
+    ["point", start],
+    ["path", { kind: "bezierCurve" } as ComputedGeometry]
+  ])("rejects a line builtin argument backed by a runtime %s", (_name, runtimeGeometry) => {
+    const pointTarget = geometryTarget("point", 1, "point");
+    const lineTarget = geometryTarget("not-line", 2, "line");
+    expect(evaluateTypedExpression(
+      geometryBuiltinCall("lineDistance", [geometryReference("point", pointTarget), geometryReference("line", lineTarget)]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: (target) => target.statementId === "point" ? start : runtimeGeometry
+      }
+    )).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-builtin-unavailable" });
   });
 });
 

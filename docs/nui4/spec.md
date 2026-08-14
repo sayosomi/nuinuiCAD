@@ -184,6 +184,9 @@ The current builtin catalog is:
 | `ceil` | `ceil(number) -> number`, `ceil(number, number) -> number` |
 | `roundTo` | `roundTo(number, number) -> number` |
 | `isClose` | `isClose(number, number, number) -> boolean` |
+| `distance` | `distance(point, point) -> number` |
+| `angle` | `angle(point, point) -> number` |
+| `lineDistance` | `lineDistance(point, line) -> number` |
 
 The second argument of `round`, `floor`, and `ceil` is the decimal digit
 position and must be an integer. `round` uses an away-from-zero midpoint rule
@@ -191,6 +194,19 @@ position and must be an integer. `round` uses an away-from-zero midpoint rule
 step, and `isClose` requires a non-negative tolerance. Invalid arguments and
 non-finite results are explicit evaluation diagnostics; no implicit numeric
 conversion is performed.
+
+The geometry measurement builtins use the existing geometry interface types.
+`distance` returns the Euclidean distance between two points. `angle` returns
+the direction from its first point to its second point in degrees, normalized
+to `0 <= angle < 360`: right is `0°`, up is `90°`, left is `180°`, and down is
+`270°`. When both points are identical, the result is `0`.
+
+`lineDistance` requires the strict `line` interface for its second argument. It
+returns the perpendicular distance from the point to the infinite straight
+line obtained by extending that line, not the shortest distance to the finite
+line segment. For example, the line `(0, 0) -> (1, 0)` and point `(10, 3)`
+produce `3`. A zero-length or effectively zero-length line is an error; the
+runtime threshold is `length <= 1e-9`.
 
 Builtins are available anywhere the shared typed-expression frontend is used:
 typed declarations, `set` right-hand sides, boolean conditions, scalar

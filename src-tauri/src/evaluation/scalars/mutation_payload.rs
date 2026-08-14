@@ -9,7 +9,7 @@ use super::expression_payload::validate_typed_expression_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
 use super::scalar_payload::decode_scalar_type;
-use super::types::{BindingId, ScalarType, TypedScalarExpression};
+use super::types::{BindingId, ScalarType, TypedBuiltinArgument, TypedScalarExpression};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum InitialState {
@@ -433,7 +433,11 @@ fn collect_references<'a>(expression: &'a TypedScalarExpression, output: &mut Ve
                 work.push(right);
             }
             TypedScalarExpression::Call { args, .. } => {
-                work.extend(args.iter());
+                for argument in args {
+                    if let TypedBuiltinArgument::Scalar { expression } = argument {
+                        work.push(expression);
+                    }
+                }
             }
             _ => {}
         }

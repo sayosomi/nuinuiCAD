@@ -19,22 +19,26 @@ import {
   type ScalarExpressionAst
 } from "./expressionAst";
 import type { BindingResolution } from "./bindingResolution";
-import { getBuiltinFunctionDefinition } from "./builtinFunctions";
+import { getBuiltinFunctionDefinition, isScalarBuiltinParameterType } from "./builtinFunctions";
 import type {
+  ScalarExpressionResolvedGeometryTarget,
   ScalarExpressionResolvedReference,
   ScalarExpressionTypecheckContext,
   ScalarExpressionTypecheckDiagnostic,
   ScalarExpressionTypecheckResult,
+  TypedBuiltinArgument,
   TypedScalarExpression
 } from "./typedExpressionAst";
 import { isChoiceOptionMember, isScalarTypeAssignable } from "./scalarAssignability";
 import { isChoiceScalarType, type ChoiceScalarType, type ScalarType } from "./types";
+import { isModuleGeometryInterfaceAssignable } from "../dsl/moduleGeometryInterfaces";
 
 const NUMBER_TYPE: Extract<ScalarType, { kind: "number" }> = { kind: "number" };
 const BOOLEAN_TYPE: Extract<ScalarType, { kind: "boolean" }> = { kind: "boolean" };
 
 interface TraversalState {
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
+  readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
   cursor: number;
   readonly diagnostics: ScalarExpressionTypecheckDiagnostic[];
   readonly resolveChoiceLiteral?: ScalarExpressionTypecheckContext["resolveChoiceLiteral"];
@@ -190,6 +194,9 @@ const checkNode = (
 
     case "reference": {
       const resolution = nextReferenceResolution(state, node.name, node.span.start);
+      if (resolution.kind === "resolvedGeometry") {
+        return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: null, type: null };
+      }
       if (resolution.kind === "resolvedType") {
         return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: resolution.bindingId, type: resolution.type };
       }
@@ -238,8 +245,8 @@ const checkNode = (
 
     case "call": {
       const definition = getBuiltinFunctionDefinition(node.name);
-      const args = node.args.map((arg) => checkNode(arg, null, state));
       if (definition === null) {
+        const args: TypedBuiltinArgument[] = node.args.map((arg) => ({ kind: "scalar", expression: checkNode(arg, null, state) }));
         addDiagnostic(state, {
           code: "unknown-function",
           span: node.nameSpan,
@@ -248,10 +255,11 @@ const checkNode = (
         return { kind: "call", span: node.span, nameSpan: node.nameSpan, name: node.name, target: null, args, type: null };
       }
 
-      const signature = definition.signatures.find((candidate) => candidate.argumentTypes.length === args.length);
+      const signature = definition.signatures.find((candidate) => candidate.argumentTypes.length === node.args.length);
       if (signature === undefined) {
         const acceptedArities = definition.signatures.map((candidate) => candidate.argumentTypes.length);
         const arityText = acceptedArities.length === 1 ? `${acceptedArities[0]}` : acceptedArities.join("または");
+        const args: TypedBuiltinArgument[] = node.args.map((arg) => ({ kind: "scalar", expression: checkNode(arg, null, state) }));
         addDiagnostic(state, {
           code: "function-arity-mismatch",
           span: node.nameSpan,
@@ -268,9 +276,41 @@ const checkNode = (
         };
       }
 
+      const args: TypedBuiltinArgument[] = [];
       let argumentsAreValid = true;
-      for (const [index, argument] of args.entries()) {
-        if (!checkOperandType(state, argument, signature.argumentTypes[index])) argumentsAreValid = false;
+      for (const [index, nodeArgument] of node.args.entries()) {
+        const parameterType = signature.argumentTypes[index];
+        if (!parameterType) {
+          argumentsAreValid = false;
+          args.push({ kind: "scalar", expression: checkNode(nodeArgument, null, state) });
+          continue;
+        }
+        if (isScalarBuiltinParameterType(parameterType)) {
+          const argument = checkNode(nodeArgument, null, state);
+          args.push({ kind: "scalar", expression: argument });
+          if (!checkOperandType(state, argument, parameterType)) argumentsAreValid = false;
+          continue;
+        }
+
+        let target: ScalarExpressionResolvedGeometryTarget | null = null;
+        if (nodeArgument.kind === "reference") {
+          const resolution = nextReferenceResolution(state, nodeArgument.name, nodeArgument.span.start);
+          if (resolution.kind === "resolvedGeometry") target = resolution.target;
+          if (resolution.kind !== "resolvedGeometry" || resolution.target === null) {
+            argumentsAreValid = false;
+          } else if (!isModuleGeometryInterfaceAssignable(resolution.target.geometryType, parameterType)) {
+            argumentsAreValid = false;
+          }
+        } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
+          target = state.geometryBuiltinArguments?.get(nodeArgument.span.start) ?? null;
+          if (target === null || !isModuleGeometryInterfaceAssignable(target.geometryType, parameterType)) {
+            argumentsAreValid = false;
+          }
+        } else {
+          checkNode(nodeArgument, null, state);
+          argumentsAreValid = false;
+        }
+        args.push({ kind: "geometryReference", expectedGeometryType: parameterType, target });
       }
       return {
         kind: "call",
@@ -291,6 +331,7 @@ export const typecheckScalarExpression = (
 ): ScalarExpressionTypecheckResult => {
   const state: TraversalState = {
     references: context.references,
+    geometryBuiltinArguments: context.geometryBuiltinArguments,
     cursor: 0,
     diagnostics: [],
     resolveChoiceLiteral: context.resolveChoiceLiteral

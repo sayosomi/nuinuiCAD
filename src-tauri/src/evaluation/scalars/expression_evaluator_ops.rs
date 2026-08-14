@@ -13,10 +13,14 @@ use super::builtin_function_semantics::{
     evaluate_builtin_function, BuiltinFunctionError, BuiltinFunctionValue,
 };
 use super::expression_evaluator::{EvalWork, ScalarEvaluationEnvironment};
+use super::geometry_builtin_runtime::{
+    validate_geometry_builtin_arguments, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
+};
 use super::scalar_payload::scalar_value_matches_type;
 use super::types::{
-    BindingId, ScalarBinaryOperator, ScalarEvaluation, ScalarType, ScalarUnaryOperator,
-    ScalarValue, TypedScalarCallTarget, TypedScalarExpression,
+    BindingId, BuiltinFunctionName, ScalarBinaryOperator, ScalarEvaluation, ScalarType,
+    ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
+    TypedScalarExpression,
 };
 
 /// Documented placeholder used only when a node's static `type` is `None`.
@@ -148,7 +152,7 @@ fn finish_builtin_call(
 pub(crate) fn continue_builtin_call<'a>(
     target: TypedScalarCallTarget,
     r#type: ScalarType,
-    args: &'a [TypedScalarExpression],
+    args: &'a [TypedBuiltinArgument],
     next_index: usize,
     mut values: Vec<f64>,
     work: &mut Vec<EvalWork<'a>>,
@@ -174,6 +178,14 @@ pub(crate) fn continue_builtin_call<'a>(
 
     let next_index = next_index + 1;
     if next_index < args.len() {
+        let TypedBuiltinArgument::Scalar { expression } = &args[next_index] else {
+            output.push(ScalarEvaluation::Error {
+                r#type,
+                issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+                binding_id: None,
+            });
+            return;
+        };
         work.push(EvalWork::ContinueBuiltinCall {
             target,
             r#type,
@@ -181,9 +193,68 @@ pub(crate) fn continue_builtin_call<'a>(
             next_index,
             values,
         });
-        work.push(EvalWork::Eval(&args[next_index]));
+        work.push(EvalWork::Eval(expression));
     } else {
         output.push(finish_builtin_call(target, r#type, &values));
+    }
+}
+
+pub(crate) fn evaluate_geometry_builtin_call(
+    name: BuiltinFunctionName,
+    r#type: ScalarType,
+    arguments: &[TypedBuiltinArgument],
+    environment: &impl ScalarEvaluationEnvironment,
+) -> ScalarEvaluation {
+    match validate_geometry_builtin_arguments(name, arguments, |target| {
+        environment.lookup_geometry_builtin_target(target)
+    }) {
+        Ok(runtime_targets) => {
+            let result = match (name, runtime_targets.as_slice()) {
+                (
+                    BuiltinFunctionName::Distance,
+                    [GeometryBuiltinRuntimeTarget::Point(first), GeometryBuiltinRuntimeTarget::Point(second)],
+                ) => {
+                    let dx = second.x - first.x;
+                    let dy = second.y - first.y;
+                    dx.hypot(dy)
+                }
+                (
+                    BuiltinFunctionName::Angle,
+                    [GeometryBuiltinRuntimeTarget::Point(first), GeometryBuiltinRuntimeTarget::Point(second)],
+                ) => {
+                    let dx = second.x - first.x;
+                    let dy = second.y - first.y;
+                    (dy.atan2(dx) * 180.0 / std::f64::consts::PI + 360.0) % 360.0
+                }
+                (
+                    BuiltinFunctionName::LineDistance,
+                    [GeometryBuiltinRuntimeTarget::Point(point), GeometryBuiltinRuntimeTarget::Line { start, end }],
+                ) => {
+                    let dx = end.x - start.x;
+                    let dy = end.y - start.y;
+                    let length = dx.hypot(dy);
+                    (dx * (start.y - point.y) - (start.x - point.x) * dy).abs() / length
+                }
+                _ => {
+                    return ScalarEvaluation::Error {
+                        r#type,
+                        issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
+                        binding_id: None,
+                    };
+                }
+            };
+            finite_number_result(r#type, result)
+        }
+        Err(GeometryBuiltinRuntimeError::Unavailable) => ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
+            binding_id: None,
+        },
+        Err(GeometryBuiltinRuntimeError::InvalidArgument) => ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+            binding_id: None,
+        },
     }
 }
 

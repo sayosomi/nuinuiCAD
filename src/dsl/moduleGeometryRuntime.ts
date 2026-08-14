@@ -3,7 +3,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
 import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
 import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
-import { moduleRuntimeGeometryKindOf } from "./moduleGeometryInterfaces";
+import { moduleRuntimeGeometryKindOf, type ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type {
   ModuleGeometryPropertySourceTarget,
   ModuleGeometryReferenceSemantic,
@@ -32,6 +32,12 @@ import {
 
 export type { ModuleGeometryPropertyRuntimeTarget };
 
+export type ModuleGeometryBuiltinRuntimeTarget = {
+  elementId: ElementId;
+  geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+  pointKey?: string;
+};
+
 export type ModuleGeometryRuntimeCompilation = {
   diagnostics: readonly DslDiagnostic[];
   resolversByRuntimeElementId: ReadonlyMap<ElementId, DslGeometryResolverOverrides>;
@@ -40,6 +46,11 @@ export type ModuleGeometryRuntimeCompilation = {
     instancePath: readonly string[],
     elementsById: ReadonlyMap<ElementId, CadElement>
   ) => ModuleGeometryPropertyRuntimeTarget | undefined;
+  resolveBuiltinTarget: (
+    target: ModuleGeometrySourceTarget,
+    instancePath: readonly string[],
+    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+  ) => ModuleGeometryBuiltinRuntimeTarget | undefined;
   coordinateForReference: (
     reference: ModuleGeometryReferenceSemantic,
     instancePath: readonly string[]
@@ -226,5 +237,26 @@ export const buildModuleGeometryRuntime = ({
     return alias?.kind === "point" ? alias.coordinate : undefined;
   };
 
-  return { diagnostics, resolversByRuntimeElementId, resolvePropertyTarget, coordinateForReference };
+  const resolveBuiltinTarget = (
+    target: ModuleGeometrySourceTarget,
+    instancePath: readonly string[],
+    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+  ): ModuleGeometryBuiltinRuntimeTarget | undefined => {
+    const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
+    if (!alias) return undefined;
+    if (expectedGeometryType === "line" && alias.kind === "line") {
+      return { elementId: alias.elementId, geometryType: "line" };
+    }
+    if (expectedGeometryType === "point" && alias.kind === "point" && alias.anchor.mode === "reference") {
+      return { elementId: alias.anchor.pointId, geometryType: "point" };
+    }
+    if (expectedGeometryType === "point" && alias.kind === "line" && target.pointKey) {
+      return { elementId: alias.elementId, geometryType: "point", pointKey: target.pointKey };
+    }
+    // Coordinate and derived point aliases intentionally fail closed here:
+    // geometry builtins require a concrete runtime geometry element identity.
+    return undefined;
+  };
+
+  return { diagnostics, resolversByRuntimeElementId, resolvePropertyTarget, resolveBuiltinTarget, coordinateForReference };
 };

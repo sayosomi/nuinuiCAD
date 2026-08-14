@@ -6,6 +6,7 @@ import type {
   ModuleBodyStatementSemantic,
   ModuleDefinitionSemantic,
   ModuleInstanceSemantic,
+  ModuleGeometryBuiltinArgumentSemantic,
   ModuleGeometryPropertySourceTarget,
   ModuleScalarExpressionSemantic,
   ModuleScalarSourceTarget,
@@ -29,10 +30,11 @@ import type { LexicalScopeIndex } from "./lexicalScopeIndex";
 import type { SetStatementAnalysis } from "./setStatementCompiler";
 import { lowerScalarProgram, type ScalarProgram } from "./scalarProgram";
 import type { ScalarType } from "./types";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
 import type { TextTemplateAst, TextTemplateDependency, TextTemplateSegment } from "./textTemplate";
 import { scanTextTemplateLiteral } from "./textTemplateScan";
 import { typecheckScalarExpression } from "./expressionTypecheck";
+import { getBuiltinFunctionDefinition } from "./builtinFunctions";
 import type { BindingResolution } from "./bindingResolution";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import type { CompiledNumericBinding } from "./numericBindingCompiler";
@@ -194,23 +196,106 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic) =
   );
 };
 
+const typecheckGeometryTargetFor = (
+  occurrence: ModuleGeometryBuiltinArgumentSemantic
+): ScalarExpressionResolvedGeometryTarget | null => {
+  const target = occurrence.reference.target;
+  if (!target || (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return null;
+  if (target.kind === "parameter") {
+    return {
+      statementId: target.definitionStatementId,
+      statementIndex: -1,
+      geometryType: occurrence.expectedGeometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
+  }
+  if (target.kind === "sourceGeometry") {
+    return {
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      geometryType: occurrence.expectedGeometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
+  }
+  return {
+    statementId: target.instanceStatementId,
+    statementIndex: target.instanceStatementIndex,
+    geometryType: occurrence.expectedGeometryType,
+    ...(target.pointKey ? { pointKey: target.pointKey } : {})
+  };
+};
+
 const lowerExpression = (
   semantic: ModuleScalarExpressionSemantic,
   bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
   catalogBindings: ReadonlyMap<BindingId, Binding>,
-  geometryPropertyForTarget?: (target: ModuleGeometryPropertySourceTarget) => ModuleGeometryPropertyRuntimeTarget | undefined
+  geometryPropertyForTarget?: (target: ModuleGeometryPropertySourceTarget) => ModuleGeometryPropertyRuntimeTarget | undefined,
+  geometryBuiltinForTarget?: (occurrence: ModuleGeometryBuiltinArgumentSemantic) => ScalarExpressionResolvedGeometryTarget | undefined
 ): { expression: TypedScalarExpression; references: InitializerReference[] } => {
   const references = semanticReferencesUsedByAst(semantic);
-  const resolutions = references.map((reference) => bindingResolutionFor(
-    reference.target && ["parameter", "moduleLocal", "documentBinding", "iteration", "deferredModuleScalarExport"].includes(reference.target.kind)
-      ? bindingForTarget(reference.target as ModuleScalarSourceTarget, reference.name, reference.span.start)
-      : undefined,
-    reference.name,
-    reference.span.start
-  ));
+  const typecheckResolutions: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
+  const semanticReferenceFor = (spanStart: number) => references.find((reference) => reference.span.start === spanStart);
+  const geometryBuiltinFor = (spanStart: number) => semantic.geometryBuiltinArguments.find((occurrence) => occurrence.span.start === spanStart);
+  const geometryBuiltinArgumentTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>(
+    semantic.geometryBuiltinArguments.map((occurrence) => [occurrence.span.start, typecheckGeometryTargetFor(occurrence)])
+  );
+  const geometryBuiltinForCallArgument = (call: Extract<TypedScalarExpression, { kind: "call" }>, argumentIndex: number) =>
+    semantic.geometryBuiltinArguments.find((occurrence) =>
+      occurrence.builtinName === call.name &&
+      occurrence.argumentIndex === argumentIndex &&
+      occurrence.span.start >= call.span.start &&
+      occurrence.span.end <= call.span.end
+    );
+  const collectTypecheckResolutions = (node: ModuleScalarExpressionSemantic["ast"]): void => {
+    switch (node.kind) {
+      case "reference": {
+        const reference = semanticReferenceFor(node.span.start);
+        typecheckResolutions.push(bindingResolutionFor(
+          reference?.target && ["parameter", "moduleLocal", "documentBinding", "iteration", "deferredModuleScalarExport"].includes(reference.target.kind)
+            ? bindingForTarget(reference.target as ModuleScalarSourceTarget, reference.name, reference.span.start)
+            : undefined,
+          reference?.name ?? node.name,
+          reference?.span.start ?? node.span.start
+        ));
+        return;
+      }
+      case "call": {
+        const definition = getBuiltinFunctionDefinition(node.name);
+        const signature = definition?.signatures.find((candidate) => candidate.argumentTypes.length === node.args.length);
+        node.args.forEach((argument, argumentIndex) => {
+          const parameterType = signature?.argumentTypes[argumentIndex];
+          const occurrence = argument.kind === "reference" || argument.kind === "geometryProperty"
+            ? geometryBuiltinFor(argument.span.start)
+            : undefined;
+          if (parameterType && typeof parameterType === "string" && occurrence) {
+            if (argument.kind === "reference") {
+              typecheckResolutions.push({ kind: "resolvedGeometry", target: typecheckGeometryTargetFor(occurrence) });
+            }
+          } else {
+            collectTypecheckResolutions(argument);
+          }
+        });
+        return;
+      }
+      case "unary":
+        collectTypecheckResolutions(node.operand);
+        return;
+      case "binary":
+        collectTypecheckResolutions(node.left);
+        collectTypecheckResolutions(node.right);
+        return;
+      case "group":
+        collectTypecheckResolutions(node.expression);
+        return;
+      default:
+        return;
+    }
+  };
+  collectTypecheckResolutions(semantic.ast);
   const checked = typecheckScalarExpression(semantic.ast, {
     expectedType: semantic.type,
-    references: resolutions
+    references: typecheckResolutions,
+    geometryBuiltinArguments: geometryBuiltinArgumentTargets
   });
   const lowerGeometryProperties = (node: TypedScalarExpression): { node: TypedScalarExpression; references: InitializerReference[] } => {
     if (node.kind === "geometryProperty") {
@@ -218,7 +303,7 @@ const lowerExpression = (
       const resolved = semanticProperty?.target && geometryPropertyForTarget?.(semanticProperty.target);
       if (!resolved) return { node, references: [] };
       if (resolved.kind === "expression") {
-        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget);
+        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, geometryBuiltinForTarget);
         return { node: lowered.expression, references: lowered.references };
       }
       return { node: { ...node, elementId: resolved.elementId, property: resolved.property, targetSourceOrder: resolved.targetSourceOrder ?? null }, references: [] };
@@ -237,7 +322,18 @@ const lowerExpression = (
       return { node: { ...node, expression: expression.node }, references: expression.references };
     }
     if (node.kind === "call") {
-      const args = node.args.map(lowerGeometryProperties);
+      const args = node.args.map((argument, argumentIndex) => {
+        if (argument.kind === "geometryReference") {
+          const occurrence = geometryBuiltinForCallArgument(node, argumentIndex);
+          const loweredTarget = occurrence ? geometryBuiltinForTarget?.(occurrence) : undefined;
+          return {
+            node: { ...argument, target: loweredTarget ?? null },
+            references: [] as InitializerReference[]
+          };
+        }
+        const lowered = lowerGeometryProperties(argument.expression);
+        return { node: { ...argument, expression: lowered.node }, references: lowered.references };
+      });
       return {
         node: { ...node, args: args.map((argument) => argument.node) },
         references: args.flatMap((argument) => argument.references)
@@ -245,6 +341,13 @@ const lowerExpression = (
     }
     return { node, references: [] };
   };
+  const resolutions = references.map((reference) => bindingResolutionFor(
+    reference.target && ["parameter", "moduleLocal", "documentBinding", "iteration", "deferredModuleScalarExport"].includes(reference.target.kind)
+      ? bindingForTarget(reference.target as ModuleScalarSourceTarget, reference.name, reference.span.start)
+      : undefined,
+    reference.name,
+    reference.span.start
+  ));
   const initializerReferences: InitializerReference[] = references.map((reference, index) => ({
     fromBindingId: "",
     occurrenceIndex: index,
@@ -699,6 +802,47 @@ export const compileModuleScalarRuntime = ({
     const sourceOrder = elementOrderById.get(documentElementId);
     return sourceOrder === undefined ? undefined : { kind: "runtime", elementId: documentElementId, property: target.property, targetSourceOrder: sourceOrder };
   };
+  const resolvedGeometryBuiltinForContext = (
+    occurrence: ModuleGeometryBuiltinArgumentSemantic,
+    context: InstanceContext
+  ): ScalarExpressionResolvedGeometryTarget | undefined => {
+    if (!moduleGeometryRuntime || !occurrence.reference.target) return undefined;
+    const lowered = moduleGeometryRuntime.resolveBuiltinTarget(
+      occurrence.reference.target,
+      context.path,
+      occurrence.expectedGeometryType
+    );
+    if (!lowered) return undefined;
+    const statementIndex = elementOrderById.get(lowered.elementId);
+    return statementIndex === undefined
+      ? undefined
+      : {
+          statementId: lowered.elementId,
+          statementIndex,
+          geometryType: lowered.geometryType,
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        };
+  };
+  const resolvedGeometryBuiltinForRoot = (
+    occurrence: ModuleGeometryBuiltinArgumentSemantic
+  ): ScalarExpressionResolvedGeometryTarget | undefined => {
+    if (!moduleGeometryRuntime || !occurrence.reference.target) return undefined;
+    const lowered = moduleGeometryRuntime.resolveBuiltinTarget(
+      occurrence.reference.target,
+      [],
+      occurrence.expectedGeometryType
+    );
+    if (!lowered) return undefined;
+    const statementIndex = elementOrderById.get(lowered.elementId);
+    return statementIndex === undefined
+      ? undefined
+      : {
+          statementId: lowered.elementId,
+          statementIndex,
+          geometryType: lowered.geometryType,
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        };
+  };
   const moduleInitializers = new Map<BindingId, TypedScalarExpression>();
   const moduleReferences: InitializerReference[] = [];
   const lowerForContext = (semantic: ModuleScalarExpressionSemantic, context: InstanceContext, ownerBindingId: BindingId) => {
@@ -707,7 +851,8 @@ export const compileModuleScalarRuntime = ({
       semantic,
       (target) => resolvedBindingForContext(target, context),
       bindingsById,
-      (target) => resolvedGeometryPropertyForContext(target, context)
+      (target) => resolvedGeometryPropertyForContext(target, context),
+      (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context)
     );
     moduleInitializers.set(ownerBindingId, lowered.expression);
     for (const reference of lowered.references) moduleReferences.push({ ...reference, fromBindingId: ownerBindingId });
@@ -763,7 +908,8 @@ export const compileModuleScalarRuntime = ({
         site.expression,
         (target) => resolvedBindingForContext(target, context),
         bindingsById,
-        (target) => resolvedGeometryPropertyForContext(target, context)
+        (target) => resolvedGeometryPropertyForContext(target, context),
+        (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context)
       );
       for (const reference of lowered.references) {
         if (reference.resolution.kind !== "resolved" || reference.resolution.binding.kind !== "typed" || !reference.span) continue;
@@ -806,7 +952,8 @@ export const compileModuleScalarRuntime = ({
             semantic,
             (target) => resolvedBindingForContext(target, context),
             bindingsById,
-            (target) => resolvedGeometryPropertyForContext(target, context)
+            (target) => resolvedGeometryPropertyForContext(target, context),
+            (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context)
           );
           moduleSets.push({
             statementId: body.statementId,
@@ -835,7 +982,8 @@ export const compileModuleScalarRuntime = ({
           site.expression,
           (target) => resolvedBindingForContext(target, context),
           bindingsById,
-          (target) => resolvedGeometryPropertyForContext(target, context)
+          (target) => resolvedGeometryPropertyForContext(target, context),
+          (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context)
         );
         if (element.type === "conditionalGroup" && site.parameterKey === "condition") {
           materializedConditionalGroupConditions.push({ elementId: runtime.elementId, expression: loweredSiteExpression.expression });
@@ -878,12 +1026,49 @@ export const compileModuleScalarRuntime = ({
     unavailableBindingIds: disabledBindingIds
   });
   const initializers = new Map<BindingId, TypedScalarExpression>();
-  for (const [bindingId, initializer] of documentBindingAnalysis
+  const rootGeometryPropertyFor = (target: ModuleGeometryPropertySourceTarget): ModuleGeometryPropertyRuntimeTarget | undefined => {
+    if (!moduleGeometryRuntime) return undefined;
+    const lowered = moduleGeometryRuntime.resolvePropertyTarget(
+      target,
+      [],
+      new Map(elements.map((element) => [element.id, element]))
+    );
+    if (!lowered || lowered.kind === "expression") return lowered;
+    const sourceOrder = elementOrderById.get(lowered.elementId);
+    return sourceOrder === undefined ? undefined : { ...lowered, targetSourceOrder: sourceOrder };
+  };
+  const rootBindingForTarget = (target: ModuleScalarSourceTarget): Binding | undefined => {
+    if (target.kind === "documentBinding") return bindingsById.get(target.bindingId);
+    if (target.kind === "deferredModuleScalarExport") {
+      const instance = moduleSemanticAnalysis.instancesByStatementId.get(target.instanceStatementId);
+      const definitionStatementId = instance?.callee?.definitionStatementId;
+      return definitionStatementId
+        ? bindingsById.get(moduleScalarBindingIdFor([target.instanceStatementId], definitionStatementId, target.exportedStatementId))
+        : undefined;
+    }
+    return undefined;
+  };
+  for (const [bindingId, initializer, statementIndex] of documentBindingAnalysis
     ? (documentBindingAnalysis as BindingAnalysis).catalog.bindings
       .filter((binding) => binding.kind === "typed")
-      .map((binding) => [binding.id, documentScalarProgram?.statements.find((statement) => statement.bindingId === binding.id)?.declaration.initializer] as const)
+      .map((binding) => [binding.id, documentScalarProgram?.statements.find((statement) => statement.bindingId === binding.id)?.declaration.initializer, binding.statementIndex] as const)
     : []) {
-    if (initializer) initializers.set(bindingId, initializer);
+    if (initializer) {
+      const statementId = stableStatementIdByIndex.get(statementIndex);
+      const semanticSite = statementId ? moduleSemanticAnalysis.rootScalarExpressionsByStatementId.get(statementId) : undefined;
+      if (semanticSite) {
+        const lowered = lowerExpression(
+          semanticSite.expression,
+          (target) => rootBindingForTarget(target),
+          bindingsById,
+          rootGeometryPropertyFor,
+          resolvedGeometryBuiltinForRoot
+        );
+        initializers.set(bindingId, lowered.expression);
+      } else {
+        initializers.set(bindingId, initializer);
+      }
+    }
   }
   for (const [bindingId, initializer] of moduleInitializers) initializers.set(bindingId, initializer);
   const sourceOrderByBindingId = new Map<BindingId, number>();

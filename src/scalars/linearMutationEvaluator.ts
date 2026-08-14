@@ -16,7 +16,11 @@ import {
   type ForGroupMutationRunOutcome
 } from "./forGroupMutationCore";
 import type { ScalarEvaluation } from "./types";
-import type { TypedScalarGeometryPropertyReferenceNode } from "./typedExpressionAst";
+import type {
+  ScalarExpressionResolvedGeometryTarget,
+  TypedScalarGeometryPropertyReferenceNode
+} from "./typedExpressionAst";
+import type { ComputedGeometry } from "../types/geometry";
 
 export type BindingVersionRuntimeHistory = {
   versionId: BindingVersionId;
@@ -110,7 +114,8 @@ const conditionalOwners = (graph: BindingVersionGraph): ReadonlyMap<string, read
  */
 export const createIncrementalLinearMutationEvaluator = (
   graph: BindingVersionGraph,
-  resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation
+  resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
+  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => ComputedGeometry | undefined
 ): IncrementalLinearMutationEvaluator => {
   const currentByBindingId = new Map<BindingId, ScalarEvaluation>();
   const historyByVersionId = new Map<BindingVersionId, BindingVersionRuntimeHistory>();
@@ -187,7 +192,8 @@ export const createIncrementalLinearMutationEvaluator = (
       ? poisoned(version)
       : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
         lookupBinding: resolveCurrent,
-        ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {})
+        ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
+        ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
       });
     currentByBindingId.set(version.bindingId, evaluation);
     if (version.kind === "declare" && version.control.ownerChain.length) {
@@ -224,7 +230,8 @@ export const createIncrementalLinearMutationEvaluator = (
       ? poisoned(version)
       : evaluateTypedExpression(version.kind === "declare" ? version.initializer! : version.expression, {
         lookupBinding: resolveCurrent,
-        ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {})
+        ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, version.sourceOrder) } : {}),
+        ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, version.sourceOrder) } : {})
       });
     const isLoopLocal = version.kind === "declare" && version.control.ownerChain.length > 0;
     if (isLoopLocal) frame.declareLocal(version.bindingId, evaluation);

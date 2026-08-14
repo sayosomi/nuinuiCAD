@@ -29,12 +29,14 @@
 //! the decode side.
 
 use super::expression_evaluator_ops::{
-    continue_builtin_call, continue_logical, evaluate_reference, finish_eager_binary,
-    finish_logical_right, finish_unary, static_type_null_error,
+    continue_builtin_call, continue_logical, evaluate_geometry_builtin_call, evaluate_reference,
+    finish_eager_binary, finish_logical_right, finish_unary, static_type_null_error,
 };
+use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::types::{
-    ScalarBinaryOperator, ScalarEvaluation, ScalarType, ScalarUnaryOperator, ScalarValue,
-    TypedScalarCallTarget, TypedScalarExpression,
+    ScalarBinaryOperator, ScalarEvaluation, ScalarExpressionResolvedGeometryTarget, ScalarType,
+    ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
+    TypedScalarExpression,
 };
 
 /// Resolves a runtime value for an already-resolved binding ID. Mirrors TS's
@@ -56,6 +58,13 @@ pub(crate) trait ScalarEvaluationEnvironment {
             issue_code: "evaluation-geometry-property-unavailable".to_owned(),
             binding_id: None,
         }
+    }
+
+    fn lookup_geometry_builtin_target(
+        &self,
+        _target: &ScalarExpressionResolvedGeometryTarget,
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+        Err(GeometryBuiltinRuntimeError::Unavailable)
     }
 }
 
@@ -93,7 +102,7 @@ pub(super) enum EvalWork<'a> {
     ContinueBuiltinCall {
         target: TypedScalarCallTarget,
         r#type: ScalarType,
-        args: &'a [TypedScalarExpression],
+        args: &'a [TypedBuiltinArgument],
         next_index: usize,
         values: Vec<f64>,
     },
@@ -275,15 +284,33 @@ fn eval_node<'a>(
         } => match r#type {
             None => output.push(static_type_null_error(None)),
             Some(concrete_type) => {
-                work.push(EvalWork::ContinueBuiltinCall {
-                    target: *target,
-                    r#type: concrete_type.clone(),
-                    args,
-                    next_index: 0,
-                    values: Vec::with_capacity(args.len()),
-                });
-                if let Some(first_argument) = args.first() {
-                    work.push(EvalWork::Eval(first_argument));
+                let TypedScalarCallTarget::Builtin(name) = *target;
+                if name.is_geometry() {
+                    output.push(evaluate_geometry_builtin_call(
+                        name,
+                        concrete_type.clone(),
+                        args,
+                        environment,
+                    ));
+                } else if args.iter().any(|argument| {
+                    matches!(argument, TypedBuiltinArgument::GeometryReference { .. })
+                }) {
+                    output.push(ScalarEvaluation::Error {
+                        r#type: concrete_type.clone(),
+                        issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+                        binding_id: None,
+                    });
+                } else {
+                    work.push(EvalWork::ContinueBuiltinCall {
+                        target: *target,
+                        r#type: concrete_type.clone(),
+                        args,
+                        next_index: 0,
+                        values: Vec::with_capacity(args.len()),
+                    });
+                    if let Some(TypedBuiltinArgument::Scalar { expression }) = args.first() {
+                        work.push(EvalWork::Eval(expression));
+                    }
                 }
             }
         },

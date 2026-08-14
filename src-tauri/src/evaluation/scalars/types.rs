@@ -12,6 +12,32 @@
 
 pub(crate) type BindingId = String;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GeometryInterfaceType {
+    Point,
+    Line,
+    Path,
+}
+
+impl GeometryInterfaceType {
+    pub(crate) fn from_wire_name(name: &str) -> Option<Self> {
+        match name {
+            "point" => Some(Self::Point),
+            "line" => Some(Self::Line),
+            "path" => Some(Self::Path),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ScalarExpressionResolvedGeometryTarget {
+    pub(crate) statement_id: String,
+    pub(crate) statement_index: usize,
+    pub(crate) geometry_type: GeometryInterfaceType,
+    pub(crate) point_key: Option<String>,
+}
+
 /// A source-text offset range, `[start, end)`. Never read for evaluation
 /// (Task 16's evaluator and Task 18's Rust counterpart don't use spans -
 /// source-span re-association is a TS-adapter responsibility, per D17 in
@@ -100,6 +126,9 @@ pub(crate) enum BuiltinFunctionName {
     Ceil,
     RoundTo,
     IsClose,
+    Distance,
+    Angle,
+    LineDistance,
 }
 
 impl BuiltinFunctionName {
@@ -114,9 +143,48 @@ impl BuiltinFunctionName {
             "ceil" => Some(Self::Ceil),
             "roundTo" => Some(Self::RoundTo),
             "isClose" => Some(Self::IsClose),
+            "distance" => Some(Self::Distance),
+            "angle" => Some(Self::Angle),
+            "lineDistance" => Some(Self::LineDistance),
             _ => None,
         }
     }
+
+    pub(crate) fn argument_signatures(self) -> &'static [&'static [BuiltinArgumentType]] {
+        match self {
+            Self::Abs | Self::Sqrt => &[&[BuiltinArgumentType::Scalar]],
+            Self::Min | Self::Max | Self::RoundTo => {
+                &[&[BuiltinArgumentType::Scalar, BuiltinArgumentType::Scalar]]
+            }
+            Self::Round | Self::Floor | Self::Ceil => &[
+                &[BuiltinArgumentType::Scalar],
+                &[BuiltinArgumentType::Scalar, BuiltinArgumentType::Scalar],
+            ],
+            Self::IsClose => &[&[
+                BuiltinArgumentType::Scalar,
+                BuiltinArgumentType::Scalar,
+                BuiltinArgumentType::Scalar,
+            ]],
+            Self::Distance | Self::Angle => &[&[
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
+            ]],
+            Self::LineDistance => &[&[
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
+            ]],
+        }
+    }
+
+    pub(crate) fn is_geometry(self) -> bool {
+        matches!(self, Self::Distance | Self::Angle | Self::LineDistance)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BuiltinArgumentType {
+    Scalar,
+    Geometry(GeometryInterfaceType),
 }
 
 /// A call target is resolved before it crosses into Rust. Keeping this as a
@@ -202,8 +270,19 @@ pub(crate) enum TypedScalarExpression {
         name_span: ScalarSpan,
         name: String,
         target: TypedScalarCallTarget,
-        args: Vec<TypedScalarExpression>,
+        args: Vec<TypedBuiltinArgument>,
         r#type: Option<ScalarType>,
+    },
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum TypedBuiltinArgument {
+    Scalar {
+        expression: TypedScalarExpression,
+    },
+    GeometryReference {
+        expected_geometry_type: GeometryInterfaceType,
+        target: Option<ScalarExpressionResolvedGeometryTarget>,
     },
 }
 
@@ -265,7 +344,13 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
                 childless_placeholder(),
             )]
         }
-        TypedScalarExpression::Call { args, .. } => std::mem::take(args),
+        TypedScalarExpression::Call { args, .. } => std::mem::take(args)
+            .into_iter()
+            .filter_map(|argument| match argument {
+                TypedBuiltinArgument::Scalar { expression } => Some(expression),
+                TypedBuiltinArgument::GeometryReference { .. } => None,
+            })
+            .collect(),
         TypedScalarExpression::NumberLiteral { .. }
         | TypedScalarExpression::StringLiteral { .. }
         | TypedScalarExpression::BooleanLiteral { .. }

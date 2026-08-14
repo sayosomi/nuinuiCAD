@@ -16,7 +16,8 @@ use super::issue::ScalarPayloadIssue;
 use super::issue::ScalarPayloadIssueCode as Code;
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
 use super::types::{
-    BuiltinFunctionName, ScalarBinaryOperator, ScalarSpan, ScalarType, ScalarUnaryOperator,
+    BuiltinArgumentType, BuiltinFunctionName, GeometryInterfaceType, ScalarBinaryOperator,
+    ScalarExpressionResolvedGeometryTarget, ScalarSpan, ScalarType, ScalarUnaryOperator,
     TypedScalarCallTarget,
 };
 
@@ -157,6 +158,185 @@ fn decode_call_target(json: &Value) -> Result<TypedScalarCallTarget, ScalarPaylo
         )
     })?;
     Ok(TypedScalarCallTarget::Builtin(builtin))
+}
+
+pub(crate) enum CallArgumentShape<'a> {
+    Scalar {
+        expression: &'a Value,
+    },
+    GeometryReference {
+        expected_geometry_type: GeometryInterfaceType,
+        target: Option<ScalarExpressionResolvedGeometryTarget>,
+    },
+}
+
+fn decode_geometry_interface_type(
+    json: &Value,
+    context: &str,
+) -> Result<GeometryInterfaceType, ScalarPayloadIssue> {
+    let name = json.as_str().ok_or_else(|| {
+        issue(
+            Code::InvalidFieldType,
+            format!("{context} must be a string"),
+        )
+    })?;
+    GeometryInterfaceType::from_wire_name(name).ok_or_else(|| {
+        issue(
+            Code::UnknownKind,
+            format!("unknown geometry interface type \"{name}\""),
+        )
+    })
+}
+
+fn decode_geometry_target(
+    json: &Value,
+) -> Result<Option<ScalarExpressionResolvedGeometryTarget>, ScalarPayloadIssue> {
+    if json.is_null() {
+        return Ok(None);
+    }
+    let object = as_object(json, "geometry reference target")?;
+    reject_unexpected_fields(
+        object,
+        &["statementId", "statementIndex", "geometryType", "pointKey"],
+        "geometry reference target",
+    )?;
+    let statement_id = require_field(object, "statementId", "geometry reference target")?
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "geometry reference target \"statementId\" must be a non-empty string",
+            )
+        })?
+        .to_owned();
+    let statement_index = require_field(object, "statementIndex", "geometry reference target")?
+        .as_u64()
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "geometry reference target \"statementIndex\" must be a non-negative integer",
+            )
+        })?;
+    let geometry_type = decode_geometry_interface_type(
+        require_field(object, "geometryType", "geometry reference target")?,
+        "geometry reference target \"geometryType\"",
+    )?;
+    let point_key = match object.get("pointKey") {
+        None => None,
+        Some(value) => {
+            let point_key = value.as_str().ok_or_else(|| {
+                issue(
+                    Code::InvalidFieldType,
+                    "geometry reference target \"pointKey\" must be a non-empty string",
+                )
+            })?;
+            if point_key.is_empty()
+                || point_key == "intermediate:"
+                || point_key.chars().any(char::is_whitespace)
+            {
+                return Err(issue(
+                    Code::InvalidFieldType,
+                    "geometry reference target \"pointKey\" is malformed",
+                ));
+            }
+            Some(point_key.to_owned())
+        }
+    };
+    Ok(Some(ScalarExpressionResolvedGeometryTarget {
+        statement_id,
+        statement_index,
+        geometry_type,
+        point_key,
+    }))
+}
+
+pub(crate) fn decode_call_argument_shape(
+    json: &Value,
+) -> Result<CallArgumentShape<'_>, ScalarPayloadIssue> {
+    let object = as_object(json, "builtin call argument")?;
+    let kind = require_field(object, "kind", "builtin call argument")?
+        .as_str()
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "builtin call argument \"kind\" must be a string",
+            )
+        })?;
+    match kind {
+        "scalar" => {
+            reject_unexpected_fields(object, &["kind", "expression"], "scalar call argument")?;
+            Ok(CallArgumentShape::Scalar {
+                expression: require_field(object, "expression", "scalar call argument")?,
+            })
+        }
+        "geometryReference" => {
+            reject_unexpected_fields(
+                object,
+                &["kind", "expectedGeometryType", "target"],
+                "geometry call argument",
+            )?;
+            let expected_geometry_type = decode_geometry_interface_type(
+                require_field(object, "expectedGeometryType", "geometry call argument")?,
+                "geometry call argument \"expectedGeometryType\"",
+            )?;
+            let target =
+                decode_geometry_target(require_field(object, "target", "geometry call argument")?)?;
+            Ok(CallArgumentShape::GeometryReference {
+                expected_geometry_type,
+                target,
+            })
+        }
+        other => Err(issue(
+            Code::UnknownKind,
+            format!("unknown builtin call argument kind \"{other}\""),
+        )),
+    }
+}
+
+pub(crate) fn validate_call_argument_shapes(
+    target: TypedScalarCallTarget,
+    arguments: &[CallArgumentShape<'_>],
+    r#type: Option<&ScalarType>,
+) -> Result<(), ScalarPayloadIssue> {
+    let Some(_) = r#type else {
+        return Ok(());
+    };
+    let TypedScalarCallTarget::Builtin(name) = target;
+    let signatures = name.argument_signatures();
+    let signature = signatures
+        .iter()
+        .find(|signature| signature.len() == arguments.len())
+        .copied();
+    let Some(signature) = signature else {
+        return Err(issue(
+            Code::InvalidBuiltinArgument,
+            format!("builtin {name:?} received an invalid argument count"),
+        ));
+    };
+    for (expected, argument) in signature.iter().zip(arguments) {
+        match (expected, argument) {
+            (BuiltinArgumentType::Scalar, CallArgumentShape::Scalar { .. }) => {}
+            (
+                BuiltinArgumentType::Geometry(expected_geometry_type),
+                CallArgumentShape::GeometryReference {
+                    expected_geometry_type: argument_expected_geometry_type,
+                    target: Some(target),
+                },
+            ) if expected_geometry_type == argument_expected_geometry_type
+                && target.geometry_type == *expected_geometry_type
+                && (target.point_key.is_none()
+                    || target.geometry_type == GeometryInterfaceType::Point) => {}
+            _ => {
+                return Err(issue(
+                    Code::InvalidBuiltinArgument,
+                    format!("builtin {name:?} received an invalid argument shape"),
+                ))
+            }
+        }
+    }
+    Ok(())
 }
 
 /// A `call` node's own fields, validated - `args` are borrowed references to

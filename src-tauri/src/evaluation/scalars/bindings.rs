@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{json, Value};
 
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
+use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::program_payload::{ValidatedScalarProgram, ValidatedScalarProgramStatement};
 use super::scalar_payload::scalar_value_matches_type;
 use super::types::{BindingId, ScalarEvaluation, ScalarType, ScalarValue};
@@ -204,6 +205,16 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_> {
                 binding_id: None,
             },
         }
+    }
+
+    fn lookup_geometry_builtin_target(
+        &self,
+        target: &super::types::ScalarExpressionResolvedGeometryTarget,
+    ) -> Result<
+        super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
+        super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
+    > {
+        resolve_geometry_builtin_target(self.state, self.source_order, target)
     }
 }
 

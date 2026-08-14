@@ -93,6 +93,15 @@ export type ModuleScalarExpressionSemantic = {
   type: ScalarType | null;
   references: readonly ModuleScalarReference[];
   geometryProperties: readonly ModuleGeometryPropertyReference[];
+  geometryBuiltinArguments: readonly ModuleGeometryBuiltinArgumentSemantic[];
+};
+
+export type ModuleGeometryBuiltinArgumentSemantic = {
+  builtinName: string;
+  argumentIndex: number;
+  span: DslSpan;
+  expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+  reference: ModuleGeometryReferenceSemantic;
 };
 
 export type ModuleGeometryPropertyReference = {

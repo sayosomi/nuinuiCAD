@@ -112,6 +112,165 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("lowers module geometry builtin operands to each materialized runtime target", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "point P = coordinate(x: 3, y: 4)",
+      "point O = coordinate(x: 0, y: 0)",
+      "line Baseline = segment(start: (0, 0), end: (1, 0))",
+      "module Example(p: point, origin: point, baseline: line) {",
+      "  const radius: number = distance(@origin, @p)",
+      "  const direction: number = angle(@origin, @p)",
+      "  const height: number = lineDistance(@p, @baseline)",
+      "  let measured: number = 0",
+      "  set measured = distance(@origin, @p)",
+      "}",
+      "instance A = Example(p: @P, origin: @O, baseline: @Baseline)",
+      "instance B = Example(p: @P, origin: @O, baseline: @Baseline)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valuesByName = new Map<string, number[]>();
+    for (const binding of compiled.bindingAnalysis!.catalog.bindings) {
+      if (binding.kind !== "typed" || !["radius", "direction", "height", "measured"].includes(binding.name)) continue;
+      const value = result.computedScalarBindings?.get(binding.id);
+      if (value?.status !== "ok" || value.value.kind !== "number") continue;
+      valuesByName.set(binding.name, [...(valuesByName.get(binding.name) ?? []), value.value.value]);
+    }
+    expect(valuesByName.get("radius")).toEqual([5, 5]);
+    expect(valuesByName.get("direction")).toHaveLength(2);
+    expect(valuesByName.get("direction")?.[0]).toBeCloseTo(Math.atan2(4, 3) * 180 / Math.PI, 10);
+    expect(valuesByName.get("direction")?.[1]).toBeCloseTo(Math.atan2(4, 3) * 180 / Math.PI, 10);
+    expect(valuesByName.get("height")).toEqual([4, 4]);
+    expect(valuesByName.get("measured")).toEqual([5, 5]);
+    expect(compiled.bindingAnalysis!.initializerReferences.some((reference) =>
+      ["p", "origin", "baseline"].includes(reference.name)
+    )).toBe(false);
+
+    const geometryTargets: string[] = [];
+    for (const statement of compiled.scalarProgram?.statements ?? []) {
+      if (!statement.bindingId.includes("module-binding")) continue;
+      const initializer = statement.declaration.initializer;
+      if (initializer.kind !== "call") continue;
+      for (const argument of initializer.args) {
+        if (argument.kind === "geometryReference" && argument.target) geometryTargets.push(argument.target.statementId);
+      }
+    }
+    expect(new Set(geometryTargets).size).toBeGreaterThan(1);
+    const runtimeElementIds = new Set(compiled.document!.elements.map((element) => element.id));
+    expect(geometryTargets.every((id) => runtimeElementIds.has(id))).toBe(true);
+    for (const statement of compiled.scalarProgram?.statements ?? []) {
+      if (!statement.bindingId.includes("module-binding") || statement.declaration.initializer.kind !== "call") continue;
+      for (const argument of statement.declaration.initializer.args) {
+        if (argument.kind !== "geometryReference" || !argument.target) continue;
+        expect(argument.target.statementIndex).toBe(compiled.scalarExecutionPositionByRuntimeElementId?.get(argument.target.statementId));
+        expect(["point", "line"]).toContain(argument.target.geometryType);
+      }
+    }
+  });
+
+  it("accepts line parameter and module-local derived point operands", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "module Example(baseline: line) {",
+      "  line Local = segment(start: (0, 0), end: (0, 2))",
+      "  const parameterStart: number = distance(@baseline.start, @Local.end)",
+      "  const parameterEnd: number = angle(@baseline.end, @Local.start)",
+      "  const localEndDistance: number = lineDistance(@Local.end, @baseline)",
+      "}",
+      "instance A = Example(baseline: @Baseline)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("parameterStart")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(valueFor("parameterEnd")).toMatchObject({ status: "ok", value: { kind: "number", value: 180 } });
+    expect(valueFor("localEndDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+  });
+
+  it("lowers derived point builtin operands mixed with module scalar references in geometry", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "point P = coordinate(x: 3, y: 4)",
+      "module Example(baseline: line, p: point, delta: number) {",
+      "  const derivedDistance: number = distance(@baseline.start, @p)",
+      "  point Q = coordinate(x: @derivedDistance + @delta, y: 0)",
+      "}",
+      "instance Use = Example(baseline: @Baseline, p: @P, delta: 2)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Q").id)).toMatchObject({ kind: "point", x: 7, y: 0 });
+  });
+
+  it("bridges root typed declarations through module geometry exports", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module Source() {",
+      "  export point P = coordinate(x: 3, y: 4)",
+      "  export line L = segment(start: (0, 0), end: (1, 0))",
+      "}",
+      "instance A = Source()",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "const distanceValue: number = distance(@A::P, @Origin)",
+      "const lineValue: number = lineDistance(@A::P, @A::L)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(scalarValue("distanceValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+    expect(scalarValue("lineValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 4 } });
+    for (const name of ["distanceValue", "lineValue"]) {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name)!;
+      const initializer = compiled.scalarProgram!.statements.find((statement) => statement.bindingId === binding.id)!.declaration.initializer;
+      expect(initializer).toMatchObject({ kind: "call" });
+      expect((initializer as Extract<typeof initializer, { kind: "call" }>).args.every((argument) =>
+        argument.kind !== "geometryReference" || argument.target?.statementId.startsWith("module-runtime:") || compiled.document!.elements.some((element) => element.id === argument.target?.statementId)
+      )).toBe(true);
+    }
+  });
+
+  it("lowers module-local and child-module geometry exports through the same builtin target", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module Child() {",
+      "  export point P = coordinate(x: 3, y: 4)",
+      "  export line L = segment(start: (0, 0), end: (1, 0))",
+      "}",
+      "module Parent() {",
+      "  point Origin = coordinate(x: 0, y: 0)",
+      "  point P = coordinate(x: 3, y: 4)",
+      "  instance Kid = Child()",
+      "  const localDistance: number = distance(@Origin, @P)",
+      "  const childDistance: number = distance(@Kid::P, @Origin)",
+      "  const childLineDistance: number = lineDistance(@P, @Kid::L)",
+      "}",
+      "instance Use = Parent()"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const bindings = compiled.bindingAnalysis!.catalog.bindings.filter((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return bindings.map((binding) => result.computedScalarBindings?.get(binding.id));
+    };
+    expect(valueFor("localDistance")).toEqual([expect.objectContaining({ status: "ok", value: { kind: "number", value: 5 } })]);
+    expect(valueFor("childDistance")).toEqual([expect.objectContaining({ status: "ok", value: { kind: "number", value: 5 } })]);
+    expect(valueFor("childLineDistance")).toEqual([expect.objectContaining({ status: "ok", value: { kind: "number", value: 4 } })]);
+  });
+
   it("publishes one instance-local scalar export binding for each module call", () => {
     const compiled = compileWithIds([
       "nui 4",

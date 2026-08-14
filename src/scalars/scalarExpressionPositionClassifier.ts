@@ -12,7 +12,7 @@
 // SIMPLE_BINARY_RULES/unary rule), never a resolution against document data.
 
 import { tokenizeScalarExpression, type ScalarExpressionOperatorSymbol, type ScalarExpressionToken } from "./expressionTokenizer";
-import { getBuiltinFunctionDefinition } from "./builtinFunctions";
+import { getBuiltinFunctionDefinition, isScalarBuiltinParameterType } from "./builtinFunctions";
 import type { ScalarSpan } from "./literalScanner";
 import type { ScalarType } from "./types";
 
@@ -128,8 +128,10 @@ const builtinArgumentTypeAt = (
       argumentIndex += 1;
     }
   }
-  return definition.signatures.find((signature) => signature.argumentTypes.length > argumentIndex)?.argumentTypes[argumentIndex]
-    ?? expectedOperandType(precedingToken, rootType);
+  const parameterType = definition.signatures.find((signature) => signature.argumentTypes.length > argumentIndex)?.argumentTypes[argumentIndex];
+  return parameterType && isScalarBuiltinParameterType(parameterType)
+    ? parameterType
+    : expectedOperandType(precedingToken, rootType);
 };
 
 export type ScalarOperandWordMatch = { readonly from: number; readonly to: number; readonly kind: "reference" | "bareWord" };

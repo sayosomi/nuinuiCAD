@@ -22,6 +22,7 @@ mod expression_payload;
 mod expression_shape_payload;
 #[allow(dead_code)]
 mod for_group_mutation_core;
+mod geometry_builtin_runtime;
 mod issue;
 mod json_helpers;
 mod mutation;
@@ -48,6 +49,8 @@ mod expression_evaluator_tests;
 mod expression_payload_tests;
 #[cfg(test)]
 mod for_group_mutation_core_tests;
+#[cfg(test)]
+mod geometry_builtin_runtime_tests;
 #[cfg(test)]
 mod program_payload_tests;
 #[cfg(test)]

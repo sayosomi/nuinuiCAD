@@ -43,13 +43,14 @@ use super::expression_leaf_payload::{
     decode_reference, decode_string_literal,
 };
 use super::expression_shape_payload::{
-    validate_binary_shape, validate_call_shape, validate_group_shape, validate_unary_shape,
+    decode_call_argument_shape, validate_binary_shape, validate_call_argument_shapes,
+    validate_call_shape, validate_group_shape, validate_unary_shape, CallArgumentShape,
 };
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, require_field};
 use super::types::{
-    ScalarBinaryOperator, ScalarSpan, ScalarType, ScalarUnaryOperator, TypedScalarCallTarget,
-    TypedScalarExpression,
+    ScalarBinaryOperator, ScalarSpan, ScalarType, ScalarUnaryOperator, TypedBuiltinArgument,
+    TypedScalarCallTarget, TypedScalarExpression,
 };
 
 /// Bounds `unary`/`group`/`call` nesting specifically - **not** overall tree
@@ -108,7 +109,7 @@ enum WorkItem<'a> {
         name_span: ScalarSpan,
         name: String,
         target: TypedScalarCallTarget,
-        argument_count: usize,
+        arguments: Vec<CallArgumentShape<'a>>,
         r#type: Option<ScalarType>,
     },
 }
@@ -208,18 +209,31 @@ fn visit_node<'a>(
         }
         "call" => {
             let shape = validate_call_shape(object)?;
-            let argument_count = shape.args.len();
+            let arguments = shape
+                .args
+                .iter()
+                .map(decode_call_argument_shape)
+                .collect::<Result<Vec<_>, _>>()?;
+            validate_call_argument_shapes(shape.target, &arguments, shape.r#type.as_ref())?;
+            let scalar_arguments: Vec<&Value> = arguments
+                .iter()
+                .rev()
+                .filter_map(|argument| match argument {
+                    CallArgumentShape::Scalar { expression } => Some(*expression),
+                    CallArgumentShape::GeometryReference { .. } => None,
+                })
+                .collect();
             work.push(WorkItem::BuildCall {
                 span: shape.span,
                 name_span: shape.name_span,
                 name: shape.name,
                 target: shape.target,
-                argument_count,
+                arguments,
                 r#type: shape.r#type,
             });
-            for argument in shape.args.iter().rev() {
+            for expression in scalar_arguments {
                 work.push(WorkItem::Visit {
-                    json: argument,
+                    json: expression,
                     expression_depth: expression_depth + 1,
                 });
             }
@@ -309,14 +323,27 @@ pub(crate) fn validate_typed_expression_payload(
                 name_span,
                 name,
                 target,
-                argument_count,
+                arguments,
                 r#type,
             } => {
-                let mut args = Vec::with_capacity(argument_count);
-                for _ in 0..argument_count {
-                    args.push(output.pop().expect(
-                        "call argument must already be decoded (post-order build invariant)",
-                    ));
+                let mut args = Vec::with_capacity(arguments.len());
+                for argument in arguments.into_iter().rev() {
+                    match argument {
+                        CallArgumentShape::Scalar { .. } => {
+                            args.push(TypedBuiltinArgument::Scalar {
+                                expression: output.pop().expect(
+                                    "scalar call argument must already be decoded (post-order build invariant)",
+                                ),
+                            });
+                        }
+                        CallArgumentShape::GeometryReference {
+                            expected_geometry_type,
+                            target,
+                        } => args.push(TypedBuiltinArgument::GeometryReference {
+                            expected_geometry_type,
+                            target,
+                        }),
+                    }
                 }
                 args.reverse();
                 output.push(TypedScalarExpression::Call {

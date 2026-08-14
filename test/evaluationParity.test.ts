@@ -168,4 +168,109 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(evaluated.computedGeometry.get(template.id)).toMatchObject({ kind: "text", text: "丸め=10" });
     }
   }, 30000);
+
+  it("asserts nui4 geometry builtin values and mutation through both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-geometry-builtin-functions.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(scalarBindingFor(fixture, payload, "distanceFive")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 5 }
+      });
+      expect(scalarBindingFor(fixture, payload, "distanceZero")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 0 }
+      });
+      expect(scalarBindingFor(fixture, payload, "distanceTen")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 10 }
+      });
+      expect(scalarBindingFor(fixture, payload, "disabledDistance")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-geometry-builtin-unavailable"
+      });
+      expect(scalarBindingFor(fixture, payload, "derivedDistance")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 7 }
+      });
+      expect(scalarBindingFor(fixture, payload, "derivedAngle")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 135 }
+      });
+      expect(scalarBindingFor(fixture, payload, "derivedLineDistance")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 0 }
+      });
+      expect(scalarBindingFor(fixture, payload, "angleRight")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
+      expect(scalarBindingFor(fixture, payload, "angleUp")).toMatchObject({ status: "ok", value: { kind: "number", value: 90 } });
+      expect(scalarBindingFor(fixture, payload, "angleLeft")).toMatchObject({ status: "ok", value: { kind: "number", value: 180 } });
+      expect(scalarBindingFor(fixture, payload, "angleDown")).toMatchObject({ status: "ok", value: { kind: "number", value: 270 } });
+      expect(scalarBindingFor(fixture, payload, "angleDiagonal")).toMatchObject({ status: "ok", value: { kind: "number", value: 45 } });
+      expect(scalarBindingFor(fixture, payload, "angleSame")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
+      expect(scalarBindingFor(fixture, payload, "lineDistanceHorizontal")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 3 }
+      });
+      expect(scalarBindingFor(fixture, payload, "lineDistanceVertical")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 5 }
+      });
+      const diagonal = scalarBindingFor(fixture, payload, "lineDistanceDiagonal");
+      expect(diagonal?.status).toBe("ok");
+      if (diagonal?.status !== "ok" || diagonal.value.kind !== "number") {
+        throw new Error("lineDistanceDiagonal must be a numeric success");
+      }
+      expect(diagonal.value.value).toBeCloseTo(Math.SQRT2, 12);
+      expect(scalarBindingFor(fixture, payload, "lineDistanceOnLine")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 0 }
+      });
+      expect(scalarBindingFor(fixture, payload, "lineDistanceZero")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-invalid-builtin-argument"
+      });
+      expect(scalarBindingFor(fixture, payload, "mutationValue")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 5 }
+      });
+      expect(runtimeDiagnosticsFor(fixture, payload)).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "evaluation-geometry-builtin-unavailable",
+          message: "組み込み関数のgeometry引数を評価できません。参照先のgeometryが有効で、正常に評価済みか確認してください。",
+          origin: "runtime"
+        })
+      ]));
+    }
+
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
+  it("asserts module geometry builtin lowering values and parity through both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-module-geometry-builtin-functions.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(scalarBindingFor(fixture, payload, "radius")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+      expect(scalarBindingFor(fixture, payload, "direction")).toMatchObject({ status: "ok", value: { kind: "number", value: 45 } });
+      expect(scalarBindingFor(fixture, payload, "height")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+      expect(scalarBindingFor(fixture, payload, "localDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+      expect(scalarBindingFor(fixture, payload, "childDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+      expect(scalarBindingFor(fixture, payload, "childLineDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 4 } });
+      expect(scalarBindingFor(fixture, payload, "parameterStartDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+      expect(scalarBindingFor(fixture, payload, "parameterEndAngle")).toMatchObject({ status: "ok", value: { kind: "number", value: 180 } });
+      expect(scalarBindingFor(fixture, payload, "localEndpointLineDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+      expect(scalarBindingFor(fixture, payload, "measured")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+      expect(scalarBindingFor(fixture, payload, "rootDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+      expect(scalarBindingFor(fixture, payload, "rootLineDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+    }
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
 });

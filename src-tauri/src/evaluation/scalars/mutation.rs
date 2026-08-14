@@ -4,6 +4,7 @@ mod for_group_scheduler;
 use super::bindings::ScalarDocumentBindingResolver;
 use super::bindings::{result_for_declared_type, scalar_evaluation_json};
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
+use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::mutation_payload::{
     InitialState, ValidatedBindingVersion, ValidatedBindingVersionKind, ValidatedBindingVersions,
 };
@@ -350,6 +351,16 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
                 binding_id: None,
             },
         }
+    }
+
+    fn lookup_geometry_builtin_target(
+        &self,
+        target: &super::types::ScalarExpressionResolvedGeometryTarget,
+    ) -> Result<
+        super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
+        super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
+    > {
+        resolve_geometry_builtin_target(self.state, self.source_order, target)
     }
 }
 impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {

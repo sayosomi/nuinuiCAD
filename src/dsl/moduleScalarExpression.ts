@@ -2,11 +2,15 @@ import type { DslSpan } from "./dslTypes";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
-import type { ScalarExpressionResolvedReference } from "../scalars/typedExpressionAst";
+import { getBuiltinFunctionDefinition, type BuiltinFunctionName } from "../scalars/builtinFunctions";
+import type { ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedReference } from "../scalars/typedExpressionAst";
 import type { ScalarType } from "../scalars/types";
+import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type {
+  ModuleGeometryBuiltinArgumentSemantic,
   ModuleGeometryPropertyReference,
   ModuleGeometryPropertySourceTarget,
+  ModuleGeometryReferenceSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarReference,
   ModuleSourceTarget
@@ -42,6 +46,18 @@ export type ModuleGeometryPropertyReferenceResolution = {
   diagnostic?: ModuleScalarLocalDiagnostic;
 };
 
+export type ModuleGeometryBuiltinReferenceInput = {
+  builtinName: BuiltinFunctionName;
+  argumentIndex: number;
+  name: string;
+  span: DslSpan;
+  expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+};
+
+export type ModuleGeometryBuiltinReferenceResolver = (
+  reference: ModuleGeometryBuiltinReferenceInput
+) => ModuleGeometryReferenceSemantic;
+
 const localIssue = (code: string, span: DslSpan, message: string, extra: Partial<ModuleScalarLocalDiagnostic> = {}): ModuleScalarLocalDiagnostic => ({
   code,
   span,
@@ -54,12 +70,17 @@ const scalarTypeFromTarget = (target: ModuleSourceTarget, resolution: ModuleScal
   return resolution.type;
 };
 
+const isBuiltinGeometryParameterType = (
+  type: string | ScalarType
+): type is Extract<ModuleGeometryInterfaceType, "point" | "line"> => type === "point" || type === "line";
+
 const resolveAndTypecheck = ({
   ast,
   expectedType,
   resolveReference,
   resolveBareReference,
-  resolveGeometryProperty
+  resolveGeometryProperty,
+  resolveGeometryBuiltin
 }: {
   ast: ScalarExpressionAst;
   expectedType: ScalarType | null;
@@ -72,10 +93,12 @@ const resolveAndTypecheck = ({
     propertySpan: DslSpan;
     span: DslSpan;
   }) => ModuleGeometryPropertyReferenceResolution;
+  resolveGeometryBuiltin?: ModuleGeometryBuiltinReferenceResolver;
 }): { semantic: ModuleScalarExpressionSemantic; diagnostics: ModuleScalarLocalDiagnostic[] } => {
   const diagnostics: ModuleScalarLocalDiagnostic[] = [];
   const resolvedReferences: ModuleScalarReference[] = [];
   const geometryProperties: ModuleGeometryPropertyReference[] = [];
+  const geometryBuiltinArguments: ModuleGeometryBuiltinArgumentSemantic[] = [];
   const resolvedTypes: ScalarExpressionResolvedReference[] = [];
   const resolvedChoiceTypes = new Map<number, ScalarType>();
   let invalidGeometryProperty = false;
@@ -111,8 +134,47 @@ const resolveAndTypecheck = ({
       case "reference":
         resolveNodeReference(node);
         return node;
-      case "call":
-        return { ...node, args: node.args.map(resolve) };
+      case "call": {
+        const definition = getBuiltinFunctionDefinition(node.name);
+        const signature = definition?.signatures.find((candidate) => candidate.argumentTypes.length === node.args.length);
+        return {
+          ...node,
+          args: node.args.map((argument, argumentIndex) => {
+            const parameterType = signature?.argumentTypes[argumentIndex];
+            if (
+              definition &&
+              signature &&
+              parameterType !== undefined &&
+              isBuiltinGeometryParameterType(parameterType) &&
+              (argument.kind === "reference" || argument.kind === "geometryProperty") &&
+              resolveGeometryBuiltin
+            ) {
+              const reference = resolveGeometryBuiltin({
+                builtinName: definition.name,
+                argumentIndex,
+                name: argument.kind === "reference" ? argument.name : `${argument.elementName}.${argument.property}`,
+                span: argument.span,
+                expectedGeometryType: parameterType
+              });
+              geometryBuiltinArguments.push({
+                builtinName: definition.name,
+                argumentIndex,
+                span: argument.span,
+                expectedGeometryType: parameterType,
+                reference
+              });
+              if (argument.kind === "reference") {
+                resolvedTypes.push({
+                  kind: "resolvedGeometry",
+                  target: typecheckGeometryTarget(reference, parameterType)
+                });
+              }
+              return argument;
+            }
+            return resolve(argument);
+          })
+        };
+      }
       case "geometryProperty":
         if (!resolveGeometryProperty) {
           diagnostics.push(localIssue("module-geometry-property-reference", node.span, "module の scalar expression では geometry property を解決できません。"));
@@ -148,9 +210,17 @@ const resolveAndTypecheck = ({
   };
 
   const resolvedAst = resolve(ast);
+  const geometryBuiltinArgumentTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>();
+  for (const occurrence of geometryBuiltinArguments) {
+    geometryBuiltinArgumentTargets.set(
+      occurrence.span.start,
+      typecheckGeometryTarget(occurrence.reference, occurrence.expectedGeometryType)
+    );
+  }
   const checked = typecheckScalarExpression(resolvedAst, {
     expectedType,
     references: resolvedTypes,
+    geometryBuiltinArguments: geometryBuiltinArgumentTargets,
     resolveChoiceLiteral: (_raw, _expected, span) => resolvedChoiceTypes.get(span.start)
   });
   for (const diagnostic of checked.diagnostics) {
@@ -169,7 +239,37 @@ const resolveAndTypecheck = ({
     ));
   }
   const type = diagnostics.length === 0 && !invalidGeometryProperty ? checked.type : null;
-  return { semantic: { ast, type, references: resolvedReferences, geometryProperties }, diagnostics };
+  return { semantic: { ast, type, references: resolvedReferences, geometryProperties, geometryBuiltinArguments }, diagnostics };
+};
+
+const typecheckGeometryTarget = (
+  reference: ModuleGeometryReferenceSemantic,
+  expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+): ScalarExpressionResolvedGeometryTarget | null => {
+  if (!reference.target || (reference.resolution !== "resolved" && reference.resolution !== "deferred")) return null;
+  const target = reference.target;
+  if (target.kind === "parameter") {
+    return {
+      statementId: target.definitionStatementId,
+      statementIndex: -1,
+      geometryType: expectedGeometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
+  }
+  if (target.kind === "sourceGeometry") {
+    return {
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      geometryType: expectedGeometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
+  }
+  return {
+    statementId: target.instanceStatementId,
+    statementIndex: target.instanceStatementIndex,
+    geometryType: expectedGeometryType,
+    ...(target.pointKey ? { pointKey: target.pointKey } : {})
+  };
 };
 
 export const parseAndCheckModuleScalarExpression = ({
@@ -179,6 +279,7 @@ export const parseAndCheckModuleScalarExpression = ({
   resolveReference,
   resolveBareReference,
   resolveGeometryProperty,
+  resolveGeometryBuiltin,
   diagnostics
 }: {
   raw: string;
@@ -187,6 +288,7 @@ export const parseAndCheckModuleScalarExpression = ({
   resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
+  resolveGeometryBuiltin?: ModuleGeometryBuiltinReferenceResolver;
   diagnostics: ModuleScalarLocalDiagnostic[];
 }): ModuleScalarExpressionSemantic | null => {
   const parsed = parseScalarExpression(`${" ".repeat(span.start)}${raw}`, span);
@@ -199,7 +301,8 @@ export const parseAndCheckModuleScalarExpression = ({
     expectedType,
     resolveReference,
     resolveBareReference,
-    resolveGeometryProperty
+    resolveGeometryProperty,
+    resolveGeometryBuiltin
   });
   diagnostics.push(...checked.diagnostics);
   return checked.semantic;

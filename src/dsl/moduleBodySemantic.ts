@@ -28,6 +28,8 @@ import type {
   ResolvedModuleExport
 } from "./moduleSemanticTypes";
 import type {
+  ModuleGeometryBuiltinReferenceInput,
+  ModuleGeometryBuiltinReferenceResolver,
   ModuleGeometryPropertyReferenceResolution,
   ModuleGeometryPropertyReferenceInput,
   ModuleScalarLocalDiagnostic,
@@ -49,7 +51,8 @@ type AnalyzeExpression = (
   expectedType: ScalarType | null,
   resolver: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution,
   bareResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null,
-  geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution
+  geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution,
+  geometryBuiltinResolver?: ModuleGeometryBuiltinReferenceResolver
 ) => ModuleScalarExpressionSemantic | null;
 type ResolveGeometry = (
   statementIndex: number,
@@ -98,7 +101,8 @@ const textParameterSemantic = (raw: string, span: DslSpan): ModuleScalarExpressi
   ast: { kind: "stringLiteral", span, value: unquoteDslString(raw.trim()) },
   type: { kind: "string" },
   references: [],
-  geometryProperties: []
+  geometryProperties: [],
+  geometryBuiltinArguments: []
 });
 
 const isModuleScalarTarget = (target: ModuleSourceTarget | null): target is ModuleScalarSourceTarget =>
@@ -120,7 +124,8 @@ export const analyzeModuleBody = ({
   resolvePlainScalarTarget,
   resolveBodyScalar,
   resolveBodyBareScalar,
-  resolveBodyGeometryProperty
+  resolveBodyGeometryProperty,
+  resolveBodyGeometryBuiltin
 }: {
   definition: ModuleBodyDefinition;
   statements: readonly DslStatement[];
@@ -133,6 +138,7 @@ export const analyzeModuleBody = ({
   resolveBodyScalar: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBodyBareScalar: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveBodyGeometryProperty: (statementIndex: number, reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
+  resolveBodyGeometryBuiltin: (statementIndex: number, reference: ModuleGeometryBuiltinReferenceInput) => ModuleGeometryReferenceSemantic;
 }): ModuleBodySemanticResult => {
   const localScalars: NonNullable<ModuleDefinitionSemantic["localScalars"]>[number][] = [];
   const bodyStatements: ModuleBodyStatementSemantic[] = [];
@@ -212,7 +218,8 @@ export const analyzeModuleBody = ({
         null,
         localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
         (reference) => resolveBodyBareScalar(statementIndex, reference),
-        (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+        (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+        (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
       );
       if (bodySemantic && expression) {
         const site: ModuleTextTemplateHoleSite = { span: hole.span, contentSpan: hole.contentSpan, expression };
@@ -258,7 +265,8 @@ export const analyzeModuleBody = ({
           { kind: "number" },
           localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
           (reference) => resolveBodyBareScalar(statementIndex, reference),
-          (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+          (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+          (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
         );
         addScalar(bodySemantic, parameterKey, fieldSpan, expression);
       }
@@ -290,7 +298,8 @@ export const analyzeModuleBody = ({
             statement.declaredType,
             (reference) => resolveBodyScalar(statementIndex, reference),
             undefined,
-            (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+            (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+            (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
           )
         : null;
       localScalars.push({ statementId, statementIndex, name: statement.name, type: statement.declaredType, bindingKind: statement.bindingKind, initializer });
@@ -325,7 +334,8 @@ export const analyzeModuleBody = ({
         target.type,
         (reference) => resolveBodyScalar(statementIndex, reference),
         undefined,
-        (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+        (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+        (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
       );
       if (bodySemantic && expression) bodySemantic.scalarExpressions = [{ parameterKey: null, span: expressionSpan, expression }];
       if (bodySemantic) bodySemantic.scalarTarget = isModuleScalarTarget(target.target) ? target.target : null;
@@ -427,7 +437,8 @@ export const analyzeModuleBody = ({
                   expectedType,
                   localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
                   (reference) => resolveBodyBareScalar(statementIndex, reference),
-                  (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+                  (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+                  (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
                 );
             if (bodySemantic && expression && !template) bodySemantic.scalarExpressions = [...bodySemantic.scalarExpressions, { parameterKey, span: valueSpan, expression }];
           }

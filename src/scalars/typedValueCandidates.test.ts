@@ -263,7 +263,10 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
     });
     expect(candidates).toEqual(expect.arrayContaining([
       { kind: "function", name: "round", returnType: { kind: "number" } },
-      { kind: "function", name: "roundTo", returnType: { kind: "number" } }
+      { kind: "function", name: "roundTo", returnType: { kind: "number" } },
+      { kind: "function", name: "distance", returnType: { kind: "number" } },
+      { kind: "function", name: "angle", returnType: { kind: "number" } },
+      { kind: "function", name: "lineDistance", returnType: { kind: "number" } }
     ]));
     expect(candidates).not.toEqual(expect.arrayContaining([
       { kind: "function", name: "isClose", returnType: { kind: "boolean" } }

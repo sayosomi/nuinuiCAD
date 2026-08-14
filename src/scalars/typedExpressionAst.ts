@@ -9,6 +9,7 @@ import type { BindingId } from "./bindingCatalog";
 import type { BindingResolution } from "./bindingResolution";
 import type { BuiltinFunctionName } from "./builtinFunctions";
 import type { ChoiceScalarType, ScalarType } from "./types";
+import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 
 export interface TypedScalarNumberLiteralNode {
   readonly kind: "numberLiteral";
@@ -67,11 +68,23 @@ export interface TypedScalarReferenceNode {
  * `BindingId` later; the common checker only needs the already-resolved type
  * && must not perform another name lookup.
  */
-export type ScalarExpressionResolvedReference = {
-  readonly kind: "resolvedType";
-  readonly bindingId: BindingId | null;
-  readonly type: ScalarType | null;
+export type ScalarExpressionResolvedGeometryTarget = {
+  readonly statementId: string;
+  readonly statementIndex: number;
+  readonly geometryType: ModuleGeometryInterfaceType;
+  readonly pointKey?: string;
 };
+
+export type ScalarExpressionResolvedReference =
+  | {
+      readonly kind: "resolvedType";
+      readonly bindingId: BindingId | null;
+      readonly type: ScalarType | null;
+    }
+  | {
+      readonly kind: "resolvedGeometry";
+      readonly target: ScalarExpressionResolvedGeometryTarget | null;
+    };
 
 /** Resolved at compile time. `elementId` is never re-resolved by a runtime. */
 export interface TypedScalarGeometryPropertyReferenceNode {
@@ -116,13 +129,24 @@ export type TypedScalarCallTarget = {
   readonly name: BuiltinFunctionName;
 };
 
+export type TypedBuiltinArgument =
+  | {
+      readonly kind: "scalar";
+      readonly expression: TypedScalarExpression;
+    }
+  | {
+      readonly kind: "geometryReference";
+      readonly expectedGeometryType: ModuleGeometryInterfaceType;
+      readonly target: ScalarExpressionResolvedGeometryTarget | null;
+    };
+
 export interface TypedScalarCallExpressionNode {
   readonly kind: "call";
   readonly span: ScalarSpan;
   readonly nameSpan: ScalarSpan;
   readonly name: string;
   readonly target: TypedScalarCallTarget | null;
-  readonly args: readonly TypedScalarExpression[];
+  readonly args: readonly TypedBuiltinArgument[];
   readonly type: ScalarType | null;
 }
 
@@ -164,6 +188,10 @@ export interface ScalarExpressionTypecheckDiagnostic {
 export interface ScalarExpressionTypecheckContext {
   readonly expectedType: ScalarType | null;
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
+  /** Narrow sidecar for geometryProperty nodes used as point builtin
+   * operands. It is keyed by the parser-owned node span and never enters the
+   * scalar reference occurrence sequence. */
+  readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
   /** Optional closed-frontend hook for bare choice tokens that are actually
    * local semantic values (for example a legacy Module iteration value). */
   readonly resolveChoiceLiteral?: (

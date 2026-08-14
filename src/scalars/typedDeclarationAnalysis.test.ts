@@ -14,6 +14,119 @@ const referencesInOccurrenceOrder = referencesIn;
 const geometryPropertiesInOccurrenceOrder = geometryPropertiesIn;
 
 describe("analyzeTypedDeclarations resolution buckets", () => {
+  it("resolves geometry builtin calls without scalar dependency edges", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 3, y: 4)",
+      "line AB = segment(start: @A, end: @B)",
+      "const d: number = distance(@A, @B)",
+      "const a: number = angle(@A, @B)",
+      "const h: number = lineDistance(@A, @AB)"
+    ].join("\n"));
+
+    for (const name of ["d", "a", "h"]) {
+      const initializer = fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, name));
+      expect(initializer).toMatchObject({ kind: "call", type: { kind: "number" } });
+    }
+    const expectedArguments = {
+      d: [
+        { expectedGeometryType: "point", statementIndex: 1, geometryType: "point" },
+        { expectedGeometryType: "point", statementIndex: 2, geometryType: "point" }
+      ],
+      a: [
+        { expectedGeometryType: "point", statementIndex: 1, geometryType: "point" },
+        { expectedGeometryType: "point", statementIndex: 2, geometryType: "point" }
+      ],
+      h: [
+        { expectedGeometryType: "point", statementIndex: 1, geometryType: "point" },
+        { expectedGeometryType: "line", statementIndex: 3, geometryType: "line" }
+      ]
+    } as const;
+    const typedArgumentsByName = new Map<string, unknown[]>();
+    for (const name of ["d", "a", "h"] as const) {
+      const initializer = fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, name));
+      if (initializer?.kind !== "call") throw new Error(`Expected builtin call for ${name}`);
+      expect(initializer.target).toEqual({ kind: "builtin", name: name === "d" ? "distance" : name === "a" ? "angle" : "lineDistance" });
+      expect(initializer.args).toEqual(expectedArguments[name].map((argument) => ({
+        kind: "geometryReference",
+        expectedGeometryType: argument.expectedGeometryType,
+        target: {
+          statementId: fixture.elementIdByStatementIndex.get(argument.statementIndex),
+          statementIndex: argument.statementIndex,
+          geometryType: argument.geometryType
+        }
+      })));
+      expect(initializer.args.every((argument) => argument.kind === "geometryReference" && !("name" in argument))).toBe(true);
+      typedArgumentsByName.set(name, [...initializer.args]);
+    }
+    const program = lowerScalarProgram(fixture.analysis);
+    for (const name of ["d", "a", "h"] as const) {
+      const bindingId = bindingIdForName(fixture, name);
+      const statement = program.statements.find((candidate) => candidate.bindingId === bindingId);
+      expect(statement?.declaration.initializer).toMatchObject({ args: typedArgumentsByName.get(name) });
+    }
+    expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, "d"))).toBeUndefined();
+    expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, "a"))).toBeUndefined();
+    expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, "h"))).toBeUndefined();
+  });
+
+  it("reports geometry interface mismatches while keeping geometry arguments out of scalar dependencies", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 3, y: 4)",
+      "line AB = segment(start: @A, end: @B)",
+      "arc ArcA = arc(center: @A, radius: 10, start: 0, end: 90)",
+      "const wrongPoint: number = distance(@AB, @A)",
+      "const wrongLine: number = lineDistance(@A, @ArcA)"
+    ].join("\n"), { expectNoDiagnostics: false });
+
+    expect(fixture.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "builtin-geometry-type-mismatch",
+      "builtin-geometry-type-mismatch"
+    ]);
+    expect(fixture.diagnostics.every((diagnostic) => diagnostic.code !== "scalar-namespace-type-mismatch")).toBe(true);
+    expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, "wrongPoint"))).toBeUndefined();
+    expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, "wrongLine"))).toBeUndefined();
+  });
+
+  it("resolves derived point builtin operands without scalar or numeric geometry-property edges", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point C = coordinate(x: 0, y: 5)",
+      "line AB = segment(start: @A, end: @C)",
+      "const distanceValue: number = distance(@AB.start, @C)",
+      "const angleValue: number = angle(@AB.end, @C)",
+      "const lineValue: number = lineDistance(@AB.start, @AB)"
+    ].join("\n"));
+
+    for (const name of ["distanceValue", "angleValue", "lineValue"]) {
+      const initializer = fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, name));
+      expect(initializer).toMatchObject({ kind: "call", type: { kind: "number" } });
+      if (initializer?.kind !== "call") throw new Error(`Expected call for ${name}`);
+      expect(initializer.args[0]).toMatchObject({
+        kind: "geometryReference",
+        expectedGeometryType: "point",
+        target: { statementIndex: 3, geometryType: "point", pointKey: name === "angleValue" ? "end" : "start" }
+      });
+      expect(initializer.args.every((argument) => argument.kind === "geometryReference")).toBe(true);
+      expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, name))).toBeUndefined();
+      expect(geometryPropertiesInOccurrenceOrder(initializer)).toEqual([]);
+    }
+  });
+
+  it("keeps a geometry reference outside a geometry builtin as a scalar namespace mismatch", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "const x: number = @A"
+    ].join("\n"), { expectNoDiagnostics: false });
+
+    expect(fixture.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["scalar-namespace-type-mismatch"]);
+  });
+
   it("keeps multiple occurrences for one binding in source occurrence order", () => {
     const fixture = typedDeclarationAnalysisFor([
       "nui 4",

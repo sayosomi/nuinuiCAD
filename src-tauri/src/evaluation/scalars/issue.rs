@@ -36,6 +36,7 @@ pub(crate) enum ScalarPayloadIssueCode {
     InvalidControlOwner,
     InvalidElementSourceOrder,
     TypedHoleRequiresScalarRuntime,
+    InvalidBuiltinArgument,
 }
 
 impl ScalarPayloadIssueCode {
@@ -69,6 +70,7 @@ impl ScalarPayloadIssueCode {
             Self::TypedHoleRequiresScalarRuntime => {
                 "scalar-payload-typed-hole-requires-scalar-runtime"
             }
+            Self::InvalidBuiltinArgument => "scalar-payload-invalid-builtin-argument",
         }
     }
 }

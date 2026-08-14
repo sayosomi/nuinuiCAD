@@ -12,6 +12,49 @@ const moduleBodyAt = (compiled: ReturnType<typeof compileWithIds>, statementInde
   compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === statementIndex)!;
 
 describe("module semantic analysis", () => {
+  it("keeps module geometry builtin operands separate from scalar references", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "point P = coordinate(x: 3, y: 4)",
+      "point O = coordinate(x: 0, y: 0)",
+      "line Baseline = segment(start: (0, 0), end: (1, 0))",
+      "module Example(p: point, origin: point, baseline: line) {",
+      "  const radius: number = distance(@origin, @p)",
+      "  const direction: number = angle(@origin, @p)",
+      "  const height: number = lineDistance(@p, @baseline)",
+      "}",
+      "instance Use = Example(p: @P, origin: @O, baseline: @Baseline)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Example")!;
+    for (const [name, expected] of [["radius", ["point", "point"]], ["direction", ["point", "point"]], ["height", ["point", "line"]]] as const) {
+      const expression = definition.localScalars.find((scalar) => scalar.name === name)!.initializer!;
+      expect(expression.type).toEqual({ kind: "number" });
+      expect(expression.references).toEqual([]);
+      expect(expression.geometryBuiltinArguments.map((occurrence) => occurrence.expectedGeometryType)).toEqual(expected);
+      expect(expression.geometryBuiltinArguments.every((occurrence) => occurrence.reference.target !== null)).toBe(true);
+    }
+  });
+
+  it("typechecks derived point geometry builtin operands", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "point P = coordinate(x: 3, y: 4)",
+      "module Example(baseline: line, p: point, delta: number) {",
+      "  point Q = coordinate(x: distance(@baseline.start, @p) + @delta, y: 0)",
+      "}",
+      "instance Use = Example(baseline: @Baseline, p: @P, delta: 2)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const expression = moduleBodyAt(compiled, 4).scalarExpressions.find((site) => site.parameterKey === "x")!.expression;
+    expect(expression.type).toEqual({ kind: "number" });
+    expect(expression.geometryBuiltinArguments[0]).toMatchObject({
+      expectedGeometryType: "point",
+      reference: { target: { kind: "parameter", pointKey: "start" } }
+    });
+  });
+
   it("resolves builtin calls through the shared scalar frontend and preserves their argument references", () => {
     const compiled = compileWithIds([
       "nui 4",

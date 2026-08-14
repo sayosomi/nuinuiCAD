@@ -143,5 +143,9 @@ export const evaluateBuiltinFunction = (
       if (!hasFiniteArguments(args, 3) || args[2] < 0) return invalidArgument();
       return { status: "ok", value: Math.abs(args[0] - args[1]) <= args[2] };
     }
+    default:
+      // Geometry builtins are catalog-only until a later task adds geometry
+      // argument resolution and lowering; they must not enter scalar runtime.
+      return invalidArgument();
   }
 };
