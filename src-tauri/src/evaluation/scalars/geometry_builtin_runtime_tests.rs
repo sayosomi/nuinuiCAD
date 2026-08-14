@@ -53,6 +53,20 @@ fn target(
         statement_id: id.to_owned(),
         statement_index: index,
         geometry_type,
+        point_key: None,
+    }
+}
+
+fn derived_target(
+    id: &str,
+    index: usize,
+    point_key: &str,
+) -> ScalarExpressionResolvedGeometryTarget {
+    ScalarExpressionResolvedGeometryTarget {
+        statement_id: id.to_owned(),
+        statement_index: index,
+        geometry_type: GeometryInterfaceType::Point,
+        point_key: Some(point_key.to_owned()),
     }
 }
 
@@ -142,6 +156,49 @@ fn point_target_requires_point_runtime_kind() {
             2,
             &target("line-id", 1, GeometryInterfaceType::Point)
         ),
+        Err(GeometryBuiltinRuntimeError::Unavailable)
+    );
+}
+
+#[test]
+fn derived_start_and_end_targets_resolve_to_points() {
+    let state = state_with_geometry(
+        "line-id",
+        line_value(point_value(2.0, 3.0), point_value(5.0, 7.0)),
+        true,
+    );
+    let start = resolve_geometry_builtin_target(&state, 2, &derived_target("line-id", 1, "start"));
+    let end = resolve_geometry_builtin_target(&state, 2, &derived_target("line-id", 1, "end"));
+    assert!(
+        matches!(start, Ok(GeometryBuiltinRuntimeTarget::Point(point)) if point.x == 2.0 && point.y == 3.0)
+    );
+    assert!(
+        matches!(end, Ok(GeometryBuiltinRuntimeTarget::Point(point)) if point.x == 5.0 && point.y == 7.0)
+    );
+}
+
+#[test]
+fn derived_target_requires_an_available_base_geometry() {
+    let state = state_with_geometry(
+        "line-id",
+        line_value(point_value(0.0, 0.0), point_value(1.0, 0.0)),
+        false,
+    );
+    assert_eq!(
+        resolve_geometry_builtin_target(&state, 2, &derived_target("line-id", 1, "start")),
+        Err(GeometryBuiltinRuntimeError::Unavailable)
+    );
+}
+
+#[test]
+fn invalid_derived_projection_fails_closed_as_unavailable() {
+    let state = state_with_geometry(
+        "line-id",
+        line_value(point_value(0.0, 0.0), point_value(1.0, 0.0)),
+        true,
+    );
+    assert_eq!(
+        resolve_geometry_builtin_target(&state, 2, &derived_target("line-id", 1, "center")),
         Err(GeometryBuiltinRuntimeError::Unavailable)
     );
 }

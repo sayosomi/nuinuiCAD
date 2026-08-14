@@ -1,5 +1,6 @@
 import type { CadElement, ComputedGeometry, ElementId } from "../types/geometry";
 import { computedReferencePathValue } from "./numericExpressions";
+import { resolveDerivedPoint } from "../model/pointAnchors";
 import type { BindingReadPosition, BindingVersionGraph } from "../scalars/bindingVersions";
 import {
   createLazyScalarProgramEvaluator,
@@ -49,7 +50,10 @@ const resolveDocumentGeometryTarget = (
   sourceOrder: number
 ): ComputedGeometry | undefined => {
   if (target.statementIndex >= sourceOrder || !geometry.elementsById.has(target.statementId)) return undefined;
-  return geometry.computedGeometry.get(target.statementId);
+  const computed = geometry.computedGeometry.get(target.statementId);
+  if (!computed) return undefined;
+  if (!target.pointKey) return computed;
+  return resolveDerivedPoint(computed, target.pointKey, new Map(geometry.elementsById)) ?? undefined;
 };
 
 /**

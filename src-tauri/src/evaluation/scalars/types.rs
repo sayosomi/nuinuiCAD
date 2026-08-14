@@ -35,6 +35,7 @@ pub(crate) struct ScalarExpressionResolvedGeometryTarget {
     pub(crate) statement_id: String,
     pub(crate) statement_index: usize,
     pub(crate) geometry_type: GeometryInterfaceType,
+    pub(crate) point_key: Option<String>,
 }
 
 /// A source-text offset range, `[start, end)`. Never read for evaluation

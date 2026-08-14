@@ -38,6 +38,7 @@ const BOOLEAN_TYPE: Extract<ScalarType, { kind: "boolean" }> = { kind: "boolean"
 
 interface TraversalState {
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
+  readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
   cursor: number;
   readonly diagnostics: ScalarExpressionTypecheckDiagnostic[];
   readonly resolveChoiceLiteral?: ScalarExpressionTypecheckContext["resolveChoiceLiteral"];
@@ -300,6 +301,11 @@ const checkNode = (
           } else if (!isModuleGeometryInterfaceAssignable(resolution.target.geometryType, parameterType)) {
             argumentsAreValid = false;
           }
+        } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
+          target = state.geometryBuiltinArguments?.get(nodeArgument.span.start) ?? null;
+          if (target === null || !isModuleGeometryInterfaceAssignable(target.geometryType, parameterType)) {
+            argumentsAreValid = false;
+          }
         } else {
           checkNode(nodeArgument, null, state);
           argumentsAreValid = false;
@@ -325,6 +331,7 @@ export const typecheckScalarExpression = (
 ): ScalarExpressionTypecheckResult => {
   const state: TraversalState = {
     references: context.references,
+    geometryBuiltinArguments: context.geometryBuiltinArguments,
     cursor: 0,
     diagnostics: [],
     resolveChoiceLiteral: context.resolveChoiceLiteral

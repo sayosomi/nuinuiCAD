@@ -91,6 +91,32 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, "wrongLine"))).toBeUndefined();
   });
 
+  it("resolves derived point builtin operands without scalar or numeric geometry-property edges", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point C = coordinate(x: 0, y: 5)",
+      "line AB = segment(start: @A, end: @C)",
+      "const distanceValue: number = distance(@AB.start, @C)",
+      "const angleValue: number = angle(@AB.end, @C)",
+      "const lineValue: number = lineDistance(@AB.start, @AB)"
+    ].join("\n"));
+
+    for (const name of ["distanceValue", "angleValue", "lineValue"]) {
+      const initializer = fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, name));
+      expect(initializer).toMatchObject({ kind: "call", type: { kind: "number" } });
+      if (initializer?.kind !== "call") throw new Error(`Expected call for ${name}`);
+      expect(initializer.args[0]).toMatchObject({
+        kind: "geometryReference",
+        expectedGeometryType: "point",
+        target: { statementIndex: 3, geometryType: "point", pointKey: name === "angleValue" ? "end" : "start" }
+      });
+      expect(initializer.args.every((argument) => argument.kind === "geometryReference")).toBe(true);
+      expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, name))).toBeUndefined();
+      expect(geometryPropertiesInOccurrenceOrder(initializer)).toEqual([]);
+    }
+  });
+
   it("keeps a geometry reference outside a geometry builtin as a scalar namespace mismatch", () => {
     const fixture = typedDeclarationAnalysisFor([
       "nui 4",

@@ -146,13 +146,13 @@ const resolveAndTypecheck = ({
               signature &&
               parameterType !== undefined &&
               isBuiltinGeometryParameterType(parameterType) &&
-              argument.kind === "reference" &&
+              (argument.kind === "reference" || argument.kind === "geometryProperty") &&
               resolveGeometryBuiltin
             ) {
               const reference = resolveGeometryBuiltin({
                 builtinName: definition.name,
                 argumentIndex,
-                name: argument.name,
+                name: argument.kind === "reference" ? argument.name : `${argument.elementName}.${argument.property}`,
                 span: argument.span,
                 expectedGeometryType: parameterType
               });
@@ -163,10 +163,12 @@ const resolveAndTypecheck = ({
                 expectedGeometryType: parameterType,
                 reference
               });
-              resolvedTypes.push({
-                kind: "resolvedGeometry",
-                target: typecheckGeometryTarget(reference, parameterType)
-              });
+              if (argument.kind === "reference") {
+                resolvedTypes.push({
+                  kind: "resolvedGeometry",
+                  target: typecheckGeometryTarget(reference, parameterType)
+                });
+              }
               return argument;
             }
             return resolve(argument);
@@ -239,12 +241,27 @@ const typecheckGeometryTarget = (
   if (!reference.target || (reference.resolution !== "resolved" && reference.resolution !== "deferred")) return null;
   const target = reference.target;
   if (target.kind === "parameter") {
-    return { statementId: target.definitionStatementId, statementIndex: -1, geometryType: expectedGeometryType };
+    return {
+      statementId: target.definitionStatementId,
+      statementIndex: -1,
+      geometryType: expectedGeometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
   }
   if (target.kind === "sourceGeometry") {
-    return { statementId: target.statementId, statementIndex: target.statementIndex, geometryType: expectedGeometryType };
+    return {
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      geometryType: expectedGeometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
   }
-  return { statementId: target.instanceStatementId, statementIndex: target.instanceStatementIndex, geometryType: expectedGeometryType };
+  return {
+    statementId: target.instanceStatementId,
+    statementIndex: target.instanceStatementIndex,
+    geometryType: expectedGeometryType,
+    ...(target.pointKey ? { pointKey: target.pointKey } : {})
+  };
 };
 
 export const parseAndCheckModuleScalarExpression = ({

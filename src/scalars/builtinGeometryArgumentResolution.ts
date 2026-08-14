@@ -6,7 +6,10 @@ import {
   moduleGeometryInterfaceTypeOfElement,
   type ModuleGeometryInterfaceType
 } from "../dsl/moduleGeometryInterfaces";
+import { isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
+import { isGeometryDeclarationCategory } from "../dsl/dslConstructions";
 import type { SourceLexicalDeclaration } from "../dsl/sourceLexicalNamespaceIndex";
+import type { SourceLexicalLookup } from "../dsl/sourceLexicalNamespaceIndex";
 import type {
   ScalarExpressionResolvedGeometryTarget,
   ScalarExpressionResolvedReference
@@ -30,11 +33,15 @@ export type ResolveBuiltinGeometryArgumentsInput = {
   readonly statementIndex: number;
   readonly scalarReferenceResolutions: readonly BindingResolution[];
   readonly sourceDeclarationsByStatementId: ReadonlyMap<string, SourceLexicalDeclaration>;
+  /** Root source lexical lookup for a geometry property base name. This is
+   * deliberately separate from scalar reference occurrences: a
+   * geometryProperty never becomes a fake scalar reference. */
+  readonly resolveSourceGeometryPath?: (elementName: string) => SourceLexicalLookup;
   /** Module semantic analysis may claim an already-resolved qualified geometry
    * occurrence before the ordinary source namespace lookup runs. */
   readonly additionalGeometryResolver?: (input: {
-    readonly node: Extract<ScalarExpressionAst, { kind: "reference" }>;
-    readonly occurrenceIndex: number;
+    readonly node: Extract<ScalarExpressionAst, { kind: "reference" | "geometryProperty" }>;
+    readonly occurrenceIndex: number | null;
     readonly expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
   }) => ScalarExpressionResolvedGeometryTarget | undefined;
 };
@@ -42,6 +49,7 @@ export type ResolveBuiltinGeometryArgumentsInput = {
 export type ResolveBuiltinGeometryArgumentsResult = {
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   readonly claimedReferenceOccurrenceIndexes: ReadonlySet<number>;
+  readonly geometryPropertyTargets: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
   readonly issues: readonly BuiltinGeometryArgumentResolutionIssue[];
 };
 
@@ -67,15 +75,27 @@ const typeMismatchMessage = (
   actual: ModuleGeometryInterfaceType
 ): string => `geometry引数の型が一致しません(期待: ${expected}, 実際: ${actual})。`;
 
+const invalidGeometryPropertyMessage = (name: string, property: string, expected: ModuleGeometryInterfaceType): string =>
+  `組み込み関数のgeometry引数「@${name}.${property}」は、${expected}として利用できるderived pointではありません。`;
+
+const sourceLookupMessage = (name: string, lookup: SourceLexicalLookup): string => {
+  if (lookup.kind === "forward") return `geometry引数の参照「@${name}」はこの位置より後で宣言されているため、まだ参照できません。`;
+  if (lookup.kind === "ambiguous") return `geometry引数の参照「@${name}」は複数の宣言と一致するため一意に解決できません。`;
+  if (lookup.kind === "invalidTraversal") return `geometry引数の参照「@${name}」のqualified pathを解決できません。`;
+  return `geometry引数の参照「@${name}」は未定義です。`;
+};
+
 export const resolveBuiltinGeometryArguments = ({
   ast,
   statementIndex,
   scalarReferenceResolutions,
   sourceDeclarationsByStatementId,
-  additionalGeometryResolver
+  additionalGeometryResolver,
+  resolveSourceGeometryPath
 }: ResolveBuiltinGeometryArgumentsInput): ResolveBuiltinGeometryArgumentsResult => {
   const references: (BindingResolution | ScalarExpressionResolvedReference)[] = [...scalarReferenceResolutions];
   const claimedReferenceOccurrenceIndexes = new Set<number>();
+  const geometryPropertyTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>();
   const issues: BuiltinGeometryArgumentResolutionIssue[] = [];
   let referenceCursor = 0;
 
@@ -142,6 +162,52 @@ export const resolveBuiltinGeometryArguments = ({
     }
   };
 
+  const resolveDerivedPointGeometryProperty = (
+    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>
+  ): void => {
+    const issue = (message: string): void => {
+      geometryPropertyTargets.set(node.span.start, null);
+      issues.push({
+        code: "builtin-geometry-argument-invalid",
+        span: node.span,
+        message,
+        occurrenceIndex: null
+      });
+    };
+    const additionalTarget = additionalGeometryResolver?.({ node, occurrenceIndex: null, expectedGeometryType: "point" });
+    if (additionalTarget !== undefined) {
+      if (additionalTarget.pointKey) {
+        geometryPropertyTargets.set(node.span.start, additionalTarget);
+        return;
+      }
+      issue(invalidGeometryPropertyMessage(node.elementName, node.property, "point"));
+      return;
+    }
+    const lookup = resolveSourceGeometryPath?.(node.elementName);
+    if (!lookup || lookup.kind !== "resolved") {
+      issue(lookup ? sourceLookupMessage(node.elementName, lookup) : invalidGeometryPropertyMessage(node.elementName, node.property, "point"));
+      return;
+    }
+    const declaration = lookup.declaration;
+    const category = declaration.kind === "geometry" && declaration.statement.kind === "element" && isGeometryDeclarationCategory(declaration.statement.category)
+      ? declaration.statement.category
+      : null;
+    if (!category || !isDerivedPointKeyForGeometryCategory(category, node.property)) {
+      issue(invalidGeometryPropertyMessage(node.elementName, node.property, "point"));
+      return;
+    }
+    if (moduleGeometryInterfaceTypeOfElement(declaration.statement) === null) {
+      issue(invalidGeometryPropertyMessage(node.elementName, node.property, "point"));
+      return;
+    }
+    geometryPropertyTargets.set(node.span.start, {
+      statementId: declaration.statementId,
+      statementIndex: declaration.statementIndex,
+      geometryType: "point",
+      pointKey: node.property
+    });
+  };
+
   const visit = (node: ScalarExpressionAst): void => {
     switch (node.kind) {
       case "reference":
@@ -175,6 +241,8 @@ export const resolveBuiltinGeometryArguments = ({
           if (parameterType === "point" || parameterType === "line") {
             if (argument.kind === "reference") {
               resolveDirectGeometryReference(argument, parameterType);
+            } else if (argument.kind === "geometryProperty" && parameterType === "point") {
+              resolveDerivedPointGeometryProperty(argument);
             } else {
               visit(argument);
               issues.push({
@@ -199,5 +267,5 @@ export const resolveBuiltinGeometryArguments = ({
       `builtinGeometryArgumentResolution: ${scalarReferenceResolutions.length - referenceCursor} unconsumed reference resolution(s)`
     );
   }
-  return { references, claimedReferenceOccurrenceIndexes, issues };
+  return { references, claimedReferenceOccurrenceIndexes, geometryPropertyTargets, issues };
 };

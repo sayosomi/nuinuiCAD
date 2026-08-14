@@ -72,6 +72,7 @@ export type ScalarExpressionResolvedGeometryTarget = {
   readonly statementId: string;
   readonly statementIndex: number;
   readonly geometryType: ModuleGeometryInterfaceType;
+  readonly pointKey?: string;
 };
 
 export type ScalarExpressionResolvedReference =
@@ -187,6 +188,10 @@ export interface ScalarExpressionTypecheckDiagnostic {
 export interface ScalarExpressionTypecheckContext {
   readonly expectedType: ScalarType | null;
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
+  /** Narrow sidecar for geometryProperty nodes used as point builtin
+   * operands. It is keyed by the parser-owned node span and never enters the
+   * scalar reference occurrence sequence. */
+  readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
   /** Optional closed-frontend hook for bare choice tokens that are actually
    * local semantic values (for example a legacy Module iteration value). */
   readonly resolveChoiceLiteral?: (

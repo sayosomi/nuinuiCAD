@@ -224,8 +224,8 @@ export const analyzeTypedDeclarations = ({
   additionalBindingResolver?: SourceNamespaceBindingResolver;
   additionalGeometryResolver?: (input: {
     readonly statementIndex: number;
-    readonly node: Extract<import("./expressionAst").ScalarExpressionAst, { kind: "reference" }>;
-    readonly occurrenceIndex: number;
+    readonly node: Extract<import("./expressionAst").ScalarExpressionAst, { kind: "reference" | "geometryProperty" }>;
+    readonly occurrenceIndex: number | null;
     readonly expectedGeometryType: Extract<import("../dsl/moduleGeometryInterfaces").ModuleGeometryInterfaceType, "point" | "line">;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryTarget | undefined;
 }): TypedDeclarationAnalysisCompilation => {
@@ -348,6 +348,9 @@ export const analyzeTypedDeclarations = ({
             occurrenceIndex,
             expectedGeometryType
           })
+        : undefined,
+      resolveSourceGeometryPath: sourceNamespace
+        ? (elementName) => resolveSourceLexicalPath(sourceNamespace, binding.statementIndex, parseDslReferenceToken(elementName))
         : undefined
     });
     geometryResolutionByBindingId.set(binding.id, geometryResolution);
@@ -415,7 +418,8 @@ export const analyzeTypedDeclarations = ({
     if (!parsed) throw new Error(`typedDeclarationAnalysis: no parsed initializer for ${binding.id}`);
     const checked = typecheckScalarExpression(parsed.ast, {
       expectedType: binding.declaredType,
-      references: geometryResolutionByBindingId.get(binding.id)?.references ?? resolvedByBindingId.get(binding.id) ?? []
+      references: geometryResolutionByBindingId.get(binding.id)?.references ?? resolvedByBindingId.get(binding.id) ?? [],
+      geometryBuiltinArguments: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets
     });
     const statement = statements[binding.statementIndex] as Extract<DslStatement, { kind: "typedDeclaration" }>;
     const ownerContainerId = adapter.containerIndex.ownerContainerIdByStatementIndex.get(binding.statementIndex);

@@ -208,6 +208,7 @@ fn geometry_argument(
             statement_id: statement_id.to_owned(),
             statement_index,
             geometry_type: target_geometry_type,
+            point_key: None,
         }),
     }
 }

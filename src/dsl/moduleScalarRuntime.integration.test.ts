@@ -170,6 +170,30 @@ describe("module scalar runtime integration", () => {
     }
   });
 
+  it("accepts line parameter and module-local derived point operands", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "module Example(baseline: line) {",
+      "  line Local = segment(start: (0, 0), end: (0, 2))",
+      "  const parameterStart: number = distance(@baseline.start, @Local.end)",
+      "  const parameterEnd: number = angle(@baseline.end, @Local.start)",
+      "  const localEndDistance: number = lineDistance(@Local.end, @baseline)",
+      "}",
+      "instance A = Example(baseline: @Baseline)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("parameterStart")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(valueFor("parameterEnd")).toMatchObject({ status: "ok", value: { kind: "number", value: 180 } });
+    expect(valueFor("localEndDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+  });
+
   it("bridges root typed declarations through module geometry exports", () => {
     const compiled = compileWithIds([
       "nui 4",

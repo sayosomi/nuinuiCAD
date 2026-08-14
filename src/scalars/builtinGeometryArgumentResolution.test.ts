@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { buildSourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
 import { parseDsl } from "../dsl/dslParser";
 import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
+import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
 import type { BindingResolution } from "./bindingResolution";
 import { parseScalarExpression } from "./expressionParser";
+import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
 import {
   resolveBuiltinGeometryArguments,
   type ResolveBuiltinGeometryArgumentsResult
@@ -18,7 +20,8 @@ const documentSource = [
   "curve CurveA = bezier(start: @A, end: @B)",
   "group Group {",
   "  point Inner = coordinate(x: 1, y: 1)",
-  "}"
+  "}",
+  "point C = coordinate(x: 0, y: 5)"
 ].join("\n");
 
 const parsed = parseDsl(documentSource);
@@ -56,7 +59,8 @@ const resolve = (
   ast: astFor(source),
   statementIndex: 100,
   scalarReferenceResolutions,
-  sourceDeclarationsByStatementId
+  sourceDeclarationsByStatementId,
+  resolveSourceGeometryPath: (elementName) => resolveSourceLexicalPath(sourceNamespace, 9, parseDslReferenceToken(elementName))
 });
 
 const targetOf = (result: ResolveBuiltinGeometryArgumentsResult, index: number) => {
@@ -173,12 +177,28 @@ describe("resolveBuiltinGeometryArguments", () => {
     expect(targetOf(result, 1)).toMatchObject({ statementId: "stable-2", geometryType: "point" });
   });
 
-  it("rejects geometry properties at the Task 2 boundary without consuming them", () => {
-    const result = resolve("distance(@AB.start, @A)", [sourceGeometryResolution("A", sourceNamespace)]);
+  it("resolves existing derived point members as point geometry targets", () => {
+    const distance = resolve("distance(@AB.start, @C)", [sourceGeometryResolution("C", sourceNamespace)]);
+    const angle = resolve("angle(@AB.end, @C)", [sourceGeometryResolution("C", sourceNamespace)]);
+    const lineDistance = resolve("lineDistance(@AB.start, @AB)", [sourceGeometryResolution("AB", sourceNamespace)]);
 
-    expect(result.references).toHaveLength(1);
+    expect(distance.issues).toEqual([]);
+    expect(angle.issues).toEqual([]);
+    expect(lineDistance.issues).toEqual([]);
+    expect(distance.geometryPropertyTargets.get(9)).toEqual({ statementId: "stable-3", statementIndex: 3, geometryType: "point", pointKey: "start" });
+    expect(angle.geometryPropertyTargets.get(6)).toEqual({ statementId: "stable-3", statementIndex: 3, geometryType: "point", pointKey: "end" });
+    expect(lineDistance.geometryPropertyTargets.get(13)).toEqual({ statementId: "stable-3", statementIndex: 3, geometryType: "point", pointKey: "start" });
+    expect(distance.claimedReferenceOccurrenceIndexes).toEqual(new Set([0]));
+  });
+
+  it.each([
+    ["distance(@AB.length, @C)", ["C"]],
+    ["distance(@A.start, @C)", ["C"]],
+    ["lineDistance(@A, @AB.start)", ["A"]]
+  ])("rejects invalid derived point geometry operands in %s", (source, names) => {
+    const result = resolve(source, names.map((name) => sourceGeometryResolution(name, sourceNamespace)));
+
     expect(result.issues[0]).toMatchObject({ code: "builtin-geometry-argument-invalid", occurrenceIndex: null });
-    expect(result.claimedReferenceOccurrenceIndexes).toEqual(new Set([0]));
-    expect(targetOf(result, 0)).toMatchObject({ statementId: "stable-1", geometryType: "point" });
+    expect([...result.claimedReferenceOccurrenceIndexes]).toEqual(names.map((_, index) => index));
   });
 });

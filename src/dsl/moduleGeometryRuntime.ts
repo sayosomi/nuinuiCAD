@@ -35,6 +35,7 @@ export type { ModuleGeometryPropertyRuntimeTarget };
 export type ModuleGeometryBuiltinRuntimeTarget = {
   elementId: ElementId;
   geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+  pointKey?: string;
 };
 
 export type ModuleGeometryRuntimeCompilation = {
@@ -248,6 +249,9 @@ export const buildModuleGeometryRuntime = ({
     }
     if (expectedGeometryType === "point" && alias.kind === "point" && alias.anchor.mode === "reference") {
       return { elementId: alias.anchor.pointId, geometryType: "point" };
+    }
+    if (expectedGeometryType === "point" && alias.kind === "line" && target.pointKey) {
+      return { elementId: alias.elementId, geometryType: "point", pointKey: target.pointKey };
     }
     // Coordinate and derived point aliases intentionally fail closed here:
     // geometry builtins require a concrete runtime geometry element identity.

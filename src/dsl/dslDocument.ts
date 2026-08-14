@@ -1237,12 +1237,27 @@ export const compileDslDocument = (
           const target = occurrence?.reference.target;
           if (!occurrence || !target || (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return undefined;
           if (target.kind === "parameter") {
-            return { statementId: target.definitionStatementId, statementIndex: -1, geometryType: expectedGeometryType };
+            return {
+              statementId: target.definitionStatementId,
+              statementIndex: -1,
+              geometryType: expectedGeometryType,
+              ...(target.pointKey ? { pointKey: target.pointKey } : {})
+            };
           }
           if (target.kind === "sourceGeometry") {
-            return { statementId: target.statementId, statementIndex: target.statementIndex, geometryType: expectedGeometryType };
+            return {
+              statementId: target.statementId,
+              statementIndex: target.statementIndex,
+              geometryType: expectedGeometryType,
+              ...(target.pointKey ? { pointKey: target.pointKey } : {})
+            };
           }
-          return { statementId: target.instanceStatementId, statementIndex: target.instanceStatementIndex, geometryType: expectedGeometryType };
+          return {
+            statementId: target.instanceStatementId,
+            statementIndex: target.instanceStatementIndex,
+            geometryType: expectedGeometryType,
+            ...(target.pointKey ? { pointKey: target.pointKey } : {})
+          };
         }
       });
       documentScalarAnalysis = scalarAnalysisCompilation.analysis;

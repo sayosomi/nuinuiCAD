@@ -210,6 +210,15 @@ fn geometry_target(id: &str, index: usize, geometry_type: &str) -> Value {
     })
 }
 
+fn derived_geometry_target(id: &str, index: usize, geometry_type: &str, point_key: &str) -> Value {
+    json!({
+        "statementId": id,
+        "statementIndex": index,
+        "geometryType": geometry_type,
+        "pointKey": point_key
+    })
+}
+
 fn geometry_argument(expected_geometry_type: &str, target: Option<Value>) -> Value {
     json!({
         "kind": "geometryReference",
@@ -228,6 +237,81 @@ fn geometry_call_with_type(name: &str, args: Vec<Value>, r#type: Value) -> Value
 
 fn geometry_call(name: &str, args: Vec<Value>) -> Value {
     geometry_call_with_type(name, args, json!({"kind": "number"}))
+}
+
+#[test]
+fn decodes_derived_point_geometry_target_and_keeps_direct_payload_compatible() {
+    let derived = geometry_call(
+        "distance",
+        vec![
+            geometry_argument(
+                "point",
+                Some(derived_geometry_target("line", 1, "point", "start")),
+            ),
+            geometry_argument("point", Some(geometry_target("point", 2, "point"))),
+        ],
+    );
+    let decoded =
+        validate_typed_expression_payload(&derived).expect("derived target should decode");
+    match &decoded {
+        TypedScalarExpression::Call { args, .. } => match &args[0] {
+            TypedBuiltinArgument::GeometryReference {
+                target: Some(target),
+                ..
+            } => {
+                assert_eq!(target.point_key.as_deref(), Some("start"));
+            }
+            other => panic!("expected derived geometry argument, got {other:?}"),
+        },
+        other => panic!("expected call, got {other:?}"),
+    }
+
+    let direct = geometry_call(
+        "distance",
+        vec![
+            geometry_argument("point", Some(geometry_target("a", 1, "point"))),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    );
+    let decoded =
+        validate_typed_expression_payload(&direct).expect("old direct target should decode");
+    assert!(matches!(decoded, TypedScalarExpression::Call { .. }));
+}
+
+#[test]
+fn rejects_invalid_derived_geometry_target_shapes() {
+    let point_key_non_point = geometry_call(
+        "lineDistance",
+        vec![
+            geometry_argument("point", Some(geometry_target("a", 1, "point"))),
+            geometry_argument(
+                "line",
+                Some(derived_geometry_target("line", 2, "line", "start")),
+            ),
+        ],
+    );
+    assert!(validate_typed_expression_payload(&point_key_non_point).is_err());
+
+    let empty_point_key = geometry_call(
+        "distance",
+        vec![
+            geometry_argument(
+                "point",
+                Some(derived_geometry_target("line", 1, "point", "")),
+            ),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    );
+    assert!(validate_typed_expression_payload(&empty_point_key).is_err());
+
+    let raw_name = geometry_call(
+        "distance",
+        vec![
+            geometry_argument("point", Some(json!({"name": "AB.start"}))),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    );
+    assert!(validate_typed_expression_payload(&raw_name).is_err());
 }
 
 #[test]

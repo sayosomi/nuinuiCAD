@@ -2,7 +2,9 @@ use super::types::{
     BuiltinArgumentType, BuiltinFunctionName, GeometryInterfaceType,
     ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument,
 };
-use crate::evaluation::point_anchor::{point_from_geometry, point_from_value};
+use crate::evaluation::point_anchor::{
+    point_from_geometry, point_from_value, resolve_derived_point,
+};
 use crate::evaluation::types::{EvaluationState, Point};
 use serde_json::Value;
 
@@ -65,6 +67,15 @@ pub(crate) fn resolve_geometry_builtin_target(
     let Some(geometry) = state.computed_geometry.get(&target.statement_id) else {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
     };
+
+    if let Some(point_key) = target.point_key.as_deref() {
+        if target.geometry_type != GeometryInterfaceType::Point {
+            return Err(GeometryBuiltinRuntimeError::Unavailable);
+        }
+        return resolve_derived_point(geometry, point_key, state)
+            .map(GeometryBuiltinRuntimeTarget::Point)
+            .ok_or(GeometryBuiltinRuntimeError::Unavailable);
+    }
 
     match target.geometry_type {
         GeometryInterfaceType::Point => {

@@ -237,6 +237,25 @@ describe("typecheckScalarExpression / builtin calls", () => {
     });
   });
 
+  it("turns a resolved geometryProperty sidecar into a point geometryReference", () => {
+    const source = "distance(@AB.start, @C)";
+    const result = check(source, null, [geometryResolution("point")]);
+    const start = source.indexOf("@AB.start");
+    const target = { statementId: "stable-AB", statementIndex: 1, geometryType: "point" as const, pointKey: "start" };
+    const withSidecar = typecheckScalarExpression(astFor(source), {
+      expectedType: null,
+      references: [geometryResolution("point")],
+      geometryBuiltinArguments: new Map([[start, target]])
+    });
+
+    expect(result.type).toBeNull();
+    if (result.typed.kind !== "call") throw new Error("expected call");
+    expect(result.typed.args[0]).toMatchObject({ kind: "geometryReference", target: null });
+    expect(withSidecar.type).toEqual({ kind: "number" });
+    if (withSidecar.typed.kind !== "call") throw new Error("expected call");
+    expect(withSidecar.typed.args[0]).toMatchObject({ kind: "geometryReference", expectedGeometryType: "point", target });
+  });
+
   it.each([
     ["abs(-1)", "abs", "number"],
     ["min(1, 2)", "min", "number"],

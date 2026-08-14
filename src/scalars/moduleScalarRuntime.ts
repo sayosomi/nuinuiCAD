@@ -202,12 +202,27 @@ const typecheckGeometryTargetFor = (
   const target = occurrence.reference.target;
   if (!target || (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return null;
   if (target.kind === "parameter") {
-    return { statementId: target.definitionStatementId, statementIndex: -1, geometryType: occurrence.expectedGeometryType };
+    return {
+      statementId: target.definitionStatementId,
+      statementIndex: -1,
+      geometryType: occurrence.expectedGeometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
   }
   if (target.kind === "sourceGeometry") {
-    return { statementId: target.statementId, statementIndex: target.statementIndex, geometryType: occurrence.expectedGeometryType };
+    return {
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      geometryType: occurrence.expectedGeometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
   }
-  return { statementId: target.instanceStatementId, statementIndex: target.instanceStatementIndex, geometryType: occurrence.expectedGeometryType };
+  return {
+    statementId: target.instanceStatementId,
+    statementIndex: target.instanceStatementIndex,
+    geometryType: occurrence.expectedGeometryType,
+    ...(target.pointKey ? { pointKey: target.pointKey } : {})
+  };
 };
 
 const lowerExpression = (
@@ -221,6 +236,9 @@ const lowerExpression = (
   const typecheckResolutions: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
   const semanticReferenceFor = (spanStart: number) => references.find((reference) => reference.span.start === spanStart);
   const geometryBuiltinFor = (spanStart: number) => semantic.geometryBuiltinArguments.find((occurrence) => occurrence.span.start === spanStart);
+  const geometryBuiltinArgumentTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>(
+    semantic.geometryBuiltinArguments.map((occurrence) => [occurrence.span.start, typecheckGeometryTargetFor(occurrence)])
+  );
   const geometryBuiltinForCallArgument = (call: Extract<TypedScalarExpression, { kind: "call" }>, argumentIndex: number) =>
     semantic.geometryBuiltinArguments.find((occurrence) =>
       occurrence.builtinName === call.name &&
@@ -246,9 +264,13 @@ const lowerExpression = (
         const signature = definition?.signatures.find((candidate) => candidate.argumentTypes.length === node.args.length);
         node.args.forEach((argument, argumentIndex) => {
           const parameterType = signature?.argumentTypes[argumentIndex];
-          const occurrence = argument.kind === "reference" ? geometryBuiltinFor(argument.span.start) : undefined;
+          const occurrence = argument.kind === "reference" || argument.kind === "geometryProperty"
+            ? geometryBuiltinFor(argument.span.start)
+            : undefined;
           if (parameterType && typeof parameterType === "string" && occurrence) {
-            typecheckResolutions.push({ kind: "resolvedGeometry", target: typecheckGeometryTargetFor(occurrence) });
+            if (argument.kind === "reference") {
+              typecheckResolutions.push({ kind: "resolvedGeometry", target: typecheckGeometryTargetFor(occurrence) });
+            }
           } else {
             collectTypecheckResolutions(argument);
           }
@@ -272,7 +294,8 @@ const lowerExpression = (
   collectTypecheckResolutions(semantic.ast);
   const checked = typecheckScalarExpression(semantic.ast, {
     expectedType: semantic.type,
-    references: typecheckResolutions
+    references: typecheckResolutions,
+    geometryBuiltinArguments: geometryBuiltinArgumentTargets
   });
   const lowerGeometryProperties = (node: TypedScalarExpression): { node: TypedScalarExpression; references: InitializerReference[] } => {
     if (node.kind === "geometryProperty") {
@@ -793,7 +816,12 @@ export const compileModuleScalarRuntime = ({
     const statementIndex = elementOrderById.get(lowered.elementId);
     return statementIndex === undefined
       ? undefined
-      : { statementId: lowered.elementId, statementIndex, geometryType: lowered.geometryType };
+      : {
+          statementId: lowered.elementId,
+          statementIndex,
+          geometryType: lowered.geometryType,
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        };
   };
   const resolvedGeometryBuiltinForRoot = (
     occurrence: ModuleGeometryBuiltinArgumentSemantic
@@ -808,7 +836,12 @@ export const compileModuleScalarRuntime = ({
     const statementIndex = elementOrderById.get(lowered.elementId);
     return statementIndex === undefined
       ? undefined
-      : { statementId: lowered.elementId, statementIndex, geometryType: lowered.geometryType };
+      : {
+          statementId: lowered.elementId,
+          statementIndex,
+          geometryType: lowered.geometryType,
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        };
   };
   const moduleInitializers = new Map<BindingId, TypedScalarExpression>();
   const moduleReferences: InitializerReference[] = [];

@@ -197,7 +197,7 @@ fn decode_geometry_target(
     let object = as_object(json, "geometry reference target")?;
     reject_unexpected_fields(
         object,
-        &["statementId", "statementIndex", "geometryType"],
+        &["statementId", "statementIndex", "geometryType", "pointKey"],
         "geometry reference target",
     )?;
     let statement_id = require_field(object, "statementId", "geometry reference target")?
@@ -223,10 +223,32 @@ fn decode_geometry_target(
         require_field(object, "geometryType", "geometry reference target")?,
         "geometry reference target \"geometryType\"",
     )?;
+    let point_key = match object.get("pointKey") {
+        None => None,
+        Some(value) => {
+            let point_key = value.as_str().ok_or_else(|| {
+                issue(
+                    Code::InvalidFieldType,
+                    "geometry reference target \"pointKey\" must be a non-empty string",
+                )
+            })?;
+            if point_key.is_empty()
+                || point_key == "intermediate:"
+                || point_key.chars().any(char::is_whitespace)
+            {
+                return Err(issue(
+                    Code::InvalidFieldType,
+                    "geometry reference target \"pointKey\" is malformed",
+                ));
+            }
+            Some(point_key.to_owned())
+        }
+    };
     Ok(Some(ScalarExpressionResolvedGeometryTarget {
         statement_id,
         statement_index,
         geometry_type,
+        point_key,
     }))
 }
 
@@ -303,7 +325,9 @@ pub(crate) fn validate_call_argument_shapes(
                     target: Some(target),
                 },
             ) if expected_geometry_type == argument_expected_geometry_type
-                && target.geometry_type == *expected_geometry_type => {}
+                && target.geometry_type == *expected_geometry_type
+                && (target.point_key.is_none()
+                    || target.geometry_type == GeometryInterfaceType::Point) => {}
             _ => {
                 return Err(issue(
                     Code::InvalidBuiltinArgument,

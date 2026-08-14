@@ -13,6 +13,7 @@ module Child() {
 module Example(p: point, origin: point, baseline: line, diagonal: point, measuredPoint: point) {
   point LocalOrigin = coordinate(x: 0, y: 0)
   point LocalPoint = coordinate(x: 3, y: 4)
+  line LocalLine = segment(start: (0, 0), end: (0, 2))
   instance ChildInstance = Child()
   const radius: number = distance(@origin, @p)
   const direction: number = angle(@origin, @diagonal)
@@ -20,6 +21,9 @@ module Example(p: point, origin: point, baseline: line, diagonal: point, measure
   const localDistance: number = distance(@LocalOrigin, @LocalPoint)
   const childDistance: number = distance(@ChildInstance::ExportedPoint, @LocalOrigin)
   const childLineDistance: number = lineDistance(@LocalPoint, @ChildInstance::ExportedLine)
+  const parameterStartDistance: number = distance(@baseline.start, @LocalLine.end)
+  const parameterEndAngle: number = angle(@baseline.end, @LocalLine.start)
+  const localEndpointLineDistance: number = lineDistance(@LocalLine.end, @baseline)
   let measured: number = 0
   set measured = distance(@origin, @p)
   export point ExportedPoint = coordinate(x: 3, y: 4)
