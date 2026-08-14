@@ -10,7 +10,7 @@ import type { ScalarExpressionAst } from "./expressionAst";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
-import type { ScalarExpressionTypecheckResult } from "./typedExpressionAst";
+import type { ScalarExpressionResolvedReference, ScalarExpressionTypecheckResult } from "./typedExpressionAst";
 import type { ScalarType } from "./types";
 
 // --- shared fixtures -------------------------------------------------------
@@ -26,7 +26,7 @@ const astFor = (expr: string): ScalarExpressionAst => {
 const check = (
   expr: string,
   expectedType: ScalarType | null = null,
-  references: readonly BindingResolution[] = []
+  references: readonly (BindingResolution | ScalarExpressionResolvedReference)[] = []
 ): ScalarExpressionTypecheckResult => typecheckScalarExpression(astFor(expr), { expectedType, references });
 
 /** Real DSL -> scope index -> binding catalog pipeline, mirroring the
@@ -60,6 +60,11 @@ const assertInvariant = (result: ScalarExpressionTypecheckResult) => {
   if (result.type !== null) expect(result.diagnostics).toEqual([]);
   if (result.diagnostics.length > 0) expect(result.type).toBeNull();
 };
+
+const geometryResolution = (geometryType: "point" | "line" | "path"): ScalarExpressionResolvedReference => ({
+  kind: "resolvedGeometry",
+  target: { statementId: `stable-${geometryType}`, statementIndex: 0, geometryType }
+});
 
 // --- operator cross product -------------------------------------------------
 
@@ -165,6 +170,36 @@ describe("typecheckScalarExpression / unary operators", () => {
 });
 
 describe("typecheckScalarExpression / builtin calls", () => {
+  it.each([
+    ["distance(@a, @b)", ["point", "point"], "number"],
+    ["angle(@a, @b)", ["point", "point"], "number"],
+    ["lineDistance(@a, @b)", ["point", "line"], "number"]
+  ])("accepts geometry arguments for %s", (source, geometryTypes, resultKind) => {
+    const result = check(source, null, geometryTypes.map((type) => geometryResolution(type as "point" | "line" | "path")));
+    expect(result.type).toEqual({ kind: resultKind });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({ kind: "call", type: { kind: resultKind }, args: [
+      { kind: "reference", bindingId: null, type: null },
+      { kind: "reference", bindingId: null, type: null }
+    ] });
+  });
+
+  it.each([
+    ["distance(@a, @b)", ["line", "point"]],
+    ["lineDistance(@a, @b)", ["point", "path"]]
+  ])("fails closed for a geometry interface mismatch in %s", (source, geometryTypes) => {
+    const result = check(source, null, geometryTypes.map((type) => geometryResolution(type as "point" | "line" | "path")));
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("fails closed when a resolved geometry sidecar reaches a scalar parameter", () => {
+    const result = check("abs(@a)", null, [geometryResolution("point")]);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({ args: [{ kind: "reference", bindingId: null, type: null }] });
+  });
+
   it.each([
     ["abs(-1)", "abs", "number"],
     ["min(1, 2)", "min", "number"],

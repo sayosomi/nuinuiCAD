@@ -9,6 +9,7 @@ import type { BindingId } from "./bindingCatalog";
 import type { BindingResolution } from "./bindingResolution";
 import type { BuiltinFunctionName } from "./builtinFunctions";
 import type { ChoiceScalarType, ScalarType } from "./types";
+import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 
 export interface TypedScalarNumberLiteralNode {
   readonly kind: "numberLiteral";
@@ -67,11 +68,22 @@ export interface TypedScalarReferenceNode {
  * `BindingId` later; the common checker only needs the already-resolved type
  * && must not perform another name lookup.
  */
-export type ScalarExpressionResolvedReference = {
-  readonly kind: "resolvedType";
-  readonly bindingId: BindingId | null;
-  readonly type: ScalarType | null;
+export type ScalarExpressionResolvedGeometryTarget = {
+  readonly statementId: string;
+  readonly statementIndex: number;
+  readonly geometryType: ModuleGeometryInterfaceType;
 };
+
+export type ScalarExpressionResolvedReference =
+  | {
+      readonly kind: "resolvedType";
+      readonly bindingId: BindingId | null;
+      readonly type: ScalarType | null;
+    }
+  | {
+      readonly kind: "resolvedGeometry";
+      readonly target: ScalarExpressionResolvedGeometryTarget | null;
+    };
 
 /** Resolved at compile time. `elementId` is never re-resolved by a runtime. */
 export interface TypedScalarGeometryPropertyReferenceNode {
