@@ -1325,6 +1325,24 @@ describe("typed value completion (Task 39)", () => {
           label: "round",
           detail: "round(number) -> number | round(number, number) -> number",
           type: "function"
+        }),
+        expect.objectContaining({
+          label: "distance",
+          apply: "distance(",
+          detail: "distance(point, point) -> number",
+          type: "function"
+        }),
+        expect.objectContaining({
+          label: "angle",
+          apply: "angle(",
+          detail: "angle(point, point) -> number",
+          type: "function"
+        }),
+        expect.objectContaining({
+          label: "lineDistance",
+          apply: "lineDistance(",
+          detail: "lineDistance(point, line) -> number",
+          type: "function"
         })
       ]));
     });

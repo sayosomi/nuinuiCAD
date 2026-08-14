@@ -313,7 +313,10 @@ describe("typecheckScalarExpression / builtin calls", () => {
     "min(1)",
     "max(1, 2, 3)",
     "round(1, 2, 3)",
-    "isClose(1, 2)"
+    "isClose(1, 2)",
+    "distance()",
+    "angle()",
+    "lineDistance()"
   ])("reports an arity mismatch for %s", (source) => {
     const result = check(source);
     expect(result.type).toBeNull();

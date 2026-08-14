@@ -190,6 +190,10 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
         status: "ok",
         value: { kind: "number", value: 10 }
       });
+      expect(scalarBindingFor(fixture, payload, "disabledDistance")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-geometry-builtin-unavailable"
+      });
       expect(scalarBindingFor(fixture, payload, "angleRight")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
       expect(scalarBindingFor(fixture, payload, "angleUp")).toMatchObject({ status: "ok", value: { kind: "number", value: 90 } });
       expect(scalarBindingFor(fixture, payload, "angleLeft")).toMatchObject({ status: "ok", value: { kind: "number", value: 180 } });
@@ -222,6 +226,13 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
         status: "ok",
         value: { kind: "number", value: 5 }
       });
+      expect(runtimeDiagnosticsFor(fixture, payload)).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "evaluation-geometry-builtin-unavailable",
+          message: "組み込み関数のgeometry引数を評価できません。参照先のgeometryが有効で、正常に評価済みか確認してください。",
+          origin: "runtime"
+        })
+      ]));
     }
 
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));

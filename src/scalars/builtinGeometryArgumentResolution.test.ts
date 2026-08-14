@@ -121,6 +121,28 @@ describe("resolveBuiltinGeometryArguments", () => {
     expect([...undefinedResult.claimedReferenceOccurrenceIndexes]).toEqual([0, 1]);
   });
 
+  it("reports an ambiguous source namespace geometry reference as an invalid claimed operand", () => {
+    const result = resolve("distance(@Ambiguous, @A)", [
+      {
+        kind: "namespace",
+        name: "Ambiguous",
+        scopeId: "root",
+        statementIndex: 100,
+        reason: "ambiguous",
+        declarationKind: "geometry"
+      },
+      sourceGeometryResolution("A", sourceNamespace)
+    ]);
+
+    expect(targetOf(result, 0)).toBeNull();
+    expect(result.issues[0]).toMatchObject({
+      code: "builtin-geometry-argument-invalid",
+      occurrenceIndex: 0,
+      message: expect.stringContaining("一意に解決できません")
+    });
+    expect(result.claimedReferenceOccurrenceIndexes).toEqual(new Set([0, 1]));
+  });
+
   it("resolves a qualified geometry reference from the canonical declaration identity", () => {
     const result = resolve("distance(@Group::Inner, @A)", [
       sourceGeometryResolution("Inner", sourceNamespace),

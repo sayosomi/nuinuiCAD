@@ -15,6 +15,7 @@ const RUNTIME_ISSUE_MESSAGES: Readonly<Record<string, string>> = {
   "evaluation-binding-version-unavailable": "この時点のsetがまだ評価されていません。",
   "evaluation-divide-by-zero": "0での除算が発生しました。",
   "evaluation-invalid-builtin-argument": "組み込み関数の引数が不正です。",
+  "evaluation-geometry-builtin-unavailable": "組み込み関数のgeometry引数を評価できません。参照先のgeometryが有効で、正常に評価済みか確認してください。",
   "evaluation-non-finite-result": "計算結果が数値として不正です。",
   "evaluation-static-type-null": "型を確定できませんでした。",
   "evaluation-numeric-adapter-failure": "数値の評価に失敗しました。",
