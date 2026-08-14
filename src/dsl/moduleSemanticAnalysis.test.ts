@@ -36,6 +36,25 @@ describe("module semantic analysis", () => {
     }
   });
 
+  it("typechecks derived point geometry builtin operands", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "point P = coordinate(x: 3, y: 4)",
+      "module Example(baseline: line, p: point, delta: number) {",
+      "  point Q = coordinate(x: distance(@baseline.start, @p) + @delta, y: 0)",
+      "}",
+      "instance Use = Example(baseline: @Baseline, p: @P, delta: 2)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const expression = moduleBodyAt(compiled, 4).scalarExpressions.find((site) => site.parameterKey === "x")!.expression;
+    expect(expression.type).toEqual({ kind: "number" });
+    expect(expression.geometryBuiltinArguments[0]).toMatchObject({
+      expectedGeometryType: "point",
+      reference: { target: { kind: "parameter", pointKey: "start" } }
+    });
+  });
+
   it("resolves builtin calls through the shared scalar frontend and preserves their argument references", () => {
     const compiled = compileWithIds([
       "nui 4",

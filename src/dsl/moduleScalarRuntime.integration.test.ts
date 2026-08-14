@@ -194,6 +194,23 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("localEndDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
   });
 
+  it("lowers derived point builtin operands mixed with module scalar references in geometry", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "point P = coordinate(x: 3, y: 4)",
+      "module Example(baseline: line, p: point, delta: number) {",
+      "  const derivedDistance: number = distance(@baseline.start, @p)",
+      "  point Q = coordinate(x: @derivedDistance + @delta, y: 0)",
+      "}",
+      "instance Use = Example(baseline: @Baseline, p: @P, delta: 2)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Q").id)).toMatchObject({ kind: "point", x: 7, y: 0 });
+  });
+
   it("bridges root typed declarations through module geometry exports", () => {
     const compiled = compileWithIds([
       "nui 4",

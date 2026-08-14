@@ -210,9 +210,17 @@ const resolveAndTypecheck = ({
   };
 
   const resolvedAst = resolve(ast);
+  const geometryBuiltinArgumentTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>();
+  for (const occurrence of geometryBuiltinArguments) {
+    geometryBuiltinArgumentTargets.set(
+      occurrence.span.start,
+      typecheckGeometryTarget(occurrence.reference, occurrence.expectedGeometryType)
+    );
+  }
   const checked = typecheckScalarExpression(resolvedAst, {
     expectedType,
     references: resolvedTypes,
+    geometryBuiltinArguments: geometryBuiltinArgumentTargets,
     resolveChoiceLiteral: (_raw, _expected, span) => resolvedChoiceTypes.get(span.start)
   });
   for (const diagnostic of checked.diagnostics) {
