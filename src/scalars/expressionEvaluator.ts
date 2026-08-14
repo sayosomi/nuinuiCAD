@@ -243,7 +243,10 @@ const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEv
 
   const args: number[] = [];
   for (const argumentNode of node.args) {
-    const argument = evaluateTypedExpression(argumentNode, environment);
+    if (argumentNode.kind === "geometryReference") {
+      return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+    }
+    const argument = evaluateTypedExpression(argumentNode.expression, environment);
     if (argument.status === "error") return propagateError(type, argument);
     args.push(numberValueOf(argument.value));
   }

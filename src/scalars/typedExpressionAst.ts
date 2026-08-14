@@ -128,13 +128,24 @@ export type TypedScalarCallTarget = {
   readonly name: BuiltinFunctionName;
 };
 
+export type TypedBuiltinArgument =
+  | {
+      readonly kind: "scalar";
+      readonly expression: TypedScalarExpression;
+    }
+  | {
+      readonly kind: "geometryReference";
+      readonly expectedGeometryType: ModuleGeometryInterfaceType;
+      readonly target: ScalarExpressionResolvedGeometryTarget | null;
+    };
+
 export interface TypedScalarCallExpressionNode {
   readonly kind: "call";
   readonly span: ScalarSpan;
   readonly nameSpan: ScalarSpan;
   readonly name: string;
   readonly target: TypedScalarCallTarget | null;
-  readonly args: readonly TypedScalarExpression[];
+  readonly args: readonly TypedBuiltinArgument[];
   readonly type: ScalarType | null;
 }
 

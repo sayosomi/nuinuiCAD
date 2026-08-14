@@ -237,7 +237,11 @@ const lowerExpression = (
       return { node: { ...node, expression: expression.node }, references: expression.references };
     }
     if (node.kind === "call") {
-      const args = node.args.map(lowerGeometryProperties);
+      const args = node.args.map((argument) => {
+        if (argument.kind === "geometryReference") return { node: argument, references: [] as InitializerReference[] };
+        const lowered = lowerGeometryProperties(argument.expression);
+        return { node: { ...argument, expression: lowered.node }, references: lowered.references };
+      });
       return {
         node: { ...node, args: args.map((argument) => argument.node) },
         references: args.flatMap((argument) => argument.references)

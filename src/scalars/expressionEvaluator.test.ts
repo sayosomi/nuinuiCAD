@@ -31,7 +31,7 @@ const builtinCall = (
   nameSpan: { start: 0, end: 0 },
   name: name ?? targetName,
   target: { kind: "builtin", name: targetName },
-  args,
+  args: args.map((expression) => ({ kind: "scalar", expression })),
   type: targetName === "isClose" ? { kind: "boolean" } : { kind: "number" }
 });
 
@@ -338,6 +338,32 @@ describe("evaluateTypedExpression / builtin calls", () => {
       status: "error",
       type: { kind: "number" },
       issueCode: "evaluation-static-type-null"
+    });
+  });
+
+  it("fails closed for geometryReference arguments without scalar lookup", () => {
+    const lookupBinding = () => {
+      throw new Error("geometry references must not use scalar lookup");
+    };
+    const node = {
+      ...builtinCall("distance", [numberLiteral(1), numberLiteral(2)]),
+      args: [
+        {
+          kind: "geometryReference" as const,
+          expectedGeometryType: "point" as const,
+          target: { statementId: "stable-A", statementIndex: 1, geometryType: "point" as const }
+        },
+        {
+          kind: "geometryReference" as const,
+          expectedGeometryType: "point" as const,
+          target: { statementId: "stable-B", statementIndex: 2, geometryType: "point" as const }
+        }
+      ]
+    };
+    expect(evaluateTypedExpression(node, { lookupBinding })).toEqual({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-geometry-builtin-unavailable"
     });
   });
 });

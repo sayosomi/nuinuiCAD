@@ -29,6 +29,43 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       const initializer = fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, name));
       expect(initializer).toMatchObject({ kind: "call", type: { kind: "number" } });
     }
+    const expectedArguments = {
+      d: [
+        { expectedGeometryType: "point", statementIndex: 1, geometryType: "point" },
+        { expectedGeometryType: "point", statementIndex: 2, geometryType: "point" }
+      ],
+      a: [
+        { expectedGeometryType: "point", statementIndex: 1, geometryType: "point" },
+        { expectedGeometryType: "point", statementIndex: 2, geometryType: "point" }
+      ],
+      h: [
+        { expectedGeometryType: "point", statementIndex: 1, geometryType: "point" },
+        { expectedGeometryType: "line", statementIndex: 3, geometryType: "line" }
+      ]
+    } as const;
+    const typedArgumentsByName = new Map<string, unknown[]>();
+    for (const name of ["d", "a", "h"] as const) {
+      const initializer = fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, name));
+      if (initializer?.kind !== "call") throw new Error(`Expected builtin call for ${name}`);
+      expect(initializer.target).toEqual({ kind: "builtin", name: name === "d" ? "distance" : name === "a" ? "angle" : "lineDistance" });
+      expect(initializer.args).toEqual(expectedArguments[name].map((argument) => ({
+        kind: "geometryReference",
+        expectedGeometryType: argument.expectedGeometryType,
+        target: {
+          statementId: fixture.elementIdByStatementIndex.get(argument.statementIndex),
+          statementIndex: argument.statementIndex,
+          geometryType: argument.geometryType
+        }
+      })));
+      expect(initializer.args.every((argument) => argument.kind === "geometryReference" && !("name" in argument))).toBe(true);
+      typedArgumentsByName.set(name, [...initializer.args]);
+    }
+    const program = lowerScalarProgram(fixture.analysis);
+    for (const name of ["d", "a", "h"] as const) {
+      const bindingId = bindingIdForName(fixture, name);
+      const statement = program.statements.find((candidate) => candidate.bindingId === bindingId);
+      expect(statement?.declaration.initializer).toMatchObject({ args: typedArgumentsByName.get(name) });
+    }
     expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, "d"))).toBeUndefined();
     expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, "a"))).toBeUndefined();
     expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, "h"))).toBeUndefined();

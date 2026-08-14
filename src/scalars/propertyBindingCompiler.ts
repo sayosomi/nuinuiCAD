@@ -145,7 +145,7 @@ const collectTypedExpressionBindingIds = (expression: TypedScalarExpression): Bi
     case "group":
       return collectTypedExpressionBindingIds(expression.expression);
     case "call":
-      return expression.args.flatMap(collectTypedExpressionBindingIds);
+      return expression.args.flatMap((argument) => argument.kind === "scalar" ? collectTypedExpressionBindingIds(argument.expression) : []);
     default:
       return [];
   }
