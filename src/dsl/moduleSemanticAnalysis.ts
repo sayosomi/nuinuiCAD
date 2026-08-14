@@ -17,6 +17,7 @@ import {
 import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
 import {
   parseAndCheckModuleScalarExpression,
+  type ModuleGeometryBuiltinReferenceResolver,
   type ModuleGeometryPropertyReferenceInput,
   type ModuleGeometryPropertyReferenceResolution,
   type ModuleScalarLocalDiagnostic,
@@ -526,7 +527,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     expectedType: ScalarType | null,
     resolver: (reference: { name: string; span: DslSpan }) => ReferenceResolution,
     bareResolver?: (reference: { name: string; span: DslSpan }) => ReferenceResolution | null,
-    geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution
+    geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution,
+    geometryBuiltinResolver?: ModuleGeometryBuiltinReferenceResolver
   ) => {
     const local: LocalDiagnostic[] = [];
     const semantic = parseAndCheckModuleScalarExpression({
@@ -541,6 +543,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       },
       resolveBareReference: bareResolver,
       resolveGeometryProperty: geometryPropertyResolver,
+      resolveGeometryBuiltin: geometryBuiltinResolver,
       diagnostics: local
     });
     for (const diagnostic of local) addLocal(statementIndex, diagnostic);
@@ -1151,7 +1154,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               ? resolveSourceScalar(statementIndex, null, reference.name, null)
               : resolveBodyScalar(statementIndex, ownerIndex, reference),
             undefined,
-            (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference)
+            (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
+            (reference) => resolveGeometry(
+              statementIndex,
+              ownerIndex,
+              `@${reference.name}`,
+              reference.span,
+              reference.expectedGeometryType,
+              {
+                expectedInterfaceType: reference.expectedGeometryType,
+                role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
+              }
+            )
           );
           value = expression ? { kind: "scalar", expression } : null;
         } else {
@@ -1200,7 +1214,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       statement.declaredType,
       (reference) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
       undefined,
-      (reference) => resolveGeometryProperty(statementIndex, null, reference)
+      (reference) => resolveGeometryProperty(statementIndex, null, reference),
+      (reference) => resolveGeometry(
+        statementIndex,
+        null,
+        `@${reference.name}`,
+        reference.span,
+        reference.expectedGeometryType,
+        {
+          expectedInterfaceType: reference.expectedGeometryType,
+          role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
+        }
+      )
     );
     // Root typed declaration diagnostics remain owned by the ordinary scalar
     // analyzer. This pass only contributes already-resolved Module editor
@@ -1236,7 +1261,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       resolvePlainScalarTarget,
       resolveBodyScalar: (statementIndex, reference) => resolveBodyScalar(statementIndex, definition.statementIndex, reference),
       resolveBodyBareScalar: (statementIndex, reference) => resolveBodyBareScalar(statementIndex, definition.statementIndex, reference),
-      resolveBodyGeometryProperty: (statementIndex, reference) => resolveGeometryProperty(statementIndex, definition.statementIndex, reference)
+      resolveBodyGeometryProperty: (statementIndex, reference) => resolveGeometryProperty(statementIndex, definition.statementIndex, reference),
+      resolveBodyGeometryBuiltin: (statementIndex, reference) => resolveGeometry(
+        statementIndex,
+        definition.statementIndex,
+        `@${reference.name}`,
+        reference.span,
+        reference.expectedGeometryType,
+        {
+          expectedInterfaceType: reference.expectedGeometryType,
+          role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
+        }
+      )
     });
     localScalarsByDefinition.set(definition.statementIndex, body.localScalars);
     bodyStatementsByDefinition.set(definition.statementIndex, body.bodyStatements);

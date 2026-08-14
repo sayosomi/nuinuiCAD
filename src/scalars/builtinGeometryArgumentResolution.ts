@@ -1,6 +1,6 @@
 import type { ScalarExpressionAst, ScalarSpan } from "./expressionAst";
 import type { BindingResolution } from "./bindingResolution";
-import { getBuiltinFunctionDefinition, isScalarBuiltinParameterType } from "./builtinFunctions";
+import { getBuiltinFunctionDefinition } from "./builtinFunctions";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOfElement,
@@ -30,6 +30,13 @@ export type ResolveBuiltinGeometryArgumentsInput = {
   readonly statementIndex: number;
   readonly scalarReferenceResolutions: readonly BindingResolution[];
   readonly sourceDeclarationsByStatementId: ReadonlyMap<string, SourceLexicalDeclaration>;
+  /** Module semantic analysis may claim an already-resolved qualified geometry
+   * occurrence before the ordinary source namespace lookup runs. */
+  readonly additionalGeometryResolver?: (input: {
+    readonly node: Extract<ScalarExpressionAst, { kind: "reference" }>;
+    readonly occurrenceIndex: number;
+    readonly expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+  }) => ScalarExpressionResolvedGeometryTarget | undefined;
 };
 
 export type ResolveBuiltinGeometryArgumentsResult = {
@@ -64,7 +71,8 @@ export const resolveBuiltinGeometryArguments = ({
   ast,
   statementIndex,
   scalarReferenceResolutions,
-  sourceDeclarationsByStatementId
+  sourceDeclarationsByStatementId,
+  additionalGeometryResolver
 }: ResolveBuiltinGeometryArgumentsInput): ResolveBuiltinGeometryArgumentsResult => {
   const references: (BindingResolution | ScalarExpressionResolvedReference)[] = [...scalarReferenceResolutions];
   const claimedReferenceOccurrenceIndexes = new Set<number>();
@@ -82,13 +90,20 @@ export const resolveBuiltinGeometryArguments = ({
 
   const resolveDirectGeometryReference = (
     node: Extract<ScalarExpressionAst, { kind: "reference" }>,
-    expectedGeometryType: ModuleGeometryInterfaceType
+    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
   ): void => {
     const { occurrenceIndex, resolution } = nextReference(node.name, node.span);
     claimedReferenceOccurrenceIndexes.add(occurrenceIndex);
 
     let target: ScalarExpressionResolvedGeometryTarget | null = null;
-    if (
+    const additionalTarget = additionalGeometryResolver?.({
+      node,
+      occurrenceIndex,
+      expectedGeometryType
+    });
+    if (additionalTarget !== undefined) {
+      target = additionalTarget;
+    } else if (
       resolution.kind === "namespace" &&
       resolution.reason === "incompatible" &&
       resolution.declarationKind === "geometry" &&
@@ -157,7 +172,7 @@ export const resolveBuiltinGeometryArguments = ({
         }
         node.args.forEach((argument, index) => {
           const parameterType = signature.argumentTypes[index];
-          if (parameterType !== undefined && !isScalarBuiltinParameterType(parameterType)) {
+          if (parameterType === "point" || parameterType === "line") {
             if (argument.kind === "reference") {
               resolveDirectGeometryReference(argument, parameterType);
             } else {

@@ -211,7 +211,8 @@ export const analyzeTypedDeclarations = ({
   includeStatement: includeStatementOption,
   sourceNamespace,
   additionalBindings,
-  additionalBindingResolver
+  additionalBindingResolver,
+  additionalGeometryResolver
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -221,6 +222,12 @@ export const analyzeTypedDeclarations = ({
   sourceNamespace?: SourceLexicalNamespaceIndex;
   additionalBindings?: readonly BindingSeed[];
   additionalBindingResolver?: SourceNamespaceBindingResolver;
+  additionalGeometryResolver?: (input: {
+    readonly statementIndex: number;
+    readonly node: Extract<import("./expressionAst").ScalarExpressionAst, { kind: "reference" }>;
+    readonly occurrenceIndex: number;
+    readonly expectedGeometryType: Extract<import("../dsl/moduleGeometryInterfaces").ModuleGeometryInterfaceType, "point" | "line">;
+  }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryTarget | undefined;
 }): TypedDeclarationAnalysisCompilation => {
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
     isCompilableDslStatement(statements, statementIndex)
@@ -333,7 +340,15 @@ export const analyzeTypedDeclarations = ({
       ast: parsed.ast,
       statementIndex: binding.statementIndex,
       scalarReferenceResolutions: resolvedByBindingId.get(binding.id) ?? [],
-      sourceDeclarationsByStatementId
+      sourceDeclarationsByStatementId,
+      additionalGeometryResolver: additionalGeometryResolver
+        ? ({ node, occurrenceIndex, expectedGeometryType }) => additionalGeometryResolver({
+            statementIndex: binding.statementIndex,
+            node,
+            occurrenceIndex,
+            expectedGeometryType
+          })
+        : undefined
     });
     geometryResolutionByBindingId.set(binding.id, geometryResolution);
     const statement = statements[binding.statementIndex];

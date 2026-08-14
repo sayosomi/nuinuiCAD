@@ -1169,7 +1169,9 @@ export const compileDslDocument = (
       moduleSemanticCompilation,
       sourceLexicalNamespace
     );
-    if (exportBindingSeeds.length > 0) {
+    const hasRootGeometryBuiltinOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
+      .some((site) => site.expression.geometryBuiltinArguments.length > 0);
+    if (exportBindingSeeds.length > 0 || hasRootGeometryBuiltinOccurrences) {
       const seedById = new Map(exportBindingSeeds.map((seed) => [seed.id, seed] as const));
       const additionalBindingResolver: SourceNamespaceBindingResolver = (name, statementIndex) => {
         const path = parseDslReferenceToken(name);
@@ -1223,7 +1225,25 @@ export const compileDslDocument = (
         includeStatement,
         sourceNamespace: sourceLexicalNamespace,
         additionalBindings: exportBindingSeeds,
-        additionalBindingResolver
+        additionalBindingResolver,
+        additionalGeometryResolver: ({ statementIndex, node, expectedGeometryType }) => {
+          const statementId = stableStatementIdByIndex.get(statementIndex);
+          const site = statementId
+            ? moduleSemanticCompilation.rootScalarExpressionsByStatementId.get(statementId)
+            : undefined;
+          const occurrence = site?.expression.geometryBuiltinArguments.find((candidate) =>
+            candidate.span.start === node.span.start && candidate.expectedGeometryType === expectedGeometryType
+          );
+          const target = occurrence?.reference.target;
+          if (!occurrence || !target || (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return undefined;
+          if (target.kind === "parameter") {
+            return { statementId: target.definitionStatementId, statementIndex: -1, geometryType: expectedGeometryType };
+          }
+          if (target.kind === "sourceGeometry") {
+            return { statementId: target.statementId, statementIndex: target.statementIndex, geometryType: expectedGeometryType };
+          }
+          return { statementId: target.instanceStatementId, statementIndex: target.instanceStatementIndex, geometryType: expectedGeometryType };
+        }
       });
       documentScalarAnalysis = scalarAnalysisCompilation.analysis;
       documentScalarProgram = documentScalarAnalysis ? lowerScalarProgram(documentScalarAnalysis) : undefined;
