@@ -89,7 +89,8 @@ fn expression_type(expression: &TypedScalarExpression) -> Option<&ScalarType> {
         | TypedScalarExpression::Reference { r#type, .. }
         | TypedScalarExpression::Unary { r#type, .. }
         | TypedScalarExpression::Binary { r#type, .. }
-        | TypedScalarExpression::Group { r#type, .. } => r#type.as_ref(),
+        | TypedScalarExpression::Group { r#type, .. }
+        | TypedScalarExpression::Call { r#type, .. } => r#type.as_ref(),
     }
 }
 
@@ -430,6 +431,9 @@ fn collect_references<'a>(expression: &'a TypedScalarExpression, output: &mut Ve
             TypedScalarExpression::Binary { left, right, .. } => {
                 work.push(left);
                 work.push(right);
+            }
+            TypedScalarExpression::Call { args, .. } => {
+                work.extend(args.iter());
             }
             _ => {}
         }

@@ -10,6 +10,7 @@
 // expression evaluator. The narrow `allow(dead_code)` annotations remain
 // for helpers exercised directly by compatibility tests.
 mod bindings;
+mod builtin_function_semantics;
 mod condition_expression_payload;
 mod control_boolean_payload;
 #[allow(dead_code)]
@@ -35,6 +36,8 @@ mod types;
 
 #[cfg(test)]
 mod bindings_tests;
+#[cfg(test)]
+mod builtin_function_semantics_tests;
 #[cfg(test)]
 mod condition_expression_payload_tests;
 #[cfg(test)]

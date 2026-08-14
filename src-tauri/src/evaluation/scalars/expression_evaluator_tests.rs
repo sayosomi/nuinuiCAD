@@ -6,6 +6,7 @@
 //! own `include_str!`/`inject_dummy_spans` pattern rather than exporting new
 //! cross-test-module surface for it.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
@@ -17,8 +18,8 @@ use super::expression_payload::{
 };
 use super::scalar_payload::decode_scalar_evaluation;
 use super::types::{
-    BindingId, ScalarBinaryOperator, ScalarEvaluation, ScalarSpan, ScalarType, ScalarUnaryOperator,
-    ScalarValue, TypedScalarExpression,
+    BindingId, BuiltinFunctionName, ScalarBinaryOperator, ScalarEvaluation, ScalarSpan, ScalarType,
+    ScalarUnaryOperator, ScalarValue, TypedScalarCallTarget, TypedScalarExpression,
 };
 
 // --- shared-vector parity loop --------------------------------------------
@@ -28,7 +29,7 @@ const FIXTURE_JSON: &str = include_str!(concat!(
     "/../test/fixtures/typed-expressions.json"
 ));
 
-const AST_NODE_KINDS: [&str; 8] = [
+const AST_NODE_KINDS: [&str; 9] = [
     "numberLiteral",
     "stringLiteral",
     "booleanLiteral",
@@ -37,6 +38,7 @@ const AST_NODE_KINDS: [&str; 8] = [
     "unary",
     "binary",
     "group",
+    "call",
 ];
 
 /// Same dummy-span injection `expression_payload_tests.rs` already does for
@@ -58,6 +60,11 @@ fn inject_dummy_spans(value: &mut Value) {
     for key in ["operand", "left", "right", "expression"] {
         if let Some(child) = map.get_mut(key) {
             inject_dummy_spans(child);
+        }
+    }
+    if let Some(Value::Array(args)) = map.get_mut("args") {
+        for argument in args {
+            inject_dummy_spans(argument);
         }
     }
 }
@@ -165,6 +172,21 @@ fn reference(name: &str, binding_id: &str, r#type: ScalarType) -> TypedScalarExp
         name_span: span(),
         name: name.to_owned(),
         binding_id: Some(binding_id.to_owned()),
+        r#type: Some(r#type),
+    }
+}
+
+fn builtin_call(
+    name: BuiltinFunctionName,
+    args: Vec<TypedScalarExpression>,
+    r#type: ScalarType,
+) -> TypedScalarExpression {
+    TypedScalarExpression::Call {
+        span: span(),
+        name_span: span(),
+        name: "source-name-is-not-dispatch".to_owned(),
+        target: TypedScalarCallTarget::Builtin(name),
+        args,
         r#type: Some(r#type),
     }
 }
@@ -281,6 +303,223 @@ impl ScalarEvaluationEnvironment for FixedEnvironment {
             .cloned()
             .unwrap_or_else(|| panic!("no binding registered for {binding_id}"))
     }
+}
+
+struct GeometryEnvironment {
+    bindings: HashMap<BindingId, ScalarEvaluation>,
+    geometry: ScalarEvaluation,
+}
+
+impl ScalarEvaluationEnvironment for GeometryEnvironment {
+    fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
+        self.bindings
+            .get(binding_id)
+            .cloned()
+            .unwrap_or_else(|| panic!("no binding registered for {binding_id}"))
+    }
+
+    fn lookup_geometry_property(
+        &self,
+        _element_id: &str,
+        _property: &str,
+        _target_source_order: usize,
+    ) -> ScalarEvaluation {
+        self.geometry.clone()
+    }
+}
+
+struct RecordingEnvironment {
+    bindings: HashMap<BindingId, ScalarEvaluation>,
+    looked_up: RefCell<Vec<BindingId>>,
+}
+
+impl ScalarEvaluationEnvironment for RecordingEnvironment {
+    fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
+        self.looked_up.borrow_mut().push(binding_id.to_owned());
+        self.bindings
+            .get(binding_id)
+            .cloned()
+            .unwrap_or_else(|| panic!("no binding registered for {binding_id}"))
+    }
+}
+
+#[test]
+fn evaluates_number_boolean_nested_reference_and_geometry_builtin_calls() {
+    let environment = GeometryEnvironment {
+        bindings: HashMap::from([(
+            "binding:value".to_owned(),
+            ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(-5.0),
+            },
+        )]),
+        geometry: ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(12.3),
+        },
+    };
+
+    let nested = builtin_call(
+        BuiltinFunctionName::RoundTo,
+        vec![
+            builtin_call(
+                BuiltinFunctionName::Max,
+                vec![
+                    builtin_call(
+                        BuiltinFunctionName::Abs,
+                        vec![reference("value", "binding:value", ScalarType::Number)],
+                        ScalarType::Number,
+                    ),
+                    number_literal(4.0),
+                ],
+                ScalarType::Number,
+            ),
+            number_literal(0.5),
+        ],
+        ScalarType::Number,
+    );
+    assert_eq!(
+        evaluate_typed_expression(&nested, &environment),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(5.0),
+        }
+    );
+
+    let geometry_call = builtin_call(
+        BuiltinFunctionName::Round,
+        vec![
+            TypedScalarExpression::GeometryProperty {
+                span: span(),
+                element_name_span: span(),
+                property_span: span(),
+                element_name: "line".to_owned(),
+                element_id: "element:line".to_owned(),
+                property: "length".to_owned(),
+                target_source_order: 0,
+                r#type: ScalarType::Number,
+            },
+            number_literal(0.0),
+        ],
+        ScalarType::Number,
+    );
+    assert_eq!(
+        evaluate_typed_expression(&geometry_call, &environment),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(12.0),
+        }
+    );
+
+    let boolean_call = builtin_call(
+        BuiltinFunctionName::IsClose,
+        vec![
+            number_literal(10.24),
+            number_literal(10.26),
+            number_literal(0.1),
+        ],
+        ScalarType::Boolean,
+    );
+    assert_eq!(
+        evaluate_typed_expression(&boolean_call, &environment),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Boolean,
+            value: ScalarValue::Boolean(true),
+        }
+    );
+}
+
+#[test]
+fn evaluates_builtin_arguments_left_to_right_and_stops_at_the_first_error() {
+    let environment = RecordingEnvironment {
+        bindings: HashMap::from([
+            (
+                "binding:first".to_owned(),
+                ScalarEvaluation::Error {
+                    r#type: ScalarType::Number,
+                    issue_code: "first-argument-error".to_owned(),
+                    binding_id: Some("binding:first".to_owned()),
+                },
+            ),
+            (
+                "binding:second".to_owned(),
+                ScalarEvaluation::Ok {
+                    r#type: ScalarType::Number,
+                    value: ScalarValue::Number(20.0),
+                },
+            ),
+        ]),
+        looked_up: RefCell::new(Vec::new()),
+    };
+    let node = builtin_call(
+        BuiltinFunctionName::Min,
+        vec![
+            reference("first", "binding:first", ScalarType::Number),
+            reference("second", "binding:second", ScalarType::Number),
+        ],
+        ScalarType::Number,
+    );
+    assert_eq!(
+        evaluate_typed_expression(&node, &environment),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "first-argument-error".to_owned(),
+            binding_id: Some("binding:first".to_owned()),
+        }
+    );
+    assert_eq!(environment.looked_up.into_inner(), vec!["binding:first"]);
+}
+
+#[test]
+fn maps_builtin_runtime_argument_and_non_finite_errors() {
+    let environment = PanicEnvironment;
+    let invalid = builtin_call(
+        BuiltinFunctionName::Sqrt,
+        vec![number_literal(-1.0)],
+        ScalarType::Number,
+    );
+    assert_eq!(
+        evaluate_typed_expression(&invalid, &environment),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+            binding_id: None,
+        }
+    );
+
+    let non_finite = builtin_call(
+        BuiltinFunctionName::RoundTo,
+        vec![number_literal(f64::MAX), number_literal(f64::from_bits(1))],
+        ScalarType::Number,
+    );
+    assert_eq!(
+        evaluate_typed_expression(&non_finite, &environment),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-non-finite-result".to_owned(),
+            binding_id: None,
+        }
+    );
+}
+
+#[test]
+fn uses_static_type_null_error_for_an_untyped_call() {
+    let node = TypedScalarExpression::Call {
+        span: span(),
+        name_span: span(),
+        name: "abs".to_owned(),
+        target: TypedScalarCallTarget::Builtin(BuiltinFunctionName::Abs),
+        args: vec![number_literal(1.0)],
+        r#type: None,
+    };
+    assert_eq!(
+        evaluate_typed_expression(&node, &PanicEnvironment),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-static-type-null".to_owned(),
+            binding_id: None,
+        }
+    );
 }
 
 #[test]

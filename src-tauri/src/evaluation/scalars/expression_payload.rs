@@ -21,21 +21,18 @@
 //! version of this module used a recursive `decode_node`, guarded by a
 //! structural-depth cap chosen by empirically bisecting the recursive
 //! implementation's own stack-overflow boundary. That was the wrong fix:
-//! Task 14's parser only bounds *its own* recursion for `unary`/`group`
-//! nesting (see `MAX_UNARY_GROUP_NESTING_DEPTH` below) - it places no limit
-//! at all on a flat `binary` chain's length, since same-tier operator
-//! chains are parsed with a loop, not recursion (confirmed by reading
-//! `src/scalars/expressionParser.ts`'s `enterNesting` call sites directly:
-//! only the unary-prefix and `leftParen`/group branches call it). A
-//! sufficiently long flat binary chain is therefore a legitimate payload
-//! TS's parser can produce, and a Rust guard whose real purpose was
-//! protecting *Rust's own recursive call stack* would reject it - an
-//! artifact of the recursive implementation, not a real payload-policy
-//! decision. Making traversal iterative removes that constraint instead of
-//! papering over it with a "high enough" guess.
+//! Task 14's parser bounds *its own* recursion for `unary`/`group`/`call`
+//! nesting (see `MAX_SCALAR_EXPRESSION_DEPTH` below) - it places no limit at
+//! all on a flat `binary` chain's length, since same-tier operator chains are
+//! parsed with a loop, not recursion. A sufficiently long flat binary chain
+//! is therefore a legitimate payload TS's parser can produce, and a Rust
+//! guard whose real purpose was protecting Rust's own recursive call stack
+//! would reject it - an artifact of the recursive implementation, not a real
+//! payload-policy decision. Making traversal iterative removes that
+//! constraint instead of papering over it with a "high enough" guess.
 //!
 //! Leaf decoding lives in `expression_leaf_payload.rs`; shape validation
-//! for `unary`/`binary`/`group` (their own fields, not their children)
+//! for `unary`/`binary`/`group`/`call` (their own fields, not their children)
 //! lives in `expression_shape_payload.rs`; this file owns the explicit
 //! work stack, the two guards, and the entry point.
 
@@ -46,31 +43,32 @@ use super::expression_leaf_payload::{
     decode_reference, decode_string_literal,
 };
 use super::expression_shape_payload::{
-    validate_binary_shape, validate_group_shape, validate_unary_shape,
+    validate_binary_shape, validate_call_shape, validate_group_shape, validate_unary_shape,
 };
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, require_field};
 use super::types::{
-    ScalarBinaryOperator, ScalarSpan, ScalarType, ScalarUnaryOperator, TypedScalarExpression,
+    ScalarBinaryOperator, ScalarSpan, ScalarType, ScalarUnaryOperator, TypedScalarCallTarget,
+    TypedScalarExpression,
 };
 
-/// Bounds `unary`/`group` nesting specifically - **not** overall tree
+/// Bounds `unary`/`group`/`call` nesting specifically - **not** overall tree
 /// depth, and **not** a stack-safety margin (traversal is iterative, so
 /// Rust's own call stack is never at risk regardless of how this is set).
 /// This is a payload-policy mirror of a real TS-side wire contract: Task
 /// 14's parser increments its own recursion-depth counter (`enterNesting`)
-/// only when descending into a unary-prefix operand or a parenthesized
-/// group, and hard-caps that counter at `MAX_SCALAR_EXPRESSION_DEPTH =
-/// 128` (`src/scalars/expressionParser.ts`) - a source-text expression
-/// needing a 129th level of nested `!`/`-`/`+`/`(...)` fails to parse on
-/// the TS side entirely (`ast: null`, `expression-depth-exceeded`), so no
-/// wire payload TS ever sends can have more than 128 levels of `unary`/
-/// `group` nesting. 128 is therefore not a guess or a margin - it is
-/// exactly the bound TS itself already enforces, verified against that
-/// source file, not assumed from an unrelated concept. `binary` nodes do
-/// not increment this counter at all (see the module doc for why) and are
+/// only when descending into a unary-prefix operand, a parenthesized group,
+/// or a call argument, and hard-caps that counter at
+/// `MAX_SCALAR_EXPRESSION_DEPTH = 128` (`src/scalars/expressionParser.ts`).
+/// A source-text expression needing a 129th level of nested
+/// `!`/`-`/`+`/`(...)`/call argument fails to parse on the TS side entirely
+/// (`ast: null`, `expression-depth-exceeded`), so no wire payload TS ever
+/// sends can have more than 128 levels of that nesting. 128 is therefore not
+/// a guess or a margin - it is exactly the bound TS itself enforces.
+/// `binary` nodes do not increment this counter at all (see the module doc)
+/// and are
 /// bounded only by [`MAX_TYPED_EXPRESSION_NODE_COUNT`] below.
-pub(crate) const MAX_UNARY_GROUP_NESTING_DEPTH: usize = 128;
+pub(crate) const MAX_SCALAR_EXPRESSION_DEPTH: usize = 128;
 
 /// Total node count guard, independent of the nesting-depth guard above:
 /// bounds a wide-but-shallow adversarial payload the depth counter alone
@@ -89,7 +87,7 @@ pub(crate) const MAX_TYPED_EXPRESSION_NODE_COUNT: usize = 20_000;
 enum WorkItem<'a> {
     Visit {
         json: &'a Value,
-        unary_group_depth: usize,
+        expression_depth: usize,
     },
     BuildUnary {
         span: ScalarSpan,
@@ -105,13 +103,21 @@ enum WorkItem<'a> {
         span: ScalarSpan,
         r#type: Option<ScalarType>,
     },
+    BuildCall {
+        span: ScalarSpan,
+        name_span: ScalarSpan,
+        name: String,
+        target: TypedScalarCallTarget,
+        argument_count: usize,
+        r#type: Option<ScalarType>,
+    },
 }
 
 /// Processes one `Visit` work item: applies both guards, decodes the node's
 /// own shape, and either pushes a fully-decoded leaf straight onto
 /// `output`, or pushes a `Build*` marker followed by that node's children
-/// (as new `Visit` items) onto `work` - `unary`/`group` children get
-/// `unary_group_depth + 1`; `binary` children keep the same depth, since
+/// (as new `Visit` items) onto `work` - `unary`/`group`/`call` children get
+/// `expression_depth + 1`; `binary` children keep the same depth, since
 /// binary chains are not depth-limited (see the module doc).
 ///
 /// Work-stack push order matters: pushing `Build*` first and then a node's
@@ -123,16 +129,16 @@ enum WorkItem<'a> {
 /// then `left`, since `right` was pushed to `output` second).
 fn visit_node<'a>(
     json: &'a Value,
-    unary_group_depth: usize,
+    expression_depth: usize,
     remaining_nodes: &mut usize,
     work: &mut Vec<WorkItem<'a>>,
     output: &mut Vec<TypedScalarExpression>,
 ) -> Result<(), ScalarPayloadIssue> {
-    if unary_group_depth > MAX_UNARY_GROUP_NESTING_DEPTH {
+    if expression_depth > MAX_SCALAR_EXPRESSION_DEPTH {
         return Err(issue(
             Code::DepthExceeded,
             format!(
-                "typed expression exceeds the {MAX_UNARY_GROUP_NESTING_DEPTH}-level unary/group nesting limit"
+                "typed expression exceeds the {MAX_SCALAR_EXPRESSION_DEPTH}-level unary/group/call nesting limit"
             ),
         ));
     }
@@ -170,7 +176,7 @@ fn visit_node<'a>(
             });
             work.push(WorkItem::Visit {
                 json: shape.operand,
-                unary_group_depth: unary_group_depth + 1,
+                expression_depth: expression_depth + 1,
             });
         }
         "binary" => {
@@ -182,11 +188,11 @@ fn visit_node<'a>(
             });
             work.push(WorkItem::Visit {
                 json: shape.right,
-                unary_group_depth,
+                expression_depth,
             });
             work.push(WorkItem::Visit {
                 json: shape.left,
-                unary_group_depth,
+                expression_depth,
             });
         }
         "group" => {
@@ -197,8 +203,26 @@ fn visit_node<'a>(
             });
             work.push(WorkItem::Visit {
                 json: shape.expression,
-                unary_group_depth: unary_group_depth + 1,
+                expression_depth: expression_depth + 1,
             });
+        }
+        "call" => {
+            let shape = validate_call_shape(object)?;
+            let argument_count = shape.args.len();
+            work.push(WorkItem::BuildCall {
+                span: shape.span,
+                name_span: shape.name_span,
+                name: shape.name,
+                target: shape.target,
+                argument_count,
+                r#type: shape.r#type,
+            });
+            for argument in shape.args.iter().rev() {
+                work.push(WorkItem::Visit {
+                    json: argument,
+                    expression_depth: expression_depth + 1,
+                });
+            }
         }
         other => {
             return Err(issue(
@@ -219,7 +243,7 @@ pub(crate) fn validate_typed_expression_payload(
 ) -> Result<TypedScalarExpression, ScalarPayloadIssue> {
     let mut work = vec![WorkItem::Visit {
         json,
-        unary_group_depth: 0,
+        expression_depth: 0,
     }];
     let mut output: Vec<TypedScalarExpression> = Vec::new();
     let mut remaining_nodes = MAX_TYPED_EXPRESSION_NODE_COUNT;
@@ -228,10 +252,10 @@ pub(crate) fn validate_typed_expression_payload(
         match item {
             WorkItem::Visit {
                 json,
-                unary_group_depth,
+                expression_depth,
             } => visit_node(
                 json,
-                unary_group_depth,
+                expression_depth,
                 &mut remaining_nodes,
                 &mut work,
                 &mut output,
@@ -277,6 +301,30 @@ pub(crate) fn validate_typed_expression_payload(
                 output.push(TypedScalarExpression::Group {
                     span,
                     expression: Box::new(expression),
+                    r#type,
+                });
+            }
+            WorkItem::BuildCall {
+                span,
+                name_span,
+                name,
+                target,
+                argument_count,
+                r#type,
+            } => {
+                let mut args = Vec::with_capacity(argument_count);
+                for _ in 0..argument_count {
+                    args.push(output.pop().expect(
+                        "call argument must already be decoded (post-order build invariant)",
+                    ));
+                }
+                args.reverse();
+                output.push(TypedScalarExpression::Call {
+                    span,
+                    name_span,
+                    name,
+                    target,
+                    args,
                     r#type,
                 });
             }

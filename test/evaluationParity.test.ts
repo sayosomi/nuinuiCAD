@@ -30,6 +30,18 @@ const printGroupIdsFor = (fixture: ReturnType<typeof readParityFixture>, payload
   ).map((group) => group.id);
 };
 
+const scalarBindingFor = (
+  fixture: ReturnType<typeof readParityFixture>,
+  payload: ReturnType<typeof evaluateWithRustFixture>,
+  name: string
+) => {
+  const binding = fixture.compiled?.doc?.bindingAnalysis?.catalog.bindings.find(
+    (candidate) => candidate.kind === "typed" && candidate.name === name
+  );
+  if (!binding) throw new Error(`typed binding "${name}" not found`);
+  return evaluationPayloadToResult(payload).computedScalarBindings?.get(binding.id);
+};
+
 describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", () => {
   it.each(fixtureNames)("%s matches the TypeScript reference payload", (name: string) => {
     const fixture = readParityFixture(repoRoot, name);
@@ -100,5 +112,54 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     });
     expect(resolve(tsEvaluation)).toMatchObject({ x: 30, y: 30 });
     expect(resolve(rustEvaluation)).toMatchObject({ x: 30, y: 30 });
+  }, 30000);
+
+  it("asserts nui4 builtin scalar values and runtime errors in both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-builtin-functions.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(scalarBindingFor(fixture, payload, "absValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+      expect(scalarBindingFor(fixture, payload, "minValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 10 } });
+      expect(scalarBindingFor(fixture, payload, "maxValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 20 } });
+      expect(scalarBindingFor(fixture, payload, "sqrtValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+      expect(scalarBindingFor(fixture, payload, "roundPositive")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+      expect(scalarBindingFor(fixture, payload, "roundNegative")).toMatchObject({ status: "ok", value: { kind: "number", value: -2 } });
+      expect(scalarBindingFor(fixture, payload, "roundDecimal")).toMatchObject({ status: "ok", value: { kind: "number", value: 12.35 } });
+      expect(scalarBindingFor(fixture, payload, "roundDecimalCoefficientBoundary")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 9484088218495944 }
+      });
+      expect(scalarBindingFor(fixture, payload, "roundCoarse")).toMatchObject({ status: "ok", value: { kind: "number", value: 1200 } });
+      expect(scalarBindingFor(fixture, payload, "floorDecimal")).toMatchObject({ status: "ok", value: { kind: "number", value: 12.34 } });
+      expect(scalarBindingFor(fixture, payload, "floorCoarse")).toMatchObject({ status: "ok", value: { kind: "number", value: 1200 } });
+      expect(scalarBindingFor(fixture, payload, "ceilDecimal")).toMatchObject({ status: "ok", value: { kind: "number", value: 12.35 } });
+      expect(scalarBindingFor(fixture, payload, "ceilCoarse")).toMatchObject({ status: "ok", value: { kind: "number", value: 1300 } });
+      expect(scalarBindingFor(fixture, payload, "roundToValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 12.5 } });
+      expect(scalarBindingFor(fixture, payload, "roundToNonFiniteResult")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-non-finite-result"
+      });
+      expect(scalarBindingFor(fixture, payload, "closeValue")).toMatchObject({ status: "ok", value: { kind: "boolean", value: true } });
+      expect(scalarBindingFor(fixture, payload, "nestedValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+      expect(scalarBindingFor(fixture, payload, "referenceArgument")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+      expect(scalarBindingFor(fixture, payload, "geometryArgument")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+      expect(scalarBindingFor(fixture, payload, "sqrtInvalid")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-invalid-builtin-argument"
+      });
+      expect(scalarBindingFor(fixture, payload, "roundToInvalid")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-invalid-builtin-argument"
+      });
+      expect(scalarBindingFor(fixture, payload, "closeInvalid")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-invalid-builtin-argument"
+      });
+    }
   }, 30000);
 });
