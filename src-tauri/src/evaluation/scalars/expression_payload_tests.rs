@@ -4,7 +4,9 @@ use super::expression_payload::{
     validate_typed_expression_payload, MAX_SCALAR_EXPRESSION_DEPTH, MAX_TYPED_EXPRESSION_NODE_COUNT,
 };
 use super::issue::ScalarPayloadIssueCode as Code;
-use super::types::{ScalarType, TypedScalarExpression};
+use super::types::{
+    GeometryInterfaceType, ScalarType, TypedBuiltinArgument, TypedScalarExpression,
+};
 
 // --- golden decode: shared TS/Rust vectors -------------------------------
 //
@@ -173,19 +175,59 @@ fn geometry_property_literal() -> Value {
 }
 
 fn builtin_call(name: &str, args: Vec<Value>) -> Value {
+    builtin_call_with_type(name, args, json!({"kind": "number"}))
+}
+
+fn builtin_call_with_type(name: &str, args: Vec<Value>, r#type: Value) -> Value {
+    let args = args
+        .into_iter()
+        .map(|expression| json!({"kind": "scalar", "expression": expression}))
+        .collect::<Vec<_>>();
     json!({
         "kind": "call", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1},
         "name": name, "target": {"kind": "builtin", "name": name}, "args": args,
-        "type": {"kind": "number"}
+        "type": r#type
     })
 }
 
 fn builtin_call_with_target_name(name: &str, target_name: &str, args: Vec<Value>) -> Value {
+    let args = args
+        .into_iter()
+        .map(|expression| json!({"kind": "scalar", "expression": expression}))
+        .collect::<Vec<_>>();
     json!({
         "kind": "call", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1},
         "name": name, "target": {"kind": "builtin", "name": target_name}, "args": args,
         "type": {"kind": "number"}
     })
+}
+
+fn geometry_target(id: &str, index: usize, geometry_type: &str) -> Value {
+    json!({
+        "statementId": id,
+        "statementIndex": index,
+        "geometryType": geometry_type
+    })
+}
+
+fn geometry_argument(expected_geometry_type: &str, target: Option<Value>) -> Value {
+    json!({
+        "kind": "geometryReference",
+        "expectedGeometryType": expected_geometry_type,
+        "target": target
+    })
+}
+
+fn geometry_call_with_type(name: &str, args: Vec<Value>, r#type: Value) -> Value {
+    json!({
+        "kind": "call", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1},
+        "name": name, "target": {"kind": "builtin", "name": name}, "args": args,
+        "type": r#type
+    })
+}
+
+fn geometry_call(name: &str, args: Vec<Value>) -> Value {
+    geometry_call_with_type(name, args, json!({"kind": "number"}))
 }
 
 #[test]
@@ -208,14 +250,271 @@ fn decodes_builtin_call_and_preserves_nested_argument_order_and_references() {
                 target,
                 super::types::TypedScalarCallTarget::Builtin(_)
             ));
-            assert!(matches!(args[0], TypedScalarExpression::Call { .. }));
             assert!(matches!(
-                args[1],
-                TypedScalarExpression::GeometryProperty { .. }
+                &args[0],
+                TypedBuiltinArgument::Scalar { expression }
+                    if matches!(expression, TypedScalarExpression::Call { .. })
+            ));
+            assert!(matches!(
+                &args[1],
+                TypedBuiltinArgument::Scalar { expression }
+                    if matches!(expression, TypedScalarExpression::GeometryProperty { .. })
             ));
         }
         other => panic!("expected a call node, got {other:?}"),
     }
+}
+
+#[test]
+fn decodes_scalar_wrapper_arguments() {
+    let decoded =
+        validate_typed_expression_payload(&builtin_call("abs", vec![number_literal()])).unwrap();
+    let TypedScalarExpression::Call { args, .. } = &decoded else {
+        panic!("expected call");
+    };
+    assert!(matches!(
+        &args[0],
+        TypedBuiltinArgument::Scalar { expression }
+            if matches!(expression, TypedScalarExpression::NumberLiteral { .. })
+    ));
+}
+
+#[test]
+fn decodes_distance_point_point_geometry_wrappers() {
+    let decoded = validate_typed_expression_payload(&geometry_call(
+        "distance",
+        vec![
+            geometry_argument("point", Some(geometry_target("point-a", 1, "point"))),
+            geometry_argument("point", Some(geometry_target("point-b", 2, "point"))),
+        ],
+    ))
+    .unwrap();
+    assert!(matches!(
+        &decoded,
+        TypedScalarExpression::Call {
+            args,
+            ..
+        } if matches!(
+            (&args[0], &args[1]),
+            (
+                TypedBuiltinArgument::GeometryReference {
+                    expected_geometry_type: GeometryInterfaceType::Point,
+                    ..
+                },
+                TypedBuiltinArgument::GeometryReference {
+                    expected_geometry_type: GeometryInterfaceType::Point,
+                    ..
+                }
+            )
+        )
+    ));
+}
+
+#[test]
+fn decodes_angle_point_point_geometry_wrappers() {
+    assert!(validate_typed_expression_payload(&geometry_call(
+        "angle",
+        vec![
+            geometry_argument("point", Some(geometry_target("a", 1, "point"))),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    ))
+    .is_ok());
+}
+
+#[test]
+fn decodes_line_distance_point_line_geometry_wrappers() {
+    assert!(validate_typed_expression_payload(&geometry_call(
+        "lineDistance",
+        vec![
+            geometry_argument("point", Some(geometry_target("point", 1, "point"))),
+            geometry_argument("line", Some(geometry_target("line", 2, "line"))),
+        ],
+    ))
+    .is_ok());
+}
+
+#[test]
+fn preserves_resolved_geometry_target_identity_and_rejects_raw_source_name() {
+    let decoded = validate_typed_expression_payload(&geometry_call(
+        "distance",
+        vec![
+            geometry_argument("point", Some(geometry_target("element-id", 12, "point"))),
+            geometry_argument("point", Some(geometry_target("other", 13, "point"))),
+        ],
+    ))
+    .unwrap();
+    let TypedScalarExpression::Call { args, .. } = &decoded else {
+        panic!("expected call");
+    };
+    let TypedBuiltinArgument::GeometryReference {
+        target: Some(target),
+        ..
+    } = &args[0]
+    else {
+        panic!("expected resolved geometry target");
+    };
+    assert_eq!(target.statement_id, "element-id");
+    assert_eq!(target.statement_index, 12);
+    assert_eq!(target.geometry_type, GeometryInterfaceType::Point);
+
+    let mut malformed = geometry_call(
+        "distance",
+        vec![
+            geometry_argument("point", Some(geometry_target("a", 1, "point"))),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    );
+    malformed["args"][0]["target"]["sourceName"] = json!("legacy-name");
+    assert_eq!(
+        validate_typed_expression_payload(&malformed)
+            .unwrap_err()
+            .code,
+        Code::UnexpectedField
+    );
+}
+
+#[test]
+fn rejects_malformed_geometry_interface_and_target_fields() {
+    let mut unknown_expected = geometry_call(
+        "distance",
+        vec![
+            geometry_argument("triangle", Some(geometry_target("a", 1, "point"))),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    );
+    assert_eq!(
+        validate_typed_expression_payload(&unknown_expected)
+            .unwrap_err()
+            .code,
+        Code::UnknownKind
+    );
+
+    unknown_expected["args"][0]["expectedGeometryType"] = json!("point");
+    unknown_expected["args"][0]["target"]["geometryType"] = json!("triangle");
+    assert_eq!(
+        validate_typed_expression_payload(&unknown_expected)
+            .unwrap_err()
+            .code,
+        Code::UnknownKind
+    );
+
+    let empty_id = geometry_call(
+        "distance",
+        vec![
+            geometry_argument("point", Some(geometry_target("", 1, "point"))),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    );
+    assert_eq!(
+        validate_typed_expression_payload(&empty_id)
+            .unwrap_err()
+            .code,
+        Code::InvalidFieldType
+    );
+
+    let invalid_index = geometry_call(
+        "distance",
+        vec![
+            geometry_argument(
+                "point",
+                Some(json!({
+                    "statementId": "a",
+                    "statementIndex": -1,
+                    "geometryType": "point"
+                })),
+            ),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    );
+    assert_eq!(
+        validate_typed_expression_payload(&invalid_index)
+            .unwrap_err()
+            .code,
+        Code::InvalidFieldType
+    );
+}
+
+#[test]
+fn rejects_old_raw_scalar_argument_shape() {
+    let mut payload = builtin_call("abs", vec![number_literal()]);
+    payload["args"] = json!([number_literal()]);
+    assert_eq!(
+        validate_typed_expression_payload(&payload)
+            .unwrap_err()
+            .code,
+        Code::UnknownKind
+    );
+}
+
+#[test]
+fn rejects_non_null_call_argument_consistency_errors() {
+    let wrong_arity = builtin_call("abs", vec![number_literal(), number_literal()]);
+    assert_eq!(
+        validate_typed_expression_payload(&wrong_arity)
+            .unwrap_err()
+            .code,
+        Code::InvalidBuiltinArgument
+    );
+
+    let kind_mismatch = geometry_call(
+        "distance",
+        vec![
+            json!({"kind": "scalar", "expression": number_literal()}),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    );
+    assert_eq!(
+        validate_typed_expression_payload(&kind_mismatch)
+            .unwrap_err()
+            .code,
+        Code::InvalidBuiltinArgument
+    );
+
+    let null_target = geometry_call(
+        "distance",
+        vec![
+            geometry_argument("point", None),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    );
+    assert_eq!(
+        validate_typed_expression_payload(&null_target)
+            .unwrap_err()
+            .code,
+        Code::InvalidBuiltinArgument
+    );
+
+    let type_mismatch = geometry_call(
+        "distance",
+        vec![
+            geometry_argument("point", Some(geometry_target("a", 1, "line"))),
+            geometry_argument("point", Some(geometry_target("b", 2, "point"))),
+        ],
+    );
+    assert_eq!(
+        validate_typed_expression_payload(&type_mismatch)
+            .unwrap_err()
+            .code,
+        Code::InvalidBuiltinArgument
+    );
+}
+
+#[test]
+fn semantic_invalid_call_shapes_decode_when_static_type_is_null() {
+    let wrong_arity =
+        builtin_call_with_type("abs", vec![number_literal(), number_literal()], Value::Null);
+    assert!(validate_typed_expression_payload(&wrong_arity).is_ok());
+
+    let geometry_invalid = geometry_call_with_type(
+        "distance",
+        vec![
+            geometry_argument("point", None),
+            geometry_argument("line", Some(geometry_target("b", 2, "line"))),
+        ],
+        Value::Null,
+    );
+    assert!(validate_typed_expression_payload(&geometry_invalid).is_ok());
 }
 
 #[test]
@@ -513,6 +812,9 @@ fn build_nested_group_chain(depth: usize) -> Value {
 fn build_nested_call_chain(depth: usize) -> Value {
     let mut node = number_literal();
     for _ in 0..depth {
+        let mut argument = Map::new();
+        argument.insert("kind".to_owned(), Value::String("scalar".to_owned()));
+        argument.insert("expression".to_owned(), node);
         let mut object = Map::new();
         object.insert("kind".to_owned(), Value::String("call".to_owned()));
         object.insert("span".to_owned(), json!({"start": 0, "end": 1}));
@@ -522,7 +824,10 @@ fn build_nested_call_chain(depth: usize) -> Value {
             "target".to_owned(),
             json!({"kind": "builtin", "name": "abs"}),
         );
-        object.insert("args".to_owned(), Value::Array(vec![node]));
+        object.insert(
+            "args".to_owned(),
+            Value::Array(vec![Value::Object(argument)]),
+        );
         object.insert("type".to_owned(), json!({"kind": "number"}));
         node = Value::Object(object);
     }
@@ -530,10 +835,21 @@ fn build_nested_call_chain(depth: usize) -> Value {
 }
 
 fn build_wide_call_tree(call_count: usize) -> Value {
-    let args = (0..call_count)
+    let mut level: Vec<Value> = (0..call_count)
         .map(|_| builtin_call("abs", vec![number_literal()]))
         .collect();
-    builtin_call("abs", args)
+    while level.len() > 1 {
+        let mut next = Vec::with_capacity(level.len().div_ceil(2));
+        let mut iter = level.into_iter();
+        while let Some(left) = iter.next() {
+            match iter.next() {
+                Some(right) => next.push(builtin_call("min", vec![left, right])),
+                None => next.push(left),
+            }
+        }
+        level = next;
+    }
+    level.into_iter().next().unwrap()
 }
 
 /// Spawns a worker thread with an explicit 2 MiB stack - the default size

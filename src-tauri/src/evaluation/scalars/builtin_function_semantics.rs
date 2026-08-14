@@ -299,5 +299,8 @@ pub(crate) fn evaluate_builtin_function(
                 (args[0] - args[1]).abs() <= args[2],
             ))
         }
+        BuiltinFunctionName::Distance
+        | BuiltinFunctionName::Angle
+        | BuiltinFunctionName::LineDistance => invalid_argument(),
     }
 }

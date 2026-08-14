@@ -16,10 +16,12 @@ use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnv
 use super::expression_payload::{
     validate_typed_expression_payload, MAX_TYPED_EXPRESSION_NODE_COUNT,
 };
+use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::scalar_payload::decode_scalar_evaluation;
 use super::types::{
-    BindingId, BuiltinFunctionName, ScalarBinaryOperator, ScalarEvaluation, ScalarSpan, ScalarType,
-    ScalarUnaryOperator, ScalarValue, TypedScalarCallTarget, TypedScalarExpression,
+    BindingId, BuiltinFunctionName, GeometryInterfaceType, ScalarBinaryOperator, ScalarEvaluation,
+    ScalarExpressionResolvedGeometryTarget, ScalarSpan, ScalarType, ScalarUnaryOperator,
+    ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget, TypedScalarExpression,
 };
 
 // --- shared-vector parity loop --------------------------------------------
@@ -186,6 +188,40 @@ fn builtin_call(
         name_span: span(),
         name: "source-name-is-not-dispatch".to_owned(),
         target: TypedScalarCallTarget::Builtin(name),
+        args: args
+            .into_iter()
+            .map(|expression| TypedBuiltinArgument::Scalar { expression })
+            .collect(),
+        r#type: Some(r#type),
+    }
+}
+
+fn geometry_argument(
+    expected_geometry_type: GeometryInterfaceType,
+    statement_id: &str,
+    statement_index: usize,
+    target_geometry_type: GeometryInterfaceType,
+) -> TypedBuiltinArgument {
+    TypedBuiltinArgument::GeometryReference {
+        expected_geometry_type,
+        target: Some(ScalarExpressionResolvedGeometryTarget {
+            statement_id: statement_id.to_owned(),
+            statement_index,
+            geometry_type: target_geometry_type,
+        }),
+    }
+}
+
+fn geometry_call(
+    name: BuiltinFunctionName,
+    args: Vec<TypedBuiltinArgument>,
+    r#type: ScalarType,
+) -> TypedScalarExpression {
+    TypedScalarExpression::Call {
+        span: span(),
+        name_span: span(),
+        name: "source-name-is-not-dispatch".to_owned(),
+        target: TypedScalarCallTarget::Builtin(name),
         args,
         r#type: Some(r#type),
     }
@@ -308,6 +344,33 @@ impl ScalarEvaluationEnvironment for FixedEnvironment {
 struct GeometryEnvironment {
     bindings: HashMap<BindingId, ScalarEvaluation>,
     geometry: ScalarEvaluation,
+}
+
+struct GeometryBuiltinEnvironment {
+    target: Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError>,
+    line_target: Option<Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError>>,
+    looked_up: RefCell<Vec<String>>,
+}
+
+impl ScalarEvaluationEnvironment for GeometryBuiltinEnvironment {
+    fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
+        panic!("scalar binding lookup must not occur for geometry builtin: {binding_id}");
+    }
+
+    fn lookup_geometry_builtin_target(
+        &self,
+        target: &ScalarExpressionResolvedGeometryTarget,
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+        self.looked_up
+            .borrow_mut()
+            .push(target.statement_id.clone());
+        if target.geometry_type == GeometryInterfaceType::Line {
+            if let Some(line_target) = &self.line_target {
+                return line_target.clone();
+            }
+        }
+        self.target.clone()
+    }
 }
 
 impl ScalarEvaluationEnvironment for GeometryEnvironment {
@@ -509,7 +572,9 @@ fn uses_static_type_null_error_for_an_untyped_call() {
         name_span: span(),
         name: "abs".to_owned(),
         target: TypedScalarCallTarget::Builtin(BuiltinFunctionName::Abs),
-        args: vec![number_literal(1.0)],
+        args: vec![TypedBuiltinArgument::Scalar {
+            expression: number_literal(1.0),
+        }],
         r#type: None,
     };
     assert_eq!(
@@ -517,6 +582,198 @@ fn uses_static_type_null_error_for_an_untyped_call() {
         ScalarEvaluation::Error {
             r#type: ScalarType::Number,
             issue_code: "evaluation-static-type-null".to_owned(),
+            binding_id: None,
+        }
+    );
+}
+
+#[test]
+fn static_type_null_geometry_call_does_not_lookup_geometry_targets() {
+    let node = TypedScalarExpression::Call {
+        span: span(),
+        name_span: span(),
+        name: "distance".to_owned(),
+        target: TypedScalarCallTarget::Builtin(BuiltinFunctionName::Distance),
+        args: vec![
+            TypedBuiltinArgument::GeometryReference {
+                expected_geometry_type: GeometryInterfaceType::Point,
+                target: None,
+            },
+            TypedBuiltinArgument::GeometryReference {
+                expected_geometry_type: GeometryInterfaceType::Point,
+                target: None,
+            },
+        ],
+        r#type: None,
+    };
+    let environment = GeometryBuiltinEnvironment {
+        target: Ok(GeometryBuiltinRuntimeTarget::Point(
+            crate::evaluation::types::Point {
+                element_id: "point".to_owned(),
+                name: "point".to_owned(),
+                x: 0.0,
+                y: 0.0,
+            },
+        )),
+        line_target: None,
+        looked_up: RefCell::new(Vec::new()),
+    };
+    let result = evaluate_typed_expression(&node, &environment);
+    assert_eq!(
+        result,
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-static-type-null".to_owned(),
+            binding_id: None,
+        }
+    );
+    assert!(environment.looked_up.into_inner().is_empty());
+}
+
+#[test]
+fn geometry_lookup_uses_resolved_statement_id_identity() {
+    let node = geometry_call(
+        BuiltinFunctionName::Distance,
+        vec![
+            geometry_argument(
+                GeometryInterfaceType::Point,
+                "resolved-point-id",
+                1,
+                GeometryInterfaceType::Point,
+            ),
+            geometry_argument(
+                GeometryInterfaceType::Point,
+                "second-point-id",
+                2,
+                GeometryInterfaceType::Point,
+            ),
+        ],
+        ScalarType::Number,
+    );
+    let environment = GeometryBuiltinEnvironment {
+        target: Ok(GeometryBuiltinRuntimeTarget::Point(
+            crate::evaluation::types::Point {
+                element_id: "point".to_owned(),
+                name: "point".to_owned(),
+                x: 0.0,
+                y: 0.0,
+            },
+        )),
+        line_target: None,
+        looked_up: RefCell::new(Vec::new()),
+    };
+    assert_eq!(
+        evaluate_typed_expression(&node, &environment),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
+            binding_id: None,
+        }
+    );
+    assert_eq!(
+        environment.looked_up.into_inner(),
+        vec!["resolved-point-id".to_owned(), "second-point-id".to_owned()]
+    );
+}
+
+#[test]
+fn geometry_runtime_kind_mismatch_is_unavailable() {
+    let node = geometry_call(
+        BuiltinFunctionName::Distance,
+        vec![
+            geometry_argument(
+                GeometryInterfaceType::Point,
+                "point-id",
+                1,
+                GeometryInterfaceType::Point,
+            ),
+            geometry_argument(
+                GeometryInterfaceType::Point,
+                "line-id",
+                2,
+                GeometryInterfaceType::Point,
+            ),
+        ],
+        ScalarType::Number,
+    );
+    let environment = GeometryBuiltinEnvironment {
+        target: Ok(GeometryBuiltinRuntimeTarget::Line {
+            start: crate::evaluation::types::Point {
+                element_id: "start".to_owned(),
+                name: "start".to_owned(),
+                x: 0.0,
+                y: 0.0,
+            },
+            end: crate::evaluation::types::Point {
+                element_id: "end".to_owned(),
+                name: "end".to_owned(),
+                x: 2.0,
+                y: 0.0,
+            },
+        }),
+        line_target: None,
+        looked_up: RefCell::new(Vec::new()),
+    };
+    assert_eq!(
+        evaluate_typed_expression(&node, &environment),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
+            binding_id: None,
+        }
+    );
+}
+
+#[test]
+fn zero_length_line_is_an_invalid_builtin_argument() {
+    let node = geometry_call(
+        BuiltinFunctionName::LineDistance,
+        vec![
+            geometry_argument(
+                GeometryInterfaceType::Point,
+                "point-id",
+                1,
+                GeometryInterfaceType::Point,
+            ),
+            geometry_argument(
+                GeometryInterfaceType::Line,
+                "line-id",
+                2,
+                GeometryInterfaceType::Line,
+            ),
+        ],
+        ScalarType::Number,
+    );
+    let environment = GeometryBuiltinEnvironment {
+        target: Ok(GeometryBuiltinRuntimeTarget::Point(
+            crate::evaluation::types::Point {
+                element_id: "point".to_owned(),
+                name: "point".to_owned(),
+                x: 0.0,
+                y: 0.0,
+            },
+        )),
+        line_target: Some(Ok(GeometryBuiltinRuntimeTarget::Line {
+            start: crate::evaluation::types::Point {
+                element_id: "start".to_owned(),
+                name: "start".to_owned(),
+                x: 0.0,
+                y: 0.0,
+            },
+            end: crate::evaluation::types::Point {
+                element_id: "end".to_owned(),
+                name: "end".to_owned(),
+                x: 0.0,
+                y: 0.0,
+            },
+        })),
+        looked_up: RefCell::new(Vec::new()),
+    };
+    assert_eq!(
+        evaluate_typed_expression(&node, &environment),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-invalid-builtin-argument".to_owned(),
             binding_id: None,
         }
     );
