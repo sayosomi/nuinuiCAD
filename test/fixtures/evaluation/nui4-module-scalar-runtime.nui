@@ -3,9 +3,9 @@ nui 4
 let caller: number = 1
 set caller = 10
 module M(value: number, side: choice(right, left), label: string) {
-  let local: number = @value
+  let local: number = round(@value, 0)
   point Before = coordinate(x: @local, y: 0)
-  set local = @local + 1
+  set local = roundTo(@local, 1) + 1
   point After = coordinate(x: @local, y: 0)
   point A = coordinate(x: 0, y: 0)
   point B = coordinate(x: 10, y: 0)
@@ -13,8 +13,8 @@ module M(value: number, side: choice(right, left), label: string) {
   line Off = offset(sources: [@AB], distance: 2, side: @side, closed: false, suppressTrimWarnings: false)
   text Label = label(text: @label, anchor: none, size: 3)
 }
-instance First = M(value: @caller, side: left, label: "first")
+instance First = M(value: round(@caller, 0), side: left, label: "first")
 set caller = 20
-instance Second = M(value: @caller, side: right, label: "second")
+instance Second = M(value: round(@caller, 0), side: right, label: "second")
 stop
 point Ignored = coordinate(x: @caller, y: 0)

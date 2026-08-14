@@ -3,7 +3,9 @@ import type { CompiledDslDocument } from "./dslDocument";
 import { physicalToLogicalOffset } from "./logicalStatementSourceMap";
 import { resolveModuleLexicalDeclaration, isModuleLookupVisibleWithinBody } from "./moduleLexicalResolution";
 import { scalarLiteralCandidates } from "../scalars/typedValueCandidates";
+import { BUILTIN_FUNCTION_DEFINITIONS, formatBuiltinFunctionSignatures } from "../scalars/builtinFunctions";
 import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
+import { scalarExpressionCompletionContextAt } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
 import type { DslModuleParameterType } from "./dslTypes";
 import type {
@@ -43,6 +45,8 @@ export type ModuleCompletionRequest = {
   logicalCursorPosition?: number;
   qualifiedInstanceName?: string;
   liveStatementText?: string;
+  /** Logical value span supplied by the live module argument context. */
+  argumentValueSpan?: { start: number; end: number };
   expectedScalarType?: ScalarType | null;
   scopeId?: ScopeId;
   sourceOrderIndex?: number;
@@ -145,6 +149,16 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
     result.push({ label: '""', type: "text" });
   } else if (expectedType && expectedType.kind !== "number") {
     result.push(...scalarLiteralCandidates(expectedType).map((literal) => ({ label: literal.label, type: "enum" as const })));
+  }
+  if (expectedType) {
+    result.push(...BUILTIN_FUNCTION_DEFINITIONS
+      .filter((definition) => definition.signatures.some((signature) => isScalarTypeAssignable(signature.returnType, expectedType)))
+      .map((definition) => ({
+        label: definition.name,
+        apply: `${definition.name}(`,
+        detail: formatBuiltinFunctionSignatures(definition),
+        type: "function" as const
+      })));
   }
   for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
     const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);
@@ -270,13 +284,36 @@ const moduleArgumentParameterType = (
   return parameter?.type ?? binding?.parameterType ?? null;
 };
 
+const moduleScalarExpectedType = (
+  parameterType: DslModuleParameterType | null,
+  argumentIndex: number,
+  request: ModuleCompletionRequest
+): ScalarType | null => {
+  const rootType = scalarTypeOf(parameterType);
+  if (!request.liveStatementText || request.logicalCursorPosition === undefined) return rootType;
+  const liveArgument = liveArguments(request)?.[argumentIndex];
+  const valueSpan = liveArgument
+    ? liveArgument.valueSpan.start === liveArgument.valueSpan.end && liveArgument.rawValueSpan
+      ? liveArgument.rawValueSpan
+      : liveArgument.valueSpan
+    : request.argumentValueSpan;
+  if (!valueSpan) return rootType;
+  const context = scalarExpressionCompletionContextAt(
+    request.liveStatementText,
+    request.logicalCursorPosition,
+    valueSpan,
+    rootType
+  );
+  return context?.kind === "operand" ? context.expectedType ?? rootType : rootType;
+};
+
 const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): Completion[] => {
   const parameterType = moduleArgumentParameterType(compiled, statementIndex, argumentIndex, request);
   if (parameterType?.kind === "point") return geometryCompletions(compiled, statementIndex, "point", request);
   const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
   return geometryInterfaceType
     ? geometryInterfaceCompletions(compiled, statementIndex, geometryInterfaceType, request)
-    : scalarCompletions(compiled, statementIndex, parameterType, request);
+    : scalarCompletions(compiled, statementIndex, moduleScalarExpectedType(parameterType, argumentIndex, request), request);
 };
 
 const deferredInstanceIdOf = (target: ModuleScalarSourceTarget | ModuleGeometrySourceTarget | ModuleGeometryPropertySourceTarget | null) =>

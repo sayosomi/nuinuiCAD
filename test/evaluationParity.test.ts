@@ -160,6 +160,12 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
         status: "error",
         issueCode: "evaluation-invalid-builtin-argument"
       });
+      const offset = fixture.elements.find((element) => element.name === "BuiltinOffset")!;
+      const template = fixture.elements.find((element) => element.name === "BuiltinTemplate")!;
+      const evaluated = evaluationPayloadToResult(payload);
+      expect(evaluated.errors.filter((error) => error.elementId === offset.id || error.elementId === template.id)).toEqual([]);
+      expect(evaluated.computedGeometry.get(offset.id)).toMatchObject({ kind: "offsetLine" });
+      expect(evaluated.computedGeometry.get(template.id)).toMatchObject({ kind: "text", text: "丸め=10" });
     }
   }, 30000);
 });

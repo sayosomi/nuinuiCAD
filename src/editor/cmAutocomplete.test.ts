@@ -1222,6 +1222,29 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
 });
 
 describe("typed value completion (Task 39)", () => {
+  it("offers builtin functions inside a typed if condition", async () => {
+    const source = ["nui 4", "if (isClose(1, 1, 0)) {", "}"].join("\n");
+    const compiled = compiledTyped(source);
+    const state = EditorState.create({ doc: source });
+    const completionSource = createDslCompletionSource({
+      ...baseOptions(),
+      bindingAnalysis: () => compiled.bindingAnalysis,
+      typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
+      statementInfoByElementId: () => compiled.statementMap!.byElementId
+    });
+    const pos = source.indexOf("isClose") + 2;
+    const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+    expect(result?.options).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: "isClose",
+        apply: "isClose(",
+        detail: "isClose(number, number, number) -> boolean",
+        type: "function"
+      })
+    ]));
+  });
+
   /** Typed declarations/set statements need reconciler-issued statement
    * identity to appear in bindingAnalysis at all - assigns a fresh stable id
    * per statement index, mirroring the fixture convention used across the
@@ -1283,6 +1306,29 @@ describe("typed value completion (Task 39)", () => {
   };
 
   describe("typed declaration initializer", () => {
+    it("shows all builtin overload signatures in the completion detail", async () => {
+      const source = ["nui 4", "const value: number = round(1)"].join("\n");
+      const compiled = compiledTyped(source);
+      const doc = EditorState.create({ doc: source }).doc;
+      const state = EditorState.create({ doc: source });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => createTypedDeclarationRangeIndex(doc, compiled.statementMap!),
+        scopeBodyRanges: () => [],
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = source.indexOf("round") + 2;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result?.options).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          label: "round",
+          detail: "round(number) -> number | round(number, number) -> number",
+          type: "function"
+        })
+      ]));
+    });
+
     it("offers boolean literal and unary ! candidates at a clean operand start", async () => {
       // Committed/compiled from a complete, valid initializer; the actual
       // completion query happens against a separate dirty state with nothing
@@ -1308,7 +1354,8 @@ describe("typed value completion (Task 39)", () => {
       expect(result).not.toBeNull();
       const labels = result!.options.map((option) => option.label);
       expect(labels).toEqual(expect.arrayContaining(["true", "false"]));
-      expect(result!.options.every((option) => option.type === "enum" || option.type === "keyword")).toBe(true);
+      expect(labels).toContain("isClose");
+      expect(result!.options.some((option) => option.label === "isClose" && option.type === "function" && option.apply === "isClose(")).toBe(true);
       expect(await Promise.resolve(completionSource({ state, pos, explicit: false } as never))).toBeNull();
     });
 
@@ -1787,7 +1834,9 @@ describe("typed value completion (Task 39)", () => {
       const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
       expect(result).not.toBeNull();
       expect(result!.options.map((option) => option.label)).toEqual(expect.arrayContaining(["true", "false"]));
-      expect(result!.options.every((option) => option.type === "enum")).toBe(true);
+      expect(result!.options).toEqual(expect.arrayContaining([
+        expect.objectContaining({ label: "isClose", type: "function", apply: "isClose(" })
+      ]));
     });
   });
 

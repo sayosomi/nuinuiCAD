@@ -33,14 +33,18 @@ import { deepestContainingScopeId, typedDeclarationBindingIdAtCursor } from "./s
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { StatementInfo } from "../dsl/dslDocument";
 import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
+import { formatBuiltinFunctionSignatures, getBuiltinFunctionDefinition } from "../scalars/builtinFunctions";
 import {
   scalarExpressionCandidates,
+  scalarFunctionCandidates,
   scalarLiteralCandidates,
+  scalarPrefixOperatorCandidates,
   templateHoleScalarCandidates,
   typedBindingReferenceCandidates,
   type ScalarCompletionCandidate
 } from "../scalars/typedValueCandidates";
 import type { ScalarType } from "../scalars/types";
+import type { ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "../scalars/setCompletionCandidates";
 import { printLayoutTypedBindingReferenceOptions } from "../scalars/printLayoutTypedBindingCandidates";
 import { mergeSetTargetCandidates, recoverLiveSetTargetCandidates, type SetTargetCompletionCandidate } from "../scalars/setTargetRecoveryCandidates";
@@ -210,6 +214,15 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
       };
     }
     if (candidate.kind === "operator") return { label: candidate.label, type: "keyword" };
+    if (candidate.kind === "function") {
+      const definition = getBuiltinFunctionDefinition(candidate.name);
+      return {
+        label: candidate.name,
+        apply: `${candidate.name}(`,
+        ...(definition ? { detail: formatBuiltinFunctionSignatures(definition) } : {}),
+        type: "function"
+      };
+    }
     return { label: candidate.label, type: "enum" };
   });
 
@@ -341,7 +354,7 @@ const liveTypedBindingsAtCompletionCursor = (
 }, () => true);
 
 type TypedReferenceCompletionContext = Extract<DslCompletionContext, {
-  kind: "typedInitializer" | "propertyScalarValue" | "templateHole";
+  kind: "typedInitializer" | "conditionExpression" | "propertyScalarValue" | "templateHole";
 }>;
 
 const moduleSiteAt = (
@@ -462,11 +475,48 @@ const typedReferenceCompletions = (
   const bindingAnalysis = options.bindingAnalysis();
   const elementId = statementElementIdsByLiveLine(input.doc, options.statementRanges()).get(input.cursorLineNumber);
   const site = bindingAnalysis ? elementBindingSite(elementId, options.statementInfoByElementId(), bindingAnalysis) : null;
+  const scalarExpressionCandidatesFor = (positionContext: ScalarExpressionCompletionContext): readonly ScalarCompletionCandidate[] => {
+    if (bindingAnalysis) {
+      return scalarExpressionCandidates(positionContext, {
+        catalog: bindingAnalysis.catalog,
+        entriesById: bindingAnalysis.entriesById,
+        ...(site ? { site } : { liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos) }),
+        includeOperators: true
+      });
+    }
+    if (positionContext.kind !== "operand" || !positionContext.expectedType) return [];
+    return [
+      ...scalarFunctionCandidates(positionContext.expectedType),
+      ...scalarLiteralCandidates(positionContext.expectedType).map((candidate): ScalarCompletionCandidate => ({ kind: "literal", label: candidate.label })),
+      ...(!positionContext.literalOnly
+        ? scalarPrefixOperatorCandidates(positionContext.expectedType).map((candidate): ScalarCompletionCandidate => ({ kind: "operator", label: candidate.label }))
+        : [])
+    ];
+  };
+  if (completionContext.kind === "conditionExpression") {
+    const scalarCandidates = scalarExpressionCandidatesFor(completionContext.positionContext);
+    const expectedType = completionContext.positionContext.kind === "operand"
+      ? completionContext.positionContext.expectedType
+      : completionContext.positionContext.rootType;
+    const module = moduleScalarCompletions(options, input, context, expectedType);
+    const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
+    return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
+  }
   if (completionContext.kind === "propertyScalarValue") {
     const propertyContext = completionContext.propertyContext;
+    if (propertyContext.kind === "expression") {
+      const scalarCandidates = scalarExpressionCandidatesFor(propertyContext.positionContext);
+      const expectedType = propertyContext.positionContext.kind === "operand"
+        ? propertyContext.positionContext.expectedType
+        : propertyContext.positionContext.rootType;
+      const module = moduleScalarCompletions(options, input, context, expectedType);
+      const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
+      return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
+    }
     if (propertyContext.kind === "booleanLiteral") {
       const module = moduleScalarCompletions(options, input, context, { kind: "boolean" });
       return mergeCompletionCandidates(
+        asScalarCompletions(scalarFunctionCandidates({ kind: "boolean" })),
         scalarLiteralCandidates({ kind: "boolean" }).map((candidate) => ({ label: candidate.label, type: "enum" })),
         normalizeModuleScalarCompletions(module.candidates)
       );
@@ -560,6 +610,7 @@ const filteredTypedReferenceCompletions = (
 const typedReferenceToken = (input: DslAutocompleteDocumentInput, completionContext: DslCompletionContext): string | null =>
   completionContext && (
     completionContext.kind === "typedInitializer" ||
+    completionContext.kind === "conditionExpression" ||
     completionContext.kind === "propertyScalarValue" ||
     completionContext.kind === "templateHole"
   )
@@ -596,6 +647,7 @@ const isTypedReferenceRetryContext = (options: DslAutocompleteOptions, view: Par
   const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
   if (!completionContext || (
     completionContext.kind !== "typedInitializer" &&
+    completionContext.kind !== "conditionExpression" &&
     completionContext.kind !== "propertyScalarValue" &&
     completionContext.kind !== "templateHole"
   )) return false;
@@ -735,6 +787,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         } : {}),
         ...(completionContext.kind === "moduleArgumentLabel" || completionContext.kind === "moduleArgumentValue" || completionContext.kind === "moduleQualifiedMember"
           ? { argumentIndex: completionContext.argumentIndex } : {}),
+        ...(completionContext.kind === "moduleArgumentValue"
+          ? { argumentValueSpan: { start: completionContext.from, end: completionContext.to } } : {}),
         ...(completionContext.kind === "moduleQualifiedMember" && completionContext.expectedScalarType
           ? { expectedScalarType: completionContext.expectedScalarType } : {}),
         ...(completionContext.kind === "moduleQualifiedMember"
@@ -780,7 +834,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       errors: options.evaluationErrors() ?? [],
       evaluationIsCurrent: options.evaluationIsCurrent?.() ?? true
     });
-  } else if (completionContext.kind === "typedInitializer") {
+  } else if (completionContext.kind === "typedInitializer" || completionContext.kind === "conditionExpression") {
     disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
     completions = filteredTypedReferenceCompletions(
       typedReferenceCompletions(options, input, context, completionContext), input, completionContext

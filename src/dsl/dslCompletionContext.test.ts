@@ -32,6 +32,14 @@ describe("dslCompletionContextAt", () => {
     });
   });
 
+  it("uses the typed scalar lane inside nested builtin calls in conditions", () => {
+    const line = "if (isClose(1, ";
+    expect(dslCompletionContextAt(line, line.length)).toMatchObject({
+      kind: "conditionExpression",
+      positionContext: { kind: "operand", expectedType: { kind: "number" } }
+    });
+  });
+
   it("resolves reference and choice contexts through live line reparsing", () => {
     const line = "line L = segment(start: A, end: B)";
     expect(dslCompletionContextAt(line, at(line, "A"))).toMatchObject({
@@ -102,7 +110,7 @@ describe("dslCompletionContextAt", () => {
     // by getting any non-null, correctly-kinded completion context at all.
     expect(dslCompletionContextAt(line, line.indexOf("true") + 2)).toMatchObject({
       kind: "propertyScalarValue",
-      propertyContext: { kind: "booleanLiteral" }
+      propertyContext: { kind: "expression" }
     });
   });
 

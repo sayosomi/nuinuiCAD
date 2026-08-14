@@ -5,7 +5,7 @@ point 外の点 = coordinate(x: 0, y: 0)
 
 module M(enabled: boolean) {
   let 値: number = 0
-  if (@enabled) {
+  if (@enabled and isClose(1, 1, 0)) {
     set 値 = 1
   }
   point P = coordinate(x: @値, y: 0)

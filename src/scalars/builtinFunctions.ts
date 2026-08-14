@@ -21,6 +21,9 @@ export type BuiltinFunctionDefinition = {
   readonly signatures: readonly BuiltinFunctionSignature[];
 };
 
+const scalarTypeDisplayName = (type: ScalarType): string =>
+  type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
+
 const NUMBER_TYPE: Extract<ScalarType, { kind: "number" }> = { kind: "number" };
 const BOOLEAN_TYPE: Extract<ScalarType, { kind: "boolean" }> = { kind: "boolean" };
 
@@ -47,3 +50,9 @@ export const BUILTIN_FUNCTIONS: ReadonlyMap<BuiltinFunctionName, BuiltinFunction
 
 export const getBuiltinFunctionDefinition = (name: string): BuiltinFunctionDefinition | null =>
   BUILTIN_FUNCTIONS.get(name as BuiltinFunctionName) ?? null;
+
+/** Formats the editor-facing signature detail directly from the semantic registry. */
+export const formatBuiltinFunctionSignatures = (definition: BuiltinFunctionDefinition): string =>
+  definition.signatures
+    .map((signature) => `${definition.name}(${signature.argumentTypes.map(scalarTypeDisplayName).join(", ")}) -> ${scalarTypeDisplayName(signature.returnType)}`)
+    .join(" | ");

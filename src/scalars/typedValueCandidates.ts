@@ -16,6 +16,7 @@
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { Binding, BindingCatalog, BindingId } from "./bindingCatalog";
 import { type BindingReferenceSite, visibleBindingsAt } from "./bindingResolution";
+import { BUILTIN_FUNCTION_DEFINITIONS, type BuiltinFunctionName } from "./builtinFunctions";
 import type { ScalarExpressionToken } from "./expressionTokenizer";
 import type { ScalarSpan } from "./literalScanner";
 import { isScalarTypeAssignable } from "./scalarAssignability";
@@ -149,7 +150,22 @@ export const typedBindingReferenceCandidates = (input: TypedBindingReferenceCand
 export type ScalarCompletionCandidate =
   | { readonly kind: "literal"; readonly label: string }
   | { readonly kind: "operator"; readonly label: string }
-  | { readonly kind: "reference"; readonly name: string; readonly bindingId: BindingId };
+  | { readonly kind: "reference"; readonly name: string; readonly bindingId: BindingId }
+  | { readonly kind: "function"; readonly name: BuiltinFunctionName; readonly returnType: ScalarType };
+
+/**
+ * Builtins are offered from the same signature registry used by semantic
+ * resolution. A function is an operand candidate only when at least one of
+ * its overloads returns the expression's expected type; argument positions
+ * are completed by re-entering this same list after the opening/comma token.
+ */
+export const scalarFunctionCandidates = (expectedType: ScalarType): readonly ScalarCompletionCandidate[] =>
+  BUILTIN_FUNCTION_DEFINITIONS.flatMap((definition) => {
+    const signature = definition.signatures.find((candidate) => isScalarTypeAssignable(candidate.returnType, expectedType));
+    return signature
+      ? [{ kind: "function" as const, name: definition.name, returnType: signature.returnType }]
+      : [];
+  });
 
 export type ScalarExpressionCandidatesDeps = {
   catalog: BindingCatalog;
@@ -157,19 +173,17 @@ export type ScalarExpressionCandidatesDeps = {
   site?: BindingReferenceSite;
   liveVisibleBindings?: readonly Binding[];
   /**
-   * `false` for a context that never allows expression operators (property
-   * scalar values are never routed through this function at all - see
-   * dslPropertyScalarCompletionContext.ts - so in practice this is always
-   * `true` for the two callers that do use it: typed declaration initializers
-   * && template holes).
+   * `false` for a context that never allows expression operators. Boolean
+   * property expressions use the same shared candidate path as declarations
+   * and template holes.
    */
   includeOperators: boolean;
 };
 
 /**
  * The single orchestration point combining a pure
- * `ScalarExpressionCompletionContext` (declaration initializer / template
- * hole position analysis, catalog-free) with the precomputed
+ * `ScalarExpressionCompletionContext` (declaration initializer, template
+ * hole, or scalar-property position analysis, catalog-free) with the precomputed
  * BindingCatalog/BindingAnalysis needed to resolve `@name` candidates && an
  * operator-position's preceding operand type. Reference/expression operand
  * matching is always exact-type (D07's subset rule is a property-capability-
@@ -209,6 +223,7 @@ export const scalarExpressionCandidates = (
     }
   }
   if (!context.referenceOnly) {
+    for (const functionCandidate of scalarFunctionCandidates(expectedType)) candidates.push(functionCandidate);
     for (const literal of scalarLiteralCandidates(expectedType)) candidates.push({ kind: "literal", label: literal.label });
     if (!context.literalOnly && deps.includeOperators) {
       for (const prefix of scalarPrefixOperatorCandidates(expectedType)) candidates.push({ kind: "operator", label: prefix.label });
@@ -220,7 +235,11 @@ export const scalarExpressionCandidates = (
 const HOLE_ROOT_TYPES: readonly ScalarType[] = [{ kind: "string" }, { kind: "number" }];
 
 const scalarCompletionCandidateKey = (candidate: ScalarCompletionCandidate): string =>
-  candidate.kind === "reference" ? `reference:${candidate.bindingId}` : `${candidate.kind}:${candidate.label}`;
+  candidate.kind === "reference"
+    ? `reference:${candidate.bindingId}`
+    : candidate.kind === "function"
+      ? `function:${candidate.name}`
+      : `${candidate.kind}:${candidate.label}`;
 
 /**
  * A template hole's content only ever resolves to a string || number result

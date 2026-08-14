@@ -151,6 +151,51 @@ describe("scalarExpressionCompletionContextAt", () => {
     expect(context).toEqual({ kind: "operand", from: 0, to: 2, referenceOnly: false, literalOnly: true, expectedType: rootType });
   });
 
+  it("uses builtin argument types inside a call instead of the root result type", () => {
+    const text = "isClose(1, ";
+    const span = { start: 0, end: text.length };
+    expect(scalarExpressionCompletionContextAt(text, text.length, span, rootType)).toMatchObject({
+      kind: "operand",
+      expectedType: { kind: "number" }
+    });
+  });
+
+  it("counts only direct commas for the outer builtin argument index", () => {
+    const text = "isClose(round(1, 2), round(3, 4), ";
+    const span = { start: 0, end: text.length };
+    expect(scalarExpressionCompletionContextAt(text, text.length, span, rootType)).toMatchObject({
+      kind: "operand",
+      expectedType: { kind: "number" }
+    });
+  });
+
+  it("ignores commas inside nested grouping when finding the outer argument index", () => {
+    const text = "isClose((1, 2), ";
+    const span = { start: 0, end: text.length };
+    expect(scalarExpressionCompletionContextAt(text, text.length, span, rootType)).toMatchObject({
+      kind: "operand",
+      expectedType: { kind: "number" }
+    });
+  });
+
+  it("uses the nested builtin argument type while the nested call is in progress", () => {
+    const text = "isClose(round(1, ";
+    const span = { start: 0, end: text.length };
+    expect(scalarExpressionCompletionContextAt(text, text.length, span, rootType)).toMatchObject({
+      kind: "operand",
+      expectedType: { kind: "number" }
+    });
+  });
+
+  it("keeps the outer builtin argument type after a nested call", () => {
+    const text = "isClose(roundTo(1, 0.5), ";
+    const span = { start: 0, end: text.length };
+    expect(scalarExpressionCompletionContextAt(text, text.length, span, rootType)).toMatchObject({
+      kind: "operand",
+      expectedType: { kind: "number" }
+    });
+  });
+
   it("right after a completed reference followed by a space: operator position", () => {
     // Note "@flag" with the cursor immediately at its end (no trailing space) is
     // itself an in-progress reference word (still replaceable) - see

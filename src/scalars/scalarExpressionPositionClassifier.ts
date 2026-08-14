@@ -12,6 +12,7 @@
 // SIMPLE_BINARY_RULES/unary rule), never a resolution against document data.
 
 import { tokenizeScalarExpression, type ScalarExpressionOperatorSymbol, type ScalarExpressionToken } from "./expressionTokenizer";
+import { getBuiltinFunctionDefinition } from "./builtinFunctions";
 import type { ScalarSpan } from "./literalScanner";
 import type { ScalarType } from "./types";
 
@@ -57,6 +58,7 @@ export const classifyScalarExpressionPosition = (
 export const expectedOperandType = (precedingToken: ScalarExpressionToken | null, rootType: ScalarType | null): ScalarType | null => {
   if (!precedingToken) return rootType;
   if (precedingToken.kind === "leftParen") return rootType;
+  if (precedingToken.kind === "comma") return rootType;
   if (precedingToken.kind !== "operator") return null; // literal/reference/rightParen can never immediately precede another operand without an operator between them.
   const operator: ScalarExpressionOperatorSymbol = precedingToken.value;
   switch (operator) {
@@ -79,6 +81,55 @@ export const expectedOperandType = (precedingToken: ScalarExpressionToken | null
     default:
       throw new Error(`scalarExpressionPositionClassifier: unexpected operator ${operator satisfies never}`);
   }
+};
+
+/**
+ * The root expected type is not enough inside a builtin call: `isClose(` is a
+ * boolean expression, but all three of its arguments are numbers. Resolve
+ * only this narrow editor fact from the token stream; full arity/type
+ * validation remains owned by expressionTypecheck.ts.
+ */
+const builtinArgumentTypeAt = (
+  tokens: readonly ScalarExpressionToken[],
+  precedingToken: ScalarExpressionToken,
+  rootType: ScalarType | null
+): ScalarType | null => {
+  if (precedingToken.kind !== "leftParen" && precedingToken.kind !== "comma") return expectedOperandType(precedingToken, rootType);
+  const precedingIndex = tokens.lastIndexOf(precedingToken);
+  if (precedingIndex < 0) return expectedOperandType(precedingToken, rootType);
+  let nesting = 0;
+  let openingIndex = -1;
+  for (let index = precedingIndex; index >= 0; index -= 1) {
+    const token = tokens[index];
+    if (token.kind === "rightParen") nesting += 1;
+    else if (token.kind === "leftParen") {
+      if (nesting === 0) {
+        openingIndex = index;
+        break;
+      }
+      nesting -= 1;
+    }
+  }
+  const functionToken = openingIndex > 0 ? tokens[openingIndex - 1] : null;
+  if (!functionToken || functionToken.kind !== "literal" || functionToken.literal.kind !== "choice") {
+    return expectedOperandType(precedingToken, rootType);
+  }
+  const definition = getBuiltinFunctionDefinition(functionToken.literal.raw);
+  if (!definition) return expectedOperandType(precedingToken, rootType);
+  let nestedDepth = 0;
+  let argumentIndex = 0;
+  for (let index = openingIndex + 1; index <= precedingIndex; index += 1) {
+    const token = tokens[index];
+    if (token.kind === "leftParen") {
+      nestedDepth += 1;
+    } else if (token.kind === "rightParen") {
+      nestedDepth = Math.max(0, nestedDepth - 1);
+    } else if (token.kind === "comma" && nestedDepth === 0) {
+      argumentIndex += 1;
+    }
+  }
+  return definition.signatures.find((signature) => signature.argumentTypes.length > argumentIndex)?.argumentTypes[argumentIndex]
+    ?? expectedOperandType(precedingToken, rootType);
 };
 
 export type ScalarOperandWordMatch = { readonly from: number; readonly to: number; readonly kind: "reference" | "bareWord" };
@@ -111,8 +162,7 @@ export const scalarOperandWordEndingAt = (text: string, pos: number, boundarySta
 
 /**
  * Shared operand/operator completion position, produced by each context
- * detector (declaration initializer / template hole - property values never
- * reach this shape, see dslPropertyScalarCompletionContext.ts) && consumed
+ * detector (declaration initializer / template hole / scalar property) && consumed
  * by src/scalars/typedValueCandidates.ts's scalarExpressionCandidates, which
  * has the BindingCatalog this module deliberately does not need.
  */
@@ -171,6 +221,8 @@ export const scalarExpressionCompletionContextAt = (
     to: pos,
     referenceOnly: wordMatch?.kind === "reference",
     literalOnly: wordMatch?.kind === "bareWord",
-    expectedType: expectedOperandType(classification.precedingToken, rootType)
+    expectedType: classification.precedingToken
+      ? builtinArgumentTypeAt(tokens, classification.precedingToken, rootType)
+      : rootType
   };
 };

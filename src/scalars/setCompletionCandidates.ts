@@ -32,6 +32,7 @@ import {
   scalarLiteralCandidates,
   scalarOperatorCandidates,
   scalarPrefixOperatorCandidates,
+  scalarFunctionCandidates,
   type ScalarCompletionCandidate
 } from "./typedValueCandidates";
 import type { ScalarType } from "./types";
@@ -148,6 +149,7 @@ export const setRhsScalarCandidates = (
   if (operandType === null) return candidates;
   if (!context.literalOnly) candidates.push(...referenceCandidates(deps, operandType));
   if (!context.referenceOnly) {
+    candidates.push(...scalarFunctionCandidates(operandType));
     for (const literal of scalarLiteralCandidates(operandType)) candidates.push({ kind: "literal", label: literal.label });
     if (!context.literalOnly) {
       for (const prefix of scalarPrefixOperatorCandidates(operandType)) candidates.push({ kind: "operator", label: prefix.label });
