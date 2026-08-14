@@ -68,6 +68,15 @@ describe("propertyScalarValueCompletionContext", () => {
     expect(propertyScalarValueCompletionContext(line, span, line.length, choiceCapabilityDefinition)).toBeNull();
   });
 
+  it("enters the shared expression lane for a boolean builtin call", () => {
+    const line = "printEnabled: isClose(1, ";
+    const span = { start: "printEnabled: ".length, end: line.length };
+    expect(propertyScalarValueCompletionContext(line, span, line.length, booleanCapabilityDefinition)).toMatchObject({
+      kind: "expression",
+      positionContext: { kind: "operand", expectedType: { kind: "number" } }
+    });
+  });
+
   it("never offers expression operators - there is no operator-shaped result kind at all", () => {
     const line = "text: @label ";
     const span = { start: "text: ".length, end: line.length };

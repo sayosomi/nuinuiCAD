@@ -1,7 +1,7 @@
 // Pure, catalog-free completion context for a schema-typed scalar element
 // property value. The compiler accepts the same shared scalar expression
-// frontend used by declarations && conditions; this context only identifies
-// the reference/literal completion lane && leaves expression parsing to the
+// frontend used by declarations && conditions; this context identifies the
+// reference/expression completion lane && leaves expression parsing to the
 // normal source diagnostics.
 //
 // Eligibility is derived from the parameter's scalar schema kind; the legacy
@@ -11,10 +11,12 @@ import { scalarTypeForParameterDefinition, type ParameterDefinition } from "../p
 import type { ScalarType } from "../scalars/types";
 import type { DslSpan } from "./dslTypes";
 import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
+import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 
 export type PropertyScalarValueCompletionContext =
   | { readonly kind: "reference"; readonly from: number; readonly to: number; readonly expectedType: ScalarType }
-  | { readonly kind: "booleanLiteral"; readonly from: number; readonly to: number };
+  | { readonly kind: "booleanLiteral"; readonly from: number; readonly to: number }
+  | { readonly kind: "expression"; readonly from: number; readonly to: number; readonly positionContext: ScalarExpressionCompletionContext };
 
 /**
  * `lineText`/`span`/`pos` follow the same local-text convention as every
@@ -40,12 +42,17 @@ export const propertyScalarValueCompletionContext = (
     const expectedType = scalarTypeForParameterDefinition(definition);
     return expectedType ? { kind: "reference", from: reference.from, to: reference.to, expectedType } : null;
   }
-  // Only a scalar-eligible boolean field gets a new literal candidate here -
-  // choice fields keep their existing enum-literal completion branch
-  // (cmAutocomplete.ts, unchanged), && a bare (non-"@") text field value can
-  // never be a completable identifier run in the first place.
-  if (definition.kind === "boolean" &&  scalarTypeForParameterDefinition(definition)?.kind === "boolean") {
+  // Boolean properties use the same expression-position analysis
+  // as declarations and set RHS values. This is what makes a builtin such as
+  // `isClose(` available in a boolean property while preserving the existing
+  // direct `@name` lane above.
+  const expectedType = scalarTypeForParameterDefinition(definition);
+  if (definition.kind === "boolean" && expectedType?.kind === "boolean" && lineText.slice(span.start, pos).trim().length === 0) {
     return { kind: "booleanLiteral", from: span.start, to: pos };
+  }
+  if (expectedType && definition.kind === "boolean") {
+    const positionContext = scalarExpressionCompletionContextAt(lineText, pos, span, expectedType);
+    if (positionContext) return { kind: "expression", from: positionContext.from, to: positionContext.to, positionContext };
   }
   return null;
 };

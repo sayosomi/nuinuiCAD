@@ -93,6 +93,20 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(line?.options.map((option) => option.label)).not.toContain("P");
   });
 
+  it("offers builtin functions for scalar module arguments", async () => {
+    const source = [
+      "nui 4",
+      "module M(value: number) {",
+      "}",
+      "instance I = M(value: round(1))"
+    ].join("\n");
+    const result = await completionFor(source, source.indexOf("round") + 2);
+    expect(result?.options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "round", apply: "round(", type: "function" }),
+      expect.objectContaining({ label: "roundTo", apply: "roundTo(", type: "function" })
+    ]));
+  });
+
   it("preserves point Module argument endpoint completions", async () => {
     const source = [
       "nui 4",

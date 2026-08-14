@@ -182,7 +182,7 @@ describe("setRhsScalarCandidates", () => {
     const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, 10);
     const line = "set n = 5 ";
     const candidates = setRhsScalarCandidates(line, { start: line.indexOf("=") + 1, end: line.length }, line.length, { kind: "number" }, deps);
-    expect(candidates.map((c) => (c.kind === "reference" ? c.name : c.label))).toEqual(["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!="]);
+    expect(candidates.map((c) => c.kind === "reference" ? c.name : c.kind === "function" ? c.name : c.label)).toEqual(["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!="]);
   });
 
   it("offers boolean operators right after a completed reference operand", () => {
@@ -192,6 +192,6 @@ describe("setRhsScalarCandidates", () => {
     const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, cursorPosition);
     const line = "set target = @flagA ";
     const candidates = setRhsScalarCandidates(line, { start: line.indexOf("=") + 1, end: line.length }, line.length, { kind: "boolean" }, deps);
-    expect(candidates.map((c) => (c.kind === "reference" ? c.name : c.label))).toEqual([" and ", " or ", "==", "!="]);
+    expect(candidates.map((c) => c.kind === "reference" ? c.name : c.kind === "function" ? c.name : c.label)).toEqual([" and ", " or ", "==", "!="]);
   });
 });

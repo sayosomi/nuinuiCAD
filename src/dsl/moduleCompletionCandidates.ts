@@ -3,6 +3,7 @@ import type { CompiledDslDocument } from "./dslDocument";
 import { physicalToLogicalOffset } from "./logicalStatementSourceMap";
 import { resolveModuleLexicalDeclaration, isModuleLookupVisibleWithinBody } from "./moduleLexicalResolution";
 import { scalarLiteralCandidates } from "../scalars/typedValueCandidates";
+import { BUILTIN_FUNCTION_DEFINITIONS } from "../scalars/builtinFunctions";
 import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import type { ScalarType } from "../scalars/types";
 import type { DslModuleParameterType } from "./dslTypes";
@@ -145,6 +146,11 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
     result.push({ label: '""', type: "text" });
   } else if (expectedType && expectedType.kind !== "number") {
     result.push(...scalarLiteralCandidates(expectedType).map((literal) => ({ label: literal.label, type: "enum" as const })));
+  }
+  if (expectedType) {
+    result.push(...BUILTIN_FUNCTION_DEFINITIONS
+      .filter((definition) => definition.signatures.some((signature) => isScalarTypeAssignable(signature.returnType, expectedType)))
+      .map((definition) => ({ label: definition.name, apply: `${definition.name}(`, type: "function" as const })));
   }
   for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
     const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);

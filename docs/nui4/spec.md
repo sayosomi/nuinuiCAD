@@ -171,6 +171,32 @@ function declarations are not part of the current language surface. Arbitrary
 callees, postfix calls, and first-class functions are not part of the current
 language surface.
 
+The current builtin catalog is:
+
+| Function | Signature |
+| --- | --- |
+| `abs` | `abs(number) -> number` |
+| `min` | `min(number, number) -> number` |
+| `max` | `max(number, number) -> number` |
+| `sqrt` | `sqrt(number) -> number` |
+| `round` | `round(number) -> number`, `round(number, number) -> number` |
+| `floor` | `floor(number) -> number`, `floor(number, number) -> number` |
+| `ceil` | `ceil(number) -> number`, `ceil(number, number) -> number` |
+| `roundTo` | `roundTo(number, number) -> number` |
+| `isClose` | `isClose(number, number, number) -> boolean` |
+
+The second argument of `round`, `floor`, and `ceil` is the decimal digit
+position and must be an integer. `round` uses an away-from-zero midpoint rule
+(`round(1.5)` is `2`, and `round(-1.5)` is `-2`). `roundTo` requires a positive
+step, and `isClose` requires a non-negative tolerance. Invalid arguments and
+non-finite results are explicit evaluation diagnostics; no implicit numeric
+conversion is performed.
+
+Builtins are available anywhere the shared typed-expression frontend is used:
+typed declarations, `set` right-hand sides, boolean conditions, scalar
+property values, text-template holes, and scalar module arguments/body
+expressions. The same catalog and signatures are used by source completion.
+
 This is a typed expression surface for CAD construction, not a general-purpose
 programming language.
 

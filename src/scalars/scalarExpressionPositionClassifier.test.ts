@@ -151,6 +151,15 @@ describe("scalarExpressionCompletionContextAt", () => {
     expect(context).toEqual({ kind: "operand", from: 0, to: 2, referenceOnly: false, literalOnly: true, expectedType: rootType });
   });
 
+  it("uses builtin argument types inside a call instead of the root result type", () => {
+    const text = "isClose(1, ";
+    const span = { start: 0, end: text.length };
+    expect(scalarExpressionCompletionContextAt(text, text.length, span, rootType)).toMatchObject({
+      kind: "operand",
+      expectedType: { kind: "number" }
+    });
+  });
+
   it("right after a completed reference followed by a space: operator position", () => {
     // Note "@flag" with the cursor immediately at its end (no trailing space) is
     // itself an in-progress reference word (still replaceable) - see

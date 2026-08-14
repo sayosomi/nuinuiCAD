@@ -241,8 +241,33 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
   it("boolean literal candidates and the unary ! prefix appear at a clean operand start", () => {
     const context = contextFor("");
     const candidates = scalarExpressionCandidates(context, { catalog, entriesById, site, includeOperators: true });
-    const labels = candidates.filter((c) => c.kind !== "reference").map((c) => (c as { label: string }).label);
+    const labels = candidates.filter((c) => c.kind !== "reference").map((c) => c.kind === "function" ? c.name : c.label);
     expect(labels).toEqual(expect.arrayContaining(["true", "false", "!"]));
+    expect(candidates).toEqual(expect.arrayContaining([
+      { kind: "function", name: "isClose", returnType: { kind: "boolean" } }
+    ]));
+  });
+
+  it("offers numeric builtin functions in a number operand position", () => {
+    const source = ["nui 4", "const target: number = 1"].join("\n");
+    const compiled = compileFor(source);
+    const target = bindingIdByName(compiled.catalog, "target");
+    const line = "round";
+    const context = scalarExpressionCompletionContextAt(line, line.length, { start: 0, end: line.length }, { kind: "number" });
+    expect(context).not.toBeNull();
+    const candidates = scalarExpressionCandidates(context!, {
+      catalog: compiled.catalog,
+      entriesById: compiled.entriesById,
+      site: { scopeId: target.effectiveScopeId, statementIndex: target.statementIndex },
+      includeOperators: true
+    });
+    expect(candidates).toEqual(expect.arrayContaining([
+      { kind: "function", name: "round", returnType: { kind: "number" } },
+      { kind: "function", name: "roundTo", returnType: { kind: "number" } }
+    ]));
+    expect(candidates).not.toEqual(expect.arrayContaining([
+      { kind: "function", name: "isClose", returnType: { kind: "boolean" } }
+    ]));
   });
 
   it("a completed boolean reference operand offers boolean operators next", () => {

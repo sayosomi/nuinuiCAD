@@ -40,6 +40,41 @@ line AB = segment(
 const endX: number = @AB.end.x
 ```
 
+### 組み込み数値関数
+
+nui4 の型付き式では、次の組み込み関数を使えます。
+
+```text
+abs(number) -> number
+min(number, number) -> number
+max(number, number) -> number
+sqrt(number) -> number
+round(number) -> number
+round(number, number) -> number
+floor(number) -> number
+floor(number, number) -> number
+ceil(number) -> number
+ceil(number, number) -> number
+roundTo(number, number) -> number
+isClose(number, number, number) -> boolean
+```
+
+例えば、宣言、`set` の右辺、条件式、文字列補間、scalar property、
+module の scalar 引数・body で次のように書けます。
+
+```text
+const rounded: number = round(@seam / 2, 1)
+const closeEnough: boolean = isClose(@seam, 100, 0.5)
+set angle = roundTo(@angle, 15)
+text note = label(text: "幅 ${round(@seam, 1)}mm", anchor: @A, size: 3)
+```
+
+`round`、`floor`、`ceil` の桁数は整数で、`round` の .5 はゼロから遠ざかる
+方向に丸めます（`round(1.5)` は `2`、`round(-1.5)` は `-2`）。
+`roundTo` の step は正数、`isClose` の tolerance は 0 以上である必要があります。
+引数の型・個数が違う場合や計算結果が有限値でない場合は、診断として表示されます。
+暗黙の数値変換はありません。
+
 論理演算子は `and`、`or`、`not` です。`var`、裸の名前参照、`&&` / `||` / `!` は nui4 の入力構文ではありません。型付き宣言は `const`、`let`、`set` を使います。
 
 ## 要素、グループ、制御

@@ -38,6 +38,7 @@ export type DslCompletionContext =
   | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean }
   | { kind: "declaredType"; from: number; to: number }
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
+  | { kind: "conditionExpression"; from: number; to: number; positionContext: ScalarExpressionCompletionContext }
   | { kind: "numericTypeOption"; from: number; to: number; options: readonly ("step" | "min" | "max")[] }
   | { kind: "propertyScalarValue"; from: number; to: number; propertyContext: PropertyScalarValueCompletionContext }
   | { kind: "templateHole"; from: number; to: number; contentSpan: DslSpan }
@@ -245,6 +246,37 @@ const scalarPropertyOrHoleCompletionContext = (
   return positionSpan ? { kind: "templateHole", from: positionSpan.from, to: positionSpan.to, contentSpan } : null;
 };
 
+/** The condition after an `if (` is a typed boolean expression, including
+ * nested builtin calls. The ordinary construction-argument detector only
+ * owns the outer argument slot and intentionally declines nested depth, so
+ * this narrow adapter keeps the shared scalar expression classifier in charge
+ * of the condition's inner position. */
+const conditionalExpressionCompletionContextAt = (
+  code: string,
+  pos: number
+): DslCompletionContext => {
+  const head = /^\s*if\s*\(/.exec(code);
+  if (!head) return null;
+  const open = head[0].lastIndexOf("(");
+  let depth = 0;
+  let close = code.length;
+  for (let index = open; index < code.length; index += 1) {
+    if (code[index] === "(") depth += 1;
+    if (code[index] === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        close = index;
+        break;
+      }
+    }
+  }
+  if (pos < open + 1 || pos > close) return null;
+  const positionContext = scalarExpressionCompletionContextAt(code, pos, { start: open + 1, end: close }, { kind: "boolean" });
+  return positionContext
+    ? { kind: "conditionExpression", from: positionContext.from, to: positionContext.to, positionContext }
+    : null;
+};
+
 const leadingIdentifierPattern = /^[A-Za-z_][A-Za-z0-9_]*/;
 
 /**
@@ -323,6 +355,9 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
       ...(typedDeclarationContext ? { expectedScalarType: typedDeclarationContext.declaredType } : {})
     };
   }
+
+  const conditionContext = conditionalExpressionCompletionContextAt(code, pos);
+  if (conditionContext) return conditionContext;
 
   const callContext = dslCallCompletionContextAt(code, pos);
   if (callContext) return callContext;
