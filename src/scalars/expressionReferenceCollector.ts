@@ -25,6 +25,9 @@ export const collectScalarExpressionReferences = (
       case "group":
         visit(node.expression);
         return;
+      case "call":
+        node.args.forEach(visit);
+        return;
       default:
         return;
     }

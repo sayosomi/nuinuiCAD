@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { bindingIssuesToDiagnostics } from "./bindingIssueDiagnostics";
 import { lowerScalarProgram } from "./scalarProgram";
 import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnalysisFixture";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import { geometryPropertiesIn, referencesIn } from "./typedDependencyGraph";
 
 const bindingIdForName = (fixture: ReturnType<typeof typedDeclarationAnalysisFor>, name: string): string => {
   const binding = fixture.bindingAnalysis.catalog.bindings.find((candidate) => candidate.name === name);
@@ -10,35 +10,8 @@ const bindingIdForName = (fixture: ReturnType<typeof typedDeclarationAnalysisFor
   return binding.id;
 };
 
-const referencesInOccurrenceOrder = (expression: TypedScalarExpression): readonly TypedScalarExpression[] => {
-  switch (expression.kind) {
-    case "reference":
-      return [expression];
-    case "unary":
-      return referencesInOccurrenceOrder(expression.operand);
-    case "binary":
-      return [...referencesInOccurrenceOrder(expression.left), ...referencesInOccurrenceOrder(expression.right)];
-    case "group":
-      return referencesInOccurrenceOrder(expression.expression);
-    default:
-      return [];
-  }
-};
-
-const geometryPropertiesInOccurrenceOrder = (expression: TypedScalarExpression): readonly Extract<TypedScalarExpression, { kind: "geometryProperty" }>[] => {
-  switch (expression.kind) {
-    case "geometryProperty":
-      return [expression];
-    case "unary":
-      return geometryPropertiesInOccurrenceOrder(expression.operand);
-    case "binary":
-      return [...geometryPropertiesInOccurrenceOrder(expression.left), ...geometryPropertiesInOccurrenceOrder(expression.right)];
-    case "group":
-      return geometryPropertiesInOccurrenceOrder(expression.expression);
-    default:
-      return [];
-  }
-};
+const referencesInOccurrenceOrder = referencesIn;
+const geometryPropertiesInOccurrenceOrder = geometryPropertiesIn;
 
 describe("analyzeTypedDeclarations resolution buckets", () => {
   it("keeps multiple occurrences for one binding in source occurrence order", () => {
@@ -160,5 +133,22 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
         targetSourceOrder: fixture.statements.findIndex((statement) => statement.kind === "element" && statement.name === "脇コピー")
       }
     ]);
+  });
+
+  it("walks references and geometry properties inside builtin call arguments", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 4",
+      "const first: number = 1",
+      "const second: number = 2",
+      "line curve = segment(start: (0, 0), end: (10, 0))",
+      "const result: number = round(max(@first, @second), 2) + @curve.length"
+    ].join("\n"));
+    const result = fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, "result"));
+    expect(result).toMatchObject({ kind: "binary", left: { kind: "call", name: "round" } });
+    expect(referencesInOccurrenceOrder(result!).map((reference) => {
+      if (reference.kind !== "reference") throw new Error("Expected a reference");
+      return reference.name;
+    })).toEqual(["first", "second"]);
+    expect(geometryPropertiesInOccurrenceOrder(result!).map((property) => property.elementName)).toEqual(["curve"]);
   });
 });
