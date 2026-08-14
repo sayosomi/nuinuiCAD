@@ -347,8 +347,7 @@ struct GeometryEnvironment {
 }
 
 struct GeometryBuiltinEnvironment {
-    target: Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError>,
-    line_target: Option<Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError>>,
+    targets: HashMap<String, Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError>>,
     looked_up: RefCell<Vec<String>>,
 }
 
@@ -364,12 +363,36 @@ impl ScalarEvaluationEnvironment for GeometryBuiltinEnvironment {
         self.looked_up
             .borrow_mut()
             .push(target.statement_id.clone());
-        if target.geometry_type == GeometryInterfaceType::Line {
-            if let Some(line_target) = &self.line_target {
-                return line_target.clone();
-            }
-        }
-        self.target.clone()
+        self.targets
+            .get(&target.statement_id)
+            .cloned()
+            .unwrap_or(Err(GeometryBuiltinRuntimeError::Unavailable))
+    }
+}
+
+fn runtime_point(id: &str, x: f64, y: f64) -> GeometryBuiltinRuntimeTarget {
+    GeometryBuiltinRuntimeTarget::Point(crate::evaluation::types::Point {
+        element_id: id.to_owned(),
+        name: id.to_owned(),
+        x,
+        y,
+    })
+}
+
+fn runtime_line(id: &str, start: (f64, f64), end: (f64, f64)) -> GeometryBuiltinRuntimeTarget {
+    GeometryBuiltinRuntimeTarget::Line {
+        start: crate::evaluation::types::Point {
+            element_id: format!("{id}-start"),
+            name: format!("{id}-start"),
+            x: start.0,
+            y: start.1,
+        },
+        end: crate::evaluation::types::Point {
+            element_id: format!("{id}-end"),
+            name: format!("{id}-end"),
+            x: end.0,
+            y: end.1,
+        },
     }
 }
 
@@ -607,15 +630,7 @@ fn static_type_null_geometry_call_does_not_lookup_geometry_targets() {
         r#type: None,
     };
     let environment = GeometryBuiltinEnvironment {
-        target: Ok(GeometryBuiltinRuntimeTarget::Point(
-            crate::evaluation::types::Point {
-                element_id: "point".to_owned(),
-                name: "point".to_owned(),
-                x: 0.0,
-                y: 0.0,
-            },
-        )),
-        line_target: None,
+        targets: HashMap::new(),
         looked_up: RefCell::new(Vec::new()),
     };
     let result = evaluate_typed_expression(&node, &environment);
@@ -651,28 +666,255 @@ fn geometry_lookup_uses_resolved_statement_id_identity() {
         ScalarType::Number,
     );
     let environment = GeometryBuiltinEnvironment {
-        target: Ok(GeometryBuiltinRuntimeTarget::Point(
-            crate::evaluation::types::Point {
-                element_id: "point".to_owned(),
-                name: "point".to_owned(),
-                x: 0.0,
-                y: 0.0,
-            },
-        )),
-        line_target: None,
+        targets: HashMap::from([
+            (
+                "resolved-point-id".to_owned(),
+                Ok(runtime_point("first", 0.0, 0.0)),
+            ),
+            (
+                "second-point-id".to_owned(),
+                Ok(runtime_point("second", 3.0, 4.0)),
+            ),
+        ]),
         looked_up: RefCell::new(Vec::new()),
     };
     assert_eq!(
         evaluate_typed_expression(&node, &environment),
-        ScalarEvaluation::Error {
+        ScalarEvaluation::Ok {
             r#type: ScalarType::Number,
-            issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
-            binding_id: None,
+            value: ScalarValue::Number(5.0),
         }
     );
     assert_eq!(
         environment.looked_up.into_inner(),
         vec!["resolved-point-id".to_owned(), "second-point-id".to_owned()]
+    );
+}
+
+#[test]
+fn evaluates_distance_for_normal_same_and_negative_coordinates() {
+    let cases = [
+        ("first", (0.0, 0.0), "second", (3.0, 4.0), 5.0),
+        ("same", (2.0, -3.0), "same", (2.0, -3.0), 0.0),
+        ("negative", (-2.0, -3.0), "positive", (4.0, 5.0), 10.0),
+    ];
+
+    for (first_id, first, second_id, second, expected) in cases {
+        let node = geometry_call(
+            BuiltinFunctionName::Distance,
+            vec![
+                geometry_argument(
+                    GeometryInterfaceType::Point,
+                    first_id,
+                    1,
+                    GeometryInterfaceType::Point,
+                ),
+                geometry_argument(
+                    GeometryInterfaceType::Point,
+                    second_id,
+                    2,
+                    GeometryInterfaceType::Point,
+                ),
+            ],
+            ScalarType::Number,
+        );
+        let environment = GeometryBuiltinEnvironment {
+            targets: HashMap::from([
+                (
+                    first_id.to_owned(),
+                    Ok(runtime_point(first_id, first.0, first.1)),
+                ),
+                (
+                    second_id.to_owned(),
+                    Ok(runtime_point(second_id, second.0, second.1)),
+                ),
+            ]),
+            looked_up: RefCell::new(Vec::new()),
+        };
+
+        assert_eq!(
+            evaluate_typed_expression(&node, &environment),
+            ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(expected),
+            }
+        );
+    }
+}
+
+#[test]
+fn evaluates_angle_in_normalized_degrees() {
+    let cases = [
+        ("right", (1.0, 0.0), 0.0),
+        ("up", (0.0, 1.0), 90.0),
+        ("left", (-1.0, 0.0), 180.0),
+        ("down", (0.0, -1.0), 270.0),
+        ("diagonal", (1.0, 1.0), 45.0),
+        ("same", (0.0, 0.0), 0.0),
+    ];
+
+    for (target_id, coordinates, expected) in cases {
+        let node = geometry_call(
+            BuiltinFunctionName::Angle,
+            vec![
+                geometry_argument(
+                    GeometryInterfaceType::Point,
+                    "origin",
+                    1,
+                    GeometryInterfaceType::Point,
+                ),
+                geometry_argument(
+                    GeometryInterfaceType::Point,
+                    target_id,
+                    2,
+                    GeometryInterfaceType::Point,
+                ),
+            ],
+            ScalarType::Number,
+        );
+        let environment = GeometryBuiltinEnvironment {
+            targets: HashMap::from([
+                ("origin".to_owned(), Ok(runtime_point("origin", 0.0, 0.0))),
+                (
+                    target_id.to_owned(),
+                    Ok(runtime_point(target_id, coordinates.0, coordinates.1)),
+                ),
+            ]),
+            looked_up: RefCell::new(Vec::new()),
+        };
+
+        assert_eq!(
+            evaluate_typed_expression(&node, &environment),
+            ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(expected),
+            }
+        );
+    }
+}
+
+#[test]
+fn evaluates_line_distance_to_the_infinite_line() {
+    let cases = [
+        (
+            "horizontal-point",
+            (10.0, 3.0),
+            "horizontal-line",
+            (0.0, 0.0),
+            (1.0, 0.0),
+            3.0,
+        ),
+        (
+            "vertical-point",
+            (-3.0, 5.0),
+            "vertical-line",
+            (2.0, 0.0),
+            (2.0, 10.0),
+            5.0,
+        ),
+        (
+            "diagonal-point",
+            (2.0, 0.0),
+            "diagonal-line",
+            (0.0, 0.0),
+            (2.0, 2.0),
+            2.0_f64.sqrt(),
+        ),
+        (
+            "on-line-point",
+            (7.0, 0.0),
+            "on-line",
+            (0.0, 0.0),
+            (1.0, 0.0),
+            0.0,
+        ),
+    ];
+
+    for (point_id, point, line_id, start, end, expected) in cases {
+        let node = geometry_call(
+            BuiltinFunctionName::LineDistance,
+            vec![
+                geometry_argument(
+                    GeometryInterfaceType::Point,
+                    point_id,
+                    1,
+                    GeometryInterfaceType::Point,
+                ),
+                geometry_argument(
+                    GeometryInterfaceType::Line,
+                    line_id,
+                    2,
+                    GeometryInterfaceType::Line,
+                ),
+            ],
+            ScalarType::Number,
+        );
+        let environment = GeometryBuiltinEnvironment {
+            targets: HashMap::from([
+                (
+                    point_id.to_owned(),
+                    Ok(runtime_point(point_id, point.0, point.1)),
+                ),
+                (line_id.to_owned(), Ok(runtime_line(line_id, start, end))),
+            ]),
+            looked_up: RefCell::new(Vec::new()),
+        };
+
+        let ScalarEvaluation::Ok { value, .. } = evaluate_typed_expression(&node, &environment)
+        else {
+            panic!("lineDistance should evaluate successfully");
+        };
+        let ScalarValue::Number(actual) = value else {
+            panic!("lineDistance should return a number");
+        };
+        assert!(
+            (actual - expected).abs() <= 1e-12,
+            "actual={actual}, expected={expected}"
+        );
+    }
+}
+
+#[test]
+fn maps_geometry_non_finite_result_to_evaluation_non_finite_result() {
+    let node = geometry_call(
+        BuiltinFunctionName::Distance,
+        vec![
+            geometry_argument(
+                GeometryInterfaceType::Point,
+                "minimum",
+                1,
+                GeometryInterfaceType::Point,
+            ),
+            geometry_argument(
+                GeometryInterfaceType::Point,
+                "maximum",
+                2,
+                GeometryInterfaceType::Point,
+            ),
+        ],
+        ScalarType::Number,
+    );
+    let environment = GeometryBuiltinEnvironment {
+        targets: HashMap::from([
+            (
+                "minimum".to_owned(),
+                Ok(runtime_point("minimum", -f64::MAX, 0.0)),
+            ),
+            (
+                "maximum".to_owned(),
+                Ok(runtime_point("maximum", f64::MAX, 0.0)),
+            ),
+        ]),
+        looked_up: RefCell::new(Vec::new()),
+    };
+
+    assert_eq!(
+        evaluate_typed_expression(&node, &environment),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-non-finite-result".to_owned(),
+            binding_id: None,
+        }
     );
 }
 
@@ -697,21 +939,10 @@ fn geometry_runtime_kind_mismatch_is_unavailable() {
         ScalarType::Number,
     );
     let environment = GeometryBuiltinEnvironment {
-        target: Ok(GeometryBuiltinRuntimeTarget::Line {
-            start: crate::evaluation::types::Point {
-                element_id: "start".to_owned(),
-                name: "start".to_owned(),
-                x: 0.0,
-                y: 0.0,
-            },
-            end: crate::evaluation::types::Point {
-                element_id: "end".to_owned(),
-                name: "end".to_owned(),
-                x: 2.0,
-                y: 0.0,
-            },
-        }),
-        line_target: None,
+        targets: HashMap::from([(
+            "point-id".to_owned(),
+            Ok(runtime_line("line", (0.0, 0.0), (2.0, 0.0))),
+        )]),
         looked_up: RefCell::new(Vec::new()),
     };
     assert_eq!(
@@ -745,28 +976,13 @@ fn zero_length_line_is_an_invalid_builtin_argument() {
         ScalarType::Number,
     );
     let environment = GeometryBuiltinEnvironment {
-        target: Ok(GeometryBuiltinRuntimeTarget::Point(
-            crate::evaluation::types::Point {
-                element_id: "point".to_owned(),
-                name: "point".to_owned(),
-                x: 0.0,
-                y: 0.0,
-            },
-        )),
-        line_target: Some(Ok(GeometryBuiltinRuntimeTarget::Line {
-            start: crate::evaluation::types::Point {
-                element_id: "start".to_owned(),
-                name: "start".to_owned(),
-                x: 0.0,
-                y: 0.0,
-            },
-            end: crate::evaluation::types::Point {
-                element_id: "end".to_owned(),
-                name: "end".to_owned(),
-                x: 0.0,
-                y: 0.0,
-            },
-        })),
+        targets: HashMap::from([
+            ("point-id".to_owned(), Ok(runtime_point("point", 0.0, 0.0))),
+            (
+                "line-id".to_owned(),
+                Ok(runtime_line("line", (0.0, 0.0), (0.0, 0.0))),
+            ),
+        ]),
         looked_up: RefCell::new(Vec::new()),
     };
     assert_eq!(

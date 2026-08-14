@@ -103,7 +103,7 @@ pub(crate) fn validate_geometry_builtin_arguments<F>(
     name: BuiltinFunctionName,
     arguments: &[TypedBuiltinArgument],
     lookup: F,
-) -> Result<(), GeometryBuiltinRuntimeError>
+) -> Result<Vec<GeometryBuiltinRuntimeTarget>, GeometryBuiltinRuntimeError>
 where
     F: Fn(
         &ScalarExpressionResolvedGeometryTarget,
@@ -119,6 +119,7 @@ where
         .copied()
         .ok_or(GeometryBuiltinRuntimeError::InvalidArgument)?;
 
+    let mut runtime_targets = Vec::with_capacity(arguments.len());
     for (expected, argument) in signature.iter().zip(arguments) {
         let BuiltinArgumentType::Geometry(expected_geometry_type) = expected else {
             return Err(GeometryBuiltinRuntimeError::InvalidArgument);
@@ -136,10 +137,8 @@ where
             return Err(GeometryBuiltinRuntimeError::Unavailable);
         }
         let runtime_target = lookup(target)?;
-        match (expected_geometry_type, runtime_target) {
-            (GeometryInterfaceType::Point, GeometryBuiltinRuntimeTarget::Point(point)) => {
-                let _ = point;
-            }
+        match (expected_geometry_type, &runtime_target) {
+            (GeometryInterfaceType::Point, GeometryBuiltinRuntimeTarget::Point(_)) => {}
             (GeometryInterfaceType::Line, GeometryBuiltinRuntimeTarget::Line { start, end }) => {
                 let dx = end.x - start.x;
                 let dy = end.y - start.y;
@@ -149,6 +148,7 @@ where
             }
             _ => return Err(GeometryBuiltinRuntimeError::Unavailable),
         }
+        runtime_targets.push(runtime_target);
     }
-    Ok(())
+    Ok(runtime_targets)
 }

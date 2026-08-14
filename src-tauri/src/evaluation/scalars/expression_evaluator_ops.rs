@@ -14,7 +14,7 @@ use super::builtin_function_semantics::{
 };
 use super::expression_evaluator::{EvalWork, ScalarEvaluationEnvironment};
 use super::geometry_builtin_runtime::{
-    validate_geometry_builtin_arguments, GeometryBuiltinRuntimeError,
+    validate_geometry_builtin_arguments, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
 };
 use super::scalar_payload::scalar_value_matches_type;
 use super::types::{
@@ -208,11 +208,43 @@ pub(crate) fn evaluate_geometry_builtin_call(
     match validate_geometry_builtin_arguments(name, arguments, |target| {
         environment.lookup_geometry_builtin_target(target)
     }) {
-        Ok(()) => ScalarEvaluation::Error {
-            r#type,
-            issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
-            binding_id: None,
-        },
+        Ok(runtime_targets) => {
+            let result = match (name, runtime_targets.as_slice()) {
+                (
+                    BuiltinFunctionName::Distance,
+                    [GeometryBuiltinRuntimeTarget::Point(first), GeometryBuiltinRuntimeTarget::Point(second)],
+                ) => {
+                    let dx = second.x - first.x;
+                    let dy = second.y - first.y;
+                    dx.hypot(dy)
+                }
+                (
+                    BuiltinFunctionName::Angle,
+                    [GeometryBuiltinRuntimeTarget::Point(first), GeometryBuiltinRuntimeTarget::Point(second)],
+                ) => {
+                    let dx = second.x - first.x;
+                    let dy = second.y - first.y;
+                    (dy.atan2(dx) * 180.0 / std::f64::consts::PI + 360.0) % 360.0
+                }
+                (
+                    BuiltinFunctionName::LineDistance,
+                    [GeometryBuiltinRuntimeTarget::Point(point), GeometryBuiltinRuntimeTarget::Line { start, end }],
+                ) => {
+                    let dx = end.x - start.x;
+                    let dy = end.y - start.y;
+                    let length = dx.hypot(dy);
+                    (dx * (start.y - point.y) - (start.x - point.x) * dy).abs() / length
+                }
+                _ => {
+                    return ScalarEvaluation::Error {
+                        r#type,
+                        issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
+                        binding_id: None,
+                    };
+                }
+            };
+            finite_number_result(r#type, result)
+        }
         Err(GeometryBuiltinRuntimeError::Unavailable) => ScalarEvaluation::Error {
             r#type,
             issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),

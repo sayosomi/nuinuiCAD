@@ -1390,6 +1390,7 @@ export const compileDslDocument = (
       bindingAnalysis: scalarAnalysis?.bindingAnalysis,
       elements: compiled.elements,
       elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+      sourceNamespace: sourceLexicalNamespace,
       spans,
       includeStatement
       })

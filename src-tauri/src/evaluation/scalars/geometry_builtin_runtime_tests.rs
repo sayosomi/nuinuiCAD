@@ -237,6 +237,18 @@ fn point_point_and_point_line_signatures_validate_without_calculating() {
         target: Some(target("line", 1, GeometryInterfaceType::Line)),
     };
     let point = point_runtime();
+    let first_point = GeometryBuiltinRuntimeTarget::Point(Point {
+        element_id: "first".to_owned(),
+        name: "first".to_owned(),
+        x: 1.0,
+        y: 2.0,
+    });
+    let second_point = GeometryBuiltinRuntimeTarget::Point(Point {
+        element_id: "second".to_owned(),
+        name: "second".to_owned(),
+        x: 3.0,
+        y: 4.0,
+    });
     let line = line_runtime(1.0);
     assert!(validate_geometry_builtin_arguments(
         BuiltinFunctionName::Distance,
@@ -244,39 +256,49 @@ fn point_point_and_point_line_signatures_validate_without_calculating() {
         |_| Ok(point.clone()),
     )
     .is_err());
-    assert!(validate_geometry_builtin_arguments(
-        BuiltinFunctionName::Distance,
-        &[
-            TypedBuiltinArgument::GeometryReference {
-                expected_geometry_type: GeometryInterfaceType::Point,
-                target: Some(target("a", 1, GeometryInterfaceType::Point)),
+    assert_eq!(
+        validate_geometry_builtin_arguments(
+            BuiltinFunctionName::Distance,
+            &[
+                TypedBuiltinArgument::GeometryReference {
+                    expected_geometry_type: GeometryInterfaceType::Point,
+                    target: Some(target("a", 1, GeometryInterfaceType::Point)),
+                },
+                TypedBuiltinArgument::GeometryReference {
+                    expected_geometry_type: GeometryInterfaceType::Point,
+                    target: Some(target("b", 1, GeometryInterfaceType::Point)),
+                },
+            ],
+            |target| {
+                if target.statement_id == "a" {
+                    Ok(first_point.clone())
+                } else {
+                    Ok(second_point.clone())
+                }
             },
-            TypedBuiltinArgument::GeometryReference {
-                expected_geometry_type: GeometryInterfaceType::Point,
-                target: Some(target("b", 1, GeometryInterfaceType::Point)),
+        ),
+        Ok(vec![first_point, second_point])
+    );
+    assert_eq!(
+        validate_geometry_builtin_arguments(
+            BuiltinFunctionName::LineDistance,
+            &[
+                TypedBuiltinArgument::GeometryReference {
+                    expected_geometry_type: GeometryInterfaceType::Point,
+                    target: Some(target("a", 1, GeometryInterfaceType::Point)),
+                },
+                line_target,
+            ],
+            |target| {
+                if target.geometry_type == GeometryInterfaceType::Point {
+                    Ok(point.clone())
+                } else {
+                    Ok(line.clone())
+                }
             },
-        ],
-        |_| Ok(point.clone()),
-    )
-    .is_ok());
-    assert!(validate_geometry_builtin_arguments(
-        BuiltinFunctionName::LineDistance,
-        &[
-            TypedBuiltinArgument::GeometryReference {
-                expected_geometry_type: GeometryInterfaceType::Point,
-                target: Some(target("a", 1, GeometryInterfaceType::Point)),
-            },
-            line_target,
-        ],
-        |target| {
-            if target.geometry_type == GeometryInterfaceType::Point {
-                Ok(point.clone())
-            } else {
-                Ok(line.clone())
-            }
-        },
-    )
-    .is_ok());
+        ),
+        Ok(vec![point, line])
+    );
 }
 
 #[test]

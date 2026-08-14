@@ -32,9 +32,11 @@ import type { ScalarExpressionAst } from "./expressionAst";
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { collectReferences, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
+import { resolveBuiltinGeometryArguments } from "./builtinGeometryArgumentResolution";
+import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
 
 export const CONST_ASSIGNMENT_CODE = "const-assignment";
 export const INVALID_SET_TARGET_CODE = "invalid-set-target";
@@ -84,6 +86,7 @@ export type CompileSetStatementsInput = {
   bindingAnalysis: BindingAnalysis | undefined;
   elements?: readonly CadElement[];
   elementIdByStatementIndex?: ReadonlyMap<number, ElementId>;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
   spans: DiagnosticSpanContext;
   includeStatement?: DslStatementInclusion;
 };
@@ -153,6 +156,7 @@ export const compileSetStatements = ({
   bindingAnalysis,
   elements,
   elementIdByStatementIndex,
+  sourceNamespace,
   spans,
   includeStatement
 }: CompileSetStatementsInput): SetStatementCompilation => {
@@ -251,6 +255,9 @@ export const compileSetStatements = ({
     : new Map<string, BindingResolution>();
 
   const setsByStatementIndex = new Map<number, SetStatementAnalysis>();
+  const sourceDeclarationsByStatementId: ReadonlyMap<string, SourceLexicalNamespaceIndex["allDeclarations"][number]> = sourceNamespace
+    ? new Map(sourceNamespace.allDeclarations.map((declaration) => [declaration.statementId, declaration]))
+    : new Map();
 
   if (candidates.length === 0) return { setsByStatementIndex, diagnostics };
 
@@ -289,10 +296,30 @@ export const compileSetStatements = ({
     }
     const binding = classification.binding;
 
+    const builtinGeometryResolution = sourceNamespace
+      ? resolveBuiltinGeometryArguments({
+          ast: candidate.ast,
+          statementIndex: candidate.statementIndex,
+          scalarReferenceResolutions: candidate.references.map((_, index) => resolutions.get(candidate.referenceKeys[index])!),
+          sourceDeclarationsByStatementId
+        })
+      : undefined;
+    if (builtinGeometryResolution?.issues.length) {
+      diagnostics.push(...builtinGeometryResolution.issues.map((issue) =>
+        diagnosticAt(spans, candidate.statement, issue.span, issue.code, issue.message)
+      ));
+    }
+
     let hasReferenceDiagnostic = false;
-    const referenceResolutions: BindingResolution[] = [];
+    const referenceResolutions: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
     candidate.references.forEach((reference, index) => {
       const resolution = resolutions.get(candidate.referenceKeys[index]);
+      const geometryReference = builtinGeometryResolution?.claimedReferenceOccurrenceIndexes.has(index) ?? false;
+      const resolvedReference = builtinGeometryResolution?.references[index] ?? resolution;
+      if (geometryReference) {
+        referenceResolutions.push(resolvedReference!);
+        return;
+      }
       if (!resolution || resolution.kind !== "resolved") {
         diagnostics.push(diagnosticAt(
           spans,
@@ -321,7 +348,7 @@ export const compileSetStatements = ({
       }
       referenceResolutions.push(resolution);
     });
-    if (hasReferenceDiagnostic) continue;
+    if (hasReferenceDiagnostic || builtinGeometryResolution?.issues.length) continue;
 
     const checked = typecheckScalarExpression(candidate.ast, {
       expectedType: binding.declaredType,
