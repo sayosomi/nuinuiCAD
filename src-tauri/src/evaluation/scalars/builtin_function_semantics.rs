@@ -76,7 +76,7 @@ fn round_away_from_zero(value: f64) -> f64 {
     }
 }
 
-fn decimal_scientific_parts(value: f64) -> (f64, i32) {
+fn decimal_scientific_parts(value: f64) -> (String, i32) {
     debug_assert!(value.is_finite() && value != 0.0);
 
     // Rust's shortest round-tripping decimal is sufficient here. Normalize
@@ -111,15 +111,14 @@ fn decimal_scientific_parts(value: f64) -> (f64, i32) {
         text.extend(digits[1..].iter());
         text
     };
-    let coefficient = coefficient_text.parse::<f64>().unwrap();
-    (coefficient, exponent)
+    (coefficient_text, exponent)
 }
 
 /// Applies a decimal exponent without constructing `10^digits` for an
 /// unbounded input. Parsing the normalized scientific spelling mirrors
 /// JavaScript's `Number(`${coefficient}e${exponent}`)` conversion, including
 /// its decimal-to-binary rounding and subnormal boundary behavior.
-fn decimal_scale(coefficient: f64, exponent: i32) -> f64 {
+fn decimal_scale(coefficient: &str, exponent: i32) -> f64 {
     format!("{coefficient}e{exponent}").parse::<f64>().unwrap()
 }
 
@@ -146,7 +145,7 @@ fn shift_decimal_exponent(value: f64, digits: f64) -> DecimalShift {
         };
     }
 
-    let shifted = decimal_scale(coefficient, shifted_exponent as i32);
+    let shifted = decimal_scale(&coefficient, shifted_exponent as i32);
     if shifted == 0.0 {
         DecimalShift {
             status: DecimalShiftStatus::Underflow,

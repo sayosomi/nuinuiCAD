@@ -85,6 +85,14 @@ fn rounds_midpoints_away_from_zero_and_supports_decimal_digits() {
 }
 
 #[test]
+fn preserves_decimal_coefficient_text_until_the_final_parse() {
+    assert_eq!(
+        evaluate_builtin_function(BuiltinFunctionName::Round, &[9484088218495944.0, 1.0]),
+        number(9484088218495944.0)
+    );
+}
+
+#[test]
 fn rounds_to_a_positive_step_using_the_same_midpoint_rule() {
     assert_eq!(
         evaluate_builtin_function(BuiltinFunctionName::RoundTo, &[12.3, 0.5]),
