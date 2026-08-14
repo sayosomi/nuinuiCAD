@@ -16,8 +16,10 @@ import type {
   TypedScalarReferenceNode,
   TypedScalarUnaryExpressionNode
 } from "./typedExpressionAst";
+import type { ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument } from "./typedExpressionAst";
 import { evaluateBuiltinFunction } from "./builtinFunctionSemantics";
 import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarType, type ScalarValue } from "./types";
+import type { ComputedGeometry, ComputedLine, ComputedPoint } from "../types/geometry";
 
 export interface ScalarEvaluationEnvironment {
   /**
@@ -32,6 +34,9 @@ export interface ScalarEvaluationEnvironment {
 
   /** Document-bound property reads are already resolved to stable IDs. */
   lookupGeometryProperty?: (reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>) => ScalarEvaluation;
+
+  /** Resolves an already-resolved geometry builtin target to runtime geometry. */
+  lookupGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget) => ComputedGeometry | undefined;
 
 }
 
@@ -57,6 +62,40 @@ const finiteNumberResult = (type: ScalarType, value: number): ScalarEvaluation =
   Number.isFinite(value)
     ? { status: "ok", type, value: { kind: "number", value } }
     : { status: "error", type, issueCode: "evaluation-non-finite-result" };
+
+type GeometryBuiltinName = "distance" | "angle" | "lineDistance";
+
+const isGeometryBuiltin = (name: string): name is GeometryBuiltinName =>
+  name === "distance" || name === "angle" || name === "lineDistance";
+
+const distanceBetweenPoints = (point1: ComputedPoint, point2: ComputedPoint): number =>
+  Math.hypot(point2.x - point1.x, point2.y - point1.y);
+
+const angleBetweenPoints = (point1: ComputedPoint, point2: ComputedPoint): number =>
+  (Math.atan2(point2.y - point1.y, point2.x - point1.x) * 180 / Math.PI + 360) % 360;
+
+const distancePointToInfiniteLine = (point: ComputedPoint, line: ComputedLine): number | null => {
+  const dx = line.end.x - line.start.x;
+  const dy = line.end.y - line.start.y;
+  const length = Math.hypot(dx, dy);
+  if (length <= 1e-9) return null;
+  return Math.abs(dx * (line.start.y - point.y) - (line.start.x - point.x) * dy) / length;
+};
+
+const geometryArgument = (
+  argument: TypedBuiltinArgument,
+  expectedGeometryType: "point" | "line",
+  environment: ScalarEvaluationEnvironment
+): ComputedGeometry | undefined => {
+  if (argument.kind !== "geometryReference" || argument.expectedGeometryType !== expectedGeometryType) return undefined;
+  const target = argument.target;
+  if (target === null || target.geometryType !== expectedGeometryType || !environment.lookupGeometryTarget) return undefined;
+  const geometry = environment.lookupGeometryTarget(target);
+  if (!geometry) return undefined;
+  if (expectedGeometryType === "point" && geometry.kind !== "point") return undefined;
+  if (expectedGeometryType === "line" && geometry.kind !== "line") return undefined;
+  return geometry;
+};
 
 /** Re-stamps an already-produced error to `type`, keeping issueCode/bindingId verbatim. */
 const propagateError = (type: ScalarType, source: Extract<ScalarEvaluation, { status: "error" }>): ScalarEvaluation =>
@@ -237,9 +276,46 @@ const evaluateBinary = (node: TypedScalarBinaryExpressionNode, environment: Scal
   return evaluateArithmeticOrComparisonOperator(node.operator, node.left, node.right, type, environment);
 };
 
+const evaluateGeometryBuiltin = (
+  node: TypedScalarCallExpressionNode,
+  environment: ScalarEvaluationEnvironment,
+  name: GeometryBuiltinName
+): ScalarEvaluation => {
+  const type = node.type!;
+  const expectedTypes: readonly ("point" | "line")[] = name === "lineDistance"
+    ? ["point", "line"]
+    : ["point", "point"];
+  const argumentsByPosition: ComputedGeometry[] = [];
+  for (const [index, argument] of node.args.entries()) {
+    const geometry = geometryArgument(argument, expectedTypes[index]!, environment);
+    if (!geometry) return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+    argumentsByPosition.push(geometry);
+  }
+  if (argumentsByPosition.length !== expectedTypes.length) return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+
+  const first = argumentsByPosition[0]!;
+  const second = argumentsByPosition[1]!;
+  if (name === "distance" || name === "angle") {
+    if (first.kind !== "point" || second.kind !== "point") {
+      return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+    }
+    return finiteNumberResult(type, name === "distance" ? distanceBetweenPoints(first, second) : angleBetweenPoints(first, second));
+  }
+
+  if (first.kind !== "point" || second.kind !== "line") {
+    return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+  }
+  const result = distancePointToInfiniteLine(first, second);
+  return result === null
+    ? { status: "error", type, issueCode: "evaluation-invalid-builtin-argument" }
+    : finiteNumberResult(type, result);
+};
+
 const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
   const type = node.type;
   if (type === null || node.target === null) return staticTypeNullError();
+
+  if (isGeometryBuiltin(node.target.name)) return evaluateGeometryBuiltin(node, environment, node.target.name);
 
   const args: number[] = [];
   for (const argumentNode of node.args) {

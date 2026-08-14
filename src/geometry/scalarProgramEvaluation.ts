@@ -17,6 +17,7 @@ import type { ForGroupMutationRunOutcome } from "../scalars/forGroupMutationCore
 import type { ScalarProgram } from "../scalars/scalarProgram";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarEvaluation } from "../scalars/types";
+import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode } from "../scalars/typedExpressionAst";
 
 /**
  * A scalar-program binding resolver for one compiled nui 4 document.
@@ -37,15 +38,29 @@ export type LinearScalarBindingResolver = {
   ) => ForGroupMutationRunOutcome;
 };
 
+type DocumentGeometryRuntime = {
+  computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>;
+  elementsById: ReadonlyMap<ElementId, CadElement>;
+};
+
+const resolveDocumentGeometryTarget = (
+  geometry: DocumentGeometryRuntime,
+  target: ScalarExpressionResolvedGeometryTarget,
+  sourceOrder: number
+): ComputedGeometry | undefined => {
+  if (target.statementIndex >= sourceOrder || !geometry.elementsById.has(target.statementId)) return undefined;
+  return geometry.computedGeometry.get(target.statementId);
+};
+
 /**
  * Builds a resolver for a compiled nui 4 scalar program.
  */
 export const createDocumentScalarBindingResolver = (
   program: ScalarProgram,
-  geometry?: { computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>; elementsById: ReadonlyMap<ElementId, CadElement> }
+  geometry?: DocumentGeometryRuntime
 ): ScalarBindingResolver => {
-  const evaluator = createLazyScalarProgramEvaluator(program, geometry
-    ? (reference, sourceOrder) => {
+  const resolveGeometryProperty = geometry
+    ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation => {
         if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
           return { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
         }
@@ -54,7 +69,13 @@ export const createDocumentScalarBindingResolver = (
           ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
           : { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
       }
-    : undefined);
+    : undefined;
+  const resolveGeometryTarget = geometry
+    ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): ComputedGeometry | undefined => {
+        return resolveDocumentGeometryTarget(geometry, target, sourceOrder);
+      }
+    : undefined;
+  const evaluator = createLazyScalarProgramEvaluator(program, resolveGeometryProperty, resolveGeometryTarget);
 
   return {
     resolveBinding: evaluator.resolve,
@@ -65,10 +86,10 @@ export const createDocumentScalarBindingResolver = (
 /** Task 31's live document adapter for a Task 30 graph with linear sets. */
 export const createDocumentLinearScalarBindingResolver = (
   graph: BindingVersionGraph,
-  geometry?: { computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>; elementsById: ReadonlyMap<ElementId, CadElement> }
+  geometry?: DocumentGeometryRuntime
 ): LinearScalarBindingResolver => {
-  const evaluator = createIncrementalLinearMutationEvaluator(graph, geometry
-    ? (reference, sourceOrder) => {
+  const resolveGeometryProperty = geometry
+    ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation => {
         if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
           return { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
         }
@@ -77,7 +98,13 @@ export const createDocumentLinearScalarBindingResolver = (
           ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
           : { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
       }
-    : undefined);
+    : undefined;
+  const resolveGeometryTarget = geometry
+    ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): ComputedGeometry | undefined => {
+        return resolveDocumentGeometryTarget(geometry, target, sourceOrder);
+      }
+    : undefined;
+  const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveGeometryProperty, resolveGeometryTarget);
   return {
     advanceTo: evaluator.advanceTo,
     registerConditionalResult: evaluator.registerConditionalResult,
