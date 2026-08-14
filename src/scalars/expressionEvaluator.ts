@@ -264,5 +264,7 @@ export const evaluateTypedExpression = (
       if (type === null) return staticTypeNullError();
       return evaluateTypedExpression(node.expression, environment);
     }
+    case "call":
+      throw new Error("expressionEvaluator: named scalar calls are not evaluated yet");
   }
 };

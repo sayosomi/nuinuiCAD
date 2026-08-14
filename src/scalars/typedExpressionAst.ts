@@ -7,6 +7,7 @@
 import type { ScalarSpan, ScalarUnaryOperator, ScalarBinaryOperator } from "./expressionAst";
 import type { BindingId } from "./bindingCatalog";
 import type { BindingResolution } from "./bindingResolution";
+import type { BuiltinFunctionName } from "./builtinFunctions";
 import type { ChoiceScalarType, ScalarType } from "./types";
 
 export interface TypedScalarNumberLiteralNode {
@@ -110,6 +111,21 @@ export interface TypedScalarGroupExpressionNode {
   readonly type: ScalarType | null;
 }
 
+export type TypedScalarCallTarget = {
+  readonly kind: "builtin";
+  readonly name: BuiltinFunctionName;
+};
+
+export interface TypedScalarCallExpressionNode {
+  readonly kind: "call";
+  readonly span: ScalarSpan;
+  readonly nameSpan: ScalarSpan;
+  readonly name: string;
+  readonly target: TypedScalarCallTarget | null;
+  readonly args: readonly TypedScalarExpression[];
+  readonly type: ScalarType | null;
+}
+
 export type TypedScalarExpression =
   | TypedScalarNumberLiteralNode
   | TypedScalarStringLiteralNode
@@ -119,9 +135,14 @@ export type TypedScalarExpression =
   | TypedScalarGeometryPropertyReferenceNode
   | TypedScalarUnaryExpressionNode
   | TypedScalarBinaryExpressionNode
-  | TypedScalarGroupExpressionNode;
+  | TypedScalarGroupExpressionNode
+  | TypedScalarCallExpressionNode;
 
-export type ScalarExpressionTypecheckIssueCode = "scalar-type-mismatch" | "invalid-choice-literal";
+export type ScalarExpressionTypecheckIssueCode =
+  | "scalar-type-mismatch"
+  | "invalid-choice-literal"
+  | "unknown-function"
+  | "function-arity-mismatch";
 
 export interface ScalarExpressionTypecheckDiagnostic {
   readonly code: ScalarExpressionTypecheckIssueCode;

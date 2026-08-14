@@ -88,6 +88,7 @@ export const resolveTypedGeometryProperties = (
     if (node.kind === "unary") return { ...node, operand: visit(node.operand) };
     if (node.kind === "binary") return { ...node, left: visit(node.left), right: visit(node.right) };
     if (node.kind === "group") return { ...node, expression: visit(node.expression) };
+    if (node.kind === "call") return { ...node, args: node.args.map(visit) };
     return node;
   };
   return { expression: visit(expression), issues };

@@ -7,6 +7,7 @@ import { buildBindingCatalog, type Binding, type BindingCatalog } from "./bindin
 import { resolveBindingReferenceForTests, type BindingResolution } from "./bindingResolution";
 import { parseScalarExpression } from "./expressionParser";
 import type { ScalarExpressionAst } from "./expressionAst";
+import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
 import type { ScalarExpressionTypecheckResult } from "./typedExpressionAst";
@@ -160,6 +161,85 @@ describe("typecheckScalarExpression / unary operators", () => {
     const start = expr.indexOf('"a"');
     expect(result.diagnostics[0]).toMatchObject({ code: "scalar-type-mismatch", span: { start, end: start + 3 } });
     expect(result.type).toBeNull();
+  });
+});
+
+describe("typecheckScalarExpression / builtin calls", () => {
+  it.each([
+    ["abs(-1)", "abs", "number"],
+    ["min(1, 2)", "min", "number"],
+    ["max(1, 2)", "max", "number"],
+    ["sqrt(25)", "sqrt", "number"],
+    ["round(1)", "round", "number"],
+    ["round(1, 2)", "round", "number"],
+    ["floor(1)", "floor", "number"],
+    ["floor(1, 2)", "floor", "number"],
+    ["ceil(1)", "ceil", "number"],
+    ["ceil(1, 2)", "ceil", "number"],
+    ["roundTo(1, 0.5)", "roundTo", "number"],
+    ["isClose(1, 2, 0.5)", "isClose", "boolean"]
+  ])("resolves %s to a typed builtin call", (source, name, resultKind) => {
+    const result = check(source);
+    expect(result.type).toEqual({ kind: resultKind });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({
+      kind: "call",
+      name,
+      target: { kind: "builtin", name },
+      type: { kind: resultKind }
+    });
+    assertInvariant(result);
+  });
+
+  it("typechecks nested builtin calls and preserves argument order", () => {
+    const result = check("roundTo(max(abs(1), abs(2)), 0.5)");
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({
+      kind: "call",
+      name: "roundTo",
+      args: [{ kind: "call", name: "max", args: [{ kind: "call", name: "abs" }, { kind: "call", name: "abs" }] }, { value: 0.5 }]
+    });
+  });
+
+  it("reports an unknown function at its name span while still consuming all argument references", () => {
+    const source = "unknownFunction(@a, @b)";
+    const resolution = (name: string): BindingResolution => ({ kind: "undefined", name, scopeId: "root", statementIndex: 0 });
+    const result = check(source, null, [resolution("a"), resolution("b")]);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "unknown-function", span: { start: 0, end: "unknownFunction".length } })
+    ]);
+    expect(result.typed).toMatchObject({ kind: "call", target: null, args: [{ kind: "reference" }, { kind: "reference" }] });
+    expect(collectScalarExpressionReferences(astFor(source)).map((reference) => reference.name)).toEqual(["a", "b"]);
+  });
+
+  it.each([
+    "abs()",
+    "abs(1, 2)",
+    "min(1)",
+    "max(1, 2, 3)",
+    "round(1, 2, 3)",
+    "isClose(1, 2)"
+  ])("reports an arity mismatch for %s", (source) => {
+    const result = check(source);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]).toMatchObject({ code: "function-arity-mismatch", span: { start: 0 } });
+    assertInvariant(result);
+  });
+
+  it.each([
+    ["abs(\"x\")", { start: 4, end: 7 }],
+    ["min(true, 1)", { start: 4, end: 8 }],
+    ["round(1, \"2\")", { start: 9, end: 12 }],
+    ["isClose(1, 2, false)", { start: 14, end: 19 }]
+  ])("reports scalar-type-mismatch for invalid builtin arguments in %s", (source, span) => {
+    const result = check(source);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0]).toMatchObject({ code: "scalar-type-mismatch", span });
+    assertInvariant(result);
   });
 });
 

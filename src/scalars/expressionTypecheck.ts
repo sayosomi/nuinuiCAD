@@ -19,6 +19,7 @@ import {
   type ScalarExpressionAst
 } from "./expressionAst";
 import type { BindingResolution } from "./bindingResolution";
+import { getBuiltinFunctionDefinition } from "./builtinFunctions";
 import type {
   ScalarExpressionResolvedReference,
   ScalarExpressionTypecheckContext,
@@ -235,10 +236,52 @@ const checkNode = (
       return { kind: "group", span: node.span, expression, type: expression.type };
     }
 
-    case "call":
-      // Named-call typing and the typed call AST are deferred to the next
-      // semantic task; syntax-only parsing must not invent builtin behavior.
-      throw new Error("expressionTypecheck: named call semantics are not implemented yet");
+    case "call": {
+      const definition = getBuiltinFunctionDefinition(node.name);
+      const args = node.args.map((arg) => checkNode(arg, null, state));
+      if (definition === null) {
+        addDiagnostic(state, {
+          code: "unknown-function",
+          span: node.nameSpan,
+          message: `未知の組み込み関数「${node.name}」です。`
+        });
+        return { kind: "call", span: node.span, nameSpan: node.nameSpan, name: node.name, target: null, args, type: null };
+      }
+
+      const signature = definition.signatures.find((candidate) => candidate.argumentTypes.length === args.length);
+      if (signature === undefined) {
+        const acceptedArities = definition.signatures.map((candidate) => candidate.argumentTypes.length);
+        const arityText = acceptedArities.length === 1 ? `${acceptedArities[0]}` : acceptedArities.join("または");
+        addDiagnostic(state, {
+          code: "function-arity-mismatch",
+          span: node.nameSpan,
+          message: `組み込み関数「${node.name}」の引数の数が一致しません(期待: ${arityText}, 実際: ${args.length})。`
+        });
+        return {
+          kind: "call",
+          span: node.span,
+          nameSpan: node.nameSpan,
+          name: node.name,
+          target: { kind: "builtin", name: definition.name },
+          args,
+          type: null
+        };
+      }
+
+      let argumentsAreValid = true;
+      for (const [index, argument] of args.entries()) {
+        if (!checkOperandType(state, argument, signature.argumentTypes[index])) argumentsAreValid = false;
+      }
+      return {
+        kind: "call",
+        span: node.span,
+        nameSpan: node.nameSpan,
+        name: node.name,
+        target: { kind: "builtin", name: definition.name },
+        args,
+        type: argumentsAreValid ? signature.returnType : null
+      };
+    }
   }
 };
 

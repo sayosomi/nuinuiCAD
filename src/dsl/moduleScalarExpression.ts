@@ -112,9 +112,7 @@ const resolveAndTypecheck = ({
         resolveNodeReference(node);
         return node;
       case "call":
-        // Call resolution and argument traversal belong to the follow-up
-        // semantic task. Keep the untyped syntax node intact for now.
-        return node;
+        return { ...node, args: node.args.map(resolve) };
       case "geometryProperty":
         if (!resolveGeometryProperty) {
           diagnostics.push(localIssue("module-geometry-property-reference", node.span, "module の scalar expression では geometry property を解決できません。"));
@@ -156,8 +154,15 @@ const resolveAndTypecheck = ({
     resolveChoiceLiteral: (_raw, _expected, span) => resolvedChoiceTypes.get(span.start)
   });
   for (const diagnostic of checked.diagnostics) {
+    const code = diagnostic.code === "invalid-choice-literal"
+      ? "module-invalid-choice-literal"
+      : diagnostic.code === "unknown-function"
+        ? "module-unknown-function"
+        : diagnostic.code === "function-arity-mismatch"
+          ? "module-function-arity-mismatch"
+          : "module-scalar-type-mismatch";
     diagnostics.push(localIssue(
-      diagnostic.code === "invalid-choice-literal" ? "module-invalid-choice-literal" : "module-scalar-type-mismatch",
+      code,
       diagnostic.span,
       diagnostic.message,
       { expectedType: diagnostic.expectedType, actualType: diagnostic.actualType }

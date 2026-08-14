@@ -38,6 +38,18 @@ describe("typed binding rename safety analysis", () => {
     expect(source.split("\n")[2].slice(span.start, span.end)).toBe("base");
   });
 
+  it("collects references inside builtin call arguments without treating the function name as a binding", () => {
+    const source = ["nui 4", "const oldName: number = 1", "let result: number = max(@oldName, 10)"].join("\n");
+    const compiled = compile(source);
+    const analysis = rename(compiled, "oldName", "newName");
+    expect(analysis.verdict).toBe("ok");
+    if (analysis.verdict !== "ok") return;
+    expect(analysis.occurrences).toEqual([
+      expect.objectContaining({ kind: "initializer", oldName: "oldName", newName: "newName" })
+    ]);
+    expect(analysis.occurrences.some((occurrence) => occurrence.oldName === "max")).toBe(false);
+  });
+
   it("allows a safe rename of a set target", () => {
     const compiled = compile(
       ["nui 4", "let counter: number = 0", "let other: number = 1", "set counter = @other + 1"].join("\n")

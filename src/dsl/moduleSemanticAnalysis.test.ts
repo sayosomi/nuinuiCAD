@@ -12,6 +12,42 @@ const moduleBodyAt = (compiled: ReturnType<typeof compileWithIds>, statementInde
   compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === statementIndex)!;
 
 describe("module semantic analysis", () => {
+  it("resolves builtin calls through the shared scalar frontend and preserves their argument references", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(a: number, b: number) {",
+      "  const value: number = max(@a, @b)",
+      "  const check: boolean = isClose(@value, 10, 0.5)",
+      "}",
+      "instance Use = M(a: 1, b: 2)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const definition = compiled.moduleSemanticAnalysis!.definitions[0];
+    expect(definition.localScalars.find((scalar) => scalar.name === "value")?.initializer).toMatchObject({
+      type: { kind: "number" },
+      references: [{ name: "a" }, { name: "b" }]
+    });
+    expect(definition.localScalars.find((scalar) => scalar.name === "check")?.initializer).toMatchObject({
+      type: { kind: "boolean" },
+      references: [{ name: "value" }]
+    });
+  });
+
+  it("keeps unknown and arity diagnostics distinct in the module frontend", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M() {",
+      "  const unknown: number = unknownFunction(1)",
+      "  const wrong: number = abs()",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-unknown-function" }),
+      expect.objectContaining({ code: "module-function-arity-mismatch" })
+    ]));
+  });
+
   it("uses the shared scalar frontend for nui4 word operators in a Module body", () => {
     const compiled = compileWithIds([
       "nui 4",
