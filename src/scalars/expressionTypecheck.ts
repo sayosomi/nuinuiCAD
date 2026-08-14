@@ -19,7 +19,7 @@ import {
   type ScalarExpressionAst
 } from "./expressionAst";
 import type { BindingResolution } from "./bindingResolution";
-import { getBuiltinFunctionDefinition } from "./builtinFunctions";
+import { getBuiltinFunctionDefinition, isScalarBuiltinParameterType } from "./builtinFunctions";
 import type {
   ScalarExpressionResolvedReference,
   ScalarExpressionTypecheckContext,
@@ -270,7 +270,10 @@ const checkNode = (
 
       let argumentsAreValid = true;
       for (const [index, argument] of args.entries()) {
-        if (!checkOperandType(state, argument, signature.argumentTypes[index])) argumentsAreValid = false;
+        const parameterType = signature.argumentTypes[index];
+        if (!parameterType || !isScalarBuiltinParameterType(parameterType) || !checkOperandType(state, argument, parameterType)) {
+          argumentsAreValid = false;
+        }
       }
       return {
         kind: "call",

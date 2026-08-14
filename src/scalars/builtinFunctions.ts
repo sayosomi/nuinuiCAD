@@ -1,4 +1,5 @@
 import type { ScalarType } from "./types";
+import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 
 export type BuiltinFunctionName =
   | "abs"
@@ -9,10 +10,15 @@ export type BuiltinFunctionName =
   | "floor"
   | "ceil"
   | "roundTo"
-  | "isClose";
+  | "isClose"
+  | "distance"
+  | "angle"
+  | "lineDistance";
+
+export type BuiltinParameterType = ScalarType | ModuleGeometryInterfaceType;
 
 export type BuiltinFunctionSignature = {
-  readonly argumentTypes: readonly ScalarType[];
+  readonly argumentTypes: readonly BuiltinParameterType[];
   readonly returnType: ScalarType;
 };
 
@@ -21,8 +27,8 @@ export type BuiltinFunctionDefinition = {
   readonly signatures: readonly BuiltinFunctionSignature[];
 };
 
-const scalarTypeDisplayName = (type: ScalarType): string =>
-  type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
+const builtinParameterTypeDisplayName = (type: BuiltinParameterType): string =>
+  typeof type === "string" ? type : type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
 
 const NUMBER_TYPE: Extract<ScalarType, { kind: "number" }> = { kind: "number" };
 const BOOLEAN_TYPE: Extract<ScalarType, { kind: "boolean" }> = { kind: "boolean" };
@@ -41,7 +47,10 @@ export const BUILTIN_FUNCTION_DEFINITIONS: readonly BuiltinFunctionDefinition[] 
   { name: "floor", signatures: [numeric(1), numeric(2)] },
   { name: "ceil", signatures: [numeric(1), numeric(2)] },
   { name: "roundTo", signatures: [numeric(2)] },
-  { name: "isClose", signatures: [{ argumentTypes: [NUMBER_TYPE, NUMBER_TYPE, NUMBER_TYPE], returnType: BOOLEAN_TYPE }] }
+  { name: "isClose", signatures: [{ argumentTypes: [NUMBER_TYPE, NUMBER_TYPE, NUMBER_TYPE], returnType: BOOLEAN_TYPE }] },
+  { name: "distance", signatures: [{ argumentTypes: ["point", "point"], returnType: NUMBER_TYPE }] },
+  { name: "angle", signatures: [{ argumentTypes: ["point", "point"], returnType: NUMBER_TYPE }] },
+  { name: "lineDistance", signatures: [{ argumentTypes: ["point", "line"], returnType: NUMBER_TYPE }] }
 ];
 
 export const BUILTIN_FUNCTIONS: ReadonlyMap<BuiltinFunctionName, BuiltinFunctionDefinition> = new Map(
@@ -51,8 +60,13 @@ export const BUILTIN_FUNCTIONS: ReadonlyMap<BuiltinFunctionName, BuiltinFunction
 export const getBuiltinFunctionDefinition = (name: string): BuiltinFunctionDefinition | null =>
   BUILTIN_FUNCTIONS.get(name as BuiltinFunctionName) ?? null;
 
+export const isBuiltinFunctionName = (name: string): name is BuiltinFunctionName =>
+  BUILTIN_FUNCTIONS.has(name as BuiltinFunctionName);
+
+export const isScalarBuiltinParameterType = (type: BuiltinParameterType): type is ScalarType => typeof type !== "string";
+
 /** Formats the editor-facing signature detail directly from the semantic registry. */
 export const formatBuiltinFunctionSignatures = (definition: BuiltinFunctionDefinition): string =>
   definition.signatures
-    .map((signature) => `${definition.name}(${signature.argumentTypes.map(scalarTypeDisplayName).join(", ")}) -> ${scalarTypeDisplayName(signature.returnType)}`)
+    .map((signature) => `${definition.name}(${signature.argumentTypes.map(builtinParameterTypeDisplayName).join(", ")}) -> ${builtinParameterTypeDisplayName(signature.returnType)}`)
     .join(" | ");
