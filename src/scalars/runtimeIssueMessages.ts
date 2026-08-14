@@ -14,6 +14,7 @@ const RUNTIME_ISSUE_MESSAGES: Readonly<Record<string, string>> = {
   "evaluation-binding-cycle-guard": "循環参照が検出されました。",
   "evaluation-binding-version-unavailable": "この時点のsetがまだ評価されていません。",
   "evaluation-divide-by-zero": "0での除算が発生しました。",
+  "evaluation-invalid-builtin-argument": "組み込み関数の引数が不正です。",
   "evaluation-non-finite-result": "計算結果が数値として不正です。",
   "evaluation-static-type-null": "型を確定できませんでした。",
   "evaluation-numeric-adapter-failure": "数値の評価に失敗しました。",

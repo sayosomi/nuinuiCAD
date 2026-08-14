@@ -1,4 +1,5 @@
 import type { ElementId } from "../types/geometry";
+import { evaluateBuiltinFunction } from "../scalars/builtinFunctionSemantics";
 import { labelToProperty } from "./numericExpressionProperties";
 import type { NumericExpressionReference } from "./numericExpressionTypes";
 
@@ -263,8 +264,15 @@ export class Parser {
     if (this.consume()?.type !== "leftParen") throw new Error("関数の開始括弧がありません。");
     const value = this.parseLogicalOr();
     if (this.consume()?.type !== "rightParen") throw new Error("閉じ括弧がありません。");
-    if (value < 0) throw new Error("sqrt の引数は0以上である必要があります。");
-    return Math.sqrt(value);
+    const result = evaluateBuiltinFunction("sqrt", [value]);
+    if (result.status === "error") {
+      if (result.reason === "invalid-argument" && value < 0) {
+        throw new Error("sqrt の引数は0以上である必要があります。");
+      }
+      throw new Error("sqrt の計算結果が不正です。");
+    }
+    if (typeof result.value !== "number") throw new Error("sqrt の計算結果が不正です。");
+    return result.value;
   }
 
   private parseMeasurementFunctionCall(name: NumericExpressionMeasurementFunctionName) {

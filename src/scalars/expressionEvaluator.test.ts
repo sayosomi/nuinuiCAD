@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fixtureJson from "../../test/fixtures/typed-expressions.json";
 import { evaluateTypedExpression, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
+import type { BuiltinFunctionName } from "./builtinFunctions";
 import {
   buildMockEnvironment,
   decodeTypedExpressionNode,
@@ -19,6 +20,27 @@ type TypedExpressionVector = {
 };
 
 const fixture = fixtureJson as unknown as { vectors: TypedExpressionVector[] };
+
+const builtinCall = (
+  targetName: BuiltinFunctionName,
+  args: TypedScalarExpression[],
+  name?: string
+): Extract<TypedScalarExpression, { kind: "call" }> => ({
+  kind: "call",
+  span: { start: 0, end: 0 },
+  nameSpan: { start: 0, end: 0 },
+  name: name ?? targetName,
+  target: { kind: "builtin", name: targetName },
+  args,
+  type: targetName === "isClose" ? { kind: "boolean" } : { kind: "number" }
+});
+
+const numberLiteral = (value: number): TypedScalarExpression => ({
+  kind: "numberLiteral",
+  span: { start: 0, end: 0 },
+  value,
+  type: { kind: "number" }
+});
 
 const evaluateVector = (vector: TypedExpressionVector): ScalarEvaluation => {
   const node = decodeTypedExpressionNode(vector.ast);
@@ -229,6 +251,94 @@ describe("evaluateTypedExpression / numeric precision", () => {
     const environment: ScalarEvaluationEnvironment = { lookupBinding: () => { throw new Error("not used"); } };
     const result = evaluateTypedExpression(node, environment);
     expect(result).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 0.1 + 0.2 } });
+  });
+});
+
+describe("evaluateTypedExpression / builtin calls", () => {
+  it("evaluates resolved builtin targets without resolving node.name again", () => {
+    const environment: ScalarEvaluationEnvironment = { lookupBinding: () => { throw new Error("not used"); } };
+
+    expect(evaluateTypedExpression(builtinCall("abs", [numberLiteral(-3)], "not-a-builtin"), environment)).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 3 }
+    });
+    expect(evaluateTypedExpression(builtinCall("round", [numberLiteral(-1.5)]), environment)).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: -2 }
+    });
+    expect(evaluateTypedExpression(builtinCall("isClose", [numberLiteral(1), numberLiteral(1.01), numberLiteral(0.02)]), environment)).toEqual({
+      status: "ok",
+      type: { kind: "boolean" },
+      value: { kind: "boolean", value: true }
+    });
+  });
+
+  it("propagates the first argument error and does not evaluate later arguments", () => {
+    const lookedUp: string[] = [];
+    const node = builtinCall("min", [
+      {
+        kind: "reference",
+        span: { start: 0, end: 0 },
+        nameSpan: { start: 0, end: 0 },
+        name: "first",
+        bindingId: "binding:first",
+        type: { kind: "number" }
+      },
+      {
+        kind: "reference",
+        span: { start: 0, end: 0 },
+        nameSpan: { start: 0, end: 0 },
+        name: "second",
+        bindingId: "binding:second",
+        type: { kind: "number" }
+      }
+    ]);
+    const environment: ScalarEvaluationEnvironment = {
+      lookupBinding: (bindingId) => {
+        lookedUp.push(bindingId);
+        return { status: "error", type: { kind: "number" }, issueCode: "first-argument-error", bindingId };
+      }
+    };
+
+    expect(evaluateTypedExpression(node, environment)).toEqual({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "first-argument-error",
+      bindingId: "binding:first"
+    });
+    expect(lookedUp).toEqual(["binding:first"]);
+  });
+
+  it("maps builtin contract failures to runtime issue codes", () => {
+    const environment: ScalarEvaluationEnvironment = { lookupBinding: () => { throw new Error("not used"); } };
+
+    expect(evaluateTypedExpression(builtinCall("sqrt", [numberLiteral(-1)]), environment)).toEqual({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-invalid-builtin-argument"
+    });
+    expect(evaluateTypedExpression(builtinCall("roundTo", [numberLiteral(Number.MAX_VALUE), numberLiteral(Number.MIN_VALUE)]), environment)).toEqual({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-non-finite-result"
+    });
+  });
+
+  it("uses staticTypeNullError when a call is not statically typed or resolved", () => {
+    const environment: ScalarEvaluationEnvironment = { lookupBinding: () => { throw new Error("not used"); } };
+    const node = builtinCall("abs", [numberLiteral(1)]);
+    expect(evaluateTypedExpression({ ...node, type: null }, environment)).toEqual({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-static-type-null"
+    });
+    expect(evaluateTypedExpression({ ...node, target: null }, environment)).toEqual({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-static-type-null"
+    });
   });
 });
 
