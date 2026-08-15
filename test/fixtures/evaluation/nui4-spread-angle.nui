@@ -1,0 +1,118 @@
+nui 4
+
+const lengthValue: number = 100
+const spreadValue: number = 20
+const spreadText: string = "11.478341"
+
+const spreadBasic: number = spreadAngle(
+  length: 100,
+  spread: 20,
+)
+
+const spreadReversed: number = spreadAngle(
+  spread: 20,
+  length: 100,
+)
+
+const spreadZero: number = spreadAngle(
+  length: 100,
+  spread: 0,
+)
+
+const spreadStraight: number = spreadAngle(
+  length: 100,
+  spread: 200,
+)
+
+const spreadReferences: number = spreadAngle(
+  spread: @spreadValue,
+  length: @lengthValue,
+)
+
+const spreadInvalidLengthZero: number = spreadAngle(
+  length: 0,
+  spread: 0,
+)
+
+const spreadInvalidLengthNegative: number = spreadAngle(
+  length: -100,
+  spread: 20,
+)
+
+const spreadInvalidNegative: number = spreadAngle(
+  length: 100,
+  spread: -1,
+)
+
+const spreadInvalidTooLarge: number = spreadAngle(
+  length: 100,
+  spread: 201,
+)
+
+let mutableSpread: number = 0
+set mutableSpread = spreadAngle(
+  spread: 20,
+  length: 100,
+)
+
+point Origin = coordinate(
+  x: spreadAngle(length: 100, spread: 20),
+  y: 0,
+)
+
+text SpreadTemplate = label(
+  text: "angle=${@spreadText}",
+  anchor: none,
+  size: 3,
+)
+
+module SpreadModule(length: number, spread: number) {
+  const localAngle: number = spreadAngle(
+    spread: @spread,
+    length: @length,
+  )
+
+  point ModulePoint = coordinate(
+    x: @localAngle,
+    y: 0,
+  )
+}
+
+instance SpreadInstance = SpreadModule(
+  length: 100,
+  spread: 20,
+)
+
+group Pattern(
+  printEnabled: true,
+  printAnchor: @Origin,
+) {
+  point End = coordinate(
+    x: 8,
+    y: 2,
+  )
+
+  line Edge = segment(
+    start: @Origin,
+    end: @End,
+  )
+}
+
+stop
+
+printLayout A4(
+  width: spreadAngle(length: 100, spread: 20),
+  height: 20,
+  columns: round(spreadAngle(length: 100, spread: 20)),
+  rows: 1,
+  overlap: spreadAngle(length: 100, spread: 0),
+  scale: 1,
+  canvas: (spreadAngle(length: 100, spread: 20), 20),
+) {
+  place @Pattern(
+    x: spreadAngle(length: 100, spread: 20),
+    y: 0,
+    angle: spreadAngle(length: 100, spread: 20),
+    mirrorX: false,
+  )
+}

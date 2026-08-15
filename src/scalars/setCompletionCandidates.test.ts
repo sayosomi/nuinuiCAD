@@ -235,4 +235,31 @@ describe("setRhsScalarCandidates", () => {
     const candidates = setRhsScalarCandidates(line, { start: line.indexOf("=") + 1, end: line.length }, line.length, { kind: "number" }, deps);
     expect(candidates).toEqual([{ kind: "argumentName", label: "second" }]);
   });
+
+  it("offers production spreadAngle named parameters in a set RHS", () => {
+    const { catalog, entriesById } = catalogFor(["nui 4", "let target: number = 0"].join("\n"));
+    const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, 10);
+    const emptyLine = "set target = spreadAngle(\n  ";
+    const candidates = setRhsScalarCandidates(
+      emptyLine,
+      { start: emptyLine.indexOf("=") + 1, end: emptyLine.length },
+      emptyLine.length,
+      { kind: "number" },
+      deps
+    );
+    expect(candidates).toEqual([
+      { kind: "argumentName", label: "length" },
+      { kind: "argumentName", label: "spread" }
+    ]);
+
+    const usedLine = "set target = spreadAngle(\n  length: 100,\n  ";
+    const usedCandidates = setRhsScalarCandidates(
+      usedLine,
+      { start: usedLine.indexOf("=") + 1, end: usedLine.length },
+      usedLine.length,
+      { kind: "number" },
+      deps
+    );
+    expect(usedCandidates).toEqual([{ kind: "argumentName", label: "spread" }]);
+  });
 });

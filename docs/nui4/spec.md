@@ -198,10 +198,11 @@ order are owned by the builtin signature metadata. Positional-only and
 named-only signatures are semantically distinct; a call must use the declared
 style, and mixed positional/named calls are invalid in nui4 v1. Unknown,
 duplicate, or missing named arguments produce diagnostics. The current builtin
-catalog below remains positional-only; this syntax does not add named forms to
-any existing builtin. After semantic validation, a valid named call is lowered
-to the existing canonical positional `TypedBuiltinArgument[]` runtime shape;
-argument names are not part of the runtime payload.
+catalog is positional-only for existing builtins; `spreadAngle` is the first
+production named-only scalar builtin. This syntax does not add named forms to
+any other existing builtin. After semantic validation, a valid named call is
+lowered to the existing canonical positional `TypedBuiltinArgument[]` runtime
+shape; argument names are not part of the runtime payload.
 
 The current builtin catalog is:
 
@@ -223,6 +224,7 @@ The current builtin catalog is:
 | `acos` | `acos(number) -> number` |
 | `atan` | `atan(number) -> number` |
 | `atan2` | `atan2(number, number) -> number` |
+| `spreadAngle` | `spreadAngle(length: number, spread: number) -> number` (named-only) |
 | `distance` | `distance(point, point) -> number` |
 | `angle` | `angle(point, point) -> number` |
 | `lineDistance` | `lineDistance(point, line) -> number` |
@@ -245,6 +247,15 @@ Non-finite inputs fail with an invalid-argument evaluation error, and
 non-finite results fail with a non-finite-result evaluation error. `atan2` and
 the existing `angle(point, point)` builtin share the same direction and
 normalization rule.
+
+`spreadAngle(length: number, spread: number)` is named-only. `spread` is a chord
+length, not an arc length. The result is defined by
+`theta = 2 * asin(spread / (2 * length))` and its public unit is degrees. The
+domain is `length > 0` and `0 <= spread <= 2 * length`; the result is in the
+inclusive range `0..180` degrees. `spread = 0` returns `0`, and
+`spread = 2 * length` returns `180`. Invalid or non-finite arguments produce an
+evaluation error. Named source order has no meaning; runtime lowering uses the
+canonical `[length, spread]` positional order.
 
 The geometry measurement builtins use the existing geometry interface types.
 `distance` returns the Euclidean distance between two points. `angle` returns

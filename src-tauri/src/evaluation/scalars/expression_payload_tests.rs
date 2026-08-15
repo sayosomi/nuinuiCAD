@@ -5,7 +5,8 @@ use super::expression_payload::{
 };
 use super::issue::ScalarPayloadIssueCode as Code;
 use super::types::{
-    GeometryInterfaceType, ScalarType, TypedBuiltinArgument, TypedScalarExpression,
+    BuiltinFunctionName, GeometryInterfaceType, ScalarType, TypedBuiltinArgument,
+    TypedScalarCallTarget, TypedScalarExpression,
 };
 
 // --- golden decode: shared TS/Rust vectors -------------------------------
@@ -360,6 +361,29 @@ fn decodes_scalar_wrapper_arguments() {
         &args[0],
         TypedBuiltinArgument::Scalar { expression }
             if matches!(expression, TypedScalarExpression::NumberLiteral { .. })
+    ));
+}
+
+#[test]
+fn decodes_spread_angle_scalar_wrapper_arguments_without_argument_names() {
+    let decoded = validate_typed_expression_payload(&builtin_call(
+        "spreadAngle",
+        vec![number_literal(), number_literal()],
+    ))
+    .unwrap();
+    let TypedScalarExpression::Call { args, target, .. } = &decoded else {
+        panic!("expected call");
+    };
+    assert!(matches!(
+        target,
+        TypedScalarCallTarget::Builtin(BuiltinFunctionName::SpreadAngle)
+    ));
+    assert!(matches!(
+        &args[..],
+        [
+            TypedBuiltinArgument::Scalar { .. },
+            TypedBuiltinArgument::Scalar { .. }
+        ]
     ));
 }
 

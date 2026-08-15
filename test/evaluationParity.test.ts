@@ -285,6 +285,71 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("asserts nui4 spreadAngle named arguments, domains, module, text, and print values in both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-spread-angle.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+    const expected = 11.4783409545;
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    for (const payload of [tsPayload, rustPayload]) {
+      for (const name of ["spreadBasic", "spreadReversed", "spreadReferences", "mutableSpread"] as const) {
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
+      }
+      expect(scalarBindingFor(fixture, payload, "spreadZero")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
+      expect(scalarBindingFor(fixture, payload, "spreadStraight")).toMatchObject({ status: "ok", value: { kind: "number", value: 180 } });
+      for (const name of [
+        "spreadInvalidLengthZero",
+        "spreadInvalidLengthNegative",
+        "spreadInvalidNegative",
+        "spreadInvalidTooLarge"
+      ] as const) {
+        expect(scalarBindingFor(fixture, payload, name)).toMatchObject({
+          status: "error",
+          issueCode: "evaluation-invalid-builtin-argument"
+        });
+      }
+
+      const evaluated = evaluationPayloadToResult(payload);
+      const origin = fixture.elements.find((element) => element.name === "Origin")!;
+      const template = fixture.elements.find((element) => element.name === "SpreadTemplate")!;
+      const modulePoint = fixture.elements.find((element) => element.name === "ModulePoint")!;
+      const originGeometry = evaluated.computedGeometry.get(origin.id);
+      if (originGeometry?.kind !== "point") throw new Error("Origin must be a computed point");
+      expect(originGeometry.x).toBeCloseTo(expected, 10);
+      expect(evaluated.computedGeometry.get(template.id)).toMatchObject({ kind: "text", text: "angle=11.478341" });
+      const moduleGeometry = evaluated.computedGeometry.get(modulePoint.id);
+      if (moduleGeometry?.kind !== "point") throw new Error("ModulePoint must be a computed point");
+      expect(moduleGeometry.x).toBeCloseTo(expected, 10);
+
+      const compiled = fixture.compiled!.doc!;
+      const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
+      const resolved = resolvePrintLayout({
+        layout,
+        elements: compiled.document.elements,
+        evaluation: evaluated,
+        numericBindingLookup: {
+          numericBindings: compiled.numericBindings ?? new Map(),
+          byKey: compiled.statementMap.byKey,
+          bindingVersions: compiled.bindingVersions
+        }
+      });
+      expect(resolved.columns).toBe(11);
+      expect(resolved.rows).toBe(1);
+      expect(resolved.overlapMm).toBe(0);
+      expect(resolved.scale).toBe(1);
+      expect(resolved.svgCanvasWidthMm).toBeCloseTo(expected, 10);
+      expect(resolved.svgCanvasHeightMm).toBe(20);
+      expect(resolved.placements[0]?.x).toBeCloseTo(expected, 10);
+      expect(resolved.placements[0]?.y).toBe(0);
+      expect(resolved.placements[0]?.angleDeg).toBeCloseTo(expected, 10);
+      expect(resolved.placements[0]?.mirrorX).toBe(false);
+    }
+
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
   it("asserts nui4 geometry builtin values and mutation through both evaluators", () => {
     const fixture = readParityFixture(repoRoot, "nui4-geometry-builtin-functions.nui");
     const options = optionsFor(fixture);

@@ -280,6 +280,49 @@ fn normalizes_atan2_y_x_to_compass_degrees() {
 }
 
 #[test]
+fn evaluates_spread_angle_from_chord_length_in_degrees() {
+    assert_number_close(
+        evaluate_builtin_function(BuiltinFunctionName::SpreadAngle, &[100.0, 20.0]),
+        11.4783409545,
+    );
+    assert_number_close(
+        evaluate_builtin_function(BuiltinFunctionName::SpreadAngle, &[100.0, 0.0]),
+        0.0,
+    );
+    assert_number_close(
+        evaluate_builtin_function(BuiltinFunctionName::SpreadAngle, &[100.0, 200.0]),
+        180.0,
+    );
+    assert_number_close(
+        evaluate_builtin_function(BuiltinFunctionName::SpreadAngle, &[f64::MAX, f64::MAX]),
+        60.0,
+    );
+}
+
+#[test]
+fn rejects_invalid_spread_angle_arguments_and_arity() {
+    for args in [
+        vec![0.0, 0.0],
+        vec![-100.0, 20.0],
+        vec![100.0, -1.0],
+        vec![100.0, 201.0],
+        vec![f64::NAN, 20.0],
+        vec![100.0, f64::NAN],
+        vec![f64::INFINITY, 20.0],
+        vec![100.0, f64::INFINITY],
+        vec![f64::NEG_INFINITY, 20.0],
+        vec![100.0, f64::NEG_INFINITY],
+        vec![100.0],
+        vec![100.0, 20.0, 0.0],
+    ] {
+        assert_eq!(
+            evaluate_builtin_function(BuiltinFunctionName::SpreadAngle, &args),
+            invalid_argument()
+        );
+    }
+}
+
+#[test]
 fn rejects_non_finite_trigonometric_inputs() {
     for name in [
         BuiltinFunctionName::Sin,

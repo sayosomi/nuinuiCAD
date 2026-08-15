@@ -18,6 +18,7 @@ export type BuiltinFunctionName =
   | "acos"
   | "atan"
   | "atan2"
+  | "spreadAngle"
   | "distance"
   | "angle"
   | "lineDistance";
@@ -74,6 +75,14 @@ export const BUILTIN_FUNCTION_DEFINITIONS: readonly BuiltinFunctionDefinition[] 
   { name: "acos", signatures: [numeric(1)] },
   { name: "atan", signatures: [numeric(1)] },
   { name: "atan2", signatures: [numeric(2)] },
+  {
+    name: "spreadAngle",
+    signatures: [{
+      callingStyle: "named",
+      parameters: [{ name: "length", type: NUMBER_TYPE }, { name: "spread", type: NUMBER_TYPE }],
+      returnType: NUMBER_TYPE
+    }]
+  },
   { name: "distance", signatures: [positional(["point", "point"], NUMBER_TYPE)] },
   { name: "angle", signatures: [positional(["point", "point"], NUMBER_TYPE)] },
   { name: "lineDistance", signatures: [positional(["point", "line"], NUMBER_TYPE)] }

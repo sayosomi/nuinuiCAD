@@ -291,6 +291,7 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
       { kind: "function", name: "acos", returnType: { kind: "number" } },
       { kind: "function", name: "atan", returnType: { kind: "number" } },
       { kind: "function", name: "atan2", returnType: { kind: "number" } },
+      { kind: "function", name: "spreadAngle", returnType: { kind: "number" } },
       { kind: "function", name: "distance", returnType: { kind: "number" } },
       { kind: "function", name: "angle", returnType: { kind: "number" } },
       { kind: "function", name: "lineDistance", returnType: { kind: "number" } }
@@ -331,6 +332,45 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
     expect(context).toMatchObject({ kind: "argumentName", names: ["second"] });
     const candidates = scalarExpressionCandidates(context!, { catalog, entriesById, site, includeOperators: true });
     expect(candidates).toEqual([{ kind: "argumentName", label: "second" }]);
+  });
+
+  it("returns production spreadAngle named parameter candidates and excludes used parameters", () => {
+    const source = ["nui 4", "const target: number = 0"].join("\n");
+    const compiled = compileFor(source);
+    const target = bindingIdByName(compiled.catalog, "target");
+    const site = { scopeId: target.effectiveScopeId, statementIndex: target.statementIndex };
+    const emptyCall = "spreadAngle(\n  ";
+    const emptyContext = scalarExpressionCompletionContextAt(
+      emptyCall,
+      emptyCall.length,
+      { start: 0, end: emptyCall.length },
+      { kind: "number" }
+    );
+    expect(emptyContext).toMatchObject({ kind: "argumentName", names: ["length", "spread"] });
+    expect(scalarExpressionCandidates(emptyContext!, {
+      catalog: compiled.catalog,
+      entriesById: compiled.entriesById,
+      site,
+      includeOperators: true
+    })).toEqual([
+      { kind: "argumentName", label: "length" },
+      { kind: "argumentName", label: "spread" }
+    ]);
+
+    const usedCall = "spreadAngle(\n  length: 100,\n  ";
+    const usedContext = scalarExpressionCompletionContextAt(
+      usedCall,
+      usedCall.length,
+      { start: 0, end: usedCall.length },
+      { kind: "number" }
+    );
+    expect(usedContext).toMatchObject({ kind: "argumentName", names: ["spread"] });
+    expect(scalarExpressionCandidates(usedContext!, {
+      catalog: compiled.catalog,
+      entriesById: compiled.entriesById,
+      site,
+      includeOperators: true
+    })).toEqual([{ kind: "argumentName", label: "spread" }]);
   });
 });
 

@@ -170,6 +170,12 @@ export const evaluateBuiltinFunction = (
     case "atan2":
       if (!hasFiniteArguments(args, 2)) return invalidArgument();
       return finiteNumberResult(atan2Degrees360(args[0], args[1]));
+    case "spreadAngle": {
+      if (!hasFiniteArguments(args, 2) || args[0] <= 0 || args[1] < 0) return invalidArgument();
+      const ratio = args[1] / args[0];
+      if (!Number.isFinite(ratio) || ratio > 2) return invalidArgument();
+      return finiteNumberResult(2 * radiansToDegrees(Math.asin(ratio / 2)));
+    }
     default:
       // Geometry builtins are catalog-only until a later task adds geometry
       // argument resolution and lowering; they must not enter scalar runtime.

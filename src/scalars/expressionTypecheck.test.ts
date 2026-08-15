@@ -219,6 +219,21 @@ describe("typecheckScalarExpression / builtin calls", () => {
     });
   });
 
+  it("canonicalizes reversed production spreadAngle arguments without runtime names", () => {
+    const result = check("spreadAngle(spread: @b, length: @a)", null, [
+      { kind: "resolvedType", bindingId: "binding-b", type: { kind: "number" } },
+      { kind: "resolvedType", bindingId: "binding-a", type: { kind: "number" } }
+    ]);
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+    if (result.typed.kind !== "call") throw new Error("expected call");
+    expect(result.typed.args).toHaveLength(2);
+    expect(result.typed.args[0]).toMatchObject({ kind: "scalar", expression: { kind: "reference", bindingId: "binding-a" } });
+    expect(result.typed.args[1]).toMatchObject({ kind: "scalar", expression: { kind: "reference", bindingId: "binding-b" } });
+    expect(result.typed.args[0]).not.toHaveProperty("name");
+    expect(result.typed.args[1]).not.toHaveProperty("name");
+  });
+
   it.each([
     ["namedTest(third: 1, first: 2)", "unknown-function-argument"],
     ["namedTest(first: 1, first: 2)", "duplicate-function-argument"],
@@ -251,6 +266,27 @@ describe("typecheckScalarExpression / builtin calls", () => {
     withNamedTestBuiltin();
     const result = check('namedTest(first: "wrong", second: 2)');
     expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "scalar-type-mismatch" })
+    ]);
+  });
+
+  it("enforces the production spreadAngle named-only argument contract", () => {
+    expect(check("spreadAngle(100, 20)").diagnostics).toEqual([
+      expect.objectContaining({ code: "function-call-style-mismatch" })
+    ]);
+    expect(check("spreadAngle(100, spread: 20)").diagnostics).toEqual([
+      expect.objectContaining({ code: "function-call-style-mismatch" })
+    ]);
+    expect(check("spreadAngle(width: 100, spread: 20)").diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+      "unknown-function-argument"
+    );
+    expect(check("spreadAngle(length: 100, length: 20)").diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+      "duplicate-function-argument"
+    );
+    expect(check("spreadAngle(length: 100)").diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+      "missing-function-argument"
+    );
+    expect(check('spreadAngle(length: "wrong", spread: 20)').diagnostics).toEqual([
       expect.objectContaining({ code: "scalar-type-mismatch" })
     ]);
   });

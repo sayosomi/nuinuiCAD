@@ -1339,6 +1339,12 @@ describe("typed value completion (Task 39)", () => {
           type: "function"
         }),
         expect.objectContaining({
+          label: "spreadAngle",
+          apply: "spreadAngle(",
+          detail: "spreadAngle(length: number, spread: number) -> number",
+          type: "function"
+        }),
+        expect.objectContaining({
           label: "distance",
           apply: "distance(",
           detail: "distance(point, point) -> number",
@@ -1356,6 +1362,32 @@ describe("typed value completion (Task 39)", () => {
           detail: "lineDistance(point, line) -> number",
           type: "function"
         })
+      ]));
+    });
+
+    it("offers production spreadAngle named arguments through the generic completion mapping", async () => {
+      const source = [
+        "nui 4",
+        "const value: number = spreadAngle(",
+        "  length: 100,",
+        "  spread: 20",
+        ")"
+      ].join("\n");
+      const compiled = compiledTyped(source);
+      const doc = EditorState.create({ doc: source }).doc;
+      const state = EditorState.create({ doc: source });
+      const completionSource = createDslCompletionSource({
+        ...baseOptions(),
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => createTypedDeclarationRangeIndex(doc, compiled.statementMap!),
+        scopeBodyRanges: () => [],
+        statementInfoByElementId: () => compiled.statementMap!.byElementId
+      });
+      const pos = source.indexOf("length") + "length".length;
+      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
+      expect(result?.options).toEqual(expect.arrayContaining([
+        expect.objectContaining({ label: "length", apply: "length: " }),
+        expect.objectContaining({ label: "spread", apply: "spread: " })
       ]));
     });
 

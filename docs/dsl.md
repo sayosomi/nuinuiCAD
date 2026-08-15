@@ -80,6 +80,7 @@ asin(number) -> number
 acos(number) -> number
 atan(number) -> number
 atan2(number, number) -> number
+spreadAngle(length: number, spread: number) -> number
 ```
 
 例えば、宣言、`set` の右辺、条件式、文字列補間、scalar property、
@@ -88,6 +89,10 @@ module の scalar 引数・body で次のように書けます。
 ```text
 const rounded: number = round(@seam / 2, 1)
 const closeEnough: boolean = isClose(@seam, 100, 0.5)
+const opening: number = spreadAngle(
+  length: 100,
+  spread: 20,
+)
 set angle = roundTo(@angle, 15)
 text note = label(text: "幅 ${round(@seam, 1)}mm", anchor: @A, size: 3)
 ```
@@ -100,6 +105,11 @@ text note = label(text: "幅 ${round(@seam, 1)}mm", anchor: @A, size: 3)
 そのものを入力すると evaluation error になります。`atan2` は `atan2(y, x)` の
 順で、結果は `[0, 360)` degree に正規化されます（右 0°、上 90°、左 180°、
 下 270°、`atan2(0, 0)` は 0）。
+`spreadAngle(length: number, spread: number)` は `spread` を弦長として、
+`theta = 2 * asin(spread / (2 * length))` を degree で返します。`length > 0`、
+`0 <= spread <= 2 * length` が必要で、結果は `0..180`° です。`spread = 0` は
+0°、`spread = 2 * length` は 180° になります。引数または結果が有限値でない
+場合も evaluation error です。
 引数の型・個数が違う場合や計算結果が有限値でない場合は、診断として表示されます。
 暗黙の数値変換はありません。
 
@@ -120,8 +130,9 @@ comma を使えます。parameter の名前・型・canonical order は builtin 
 signature metadata が所有します。positional-only と named-only は semantic
 に区別され、v1 では positional と named の混在は無効です。unknown、duplicate、
 missing の named argument は診断になります。現在の builtin catalog は
-positional-only のままで、既存関数の named-call 化は行いません。検証に成功した
-named call は runtime では既存の canonical な positional typed arguments に
+既存 builtin では positional-only のままですが、`spreadAngle` は最初の production
+named-only scalar builtin です。既存関数を遡って named-call 化は行いません。検証に
+成功した named call は runtime では既存の canonical な positional typed arguments に
 lower され、argument name は runtime payload に入りません。
 
 論理演算子は `and`、`or`、`not` です。`var`、裸の名前参照、`&&` / `||` / `!` は nui4 の入力構文ではありません。型付き宣言は `const`、`let`、`set` を使います。

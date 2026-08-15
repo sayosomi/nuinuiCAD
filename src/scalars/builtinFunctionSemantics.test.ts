@@ -60,6 +60,32 @@ describe("evaluateBuiltinFunction", () => {
     }
   });
 
+  it("evaluates spreadAngle from chord length in degrees", () => {
+    expectNumberResult(evaluateBuiltinFunction("spreadAngle", [100, 20]), 11.4783409545);
+    expectNumberResult(evaluateBuiltinFunction("spreadAngle", [100, 0]), 0);
+    expectNumberResult(evaluateBuiltinFunction("spreadAngle", [100, 200]), 180);
+    expectNumberResult(evaluateBuiltinFunction("spreadAngle", [Number.MAX_VALUE, Number.MAX_VALUE]), 60);
+  });
+
+  it("rejects invalid spreadAngle arguments and arity", () => {
+    for (const args of [
+      [0, 0],
+      [-100, 20],
+      [100, -1],
+      [100, 201],
+      [Number.NaN, 20],
+      [100, Number.NaN],
+      [Number.POSITIVE_INFINITY, 20],
+      [100, Number.POSITIVE_INFINITY],
+      [Number.NEGATIVE_INFINITY, 20],
+      [100, Number.NEGATIVE_INFINITY],
+      [100],
+      [100, 20, 0]
+    ]) {
+      expect(evaluateBuiltinFunction("spreadAngle", args)).toEqual({ status: "error", reason: "invalid-argument" });
+    }
+  });
+
   it("rejects non-finite trigonometric inputs", () => {
     for (const name of ["sin", "cos", "tan", "asin", "acos", "atan"] as const) {
       for (const value of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {

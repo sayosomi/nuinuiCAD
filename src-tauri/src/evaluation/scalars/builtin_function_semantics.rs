@@ -344,6 +344,16 @@ pub(crate) fn evaluate_builtin_function(
             }
             finite_number_result(atan2_degrees_360(args[0], args[1]))
         }
+        BuiltinFunctionName::SpreadAngle => {
+            if !has_finite_arguments(args, 2) || args[0] <= 0.0 || args[1] < 0.0 {
+                return invalid_argument();
+            }
+            let ratio = args[1] / args[0];
+            if !ratio.is_finite() || ratio > 2.0 {
+                return invalid_argument();
+            }
+            finite_number_result(2.0 * radians_to_degrees((ratio / 2.0).asin()))
+        }
         BuiltinFunctionName::Distance
         | BuiltinFunctionName::Angle
         | BuiltinFunctionName::LineDistance => invalid_argument(),

@@ -43,8 +43,26 @@ describe("nui4 builtin function catalog", () => {
 
   it("keeps every production builtin signature positional-only", () => {
     expect(BUILTIN_FUNCTION_DEFINITIONS.every((definition) =>
-      definition.signatures.every((signature) => signature.callingStyle === "positional")
+      definition.name === "spreadAngle" || definition.signatures.every((signature) => signature.callingStyle === "positional")
     )).toBe(true);
+  });
+
+  it("defines spreadAngle as the production named-only scalar builtin", () => {
+    expect(definitionOf("spreadAngle")).toEqual({
+      name: "spreadAngle",
+      signatures: [{
+        callingStyle: "named",
+        parameters: [
+          { name: "length", type: { kind: "number" } },
+          { name: "spread", type: { kind: "number" } }
+        ],
+        returnType: { kind: "number" }
+      }]
+    });
+    expect(isBuiltinFunctionName("spreadAngle")).toBe(true);
+    expect(formatBuiltinFunctionSignatures(definitionOf("spreadAngle")!)).toBe(
+      "spreadAngle(length: number, spread: number) -> number"
+    );
   });
 
   it("defines the trigonometric scalar signatures", () => {
