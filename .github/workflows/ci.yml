@@ -38,9 +38,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Test
-        run: npm test
-
   rust:
     name: Rust + parity
     runs-on: ubuntu-24.04
@@ -83,6 +80,9 @@ jobs:
 
       - name: Install Node dependencies
         run: npm ci
+
+      - name: Test
+        run: npm test
 
       - name: TypeScript/Rust parity
         run: npm run test:parity
