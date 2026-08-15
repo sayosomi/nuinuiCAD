@@ -142,7 +142,9 @@ export const setRhsScalarCandidates = (
     const operandType = precedingOperandType(context.precedingToken, deps, context.rootType);
     return scalarOperatorCandidates(operandType).map((candidate): ScalarCompletionCandidate => ({ kind: "operator", label: candidate.label }));
   }
-  if (context.kind === "argumentName") return [];
+  if (context.kind === "argumentName") {
+    return context.names.map((name) => ({ kind: "argumentName", label: name }));
+  }
 
   const candidates: ScalarCompletionCandidate[] = [];
   const { expectedType: operandType } = context;

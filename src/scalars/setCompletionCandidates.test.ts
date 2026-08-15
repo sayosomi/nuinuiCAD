@@ -1,8 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Binding, BindingCatalog } from "./bindingCatalog";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps } from "./setCompletionCandidates";
 import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnalysisFixture";
+import * as builtinFunctions from "./builtinFunctions";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "./builtinFunctions";
+
+const namedDefinition: BuiltinFunctionDefinition = {
+  name: "someNamedFunction" as BuiltinFunctionName,
+  signatures: [{
+    callingStyle: "named",
+    parameters: [{ name: "first", type: { kind: "number" } }, { name: "second", type: { kind: "number" } }],
+    returnType: { kind: "number" }
+  }]
+};
+
+const withNamedDefinition = () => {
+  const original = builtinFunctions.getBuiltinFunctionDefinition;
+  vi.spyOn(builtinFunctions, "getBuiltinFunctionDefinition").mockImplementation((name) =>
+    name === "someNamedFunction" ? namedDefinition : original(name)
+  );
+};
+
+afterEach(() => vi.restoreAllMocks());
 
 const catalogFor = (source: string): { catalog: BindingCatalog; entriesById: BindingAnalysis["entriesById"] } => {
   const { bindingAnalysis } = typedDeclarationAnalysisFor(source);
@@ -193,5 +213,26 @@ describe("setRhsScalarCandidates", () => {
     const line = "set target = @flagA ";
     const candidates = setRhsScalarCandidates(line, { start: line.indexOf("=") + 1, end: line.length }, line.length, { kind: "boolean" }, deps);
     expect(candidates.map((c) => c.kind === "reference" ? c.name : c.kind === "function" ? c.name : c.label)).toEqual([" and ", " or ", "==", "!="]);
+  });
+
+  it("offers named argument candidates for a synthetic named builtin in a set RHS", () => {
+    withNamedDefinition();
+    const { catalog, entriesById } = catalogFor(["nui 4", "let target: number = 0"].join("\n"));
+    const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, 10);
+    const line = "set target = someNamedFunction(\n  fi";
+    const candidates = setRhsScalarCandidates(line, { start: line.indexOf("=") + 1, end: line.length }, line.length, { kind: "number" }, deps);
+    expect(candidates).toEqual([
+      { kind: "argumentName", label: "first" },
+      { kind: "argumentName", label: "second" }
+    ]);
+  });
+
+  it("excludes an already-used named parameter from set RHS candidates", () => {
+    withNamedDefinition();
+    const { catalog, entriesById } = catalogFor(["nui 4", "let target: number = 0"].join("\n"));
+    const deps = depsAt(catalog, entriesById, catalog.scopeIndex.rootScopeId, 10);
+    const line = "set target = someNamedFunction(first: 1,\n  ";
+    const candidates = setRhsScalarCandidates(line, { start: line.indexOf("=") + 1, end: line.length }, line.length, { kind: "number" }, deps);
+    expect(candidates).toEqual([{ kind: "argumentName", label: "second" }]);
   });
 });
