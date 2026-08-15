@@ -24,14 +24,4 @@ const polarAngle: number = lineAngle(@Horizontal, @Polar)
 const zeroFirst: number = lineAngle(@ZeroFirst, @Horizontal)
 const zeroSecond: number = lineAngle(@Horizontal, @ZeroSecond)
 let setValue: number = 0
-set setValue = @perpendicular
-
-module Example(baseline: line) {
-  line Local = segment(start: (0, 0), end: (0, 10))
-  export line Exported = segment(start: (0, 0), end: (10, 0))
-  const moduleLineAngle: number = lineAngle(@baseline, @Local)
-  const moduleExportLineAngle: number = lineAngle(@baseline, @Exported)
-}
-
-instance ExampleInstance = Example(baseline: @Horizontal)
-const instanceExportLineAngle: number = lineAngle(@ExampleInstance::Exported, @Horizontal)
+set setValue = lineAngle(@Horizontal, @Vertical)

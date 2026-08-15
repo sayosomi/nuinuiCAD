@@ -87,8 +87,11 @@ lineDistance(point, line) -> number
 lineAngle(line, line) -> number
 ```
 
-例えば、宣言、`set` の右辺、条件式、文字列補間、scalar property、
-module の scalar 引数・body で次のように書けます。
+scalar-only builtin は、宣言、`set` の右辺、条件式、文字列補間、scalar
+property、module の scalar 引数・body で利用できます。geometry-argument
+builtin (`distance`、`angle`、`lineDistance`、`lineAngle`) は、既存の
+geometry reference resolution 経路がある typed declaration initializer、
+`set` の右辺、module の scalar expression で直接利用できます。
 
 ```text
 const rounded: number = round(@seam / 2, 1)
@@ -100,6 +103,18 @@ const opening: number = spreadAngle(
 set angle = roundTo(@angle, 15)
 text note = label(text: "幅 ${round(@seam, 1)}mm", anchor: @A, size: 3)
 ```
+
+例えば geometry measurement の結果を一度 typed scalar binding に入れます。
+
+```text
+const measuredAngle: number = lineAngle(@LineA, @LineB)
+point P = coordinate(x: @measuredAngle, y: 0)
+```
+
+construction numeric parameter、scalar property、text-template hole、
+`printLayout` の numeric parameter で geometry measurement result を使う場合も、
+このように `@measuredAngle` のような binding を参照します。Task 4 では、これらの
+surface に geometry builtin 専用の evaluator / resolver 経路を追加していません。
 
 `round`、`floor`、`ceil` の桁数は整数で、`round` の .5 はゼロから遠ざかる
 方向に丸めます（`round(1.5)` は `2`、`round(-1.5)` は `-2`）。

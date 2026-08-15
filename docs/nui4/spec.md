@@ -280,10 +280,21 @@ effectively zero-length line is an evaluation error; the runtime threshold is
 `length <= 1e-9`. This is distinct from `angle(point, point)`, which returns a
 directed point-to-point direction normalized to `0..360` degrees.
 
-Builtins are available anywhere the shared typed-expression frontend is used:
-typed declarations, `set` right-hand sides, boolean conditions, scalar
-property values, text-template holes, and scalar module arguments/body
+Scalar-only builtins are available anywhere the shared typed-expression
+frontend already supports scalar expressions: typed declarations, `set`
+right-hand sides, boolean conditions, scalar property values, text-template
+holes, and scalar module arguments/body expressions. Geometry-argument builtins
+(`distance`, `angle`, `lineDistance`, and `lineAngle`) can be called directly
+only where the existing geometry-reference resolution path is available:
+typed declaration initializers, `set` right-hand sides, and module scalar
 expressions. The same catalog and signatures are used by source completion.
+
+Task 4 does not add a new evaluator or resolver surface. To use a geometry
+measurement result in a construction numeric parameter, scalar property,
+text-template hole, or `printLayout` numeric parameter, first assign it to a
+typed scalar binding and reference that binding instead, for example
+`const measuredAngle: number = lineAngle(@LineA, @LineB)` followed by
+`@measuredAngle`.
 
 This is a typed expression surface for CAD construction, not a general-purpose
 programming language.

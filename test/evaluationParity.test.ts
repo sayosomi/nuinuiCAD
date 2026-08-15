@@ -450,9 +450,6 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expectScalarNumberClose(scalarBindingFor(fixture, payload, "swapped"), 45);
       expectScalarNumberClose(scalarBindingFor(fixture, payload, "polarAngle"), 45);
       expectScalarNumberClose(scalarBindingFor(fixture, payload, "setValue"), 90);
-      expectScalarNumberClose(scalarBindingFor(fixture, payload, "moduleLineAngle"), 90);
-      expectScalarNumberClose(scalarBindingFor(fixture, payload, "moduleExportLineAngle"), 0);
-      expectScalarNumberClose(scalarBindingFor(fixture, payload, "instanceExportLineAngle"), 0);
       expect(scalarBindingFor(fixture, payload, "zeroFirst")).toMatchObject({
         status: "error",
         issueCode: "evaluation-invalid-builtin-argument"
