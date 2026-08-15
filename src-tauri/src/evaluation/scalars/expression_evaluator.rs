@@ -1,20 +1,19 @@
-//! Rust counterpart to TypeScript's pure reference evaluator (Task 16,
-//! `src/scalars/expressionEvaluator.ts`). Consumes only Task 17's validated
+//! Rust counterpart to TypeScript's pure reference evaluator
+//! (`src/scalars/expressionEvaluator.ts`). Consumes only validated
 //! `TypedScalarExpression` enum and a caller-injected
 //! [`ScalarEvaluationEnvironment`] - it never touches `serde_json::Value`,
 //! never parses, tokenizes, resolves names, or typechecks. References
 //! resolve solely by the stable `bindingId` already attached to each
 //! reference node; scope, shadowing, declaration order, and binding
-//! eligibility are Tasks 11-13's finished, closed surface and are never
-//! reinterpreted here. Document declaration order, `set` versions, control
-//! flow, property wiring, and production wiring are all out of scope - see
-//! docs/typed-variables/tasks/18-rust-expression-evaluator-parity.md.
+//! eligibility are established before evaluation and are never reinterpreted
+//! here. Document declaration order, `set` versions, control flow, property
+//! wiring, and production wiring are owned by the surrounding runtime layers.
 //!
 //! **Traversal is iterative, not recursive**, for the same reason
-//! `expression_payload.rs`'s decoder is: Task 14's parser places no depth
+//! `expression_payload.rs`'s decoder is: the parser places no depth
 //! limit on a flat `binary` chain (same-precedence-tier operators, including
 //! `&&`/`||`, parse via a loop into a left-nested tree; only unary/group
-//! nesting is depth-capped at 128), so a chain within Task 17's
+//! nesting is depth-capped at 128), so a chain within the
 //! `MAX_TYPED_EXPRESSION_NODE_COUNT` (20,000) node budget is a legitimate
 //! payload a naive recursive `fn eval(node) { ... eval(node.left) ... }`
 //! would stack-overflow on. Unlike decoding - a uniform post-order walk that
@@ -109,11 +108,11 @@ pub(super) enum EvalWork<'a> {
 }
 
 /// Entry point: evaluates a validated `TypedScalarExpression` against
-/// `environment`, matching Task 16's TS reference evaluator's result and
+/// `environment`, matching the TypeScript reference evaluator's result and
 /// binding-lookup behavior exactly. No recursive call into this function (or
 /// any dispatcher) anywhere - the only "recursion" is pushing more work
-/// items onto a heap `Vec`, so arbitrarily deep flat binary chains (up to
-/// Task 17's own node-count budget) evaluate at O(1) native stack depth.
+/// items onto a heap `Vec`, so arbitrarily deep flat binary chains (up to the
+/// node-count budget) evaluate at O(1) native stack depth.
 pub(crate) fn evaluate_typed_expression(
     node: &TypedScalarExpression,
     environment: &impl ScalarEvaluationEnvironment,
@@ -205,7 +204,7 @@ fn eval_node<'a>(
                     options: options.clone(),
                 },
             }),
-            // Task 17 already guarantees a choiceLiteral's non-null `type`
+            // Payload validation already guarantees a choiceLiteral's non-null `type`
             // is a `Choice` variant (LiteralTypeMismatch is rejected at
             // decode time) - this arm exists only so the match is
             // exhaustive, not as a reachable runtime path.

@@ -1,15 +1,14 @@
 //! Fail-closed decoder for a `TypedScalarExpression` JSON AST (the shape
-//! produced by TS Task 15's typechecker, `src/scalars/typedExpressionAst.ts`)
+//! produced by TypeScript's typechecker, `src/scalars/typedExpressionAst.ts`)
 //! into the validated `TypedScalarExpression` enum in `types.rs`. This is
-//! the module Task 18's operator evaluator will consume - by the time a
+//! the expression evaluator consumes it - by the time a
 //! value of `TypedScalarExpression` exists, every node/tag/field, declared
 //! type, choice option/member, and reference binding ID shape has already
-//! been checked; Task 18 should never need to branch on a raw
+//! been checked; the evaluator should never need to branch on a raw
 //! `serde_json::Value` again.
 //!
-//! Out of scope here (see docs/typed-variables/tasks/17-rust-expression-payload-validation.md):
-//! operator evaluation, binding environments, document integration, and
-//! re-deriving Task 15's operator/operand type-inference results - a node's
+//! Out of scope here: operator evaluation, binding environments, document
+//! integration, and re-deriving operator/operand type-inference results - a node's
 //! own declared `type` is validated for being *well-formed*, not for being
 //! the *semantically correct* result of its operator/operands (that would
 //! duplicate the TS typechecker, which is explicitly out of scope). Rust
@@ -21,7 +20,7 @@
 //! version of this module used a recursive `decode_node`, guarded by a
 //! structural-depth cap chosen by empirically bisecting the recursive
 //! implementation's own stack-overflow boundary. That was the wrong fix:
-//! Task 14's parser bounds *its own* recursion for `unary`/`group`/`call`
+//! The parser bounds *its own* recursion for `unary`/`group`/`call`
 //! nesting (see `MAX_SCALAR_EXPRESSION_DEPTH` below) - it places no limit at
 //! all on a flat `binary` chain's length, since same-tier operator chains are
 //! parsed with a loop, not recursion. A sufficiently long flat binary chain
@@ -56,8 +55,8 @@ use super::types::{
 /// Bounds `unary`/`group`/`call` nesting specifically - **not** overall tree
 /// depth, and **not** a stack-safety margin (traversal is iterative, so
 /// Rust's own call stack is never at risk regardless of how this is set).
-/// This is a payload-policy mirror of a real TS-side wire contract: Task
-/// 14's parser increments its own recursion-depth counter (`enterNesting`)
+/// This is a payload-policy mirror of a real TypeScript-side wire contract:
+/// the parser increments its own recursion-depth counter (`enterNesting`)
 /// only when descending into a unary-prefix operand, a parenthesized group,
 /// or a call argument, and hard-caps that counter at
 /// `MAX_SCALAR_EXPRESSION_DEPTH = 128` (`src/scalars/expressionParser.ts`).

@@ -3,9 +3,8 @@
 // visibleBindingsAt (bulk visibility) may be used outside tests.
 // resolveBindingReferenceForTests exposes exact duplicate/forward/undefined
 // resolution detail that neither production API returns, && is exported
-// solely so tests can assert it directly - Task 14/15+ expression-parser
-// work must not depend on it. See
-// docs/typed-variables/tasks/13r4-batch-resolver-contract.md.
+// solely so tests can assert it directly. Production expression parsing and
+// typechecking must use the production-facing resolution surface instead.
 //
 // This file lives under test/, not src/, following this repo's existing
 // pattern for vitest-only files that use Node built-ins (see

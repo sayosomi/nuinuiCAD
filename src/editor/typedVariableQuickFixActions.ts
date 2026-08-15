@@ -1,7 +1,7 @@
-// Task 41: thin CodeMirror adapter over src/scalars/typedVariableQuickFixes.ts.
+// Thin CodeMirror adapter over src/scalars/typedVariableQuickFixes.ts.
 // This file's only job is applying a descriptor's splice/action to a live
 // EditorView - it computes no offsets && re-derives no diagnostic routing
-// itself. See docs/typed-variables/tasks/41-typed-variable-quick-fixes.md.
+// itself.
 
 import type { Action } from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";

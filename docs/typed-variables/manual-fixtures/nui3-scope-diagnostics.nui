@@ -1,4 +1,0 @@
-nui 3
-const selfRef: number = @selfRef
-const usesLater: number = @later
-const later: number = 5

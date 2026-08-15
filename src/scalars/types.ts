@@ -1,5 +1,5 @@
-// Scalar type/value/evaluation contracts shared by the typed-variable subsystem.
-// This module is a pure, unconnected library: see docs/typed-variables/tasks/08-scalar-type-contracts.md.
+// Scalar type/value/evaluation contracts shared by the scalar subsystem.
+// This module defines the current scalar type, value, and evaluation contract.
 // No implicit conversion between kinds is ever performed here.
 
 export type ScalarType =

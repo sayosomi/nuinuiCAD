@@ -27,8 +27,7 @@ import { getParameterValue } from "../parameters/parameterAccess";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
 
-// textPatch — モデル差分を「行スプライス」列に変換するパッチ生成器
-// (docs/overhaul/plan.md / Phase 1a)。
+// textPatch — モデル差分を「行スプライス」列に変換するパッチ生成器。
 //
 // 設計原則:
 // * パッチはスプライスのみ。対象外の行(コメント・空行・無変更の文)は

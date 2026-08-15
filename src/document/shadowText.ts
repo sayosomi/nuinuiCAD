@@ -17,12 +17,12 @@ import type {
 } from "../types/geometry";
 import { applyLineSplices, buildTextPatch } from "./textPatch";
 
-// shadowText — Phase 1b の影テキスト維持機構(docs/overhaul/plan.md /
-// docs/overhaul/tasks/phase-1b-shadow-text.md)。
+// shadowText — モデル更新後も canonical DSL text とコンパイル結果を
+// 同期させる影テキスト維持機構。
 //
 // 正準は DSL テキストとその最後に成功したコンパイル結果である。ここで維持する `ShadowState`
-// は観測専用の派生データで、Phase 1a の `textPatch` / 未接続だった
-// `compileDslDocument` を実ユーザー操作の全経路で実戦検証するために存在する。
+// は観測専用の派生データで、`textPatch` と `compileDslDocument` の結果を
+// 実ユーザー操作の全経路で検証するために存在する。
 //
 // 核心の設計: 影の statementMap は必ず「店(モデル)の実行時ID」でキーする。
 // `layoutElementTree` は `elements` 配列順に1要素1文を出力し、textPatch は
@@ -30,7 +30,7 @@ import { applyLineSplices, buildTextPatch } from "./textPatch";
 // `afterDoc.elements` と同順・1対1になる。この位置対応(zip)で
 // `assignedElementIds` を組み `compileDslDocument` に注入することで、
 // 影の要素IDを店のIDに一致させる(statementReconciler の照合結果は使わない
-// — その本番利用は Phase 1c)。
+// — 影の再コンパイルでは document 順の1対1対応を使う)。
 
 export type ShadowState = {
   text: string;

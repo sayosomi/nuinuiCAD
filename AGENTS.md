@@ -43,15 +43,42 @@ coordinate values should remain Y-up.
 ## Source of truth
 
 `ARCHITECTURE.md` is the current repository architecture and navigation index.
-`docs/dsl.md` is the current implemented DSL language documentation. Source code
-is the final authority for implementation details and behavior. `AGENTS.md` is
-the durable product, engineering, and workflow policy. When a task-specific
+`docs/nui4/spec.md` is the normative nui4 language contract. `docs/dsl.md` is
+the current user-facing documentation for the implemented DSL. Source code is
+the final authority for implementation details and behavior. `AGENTS.md` is the
+durable product, engineering, and workflow policy. When a task-specific
 specification or plan exists, respect that Task contract. Do not duplicate a
 large architecture map in this file.
 
 If behavior changes at the architectural or product-policy level, update the
 appropriate durable document. If only a shortcut, label, parameter, or element
 field changes, update the source of truth instead.
+
+## Documentation lifecycle
+
+Task-specific plans, implementation notes, migration plans, and task checklists
+are working documents, not permanent current documentation by default.
+
+For a multi-Task line of work, perform a Documentation cleanup check during the
+final Task before preparing the final PR. For single-Task work, perform the same
+check before the Task is considered complete.
+
+Review the documentation created, completed, or superseded by that work.
+Delete completed plan/task documents that no longer describe current behavior
+and are not needed for future implementation. Do not keep completed plans in the
+current tree only for historical record; Git history is the archive.
+
+Keep current sources of truth, durable engineering policy, current user
+documentation, active specifications, and reusable manual/test fixtures.
+
+When deleting a document, update or remove repository links and source/test
+comments that point to it. Preserve useful current rationale by rewriting it
+against current behavior or a current source of truth instead of a historical
+Task document.
+
+Do not delete unrelated documentation as incidental cleanup. If a document may
+still be authoritative and that cannot be determined from the current Task
+contract and current implementation, do not delete it; report it for review.
 
 ## Architecture impact check
 

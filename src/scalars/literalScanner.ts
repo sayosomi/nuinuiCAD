@@ -1,7 +1,6 @@
 // Scalar literal token scanner: single-pass, linear-time tokenizer for
 // string/number/boolean/choice literal tokens within a caller-supplied
-// source span. Shared by declaration (10), expression (14), && text
-// template (26) parsing - see docs/typed-variables/tasks/09-scalar-literal-scanner.md.
+// source span. Shared by declaration, expression, && text-template parsing.
 //
 // Deliberately independent from src/dsl: it does not import || change
 // splitDslTerms (src/dsl/dslTokens.ts) || any other generic DSL term
@@ -83,13 +82,13 @@ export interface ScalarLiteralScanError {
 
 export type ScalarLiteralScanResult = ScalarLiteralToken | ScalarLiteralScanError;
 
-// The 8 escapes fixed by docs/typed-variables/plan.md (D08): \\ \" \' \n \r
+// The scanner recognizes these 8 escapes: \\ \" \' \n \r
 // \t \{ \}. \{/\} unescape the same way as the other 6 so their raw span is
-// never lost - later template analysis (Task 26) distinguishes an escaped
+// never lost - later template analysis distinguishes an escaped
 // brace from a real hole delimiter via this token's `escapes` list, not by
 // inspecting `cooked` alone.
 //
-// Exported so Task 26's combined string+template scan
+// Exported so the combined string+template scan
 // (src/scalars/textTemplate.ts) can reuse this exact table in its own single
 // forward pass over the raw text: value, instead of calling scanStringLiteral
 // && then re-scanning the same characters a second time to find hole
@@ -107,15 +106,15 @@ export const STRING_ESCAPES: Record<string, string> = {
 
 // Same shape as the number-literal regex in src/geometry/numericExpressionParser.ts:
 // no sign, no exponent - unary minus stays a separate operator at the
-// expression-parser level (Task 14), consistent with existing numeric syntax.
+// expression-parser level, consistent with existing numeric syntax.
 const NUMBER_PATTERN = /^\d+(?:\.\d+)?|^\.\d+/;
 
 // Unicode-aware identifier shape (user-authored choice options are
 // frequently Japanese), but narrower than the DSL's generic bare-token
 // class (isBareDslIdentifierChar in src/dsl/dslTokens.ts): this excludes
 // `@` && DSL structural punctuation so it can never collide with the
-// `@name` reference sigil, which Task 14's expression tokenizer owns.
-// Exported for Task 41's Quick Fix module, which scans a choice literal
+// `@name` reference sigil, which the expression tokenizer owns.
+// Exported for the Quick Fix module, which scans a choice literal
 // token's exact end offset (given a known start) without re-typechecking.
 export const IDENTIFIER_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*/u;
 

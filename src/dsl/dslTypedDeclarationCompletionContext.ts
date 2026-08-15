@@ -1,7 +1,6 @@
 // Pure, catalog-free typed declaration initializer completion context
-// (Task 39). Re-parses only the single statement the cursor is in - never
-// the document - && never resolves `@name` types itself; see
-// docs/typed-variables/tasks/39-typed-value-completion.md &&
+// Re-parses only the single statement the cursor is in - never
+// the document - && never resolves `@name` types itself; it delegates to
 // src/scalars/scalarExpressionPositionClassifier.ts for the shared
 // operand/operator position analysis this delegates to.
 

@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 import { legacyBindingIdMap, retiredCommandIds } from "../src/keyboard/shortcutSettingsStorage";
 
-const commandIdMapDocument = readFileSync(resolve(process.cwd(), "docs/overhaul/command-id-map.md"), "utf8");
+const commandIdMapDocument = readFileSync(resolve(process.cwd(), "docs/command-id-map.md"), "utf8");
 
 const section = (start: string, end: string) => {
   const startIndex = commandIdMapDocument.indexOf(start);

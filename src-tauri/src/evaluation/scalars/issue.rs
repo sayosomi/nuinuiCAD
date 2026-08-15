@@ -4,9 +4,8 @@
 //! builds human-readable Japanese message structs); it deliberately mirrors
 //! how TS's `ScalarEvaluation.issueCode` is a stable string, but lives in
 //! its own `scalar-payload-*` namespace, distinct from both that open TS
-//! evaluation-issue vocabulary and the DSL diagnostic catalog in
-//! docs/typed-variables/plan.md - neither of those is reused at this
-//! boundary layer.
+//! evaluation-issue vocabulary and the DSL diagnostic catalog - neither of
+//! those is reused at this boundary layer.
 
 use std::fmt;
 

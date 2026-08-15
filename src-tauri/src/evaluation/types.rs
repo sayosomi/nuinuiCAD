@@ -10,23 +10,18 @@ pub type ElementId = String;
 pub struct EvaluationInput {
     pub(crate) elements: Vec<Value>,
     pub(crate) evaluation_limit_index: Option<usize>,
-    /// A single typed-scalar-expression payload (Task 17,
-    /// docs/typed-variables/tasks/17-rust-expression-payload-validation.md),
-    /// deliberately scoped narrower than a full multi-statement "compiled
-    /// scalar program" - that's Task 19/21's concern. No caller populates
-    /// this yet; when absent, evaluation is byte-for-byte unchanged from
-    /// before this field existed. When present, `evaluate_document_input`
-    /// only runs it through `scalars::validate_typed_expression_payload` as
-    /// an inert shadow check (see mod.rs) - the result never affects
-    /// `EvaluationPayload`.
+    /// Optional single typed-scalar-expression payload. At this boundary it is
+    /// validated by `scalars::validate_typed_expression_payload` as an inert
+    /// structural check; its result does not affect `EvaluationPayload`.
     pub(crate) scalar_expression_payload: Option<Value>,
-    /// Task 19's validated declaration-only IR. Task 21 evaluates this after
-    /// the production geometry pass, preserving the existing geometry result.
+    /// Optional validated scalar program payload. It contains resolved binding
+    /// IDs and source positions rather than source text or names for Rust to
+    /// resolve, and is evaluated through the scalar runtime after geometry
+    /// setup.
     pub(crate) scalar_program: Option<Value>,
-    /// Task 32's fully compiled binding-version IR for a document containing
-    /// linear `set` statements. This is deliberately separate from
-    /// `scalar_program`: Rust receives stable IDs, resolved references and
-    /// source positions, never source text or names to resolve.
+    /// Optional compiled binding-version payload for documents containing
+    /// linear `set` statements. Rust receives stable IDs, resolved references,
+    /// and source positions, never source text or names to resolve.
     pub(crate) binding_versions: Option<Value>,
     /// Schema-driven elementId-keyed property sources (re-keyed from
     /// `CompiledDslDocument.propertyBindings` by TS's
@@ -36,16 +31,16 @@ pub struct EvaluationInput {
     /// resolve binding ids against, rather than silently falling back to
     /// literal values.
     pub(crate) property_bindings: Option<Value>,
-    /// Task 25's elementId-keyed `forGroup.showGenerated` bindings. Same
+    /// ElementId-keyed `forGroup.showGenerated` bindings. This uses the same
     /// fail-closed-without-a-scalar-program contract as `property_bindings`.
     pub(crate) control_boolean_bindings: Option<Value>,
-    /// Task 25's `conditionalGroup.condition` typed boolean expressions, one
+    /// `conditionalGroup.condition` typed boolean expressions, one
     /// entry per bound `conditionalGroup` (`{elementId, expression}`). A
     /// distinct shape from `control_boolean_bindings`/`property_bindings`
     /// (a full AST, not a bindingId) since `condition` accepts an arbitrary
     /// boolean expression, not just a bare `@name` reference.
     pub(crate) condition_expressions: Option<Value>,
-    /// Compiled Task 26/27 text-template segments. This carries no source
+    /// Compiled text-template segments. This carries no source
     /// text or names for Rust to parse: typed holes already contain resolved
     /// expression ASTs, while numeric holes retain their local numeric
     /// runtime path.
@@ -115,14 +110,14 @@ pub struct EvaluationPayload {
     pub(crate) condition_inactive_element_ids: Vec<ElementId>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) for_group_generated_rows: Vec<ForGroupGeneratedRow>,
-    /// Task 25: `forGroup` ids whose generated-result presentation is
-    /// enabled. Never affects iteration count/rows - `for_group_generated_rows`
-    /// above is always fully populated regardless of membership here.
+    /// `forGroup` ids whose generated-result presentation is enabled. Never
+    /// affects iteration count/rows - `for_group_generated_rows` above is
+    /// always fully populated regardless of membership here.
     pub(crate) for_group_effective_show_generated_ids: Vec<ElementId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) computed_scalar_bindings: Option<Vec<Value>>,
-    /// Task 32's source-ordered runtime history for every executed/poisoned
-    /// binding version. Absent on Task 21's declaration-only path.
+    /// Source-ordered runtime history for every executed or poisoned binding
+    /// version, when binding-version evaluation is present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) computed_scalar_binding_versions: Option<Vec<Value>>,
 }

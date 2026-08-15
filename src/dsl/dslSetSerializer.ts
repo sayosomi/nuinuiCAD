@@ -5,9 +5,8 @@ import { formatDslName } from "./dslTokens";
 // statement's outer shape (keyword, spacing, target name) is canonicalized
 // here. The RHS is re-emitted byte-for-byte from its raw source text: no
 // re-quoting, re-escaping, || whitespace normalization is performed, because
-// this task never parses the RHS as an expression at the DSL-parser level
-// (see docs/typed-variables/tasks/29-set-syntax-resolution.md, &&
-// dslDeclarationSerializer.ts's identical treatment of `initializer`).
+// the DSL parser level keeps the RHS as source text rather than reparsing it.
+// This matches dslDeclarationSerializer.ts's treatment of `initializer`.
 //
 // This statement only exists in nui 4 - there is no v2 form - so no
 // majorVersion branching is needed here.

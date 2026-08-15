@@ -1,7 +1,6 @@
-// Task 26: single forward-pass scan of a `label(text: "...")` raw quoted
+// Single forward-pass scan of a `label(text: "...")` raw quoted
 // value that resolves string escapes AND template holes (`${...}`) in
-// exactly one pass over the characters - never two. See
-// docs/typed-variables/tasks/26-text-template-analysis.md.
+// exactly one pass over the characters - never two.
 //
 // This is deliberately not built on top of scanScalarLiteral's *output*
 // (calling it once for escapes, then walking `raw` a second time for

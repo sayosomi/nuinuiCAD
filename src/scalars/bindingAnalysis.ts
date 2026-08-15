@@ -1,6 +1,5 @@
 // Pure initializer dependency graph, SCC (cycle) detection, && per-binding
-// issue/status classification over Task 12's already-resolved binding
-// references. See docs/typed-variables/tasks/13-binding-diagnostics-initializer-graph.md.
+// issue/status classification over already-resolved binding references.
 //
 // This module never re-parses source text, never calls resolveBindingReference
 // itself, && never re-derives undefined/forward/self/duplicate classification -
@@ -32,7 +31,7 @@ export type InitializerReference = {
   name: string;
   /** Exact span of the `@name` token; caller-owned, used only for diagnostic display. */
   span: DslSpan | null;
-  /** Task 12's resolution for this exact occurrence; never re-resolved here. */
+  /** Resolution for this exact occurrence; never re-resolved here. */
   resolution: BindingResolution;
 };
 
@@ -50,7 +49,7 @@ export type InitializerGraph = {
   nodeIds: readonly BindingId[];
   /**
    * Each entry's edges are ordered by the owning reference's `occurrenceIndex`
-   * (forward's multiple candidate targets keep Task 12's own
+   * (forward's multiple candidate targets keep the resolver's own
    * `bindingsByEffectiveScopeAndName` statementIndex order). Bindings with no
    * outgoing edges are absent from this map.
    */
@@ -131,7 +130,7 @@ export type BindingAnalysis = {
   /** catalog.bindings order. */
   entries: readonly BindingAnalysisEntry[];
   entriesById: ReadonlyMap<BindingId, BindingAnalysisEntry>;
-  /** Precomputed Task 19 input; use selectCompiledProgramBindings instead of re-analysis. */
+  /** Precomputed compiled-program input; use selectCompiledProgramBindings instead of re-analysis. */
   compiledProgram: CompiledProgramBindingSelection;
   /** Ordered by (bindingRank, codeRank, originRank, occurrenceIndex); see module comment. */
   issues: readonly BindingIssue[];

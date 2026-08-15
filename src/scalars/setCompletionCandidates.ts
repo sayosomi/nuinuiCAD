@@ -1,23 +1,22 @@
-// Task 40: `set` target-name && RHS completion candidate generation.
-// Unlike Task 39's declaration/property/template completion
+// `set` target-name && RHS completion candidate generation.
+// Unlike declaration/property/template completion
 // (typedValueCandidates.ts), this never resolves visibility through
 // visibleBindingsAt's compiled-statementIndex sweep && never touches
 // BindingVersionGraph: a `set` statement's own target may currently be
-// unresolved (invalid target) || its RHS invalid, && per Task 40 a brand-
-// new, never-yet-compiled `set` line must still complete correctly. Instead,
+// unresolved (invalid target) || its RHS invalid, && a brand-new,
+// never-yet-compiled `set` line must still complete correctly. Instead,
 // visibility is resolved purely from each candidate typed binding's own
 // *live* document position (already tracked independently of this specific
 // `set` statement's own compiled identity - see
 // src/editor/statementRangeIndex.ts's TypedDeclarationRangeIndex) compared
 // against the live cursor position, plus lexical scope-chain membership from
 // the last compiled BindingCatalog's own scope index (which is always
-// available && always current for every statement, valid || not - Task
-// 29's own `SetStatementAnalysis`/BindingVersionGraph are unavailable
+// available && always current for every statement, valid || not - the
+// statement's own compiled analysis/BindingVersionGraph may be unavailable
 // exactly for the cases this task must handle, so they are never consulted
 // here). Forward-reference exclusion && pre-declaration outer-scope
 // shadowing both fall out of the position comparison alone - see
 // setVisibleTypedBindings's own doc comment.
-// See docs/typed-variables/tasks/40-set-recovery-completion.md.
 
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { Binding, BindingCatalog, BindingId } from "./bindingCatalog";
@@ -65,7 +64,7 @@ export type SetCompletionSiteDeps = {
  * this is forward-reference exclusion; a binding shadowed by an inner-scope
  * declaration that itself sits after the cursor is *not* excluded, because
  * that inner declaration never passes the position check either - this is
- * plan.md's "内側同名宣言の前は外側が見え" pre-declaration outer visibility
+ * "内側同名宣言の前は外側が見え" pre-declaration outer visibility
  * rule, falling out of the same single position comparison. `accepts`
  * narrows by mutability/type; callers choose the exact predicate (target
  * completion: `let` only, known type, any BindingAnalysis status; RHS
@@ -122,9 +121,9 @@ const precedingOperandType = (precedingToken: ScalarExpressionToken, deps: SetCo
 };
 
 /**
- * Set RHS completion (Task 40): reuses Task 39's pure, catalog-free literal/
+ * Set RHS completion: reuses the pure, catalog-free literal/
  * operator tables && operand/operator position classification unchanged;
- * only its reference-candidate visibility is Task 40's own position-based
+ * only its reference-candidate visibility is this module's position-based
  * resolution (see this module's header) rather than typedValueCandidates.ts's
  * visibleBindingsAt-based typedBindingReferenceCandidates/
  * scalarExpressionCandidates.

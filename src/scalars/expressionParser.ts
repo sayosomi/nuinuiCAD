@@ -1,18 +1,17 @@
 // Precedence-climbing parser for typed scalar expressions. Builds on
-// expressionTokenizer.ts (Task 09-backed literal tokens + this module's own
-// operator/paren/@name tokens). Production-unconnected: see
-// docs/typed-variables/tasks/14-ts-expression-parser.md.
+// expressionTokenizer.ts (literal tokens + this module's own operator/paren/
+// @name tokens).
 //
-// Fixed precedence, loosest to tightest (docs/typed-variables/plan.md D09):
+// Fixed precedence, loosest to tightest:
 // || &&   ==/!=  </<=/>/>=  +/-  * /   then unary (!, -, +), then primary
 // (including named calls).
 // This differs from the local numeric parser (src/geometry/numericExpressionParser.ts,
 // not imported here), which conflates comparison+equality into a single
-// non-chained tier - this parser splits them into two tiers per plan.md, &&
+// non-chained tier - this parser splits them into two tiers, &&
 // keeps both non-chaining: a second comparison/equality operator applied
 // directly to the result of the first (e.g. `1 < 2 < 3`) is rejected with
 // `chained-comparison-not-supported` rather than silently producing an AST
-// that Task 15's typecheck would always reject anyway. ` || `, ` && `, `+`/`-`,
+// that the typechecker would always reject anyway. ` || `, ` && `, `+`/`-`,
 // `*`/`/` all chain left-associatively; unary operators are right-associative
 // via recursion.
 //

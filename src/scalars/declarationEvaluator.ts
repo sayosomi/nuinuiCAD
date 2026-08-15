@@ -1,17 +1,18 @@
-// Task 20: evaluates a Task 19 ScalarProgram's const/let declarations to
-// their version-0 value using Task 16's pure expression evaluator. This
+// Evaluates a ScalarProgram's const/let declarations to their version-0 value
+// using the pure expression evaluator. This
 // module never parses source, never re-resolves a binding name, && never
-// re-derives Task 13's forward/self/cycle/eligibility diagnostics.
+// re-derives forward/self/cycle/eligibility diagnostics.
 //
-// Task 23 changed the evaluation strategy from a single eager left-to-right
-// sweep to an on-demand, memoized resolver (`createLazyScalarProgramEvaluator`):
+// The evaluation strategy uses an on-demand, memoized resolver
+// (`createLazyScalarProgramEvaluator`) rather than a single eager left-to-right
+// sweep:
 // a binding's initializer is evaluated the first time something asks for it
 // (recursing into other referenced bindings on demand) rather than always in
 // array order up front. This lets a caller (the per-element evaluation loop)
 // ask for a specific binding's value mid-run, without re-evaluating the whole
 // program && without ever evaluating any single binding more than once. A
 // compiled ScalarProgram is already guaranteed acyclic && forward-reference
-// free (Task 13's `binding-cycle`/`forward-binding-reference`/
+// free (`binding-cycle`/`forward-binding-reference`/
 // `self-initialization` diagnostics make the whole document fail to compile
 // otherwise - see `compileDslDocument`'s early-return-on-error &&
 // `buildBindingProgramEligibility`'s own defensive throw in
@@ -23,9 +24,8 @@
 // resolver, so callers that only need the whole-document result never see a
 // difference from the prior array-order construction.
 //
-// `set`, control-flow mutation, && Rust evaluation are all out of scope -
-// see docs/typed-variables/tasks/20-ts-const-evaluation.md &&
-// docs/typed-variables/tasks/23-standard-property-runtime.md.
+// `set`, control-flow mutation, && Rust evaluation are handled by their
+// respective compilation/runtime paths rather than this declaration evaluator.
 
 import type { BindingId } from "./bindingCatalog";
 import { evaluateTypedExpression, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
@@ -123,8 +123,8 @@ export const createLazyScalarProgramEvaluator = (
 /**
  * Walks `program.statements` in array order (already source order) && pulls
  * each statement's value from `evaluator` - a memoized resolver, so anything
- * already resolved (e.g. by a property-materialization lookup made mid-run,
- * per Task 23) is a free cache hit here, never re-evaluated. This is what
+   * already resolved (e.g. by a property-materialization lookup made mid-run)
+   * is a free cache hit here, never re-evaluated. This is what
  * guarantees the returned map's shape/insertion order is always the same
  * regardless of what order (if any) callers resolved bindings in beforehand,
  * so `computedScalarBindings`'s output stays byte-identical to the original
@@ -147,7 +147,7 @@ export const finalizeScalarProgramEvaluation = (
  * Evaluates every declaration in `program.statements` && returns them keyed
  * by bindingId, in array order. A thin convenience wrapper for callers that
  * only need the whole-document result with no mid-run lookups of their own -
- * see `finalizeScalarProgramEvaluation` for callers (Task 23) that need to
+ * see `finalizeScalarProgramEvaluation` for callers that need to
  * resolve individual bindings before the whole program is walked.
  */
 export const evaluateScalarProgram = (

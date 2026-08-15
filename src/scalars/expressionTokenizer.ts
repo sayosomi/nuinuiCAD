@@ -1,9 +1,7 @@
 // Flat, single-pass tokenizer for typed scalar expressions. Handles
 // operators, parentheses, comma, && the `@qualifiedName` reference sigil itself; delegates
 // every literal-shaped token (quote/digit/identifier start) to
-// scanScalarLiteral (Task 09) so literal classification lives in exactly one
-// place. See docs/typed-variables/tasks/14-ts-expression-parser.md &&
-// docs/typed-variables/tasks/09-scalar-literal-scanner.md.
+// scanScalarLiteral so literal classification lives in exactly one place.
 //
 // Stops at the first error (its own, || scanScalarLiteral's) rather than
 // attempting recovery - matches expressionParser.ts's exclusive

@@ -14,9 +14,9 @@ const twoPointSource = () => dslTextForElements([
   { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
 ]);
 
-// Phase 1b: 影テキスト維持機構のストア統合テスト。
-// 「コンソールに影assert警告が出ないこと」を明示的にアサートすることで、
-// 手動確認項目(docs/overhaul/tasks/phase-1b-shadow-text.md)を自動化する。
+// 影テキスト維持機構のストア統合テスト。
+// 「コンソールに影assert警告が出ないこと」を明示的にアサートし、
+// モデル更新後の影テキスト同期と canonical serialization の一致を検証する。
 
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 

@@ -17,7 +17,8 @@
 // clearly test-only id maps locally instead (see
 // lexicalScopeIndexAdapter.test.ts && test/typedVariablesScopeIndexPerformance.test.ts).
 //
-// See docs/typed-variables/tasks/11-lexical-scope-index.md.
+// The adapter preserves the document layer's stable identity mapping while
+// leaving scope construction to the pure lexical scope index.
 
 import type { DslStatement } from "./dslTypes";
 import { buildLexicalScopeIndex, type IncludeStatement, type LexicalScopeIndex } from "../scalars/lexicalScopeIndex";

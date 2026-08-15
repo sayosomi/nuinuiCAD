@@ -1,14 +1,14 @@
-//! Rust-side typed scalar expression payload validation (Task 17 of
-//! docs/typed-variables/plan.md). Turns untyped `serde_json::Value` crossing
+//! Rust-side typed scalar expression payload validation. Turns untyped
+//! `serde_json::Value` crossing
 //! the IPC boundary into validated Rust enums mirroring TypeScript's
-//! `ScalarType`/`ScalarValue`/`ScalarEvaluation` (Task 08) and
-//! `TypedScalarExpression` (Task 15) shapes, fail-closed on any structural
-//! or semantic inconsistency. Task 21 evaluates that validated data only
+//! `ScalarType`/`ScalarValue`/`ScalarEvaluation` and
+//! `TypedScalarExpression` shapes, fail-closed on any structural
+//! or semantic inconsistency. Evaluation consumes that validated data only
 //! after the production geometry pass, through the document binding adapter.
 
-// Task 21's binding evaluator is the production caller of Task 18's pure
-// expression evaluator. The narrow `allow(dead_code)` annotations remain
-// for helpers exercised directly by compatibility tests.
+// The binding evaluator is the production caller of the pure expression
+// evaluator. The narrow `allow(dead_code)` annotations remain for helpers
+// exercised directly by compatibility tests.
 mod bindings;
 mod builtin_function_semantics;
 mod condition_expression_payload;

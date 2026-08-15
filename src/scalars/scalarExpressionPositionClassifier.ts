@@ -1,8 +1,7 @@
-// Pure, catalog-free position analysis for typed value completion (Task 39):
+// Pure, catalog-free position analysis for typed value completion:
 // "is the cursor at an operand || an operator position" over an
-// already-tokenized scalar expression (Task 14's tokenizeScalarExpression),
-// plus "is a partial word already being typed right at the cursor". See
-// docs/typed-variables/tasks/39-typed-value-completion.md.
+// already-tokenized scalar expression (tokenizeScalarExpression),
+// plus "is a partial word already being typed right at the cursor".
 //
 // This module never resolves a literal's || a `@name` reference's own
 // ScalarType (that needs the BindingCatalog && belongs to
@@ -25,7 +24,7 @@ const tokenSpan = (token: ScalarExpressionToken): ScalarSpan => (token.kind === 
 
 /**
  * `tokens` must come from tokenizing the same source range `pos` is measured
- * against (Task 14's `tokenizeScalarExpression` absolute-offset convention).
+ * against `tokenizeScalarExpression`'s absolute-offset convention.
  * A token the cursor is strictly inside (not at its boundary) is never
  * "preceding" - only a token whose span ends at || before `pos` counts.
  */

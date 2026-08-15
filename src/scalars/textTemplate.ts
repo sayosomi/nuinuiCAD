@@ -1,8 +1,7 @@
-// Task 26: parses the canonical `label(text: ...)` raw string value into a
-// TextTemplateAst that Tasks 27 (TS evaluation), 28 (Rust parity), 36
-// (dependency graph), 39 (value completion), && 43 (source spans) can all
-// consume without re-parsing, re-resolving, || re-scanning raw source. See
-// docs/typed-variables/tasks/26-text-template-analysis.md.
+// Parses the canonical `label(text: ...)` raw string value into a
+// TextTemplateAst that evaluation, dependency analysis, completion, and source
+// span consumers can all use without re-parsing, re-resolving, || re-scanning
+// raw source.
 //
 // Runs for every canonical `label(text: "...")` occurrence in a nui 4
 // document regardless of whether the document has any typed declaration at
@@ -63,7 +62,7 @@ export type TextTemplateHoleSegment = TextTemplateStringHoleSegment | TextTempla
 export type TextTemplateSegment = TextTemplateLiteralSegment | TextTemplateHoleSegment;
 
 /** One resolved `@name` reference inside a typed hole - flat &&
- * precomputed so Task 36 can build dependency edges by reading this array
+ * precomputed so dependency analysis can build edges by reading this array
  * directly, without walking each hole's `expression` tree || re-resolving
  * anything. Only ever produced for a reference that resolved to a usable
  * typed binding; numeric-expression holes never contribute (their runtime
@@ -308,7 +307,7 @@ export type TextTemplateCompilation = {
   diagnostics: readonly DslDiagnostic[];
 };
 
-/** Exact-span-or-nothing (Task 48) - see typedDeclarationAnalysis.ts's
+/** Exact-span-or-nothing - see typedDeclarationAnalysis.ts's
  * compileDiagnostic. No navigationTarget: a failed hole occurrence never
  * reaches templatesByOccurrenceKey, so there is no resolved index entry to
  * jump to for it. */
@@ -354,7 +353,7 @@ export const compileTextTemplates = ({
     if (!elementId || !elementsById.has(elementId)) return;
 
     const attr = statement.attrs.find((item) => item.key === "text");
-    if (!attr || attr.value.startsWith("@")) return; // bare @binding text is Task 22's propertyBindings territory.
+    if (!attr || attr.value.startsWith("@")) return; // bare @binding text uses the property-binding path.
 
     const paddedSource = " ".repeat(attr.valueStart) + attr.value;
     const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };

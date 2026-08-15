@@ -9,7 +9,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 import { reconcileStatements } from "./statementReconciler";
 import { zipAssignedElementIds } from "./shadowText";
 
-// shadowTextAssert — dev/test 限定の観測用ヘルパ(docs/overhaul/tasks/phase-1b-shadow-text.md)。
+// shadowTextAssert — dev/test 限定で影テキストとモデルの等価性を観測するヘルパ。
 //
 // prodビルドでは等価再コンパイル(高コスト)を一切実行しない。
 // `import.meta.env.DEV` は vite が dev サーバーでも vitest でも true を返す
@@ -98,14 +98,13 @@ const computeMovedIds = (
   return moved;
 };
 
-// statementReconciler の実戦検証(結果は捨てる。Phase 1c での本番利用に備えた
-// 継承率チェックのみ)。
+// statementReconciler の実戦検証。結果は捨てず、ID継承の不変条件に対する
+// 開発時の警告として利用する。
 //
 // 重要な設計判断:
 //
 // 1. 「ID継承が仕様上必須の操作」と「対応不能が許容される操作」を区別する。
-//    Phase 1a 仕様表(phase-1a-pure-modules.md)により、リネーム+行移動の
-//    同時実行・型変更は新規ID(許容制約)になる。よって
+//    リネーム+行移動の同時実行・型変更は新規ID(許容制約)になる。よって
 //    `createdIds`/`vanishedIds` と before/after のモデルID集合差の完全一致を
 //    assert条件にはしない。生存要素(挿入でも削除でもない)のうち、
 //    「リネームと移動が同一コミットで同時発生」した場合だけ継承免除とする。
@@ -114,8 +113,8 @@ const computeMovedIds = (
 //    位置対応でリネームを検出する(段階3)ため、「同じ位置・同じ型」の
 //    削除+挿入(例: 末尾要素を消して同種の新規要素を追加する、という
 //    ごく普通の操作)は原理的に「リネーム」と区別がつかず、ID を引き継いで
-//    しまうことがある。これは reconciler の設計上受け入れている曖昧性であり
-//    (Phase 1a 仕様のリネーム判定規則そのもの)、バグではない。よってここで
+//    しまうことがある。これは reconciler の設計上受け入れている曖昧性であり、
+//    バグではない。よってここで
 //    createdIds/vanishedIds を挿入/削除の実モデル差と厳密照合することはしない。
 //
 // 3. 比較の基準は常に `prevCompiled.document`(影が実際に比較する旧状態)と

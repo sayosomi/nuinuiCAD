@@ -1,18 +1,16 @@
 // Static typechecker for typed scalar expressions. Consumes a parsed
-// ScalarExpressionAst (Task 14) plus already-resolved BindingResolution
-// values (Task 12) && produces a typed AST with per-node types, resolved
-// choice literals, && reference binding IDs. Production-unconnected: see
-// docs/typed-variables/tasks/15-ts-expression-typechecker.md.
+// ScalarExpressionAst plus already-resolved BindingResolution values &&
+// produces a typed AST with per-node types, resolved choice literals, &&
+// reference binding IDs.
 //
-// This module never re-resolves a binding name && never re-derives Task
-// 13's cross-binding diagnostics (undefined/forward/self/duplicate/cycle):
+// This module never re-resolves a binding name && never re-derives the
+// cross-binding diagnostics (undefined/forward/self/duplicate/cycle):
 // it only reacts to the BindingResolution it is handed, marking a node
 // invalid (`type: null`) without adding a new diagnostic when that
 // resolution isn't "resolved", || when it resolves to a typed binding whose
-// declaredType is itself null (a malformed type annotation Task 10 already
-// diagnosed). Every other type-vs-type comparison goes through
-// isScalarTypeAssignable - an exact match (D01/D07) - never the property
-// choice-subset rule, which is Task 22's concern only.
+// declaredType is itself null (a malformed type annotation already diagnosed).
+// Every other type-vs-type comparison goes through isScalarTypeAssignable - an
+// exact match - never the property choice-subset rule used by property binding.
 
 import {
   type ScalarBinaryExpressionNode,
@@ -44,7 +42,7 @@ interface TraversalState {
   readonly resolveChoiceLiteral?: ScalarExpressionTypecheckContext["resolveChoiceLiteral"];
 }
 
-/** Exported for reuse by other diagnostic-message producers (e.g. Task 22's
+/** Exported for reuse by other diagnostic-message producers (e.g. the
  * property binding compiler) that need the same type description text -
  * kept as one implementation rather than a duplicated formatter. */
 export const describeScalarType = (type: ScalarType): string =>

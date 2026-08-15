@@ -1,13 +1,12 @@
 # command ID対応表(確定版)
 
-旧command ID → 新ID/最終挙動の統合対応表。Phase 3d・4g・4iで分散していた
-対応を1箇所に集約し、Phase 5完了時点の状態を記録する。
+旧command ID → 新ID/最終挙動の統合対応表。current shortcut migration と
+retired command ID の対応を1箇所に集約している。
 
 **実装の正はコード**: 保存済みshortcut設定の正規化は
 `src/keyboard/shortcutSettingsStorage.ts` の `legacyBindingIdMap`(移行)と
-`retiredCommandIds`(除去)が担う。本表と実装の一致は 5c の機械検証テストで
-固定する。歴史的経緯は
-[tasks/phase-3d-command-id-map.md](tasks/phase-3d-command-id-map.md) を参照。
+`retiredCommandIds`(除去)が担う。本表と実装の一致は
+`test/commandIdMap.test.ts` で検証する。
 
 正規化の共通規則(Phase 3dで確立、以後不変):
 
