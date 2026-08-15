@@ -87,6 +87,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const rust = evaluationPayloadToResult(evaluateWithRustFixture(repoRoot, fixture));
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(ts.errors).toEqual([]);
+    expect(rust.errors).toEqual([]);
     expect(rust.errors).toEqual(ts.errors);
     for (const name of ["Convex", "Concave", "Bound", "ReverseConvex"]) {
       const element = fixture.elements.find((candidate) => candidate.name === name)!;
@@ -107,6 +109,22 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       if (geometry?.kind !== "point") throw new Error("expected tangentOffset point");
       expect(geometry.x).toBeCloseTo(x, 10);
       expect(geometry.y).toBeCloseTo(y, 10);
+    }
+
+    for (const name of ["Split", "TrimCurve", "ExtendCurve"]) {
+      const element = fixture.elements.find((candidate) => candidate.name === name)!;
+      expect(ts.computedGeometry.get(element.id)).toMatchObject({ kind: "bezierCurve" });
+      expect(rust.computedGeometry.get(element.id)).toMatchObject({ kind: "bezierCurve" });
+    }
+    for (const name of ["SplitOffset", "TrimOffset", "ExtendOffset"]) {
+      const element = fixture.elements.find((candidate) => candidate.name === name)!;
+      const tsPoint = ts.computedGeometry.get(element.id);
+      const rustPoint = rust.computedGeometry.get(element.id);
+      expect(tsPoint).toMatchObject({ kind: "point" });
+      expect(rustPoint).toMatchObject({ kind: "point" });
+      if (tsPoint?.kind !== "point" || rustPoint?.kind !== "point") throw new Error("expected tangentOffset point");
+      expect(rustPoint.x).toBeCloseTo(tsPoint.x, 10);
+      expect(rustPoint.y).toBeCloseTo(tsPoint.y, 10);
     }
   }, 30000);
 
