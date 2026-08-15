@@ -318,7 +318,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       const originGeometry = evaluated.computedGeometry.get(origin.id);
       if (originGeometry?.kind !== "point") throw new Error("Origin must be a computed point");
       expect(originGeometry.x).toBeCloseTo(expected, 10);
-      expect(evaluated.computedGeometry.get(template.id)).toMatchObject({ kind: "text", text: "angle=11.478341" });
+      expect(evaluated.computedGeometry.get(template.id)).toMatchObject({ kind: "text", text: "angle=11.478" });
       const moduleGeometry = evaluated.computedGeometry.get(modulePoint.id);
       if (moduleGeometry?.kind !== "point") throw new Error("ModulePoint must be a computed point");
       expect(moduleGeometry.x).toBeCloseTo(expected, 10);

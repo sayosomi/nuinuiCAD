@@ -2,7 +2,6 @@ nui 4
 
 const lengthValue: number = 100
 const spreadValue: number = 20
-const spreadText: string = "11.478341"
 
 const spreadBasic: number = spreadAngle(
   length: 100,
@@ -61,7 +60,7 @@ point Origin = coordinate(
 )
 
 text SpreadTemplate = label(
-  text: "angle=${@spreadText}",
+  text: "angle=${spreadAngle(length: @lengthValue, spread: @spreadValue)}",
   anchor: none,
   size: 3,
 )
