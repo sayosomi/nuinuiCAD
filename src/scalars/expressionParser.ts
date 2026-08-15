@@ -3,7 +3,9 @@
 // @name tokens).
 //
 // Fixed precedence, loosest to tightest:
-// || &&   ==/!=  </<=/>/>=  +/-  * /   then unary (!, -, +), then primary
+// || &&   ==/!=  </<=/>/>=  +/-  * / %   unary (!, -, +),
+// then power (^), then primary. Power is right-associative and deliberately
+// sits above unary so `-2 ^ 2` parses as `-(2 ^ 2)`.
 // (including named calls).
 // This differs from the local numeric parser (src/geometry/numericExpressionParser.ts,
 // not imported here), which conflates comparison+equality into a single
@@ -12,7 +14,7 @@
 // directly to the result of the first (e.g. `1 < 2 < 3`) is rejected with
 // `chained-comparison-not-supported` rather than silently producing an AST
 // that the typechecker would always reject anyway. ` || `, ` && `, `+`/`-`,
-// `*`/`/` all chain left-associatively; unary operators are right-associative
+// `*`/`/`/`%` all chain left-associatively; unary operators are right-associative
 // via recursion.
 //
 // BINARY_PRECEDENCE_TIERS is the single source of truth for this ordering -
@@ -33,8 +35,9 @@ import type { ScalarLiteralToken } from "./literalScanner";
 import { IDENTIFIER_PATTERN } from "./literalScanner";
 
 /**
- * Bounds recursion depth for parenthesis nesting && unary-prefix chains -
- * the two constructs that grow the real call stack proportionally to user
+ * Bounds recursion depth for parenthesis nesting, unary-prefix chains, and
+ * right-associative power chains -
+ * these constructs that grow the real call stack proportionally to user
  * input (the fixed 6-tier precedence ladder && same-tier chaining loops do
  * not, so wide flat expressions are unaffected). Kept comfortably below
  * typical JS stack limits: each nested level costs roughly one call through
@@ -118,7 +121,7 @@ const BINARY_PRECEDENCE_TIERS: readonly BinaryTier[] = [
   { operators: ["==", "!="], chain: false },
   { operators: ["<", "<=", ">", ">="], chain: false },
   { operators: ["+", "-"], chain: true },
-  { operators: ["*", "/"], chain: true }
+  { operators: ["*", "/", "%"], chain: true }
 ];
 
 type OperatorToken = Extract<ScalarExpressionToken, { kind: "operator" }>;
@@ -192,7 +195,28 @@ class Parser {
         operand
       };
     }
-    return this.parsePrimary();
+    return this.parsePower();
+  }
+
+  private parsePower(): ScalarExpressionAst {
+    const left = this.parsePrimary();
+    const token = this.peek();
+    if (token?.kind !== "operator" || token.value !== "^") return left;
+
+    this.enterNesting(token.span);
+    this.consume();
+    try {
+      const right = this.parseUnary();
+      return {
+        kind: "binary",
+        operator: "^",
+        span: { start: left.span.start, end: right.span.end },
+        left,
+        right
+      };
+    } finally {
+      this.depth -= 1;
+    }
   }
 
   private parsePrimary(): ScalarExpressionAst {

@@ -29,6 +29,229 @@
       "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 20 } }
     },
     {
+      "name": "power-basic",
+      "description": "2 ^ 3",
+      "ast": {
+        "kind": "binary", "operator": "^", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 3, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 8 } }
+    },
+    {
+      "name": "power-fractional-exponent",
+      "description": "9 ^ 0.5",
+      "ast": {
+        "kind": "binary", "operator": "^", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 9, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 0.5, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 3 } }
+    },
+    {
+      "name": "power-negative-exponent",
+      "description": "4 ^ -1",
+      "ast": {
+        "kind": "binary", "operator": "^", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 4, "type": { "kind": "number" } },
+        "right": {
+          "kind": "unary", "operator": "-", "type": { "kind": "number" },
+          "operand": { "kind": "numberLiteral", "value": 1, "type": { "kind": "number" } }
+        }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 0.25 } }
+    },
+    {
+      "name": "power-zero-exponent",
+      "description": "5 ^ 0",
+      "ast": {
+        "kind": "binary", "operator": "^", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 5, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 0, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 1 } }
+    },
+    {
+      "name": "power-is-right-associative",
+      "description": "2 ^ (3 ^ 2)",
+      "ast": {
+        "kind": "binary", "operator": "^", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } },
+        "right": {
+          "kind": "binary", "operator": "^", "type": { "kind": "number" },
+          "left": { "kind": "numberLiteral", "value": 3, "type": { "kind": "number" } },
+          "right": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } }
+        }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 512 } }
+    },
+    {
+      "name": "power-unary-precedence",
+      "description": "-(2 ^ 2)",
+      "ast": {
+        "kind": "unary", "operator": "-", "type": { "kind": "number" },
+        "operand": {
+          "kind": "binary", "operator": "^", "type": { "kind": "number" },
+          "left": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } },
+          "right": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } }
+        }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": -4 } }
+    },
+    {
+      "name": "power-parenthesized-negative-base",
+      "description": "(-2) ^ 2",
+      "ast": {
+        "kind": "binary", "operator": "^", "type": { "kind": "number" },
+        "left": {
+          "kind": "group", "type": { "kind": "number" },
+          "expression": {
+            "kind": "unary", "operator": "-", "type": { "kind": "number" },
+            "operand": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } }
+          }
+        },
+        "right": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 4 } }
+    },
+    {
+      "name": "power-unary-negative-exponent",
+      "description": "2 ^ (-2)",
+      "ast": {
+        "kind": "binary", "operator": "^", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } },
+        "right": {
+          "kind": "unary", "operator": "-", "type": { "kind": "number" },
+          "operand": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } }
+        }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 0.25 } }
+    },
+    {
+      "name": "remainder-left-associative",
+      "description": "(20 % 6) % 4",
+      "ast": {
+        "kind": "binary", "operator": "%", "type": { "kind": "number" },
+        "left": {
+          "kind": "binary", "operator": "%", "type": { "kind": "number" },
+          "left": { "kind": "numberLiteral", "value": 20, "type": { "kind": "number" } },
+          "right": { "kind": "numberLiteral", "value": 6, "type": { "kind": "number" } }
+        },
+        "right": { "kind": "numberLiteral", "value": 4, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 2 } }
+    },
+    {
+      "name": "remainder-basic",
+      "description": "10 % 3",
+      "ast": {
+        "kind": "binary", "operator": "%", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 10, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 3, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 1 } }
+    },
+    {
+      "name": "remainder-fractional",
+      "description": "5.5 % 2",
+      "ast": {
+        "kind": "binary", "operator": "%", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 5.5, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 1.5 } }
+    },
+    {
+      "name": "remainder-signs",
+      "description": "JS remainder sign semantics",
+      "ast": {
+        "kind": "binary", "operator": "%", "type": { "kind": "number" },
+        "left": {
+          "kind": "unary", "operator": "-", "type": { "kind": "number" },
+          "operand": { "kind": "numberLiteral", "value": 5, "type": { "kind": "number" } }
+        },
+        "right": { "kind": "numberLiteral", "value": 3, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": -2 } }
+    },
+    {
+      "name": "remainder-positive-left-negative-right",
+      "description": "5 % -3",
+      "ast": {
+        "kind": "binary", "operator": "%", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 5, "type": { "kind": "number" } },
+        "right": {
+          "kind": "unary", "operator": "-", "type": { "kind": "number" },
+          "operand": { "kind": "numberLiteral", "value": 3, "type": { "kind": "number" } }
+        }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 2 } }
+    },
+    {
+      "name": "remainder-both-negative",
+      "description": "-5 % -3",
+      "ast": {
+        "kind": "binary", "operator": "%", "type": { "kind": "number" },
+        "left": {
+          "kind": "unary", "operator": "-", "type": { "kind": "number" },
+          "operand": { "kind": "numberLiteral", "value": 5, "type": { "kind": "number" } }
+        },
+        "right": {
+          "kind": "unary", "operator": "-", "type": { "kind": "number" },
+          "operand": { "kind": "numberLiteral", "value": 3, "type": { "kind": "number" } }
+        }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": -2 } }
+    },
+    {
+      "name": "power-precedence-over-multiplication",
+      "description": "2 * (3 ^ 2)",
+      "ast": {
+        "kind": "binary", "operator": "*", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } },
+        "right": {
+          "kind": "binary", "operator": "^", "type": { "kind": "number" },
+          "left": { "kind": "numberLiteral", "value": 3, "type": { "kind": "number" } },
+          "right": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } }
+        }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 18 } }
+    },
+    {
+      "name": "remainder-precedence-with-multiplication",
+      "description": "10 + ((7 % 4) * 2)",
+      "ast": {
+        "kind": "binary", "operator": "+", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 10, "type": { "kind": "number" } },
+        "right": {
+          "kind": "binary", "operator": "*", "type": { "kind": "number" },
+          "left": {
+            "kind": "binary", "operator": "%", "type": { "kind": "number" },
+            "left": { "kind": "numberLiteral", "value": 7, "type": { "kind": "number" } },
+            "right": { "kind": "numberLiteral", "value": 4, "type": { "kind": "number" } }
+          },
+          "right": { "kind": "numberLiteral", "value": 2, "type": { "kind": "number" } }
+        }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 16 } }
+    },
+    {
       "name": "short-circuit-and-false-skips-right",
       "description": "false && @tripwire - right must never be evaluated",
       "ast": {
@@ -135,6 +358,59 @@
       },
       "bindings": {},
       "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-divide-by-zero" }
+    },
+    {
+      "name": "power-negative-base-fractional-exponent-is-non-finite",
+      "description": "(-1) ^ 0.5",
+      "ast": {
+        "kind": "binary", "operator": "^", "type": { "kind": "number" },
+        "left": {
+          "kind": "group", "type": { "kind": "number" },
+          "expression": {
+            "kind": "unary", "operator": "-", "type": { "kind": "number" },
+            "operand": { "kind": "numberLiteral", "value": 1, "type": { "kind": "number" } }
+          }
+        },
+        "right": { "kind": "numberLiteral", "value": 0.5, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-non-finite-result" }
+    },
+    {
+      "name": "power-zero-negative-exponent-is-non-finite",
+      "description": "0 ^ -1",
+      "ast": {
+        "kind": "binary", "operator": "^", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 0, "type": { "kind": "number" } },
+        "right": {
+          "kind": "unary", "operator": "-", "type": { "kind": "number" },
+          "operand": { "kind": "numberLiteral", "value": 1, "type": { "kind": "number" } }
+        }
+      },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-non-finite-result" }
+    },
+    {
+      "name": "power-overflow-is-non-finite",
+      "description": "10 ^ 10000",
+      "ast": {
+        "kind": "binary", "operator": "^", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 10, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 10000, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-non-finite-result" }
+    },
+    {
+      "name": "remainder-by-zero",
+      "description": "5 % 0",
+      "ast": {
+        "kind": "binary", "operator": "%", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 5, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 0, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "error", "type": { "kind": "number" }, "issueCode": "evaluation-remainder-by-zero" }
     },
     {
       "name": "type-null-node-fails-closed-without-inspecting-children",

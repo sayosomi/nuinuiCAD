@@ -766,11 +766,25 @@ fn rejects_non_string_binding_id() {
 #[test]
 fn rejects_invalid_binary_operator() {
     let payload = json!({
-        "kind": "binary", "span": {"start": 0, "end": 1}, "operator": "%",
+        "kind": "binary", "span": {"start": 0, "end": 1}, "operator": "^=",
         "left": number_literal(), "right": number_literal(), "type": {"kind": "number"}
     });
     let error = validate_typed_expression_payload(&payload).unwrap_err();
     assert_eq!(error.code, Code::InvalidOperator);
+}
+
+#[test]
+fn accepts_power_and_remainder_binary_operators() {
+    for operator in ["^", "%"] {
+        let payload = json!({
+            "kind": "binary", "span": {"start": 0, "end": 1}, "operator": operator,
+            "left": number_literal(), "right": number_literal(), "type": {"kind": "number"}
+        });
+        assert!(
+            validate_typed_expression_payload(&payload).is_ok(),
+            "operator {operator}"
+        );
+    }
 }
 
 #[test]

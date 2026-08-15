@@ -109,6 +109,8 @@ pub(crate) enum ScalarBinaryOperator {
     Sub,
     Mul,
     Div,
+    Remainder,
+    Pow,
 }
 
 /// Closed identity for the builtins that TypeScript has already resolved.

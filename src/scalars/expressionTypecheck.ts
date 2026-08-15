@@ -92,6 +92,8 @@ const SIMPLE_BINARY_RULES: Record<SimpleBinaryOperator, { requiredType: ScalarTy
   "-": { requiredType: NUMBER_TYPE, resultType: NUMBER_TYPE },
   "*": { requiredType: NUMBER_TYPE, resultType: NUMBER_TYPE },
   "/": { requiredType: NUMBER_TYPE, resultType: NUMBER_TYPE },
+  "%": { requiredType: NUMBER_TYPE, resultType: NUMBER_TYPE },
+  "^": { requiredType: NUMBER_TYPE, resultType: NUMBER_TYPE },
   "<": { requiredType: NUMBER_TYPE, resultType: BOOLEAN_TYPE },
   "<=": { requiredType: NUMBER_TYPE, resultType: BOOLEAN_TYPE },
   ">": { requiredType: NUMBER_TYPE, resultType: BOOLEAN_TYPE },

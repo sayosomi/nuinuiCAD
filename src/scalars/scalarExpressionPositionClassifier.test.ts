@@ -84,7 +84,7 @@ describe("expectedOperandType", () => {
   });
 
   it("arithmetic/comparison operators require a number operand", () => {
-    for (const value of ["+", "-", "*", "/", "<", "<=", ">", ">="] as const) {
+    for (const value of ["+", "-", "*", "/", "%", "^", "<", "<=", ">", ">="] as const) {
       expect(expectedOperandType(opToken({ kind: "operator", value, span: { start: 0, end: 1 } }), { kind: "boolean" })).toEqual({ kind: "number" });
     }
   });

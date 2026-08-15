@@ -25,7 +25,9 @@ export type ScalarBinaryOperator =
   | "+"
   | "-"
   | "*"
-  | "/";
+  | "/"
+  | "%"
+  | "^";
 
 export interface ScalarNumberLiteralNode {
   readonly kind: "numberLiteral";

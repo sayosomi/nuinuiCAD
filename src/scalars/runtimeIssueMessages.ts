@@ -14,6 +14,7 @@ const RUNTIME_ISSUE_MESSAGES: Readonly<Record<string, string>> = {
   "evaluation-binding-cycle-guard": "循環参照が検出されました。",
   "evaluation-binding-version-unavailable": "この時点のsetがまだ評価されていません。",
   "evaluation-divide-by-zero": "0での除算が発生しました。",
+  "evaluation-remainder-by-zero": "0での剰余が発生しました。",
   "evaluation-invalid-builtin-argument": "組み込み関数の引数が不正です。",
   "evaluation-geometry-builtin-unavailable": "組み込み関数のgeometry引数を評価できません。参照先のgeometryが有効で、正常に評価済みか確認してください。",
   "evaluation-non-finite-result": "計算結果が数値として不正です。",

@@ -68,15 +68,15 @@ const geometryResolution = (geometryType: "point" | "line" | "path"): ScalarExpr
 
 // --- operator cross product -------------------------------------------------
 
-describe("typecheckScalarExpression / arithmetic operators (+ - * /)", () => {
-  it.each(["+", "-", "*", "/"])("accepts number %s number and yields number", (op) => {
+describe("typecheckScalarExpression / arithmetic operators (+ - * / % ^)", () => {
+  it.each(["+", "-", "*", "/", "%", "^"])("accepts number %s number and yields number", (op) => {
     const result = check(`1 ${op} 2`);
     expect(result.type).toEqual({ kind: "number" });
     expect(result.diagnostics).toEqual([]);
     assertInvariant(result);
   });
 
-  it.each(["+", "-", "*", "/"])("rejects string %s string, flagging both operands independently", (op) => {
+  it.each(["+", "-", "*", "/", "%", "^"])("rejects string %s string, flagging both operands independently", (op) => {
     const expr = `"a" ${op} "b"`;
     const result = check(expr);
     expect(result.type).toBeNull();
@@ -87,7 +87,7 @@ describe("typecheckScalarExpression / arithmetic operators (+ - * /)", () => {
     assertInvariant(result);
   });
 
-  it.each(["+", "-", "*", "/"])("flags only the bad operand when the other is valid", (op) => {
+  it.each(["+", "-", "*", "/", "%", "^"])("flags only the bad operand when the other is valid", (op) => {
     const expr = `1 ${op} "a"`;
     const result = check(expr);
     expect(result.diagnostics).toHaveLength(1);
@@ -97,6 +97,18 @@ describe("typecheckScalarExpression / arithmetic operators (+ - * /)", () => {
       actualType: { kind: "string" },
       span: { start: expr.indexOf('"a"'), end: expr.indexOf('"a"') + 3 }
     });
+    assertInvariant(result);
+  });
+
+  it.each([
+    ['"2" ^ 3', { kind: "string" }],
+    ["5 % true", { kind: "boolean" }]
+  ] as const)("does not implicitly convert non-number operands in %s", (expr, actualType) => {
+    const result = check(expr);
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "scalar-type-mismatch", actualType })
+    ]);
     assertInvariant(result);
   });
 });

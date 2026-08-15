@@ -93,6 +93,8 @@ pub(crate) fn decode_binary_operator(
         Some("-") => Ok(ScalarBinaryOperator::Sub),
         Some("*") => Ok(ScalarBinaryOperator::Mul),
         Some("/") => Ok(ScalarBinaryOperator::Div),
+        Some("%") => Ok(ScalarBinaryOperator::Remainder),
+        Some("^") => Ok(ScalarBinaryOperator::Pow),
         _ => Err(issue(
             Code::InvalidOperator,
             format!("{context} has an invalid binary operator"),

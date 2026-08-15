@@ -16,7 +16,7 @@ const stopKeywords = new Set(["stop"]);
 // followed by a separate `.length` (this file's ASCII-only identifier
 // limitation is unchanged either way - not fixed, not worsened).
 const tokenPattern =
-  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=:\s)|-?\d+(?:\.\d+)?|==|!=|>=|<=|[={}()[\],;*/+-]|@?[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
+  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=:\s)|-?\d+(?:\.\d+)?|==|!=|>=|<=|[-={}()[\],;*/^%+]|@?[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
 
 const commentIndex = (line: string) => {
   let quote: string | null = null;

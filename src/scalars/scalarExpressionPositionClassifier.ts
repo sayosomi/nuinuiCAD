@@ -72,6 +72,8 @@ export const expectedOperandType = (precedingToken: ScalarExpressionToken | null
     case "-":
     case "*":
     case "/":
+    case "%":
+    case "^":
     case "<":
     case "<=":
     case ">":
