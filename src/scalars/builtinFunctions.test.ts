@@ -13,7 +13,8 @@ describe("nui4 builtin function catalog", () => {
   it.each([
     ["distance", ["point", "point"]],
     ["angle", ["point", "point"]],
-    ["lineDistance", ["point", "line"]]
+    ["lineDistance", ["point", "line"]],
+    ["lineAngle", ["line", "line"]]
   ] as const)("defines %s with the geometry parameter contract", (name, argumentTypes) => {
     const definition = definitionOf(name);
 
@@ -27,7 +28,7 @@ describe("nui4 builtin function catalog", () => {
     expect(definition?.signatures[0]?.parameters).toHaveLength(2);
   });
 
-  it.each(["distance", "angle", "lineDistance"] as const)("recognizes %s as a builtin name", (name) => {
+  it.each(["distance", "angle", "lineDistance", "lineAngle"] as const)("recognizes %s as a builtin name", (name) => {
     expect(isBuiltinFunctionName(name)).toBe(true);
   });
 

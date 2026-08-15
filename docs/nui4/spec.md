@@ -228,6 +228,7 @@ The current builtin catalog is:
 | `distance` | `distance(point, point) -> number` |
 | `angle` | `angle(point, point) -> number` |
 | `lineDistance` | `lineDistance(point, line) -> number` |
+| `lineAngle` | `lineAngle(line, line) -> number` |
 
 The second argument of `round`, `floor`, and `ceil` is the decimal digit
 position and must be an integer. `round` uses an away-from-zero midpoint rule
@@ -269,6 +270,15 @@ line obtained by extending that line, not the shortest distance to the finite
 line segment. For example, the line `(0, 0) -> (1, 0)` and point `(10, 3)`
 produce `3`. A zero-length or effectively zero-length line is an error; the
 runtime threshold is `length <= 1e-9`.
+
+`lineAngle` requires the strict `line` interface for both arguments. It returns
+the directionless smaller angle between the two line direction vectors in
+degrees, in the inclusive range `0..90`. The lines do not need to intersect.
+Reversing either line, or swapping the arguments, does not change the result;
+therefore a directed difference of `135°` returns `45°`. A zero-length or
+effectively zero-length line is an evaluation error; the runtime threshold is
+`length <= 1e-9`. This is distinct from `angle(point, point)`, which returns a
+directed point-to-point direction normalized to `0..360` degrees.
 
 Builtins are available anywhere the shared typed-expression frontend is used:
 typed declarations, `set` right-hand sides, boolean conditions, scalar

@@ -431,6 +431,41 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
+  it("asserts lineAngle semantics and errors through both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-line-angle.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    for (const payload of [tsPayload, rustPayload]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "parallel"), 0);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "diagonal45"), 45);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "perpendicular"), 90);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "reversedParallel"), 0);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "directed135"), 45);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "spatiallySeparated"), 45);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "reverseFirst"), 45);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "reverseSecond"), 45);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "swapped"), 45);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "polarAngle"), 45);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "setValue"), 90);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "moduleLineAngle"), 90);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "moduleExportLineAngle"), 0);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "instanceExportLineAngle"), 0);
+      expect(scalarBindingFor(fixture, payload, "zeroFirst")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-invalid-builtin-argument"
+      });
+      expect(scalarBindingFor(fixture, payload, "zeroSecond")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-invalid-builtin-argument"
+      });
+    }
+
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
   it("asserts module geometry builtin lowering values and parity through both evaluators", () => {
     const fixture = readParityFixture(repoRoot, "nui4-module-geometry-builtin-functions.nui");
     const options = optionsFor(fixture);
@@ -442,6 +477,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(scalarBindingFor(fixture, payload, "radius")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
       expect(scalarBindingFor(fixture, payload, "direction")).toMatchObject({ status: "ok", value: { kind: "number", value: 45 } });
       expect(scalarBindingFor(fixture, payload, "height")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+      expect(scalarBindingFor(fixture, payload, "lineAngleValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 90 } });
       expect(scalarBindingFor(fixture, payload, "localDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
       expect(scalarBindingFor(fixture, payload, "childDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
       expect(scalarBindingFor(fixture, payload, "childLineDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 4 } });
@@ -451,6 +487,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(scalarBindingFor(fixture, payload, "measured")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
       expect(scalarBindingFor(fixture, payload, "rootDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
       expect(scalarBindingFor(fixture, payload, "rootLineDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+      expect(scalarBindingFor(fixture, payload, "rootLineAngle")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
     }
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);

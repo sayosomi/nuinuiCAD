@@ -59,7 +59,7 @@ const geometryReference = (
 ): TypedBuiltinArgument => ({ kind: "geometryReference", expectedGeometryType, target });
 
 const geometryBuiltinCall = (
-  targetName: Extract<BuiltinFunctionName, "distance" | "angle" | "lineDistance">,
+  targetName: Extract<BuiltinFunctionName, "distance" | "angle" | "lineDistance" | "lineAngle">,
   args: readonly TypedBuiltinArgument[]
 ): Extract<TypedScalarExpression, { kind: "call" }> => ({
   kind: "call",
@@ -496,6 +496,108 @@ describe("evaluateTypedExpression / geometry measurement builtins", () => {
         lookupGeometryTarget: (target) => target.statementId === "point" ? start : zeroLengthLine
       }
     )).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-invalid-builtin-argument" });
+  });
+
+  describe("lineAngle", () => {
+    const reversedParallelLine = computedLine(
+      "reversed-parallel",
+      computedPoint("reversed-parallel-start", 10, 5),
+      computedPoint("reversed-parallel-end", 0, 5)
+    );
+    const verticalLine = computedLine(
+      "vertical",
+      computedPoint("vertical-start", 3, -2),
+      computedPoint("vertical-end", 3, 8)
+    );
+    const diagonalLine = computedLine(
+      "diagonal",
+      computedPoint("diagonal-start", 100, 100),
+      computedPoint("diagonal-end", 101, 101)
+    );
+    const direction135Line = computedLine(
+      "direction-135",
+      computedPoint("direction-135-start", 20, 20),
+      computedPoint("direction-135-end", 19, 21)
+    );
+    const reverseHorizontalLine = computedLine(
+      "reverse-horizontal",
+      computedPoint("reverse-horizontal-start", 10, 0),
+      computedPoint("reverse-horizontal-end", 0, 0)
+    );
+    const reverseDiagonalLine = computedLine(
+      "reverse-diagonal",
+      computedPoint("reverse-diagonal-start", 101, 101),
+      computedPoint("reverse-diagonal-end", 100, 100)
+    );
+    const lines = new Map<string, ComputedLine>([
+      [horizontalLine.elementId, horizontalLine],
+      [reversedParallelLine.elementId, reversedParallelLine],
+      [verticalLine.elementId, verticalLine],
+      [diagonalLine.elementId, diagonalLine],
+      [direction135Line.elementId, direction135Line],
+      [reverseHorizontalLine.elementId, reverseHorizontalLine],
+      [reverseDiagonalLine.elementId, reverseDiagonalLine]
+    ]);
+
+    const evaluateLineAngle = (firstId: string, secondId: string) => evaluateTypedExpression(
+      geometryBuiltinCall("lineAngle", [
+        geometryReference("line", geometryTarget(firstId, 1, "line")),
+        geometryReference("line", geometryTarget(secondId, 2, "line"))
+      ]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: (target) => lines.get(target.statementId)
+      }
+    );
+
+    it.each([
+      ["parallel", horizontalLine.elementId, horizontalLine.elementId, 0],
+      ["reversed parallel", horizontalLine.elementId, reversedParallelLine.elementId, 0],
+      ["perpendicular", horizontalLine.elementId, verticalLine.elementId, 90],
+      ["45 degrees", horizontalLine.elementId, diagonalLine.elementId, 45],
+      ["135 directed difference", horizontalLine.elementId, direction135Line.elementId, 45],
+      ["spatially separated lines", horizontalLine.elementId, diagonalLine.elementId, 45]
+    ])("returns the directionless smaller angle for %s", (_name, firstId, secondId, expected) => {
+      const result = evaluateLineAngle(firstId, secondId);
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok" || result.value.kind !== "number") throw new Error("lineAngle should return a number");
+      expect(result.value.value).toBeCloseTo(expected, 10);
+    });
+
+    it("is invariant under reversing either line and swapping arguments", () => {
+      const baseline = evaluateLineAngle(horizontalLine.elementId, diagonalLine.elementId);
+      const reverseFirst = evaluateLineAngle(reverseHorizontalLine.elementId, diagonalLine.elementId);
+      const reverseSecond = evaluateLineAngle(horizontalLine.elementId, reverseDiagonalLine.elementId);
+      const swapped = evaluateLineAngle(diagonalLine.elementId, horizontalLine.elementId);
+      expect(baseline).toMatchObject({ status: "ok", value: { kind: "number" } });
+      expect(reverseFirst).toMatchObject({ status: "ok", value: { kind: "number" } });
+      expect(reverseSecond).toMatchObject({ status: "ok", value: { kind: "number" } });
+      expect(swapped).toMatchObject({ status: "ok", value: { kind: "number" } });
+      if (
+        baseline.status !== "ok" || baseline.value.kind !== "number" ||
+        reverseFirst.status !== "ok" || reverseFirst.value.kind !== "number" ||
+        reverseSecond.status !== "ok" || reverseSecond.value.kind !== "number" ||
+        swapped.status !== "ok" || swapped.value.kind !== "number"
+      ) throw new Error("lineAngle invariance cases should return numbers");
+      expect(reverseFirst.value.value).toBeCloseTo(baseline.value.value, 10);
+      expect(reverseSecond.value.value).toBeCloseTo(baseline.value.value, 10);
+      expect(swapped.value.value).toBeCloseTo(baseline.value.value, 10);
+    });
+
+    it.each(["first", "second"] as const)("rejects a zero-length %s line", (position) => {
+      const zeroLengthLine = computedLine(
+        `zero-${position}`,
+        computedPoint(`zero-${position}-start`, 4, 4),
+        computedPoint(`zero-${position}-end`, 4, 4)
+      );
+      const targetId = zeroLengthLine.elementId;
+      const original = lines.get(horizontalLine.elementId)!;
+      lines.set(targetId, zeroLengthLine);
+      const result = position === "first"
+        ? evaluateLineAngle(targetId, original.elementId)
+        : evaluateLineAngle(original.elementId, targetId);
+      expect(result).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-invalid-builtin-argument" });
+    });
   });
 
   it.each([

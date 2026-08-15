@@ -220,6 +220,7 @@ describe("module scalar runtime integration", () => {
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "module Example(baseline: line) {",
       "  line Local = segment(start: (0, 0), end: (0, 2))",
+      "  const angleValue: number = lineAngle(@baseline, @Local)",
       "  const parameterStart: number = distance(@baseline.start, @Local.end)",
       "  const parameterEnd: number = angle(@baseline.end, @Local.start)",
       "  const localEndDistance: number = lineDistance(@Local.end, @baseline)",
@@ -234,6 +235,7 @@ describe("module scalar runtime integration", () => {
       return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
     };
     expect(valueFor("parameterStart")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(valueFor("angleValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 90 } });
     expect(valueFor("parameterEnd")).toMatchObject({ status: "ok", value: { kind: "number", value: 180 } });
     expect(valueFor("localEndDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
   });
@@ -296,10 +298,12 @@ describe("module scalar runtime integration", () => {
       "module Parent() {",
       "  point Origin = coordinate(x: 0, y: 0)",
       "  point P = coordinate(x: 3, y: 4)",
+      "  line LocalLine = segment(start: (0, 0), end: (0, 1))",
       "  instance Kid = Child()",
       "  const localDistance: number = distance(@Origin, @P)",
       "  const childDistance: number = distance(@Kid::P, @Origin)",
       "  const childLineDistance: number = lineDistance(@P, @Kid::L)",
+      "  const childLineAngle: number = lineAngle(@LocalLine, @Kid::L)",
       "}",
       "instance Use = Parent()"
     ].join("\n"));
@@ -313,6 +317,7 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("localDistance")).toEqual([expect.objectContaining({ status: "ok", value: { kind: "number", value: 5 } })]);
     expect(valueFor("childDistance")).toEqual([expect.objectContaining({ status: "ok", value: { kind: "number", value: 5 } })]);
     expect(valueFor("childLineDistance")).toEqual([expect.objectContaining({ status: "ok", value: { kind: "number", value: 4 } })]);
+    expect(valueFor("childLineAngle")).toEqual([expect.objectContaining({ status: "ok", value: { kind: "number", value: 90 } })]);
   });
 
   it("publishes one instance-local scalar export binding for each module call", () => {

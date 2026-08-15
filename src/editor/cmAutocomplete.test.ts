@@ -1361,6 +1361,12 @@ describe("typed value completion (Task 39)", () => {
           apply: "lineDistance(",
           detail: "lineDistance(point, line) -> number",
           type: "function"
+        }),
+        expect.objectContaining({
+          label: "lineAngle",
+          apply: "lineAngle(",
+          detail: "lineAngle(line, line) -> number",
+          type: "function"
         })
       ]));
     });

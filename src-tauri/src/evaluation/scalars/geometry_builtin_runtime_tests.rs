@@ -356,6 +356,29 @@ fn point_point_and_point_line_signatures_validate_without_calculating() {
         ),
         Ok(vec![point, line])
     );
+
+    let first_line = TypedBuiltinArgument::GeometryReference {
+        expected_geometry_type: GeometryInterfaceType::Line,
+        target: Some(target("first-line", 1, GeometryInterfaceType::Line)),
+    };
+    let second_line = TypedBuiltinArgument::GeometryReference {
+        expected_geometry_type: GeometryInterfaceType::Line,
+        target: Some(target("second-line", 2, GeometryInterfaceType::Line)),
+    };
+    assert_eq!(
+        validate_geometry_builtin_arguments(
+            BuiltinFunctionName::LineAngle,
+            &[first_line, second_line],
+            |target| {
+                if target.statement_id == "first-line" {
+                    Ok(line_runtime(1.0))
+                } else {
+                    Ok(line_runtime(2.0))
+                }
+            },
+        ),
+        Ok(vec![line_runtime(1.0), line_runtime(2.0)])
+    );
 }
 
 #[test]

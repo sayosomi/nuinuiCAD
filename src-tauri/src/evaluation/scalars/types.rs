@@ -138,6 +138,7 @@ pub(crate) enum BuiltinFunctionName {
     Distance,
     Angle,
     LineDistance,
+    LineAngle,
 }
 
 impl BuiltinFunctionName {
@@ -163,6 +164,7 @@ impl BuiltinFunctionName {
             "distance" => Some(Self::Distance),
             "angle" => Some(Self::Angle),
             "lineDistance" => Some(Self::LineDistance),
+            "lineAngle" => Some(Self::LineAngle),
             _ => None,
         }
     }
@@ -194,11 +196,18 @@ impl BuiltinFunctionName {
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
             ]],
+            Self::LineAngle => &[&[
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
+            ]],
         }
     }
 
     pub(crate) fn is_geometry(self) -> bool {
-        matches!(self, Self::Distance | Self::Angle | Self::LineDistance)
+        matches!(
+            self,
+            Self::Distance | Self::Angle | Self::LineDistance | Self::LineAngle
+        )
     }
 }
 

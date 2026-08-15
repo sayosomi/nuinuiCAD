@@ -1,0 +1,37 @@
+nui 4
+# Active nui4 lineAngle parity fixture.
+point Origin = coordinate(x: 0, y: 0)
+line Horizontal = segment(start: (0, 0), end: (10, 0))
+line HorizontalReversed = segment(start: (10, 5), end: (0, 5))
+line Vertical = segment(start: (3, -2), end: (3, 8))
+line DiagonalSeparated = segment(start: (100, 100), end: (101, 101))
+line Direction135 = segment(start: (20, 20), end: (19, 21))
+line DiagonalReversed = segment(start: (101, 101), end: (100, 100))
+line Polar = polar(start: @Origin, angle: 45, length: 10)
+line ZeroFirst = segment(start: @Origin, end: @Origin)
+line ZeroSecond = segment(start: @Origin, end: @Origin)
+
+const parallel: number = lineAngle(@Horizontal, @Horizontal)
+const reversedParallel: number = lineAngle(@Horizontal, @HorizontalReversed)
+const perpendicular: number = lineAngle(@Horizontal, @Vertical)
+const diagonal45: number = lineAngle(@Horizontal, @DiagonalSeparated)
+const directed135: number = lineAngle(@Horizontal, @Direction135)
+const spatiallySeparated: number = lineAngle(@Horizontal, @DiagonalSeparated)
+const reverseFirst: number = lineAngle(@HorizontalReversed, @DiagonalSeparated)
+const reverseSecond: number = lineAngle(@Horizontal, @DiagonalReversed)
+const swapped: number = lineAngle(@DiagonalSeparated, @Horizontal)
+const polarAngle: number = lineAngle(@Horizontal, @Polar)
+const zeroFirst: number = lineAngle(@ZeroFirst, @Horizontal)
+const zeroSecond: number = lineAngle(@Horizontal, @ZeroSecond)
+let setValue: number = 0
+set setValue = @perpendicular
+
+module Example(baseline: line) {
+  line Local = segment(start: (0, 0), end: (0, 10))
+  export line Exported = segment(start: (0, 0), end: (10, 0))
+  const moduleLineAngle: number = lineAngle(@baseline, @Local)
+  const moduleExportLineAngle: number = lineAngle(@baseline, @Exported)
+}
+
+instance ExampleInstance = Example(baseline: @Horizontal)
+const instanceExportLineAngle: number = lineAngle(@ExampleInstance::Exported, @Horizontal)

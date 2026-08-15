@@ -443,6 +443,39 @@ fn decodes_line_distance_point_line_geometry_wrappers() {
 }
 
 #[test]
+fn decodes_line_angle_line_line_geometry_wrappers_without_argument_names() {
+    let decoded = validate_typed_expression_payload(&geometry_call(
+        "lineAngle",
+        vec![
+            geometry_argument("line", Some(geometry_target("line-a", 1, "line"))),
+            geometry_argument("line", Some(geometry_target("line-b", 2, "line"))),
+        ],
+    ))
+    .unwrap();
+    let TypedScalarExpression::Call { args, target, .. } = &decoded else {
+        panic!("expected a builtin call");
+    };
+    assert!(matches!(
+        target,
+        TypedScalarCallTarget::Builtin(BuiltinFunctionName::LineAngle)
+    ));
+    assert!(matches!(
+        &args[..],
+        [
+            TypedBuiltinArgument::GeometryReference {
+                expected_geometry_type: GeometryInterfaceType::Line,
+                target: Some(first),
+            },
+            TypedBuiltinArgument::GeometryReference {
+                expected_geometry_type: GeometryInterfaceType::Line,
+                target: Some(second),
+            }
+        ] if first.geometry_type == GeometryInterfaceType::Line
+            && second.geometry_type == GeometryInterfaceType::Line
+    ));
+}
+
+#[test]
 fn preserves_resolved_geometry_target_identity_and_rejects_raw_source_name() {
     let decoded = validate_typed_expression_payload(&geometry_call(
         "distance",

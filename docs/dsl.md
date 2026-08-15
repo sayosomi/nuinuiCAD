@@ -81,6 +81,10 @@ acos(number) -> number
 atan(number) -> number
 atan2(number, number) -> number
 spreadAngle(length: number, spread: number) -> number
+distance(point, point) -> number
+angle(point, point) -> number
+lineDistance(point, line) -> number
+lineAngle(line, line) -> number
 ```
 
 例えば、宣言、`set` の右辺、条件式、文字列補間、scalar property、

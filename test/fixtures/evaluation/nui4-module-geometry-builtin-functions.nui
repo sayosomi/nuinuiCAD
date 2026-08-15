@@ -18,6 +18,7 @@ module Example(p: point, origin: point, baseline: line, diagonal: point, measure
   const radius: number = distance(@origin, @p)
   const direction: number = angle(@origin, @diagonal)
   const height: number = lineDistance(@measuredPoint, @baseline)
+  const lineAngleValue: number = lineAngle(@baseline, @LocalLine)
   const localDistance: number = distance(@LocalOrigin, @LocalPoint)
   const childDistance: number = distance(@ChildInstance::ExportedPoint, @LocalOrigin)
   const childLineDistance: number = lineDistance(@LocalPoint, @ChildInstance::ExportedLine)
@@ -33,3 +34,4 @@ module Example(p: point, origin: point, baseline: line, diagonal: point, measure
 instance ExampleInstance = Example(p: @P, origin: @Origin, baseline: @Baseline, diagonal: @Diagonal, measuredPoint: @MeasurePoint)
 const rootDistance: number = distance(@ExampleInstance::ExportedPoint, @Origin)
 const rootLineDistance: number = lineDistance(@MeasurePoint, @ExampleInstance::ExportedLine)
+const rootLineAngle: number = lineAngle(@ExampleInstance::ExportedLine, @Baseline)

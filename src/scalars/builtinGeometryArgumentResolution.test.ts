@@ -21,7 +21,9 @@ const documentSource = [
   "group Group {",
   "  point Inner = coordinate(x: 1, y: 1)",
   "}",
-  "point C = coordinate(x: 0, y: 5)"
+  "point C = coordinate(x: 0, y: 5)",
+  "line OtherLine = segment(start: (0, 0), end: (0, 10))",
+  "line PolarLine = polar(start: (0, 0), angle: 45, length: 10)"
 ].join("\n");
 
 const parsed = parseDsl(documentSource);
@@ -90,10 +92,35 @@ describe("resolveBuiltinGeometryArguments", () => {
     expect(targetOf(lineDistance, 1)).toMatchObject({ statementId: "stable-3", statementIndex: 3, geometryType: "line" });
   });
 
+  it("resolves lineAngle positional line arguments to stable strict-line targets", () => {
+    const result = resolve("lineAngle(@AB, @OtherLine)", [
+      sourceGeometryResolution("AB", sourceNamespace),
+      sourceGeometryResolution("OtherLine", sourceNamespace)
+    ]);
+
+    expect(result.issues).toEqual([]);
+    expect([targetOf(result, 0), targetOf(result, 1)]).toEqual([
+      { statementId: "stable-3", statementIndex: 3, geometryType: "line" },
+      { statementId: "stable-10", statementIndex: 10, geometryType: "line" }
+    ]);
+  });
+
+  it("accepts a polar strict line through the same lineAngle resolution path", () => {
+    const result = resolve("lineAngle(@AB, @PolarLine)", [
+      sourceGeometryResolution("AB", sourceNamespace),
+      sourceGeometryResolution("PolarLine", sourceNamespace)
+    ]);
+
+    expect(result.issues).toEqual([]);
+    expect(targetOf(result, 1)).toEqual({ statementId: "stable-11", statementIndex: 11, geometryType: "line" });
+  });
+
   it.each([
     ["distance(@AB, @A)", ["AB", "A"], "point", "line"],
     ["lineDistance(@A, @ArcA)", ["A", "ArcA"], "line", "path"],
-    ["lineDistance(@A, @CurveA)", ["A", "CurveA"], "line", "path"]
+    ["lineDistance(@A, @CurveA)", ["A", "CurveA"], "line", "path"],
+    ["lineAngle(@AB, @ArcA)", ["AB", "ArcA"], "line", "path"],
+    ["lineAngle(@AB, @CurveA)", ["AB", "CurveA"], "line", "path"]
   ])("retains the actual target and reports %s interface mismatch", (source, names, expected, actual) => {
     const result = resolve(source, names.map((name) => sourceGeometryResolution(name, sourceNamespace)));
 

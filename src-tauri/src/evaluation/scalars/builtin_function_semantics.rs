@@ -356,6 +356,7 @@ pub(crate) fn evaluate_builtin_function(
         }
         BuiltinFunctionName::Distance
         | BuiltinFunctionName::Angle
-        | BuiltinFunctionName::LineDistance => invalid_argument(),
+        | BuiltinFunctionName::LineDistance
+        | BuiltinFunctionName::LineAngle => invalid_argument(),
     }
 }

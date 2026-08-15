@@ -21,7 +21,8 @@ export type BuiltinFunctionName =
   | "spreadAngle"
   | "distance"
   | "angle"
-  | "lineDistance";
+  | "lineDistance"
+  | "lineAngle";
 
 export type BuiltinParameterType = ScalarType | ModuleGeometryInterfaceType;
 
@@ -85,7 +86,8 @@ export const BUILTIN_FUNCTION_DEFINITIONS: readonly BuiltinFunctionDefinition[] 
   },
   { name: "distance", signatures: [positional(["point", "point"], NUMBER_TYPE)] },
   { name: "angle", signatures: [positional(["point", "point"], NUMBER_TYPE)] },
-  { name: "lineDistance", signatures: [positional(["point", "line"], NUMBER_TYPE)] }
+  { name: "lineDistance", signatures: [positional(["point", "line"], NUMBER_TYPE)] },
+  { name: "lineAngle", signatures: [positional(["line", "line"], NUMBER_TYPE)] }
 ];
 
 export const BUILTIN_FUNCTIONS: ReadonlyMap<BuiltinFunctionName, BuiltinFunctionDefinition> = new Map(
