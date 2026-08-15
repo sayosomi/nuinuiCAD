@@ -153,6 +153,7 @@ describe("createCadElement", () => {
       tangentAngleDeg: 0,
       distance: 0
     });
+    expect(createCadElement("lineTangentOffsetPoint", sampleElements, { createId: createTestId })).not.toHaveProperty("curveSide");
   });
 
   it("creates lines using the first two points as default endpoints", () => {

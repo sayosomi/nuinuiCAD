@@ -1,0 +1,13 @@
+nui 4
+# Active nui4 evaluation fixture.
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 10, y: 0)
+point OnCurve = coordinate(x: 5, y: 7.5)
+point OffCurve = coordinate(x: 5, y: 8)
+line AB = segment(start: @A, end: @B)
+curve Curve = bezier(start: @A, end: @B, startAngle: 90, startLength: 10, endAngle: 270, endLength: 10)
+curve Straight = bezier(start: @A, end: @B, startAngle: 0, startLength: 3.3333333333333335, endAngle: 180, endLength: 3.3333333333333335)
+point BadLine = tangentOffset(line: @AB, base: @A, curveSide: convex, distance: 1)
+point Negative = tangentOffset(line: @Curve, base: @OnCurve, curveSide: convex, distance: -1)
+point OffCurveOffset = tangentOffset(line: @Curve, base: @OffCurve, curveSide: convex, distance: 1)
+point StraightOffset = tangentOffset(line: @Straight, base: @OnCurve, curveSide: convex, distance: 1)

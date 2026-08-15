@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { cross, selectBestBezierFeatureCandidate, solveRealQuadratic } from "./bezierMath";
+import { cross, selectBestBezierFeatureCandidate, signedCurvatureAt, solveRealQuadratic } from "./bezierMath";
 
 describe("Bezier shared vector math", () => {
   it("computes the signed 2D cross product", () => {
     expect(cross({ x: 3, y: 2 }, { x: 1, y: 4 })).toBe(10);
+  });
+
+  it("computes signed cubic curvature with the shared EPSILON guard", () => {
+    const curve = {
+      start: { x: 0, y: 0 },
+      control1: { x: 0, y: 10 },
+      control2: { x: 10, y: 10 },
+      end: { x: 10, y: 0 }
+    };
+    expect(signedCurvatureAt(curve, 0.5)).toBeCloseTo(-900 / 15 ** 3, 12);
+    expect(signedCurvatureAt({ ...curve, control1: { x: 0, y: 0 }, control2: { x: 10, y: 0 } }, 0.5)).toBe(0);
   });
 });
 

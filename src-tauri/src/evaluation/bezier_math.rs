@@ -151,6 +151,20 @@ pub(crate) fn cubic_second_derivative(segment: &Value, t: f64) -> Option<Point> 
     })
 }
 
+pub(crate) fn signed_curvature_from_derivatives(first: Point, second: Point) -> f64 {
+    let speed = first.x.hypot(first.y);
+    if speed <= EPSILON {
+        return 0.0;
+    }
+    cross(first, second) / speed.powi(3)
+}
+
+pub(crate) fn signed_curvature_at(segment: &Value, t: f64) -> Option<f64> {
+    let first = cubic_derivative(segment, t)?;
+    let second = cubic_second_derivative(segment, t)?;
+    Some(signed_curvature_from_derivatives(first, second))
+}
+
 // Newton projection of a point onto a cubic segment, seeded from an initial t.
 pub(crate) fn refine_bezier_projection(
     segment: &Value,

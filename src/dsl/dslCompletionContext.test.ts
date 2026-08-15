@@ -53,6 +53,12 @@ describe("dslCompletionContextAt", () => {
       parameter: { definition: { kind: "choice" } }
     });
 
+    const curveSide = "point P = tangentOffset(line: C, base: A, curveSide: convex)";
+    expect(dslCompletionContextAt(curveSide, at(curveSide, "convex"))).toMatchObject({
+      kind: "parameter",
+      parameter: { key: "curveSide", definition: { kind: "choice", choiceOptions: ["convex", "concave"] } }
+    });
+
     // F2's partial-call scanner owns construction && named-argument positions;
     // valid values continue through the parser-derived branches below.
   });

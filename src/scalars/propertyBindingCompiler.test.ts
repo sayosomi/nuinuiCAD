@@ -87,6 +87,40 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
     });
   });
 
+  it("lineTangentOffsetPoint.curveSide (choice)", () => {
+    const compiled = compileFor([
+      "const 曲率側: choice(convex, concave) = convex",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "curve C = bezier(start: @A, end: @B, startAngle: 90, startLength: 10, endAngle: 270, endLength: 10)",
+      "point P = tangentOffset(line: @C, base: @A, curveSide: @曲率側, distance: 3)"
+    ].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
+    expect(diagnostics).toEqual([]);
+    expect(sourceFor(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(4, "curveSide")))).toEqual({
+      bindingId: "binding:stable-0",
+      type: { kind: "choice", options: ["convex", "concave"] },
+      name: "曲率側"
+    });
+  });
+
+  it.each([
+    ["number", "const value: number = 1", "@value"],
+    ["incompatible choice", "const value: choice(left, right) = left", "@value"]
+  ])("rejects a %s bound to lineTangentOffsetPoint.curveSide", (_label, declaration, reference) => {
+    const compiled = compileFor([
+      declaration,
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "curve C = bezier(start: @A, end: @B, startAngle: 90, startLength: 10, endAngle: 270, endLength: 10)",
+      `point P = tangentOffset(line: @C, base: @A, curveSide: ${reference}, distance: 3)`
+    ].join("\n"));
+    const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
+    expect(sourcesByOccurrenceKey.size).toBe(0);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].code).toBe(PROPERTY_BINDING_TYPE_MISMATCH_CODE);
+  });
+
   it.each([
     ["closed", "closed"],
     ["suppressTrimWarnings", "suppressTrimWarnings"]

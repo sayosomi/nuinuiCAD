@@ -75,7 +75,11 @@ describe("DSL nui 4 element serializer", () => {
               (arg.arg !== "distance" && arg.arg !== "ratio") ||
               !(element.type === "divisionPoint" || element.type === "lineDivisionPoint") ||
               element.placement.kind === arg.arg;
-            return hasIntermediateRecords && isActivePlacement;
+            const isActiveTangentOffsetMode =
+              element.type !== "lineTangentOffsetPoint" ||
+              (arg.arg !== "angle" && arg.arg !== "curveSide") ||
+              (arg.arg === "curveSide" ? element.curveSide !== undefined : element.curveSide === undefined);
+            return hasIntermediateRecords && isActivePlacement && isActiveTangentOffsetMode;
           })
           .map((arg) => arg.arg);
         expect(block.args.slice(0, constructionKeys.length).map((arg) => arg.key)).toEqual(constructionKeys);
@@ -156,6 +160,22 @@ describe("DSL nui 4 element serializer", () => {
     expect(args.map((arg) => arg.key)).toContain("distance");
     expect(args.map((arg) => arg.key)).not.toContain("ratio");
     expect(args.map((arg) => arg.text)).toContain("distance: 12");
+  });
+
+  it("serializes only the active tangentOffset direction mode", () => {
+    const base = minimal("lineTangentOffsetPoint");
+    const convex = { ...base, curveSide: "convex" as const, tangentAngleDeg: 37 };
+    const refs = documentDslRefs([...referenceElements, convex]);
+    const block = serializeElementStatementBlock(convex, refs);
+    expect(block.args.map((arg) => arg.key)).toContain("curveSide");
+    expect(block.args.map((arg) => arg.key)).not.toContain("angle");
+    expect(serializeElementStatementLogical(convex, refs)).toContain("curveSide: convex");
+    expect(serializeElementStatementLogical(convex, refs)).not.toContain("angle:");
+
+    const angle = { ...base, tangentAngleDeg: 37 };
+    const angleBlock = serializeElementStatementBlock(angle, documentDslRefs([...referenceElements, angle]));
+    expect(angleBlock.args.map((arg) => arg.key)).toContain("angle");
+    expect(angleBlock.args.map((arg) => arg.key)).not.toContain("curveSide");
   });
 
   it("writes group, if, and for headers without block braces", () => {

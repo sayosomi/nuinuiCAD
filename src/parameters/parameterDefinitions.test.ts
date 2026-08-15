@@ -45,4 +45,21 @@ describe("parameterDefinitions", () => {
     };
     expect(scalarTypeForParameterDefinition(getParameterDefinitions(group).find((definition) => definition.key === key))).toEqual(expected);
   });
+
+  it("defines tangentOffset curveSide as the shared convex/concave choice", () => {
+    const element: CadElement = {
+      id: "offset",
+      name: "接線オフセット",
+      type: "lineTangentOffsetPoint",
+      activity: "visible",
+      baseLineId: "curve",
+      basePoint: { mode: "coordinate", x: 0, y: 0 },
+      tangentAngleDeg: 0,
+      distance: 3
+    };
+    expect(getParameterDefinitions(element).find((definition) => definition.key === "curveSide")).toMatchObject({
+      kind: "choice",
+      choiceOptions: ["convex", "concave"]
+    });
+  });
 });

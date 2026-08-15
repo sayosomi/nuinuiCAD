@@ -113,6 +113,9 @@ const shouldSerializeConstructionArg = (element: CadElement, arg: DslArgSpec) =>
   const key = arg.parameterKey ?? arg.arg;
   if (element.type === "group" && key === "printEnabled") return element.printEnabled === true;
   if (element.type === "group" && key === "printAnchor") return !defaultGroupAnchor(element.printAnchor);
+  if (element.type === "lineTangentOffsetPoint" && (key === "tangentAngleDeg" || key === "curveSide")) {
+    return key === "curveSide" ? element.curveSide !== undefined : element.curveSide === undefined;
+  }
   if ((element.type === "divisionPoint" || element.type === "lineDivisionPoint") &&
       (arg.arg === "distance" || arg.arg === "ratio")) {
     return element.placement.kind === arg.arg;

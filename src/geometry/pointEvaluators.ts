@@ -1,7 +1,17 @@
-import type { CadElement, ComputedBezierSegment, NumericValue } from "../types/geometry";
+import type { CadElement, ComputedBezierCurve, ComputedBezierSegment, NumericValue } from "../types/geometry";
 import { pointAnchorForElement } from "../model/pointAnchors";
 import { degreesToRadians, normalizeDegrees360 } from "../scalars/angleMath";
-import { cross, cubicDerivativeAt, cubicPointAt, dot, EPSILON, selectBestBezierFeatureCandidate, solveRealQuadratic } from "./bezierMath";
+import {
+  cross,
+  cubicDerivativeAt,
+  cubicPointAt,
+  dot,
+  EPSILON,
+  projectPointOntoCurve,
+  selectBestBezierFeatureCandidate,
+  signedCurvatureAt,
+  solveRealQuadratic
+} from "./bezierMath";
 import { CIRCLE_EPSILON } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getComputedPointOrError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import { pointAtDistanceFromEndpoint, isLineLikeGeometry, tangentAtPointOnLineLikeGeometry } from "./linePaths";
@@ -90,6 +100,85 @@ const bezierBulgePointAt = (segment: ComputedBezierSegment) => {
 
   const selected = selectBestBezierFeatureCandidate(candidates);
   return cubicPointAt(segment, selected?.t ?? 0.5);
+};
+
+type CurveSide = "convex" | "concave";
+type CurveSideFrame = {
+  tangent: { x: number; y: number };
+  normal: { x: number; y: number };
+};
+
+const curveSideFrameAt = (
+  segment: ComputedBezierSegment,
+  t: number,
+  curveSide: CurveSide
+): CurveSideFrame | null => {
+  const first = cubicDerivativeAt(segment, t);
+  const speed = Math.hypot(first.x, first.y);
+  if (speed <= EPSILON) return null;
+
+  const curvature = signedCurvatureAt(segment, t);
+  if (!Number.isFinite(curvature) || Math.abs(curvature) <= EPSILON) return null;
+
+  const tangent = { x: first.x / speed, y: first.y / speed };
+  const leftNormal = { x: -tangent.y, y: tangent.x };
+  const concaveSign = curvature > 0 ? 1 : -1;
+  const concaveNormal = {
+    x: concaveSign * leftNormal.x,
+    y: concaveSign * leftNormal.y
+  };
+  return {
+    tangent,
+    normal: curveSide === "concave"
+      ? concaveNormal
+      : { x: -concaveNormal.x, y: -concaveNormal.y }
+  };
+};
+
+const curveSidePoint = (
+  curve: ComputedBezierCurve,
+  basePoint: { x: number; y: number },
+  curveSide: unknown,
+  distance: number
+): { point: { x: number; y: number } } | { error: string } => {
+  if (curveSide !== "convex" && curveSide !== "concave") {
+    return { error: "curveSide は convex または concave で指定してください。" };
+  }
+
+  const projection = projectPointOntoCurve(curve.segments, basePoint);
+  if (!projection || projection.distance > 0.001) {
+    return { error: "curveSide の基準点は基準ベジェ曲線上にありません。基準曲線上の点を指定してください。" };
+  }
+
+  const samples = [{ segmentIndex: projection.segmentIndex, localT: projection.localT }];
+  if (projection.localT <= EPSILON && projection.segmentIndex > 0) {
+    samples.unshift({ segmentIndex: projection.segmentIndex - 1, localT: 1 });
+  } else if (projection.localT >= 1 - EPSILON && projection.segmentIndex + 1 < curve.segments.length) {
+    samples.push({ segmentIndex: projection.segmentIndex + 1, localT: 0 });
+  }
+
+  const frames = samples.map(({ segmentIndex, localT }) =>
+    curveSideFrameAt(curve.segments[segmentIndex], localT, curveSide)
+  );
+  if (frames.some((frame) => frame === null)) {
+    return { error: "curveSide を決定する接線または曲率が不定義です。" };
+  }
+
+  const [first, second] = frames as [CurveSideFrame, ...CurveSideFrame[]];
+  if (second) {
+    const tangentMismatch = Math.hypot(first.tangent.x - second.tangent.x, first.tangent.y - second.tangent.y);
+    const normalMismatch = Math.hypot(first.normal.x - second.normal.x, first.normal.y - second.normal.y);
+    if (tangentMismatch > EPSILON || normalMismatch > EPSILON) {
+      return { error: "curveSide の基準点がベジェ曲線の曖昧な内部 join にあります。corner または不一致の曲率側は指定できません。" };
+    }
+  }
+
+  return {
+    point: {
+      x: basePoint.x + first.normal.x * distance,
+      y: basePoint.y + first.normal.y * distance
+    }
+  };
 };
 
 export const evaluatePointElement = (element: CadElement, context: ElementEvaluationContext) => {
@@ -356,13 +445,53 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
       }
       case "lineTangentOffsetPoint": {
         const baseLine = computedGeometry.get(element.baseLineId);
-        if (!isLineLikeGeometry(baseLine)) {
+        if (!baseLine) {
+          errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId));
+          break;
+        }
+        if (element.curveSide === undefined && !isLineLikeGeometry(baseLine)) {
           errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId));
           break;
         }
 
         const basePoint = evaluatePointAnchor(element.basePoint, "basePoint");
         if (!basePoint) break;
+
+        const distance = evaluateNumber(element.distance);
+        if (distance === undefined) break;
+
+        if (element.curveSide !== undefined) {
+          if (!baseLine || baseLine.kind !== "bezierCurve") {
+            errors.push(
+              geometryError(
+                element,
+                `${element.name} の curveSide はベジェ曲線の計算結果にのみ指定できます。`
+              )
+            );
+            break;
+          }
+          if (distance < 0) {
+            errors.push(geometryError(element, `${element.name} の curveSide の距離は0以上で指定してください。`));
+            break;
+          }
+          const result = curveSidePoint(baseLine, basePoint, element.curveSide, distance);
+          if ("error" in result) {
+            errors.push(geometryError(element, `${element.name}: ${result.error}`));
+            break;
+          }
+          computedGeometry.set(element.id, {
+            kind: "point",
+            elementId: element.id,
+            name: element.name,
+            ...result.point
+          });
+          break;
+        }
+
+        if (!isLineLikeGeometry(baseLine)) {
+          errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId));
+          break;
+        }
 
         const tangent = tangentAtPointOnLineLikeGeometry(baseLine, basePoint);
         if (!tangent) {
@@ -376,8 +505,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         }
 
         const tangentAngleDeg = evaluateNumber(element.tangentAngleDeg);
-        const distance = evaluateNumber(element.distance);
-        if (tangentAngleDeg === undefined || distance === undefined) break;
+        if (tangentAngleDeg === undefined) break;
 
         const angleRad = degreesToRadians(tangent.angleDeg + tangentAngleDeg);
         computedGeometry.set(element.id, {

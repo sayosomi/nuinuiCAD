@@ -125,6 +125,14 @@ describe("resolveDslValueStep", () => {
     expect(stepAt(wrappedChoiceSource, wrappedLine, "left", 1)).toMatchObject({ parameterKey: "side", insert: "right" });
     expect(stepAt(wrappedChoiceSource, wrappedLine, "left", -1)).toMatchObject({ parameterKey: "side", insert: "right" });
 
+    const curveSideSource = "point P = tangentOffset(line: C, base: A, curveSide: convex, distance: 3)";
+    const curveSideElement = compileElement(curveSideSource);
+    expect(stepAt(curveSideSource, curveSideElement, "convex", 1)).toMatchObject({ parameterKey: "curveSide", insert: "concave" });
+    expect(stepAt(curveSideSource, curveSideElement, "convex", -1)).toMatchObject({ parameterKey: "curveSide", insert: "concave" });
+    const wrappedCurveSideSource = "point P = tangentOffset(line: C, base: A, curveSide: concave, distance: 3)";
+    const wrappedCurveSideElement = compileElement(wrappedCurveSideSource);
+    expect(stepAt(wrappedCurveSideSource, wrappedCurveSideElement, "concave", 1)).toMatchObject({ parameterKey: "curveSide", insert: "convex" });
+
     const textSource = 'text Label = label(text: "true",anchor: A,size: 4)';
     const text = compileElement(textSource);
     expect(stepAt(textSource, text, "true", 1)).toBeNull();

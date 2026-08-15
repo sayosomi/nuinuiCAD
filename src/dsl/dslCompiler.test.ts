@@ -242,6 +242,42 @@ describe("DSL compiler", () => {
     expect(result.elements[7]).toMatchObject({ type: "lineTangentOffsetPoint", tangentAngleDeg: 90, distance: 10 });
   });
 
+  it("supports mutually exclusive tangentOffset angle and curveSide modes", () => {
+    const convex = compileDslToElements(
+      "point A = coordinate(x: 0, y: 0)\nline C = segment(start: @A, end: @A)\npoint P = tangentOffset(line: @C, base: @A, curveSide: convex, distance: 3)",
+      { elements: [] }
+    );
+    expect(convex.diagnostics).toEqual([]);
+    expect(convex.elements.at(-1)).toMatchObject({
+      type: "lineTangentOffsetPoint",
+      tangentAngleDeg: 0,
+      curveSide: "convex",
+      distance: 3
+    });
+
+    const concave = compileDslToElements(
+      "point A = coordinate(x: 0, y: 0)\nline C = segment(start: @A, end: @A)\npoint P = tangentOffset(line: @C, base: @A, curveSide: concave, distance: 3)",
+      { elements: [] }
+    );
+    expect(concave.diagnostics).toEqual([]);
+    expect(concave.elements.at(-1)).toMatchObject({ curveSide: "concave", tangentAngleDeg: 0 });
+
+    const omitted = compileDslToElements(
+      "point A = coordinate(x: 0, y: 0)\nline C = segment(start: @A, end: @A)\npoint P = tangentOffset(line: @C, base: @A, distance: 3)",
+      { elements: [] }
+    );
+    expect(omitted.diagnostics).toEqual([]);
+    expect(omitted.elements.at(-1)).toMatchObject({ tangentAngleDeg: 0 });
+    expect(omitted.elements.at(-1)).not.toHaveProperty("curveSide");
+
+    const both = compileDslToElements(
+      "point A = coordinate(x: 0, y: 0)\nline C = segment(start: @A, end: @A)\npoint P = tangentOffset(line: @C, base: @A, angle: 90, curveSide: convex, distance: 3)",
+      { elements: [] }
+    );
+    expect(both.elements).toHaveLength(0);
+    expect(both.diagnostics.some((diagnostic) => diagnostic.message.includes("同時に指定"))).toBe(true);
+  });
+
   it("creates line and curve operations from natural DSL syntax", () => {
     const result = compileDslToElements(
       [

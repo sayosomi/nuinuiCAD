@@ -10,6 +10,7 @@ import {
   computedPoint,
   lineLength
 } from "./offsetPathMath";
+import { signedCurvatureAt } from "./bezierMath";
 
 export const cubicSourcePointAt = (
   segment: Extract<SourceSegment, { kind: "bezier" }>,
@@ -51,18 +52,6 @@ const cubicDerivativeAt = (
       3 * t * t * (segment.end.y - segment.control2.y)
   };
 };
-
-const cubicSecondDerivativeAt = (
-  segment: Extract<SourceSegment, { kind: "bezier" }>,
-  t: number
-): Point => ({
-  x:
-    6 * (1 - t) * (segment.control2.x - 2 * segment.control1.x + segment.start.x) +
-    6 * t * (segment.end.x - 2 * segment.control2.x + segment.control1.x),
-  y:
-    6 * (1 - t) * (segment.control2.y - 2 * segment.control1.y + segment.start.y) +
-    6 * t * (segment.end.y - 2 * segment.control2.y + segment.control1.y)
-});
 
 const fallbackTangent = (
   segment: Extract<SourceSegment, { kind: "bezier" }>,
@@ -137,17 +126,6 @@ const offsetPointAt = (
   t: number,
   offset: number
 ): Point => offsetPointByTangent(cubicSourcePointAt(segment, t), unitTangentAt(segment, t), offset);
-
-const signedCurvatureAt = (
-  segment: Extract<SourceSegment, { kind: "bezier" }>,
-  t: number
-) => {
-  const first = cubicDerivativeAt(segment, t);
-  const second = cubicSecondDerivativeAt(segment, t);
-  const speed = Math.hypot(first.x, first.y);
-  if (speed <= EPSILON) return 0;
-  return (first.x * second.y - first.y * second.x) / speed ** 3;
-};
 
 const offsetScaleAt = (
   segment: Extract<SourceSegment, { kind: "bezier" }>,
