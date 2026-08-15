@@ -162,6 +162,17 @@
       "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 1 } }
     },
     {
+      "name": "remainder-positive-basic",
+      "description": "5 % 3",
+      "ast": {
+        "kind": "binary", "operator": "%", "type": { "kind": "number" },
+        "left": { "kind": "numberLiteral", "value": 5, "type": { "kind": "number" } },
+        "right": { "kind": "numberLiteral", "value": 3, "type": { "kind": "number" } }
+      },
+      "bindings": {},
+      "expected": { "status": "ok", "type": { "kind": "number" }, "value": { "kind": "number", "value": 2 } }
+    },
+    {
       "name": "remainder-fractional",
       "description": "5.5 % 2",
       "ast": {
