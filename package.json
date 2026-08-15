@@ -22,6 +22,7 @@
     "bench:performance:rust-production": "cargo test --manifest-path src-tauri/Cargo.toml performance_pure_typed_production_ -- --ignored --nocapture --test-threads=1",
     "test:parity": "VITE_RUN_RUST_PARITY=1 vitest run test/evaluationParity.test.ts",
     "bench:evaluation": "cargo test --manifest-path src-tauri/Cargo.toml performance_ -- --ignored --nocapture --test-threads=1",
+    "bench:compare": "tsx scripts/performance/compare.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -56,6 +57,7 @@
     "fast-check": "^4.9.0",
     "globals": "latest",
     "jsdom": "^29.1.1",
+    "tsx": "^4.23.12",
     "typescript": "latest",
     "typescript-eslint": "latest",
     "vitest": "latest"
