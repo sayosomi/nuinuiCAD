@@ -259,6 +259,12 @@ const parameterDefinitionsForElement = (
           kind: "number",
           stepLevels: angleNumericParameterStepLevels,
         },
+        {
+          key: "curveSide",
+          label: "曲率側",
+          kind: "choice",
+          choiceOptions: ["convex", "concave"],
+        },
         { key: "distance", label: "距離", kind: "number" },
       ];
     case "bezierExtremePoint":

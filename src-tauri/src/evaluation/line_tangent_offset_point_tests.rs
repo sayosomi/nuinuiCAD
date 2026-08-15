@@ -76,6 +76,100 @@ fn evaluates_line_tangent_offset_point_on_line() {
 }
 
 #[test]
+fn evaluates_convex_and_concave_curve_side_on_a_bezier() {
+    let mut elements = vec![
+        element(json!({
+            "id": "a", "name": "A", "type": "freePoint", "activity": "visible", "x": 0, "y": 0
+        })),
+        element(json!({
+            "id": "b", "name": "B", "type": "freePoint", "activity": "visible", "x": 10, "y": 0
+        })),
+        element(json!({
+            "id": "base", "name": "Base", "type": "freePoint", "activity": "visible", "x": 5, "y": 7.5
+        })),
+        element(json!({
+            "id": "curve",
+            "name": "Curve",
+            "type": "bezierCurve",
+            "activity": "visible",
+            "startPoint": { "mode": "reference", "pointId": "a" },
+            "startHandleAngleDeg": 90,
+            "startHandleLength": 10,
+            "intermediatePoints": [],
+            "endPoint": { "mode": "reference", "pointId": "b" },
+            "endHandleAngleDeg": 270,
+            "endHandleLength": 10
+        })),
+    ];
+    for (id, side) in [("convex", "convex"), ("concave", "concave")] {
+        elements.push(element(json!({
+            "id": id,
+            "name": id,
+            "type": "lineTangentOffsetPoint",
+            "activity": "visible",
+            "baseLineId": "curve",
+            "basePoint": { "mode": "reference", "pointId": "base" },
+            "curveSide": side,
+            "tangentAngleDeg": 0,
+            "distance": 1
+        })));
+    }
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements,
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty());
+    let convex = point(&result, "convex");
+    let concave = point(&result, "concave");
+    assert!((convex["x"].as_f64().unwrap() - 5.0).abs() < 1e-9);
+    assert!((convex["y"].as_f64().unwrap() - 8.5).abs() < 1e-9);
+    assert!((concave["x"].as_f64().unwrap() - 5.0).abs() < 1e-9);
+    assert!((concave["y"].as_f64().unwrap() - 6.5).abs() < 1e-9);
+}
+
+#[test]
+fn rejects_curve_side_on_non_bezier_and_negative_distance() {
+    let mut elements = base_line_elements();
+    elements.push(element(json!({
+        "id": "base", "name": "Base", "type": "freePoint", "activity": "visible", "x": 0, "y": 0
+    })));
+    elements.push(element(json!({
+        "id": "offset",
+        "name": "Offset",
+        "type": "lineTangentOffsetPoint",
+        "activity": "visible",
+        "baseLineId": "line",
+        "basePoint": { "mode": "reference", "pointId": "base" },
+        "curveSide": "convex",
+        "tangentAngleDeg": 0,
+        "distance": 1
+    })));
+    let result = evaluate_document_input(EvaluationInput {
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements,
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+    assert_eq!(result.errors.len(), 1);
+    assert!(result.errors[0].message.contains("ベジェ曲線"));
+}
+
+#[test]
 fn evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,

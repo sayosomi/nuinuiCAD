@@ -6,6 +6,8 @@ mod bezier_curve_tests;
 mod bezier_evaluator;
 mod bezier_feature_point_evaluator;
 mod bezier_math;
+#[cfg(test)]
+mod bezier_math_tests;
 mod bezier_path;
 mod control_boolean_runtime;
 #[cfg(test)]

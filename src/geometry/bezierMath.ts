@@ -104,6 +104,16 @@ export const cubicSecondDerivativeAt = (segment: BezierLikeSegment, t: number): 
     6 * t * (segment.end.y - 2 * segment.control2.y + segment.control1.y)
 });
 
+/** Signed curvature for a cubic at t. Positive curvature turns toward the left normal. */
+export const signedCurvatureFromDerivatives = (first: Point, second: Point): number => {
+  const speed = Math.hypot(first.x, first.y);
+  if (speed <= EPSILON) return 0;
+  return cross(first, second) / speed ** 3;
+};
+
+export const signedCurvatureAt = (segment: BezierLikeSegment, t: number): number =>
+  signedCurvatureFromDerivatives(cubicDerivativeAt(segment, t), cubicSecondDerivativeAt(segment, t));
+
 export type BezierProjection = {
   localT: number;
   distanceFromLine: number;

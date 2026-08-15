@@ -200,6 +200,33 @@ for i in range(
 
 `if Name (...)`、`for Name (...)`、`{@name}`、`@stop` は廃止されています。
 
+### tangentOffset の曲率側
+
+`tangentOffset` は、接線からの角度で方向を指定する既存の angle mode に加えて、
+cubic Bezier の曲率側を指定できます。
+
+```text
+point 外側 = tangentOffset(
+  line: @ベジェ線,
+  base: @基準点,
+  curveSide: convex,
+  distance: 3,
+)
+```
+
+`curveSide` は `convex` または `concave` です。`angle` と `curveSide` は同時に
+指定できません。どちらも省略した場合は既存互換の `angle: 0` として扱います。
+保存時は angle mode なら `angle`、curve-side mode なら `curveSide` だけが出力されます。
+
+curve-side mode は、評価後の `computedGeometry.kind` が `bezierCurve` の場合だけ利用できます。
+通常の Bezier に加えて、split、trim、extend、pathReverse 後も Bezier の computed geometry
+であれば利用できます。line、arc、offset line などはエラーになります。基準点は既存の
+0.001 mm tolerance で曲線上にある必要があり、距離は 0 以上です。接線が 0、曲率が
+直線または inflection になる点、曖昧な内部 join では fail closed でエラーになります。
+
+`curveSide` の choice 値は Source Editor の completion と `Alt+←` / `Alt+→` の共通 choice
+操作に対応します。Inspector は read-only のままです。
+
 ### Bezier方向極値点
 
 `bezierExtremePoint` は、指定した cubic Bezier の区間で、指定方向への

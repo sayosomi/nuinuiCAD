@@ -142,6 +142,7 @@ export type LineTangentOffsetPointElement = CadElementBase & {
   baseLineId: ElementId;
   basePoint: PointAnchor;
   tangentAngleDeg: NumericValue;
+  curveSide?: "convex" | "concave";
   distance: NumericValue;
 };
 

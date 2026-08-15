@@ -1,0 +1,12 @@
+nui 4
+# Active nui4 evaluation fixture.
+const Side: choice(convex, concave) = convex
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 10, y: 0)
+point Base = coordinate(x: 5, y: 7.5)
+curve Curve = bezier(start: @A, end: @B, startAngle: 90, startLength: 10, endAngle: 270, endLength: 10)
+point Convex = tangentOffset(line: @Curve, base: @Base, curveSide: convex, distance: 1)
+point Concave = tangentOffset(line: @Curve, base: @Base, curveSide: concave, distance: 1)
+point Bound = tangentOffset(line: @Curve, base: @Base, curveSide: @Side, distance: 1)
+reverse(target: @Curve)
+point ReverseConvex = tangentOffset(line: @Curve, base: @Base, curveSide: convex, distance: 1)

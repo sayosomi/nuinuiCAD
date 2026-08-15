@@ -80,6 +80,36 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(result.computedGeometry.get(bare.id)).toMatchObject({ kind: "text", text: "前身頃" });
   }, 30000);
 
+  it("keeps tangentOffset curveSide literal, choice binding, and pathReverse parity", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-tangent-offset-curve-side.nui");
+    const options = optionsFor(fixture);
+    const ts = evaluationPayloadToResult(evaluateElementsReferencePayload(fixture.elements, options));
+    const rust = evaluationPayloadToResult(evaluateWithRustFixture(repoRoot, fixture));
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(rust.errors).toEqual(ts.errors);
+    for (const name of ["Convex", "Concave", "Bound", "ReverseConvex"]) {
+      const element = fixture.elements.find((candidate) => candidate.name === name)!;
+      expect(ts.computedGeometry.get(element.id)).toMatchObject({ kind: "point" });
+      const tsPoint = ts.computedGeometry.get(element.id);
+      const rustPoint = rust.computedGeometry.get(element.id);
+      expect(rustPoint).toMatchObject({ kind: "point" });
+      if (tsPoint?.kind !== "point" || rustPoint?.kind !== "point") throw new Error("expected tangentOffset points");
+      expect(rustPoint.x).toBeCloseTo(tsPoint.x, 10);
+      expect(rustPoint.y).toBeCloseTo(tsPoint.y, 10);
+    }
+    const convex = fixture.elements.find((candidate) => candidate.name === "Convex")!;
+    const concave = fixture.elements.find((candidate) => candidate.name === "Concave")!;
+    const reverseConvex = fixture.elements.find((candidate) => candidate.name === "ReverseConvex")!;
+    for (const [element, x, y] of [[convex, 5, 8.5], [concave, 5, 6.5], [reverseConvex, 5, 8.5]] as const) {
+      const geometry = ts.computedGeometry.get(element.id);
+      expect(geometry).toMatchObject({ kind: "point" });
+      if (geometry?.kind !== "point") throw new Error("expected tangentOffset point");
+      expect(geometry.x).toBeCloseTo(x, 10);
+      expect(geometry.y).toBeCloseTo(y, 10);
+    }
+  }, 30000);
+
   it("gives an element-local numeric variable precedence over a same-named document typed binding (Task 52 B1/B2)", () => {
     const fixture = readParityFixture(repoRoot, "nui4-element-local-typed-name-collision.nui");
     const result = evaluationPayloadToResult(evaluateWithRustFixture(repoRoot, fixture));

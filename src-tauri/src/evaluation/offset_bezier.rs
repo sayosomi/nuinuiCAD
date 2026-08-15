@@ -1,5 +1,6 @@
 use kurbo::{CubicBez, ParamCurve, ParamCurveDeriv};
 
+use super::bezier_math::{signed_curvature_from_derivatives, Point as BezierPoint};
 use super::offset_types::{line_length, OffsetPoint, OffsetSegment, SourceSegment, EPSILON};
 
 const BEZIER_OFFSET_FLATNESS_TOLERANCE_MM: f64 = 0.1;
@@ -173,11 +174,16 @@ fn offset_point_at(segment: &SourceSegment, t: f64, offset: f64) -> OffsetPoint 
 fn signed_curvature_at(segment: &SourceSegment, t: f64) -> f64 {
     let first = cubic_derivative_at(segment, t);
     let second = cubic_second_derivative_at(segment, t);
-    let speed = first.x.hypot(first.y);
-    if speed <= EPSILON {
-        return 0.0;
-    }
-    (first.x * second.y - first.y * second.x) / speed.powi(3)
+    signed_curvature_from_derivatives(
+        BezierPoint {
+            x: first.x,
+            y: first.y,
+        },
+        BezierPoint {
+            x: second.x,
+            y: second.y,
+        },
+    )
 }
 
 fn is_safe_offset_t(segment: &SourceSegment, t: f64, offset: f64) -> bool {

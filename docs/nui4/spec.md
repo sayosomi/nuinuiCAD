@@ -360,6 +360,43 @@ the final argument has a trailing comma. A single-line call is parseable, but
 the Source Editor's canonical formatter emits the stable multi-line shape for a
 multi-argument call.
 
+### Tangent offsets by Bezier curvature side
+
+`tangentOffset` supports the existing tangent-angle mode and a curvature-side
+mode for computed cubic Bezier geometry:
+
+```text
+point outer = tangentOffset(
+  line: @curve,
+  base: @base,
+  curveSide: convex,
+  distance: 3,
+)
+```
+
+`curveSide` is a choice with the options `convex` and `concave`. `angle` and
+`curveSide` are mutually exclusive. If neither is supplied, the construction
+uses the existing-compatible `angle: 0` mode. Canonical serialization emits
+only the active mode's argument: `angle` for angle mode or `curveSide` for
+curvature-side mode.
+
+Curvature-side mode is accepted only when the evaluated dependency has
+`computedGeometry.kind == "bezierCurve"`. This is determined from computed
+geometry rather than the declared source element type, so original, split,
+trimmed, extended, and reversed Bezier results are accepted. Lines, arcs,
+offset-line results, and other non-Bezier computed geometry are rejected.
+
+The base point is projected using the existing cubic curve projection and must
+be within the existing `0.001 mm` on-curve tolerance. For a cubic `B(t)`, with
+`T = B'(t)`, `A = B''(t)`, and `speed = |T|`, signed curvature is
+`cross(T, A) / speed^3`. The left normal is `(-T.y / speed, T.x / speed)`;
+the concave normal is `sign(curvature) * leftNormal`, and the convex normal is
+its opposite. This definition preserves the physical side when the path is
+reversed. A zero tangent, zero or near-flat curvature, exact inflection,
+ambiguous/corner internal join, off-curve base point, invalid `curveSide`
+literal, or negative distance is an evaluation error. Distance zero remains
+valid after these geometry validations pass.
+
 ### Bezier direction extreme points
 
 `bezierExtremePoint` creates a point at the maximum projection of one cubic

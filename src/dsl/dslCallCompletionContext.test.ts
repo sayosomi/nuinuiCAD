@@ -47,6 +47,15 @@ describe("dslCallCompletionContextAt", () => {
     expect(candidates.map((candidate) => candidate.label)).not.toEqual(expect.arrayContaining(["id", "varIds", "parent", "branch"]));
   });
 
+  it("offers tangentOffset curveSide through the construction registry", () => {
+    const context = atEnd("point P = tangentOffset(line: C, base: A, ");
+    expect(context).toMatchObject({ kind: "argument", spec: { construction: "tangentOffset" } });
+    if (!context || context.kind !== "argument") throw new Error("argument context expected");
+    expect(argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
+      "angle", "curveSide", "distance", "state", "color", "steps", "vars"
+    ]);
+  });
+
   it("does not offer attribute-key completion when the cursor sits inside an emptied value's raw gap", () => {
     // Matches a real edit: select an existing choice value && delete it,
     // landing the cursor right where the deleted text used to start - not at
