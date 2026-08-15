@@ -42,26 +42,31 @@ coordinate values should remain Y-up.
 
 ## Source of truth
 
-When updating behavior, prefer these source files over duplicating details here:
+`ARCHITECTURE.md` is the current repository architecture and navigation index.
+`docs/dsl.md` is the current implemented DSL language documentation. Source code
+is the final authority for implementation details and behavior. `AGENTS.md` is
+the durable product, engineering, and workflow policy. When a task-specific
+specification or plan exists, respect that Task contract. Do not duplicate a
+large architecture map in this file.
 
-* Element and geometry types: `src/types/geometry.ts`
-* Rust/Tauri evaluation core: `src-tauri/src/evaluation/`
-* TypeScript evaluation adapter, payload conversion, reference evaluator, and
-  parity helpers: `src/geometry/`
-* Tauri desktop shell and commands: `src-tauri/`
-* Dependency and document ordering logic: `src/model/`
-* DSL parsing, compilation, serialization, and completion: `src/dsl/`
-* Canonical document persistence and text patches: `src/document/`
-* CodeMirror adapter and source-edit session boundary: `src/editor/`
-* Commands and command palette data: `src/commands/`
-* Keyboard shortcut mapping: `src/keyboard/shortcuts.ts`
-* Editable parameter definitions: `src/parameters/parameterDefinitions.ts`
-* Store state and undo behavior: `src/state/`
-* Rendering and interaction components: `src/components/`
+If behavior changes at the architectural or product-policy level, update the
+appropriate durable document. If only a shortcut, label, parameter, or element
+field changes, update the source of truth instead.
 
-If behavior changes at the architectural or product-policy level, update this
-file. If only a shortcut, label, parameter, or element field changes, update the
-source of truth instead.
+## Architecture impact check
+
+Before committing repository changes, check semantically whether the task changes:
+
+- Subsystem ownership
+- Primary entry points
+- Architecture boundaries
+- Documented data flow
+
+If yes, update `ARCHITECTURE.md` in the same Task and describe the changed
+current code. If no, do not change it solely to create documentation churn.
+Ordinary bug fixes and internal implementation changes that remain within the
+same ownership boundary normally do not require an architecture index update.
+Never describe a future architecture or proposed design as current architecture.
 
 ## Evaluation and dependencies
 
@@ -172,29 +177,20 @@ not configured.
 The product has not started production use yet. When improving the document
 model or saved file format, prefer the cleanest durable shape over backward
 compatibility with earlier local drafts. Breaking saved-format changes are
-acceptable unless the user explicitly asks for a migration path or compatibility
-layer.
+acceptable unless the user explicitly asks for a compatibility layer.
 
-The target final saved-document format is `nui 4`. Until the nui4 migration is
-complete, the current production implementation and current document format
-remain `nui 3`. nui4 is a destructive replacement. Do not add a nui3-to-nui4
-compatibility layer, converter, importer, or migration wizard. Compatibility
-with old local documents must not distort the nui4 architecture; prefer precise
-diagnostics and a manually repairable `.nui` source file during the transition.
+The current and only supported saved-document language is `nui 4`. Missing or
+unsupported versions fail closed. A nui3 compatibility parser, converter,
+importer, or migration layer does not currently exist; do not add old-format
+compatibility without an explicit Task.
 
-The nui4 migration does not preserve legacy-only parser, serializer, importer,
-adapter, fallback, bridge, fixture, or conditional branches. Do not proactively
-extend old-format compatibility or add automatic migration.
-
-The persisted document is one `.nui` DSL text file. `sourceText` is the
-canonical, durable state. Document-order deterministic evaluation, no automatic
-dependency sorting, Rust-first evaluation, and statement-level source editing
-remain in force throughout the migration. Existing local drafts are not a
-reason to preserve obsolete language shapes or create a second save target.
-Keep document edits on the central `sourceEditSession`/`commitText` boundary.
-Canvas and command changes must use statement-level text splices through the
-document bridge: do not add whole-file reserialization as a mutation path
-because comments, blank lines, and user layout must remain intact.
+The persisted document is one `.nui` DSL text file. `.nui` `sourceText` is
+canonical. Document-order deterministic evaluation, no automatic dependency
+sorting, Rust-first evaluation, and statement-level source editing are current
+rules. Keep document edits on the central `sourceEditSession`/`commitText`
+boundary. Canvas and command model edits must use statement-level text splices
+through the document bridge. Do not add a whole-file reserialization mutation
+path that can damage comments, blank lines, or user layout.
 
 Keep CodeMirror types and direct CodeMirror APIs inside `src/editor/` and
 `SourceEditorPane.tsx`. Other components communicate through source-editor
@@ -326,13 +322,54 @@ than hiding the issue.
 ## Git / GitHub workflow
 
 * In plan mode, only plan Git/GitHub actions; execute them after approval.
-* Follow the branch and worktree workflow specified by the task.
-* Do not require a new branch or worktree for every task as a repository-wide
-  rule.
-* A long-running migration or multi-task plan may continue using the same branch
-  and worktree when the task specifies that workflow.
+* The standard multi-Task feature flow is:
+
+  ```text
+  main
+    ↓
+  Task 1 branch
+    ↓ commit + push + blocking review
+  Task 2 branch
+    ↓ commit + push + blocking review
+  ...
+  final Task branch
+    ↓
+  one final PR
+    ↓
+  main
+  ```
+
+1. Task 1 starts from latest `main`.
+2. Later Tasks start from the previous Task's final blocking-review-approved
+   commit.
+3. Every Task has its own branch.
+4. Every Task that changes repository files commits its intended changes.
+5. Every Task pushes its commit(s) to `origin`.
+6. A local-only commit is not complete.
+7. Review is performed against pushed GitHub state.
+8. Blocking fixes remain on the same Task branch and are committed and pushed.
+9. Do not normally create PRs between chained Task branches.
+10. After all Tasks pass blocking review, create one final PR from the final Task
+    branch to `main`.
+11. Independent new work starts from updated `main` after the previous work is
+    merged.
+12. Worktrees are optional; use them when parallel work or multiple branches
+    need to remain checked out simultaneously.
+13. Do not create a PR unless the user explicitly requests it.
+14. Do not merge unless the user explicitly requests it.
+15. Push is mandatory unless the user explicitly says not to push.
+* Single-Task work is the same model shortened to:
+
+  ```text
+  latest main
+  → Task branch
+  → commit
+  → push
+  → blocking review
+  → optional fix commits + push
+  → PASS
+  ```
+
 * Do not switch the current worktree to `main` without instruction.
 * Do not delete unrelated worktrees or branches without instruction.
-* Do not create a PR or merge without the user's explicit request.
-* Follow the task or user instruction for branch/worktree cleanup.
-* Never merge a PR without explicit approval.
+* Do not delete or overwrite unrelated user changes.
