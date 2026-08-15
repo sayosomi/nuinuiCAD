@@ -84,6 +84,72 @@ export const expectedOperandType = (precedingToken: ScalarExpressionToken | null
   }
 };
 
+type ScalarCallContext = {
+  readonly openingIndex: number;
+  readonly definition: NonNullable<ReturnType<typeof getBuiltinFunctionDefinition>>;
+};
+
+const callContextAt = (tokens: readonly ScalarExpressionToken[], anchorIndex: number): ScalarCallContext | null => {
+  let nesting = 0;
+  for (let index = anchorIndex; index >= 0; index -= 1) {
+    const token = tokens[index];
+    if (token.kind === "rightParen") {
+      nesting += 1;
+      continue;
+    }
+    if (token.kind !== "leftParen") continue;
+    if (nesting > 0) {
+      nesting -= 1;
+      continue;
+    }
+    const functionToken = tokens[index - 1];
+    if (!functionToken || functionToken.kind !== "literal" || functionToken.literal.kind !== "choice") return null;
+    const definition = getBuiltinFunctionDefinition(functionToken.literal.raw);
+    return definition ? { openingIndex: index, definition } : null;
+  }
+  return null;
+};
+
+const directNamedArgumentNames = (
+  tokens: readonly ScalarExpressionToken[],
+  openingIndex: number,
+  endIndex: number
+): ReadonlySet<string> => {
+  const names = new Set<string>();
+  let nesting = 0;
+  for (let index = openingIndex + 1; index <= endIndex; index += 1) {
+    const token = tokens[index];
+    if (token.kind === "leftParen") {
+      nesting += 1;
+      continue;
+    }
+    if (token.kind === "rightParen") {
+      nesting = Math.max(0, nesting - 1);
+      continue;
+    }
+    if (nesting !== 0 || token.kind !== "literal" || token.literal.kind !== "choice") continue;
+    if (tokens[index + 1]?.kind === "colon") names.add(token.literal.raw);
+  }
+  return names;
+};
+
+const namedArgumentNamesAt = (
+  tokens: readonly ScalarExpressionToken[],
+  anchorIndex: number
+): readonly string[] | null => {
+  const call = callContextAt(tokens, anchorIndex);
+  if (!call) return null;
+  const signature = call.definition.signatures.find((candidate) => candidate.callingStyle === "named");
+  if (!signature) return null;
+  const preceding = tokens[anchorIndex];
+  if (!preceding || (preceding.kind !== "leftParen" && preceding.kind !== "comma")) return null;
+  if (preceding.kind === "leftParen" && anchorIndex !== call.openingIndex) return null;
+  const used = directNamedArgumentNames(tokens, call.openingIndex, anchorIndex - 1);
+  return signature.parameters
+    .map((parameter) => parameter.name)
+    .filter((name) => !used.has(name));
+};
+
 /**
  * The root expected type is not enough inside a builtin call: `isClose(` is a
  * boolean expression, but all three of its arguments are numbers. Resolve
@@ -95,31 +161,28 @@ const builtinArgumentTypeAt = (
   precedingToken: ScalarExpressionToken,
   rootType: ScalarType | null
 ): ScalarType | null => {
-  if (precedingToken.kind !== "leftParen" && precedingToken.kind !== "comma") return expectedOperandType(precedingToken, rootType);
   const precedingIndex = tokens.lastIndexOf(precedingToken);
-  if (precedingIndex < 0) return expectedOperandType(precedingToken, rootType);
-  let nesting = 0;
-  let openingIndex = -1;
-  for (let index = precedingIndex; index >= 0; index -= 1) {
-    const token = tokens[index];
-    if (token.kind === "rightParen") nesting += 1;
-    else if (token.kind === "leftParen") {
-      if (nesting === 0) {
-        openingIndex = index;
-        break;
-      }
-      nesting -= 1;
+  if (precedingToken.kind === "colon") {
+    const nameToken = precedingIndex > 0 ? tokens[precedingIndex - 1] : null;
+    const call = callContextAt(tokens, precedingIndex - 2);
+    const signature = call?.definition.signatures.find((candidate) => candidate.callingStyle === "named");
+    if (nameToken?.kind === "literal" && nameToken.literal.kind === "choice" && signature) {
+      const parameter = signature.parameters.find((candidate) => candidate.name === nameToken.literal.raw);
+      return parameter && isScalarBuiltinParameterType(parameter.type) ? parameter.type : null;
     }
-  }
-  const functionToken = openingIndex > 0 ? tokens[openingIndex - 1] : null;
-  if (!functionToken || functionToken.kind !== "literal" || functionToken.literal.kind !== "choice") {
     return expectedOperandType(precedingToken, rootType);
   }
-  const definition = getBuiltinFunctionDefinition(functionToken.literal.raw);
-  if (!definition) return expectedOperandType(precedingToken, rootType);
+  if (precedingToken.kind !== "leftParen" && precedingToken.kind !== "comma") return expectedOperandType(precedingToken, rootType);
+  if (precedingIndex < 0) return expectedOperandType(precedingToken, rootType);
+  const call = callContextAt(tokens, precedingIndex);
+  if (!call) {
+    return expectedOperandType(precedingToken, rootType);
+  }
+  const namedSignature = call.definition.signatures.find((signature) => signature.callingStyle === "named");
+  if (namedSignature) return expectedOperandType(precedingToken, rootType);
   let nestedDepth = 0;
   let argumentIndex = 0;
-  for (let index = openingIndex + 1; index <= precedingIndex; index += 1) {
+  for (let index = call.openingIndex + 1; index <= precedingIndex; index += 1) {
     const token = tokens[index];
     if (token.kind === "leftParen") {
       nestedDepth += 1;
@@ -129,7 +192,9 @@ const builtinArgumentTypeAt = (
       argumentIndex += 1;
     }
   }
-  const parameterType = definition.signatures.find((signature) => signature.argumentTypes.length > argumentIndex)?.argumentTypes[argumentIndex];
+  const parameterType = call.definition.signatures
+    .filter((signature) => signature.callingStyle === "positional")
+    .find((signature) => signature.parameters.length > argumentIndex)?.parameters[argumentIndex]?.type;
   return parameterType && isScalarBuiltinParameterType(parameterType)
     ? parameterType
     : expectedOperandType(precedingToken, rootType);
@@ -141,7 +206,7 @@ export type ScalarOperandWordMatch = { readonly from: number; readonly to: numbe
 // in reverse, && dslVariableToken.ts's boundary-character convention adapted
 // to this grammar's own operator set (rather than reusing the local-numeric
 // module directly - the typed scalar grammar owns its own operator symbols).
-const REFERENCE_WORD_ENDING_AT = /(?:^|[\s()+\-*/<>=!&|,])@([\p{L}_][\p{L}\p{N}_]*)?$/u;
+const REFERENCE_WORD_ENDING_AT = /(?:^|[\s()+\-*/<>=!&|,:])@([\p{L}_][\p{L}\p{N}_]*)?$/u;
 const BARE_WORD_ENDING_AT = /[\p{L}_][\p{L}\p{N}_]*$/u;
 
 /**
@@ -170,6 +235,7 @@ export const scalarOperandWordEndingAt = (text: string, pos: number, boundarySta
  * has the BindingCatalog this module deliberately does not need.
  */
 export type ScalarExpressionCompletionContext =
+  | { kind: "argumentName"; from: number; to: number; names: readonly string[] }
   | {
       kind: "operand";
       from: number;
@@ -212,6 +278,13 @@ export const scalarExpressionCompletionContextAt = (
   const { tokens, error } = tokenizeScalarExpression(text, { start: span.start, end: effectivePos });
   if (error) return null;
   const classification = classifyScalarExpressionPosition(tokens, effectivePos);
+
+  if (classification.kind === "operand") {
+    const names = namedArgumentNamesAt(tokens, tokens.length - 1);
+    if (names && (!wordMatch || wordMatch.kind === "bareWord")) {
+      return { kind: "argumentName", from: wordMatch ? wordMatch.from : pos, to: pos, names };
+    }
+  }
 
   if (classification.kind === "operator") {
     if (wordMatch) return null;

@@ -23,6 +23,7 @@
 
 import {
   type ScalarBinaryOperator,
+  type ScalarCallArgumentNode,
   type ScalarExpressionAst,
   type ScalarExpressionDiagnostic,
   type ScalarExpressionIssueCode,
@@ -267,7 +268,7 @@ class Parser {
     this.consume();
     this.consume();
 
-    const args: ScalarExpressionAst[] = [];
+    const args: ScalarCallArgumentNode[] = [];
     const closing = this.peek();
     if (closing?.kind === "rightParen") {
       this.consume();
@@ -282,12 +283,41 @@ class Parser {
     }
 
     for (;;) {
-      const argument = this.parseTier(0);
+      const namedName = this.peek();
+      const namedColon = this.peek(1);
+      let argument: ScalarCallArgumentNode;
+      if (namedName?.kind === "literal" && namedName.literal.kind === "choice" && namedColon?.kind === "colon") {
+        this.consume();
+        this.consume();
+        const expression = this.parseTier(0);
+        argument = {
+          kind: "named",
+          span: { start: namedName.literal.span.start, end: expression.span.end },
+          nameSpan: namedName.literal.span,
+          name: namedName.literal.raw,
+          expression
+        };
+      } else {
+        const expression = this.parseTier(0);
+        argument = { kind: "positional", span: expression.span, expression };
+      }
       args.push(argument);
 
       const separator = this.peek();
       if (separator?.kind === "comma") {
         this.consume();
+        const trailingClosing = this.peek();
+        if (trailingClosing?.kind === "rightParen") {
+          this.consume();
+          this.depth -= 1;
+          return {
+            kind: "call",
+            span: { start: nameLiteral.span.start, end: trailingClosing.span.end },
+            nameSpan: nameLiteral.span,
+            name: nameLiteral.raw,
+            args
+          };
+        }
         continue;
       }
       if (separator?.kind === "rightParen") {

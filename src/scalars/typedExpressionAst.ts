@@ -164,7 +164,11 @@ export type ScalarExpressionTypecheckIssueCode =
   | "scalar-type-mismatch"
   | "invalid-choice-literal"
   | "unknown-function"
-  | "function-arity-mismatch";
+  | "function-arity-mismatch"
+  | "function-call-style-mismatch"
+  | "unknown-function-argument"
+  | "duplicate-function-argument"
+  | "missing-function-argument";
 
 export interface ScalarExpressionTypecheckDiagnostic {
   readonly code: ScalarExpressionTypecheckIssueCode;

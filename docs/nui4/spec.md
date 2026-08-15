@@ -182,6 +182,27 @@ function declarations are not part of the current language surface. Arbitrary
 callees, postfix calls, and first-class functions are not part of the current
 language surface.
 
+A scalar builtin signature may declare named calling style. Such a signature
+uses `name: expression` arguments:
+
+```nui
+someFunction(
+  second: 2,
+  first: 1,
+)
+```
+
+Named argument order has no semantic meaning. Multiline argument lists may have
+a trailing comma. Parameter names, parameter types, and canonical parameter
+order are owned by the builtin signature metadata. Positional-only and
+named-only signatures are semantically distinct; a call must use the declared
+style, and mixed positional/named calls are invalid in nui4 v1. Unknown,
+duplicate, or missing named arguments produce diagnostics. The current builtin
+catalog below remains positional-only; this syntax does not add named forms to
+any existing builtin. After semantic validation, a valid named call is lowered
+to the existing canonical positional `TypedBuiltinArgument[]` runtime shape;
+argument names are not part of the runtime payload.
+
 The current builtin catalog is:
 
 | Function | Signature |

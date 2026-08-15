@@ -261,18 +261,23 @@ const lowerExpression = (
       }
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
-        const signature = definition?.signatures.find((candidate) => candidate.argumentTypes.length === node.args.length);
+        const signature = definition?.signatures.find((candidate) =>
+          candidate.callingStyle === "positional" &&
+          candidate.parameters.length === node.args.length &&
+          node.args.every((argument) => argument.kind === "positional")
+        );
         node.args.forEach((argument, argumentIndex) => {
-          const parameterType = signature?.argumentTypes[argumentIndex];
-          const occurrence = argument.kind === "reference" || argument.kind === "geometryProperty"
-            ? geometryBuiltinFor(argument.span.start)
+          const sourceArgument = argument.expression;
+          const parameterType = signature?.parameters[argumentIndex]?.type;
+          const occurrence = sourceArgument.kind === "reference" || sourceArgument.kind === "geometryProperty"
+            ? geometryBuiltinFor(sourceArgument.span.start)
             : undefined;
           if (parameterType && typeof parameterType === "string" && occurrence) {
-            if (argument.kind === "reference") {
+            if (sourceArgument.kind === "reference") {
               typecheckResolutions.push({ kind: "resolvedGeometry", target: typecheckGeometryTargetFor(occurrence) });
             }
           } else {
-            collectTypecheckResolutions(argument);
+            collectTypecheckResolutions(sourceArgument);
           }
         });
         return;

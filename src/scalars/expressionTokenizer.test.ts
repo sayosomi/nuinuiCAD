@@ -26,6 +26,14 @@ describe("tokenizeScalarExpression / parens and operators", () => {
     ]);
   });
 
+  it("tokenizes a named argument colon without changing the identifier token", () => {
+    expect(tokenizeOk("name: expression")).toEqual([
+      { kind: "literal", literal: { kind: "choice", span: { start: 0, end: 4 }, raw: "name" } },
+      { kind: "colon", span: { start: 4, end: 5 } },
+      { kind: "literal", literal: { kind: "choice", span: { start: 6, end: 16 }, raw: "expression" } }
+    ]);
+  });
+
   it("prefers the 2-char operator over splitting into two 1-char tokens", () => {
     expect(tokenizeOk(" and ")).toEqual([{ kind: "operator", value: "&&", span: { start: 1, end: 4 } }]);
     expect(tokenizeOk(" or ")).toEqual([{ kind: "operator", value: "||", span: { start: 1, end: 3 } }]);

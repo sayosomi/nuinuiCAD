@@ -136,34 +136,39 @@ const resolveAndTypecheck = ({
         return node;
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
-        const signature = definition?.signatures.find((candidate) => candidate.argumentTypes.length === node.args.length);
+        const signature = definition?.signatures.find((candidate) =>
+          candidate.callingStyle === "positional" &&
+          candidate.parameters.length === node.args.length &&
+          node.args.every((argument) => argument.kind === "positional")
+        );
         return {
           ...node,
           args: node.args.map((argument, argumentIndex) => {
-            const parameterType = signature?.argumentTypes[argumentIndex];
+            const parameterType = signature?.parameters[argumentIndex]?.type;
+            const sourceArgument = argument.expression;
             if (
               definition &&
               signature &&
               parameterType !== undefined &&
               isBuiltinGeometryParameterType(parameterType) &&
-              (argument.kind === "reference" || argument.kind === "geometryProperty") &&
+              (sourceArgument.kind === "reference" || sourceArgument.kind === "geometryProperty") &&
               resolveGeometryBuiltin
             ) {
               const reference = resolveGeometryBuiltin({
                 builtinName: definition.name,
                 argumentIndex,
-                name: argument.kind === "reference" ? argument.name : `${argument.elementName}.${argument.property}`,
-                span: argument.span,
+                name: sourceArgument.kind === "reference" ? sourceArgument.name : `${sourceArgument.elementName}.${sourceArgument.property}`,
+                span: sourceArgument.span,
                 expectedGeometryType: parameterType
               });
               geometryBuiltinArguments.push({
                 builtinName: definition.name,
                 argumentIndex,
-                span: argument.span,
+                span: sourceArgument.span,
                 expectedGeometryType: parameterType,
                 reference
               });
-              if (argument.kind === "reference") {
+              if (sourceArgument.kind === "reference") {
                 resolvedTypes.push({
                   kind: "resolvedGeometry",
                   target: typecheckGeometryTarget(reference, parameterType)
@@ -171,7 +176,7 @@ const resolveAndTypecheck = ({
               }
               return argument;
             }
-            return resolve(argument);
+            return { ...argument, expression: resolve(sourceArgument) };
           })
         };
       }
@@ -228,8 +233,16 @@ const resolveAndTypecheck = ({
       ? "module-invalid-choice-literal"
       : diagnostic.code === "unknown-function"
         ? "module-unknown-function"
-        : diagnostic.code === "function-arity-mismatch"
-          ? "module-function-arity-mismatch"
+      : diagnostic.code === "function-arity-mismatch"
+        ? "module-function-arity-mismatch"
+        : diagnostic.code === "function-call-style-mismatch"
+          ? "module-function-call-style-mismatch"
+          : diagnostic.code === "unknown-function-argument"
+            ? "module-unknown-function-argument"
+            : diagnostic.code === "duplicate-function-argument"
+              ? "module-duplicate-function-argument"
+              : diagnostic.code === "missing-function-argument"
+                ? "module-missing-function-argument"
           : "module-scalar-type-mismatch";
     diagnostics.push(localIssue(
       code,

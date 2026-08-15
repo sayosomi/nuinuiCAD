@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { compileDslToElements } from "../dsl/dslCompiler";
 import { parseDsl } from "../dsl/dslParser";
@@ -12,6 +12,8 @@ import { typecheckScalarExpression } from "./expressionTypecheck";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
 import type { ScalarExpressionResolvedReference, ScalarExpressionTypecheckResult } from "./typedExpressionAst";
 import type { ScalarType } from "./types";
+import * as builtinFunctions from "./builtinFunctions";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "./builtinFunctions";
 
 // --- shared fixtures -------------------------------------------------------
 
@@ -65,6 +67,24 @@ const geometryResolution = (geometryType: "point" | "line" | "path"): ScalarExpr
   kind: "resolvedGeometry",
   target: { statementId: `stable-${geometryType}`, statementIndex: 0, geometryType }
 });
+
+const namedTestDefinition: BuiltinFunctionDefinition = {
+  name: "namedTest" as BuiltinFunctionName,
+  signatures: [{
+    callingStyle: "named",
+    parameters: [{ name: "first", type: { kind: "number" } }, { name: "second", type: { kind: "number" } }],
+    returnType: { kind: "number" }
+  }]
+};
+
+const withNamedTestBuiltin = () => {
+  const original = builtinFunctions.getBuiltinFunctionDefinition;
+  vi.spyOn(builtinFunctions, "getBuiltinFunctionDefinition").mockImplementation((name) =>
+    name === "namedTest" ? namedTestDefinition : original(name)
+  );
+};
+
+afterEach(() => vi.restoreAllMocks());
 
 // --- operator cross product -------------------------------------------------
 
@@ -182,6 +202,75 @@ describe("typecheckScalarExpression / unary operators", () => {
 });
 
 describe("typecheckScalarExpression / builtin calls", () => {
+  it("canonicalizes reversed named arguments while preserving source reference traversal order", () => {
+    withNamedTestBuiltin();
+    const result = check("namedTest(second: @b, first: @a)", null, [
+      { kind: "resolvedType", bindingId: "binding-b", type: { kind: "number" } },
+      { kind: "resolvedType", bindingId: "binding-a", type: { kind: "number" } }
+    ]);
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.typed).toMatchObject({
+      kind: "call",
+      args: [
+        { kind: "scalar", expression: { kind: "reference", bindingId: "binding-a" } },
+        { kind: "scalar", expression: { kind: "reference", bindingId: "binding-b" } }
+      ]
+    });
+  });
+
+  it.each([
+    ["namedTest(third: 1, first: 2)", "unknown-function-argument"],
+    ["namedTest(first: 1, first: 2)", "duplicate-function-argument"],
+    ["namedTest(first: 1)", "missing-function-argument"]
+  ] as const)("reports named argument diagnostic %s", (source, code) => {
+    withNamedTestBuiltin();
+    const result = check(source);
+    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toContain(code);
+    expect(result.type).toBeNull();
+  });
+
+  it("rejects positional and mixed calls for a named-only signature", () => {
+    withNamedTestBuiltin();
+    expect(check("namedTest(1, second: 2)").diagnostics).toEqual([
+      expect.objectContaining({ code: "function-call-style-mismatch" })
+    ]);
+    expect(check("namedTest(1, 2)").diagnostics).toEqual([
+      expect.objectContaining({ code: "function-call-style-mismatch" })
+    ]);
+  });
+
+  it("rejects named calls for an existing positional-only builtin", () => {
+    const result = check("atan2(y: 1, x: 0)");
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "function-call-style-mismatch" })
+    ]);
+  });
+
+  it("checks named argument value types", () => {
+    withNamedTestBuiltin();
+    const result = check('namedTest(first: "wrong", second: 2)');
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "scalar-type-mismatch" })
+    ]);
+  });
+
+  it("keeps unknown named calls on the unknown-function diagnostic", () => {
+    const result = check("unknownFunction(first: @a, second: @b)", null, [
+      { kind: "resolvedType", bindingId: "binding-a", type: { kind: "number" } },
+      { kind: "resolvedType", bindingId: "binding-b", type: { kind: "number" } }
+    ]);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "unknown-function" })
+    ]);
+    expect(result.typed).toMatchObject({
+      args: [
+        { expression: { kind: "reference", bindingId: "binding-a" } },
+        { expression: { kind: "reference", bindingId: "binding-b" } }
+      ]
+    });
+  });
+
   it.each([
     ["distance(@a, @b)", ["point", "point"], "number"],
     ["angle(@a, @b)", ["point", "point"], "number"],

@@ -103,6 +103,27 @@ text note = label(text: "幅 ${round(@seam, 1)}mm", anchor: @A, size: 3)
 引数の型・個数が違う場合や計算結果が有限値でない場合は、診断として表示されます。
 暗黙の数値変換はありません。
 
+### scalar 関数の named arguments
+
+named calling style を宣言した scalar builtin では、引数名と式を
+`name: expression` の形で書けます。
+
+```text
+someFunction(
+  second: 2,
+  first: 1,
+)
+```
+
+named argument の順序は意味を持ちません。複数行の引数リストでは末尾の
+comma を使えます。parameter の名前・型・canonical order は builtin の
+signature metadata が所有します。positional-only と named-only は semantic
+に区別され、v1 では positional と named の混在は無効です。unknown、duplicate、
+missing の named argument は診断になります。現在の builtin catalog は
+positional-only のままで、既存関数の named-call 化は行いません。検証に成功した
+named call は runtime では既存の canonical な positional typed arguments に
+lower され、argument name は runtime payload に入りません。
+
 論理演算子は `and`、`or`、`not` です。`var`、裸の名前参照、`&&` / `||` / `!` は nui4 の入力構文ではありません。型付き宣言は `const`、`let`、`set` を使います。
 
 ## 要素、グループ、制御

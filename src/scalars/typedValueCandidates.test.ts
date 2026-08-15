@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingCatalog } from "./bindingCatalog";
 import { isScalarTypeAssignable } from "./scalarAssignability";
@@ -14,6 +14,8 @@ import {
 } from "./typedValueCandidates";
 import { tokenizeScalarExpression } from "./expressionTokenizer";
 import { scalarExpressionCompletionContextAt } from "./scalarExpressionPositionClassifier";
+import * as builtinFunctions from "./builtinFunctions";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "./builtinFunctions";
 
 const compileFor = (source: string): { catalog: BindingCatalog; entriesById: BindingAnalysis["entriesById"] } => {
   const { bindingAnalysis } = typedDeclarationAnalysisFor(source);
@@ -25,6 +27,24 @@ const bindingIdByName = (catalog: BindingCatalog, name: string) => {
   if (!binding) throw new Error(`no typed binding named ${name}`);
   return binding;
 };
+
+const namedDefinition: BuiltinFunctionDefinition = {
+  name: "someFunction" as BuiltinFunctionName,
+  signatures: [{
+    callingStyle: "named",
+    parameters: [{ name: "first", type: { kind: "number" } }, { name: "second", type: { kind: "number" } }],
+    returnType: { kind: "number" }
+  }]
+};
+
+const withNamedDefinition = () => {
+  const original = builtinFunctions.getBuiltinFunctionDefinition;
+  vi.spyOn(builtinFunctions, "getBuiltinFunctionDefinition").mockImplementation((name) =>
+    name === "someFunction" ? namedDefinition : original(name)
+  );
+};
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("scalarLiteralCandidates", () => {
   it("boolean: true then false", () => {
@@ -302,6 +322,15 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
   it("includeOperators: false suppresses operator candidates entirely (property scalar value contract)", () => {
     const context = contextFor("@flagA ");
     expect(scalarExpressionCandidates(context, { catalog, entriesById, site, includeOperators: false })).toEqual([]);
+  });
+
+  it("returns unused named parameter candidates from the shared signature metadata", () => {
+    withNamedDefinition();
+    const text = "someFunction(first: 1, se";
+    const context = scalarExpressionCompletionContextAt(text, text.length, { start: 0, end: text.length }, { kind: "number" });
+    expect(context).toMatchObject({ kind: "argumentName", names: ["second"] });
+    const candidates = scalarExpressionCandidates(context!, { catalog, entriesById, site, includeOperators: true });
+    expect(candidates).toEqual([{ kind: "argumentName", label: "second" }]);
   });
 });
 
