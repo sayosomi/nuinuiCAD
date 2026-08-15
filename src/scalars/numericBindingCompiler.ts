@@ -156,13 +156,14 @@ export const compileNumericBindings = ({
     elementId?: ElementId
   ) => {
     if (!value || !isNumericExpression(value) || !valueSpan) return;
-    const refs = referencesIn(logicalText.slice(valueSpan.start, valueSpan.end), valueSpan);
-    const hasGeometryProperty = scanExpressionReferences(logicalText.slice(valueSpan.start, valueSpan.end))
-      .some((match) => match.kind === "elementProperty" && match.sigil);
-    // Ref-free element expressions still have a typed runtime route. Keep
-    // printLayout/place ref-free expressions on their existing owner until
-    // their later surface migration.
-    if (!refs.length && !hasGeometryProperty && !elementId) return;
+    const source = logicalText.slice(valueSpan.start, valueSpan.end);
+    const scannedReferences = scanExpressionReferences(source);
+    const refs = referencesIn(source, valueSpan);
+    const hasGeometryProperty = scannedReferences.some((match) => match.kind === "elementProperty" && match.sigil);
+    // Qualified frontend references are not typed scalar bindings. They stay
+    // on their existing owner; unlike a genuinely ref-free expression, they
+    // must not be offered to the typed checker without a resolution entry.
+    if (!elementId && scannedReferences.length > 0 && !refs.length && !hasGeometryProperty) return;
     candidates.push({
       key,
       statement,
@@ -401,7 +402,7 @@ export const compileNumericBindings = ({
             currentSourceOrder: candidate.statementIndex
           }
         );
-        if (candidate.elementId && !hasLegacyOwnedReference && geometryResolution.issues.length === 0 && typedChecked.type?.kind === "number") {
+        if (!hasLegacyOwnedReference && geometryResolution.issues.length === 0 && typedChecked.type?.kind === "number") {
           typedExpression = geometryResolution.expression;
         }
       }

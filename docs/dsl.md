@@ -40,6 +40,22 @@ line AB = segment(
 const endX: number = @AB.end.x
 ```
 
+### 算術演算子
+
+数値式では `+`、`-`、`*`、`/`、`%`、`^` を使えます。`%` は percent ではなく
+remainder（剰余）です。`^` は右結合で unary より強く、`%` は `*` / `/` と同じ
+優先順位で左結合です。
+
+```text
+const power: number = 2 ^ 3       # 8
+const remainder: number = 5 % 3   # 2
+const right: number = 2 ^ 3 ^ 2    # 512
+const unary: number = -2 ^ 2       # -4
+const negative: number = 2 ^ -2    # 0.25
+```
+
+剰余の 0 除算や、`^` の結果が有限値にならない計算は evaluation error です。
+
 ### 組み込み数値関数
 
 nui4 の型付き式では、次の組み込み関数を使えます。
@@ -167,6 +183,8 @@ text note = label(
 `printLayout` の body は通常の scope です。layout 専用の `layoutVar` はなく、ローカル `const` / `let` / `set` と `place @...` を使います。
 
 `printLayout` は文書末尾の section です。`stop` を使う場合は `printLayout` より前に置きます。
+header と `place` の numeric value は通常の typed number expression なので、`^` と
+`%` も利用できます。
 
 ```text
 stop

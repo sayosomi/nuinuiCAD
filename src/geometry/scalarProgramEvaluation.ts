@@ -44,6 +44,20 @@ type DocumentGeometryRuntime = {
   elementsById: ReadonlyMap<ElementId, CadElement>;
 };
 
+export const resolveDocumentGeometryProperty = (
+  computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>,
+  reference: TypedScalarGeometryPropertyReferenceNode,
+  sourceOrder: number
+): ScalarEvaluation => {
+  if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
+    return { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
+  }
+  const value = computedReferencePathValue(computedGeometry.get(reference.elementId), reference.property);
+  return typeof value === "number"
+    ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
+    : { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
+};
+
 const resolveDocumentGeometryTarget = (
   geometry: DocumentGeometryRuntime,
   target: ScalarExpressionResolvedGeometryTarget,
@@ -64,15 +78,8 @@ export const createDocumentScalarBindingResolver = (
   geometry?: DocumentGeometryRuntime
 ): ScalarBindingResolver => {
   const resolveGeometryProperty = geometry
-    ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation => {
-        if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
-          return { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
-        }
-        const value = computedReferencePathValue(geometry.computedGeometry.get(reference.elementId), reference.property);
-        return typeof value === "number"
-          ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
-          : { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
-      }
+    ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation =>
+        resolveDocumentGeometryProperty(geometry.computedGeometry, reference, sourceOrder)
     : undefined;
   const resolveGeometryTarget = geometry
     ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): ComputedGeometry | undefined => {
@@ -93,15 +100,8 @@ export const createDocumentLinearScalarBindingResolver = (
   geometry?: DocumentGeometryRuntime
 ): LinearScalarBindingResolver => {
   const resolveGeometryProperty = geometry
-    ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation => {
-        if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
-          return { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
-        }
-        const value = computedReferencePathValue(geometry.computedGeometry.get(reference.elementId), reference.property);
-        return typeof value === "number"
-          ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
-          : { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
-      }
+    ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation =>
+        resolveDocumentGeometryProperty(geometry.computedGeometry, reference, sourceOrder)
     : undefined;
   const resolveGeometryTarget = geometry
     ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): ComputedGeometry | undefined => {

@@ -114,6 +114,49 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(resolve(rustEvaluation)).toMatchObject({ x: 30, y: 30 });
   }, 30000);
 
+  it("asserts arithmetic operators and printLayout/place values through both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-arithmetic-operators.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(scalarBindingFor(fixture, payload, "powerBasic")).toMatchObject({ status: "ok", value: { kind: "number", value: 8 } });
+      expect(scalarBindingFor(fixture, payload, "remainderBasic")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+      expect(scalarBindingFor(fixture, payload, "powerRightAssociative")).toMatchObject({ status: "ok", value: { kind: "number", value: 512 } });
+      expect(scalarBindingFor(fixture, payload, "powerUnaryPrecedence")).toMatchObject({ status: "ok", value: { kind: "number", value: -4 } });
+      expect(scalarBindingFor(fixture, payload, "powerNegativeExponent")).toMatchObject({ status: "ok", value: { kind: "number", value: 0.25 } });
+    }
+
+    const compiled = fixture.compiled!.doc!;
+    const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
+    const numericBindingLookup = {
+      numericBindings: compiled.numericBindings ?? new Map(),
+      byKey: compiled.statementMap.byKey,
+      bindingVersions: compiled.bindingVersions
+    };
+    const resolve = (payload: typeof tsPayload) => resolvePrintLayout({
+      layout,
+      elements: compiled.document.elements,
+      evaluation: evaluationPayloadToResult(payload),
+      numericBindingLookup
+    });
+
+    for (const payload of [tsPayload, rustPayload]) {
+      const resolved = resolve(payload);
+      expect(resolved).toMatchObject({
+        columns: 8,
+        rows: 2,
+        overlapMm: 0.25,
+        scale: 0.25,
+        svgCanvasWidthMm: 8,
+        svgCanvasHeightMm: 2
+      });
+      expect(resolved.placements[0]).toMatchObject({ x: 8, y: 2, angleDeg: 32 });
+    }
+  }, 30000);
+
   it("asserts nui4 builtin scalar values and runtime errors in both evaluators", () => {
     const fixture = readParityFixture(repoRoot, "nui4-builtin-functions.nui");
     const options = optionsFor(fixture);

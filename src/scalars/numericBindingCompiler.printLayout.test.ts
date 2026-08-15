@@ -36,6 +36,34 @@ describe("compileNumericBindings: printLayout/place", () => {
     expect(compiled.numericBindings?.get("2:overlap")).toBeDefined();
   });
 
+  it("compiles a ref-free printLayout arithmetic expression as typed", () => {
+    const compiled = compile([
+      "nui 4",
+      "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 2 ^ -2, canvas: (410, 584)) {",
+      "}"
+    ].join("\n"));
+    const binding = compiled.numericBindings?.get("1:scale");
+    expect(binding).toBeDefined();
+    expect(binding?.references).toHaveLength(0);
+    expect(binding?.typedExpression).toBeDefined();
+  });
+
+  it("compiles ref-free place arithmetic fields as typed", () => {
+    const compiled = compile([
+      "nui 4",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "group G (printEnabled: true, printAnchor: @Origin) {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "}",
+      "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "  place @G(x: 2 ^ 3, y: 5 % 3, angle: 0, mirrorX: false)",
+      "}"
+    ].join("\n"));
+    const bindings = [...(compiled.numericBindings?.values() ?? [])];
+    expect(bindings.find((binding) => binding.parameterKey === "x")).toMatchObject({ references: [], typedExpression: expect.any(Object) });
+    expect(bindings.find((binding) => binding.parameterKey === "y")).toMatchObject({ references: [], typedExpression: expect.any(Object) });
+  });
+
   it("rejects a string-typed binding referenced in a numeric printLayout field", () => {
     const compiled = compileCanonicalText(
       regenerateCanonicalFromModel(emptyDocument(), 4),
@@ -135,7 +163,7 @@ describe("compileNumericBindings: printLayout/place", () => {
     expect(compiled.diagnostics.some((item) => item.code === NUMERIC_BINDING_UNRESOLVED_CODE)).toBe(true);
   });
 
-  it("does not diagnose a bare @Element.property reference in printLayout's scale (unrelated syntax, must keep working)", () => {
+  it("lowers a bare @Element.property reference in printLayout's scale to typed geometry", () => {
     const compiled = compile([
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -145,14 +173,13 @@ describe("compileNumericBindings: printLayout/place", () => {
       "}"
     ].join("\n"));
     expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    // @AB.length is never a bare @name reference (referencesIn filters it
-    // out), so it never becomes a numericBindings occurrence here either -
-    // it stays in the legacy numeric evaluator, which is correct for this
-    // syntax.
-    expect(compiled.numericBindings?.get("4:scale")).toBeUndefined();
+    const binding = compiled.numericBindings?.get("4:scale");
+    expect(binding).toBeDefined();
+    expect(binding?.references).toHaveLength(0);
+    expect(binding?.typedExpression).toMatchObject({ kind: "geometryProperty", elementId: expect.any(String), property: "length" });
   });
 
-  it("does not misclassify a scoped geometry property in printLayout's scale", () => {
+  it("lowers a scoped geometry property in printLayout's scale to a stable typed target", () => {
     const compiled = compile([
       "nui 4",
       "group G {",
@@ -162,7 +189,10 @@ describe("compileNumericBindings: printLayout/place", () => {
       "}"
     ].join("\n"));
     expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(compiled.numericBindings?.size ?? 0).toBe(0);
+    const binding = [...(compiled.numericBindings?.values() ?? [])].find((candidate) => candidate.parameterKey === "scale");
+    expect(binding).toBeDefined();
+    expect(binding?.references).toHaveLength(0);
+    expect(binding?.typedExpression).toMatchObject({ kind: "geometryProperty", elementId: expect.any(String), property: "length" });
   });
 
   it("does not resolve a qualified path as a typed binding before namespace semantics", () => {
@@ -193,6 +223,7 @@ describe("compileNumericBindings: printLayout/place", () => {
     const source = compiled.numericBindings?.get("5:scale");
     expect(source).toBeDefined();
     expect(source!.references.map((reference) => reference.name)).toEqual(["printScale"]);
+    expect(source!.typedExpression).toBeDefined();
   });
 
   it("diagnoses the unresolved reference specifically when an unresolved and a valid typed reference are mixed", () => {
