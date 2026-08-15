@@ -488,4 +488,21 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
+
+  it("asserts root set geometry builtin resolution with an unrelated module through both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-module-root-set-geometry-builtin-functions.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    for (const payload of [tsPayload, rustPayload]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "distanceValue"), 5);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "angleValue"), 90);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "lineDistanceValue"), 3);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "lineAngleValue"), 90);
+    }
+
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
 });

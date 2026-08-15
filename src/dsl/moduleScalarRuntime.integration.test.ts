@@ -214,6 +214,106 @@ describe("module scalar runtime integration", () => {
     }
   });
 
+  it("preserves root geometry builtin resolution for set statements when a module is present", () => {
+    const rootSource = [
+      "nui 4",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "point DistancePoint = coordinate(x: 3, y: 4)",
+      "point Up = coordinate(x: 0, y: 1)",
+      "point MeasurePoint = coordinate(x: 10, y: 3)",
+      "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+      "line Vertical = segment(start: (0, 0), end: (0, 10))",
+      "let distanceValue: number = 0",
+      "let angleValue: number = 0",
+      "let lineDistanceValue: number = 0",
+      "let lineAngleValue: number = 0",
+      "set distanceValue = distance(@Origin, @DistancePoint)",
+      "set angleValue = angle(@Origin, @Up)",
+      "set lineDistanceValue = lineDistance(@MeasurePoint, @Horizontal)",
+      "set lineAngleValue = lineAngle(@Horizontal, @Vertical)"
+    ];
+    const sources = [
+      rootSource.join("\n"),
+      [
+        ...rootSource,
+        "",
+        "module Unrelated(baseline: line) {",
+        "  line Local = segment(start: (0, 0), end: (0, 10))",
+        "}"
+      ].join("\n")
+    ];
+    const expectedValues = new Map([
+      ["distanceValue", 5],
+      ["angleValue", 90],
+      ["lineDistanceValue", 3],
+      ["lineAngleValue", 90]
+    ]);
+    const expectedGeometryNamesBySetName = new Map([
+      ["distanceValue", ["Origin", "DistancePoint"]],
+      ["angleValue", ["Origin", "Up"]],
+      ["lineDistanceValue", ["MeasurePoint", "Horizontal"]],
+      ["lineAngleValue", ["Horizontal", "Vertical"]]
+    ]);
+
+    for (const [sourceIndex, source] of sources.entries()) {
+      const compiled = compileWithIds(source);
+      expectValid(compiled);
+      const result = evaluateCompiled(compiled);
+      expect(result.errors).toEqual([]);
+
+      for (const [name, expected] of expectedValues) {
+        const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+          candidate.kind === "typed" && candidate.name === name
+        );
+        expect(binding).toBeDefined();
+        expect(result.computedScalarBindings?.get(binding!.id)).toMatchObject({
+          status: "ok",
+          value: { kind: "number", value: expected }
+        });
+      }
+
+      if (sourceIndex !== 1) continue;
+      const setStatements = [...(compiled.setStatements?.values() ?? [])];
+      expect(setStatements.map((statement) => statement.targetName)).toEqual([...expectedValues.keys()]);
+      for (const statement of setStatements) {
+        const expectedGeometryNames = expectedGeometryNamesBySetName.get(statement.targetName);
+        if (!expectedGeometryNames) throw new Error(`unexpected set target ${statement.targetName}`);
+        expect(statement.expression.kind).toBe("call");
+        if (statement.expression.kind !== "call") throw new Error("expected geometry builtin call");
+        const targets = statement.expression.args.map((argument) => {
+          expect(argument.kind).toBe("geometryReference");
+          if (argument.kind !== "geometryReference") throw new Error("expected geometry reference argument");
+          expect(argument.target).not.toBeNull();
+          if (!argument.target) throw new Error("expected resolved geometry target");
+          return argument.target.statementId;
+        });
+        expect(targets).toEqual(expectedGeometryNames.map((name) => elementNamed(compiled, name).id));
+      }
+    }
+  });
+
+  it("retains geometry builtin type mismatch diagnostics for root set statements with a module", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "let value: number = 0",
+      "set value = distance(@Horizontal, @Origin)",
+      "module Unrelated() {",
+      "}"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "builtin-geometry-type-mismatch" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "builtin-geometry-argument-invalid" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "set-rhs-unresolved" })
+    ]));
+  });
+
   it("accepts line parameter and module-local derived point operands", () => {
     const compiled = compileWithIds([
       "nui 4",

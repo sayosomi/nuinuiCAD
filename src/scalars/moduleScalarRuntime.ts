@@ -763,7 +763,10 @@ export const compileModuleScalarRuntime = ({
     stableStatementIdByIndex,
     iterationBindings: iterationSeeds,
     additionalBindings: additionalSeeds,
-    containerIndex: baseCatalog.containerIndex
+    containerIndex: baseCatalog.containerIndex,
+    ...(baseCatalog.sourceNamespaceBindingResolver
+      ? { sourceNamespaceBindingResolver: baseCatalog.sourceNamespaceBindingResolver }
+      : {})
   });
   const bindingsById = combinedCatalog.bindingsById;
   const documentIterationBindingForTarget = (target: Extract<ModuleScalarSourceTarget, { kind: "iteration" }>) =>
