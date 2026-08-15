@@ -34,7 +34,7 @@ const pointCoordinates = (compiled: LastGoodDslDocument, evaluation: EvaluationR
 };
 
 describe("geometry measurement builtins through the production TS scalar path", () => {
-  it("evaluates distance, angle, and lineDistance before downstream point construction", () => {
+  it("evaluates distance, angle, lineDistance, and lineAngle before downstream point construction", () => {
     const compiled = compile([
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -43,12 +43,15 @@ describe("geometry measurement builtins through the production TS scalar path", 
       "point Lend = coordinate(x: 1, y: 0)",
       "point P = coordinate(x: 10, y: 3)",
       "line L = segment(start: @A, end: @Lend)",
+      "line V = segment(start: (0, 0), end: (0, 1))",
       "const distanceValue: number = distance(@A, @B)",
       "const angleValue: number = angle(@A, @U)",
       "const lineDistanceValue: number = lineDistance(@P, @L)",
+      "const lineAngleValue: number = lineAngle(@L, @V)",
       "point DistanceResult = coordinate(x: @distanceValue, y: 0)",
       "point AngleResult = coordinate(x: @angleValue, y: 0)",
-      "point LineDistanceResult = coordinate(x: @lineDistanceValue, y: 0)"
+      "point LineDistanceResult = coordinate(x: @lineDistanceValue, y: 0)",
+      "point LineAngleResult = coordinate(x: @lineAngleValue, y: 0)"
     ].join("\n"));
 
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -57,6 +60,7 @@ describe("geometry measurement builtins through the production TS scalar path", 
     expect(pointCoordinates(compiled, result, "DistanceResult")).toEqual({ x: 5, y: 0 });
     expect(pointCoordinates(compiled, result, "AngleResult")).toEqual({ x: 90, y: 0 });
     expect(pointCoordinates(compiled, result, "LineDistanceResult")).toEqual({ x: 3, y: 0 });
+    expect(pointCoordinates(compiled, result, "LineAngleResult")).toEqual({ x: 90, y: 0 });
   });
 
   it("keeps geometry builtin declarations working when linear mutation evaluation is selected", () => {

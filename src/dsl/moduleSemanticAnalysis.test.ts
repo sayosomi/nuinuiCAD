@@ -91,6 +91,24 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("uses the common scalar parser for named syntax and remaps call-style diagnostics", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(a: number, b: number) {",
+      "  const wrong: number = atan2(y: max(@a, 1), x: @b)",
+      "}",
+      "instance Use = M(a: 1, b: 2)"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-function-call-style-mismatch" })
+    ]));
+    const initializer = compiled.moduleSemanticAnalysis!.definitions[0].localScalars.find((scalar) => scalar.name === "wrong")?.initializer;
+    expect(initializer).toMatchObject({
+      type: null,
+      references: [{ name: "a" }, { name: "b" }]
+    });
+  });
+
   it("uses the shared scalar frontend for nui4 word operators in a Module body", () => {
     const compiled = compileWithIds([
       "nui 4",

@@ -876,6 +876,179 @@ fn evaluates_line_distance_to_the_infinite_line() {
 }
 
 #[test]
+fn evaluates_line_angle_as_the_directionless_smaller_angle() {
+    let cases = [
+        (
+            "horizontal",
+            (0.0, 0.0),
+            (10.0, 0.0),
+            "parallel",
+            (0.0, 5.0),
+            (10.0, 5.0),
+            0.0,
+        ),
+        (
+            "horizontal",
+            (0.0, 0.0),
+            (10.0, 0.0),
+            "reversed-parallel",
+            (10.0, 5.0),
+            (0.0, 5.0),
+            0.0,
+        ),
+        (
+            "horizontal",
+            (0.0, 0.0),
+            (10.0, 0.0),
+            "vertical",
+            (3.0, -2.0),
+            (3.0, 8.0),
+            90.0,
+        ),
+        (
+            "horizontal",
+            (0.0, 0.0),
+            (10.0, 0.0),
+            "diagonal",
+            (100.0, 100.0),
+            (101.0, 101.0),
+            45.0,
+        ),
+        (
+            "horizontal",
+            (0.0, 0.0),
+            (10.0, 0.0),
+            "direction-135",
+            (20.0, 20.0),
+            (19.0, 21.0),
+            45.0,
+        ),
+        (
+            "reverse-horizontal",
+            (10.0, 0.0),
+            (0.0, 0.0),
+            "diagonal",
+            (100.0, 100.0),
+            (101.0, 101.0),
+            45.0,
+        ),
+        (
+            "horizontal",
+            (0.0, 0.0),
+            (10.0, 0.0),
+            "reverse-diagonal",
+            (101.0, 101.0),
+            (100.0, 100.0),
+            45.0,
+        ),
+        (
+            "diagonal",
+            (100.0, 100.0),
+            (101.0, 101.0),
+            "horizontal",
+            (0.0, 0.0),
+            (10.0, 0.0),
+            45.0,
+        ),
+    ];
+
+    for (first_id, first_start, first_end, second_id, second_start, second_end, expected) in cases {
+        let node = geometry_call(
+            BuiltinFunctionName::LineAngle,
+            vec![
+                geometry_argument(
+                    GeometryInterfaceType::Line,
+                    first_id,
+                    1,
+                    GeometryInterfaceType::Line,
+                ),
+                geometry_argument(
+                    GeometryInterfaceType::Line,
+                    second_id,
+                    2,
+                    GeometryInterfaceType::Line,
+                ),
+            ],
+            ScalarType::Number,
+        );
+        let environment = GeometryBuiltinEnvironment {
+            targets: HashMap::from([
+                (
+                    first_id.to_owned(),
+                    Ok(runtime_line(first_id, first_start, first_end)),
+                ),
+                (
+                    second_id.to_owned(),
+                    Ok(runtime_line(second_id, second_start, second_end)),
+                ),
+            ]),
+            looked_up: RefCell::new(Vec::new()),
+        };
+
+        let ScalarEvaluation::Ok { value, .. } = evaluate_typed_expression(&node, &environment)
+        else {
+            panic!("lineAngle should evaluate successfully");
+        };
+        let ScalarValue::Number(actual) = value else {
+            panic!("lineAngle should return a number");
+        };
+        assert!(
+            (actual - expected).abs() <= 1e-12,
+            "actual={actual}, expected={expected}"
+        );
+    }
+}
+
+#[test]
+fn zero_length_first_or_second_line_is_invalid_for_line_angle() {
+    for (first_start, first_end, second_start, second_end) in [
+        ((0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (1.0, 0.0)),
+        ((0.0, 0.0), (1.0, 0.0), (0.0, 0.0), (0.0, 0.0)),
+    ] {
+        let node = geometry_call(
+            BuiltinFunctionName::LineAngle,
+            vec![
+                geometry_argument(
+                    GeometryInterfaceType::Line,
+                    "first",
+                    1,
+                    GeometryInterfaceType::Line,
+                ),
+                geometry_argument(
+                    GeometryInterfaceType::Line,
+                    "second",
+                    2,
+                    GeometryInterfaceType::Line,
+                ),
+            ],
+            ScalarType::Number,
+        );
+        let environment = GeometryBuiltinEnvironment {
+            targets: HashMap::from([
+                (
+                    "first".to_owned(),
+                    Ok(runtime_line("first", first_start, first_end)),
+                ),
+                (
+                    "second".to_owned(),
+                    Ok(runtime_line("second", second_start, second_end)),
+                ),
+            ]),
+            looked_up: RefCell::new(Vec::new()),
+        };
+
+        assert_eq!(
+            evaluate_typed_expression(&node, &environment),
+            ScalarEvaluation::Error {
+                r#type: ScalarType::Number,
+                issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+                binding_id: None,
+            }
+        );
+    }
+}
+
+#[test]
 fn maps_geometry_non_finite_result_to_evaluation_non_finite_result() {
     let node = geometry_call(
         BuiltinFunctionName::Distance,

@@ -1,5 +1,5 @@
 // Flat, single-pass tokenizer for typed scalar expressions. Handles
-// operators, parentheses, comma, && the `@qualifiedName` reference sigil itself; delegates
+// operators, parentheses, comma, colon, && the `@qualifiedName` reference sigil itself; delegates
 // every literal-shaped token (quote/digit/identifier start) to
 // scanScalarLiteral so literal classification lives in exactly one place.
 //
@@ -32,6 +32,7 @@ export type ScalarExpressionToken =
   | { readonly kind: "leftParen"; readonly span: ScalarSpan }
   | { readonly kind: "rightParen"; readonly span: ScalarSpan }
   | { readonly kind: "comma"; readonly span: ScalarSpan }
+  | { readonly kind: "colon"; readonly span: ScalarSpan }
   | { readonly kind: "operator"; readonly value: ScalarExpressionOperatorSymbol; readonly span: ScalarSpan }
   | { readonly kind: "reference"; readonly name: string; readonly nameSpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "geometryProperty"; readonly elementName: string; readonly elementNameSpan: ScalarSpan; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
@@ -110,6 +111,11 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
     }
     if (char === ",") {
       tokens.push({ kind: "comma", span: { start: index, end: index + 1 } });
+      index += 1;
+      continue;
+    }
+    if (char === ":") {
+      tokens.push({ kind: "colon", span: { start: index, end: index + 1 } });
       index += 1;
       continue;
     }

@@ -206,6 +206,9 @@ const asVariableCompletions = (options: readonly NumericReferenceOption[]): Comp
  * name is the correct insertion text either way. */
 const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): Completion[] =>
   candidates.map((candidate) => {
+    if (candidate.kind === "argumentName") {
+      return { label: candidate.label, apply: `${candidate.label}: `, type: "keyword" };
+    }
     if (candidate.kind === "reference") {
       return {
         label: candidate.name,
@@ -497,7 +500,9 @@ const typedReferenceCompletions = (
     const scalarCandidates = scalarExpressionCandidatesFor(completionContext.positionContext);
     const expectedType = completionContext.positionContext.kind === "operand"
       ? completionContext.positionContext.expectedType
-      : completionContext.positionContext.rootType;
+      : completionContext.positionContext.kind === "operator"
+        ? completionContext.positionContext.rootType
+        : null;
     const module = moduleScalarCompletions(options, input, context, expectedType);
     const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
     return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
@@ -508,7 +513,9 @@ const typedReferenceCompletions = (
       const scalarCandidates = scalarExpressionCandidatesFor(propertyContext.positionContext);
       const expectedType = propertyContext.positionContext.kind === "operand"
         ? propertyContext.positionContext.expectedType
-        : propertyContext.positionContext.rootType;
+        : propertyContext.positionContext.kind === "operator"
+          ? propertyContext.positionContext.rootType
+          : null;
       const module = moduleScalarCompletions(options, input, context, expectedType);
       const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
       return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));

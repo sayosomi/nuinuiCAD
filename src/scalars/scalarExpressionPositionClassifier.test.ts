@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { tokenizeScalarExpression, type ScalarExpressionToken } from "./expressionTokenizer";
 import {
   classifyScalarExpressionPosition,
@@ -6,6 +6,8 @@ import {
   scalarExpressionCompletionContextAt,
   scalarOperandWordEndingAt
 } from "./scalarExpressionPositionClassifier";
+import * as builtinFunctions from "./builtinFunctions";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "./builtinFunctions";
 
 const fullSpan = (source: string) => ({ start: 0, end: source.length });
 const tokenizeOk = (source: string): readonly ScalarExpressionToken[] => {
@@ -13,6 +15,24 @@ const tokenizeOk = (source: string): readonly ScalarExpressionToken[] => {
   if (result.error) throw new Error(`expected no tokenizer error, got ${JSON.stringify(result.error)}`);
   return result.tokens;
 };
+
+const namedDefinition = (name: string): BuiltinFunctionDefinition => ({
+  name: name as BuiltinFunctionName,
+  signatures: [{
+    callingStyle: "named",
+    parameters: [{ name: "first", type: { kind: "number" } }, { name: "second", type: { kind: "number" } }],
+    returnType: { kind: "number" }
+  }]
+});
+
+const withNamedDefinitions = () => {
+  const original = builtinFunctions.getBuiltinFunctionDefinition;
+  vi.spyOn(builtinFunctions, "getBuiltinFunctionDefinition").mockImplementation((name) =>
+    name === "someFunction" || name === "innerFunction" ? namedDefinition(name) : original(name)
+  );
+};
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("classifyScalarExpressionPosition", () => {
   it("classifies the empty/start position as operand with no preceding token", () => {
@@ -158,6 +178,36 @@ describe("scalarExpressionCompletionContextAt", () => {
       kind: "operand",
       expectedType: { kind: "number" }
     });
+  });
+
+  it("returns parameter-name context for a named-only call", () => {
+    withNamedDefinitions();
+    const text = "someFunction(\n  fi";
+    const context = scalarExpressionCompletionContextAt(text, text.length, { start: 0, end: text.length }, { kind: "number" });
+    expect(context).toEqual({ kind: "argumentName", from: text.length - 2, to: text.length, names: ["first", "second"] });
+  });
+
+  it("filters already-used named parameters", () => {
+    withNamedDefinitions();
+    const text = "someFunction(first: 1,\n  ";
+    const context = scalarExpressionCompletionContextAt(text, text.length, { start: 0, end: text.length }, { kind: "number" });
+    expect(context).toEqual({ kind: "argumentName", from: text.length, to: text.length, names: ["second"] });
+  });
+
+  it("uses a named parameter type after its colon", () => {
+    withNamedDefinitions();
+    const text = "someFunction(first: ";
+    expect(scalarExpressionCompletionContextAt(text, text.length, { start: 0, end: text.length }, { kind: "boolean" })).toMatchObject({
+      kind: "operand",
+      expectedType: { kind: "number" }
+    });
+  });
+
+  it("keeps value completion after a named colon and uses the innermost call", () => {
+    withNamedDefinitions();
+    const text = "someFunction(first: innerFunction(second: @va";
+    const context = scalarExpressionCompletionContextAt(text, text.length, { start: 0, end: text.length }, { kind: "boolean" });
+    expect(context).toMatchObject({ kind: "operand", referenceOnly: true, expectedType: { kind: "number" } });
   });
 
   it("counts only direct commas for the outer builtin argument index", () => {

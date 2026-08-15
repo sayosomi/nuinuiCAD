@@ -182,6 +182,28 @@ function declarations are not part of the current language surface. Arbitrary
 callees, postfix calls, and first-class functions are not part of the current
 language surface.
 
+A scalar builtin signature may declare named calling style. Such a signature
+uses `name: expression` arguments:
+
+```nui
+someFunction(
+  second: 2,
+  first: 1,
+)
+```
+
+Named argument order has no semantic meaning. Multiline argument lists may have
+a trailing comma. Parameter names, parameter types, and canonical parameter
+order are owned by the builtin signature metadata. Positional-only and
+named-only signatures are semantically distinct; a call must use the declared
+style, and mixed positional/named calls are invalid in nui4 v1. Unknown,
+duplicate, or missing named arguments produce diagnostics. The current builtin
+catalog is positional-only for existing builtins; `spreadAngle` is the first
+production named-only scalar builtin. This syntax does not add named forms to
+any other existing builtin. After semantic validation, a valid named call is
+lowered to the existing canonical positional `TypedBuiltinArgument[]` runtime
+shape; argument names are not part of the runtime payload.
+
 The current builtin catalog is:
 
 | Function | Signature |
@@ -195,9 +217,18 @@ The current builtin catalog is:
 | `ceil` | `ceil(number) -> number`, `ceil(number, number) -> number` |
 | `roundTo` | `roundTo(number, number) -> number` |
 | `isClose` | `isClose(number, number, number) -> boolean` |
+| `sin` | `sin(number) -> number` |
+| `cos` | `cos(number) -> number` |
+| `tan` | `tan(number) -> number` |
+| `asin` | `asin(number) -> number` |
+| `acos` | `acos(number) -> number` |
+| `atan` | `atan(number) -> number` |
+| `atan2` | `atan2(number, number) -> number` |
+| `spreadAngle` | `spreadAngle(length: number, spread: number) -> number` (named-only) |
 | `distance` | `distance(point, point) -> number` |
 | `angle` | `angle(point, point) -> number` |
 | `lineDistance` | `lineDistance(point, line) -> number` |
+| `lineAngle` | `lineAngle(line, line) -> number` |
 
 The second argument of `round`, `floor`, and `ceil` is the decimal digit
 position and must be an integer. `round` uses an away-from-zero midpoint rule
@@ -205,6 +236,27 @@ position and must be an integer. `round` uses an away-from-zero midpoint rule
 step, and `isClose` requires a non-negative tolerance. Invalid arguments and
 non-finite results are explicit evaluation diagnostics; no implicit numeric
 conversion is performed.
+
+The trigonometric builtins use degrees as their public angle unit. `sin`,
+`cos`, and `tan` take degree inputs. `asin`, `acos`, and `atan` return degree
+outputs. `asin` and `acos` accept only inputs in `[-1, 1]`. `tan` reports an
+evaluation error for an exact odd multiple of 90 degrees; values that are not
+exactly singular are evaluated normally. `atan2` takes arguments in the order
+`atan2(y, x)` and returns a degree in `0 <= result < 360`: right is `0°`, up is
+`90°`, left is `180°`, and down is `270°`. `atan2(0, 0)` returns `0`.
+Non-finite inputs fail with an invalid-argument evaluation error, and
+non-finite results fail with a non-finite-result evaluation error. `atan2` and
+the existing `angle(point, point)` builtin share the same direction and
+normalization rule.
+
+`spreadAngle(length: number, spread: number)` is named-only. `spread` is a chord
+length, not an arc length. The result is defined by
+`theta = 2 * asin(spread / (2 * length))` and its public unit is degrees. The
+domain is `length > 0` and `0 <= spread <= 2 * length`; the result is in the
+inclusive range `0..180` degrees. `spread = 0` returns `0`, and
+`spread = 2 * length` returns `180`. Invalid or non-finite arguments produce an
+evaluation error. Named source order has no meaning; runtime lowering uses the
+canonical `[length, spread]` positional order.
 
 The geometry measurement builtins use the existing geometry interface types.
 `distance` returns the Euclidean distance between two points. `angle` returns
@@ -219,10 +271,30 @@ line segment. For example, the line `(0, 0) -> (1, 0)` and point `(10, 3)`
 produce `3`. A zero-length or effectively zero-length line is an error; the
 runtime threshold is `length <= 1e-9`.
 
-Builtins are available anywhere the shared typed-expression frontend is used:
-typed declarations, `set` right-hand sides, boolean conditions, scalar
-property values, text-template holes, and scalar module arguments/body
+`lineAngle` requires the strict `line` interface for both arguments. It returns
+the directionless smaller angle between the two line direction vectors in
+degrees, in the inclusive range `0..90`. The lines do not need to intersect.
+Reversing either line, or swapping the arguments, does not change the result;
+therefore a directed difference of `135°` returns `45°`. A zero-length or
+effectively zero-length line is an evaluation error; the runtime threshold is
+`length <= 1e-9`. This is distinct from `angle(point, point)`, which returns a
+directed point-to-point direction normalized to `0..360` degrees.
+
+Scalar-only builtins are available anywhere the shared typed-expression
+frontend already supports scalar expressions: typed declarations, `set`
+right-hand sides, boolean conditions, scalar property values, text-template
+holes, and scalar module arguments/body expressions. Geometry-argument builtins
+(`distance`, `angle`, `lineDistance`, and `lineAngle`) can be called directly
+only where the existing geometry-reference resolution path is available:
+typed declaration initializers, `set` right-hand sides, and module scalar
 expressions. The same catalog and signatures are used by source completion.
+
+Task 4 does not add a new evaluator or resolver surface. To use a geometry
+measurement result in a construction numeric parameter, scalar property,
+text-template hole, or `printLayout` numeric parameter, first assign it to a
+typed scalar binding and reference that binding instead, for example
+`const measuredAngle: number = lineAngle(@LineA, @LineB)` followed by
+`@measuredAngle`.
 
 This is a typed expression surface for CAD construction, not a general-purpose
 programming language.

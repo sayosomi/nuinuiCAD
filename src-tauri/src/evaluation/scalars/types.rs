@@ -127,9 +127,18 @@ pub(crate) enum BuiltinFunctionName {
     Ceil,
     RoundTo,
     IsClose,
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Atan2,
+    SpreadAngle,
     Distance,
     Angle,
     LineDistance,
+    LineAngle,
 }
 
 impl BuiltinFunctionName {
@@ -144,9 +153,18 @@ impl BuiltinFunctionName {
             "ceil" => Some(Self::Ceil),
             "roundTo" => Some(Self::RoundTo),
             "isClose" => Some(Self::IsClose),
+            "sin" => Some(Self::Sin),
+            "cos" => Some(Self::Cos),
+            "tan" => Some(Self::Tan),
+            "asin" => Some(Self::Asin),
+            "acos" => Some(Self::Acos),
+            "atan" => Some(Self::Atan),
+            "atan2" => Some(Self::Atan2),
+            "spreadAngle" => Some(Self::SpreadAngle),
             "distance" => Some(Self::Distance),
             "angle" => Some(Self::Angle),
             "lineDistance" => Some(Self::LineDistance),
+            "lineAngle" => Some(Self::LineAngle),
             _ => None,
         }
     }
@@ -154,7 +172,7 @@ impl BuiltinFunctionName {
     pub(crate) fn argument_signatures(self) -> &'static [&'static [BuiltinArgumentType]] {
         match self {
             Self::Abs | Self::Sqrt => &[&[BuiltinArgumentType::Scalar]],
-            Self::Min | Self::Max | Self::RoundTo => {
+            Self::Min | Self::Max | Self::RoundTo | Self::SpreadAngle => {
                 &[&[BuiltinArgumentType::Scalar, BuiltinArgumentType::Scalar]]
             }
             Self::Round | Self::Floor | Self::Ceil => &[
@@ -166,6 +184,10 @@ impl BuiltinFunctionName {
                 BuiltinArgumentType::Scalar,
                 BuiltinArgumentType::Scalar,
             ]],
+            Self::Sin | Self::Cos | Self::Tan | Self::Asin | Self::Acos | Self::Atan => {
+                &[&[BuiltinArgumentType::Scalar]]
+            }
+            Self::Atan2 => &[&[BuiltinArgumentType::Scalar, BuiltinArgumentType::Scalar]],
             Self::Distance | Self::Angle => &[&[
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
@@ -174,11 +196,18 @@ impl BuiltinFunctionName {
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
             ]],
+            Self::LineAngle => &[&[
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
+            ]],
         }
     }
 
     pub(crate) fn is_geometry(self) -> bool {
-        matches!(self, Self::Distance | Self::Angle | Self::LineDistance)
+        matches!(
+            self,
+            Self::Distance | Self::Angle | Self::LineDistance | Self::LineAngle
+        )
     }
 }
 

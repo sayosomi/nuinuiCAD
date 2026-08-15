@@ -231,30 +231,35 @@ export const resolveBuiltinGeometryArguments = ({
         return;
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
-        const signature = definition?.signatures.find((candidate) => candidate.argumentTypes.length === node.args.length);
+        const signature = definition?.signatures.find((candidate) =>
+          candidate.callingStyle === "positional" &&
+          candidate.parameters.length === node.args.length &&
+          node.args.every((argument) => argument.kind === "positional")
+        );
         if (signature === undefined) {
-          node.args.forEach(visit);
+          node.args.forEach((argument) => visit(argument.expression));
           return;
         }
         node.args.forEach((argument, index) => {
-          const parameterType = signature.argumentTypes[index];
+          const nodeArgument = argument.expression;
+          const parameterType = signature.parameters[index]?.type;
           if (parameterType === "point" || parameterType === "line") {
-            if (argument.kind === "reference") {
-              resolveDirectGeometryReference(argument, parameterType);
-            } else if (argument.kind === "geometryProperty" && parameterType === "point") {
-              resolveDerivedPointGeometryProperty(argument);
+            if (nodeArgument.kind === "reference") {
+              resolveDirectGeometryReference(nodeArgument, parameterType);
+            } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
+              resolveDerivedPointGeometryProperty(nodeArgument);
             } else {
-              visit(argument);
+              visit(nodeArgument);
               issues.push({
                 code: "builtin-geometry-argument-invalid",
-                span: argument.span,
+                span: nodeArgument.span,
                 message: invalidDirectArgumentMessage(node.name, parameterType),
                 occurrenceIndex: null
               });
             }
             return;
           }
-          visit(argument);
+          visit(nodeArgument);
         });
         return;
       }

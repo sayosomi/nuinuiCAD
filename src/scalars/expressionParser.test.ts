@@ -152,9 +152,52 @@ describe("parseScalarExpression / named calls", () => {
       kind: "call",
       name: "max",
       args: [
-        { kind: "call", name: "abs", args: [{ kind: "reference", name: "a" }] },
-        { kind: "call", name: "round", args: [{ kind: "reference", name: "b" }, { kind: "numberLiteral", value: 2 }] }
+        { kind: "positional", expression: { kind: "call", name: "abs", args: [{ kind: "positional", expression: { kind: "reference", name: "a" } }] } },
+        { kind: "positional", expression: { kind: "call", name: "round", args: [{ kind: "positional", expression: { kind: "reference", name: "b" } }, { kind: "positional", expression: { kind: "numberLiteral", value: 2 } }] } }
       ]
+    });
+  });
+
+  it("wraps positional arguments with their source spans", () => {
+    expect(parseOk("atan2(1, 0)")).toMatchObject({
+      kind: "call",
+      args: [
+        { kind: "positional", span: { start: 6, end: 7 }, expression: { kind: "numberLiteral", value: 1 } },
+        { kind: "positional", span: { start: 9, end: 10 }, expression: { kind: "numberLiteral", value: 0 } }
+      ]
+    });
+  });
+
+  it("parses named arguments with nameSpan and preserves reversed source order", () => {
+    const source = "unknown(\n  second: 2,\n  first: 1,\n)";
+    expect(parseOk(source)).toMatchObject({
+      kind: "call",
+      args: [
+        {
+          kind: "named",
+          name: "second",
+          nameSpan: { start: 11, end: 17 },
+          expression: { kind: "numberLiteral", value: 2 }
+        },
+        {
+          kind: "named",
+          name: "first",
+          nameSpan: { start: 24, end: 29 },
+          expression: { kind: "numberLiteral", value: 1 }
+        }
+      ]
+    });
+  });
+
+  it("allows trailing commas for positional and named calls", () => {
+    expect(parseOk("atan2(1, 0,)")).toMatchObject({ kind: "call", args: [{ kind: "positional" }, { kind: "positional" }] });
+    expect(parseOk("unknown(first: 1, second: 2,)")).toMatchObject({ kind: "call", args: [{ kind: "named" }, { kind: "named" }] });
+  });
+
+  it("parses mixed positional and named syntax without resolving its semantics", () => {
+    expect(parseOk("unknown(1, second: 2)")).toMatchObject({
+      kind: "call",
+      args: [{ kind: "positional" }, { kind: "named", name: "second" }]
     });
   });
 
@@ -169,8 +212,8 @@ describe("parseScalarExpression / named calls", () => {
     expect(parseOk("max(1 + 2, 3 * 4)")).toMatchObject({
       kind: "call",
       args: [
-        { kind: "binary", operator: "+" },
-        { kind: "binary", operator: "*" }
+        { kind: "positional", expression: { kind: "binary", operator: "+" } },
+        { kind: "positional", expression: { kind: "binary", operator: "*" } }
       ]
     });
   });
@@ -183,13 +226,17 @@ describe("parseScalarExpression / named calls", () => {
       nameSpan: { start: 0, end: 3 },
       name: "max",
       args: [
-        { kind: "numberLiteral", span: { start: 4, end: 5 }, value: 1 },
+        { kind: "positional", span: { start: 4, end: 5 }, expression: { kind: "numberLiteral", span: { start: 4, end: 5 }, value: 1 } },
         {
-          kind: "call",
+          kind: "positional",
           span: { start: 7, end: 13 },
-          nameSpan: { start: 7, end: 10 },
-          name: "abs",
-          args: [{ kind: "numberLiteral", span: { start: 11, end: 12 }, value: 2 }]
+          expression: {
+            kind: "call",
+            span: { start: 7, end: 13 },
+            nameSpan: { start: 7, end: 10 },
+            name: "abs",
+            args: [{ kind: "positional", span: { start: 11, end: 12 }, expression: { kind: "numberLiteral", span: { start: 11, end: 12 }, value: 2 } }]
+          }
         }
       ]
     });
@@ -466,7 +513,7 @@ describe("parseScalarExpression / error scenarios", () => {
     expect(parseErr('"oops').code).toBe("unterminated-string");
   });
 
-  it.each(["round(", "round(1", "round(1,)", "round(, 1)", "round(1 2)"]) (
+  it.each(["round(", "round(1", "round(, 1)", "round(1 2)"]) (
     "rejects malformed call syntax %j",
     (source) => {
       expect(parseErr(source)).toBeDefined();

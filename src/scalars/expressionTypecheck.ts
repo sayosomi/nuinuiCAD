@@ -42,6 +42,14 @@ interface TraversalState {
   readonly resolveChoiceLiteral?: ScalarExpressionTypecheckContext["resolveChoiceLiteral"];
 }
 
+type ScalarCallArgumentStyle = "positional" | "named" | "mixed";
+
+const scalarCallArgumentStyle = (args: readonly { kind: "positional" | "named" }[]): ScalarCallArgumentStyle => {
+  const hasPositional = args.some((argument) => argument.kind === "positional");
+  const hasNamed = args.some((argument) => argument.kind === "named");
+  return hasPositional && hasNamed ? "mixed" : hasNamed ? "named" : "positional";
+};
+
 /** Exported for reuse by other diagnostic-message producers (e.g. the
  * property binding compiler) that need the same type description text -
  * kept as one implementation rather than a duplicated formatter. */
@@ -246,7 +254,7 @@ const checkNode = (
     case "call": {
       const definition = getBuiltinFunctionDefinition(node.name);
       if (definition === null) {
-        const args: TypedBuiltinArgument[] = node.args.map((arg) => ({ kind: "scalar", expression: checkNode(arg, null, state) }));
+        const args: TypedBuiltinArgument[] = node.args.map((arg) => ({ kind: "scalar", expression: checkNode(arg.expression, null, state) }));
         addDiagnostic(state, {
           code: "unknown-function",
           span: node.nameSpan,
@@ -255,11 +263,40 @@ const checkNode = (
         return { kind: "call", span: node.span, nameSpan: node.nameSpan, name: node.name, target: null, args, type: null };
       }
 
-      const signature = definition.signatures.find((candidate) => candidate.argumentTypes.length === node.args.length);
+      const sourceStyle = scalarCallArgumentStyle(node.args);
+      const hasNamedSignature = definition.signatures.some((candidate) => candidate.callingStyle === "named");
+      const effectiveStyle = node.args.length === 0 && hasNamedSignature ? "named" : sourceStyle;
+      const styleMatches = effectiveStyle !== "mixed" && definition.signatures.some((candidate) => candidate.callingStyle === effectiveStyle);
+      if (!styleMatches) {
+        const args: TypedBuiltinArgument[] = node.args.map((arg) => ({
+          kind: "scalar",
+          expression: checkNode(arg.expression, null, state)
+        }));
+        addDiagnostic(state, {
+          code: "function-call-style-mismatch",
+          span: node.nameSpan,
+          message: `組み込み関数「${node.name}」の呼び出し形式が一致しません。`
+        });
+        return {
+          kind: "call",
+          span: node.span,
+          nameSpan: node.nameSpan,
+          name: node.name,
+          target: { kind: "builtin", name: definition.name },
+          args,
+          type: null
+        };
+      }
+
+      const signature = effectiveStyle === "named"
+        ? definition.signatures.find((candidate) => candidate.callingStyle === "named")
+        : definition.signatures.find((candidate) => candidate.callingStyle === "positional" && candidate.parameters.length === node.args.length);
       if (signature === undefined) {
-        const acceptedArities = definition.signatures.map((candidate) => candidate.argumentTypes.length);
+        const acceptedArities = definition.signatures
+          .filter((candidate) => candidate.callingStyle === "positional")
+          .map((candidate) => candidate.parameters.length);
         const arityText = acceptedArities.length === 1 ? `${acceptedArities[0]}` : acceptedArities.join("または");
-        const args: TypedBuiltinArgument[] = node.args.map((arg) => ({ kind: "scalar", expression: checkNode(arg, null, state) }));
+        const args: TypedBuiltinArgument[] = node.args.map((arg) => ({ kind: "scalar", expression: checkNode(arg.expression, null, state) }));
         addDiagnostic(state, {
           code: "function-arity-mismatch",
           span: node.nameSpan,
@@ -276,38 +313,103 @@ const checkNode = (
         };
       }
 
+      if (signature.callingStyle === "named") {
+        const sourceArgs: TypedBuiltinArgument[] = [];
+        const argumentByParameter = new Map<number, TypedBuiltinArgument>();
+        const argumentNames = new Set<string>();
+        let argumentsAreValid = true;
+
+        for (const nodeArgument of node.args) {
+          if (nodeArgument.kind !== "named") continue;
+          const expression = checkNode(nodeArgument.expression, null, state);
+          sourceArgs.push({ kind: "scalar", expression });
+          if (argumentNames.has(nodeArgument.name)) {
+            argumentsAreValid = false;
+            addDiagnostic(state, {
+              code: "duplicate-function-argument",
+              span: nodeArgument.nameSpan,
+              message: `組み込み関数「${node.name}」の引数「${nodeArgument.name}」が重複しています。`
+            });
+            continue;
+          }
+          argumentNames.add(nodeArgument.name);
+          const parameterIndex = signature.parameters.findIndex((parameter) => parameter.name === nodeArgument.name);
+          if (parameterIndex < 0) {
+            argumentsAreValid = false;
+            addDiagnostic(state, {
+              code: "unknown-function-argument",
+              span: nodeArgument.nameSpan,
+              message: `組み込み関数「${node.name}」に引数「${nodeArgument.name}」はありません。`
+            });
+            continue;
+          }
+          const parameterType = signature.parameters[parameterIndex].type;
+          if (isScalarBuiltinParameterType(parameterType)) {
+            if (!checkOperandType(state, expression, parameterType)) argumentsAreValid = false;
+          } else {
+            argumentsAreValid = false;
+          }
+          argumentByParameter.set(parameterIndex, { kind: "scalar", expression });
+        }
+
+        for (const [parameterIndex, parameter] of signature.parameters.entries()) {
+          if (argumentByParameter.has(parameterIndex)) continue;
+          argumentsAreValid = false;
+          addDiagnostic(state, {
+            code: "missing-function-argument",
+            span: node.span,
+            message: `組み込み関数「${node.name}」の引数「${parameter.name}」が不足しています。`
+          });
+        }
+
+        const canonicalArgs = signature.parameters.flatMap((_parameter, index) => {
+          const argument = argumentByParameter.get(index);
+          return argument ? [argument] : [];
+        });
+        return {
+          kind: "call",
+          span: node.span,
+          nameSpan: node.nameSpan,
+          name: node.name,
+          target: { kind: "builtin", name: definition.name },
+          args: argumentsAreValid ? canonicalArgs : sourceArgs,
+          type: argumentsAreValid ? signature.returnType : null
+        };
+      }
+
       const args: TypedBuiltinArgument[] = [];
       let argumentsAreValid = true;
       for (const [index, nodeArgument] of node.args.entries()) {
-        const parameterType = signature.argumentTypes[index];
+        const parameterType = signature.parameters[index]?.type;
         if (!parameterType) {
           argumentsAreValid = false;
-          args.push({ kind: "scalar", expression: checkNode(nodeArgument, null, state) });
+          args.push({ kind: "scalar", expression: checkNode(nodeArgument.expression, null, state) });
           continue;
         }
         if (isScalarBuiltinParameterType(parameterType)) {
-          const argument = checkNode(nodeArgument, null, state);
+          const argument = checkNode(nodeArgument.expression, null, state);
           args.push({ kind: "scalar", expression: argument });
           if (!checkOperandType(state, argument, parameterType)) argumentsAreValid = false;
           continue;
         }
 
         let target: ScalarExpressionResolvedGeometryTarget | null = null;
-        if (nodeArgument.kind === "reference") {
-          const resolution = nextReferenceResolution(state, nodeArgument.name, nodeArgument.span.start);
+        const sourceArgument = nodeArgument.expression;
+        if (sourceArgument.kind === "reference") {
+          const resolution = nextReferenceResolution(state, sourceArgument.name, sourceArgument.span.start);
           if (resolution.kind === "resolvedGeometry") target = resolution.target;
           if (resolution.kind !== "resolvedGeometry" || resolution.target === null) {
             argumentsAreValid = false;
           } else if (!isModuleGeometryInterfaceAssignable(resolution.target.geometryType, parameterType)) {
             argumentsAreValid = false;
           }
-        } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
-          target = state.geometryBuiltinArguments?.get(nodeArgument.span.start) ?? null;
+        } else if (sourceArgument.kind === "geometryProperty" && parameterType === "point") {
+          target = state.geometryBuiltinArguments?.get(sourceArgument.span.start) ?? null;
           if (target === null || !isModuleGeometryInterfaceAssignable(target.geometryType, parameterType)) {
             argumentsAreValid = false;
           }
         } else {
-          checkNode(nodeArgument, null, state);
+          checkNode(sourceArgument, null, state);
           argumentsAreValid = false;
         }
         args.push({ kind: "geometryReference", expectedGeometryType: parameterType, target });

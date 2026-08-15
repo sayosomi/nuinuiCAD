@@ -9,6 +9,7 @@
 //! Mirrors `src/scalars/expressionEvaluator.ts` field-for-field, including
 //! its exact `evaluation-*` issue-code vocabulary.
 
+use super::angle_math::{atan2_degrees_360, radians_to_degrees};
 use super::builtin_function_semantics::{
     evaluate_builtin_function, BuiltinFunctionError, BuiltinFunctionValue,
 };
@@ -224,7 +225,7 @@ pub(crate) fn evaluate_geometry_builtin_call(
                 ) => {
                     let dx = second.x - first.x;
                     let dy = second.y - first.y;
-                    (dy.atan2(dx) * 180.0 / std::f64::consts::PI + 360.0) % 360.0
+                    atan2_degrees_360(dy, dx)
                 }
                 (
                     BuiltinFunctionName::LineDistance,
@@ -234,6 +235,26 @@ pub(crate) fn evaluate_geometry_builtin_call(
                     let dy = end.y - start.y;
                     let length = dx.hypot(dy);
                     (dx * (start.y - point.y) - (start.x - point.x) * dy).abs() / length
+                }
+                (
+                    BuiltinFunctionName::LineAngle,
+                    [GeometryBuiltinRuntimeTarget::Line {
+                        start: first_start,
+                        end: first_end,
+                    }, GeometryBuiltinRuntimeTarget::Line {
+                        start: second_start,
+                        end: second_end,
+                    }],
+                ) => {
+                    let first_dx = first_end.x - first_start.x;
+                    let first_dy = first_end.y - first_start.y;
+                    let second_dx = second_end.x - second_start.x;
+                    let second_dy = second_end.y - second_start.y;
+                    let first_length = first_dx.hypot(first_dy);
+                    let second_length = second_dx.hypot(second_dy);
+                    let ratio = (first_dx * second_dx + first_dy * second_dy).abs()
+                        / (first_length * second_length);
+                    radians_to_degrees(ratio.clamp(0.0, 1.0).acos())
                 }
                 _ => {
                     return ScalarEvaluation::Error {

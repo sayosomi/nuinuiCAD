@@ -105,6 +105,20 @@ export interface ScalarGroupExpressionNode {
   readonly expression: ScalarExpressionAst;
 }
 
+export type ScalarCallArgumentNode =
+  | {
+      readonly kind: "positional";
+      readonly span: ScalarSpan;
+      readonly expression: ScalarExpressionAst;
+    }
+  | {
+      readonly kind: "named";
+      readonly span: ScalarSpan;
+      readonly nameSpan: ScalarSpan;
+      readonly name: string;
+      readonly expression: ScalarExpressionAst;
+    };
+
 /** A named function call. Semantic function resolution is a later phase. */
 export interface ScalarCallExpressionNode {
   readonly kind: "call";
@@ -113,7 +127,7 @@ export interface ScalarCallExpressionNode {
   /** Span covering only the bare function name. */
   readonly nameSpan: ScalarSpan;
   readonly name: string;
-  readonly args: readonly ScalarExpressionAst[];
+  readonly args: readonly ScalarCallArgumentNode[];
 }
 
 export type ScalarExpressionAst =

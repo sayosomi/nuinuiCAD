@@ -147,6 +147,7 @@ export const typedBindingReferenceCandidates = (input: TypedBindingReferenceCand
 };
 
 export type ScalarCompletionCandidate =
+  | { readonly kind: "argumentName"; readonly label: string }
   | { readonly kind: "literal"; readonly label: string }
   | { readonly kind: "operator"; readonly label: string }
   | { readonly kind: "reference"; readonly name: string; readonly bindingId: BindingId }
@@ -192,6 +193,9 @@ export const scalarExpressionCandidates = (
   context: ScalarExpressionCompletionContext,
   deps: ScalarExpressionCandidatesDeps
 ): readonly ScalarCompletionCandidate[] => {
+  if (context.kind === "argumentName") {
+    return context.names.map((name) => ({ kind: "argumentName", label: name }));
+  }
   if (context.kind === "operator") {
     if (!deps.includeOperators) return [];
     const operandType = resolvePrecedingOperandType({
@@ -234,11 +238,13 @@ export const scalarExpressionCandidates = (
 const HOLE_ROOT_TYPES: readonly ScalarType[] = [{ kind: "string" }, { kind: "number" }];
 
 const scalarCompletionCandidateKey = (candidate: ScalarCompletionCandidate): string =>
-  candidate.kind === "reference"
-    ? `reference:${candidate.bindingId}`
-    : candidate.kind === "function"
-      ? `function:${candidate.name}`
-      : `${candidate.kind}:${candidate.label}`;
+  candidate.kind === "argumentName"
+    ? `argumentName:${candidate.label}`
+    : candidate.kind === "reference"
+      ? `reference:${candidate.bindingId}`
+      : candidate.kind === "function"
+        ? `function:${candidate.name}`
+        : `${candidate.kind}:${candidate.label}`;
 
 /**
  * A template hole's content only ever resolves to a string || number result

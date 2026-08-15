@@ -5,7 +5,8 @@ use super::expression_payload::{
 };
 use super::issue::ScalarPayloadIssueCode as Code;
 use super::types::{
-    GeometryInterfaceType, ScalarType, TypedBuiltinArgument, TypedScalarExpression,
+    BuiltinFunctionName, GeometryInterfaceType, ScalarType, TypedBuiltinArgument,
+    TypedScalarCallTarget, TypedScalarExpression,
 };
 
 // --- golden decode: shared TS/Rust vectors -------------------------------
@@ -364,6 +365,29 @@ fn decodes_scalar_wrapper_arguments() {
 }
 
 #[test]
+fn decodes_spread_angle_scalar_wrapper_arguments_without_argument_names() {
+    let decoded = validate_typed_expression_payload(&builtin_call(
+        "spreadAngle",
+        vec![number_literal(), number_literal()],
+    ))
+    .unwrap();
+    let TypedScalarExpression::Call { args, target, .. } = &decoded else {
+        panic!("expected call");
+    };
+    assert!(matches!(
+        target,
+        TypedScalarCallTarget::Builtin(BuiltinFunctionName::SpreadAngle)
+    ));
+    assert!(matches!(
+        &args[..],
+        [
+            TypedBuiltinArgument::Scalar { .. },
+            TypedBuiltinArgument::Scalar { .. }
+        ]
+    ));
+}
+
+#[test]
 fn decodes_distance_point_point_geometry_wrappers() {
     let decoded = validate_typed_expression_payload(&geometry_call(
         "distance",
@@ -416,6 +440,39 @@ fn decodes_line_distance_point_line_geometry_wrappers() {
         ],
     ))
     .is_ok());
+}
+
+#[test]
+fn decodes_line_angle_line_line_geometry_wrappers_without_argument_names() {
+    let decoded = validate_typed_expression_payload(&geometry_call(
+        "lineAngle",
+        vec![
+            geometry_argument("line", Some(geometry_target("line-a", 1, "line"))),
+            geometry_argument("line", Some(geometry_target("line-b", 2, "line"))),
+        ],
+    ))
+    .unwrap();
+    let TypedScalarExpression::Call { args, target, .. } = &decoded else {
+        panic!("expected a builtin call");
+    };
+    assert!(matches!(
+        target,
+        TypedScalarCallTarget::Builtin(BuiltinFunctionName::LineAngle)
+    ));
+    assert!(matches!(
+        &args[..],
+        [
+            TypedBuiltinArgument::GeometryReference {
+                expected_geometry_type: GeometryInterfaceType::Line,
+                target: Some(first),
+            },
+            TypedBuiltinArgument::GeometryReference {
+                expected_geometry_type: GeometryInterfaceType::Line,
+                target: Some(second),
+            }
+        ] if first.geometry_type == GeometryInterfaceType::Line
+            && second.geometry_type == GeometryInterfaceType::Line
+    ));
 }
 
 #[test]

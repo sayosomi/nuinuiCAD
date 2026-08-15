@@ -26,7 +26,7 @@ export const collectScalarExpressionReferences = (
         visit(node.expression);
         return;
       case "call":
-        node.args.forEach(visit);
+        node.args.forEach((argument) => visit(argument.expression));
         return;
       default:
         return;

@@ -73,23 +73,86 @@ ceil(number) -> number
 ceil(number, number) -> number
 roundTo(number, number) -> number
 isClose(number, number, number) -> boolean
+sin(number) -> number
+cos(number) -> number
+tan(number) -> number
+asin(number) -> number
+acos(number) -> number
+atan(number) -> number
+atan2(number, number) -> number
+spreadAngle(length: number, spread: number) -> number
+distance(point, point) -> number
+angle(point, point) -> number
+lineDistance(point, line) -> number
+lineAngle(line, line) -> number
 ```
 
-例えば、宣言、`set` の右辺、条件式、文字列補間、scalar property、
-module の scalar 引数・body で次のように書けます。
+scalar-only builtin は、宣言、`set` の右辺、条件式、文字列補間、scalar
+property、module の scalar 引数・body で利用できます。geometry-argument
+builtin (`distance`、`angle`、`lineDistance`、`lineAngle`) は、既存の
+geometry reference resolution 経路がある typed declaration initializer、
+`set` の右辺、module の scalar expression で直接利用できます。
 
 ```text
 const rounded: number = round(@seam / 2, 1)
 const closeEnough: boolean = isClose(@seam, 100, 0.5)
+const opening: number = spreadAngle(
+  length: 100,
+  spread: 20,
+)
 set angle = roundTo(@angle, 15)
 text note = label(text: "幅 ${round(@seam, 1)}mm", anchor: @A, size: 3)
 ```
 
+例えば geometry measurement の結果を一度 typed scalar binding に入れます。
+
+```text
+const measuredAngle: number = lineAngle(@LineA, @LineB)
+point P = coordinate(x: @measuredAngle, y: 0)
+```
+
+construction numeric parameter、scalar property、text-template hole、
+`printLayout` の numeric parameter で geometry measurement result を使う場合も、
+このように `@measuredAngle` のような binding を参照します。Task 4 では、これらの
+surface に geometry builtin 専用の evaluator / resolver 経路を追加していません。
+
 `round`、`floor`、`ceil` の桁数は整数で、`round` の .5 はゼロから遠ざかる
 方向に丸めます（`round(1.5)` は `2`、`round(-1.5)` は `-2`）。
 `roundTo` の step は正数、`isClose` の tolerance は 0 以上である必要があります。
+`sin`、`cos`、`tan` の入力角度と、`asin`、`acos`、`atan` の出力角度は degree
+です。`asin` と `acos` の入力は `[-1, 1]` に限られ、`tan` は 90° の奇数倍
+そのものを入力すると evaluation error になります。`atan2` は `atan2(y, x)` の
+順で、結果は `[0, 360)` degree に正規化されます（右 0°、上 90°、左 180°、
+下 270°、`atan2(0, 0)` は 0）。
+`spreadAngle(length: number, spread: number)` は `spread` を弦長として、
+`theta = 2 * asin(spread / (2 * length))` を degree で返します。`length > 0`、
+`0 <= spread <= 2 * length` が必要で、結果は `0..180`° です。`spread = 0` は
+0°、`spread = 2 * length` は 180° になります。引数または結果が有限値でない
+場合も evaluation error です。
 引数の型・個数が違う場合や計算結果が有限値でない場合は、診断として表示されます。
 暗黙の数値変換はありません。
+
+### scalar 関数の named arguments
+
+named calling style を宣言した scalar builtin では、引数名と式を
+`name: expression` の形で書けます。
+
+```text
+someFunction(
+  second: 2,
+  first: 1,
+)
+```
+
+named argument の順序は意味を持ちません。複数行の引数リストでは末尾の
+comma を使えます。parameter の名前・型・canonical order は builtin の
+signature metadata が所有します。positional-only と named-only は semantic
+に区別され、v1 では positional と named の混在は無効です。unknown、duplicate、
+missing の named argument は診断になります。現在の builtin catalog は
+既存 builtin では positional-only のままですが、`spreadAngle` は最初の production
+named-only scalar builtin です。既存関数を遡って named-call 化は行いません。検証に
+成功した named call は runtime では既存の canonical な positional typed arguments に
+lower され、argument name は runtime payload に入りません。
 
 論理演算子は `and`、`or`、`not` です。`var`、裸の名前参照、`&&` / `||` / `!` は nui4 の入力構文ではありません。型付き宣言は `const`、`let`、`set` を使います。
 

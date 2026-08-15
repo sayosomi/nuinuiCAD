@@ -18,6 +18,7 @@ import type {
 } from "./typedExpressionAst";
 import type { ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument } from "./typedExpressionAst";
 import { evaluateBuiltinFunction } from "./builtinFunctionSemantics";
+import { atan2Degrees360, radiansToDegrees } from "./angleMath";
 import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarType, type ScalarValue } from "./types";
 import type { ComputedGeometry, ComputedLine, ComputedPoint } from "../types/geometry";
 
@@ -63,16 +64,16 @@ const finiteNumberResult = (type: ScalarType, value: number): ScalarEvaluation =
     ? { status: "ok", type, value: { kind: "number", value } }
     : { status: "error", type, issueCode: "evaluation-non-finite-result" };
 
-type GeometryBuiltinName = "distance" | "angle" | "lineDistance";
+type GeometryBuiltinName = "distance" | "angle" | "lineDistance" | "lineAngle";
 
 const isGeometryBuiltin = (name: string): name is GeometryBuiltinName =>
-  name === "distance" || name === "angle" || name === "lineDistance";
+  name === "distance" || name === "angle" || name === "lineDistance" || name === "lineAngle";
 
 const distanceBetweenPoints = (point1: ComputedPoint, point2: ComputedPoint): number =>
   Math.hypot(point2.x - point1.x, point2.y - point1.y);
 
 const angleBetweenPoints = (point1: ComputedPoint, point2: ComputedPoint): number =>
-  (Math.atan2(point2.y - point1.y, point2.x - point1.x) * 180 / Math.PI + 360) % 360;
+  atan2Degrees360(point2.y - point1.y, point2.x - point1.x);
 
 const distancePointToInfiniteLine = (point: ComputedPoint, line: ComputedLine): number | null => {
   const dx = line.end.x - line.start.x;
@@ -289,7 +290,9 @@ const evaluateGeometryBuiltin = (
   const type = node.type!;
   const expectedTypes: readonly ("point" | "line")[] = name === "lineDistance"
     ? ["point", "line"]
-    : ["point", "point"];
+    : name === "lineAngle"
+      ? ["line", "line"]
+      : ["point", "point"];
   const argumentsByPosition: ComputedGeometry[] = [];
   for (const [index, argument] of node.args.entries()) {
     const geometry = geometryArgument(argument, expectedTypes[index]!, environment);
@@ -305,6 +308,24 @@ const evaluateGeometryBuiltin = (
       return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
     }
     return finiteNumberResult(type, name === "distance" ? distanceBetweenPoints(first, second) : angleBetweenPoints(first, second));
+  }
+
+  if (name === "lineAngle") {
+    if (first.kind !== "line" || second.kind !== "line") {
+      return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+    }
+    const firstDx = first.end.x - first.start.x;
+    const firstDy = first.end.y - first.start.y;
+    const secondDx = second.end.x - second.start.x;
+    const secondDy = second.end.y - second.start.y;
+    const firstLength = Math.hypot(firstDx, firstDy);
+    const secondLength = Math.hypot(secondDx, secondDy);
+    if (firstLength <= 1e-9 || secondLength <= 1e-9) {
+      return { status: "error", type, issueCode: "evaluation-invalid-builtin-argument" };
+    }
+    const ratio = Math.abs(firstDx * secondDx + firstDy * secondDy) / (firstLength * secondLength);
+    const angleRad = Math.acos(Math.min(1, Math.max(0, ratio)));
+    return finiteNumberResult(type, radiansToDegrees(angleRad));
   }
 
   if (first.kind !== "point" || second.kind !== "line") {
