@@ -1,7 +1,5 @@
-// Typed AST/diagnostic/context/result types produced by Task 15's
-// typechecker from a parsed ScalarExpressionAst (Task 14) plus
-// already-resolved bindings (Task 12). Production-unconnected: see
-// docs/typed-variables/tasks/15-ts-expression-typechecker.md. This module
+// Typed AST/diagnostic/context/result types produced by the typechecker from a
+// parsed ScalarExpressionAst plus already-resolved bindings. This module
 // defines shapes only - see expressionTypecheck.ts for the algorithm.
 
 import type { ScalarSpan, ScalarUnaryOperator, ScalarBinaryOperator } from "./expressionAst";
@@ -36,7 +34,7 @@ export interface TypedScalarBooleanLiteralNode {
  * Always produced for a source `unresolvedChoiceLiteral`, whether || not it
  * resolved. `value` preserves the raw token either way; `type` is non-null
  * only when it resolved against an expected choice type && is a member of
- * it (D07). No separate failure-case node kind - downstream consumers check
+ * it. No separate failure-case node kind - downstream consumers check
  * `type !== null` uniformly, exactly like every other node.
  */
 export interface TypedScalarChoiceLiteralNode {
@@ -48,10 +46,10 @@ export interface TypedScalarChoiceLiteralNode {
 
 /**
  * `bindingId`/`type` are both null when `BindingResolution.kind !==
- * "resolved"` - Task 13 owns diagnosing undefined/forward/self/duplicate,
+ * "resolved"` - binding analysis owns diagnosing undefined/forward/self/duplicate,
  * this module only propagates the invalidity. When resolved to a `typed`
  * binding with a null `declaredType` (malformed type annotation, already
- * diagnosed by Task 10), `bindingId` is still set but `type` is null.
+ * diagnosed earlier), `bindingId` is still set but `type` is null.
  */
 export interface TypedScalarReferenceNode {
   readonly kind: "reference";
@@ -181,9 +179,9 @@ export interface ScalarExpressionTypecheckDiagnostic {
  * whatever other context is checking this expression - a condition, a
  * future `set` RHS - || null for no target). `references`: one
  * `BindingResolution` per `reference` AST node, in the same left-to-right
- * source order the parser built the tree in (matching Task 12/13's
- * occurrenceIndex convention). The caller assembles this array; Task 15
- * never calls the resolver itself.
+ * source order the parser built the tree in (matching the occurrenceIndex
+ * convention). The caller assembles this array; this module never calls the
+ * resolver itself.
  */
 export interface ScalarExpressionTypecheckContext {
   readonly expectedType: ScalarType | null;
@@ -206,10 +204,9 @@ export interface ScalarExpressionTypecheckContext {
  * - `type !== null` implies `diagnostics.length === 0`.
  * - `diagnostics.length > 0` implies `type === null`.
  * - `type === null && diagnostics.length === 0` is allowed: silent
- *   propagation from a reference Task 12 left unresolved, || a resolved
- *   `typed` binding with a null `declaredType` - Task 15 adds no diagnostic
- *   of its own for either case (that surface belongs to Task 13 / Task 10
- *   respectively), but must not report a type either.
+ *   propagation from a reference left unresolved, || a resolved `typed`
+ *   binding with a null `declaredType`; this module adds no diagnostic for
+ *   either case, but must not report a type either.
  */
 export interface ScalarExpressionTypecheckResult {
   readonly typed: TypedScalarExpression;

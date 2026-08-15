@@ -8,10 +8,9 @@ import {
   useCadDocumentStore
 } from "./cadDocumentStore";
 
-// Phase 1b: ランダムなストア操作列後、影テキストが常にモデルと意味的等価で
+// ランダムなストア操作列後、影テキストが常にモデルと意味的等価で
 // あり(equivalence assertが一度も発火しない)、かつ手置きノイズ行が
-// バイト単位で保存されることを検証するプロパティテスト
-// (docs/overhaul/tasks/phase-1b-shadow-text.md 必須テスト)。
+// バイト単位で保存されることを検証するプロパティテスト。
 
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 

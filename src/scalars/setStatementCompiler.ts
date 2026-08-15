@@ -1,12 +1,11 @@
-// Task 29: compiles/resolves the `set name = expression` statement - target
+// Compiles/resolves the `set name = expression` statement - target
 // resolution against visible `let` bindings, RHS typecheck against the
-// target's declared type. See
-// docs/typed-variables/tasks/29-set-syntax-resolution.md.
+// target's declared type.
 //
 // Structural precedent: this module follows propertyBindingCompiler.ts's
-// (Task 22) two-phase shape - collect every candidate across one forward
+// two-phase shape - collect every candidate across one forward
 // pass, then a single resolveReferencesAtSites batch call for the whole
-// document - not conditionalGroupConditionCompiler.ts's (Task 25) per-
+// document - not conditionalGroupConditionCompiler.ts's per-
 // occurrence call shape. resolveReferencesAtSites's underlying runSweep does
 // a full forward pass over every statement on each invocation, so calling it
 // once per `set` occurrence would cost O(document size x set count); one
@@ -41,7 +40,7 @@ import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceI
 export const CONST_ASSIGNMENT_CODE = "const-assignment";
 export const INVALID_SET_TARGET_CODE = "invalid-set-target";
 export const MISSING_SET_STATEMENT_IDENTITY_CODE = "missing-stable-statement-identity";
-// Distinct from INVALID_SET_TARGET_CODE, which is reserved (plan.md) for the
+// Distinct from INVALID_SET_TARGET_CODE, which is reserved for the
 // *target* itself being unresolved/const/local/iteration. A reference
 // elsewhere inside the RHS expression is a different failure mode, mirroring
 // how propertyBindingCompiler.ts/conditionalGroupConditionCompiler.ts each
@@ -51,13 +50,13 @@ export const SET_RHS_UNRESOLVED_CODE = "set-rhs-unresolved";
 export const SET_RHS_INVALID_REFERENCE_CODE = "set-rhs-invalid-reference";
 
 export type SetStatementAnalysis = {
-  /** Reconciler-issued stable identity - Task 30's stable version-ID source. Never a fabricated/derived value. */
+  /** Reconciler-issued stable identity, never a fabricated/derived value. */
   statementId: string;
   /** Instance-qualified version identity for materialized module sets. */
   versionId?: string;
   /** statementIndex - matches ScalarProgramStatement's sourceOrder convention. */
   sourceOrder: number;
-  /** Opaque lexical scope identity captured during Task 29 resolution. */
+  /** Opaque lexical scope identity captured during name resolution. */
   scopeId: string;
   targetBindingId: BindingId;
   targetName: string;
@@ -77,9 +76,9 @@ export type CompileSetStatementsInput = {
    */
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   /**
-   * Undefined when the document has zero typed declarations at all (Task
-   * 13's analyzeTypedDeclarations short-circuits without building a catalog
-   * in that case). Every `set` statement is still visited; with no catalog,
+   * Undefined when the document has zero typed declarations at all
+   * (analyzeTypedDeclarations short-circuits without building a catalog in
+   * that case). Every `set` statement is still visited; with no catalog,
    * every target is unconditionally invalid-set-target (there is no `let`
    * in the document to resolve against).
    */
@@ -104,7 +103,7 @@ export type SetTargetClassification =
  * The single target-validity chain for a `set` statement's name resolution:
  * must resolve, must be a `let` (never `const`, nor iteration/
  * elementLocal, all of which carry mutability "readonly"), && must have a
- * known declared type. Shared with Task 37's rename safety analysis
+ * known declared type. Shared with rename safety analysis
  * (src/scalars/typedRenameAnalysis.ts), which classifies the same target
  * name's resolution before && after a candidate rename - this must stay the
  * single source of truth for "is this a safe set target" so the two never
@@ -119,13 +118,12 @@ export const classifySetTargetResolution = (resolution: BindingResolution | unde
   return { kind: "valid", binding };
 };
 
-/** Exact-span-or-nothing (Task 48) - see typedDeclarationAnalysis.ts's
+/** Exact-span-or-nothing - see typedDeclarationAnalysis.ts's
  * compileDiagnostic. No navigationTarget: there is no dedicated `set`
  * statement jump method on SourceEditorHandle today (SetStatementRangeIndex/
- * SetStatementFieldRangeIndex exist only for Task 44's in-place value
- * stepping, never exposed for external navigation) - inventing one is out of
- * this task's scope, so these diagnostics stay text-only in the Problems
- * popover until a future task adds that API. */
+ * SetStatementFieldRangeIndex exist only for in-place value stepping, never
+ * exposed for external navigation) - inventing one is outside this module's
+ * scope, so these diagnostics stay text-only in the Problems popover. */
 const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
@@ -275,11 +273,11 @@ export const compileSetStatements = ({
 
   for (const candidate of candidates) {
     const targetResolution = resolutions.get(candidate.targetKey);
-    // Shared with Task 37's rename safety analysis - the single target-
+    // Shared with rename safety analysis - the single target-
     // validity chain (resolved, let, not const, known declared type). An
     // invalid-status `let` (poisoned by its own initializer || a failed
     // dependency) is still accepted here - its declared type is known, so
-    // this is the deliberate recovery path plan.md describes. No status
+    // this is the deliberate recovery path. No status
     // check against bindingAnalysis.entriesById gates this branch.
     const classification = classifySetTargetResolution(targetResolution);
     if (classification.kind === "invalid") {

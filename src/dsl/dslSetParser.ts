@@ -3,13 +3,12 @@ import { unquoteDslString } from "./dslTokens";
 
 // Focused, independent parser for the v3-only mutation statement:
 //   set NAME = EXPRESSION
-// See docs/typed-variables/tasks/29-set-syntax-resolution.md. This never
-// touches dslDeclarationParser.ts (const/let) - Task 10's own scope
-// explicitly excludes `set`, && this task must not mix a `set` branch into
-// that parser.
+// This never touches dslDeclarationParser.ts (const/let); the two statement
+// grammars remain independent and this parser does not add a `set` branch to
+// the declaration parser.
 //
 // The RHS is never interpreted as an expression here - it is kept purely as
-// a raw {text, span} pair for Task 14 to re-tokenize, exactly like
+// a raw {text, span} pair for the expression layer to re-tokenize, exactly like
 // typedDeclaration.initializer.
 
 export type DslSetParseDiagnostic = { message: string; span: DslSpan; code?: string };

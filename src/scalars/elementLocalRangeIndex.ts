@@ -2,9 +2,8 @@
 // (`vars: [...]`). This module is deliberately independent of BindingCatalog:
 // element-local variables are an element-owned local numeric namespace, never
 // document-wide bindings, && must never re-enter the document/iteration
-// catalog lanes those share (see docs/typed-variables/decisions.md D05 &&
-// the Task 52 legacy-removal manifest's explicit "outside the document
-// binding catalog" contract for this namespace).
+// catalog lanes those share. This namespace is intentionally separate from
+// the document binding catalog.
 import type { CadElement } from "../types/geometry";
 
 const RADIX_BITS = 11;

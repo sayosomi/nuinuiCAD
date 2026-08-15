@@ -1,15 +1,13 @@
-// Task 25: connects Task 22/25's compiled typed-boolean control sources
-// (conditionalGroup.condition, forGroup.showGenerated) to Task 21's resolved
-// scalar binding environment at evaluation time. See
-// docs/typed-variables/tasks/25-boolean-control-flow-runtime.md.
+// Connects compiled typed-boolean control sources
+// (conditionalGroup.condition, forGroup.showGenerated) to the resolved
+// scalar binding environment at evaluation time.
 //
 // Two independent, related pieces:
 // - showGenerated is a schema-typed property source compiled by the common
-//   property frontend && kept on this dedicated physical route until Task 8
-//   removes the split.
+//   property frontend && remains on this dedicated physical route.
 // - condition is a full typed boolean expression (conditionalGroupConditionCompiler.ts),
 //   resolved directly through the document's existing binding resolver via
-//   `evaluateTypedExpression` (Task 16) - never re-parsed, never a second
+//   `evaluateTypedExpression` - never re-parsed, never a second
 //   resolver instance.
 //
 // Both resolvers fail closed (never throw, never touch errors/warnings) on
@@ -41,10 +39,10 @@ export type ControlBooleanRuntimeSource = {
   }[];
 };
 
-/** Re-keys Task 25's compiled `conditionalGroupConditions` (statementIndex-
+/** Re-keys compiled `conditionalGroupConditions` (statementIndex-
  * keyed occurrence map) into an elementId-keyed map, exactly once per
  * compiled document - mirrors `buildControlBooleanRuntimeEntries` above &&
- * Task 23's `buildPropertyBindingRuntimeEntries`, never rebuilt per element
+ * `buildPropertyBindingRuntimeEntries`, never rebuilt per element
  * || per evaluation call. */
 export const buildConditionalGroupConditionsByElementId = (
   conditionalGroupConditions: ReadonlyMap<string, TypedScalarExpression>,

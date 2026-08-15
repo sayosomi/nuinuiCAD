@@ -1,5 +1,5 @@
-// Task 41: pure Quick Fix descriptor generation for typed-variable/version/
-// choice diagnostics. See docs/typed-variables/tasks/41-typed-variable-quick-fixes.md.
+// Pure Quick Fix descriptor generation for typed-variable/version/choice
+// diagnostics.
 //
 // This module never mutates a live editor, never dispatches a CM transaction,
 // && never re-resolves a binding. It only reads already-compiled
@@ -11,8 +11,8 @@
 // the owning statement && fix kind - every actual offset is computed from
 // the statement's own already-logical spans, projected to physical source
 // offsets via `parseDslSnapshot`/`physicalSpanForLogicalRange` (the same
-// "only bridge from parser logical offsets to editor physical offsets" Task
-// 38's `buildTypedRenameSplices` established), never from a diagnostic's own
+// "only bridge from parser logical offsets to editor physical offsets" rule
+// used by rename splice generation), never from a diagnostic's own
 // `column`/`physicalSpan` (which is coarse - whole-keyword || whole-statement
 // - for several of the diagnostic codes this module handles).
 //

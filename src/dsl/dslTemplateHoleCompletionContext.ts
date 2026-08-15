@@ -1,16 +1,15 @@
-// Pure, catalog-free template hole completion context (Task 39). Detects
+// Pure, catalog-free template hole completion context. Detects
 // whether the cursor sits inside an in-progress (not yet closed) `${...}`
 // hole of a `label(text: "...")` value and, if so, the hole's content span -
-// nothing more. See docs/typed-variables/tasks/39-typed-value-completion.md
-// && docs/typed-variables/tasks/26-text-template-analysis.md.
+// nothing more.
 //
-// Reuses Task 26's own scanTextTemplateLiteral unmodified, bounding the scan
+// Reuses scanTextTemplateLiteral unmodified, bounding the scan
 // to end exactly at the cursor (never at the value's real closing quote):
 // an in-progress hole is, by construction, not yet closed within that
 // bounded range, so the scanner reports it as its own
 // "unterminated-interpolation" error - precisely the signal this module
 // needs, with no new scanning logic && no possibility of drifting from
-// Task 26's escape/brace rules (`\{`/`\}` literal handling, one-hole-deep
+// its escape/brace rules (`\{`/`\}` literal handling, one-hole-deep
 // nesting rejection, etc. all still apply exactly as scanned).
 
 import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";

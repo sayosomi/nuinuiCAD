@@ -1,7 +1,6 @@
 // Formats BindingAnalysis issues into human-readable messages. This module
 // never computes new analysis data (spans, related ids, codes) - it only
 // resolves binding names via `analysis.catalog` && builds message strings.
-// See docs/typed-variables/tasks/13-binding-diagnostics-initializer-graph.md.
 
 import type { DslSpan } from "../dsl/dslTypes";
 import type { BindingId } from "./bindingCatalog";

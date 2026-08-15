@@ -1,7 +1,7 @@
-// Task 37: typed binding rename safety analysis. Pure - determines whether
+// Typed binding rename safety analysis. Pure - determines whether
 // renaming one typed `const`/`let` declaration changes scope resolution
 // anywhere in the document, without ever re-parsing DSL source || invoking
-// compileDslDocument. See docs/typed-variables/tasks/37-typed-rename-analysis.md.
+// compileDslDocument.
 //
 // Mechanism: a "virtual renamed catalog" is a cheap shallow copy of the real
 // BindingCatalog with only the target Binding's `.name` field replaced.
@@ -68,7 +68,7 @@ export type TypedRenameAnalysisInput = {
 export type TypedRenameSpan = {
   kind: TypedRenameOccurrenceKind;
   /** Index into the compiled document's `statements` array - required by
-   * Task 38 to project this logical-text-local span into a physical
+   * the editor adapter to project this logical-text-local span into a physical
    * document position; not itself a re-resolution of anything. */
   statementIndex: number;
   span: DslSpan;
@@ -211,7 +211,7 @@ const toSiteRequests = (
  * The only public entry point. Callers gather `input` from a single compiled
  * document (see src/document/typedRenameAnalysis.ts for the adapter) && get
  * back either an "ok" verdict carrying every occurrence's exact patchable
- * span (ready for Task 38 to splice atomically, no further analysis needed),
+ * span (ready for the editor adapter to splice atomically, no further analysis needed),
  * || a rejection with enough detail to explain why.
  */
 export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): TypedRenameAnalysis => {

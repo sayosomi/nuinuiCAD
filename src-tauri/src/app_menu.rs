@@ -18,6 +18,7 @@ struct CommandSpec {
     label: &'static str,
 }
 
+#[cfg(target_os = "macos")]
 #[derive(Clone, Copy)]
 enum NativeSpec {
     #[cfg(target_os = "macos")]
@@ -49,6 +50,7 @@ enum NativeSpec {
 #[derive(Clone, Copy)]
 enum MenuSpec {
     Command(CommandSpec),
+    #[cfg(target_os = "macos")]
     Native(NativeSpec),
     Separator,
 }
@@ -60,6 +62,7 @@ const fn cmd(id: &'static str, label: &'static str) -> MenuSpec {
     MenuSpec::Command(CommandSpec { id, label })
 }
 
+#[cfg(target_os = "macos")]
 const fn native(item: NativeSpec) -> MenuSpec {
     MenuSpec::Native(item)
 }
@@ -233,6 +236,7 @@ fn add_item<'a>(
             let item = command_item(app, command)?;
             Ok(builder.item(&item))
         }
+        #[cfg(target_os = "macos")]
         MenuSpec::Native(native_item) => Ok(match native_item {
             #[cfg(target_os = "macos")]
             NativeSpec::About => builder.about(None),
@@ -314,9 +318,11 @@ pub fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<AppMenu> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "macos")]
+    use super::NativeSpec;
     use super::{
-        command_id_from_menu_id, MenuSpec, NativeSpec, APP_COMMAND_ACCELERATOR,
-        CAD_ACTION_MENU_TITLE, DRAW_ITEMS, EDIT_ITEMS, FILE_ITEMS, NAVIGATE_ITEMS, VIEW_ITEMS,
+        command_id_from_menu_id, MenuSpec, APP_COMMAND_ACCELERATOR, CAD_ACTION_MENU_TITLE,
+        DRAW_ITEMS, EDIT_ITEMS, FILE_ITEMS, NAVIGATE_ITEMS, VIEW_ITEMS,
     };
     #[cfg(target_os = "macos")]
     use super::{NATIVE_EDIT_ITEMS, NATIVE_EDIT_MENU_TITLE};
@@ -334,8 +340,12 @@ mod tests {
     #[test]
     fn edit_menu_contains_only_cad_commands_and_separators() {
         for item in EDIT_ITEMS {
-            if let MenuSpec::Native(_) = item {
-                panic!("CAD action menu should not contain native macOS edit items")
+            match item {
+                MenuSpec::Command(_) | MenuSpec::Separator => {}
+                #[cfg(target_os = "macos")]
+                MenuSpec::Native(_) => {
+                    panic!("Edit menu must not include OS-native clipboard or editing actions")
+                }
             }
         }
     }

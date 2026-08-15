@@ -12,17 +12,17 @@ export { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationType
 // Focused parser for the v3-only typed declaration statement:
 //   const NAME: TYPE = INITIALIZER
 //   let NAME: TYPE = INITIALIZER
-// See docs/typed-variables/tasks/10-typed-declaration-syntax.md.
+// The parser owns the declaration's outer shape and type annotation.
 //
 // The initializer is never interpreted as an expression here - it is kept
-// purely as a raw {text, span} pair for Task 14 to re-tokenize. This parser
+// purely as a raw {text, span} pair for the expression layer to re-tokenize. This parser
 // only classifies literal tokens inside a choice(...) type annotation, &&
-// does so exclusively through scanScalarLiteral (Task 09) - no separate
+// does so exclusively through scanScalarLiteral - no separate
 // identifier || true/false reserved-word check is implemented here.
 
 export type DslDeclarationDiagnostic = DslTypeDiagnostic;
 
-/** No `:` type annotation at all (as opposed to a colon with empty type text) - Task 41's Quick Fix routes on this. */
+/** No `:` type annotation at all (as opposed to a colon with empty type text); Quick Fixes route on this. */
 export const MISSING_DECLARED_TYPE_CODE = "missing-declared-type";
 
 export type DslTypedDeclarationStatement = {

@@ -7,8 +7,8 @@ import { serializeDslNumericType } from "./dslNumericTypeOptions";
 // Only the declaration's outer shape (keyword, spacing, name, type text) is
 // canonicalized here. The initializer is re-emitted byte-for-byte from its
 // raw source text: no re-quoting, re-escaping, || whitespace normalization
-// is performed, because Task 10 never parses the initializer as an
-// expression (see docs/typed-variables/tasks/10-typed-declaration-syntax.md).
+// is performed, because the declaration serializer does not parse the
+// initializer as an expression.
 //
 // This statement only exists in nui 4 - there is no v2 form - so no
 // majorVersion branching is needed here.

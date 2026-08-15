@@ -1,5 +1,4 @@
-// Pure lexical scope index over already-parsed DSL statements. See
-// docs/typed-variables/tasks/11-lexical-scope-index.md. This module never
+// Pure lexical scope index over already-parsed DSL statements. This module never
 // parses source text && never imports src/dsl/dslDocument.ts ||
 // src/dsl/dslParser.ts runtime logic; it only reads the `DslStatement` shape
 // (in particular `enclosing`, already computed once by the parser) && never
@@ -59,7 +58,7 @@ export type LexicalScopeIndex = {
   scopeOfStatement: ReadonlyMap<number, ScopeId>;
   /** Each scope's declarations sorted by `statementIndex`. */
   declarationsByScope: ReadonlyMap<ScopeId, readonly ScopeDeclaration[]>;
-  /** Full-document declaration order, for Task 12's position-based queries. */
+  /** Full-document declaration order for position-based queries. */
   allDeclarations: readonly ScopeDeclaration[];
   forGroupIterationSlots: ReadonlyMap<ScopeId, ForGroupIterationSlot>;
   /** Dense indexes: never allocate from a raw statement index. */
@@ -293,7 +292,7 @@ export const buildLexicalScopeIndex = (
   };
 };
 
-/** Scope chain from `scopeId` up to root (root last). Convenience for Task 12. */
+/** Scope chain from `scopeId` up to root (root last). */
 export const scopeChain = (index: LexicalScopeIndex, scopeId: ScopeId): readonly ScopeId[] => {
   const chain: ScopeId[] = [];
   let current: ScopeId | null = scopeId;

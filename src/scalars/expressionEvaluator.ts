@@ -1,12 +1,12 @@
-// Pure reference evaluator for Task 15's typed scalar expression AST
+// Pure reference evaluator for the typed scalar expression AST
 // (TypedScalarExpression). Consumes only the typed AST && a caller-injected
 // environment - it never parses, tokenizes, resolves names, || typechecks.
 // References resolve solely by the stable bindingId already attached to each
 // reference node; scope, shadowing, declaration order, && binding
-// eligibility are Tasks 11-13's finished, closed surface && are never
-// reinterpreted here. Document declaration order, `set` versions, control
-// flow, property wiring, && Rust are all out of scope - see
-// docs/typed-variables/tasks/16-ts-expression-reference-evaluator.md.
+// eligibility are established before evaluation and are never reinterpreted
+// here. Document declaration order, `set` versions, control flow, property
+// wiring, && Rust integration are owned by the surrounding document/runtime
+// layers rather than this expression evaluator.
 
 import type { BindingId } from "./bindingCatalog";
 import type {
@@ -42,7 +42,7 @@ export interface ScalarEvaluationEnvironment {
 
 /**
  * Documented placeholder used only when a node's static `type` is null.
- * ScalarEvaluation.type is non-nullable (Task 08), so an honest "no static
+ * ScalarEvaluation.type is non-nullable, so an honest "no static
  * type" cannot be represented in-band; this mirrors expressionTypecheck.ts's
  * existing "unknown -> number" default for the same reason. Consumers must
  * key off `issueCode === "evaluation-static-type-null"`, never off `.type`,
@@ -108,7 +108,7 @@ const propagateError = (type: ScalarType, source: Extract<ScalarEvaluation, { st
  * ScalarEvaluation error: by the time a value reaches here it has already
  * passed either the reference trust-boundary check (evaluateReference) || is
  * a literal/computed value that is self-consistent with its own static type
- * by construction (guaranteed by Task 15's typecheck). A mismatch here would
+ * by construction (guaranteed by the typechecker). A mismatch here would
  * be an invariant violation in this module, not an expected runtime failure.
  */
 const numberValueOf = (value: ScalarValue): number => {

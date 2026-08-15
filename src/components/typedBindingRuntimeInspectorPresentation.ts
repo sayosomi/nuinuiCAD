@@ -1,11 +1,10 @@
-// Task 45: read-only Inspector "実行時値" section for a selected typed
+// Read-only Inspector "実行時値" section for a selected typed
 // const/let binding. This module reads only already-computed production
 // output - EvaluationResult.computedScalarBindings/computedScalarBindingVersions
-// (Tasks 20/21/31/32/33/34/35) && the compiled analysis maps already on
-// CompiledDslDocument (propertyBindings/conditionalGroupConditions/textTemplates,
-// Tasks 22/25/26) - && never recomputes a scalar program, mutation, ||
-// property/condition/template resolution itself. See
-// docs/typed-variables/tasks/45-inspector-runtime-values.md.
+// && the compiled analysis maps already on
+// CompiledDslDocument (propertyBindings/conditionalGroupConditions/textTemplates)
+// - && never recomputes a scalar program, mutation, ||
+// property/condition/template resolution itself.
 //
 // Consumer rows are extracted directly against the selected bindingId by
 // scanning the compiled analysis maps (bounded by how many properties/
@@ -38,8 +37,8 @@ import { displayInspectorValue } from "./inspectorPresentation";
  * poisoned() helper only attaches when a version's *initial* compile-time
  * state was already poisoned || it has no initializer at all. An ordinary
  * runtime failure (divide-by-zero, an unavailable external binding, a cycle
- * guard, ...) is exactly as poisoned in this document's sense - Task 30's
- * BindingVersionRuntimeHistory.status already generalizes this the same way
+ * guard, ...) is exactly as poisoned in this document's sense -
+ * BindingVersionRuntimeHistory.status generalizes this the same way
  * (`"poisoned"` whenever `evaluation.status === "error"`, regardless of
  * issueCode), so this presentation follows the same rule for the final value.
  */
@@ -47,9 +46,9 @@ export type TypedBindingRuntimeStatus = "ok" | "poisoned" | "unknown";
 
 export type TypedBindingRuntimeInspectorRow = { key: string; label: string; value: string };
 
-/** Where a consumer row jumps: an exact Task 43 span when one exists for this
+/** Where a consumer row jumps: an exact source span when one exists for this
  * consumer kind, otherwise a whole-element jump (conditionalGroup.condition
- * has no Task 43 span index of its own). */
+ * has no span index of its own). */
 export type TypedBindingRuntimeConsumerJump =
   | { kind: "property"; occurrenceKey: string }
   | { kind: "templateHole"; occurrenceKey: string; holeIndex: number }
@@ -81,8 +80,8 @@ export type TypedBindingRuntimeConsumerSources = {
   elements: readonly CadElement[];
 };
 
-// Task 48: moved to scalars/runtimeIssueMessages.ts so the gutter/Problems
-// runtime diagnostic converter shares this exact table - never a second copy.
+// The gutter/Problems runtime diagnostic converter shares this exact table -
+// never a second copy.
 
 /** number uses the same formatting rule text templates already use for
  * numeric holes (textNumber) so the Inspector never invents a second number
@@ -125,7 +124,7 @@ const buildHistorySummaryRow = (
 };
 
 /** The hole segment's position among ast.segments' hole-kind entries (all
- * hole kinds counted, in source order) - matches Task 43's
+ * hole kinds counted, in source order) - matches
  * TemplateHoleRangeIndex holeIndex numbering exactly, so no new indexing
  * scheme is introduced. TextTemplateDependency only carries the hole's span,
  * not its index, so this is resolved once per matched dependency. */
@@ -158,7 +157,7 @@ const typedBindingConsumerRows = (
   // All seven opt-in single-`@name` properties (offsetLine.side/closed/
   // suppressTrimWarnings, intersectionPoint.useExtensions, copyLine/move/
   // image.mirrorX, group.printEnabled, forGroup.showGenerated, text.text bare
-  // binding) live in this one compiled map (Task 22's compilePropertyBindings
+  // binding) live in this one compiled map (compilePropertyBindings
   // opts them all in generically) - one scan covers every one of them.
   if (sources.propertyBindings) {
     for (const [occurrenceKey, source] of sources.propertyBindings) {
@@ -179,7 +178,7 @@ const typedBindingConsumerRows = (
   }
 
   // conditionalGroup.condition is a whole expression, not a single `@name` -
-  // no Task 43 span index exists for it, so its row falls back to a
+  // no span index exists for it, so its row falls back to a
   // whole-element jump.
   if (sources.conditionalGroupConditions) {
     for (const [occurrenceKey, expression] of sources.conditionalGroupConditions) {
@@ -224,7 +223,7 @@ const typedBindingConsumerRows = (
 
 /**
  * Projects one selected typed binding's runtime state into a small read-only
- * row set. Returns null under the same guard as Task 42's declaration
+ * row set. Returns null under the same guard as the declaration
  * presentation (the binding must currently resolve to a typed const/let
  * declaration) - callers treat null the same as "nothing selected".
  *

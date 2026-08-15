@@ -1,7 +1,6 @@
-// Pure, metadata-driven candidate generation for typed value completion
-// (Task 39). Reads a precomputed BindingCatalog/BindingAnalysis && never
-// re-parses source, re-resolves names, || re-runs typecheck - see
-// docs/typed-variables/tasks/39-typed-value-completion.md.
+// Pure, metadata-driven candidate generation for typed value completion.
+// Reads a precomputed BindingCatalog/BindingAnalysis && never re-parses source,
+// re-resolves names, || re-runs typecheck.
 //
 // Literal/operator tables mirror src/scalars/expressionTypecheck.ts's own
 // SIMPLE_BINARY_RULES/checkEqualityBinary matrix exactly (never re-derived):
@@ -243,7 +242,7 @@ const scalarCompletionCandidateKey = (candidate: ScalarCompletionCandidate): str
 
 /**
  * A template hole's content only ever resolves to a string || number result
- * (Task 26 - boolean/choice results are always `interpolation-type-mismatch`),
+ * (boolean/choice results are always `interpolation-type-mismatch`),
  * && which of the two a given hole needs is not known without evaluating it.
  * Rather than guessing, this analyzes the position once per candidate root
  * type && unions the results (deduped by candidate identity) - reusing

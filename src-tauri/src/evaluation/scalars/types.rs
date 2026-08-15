@@ -39,10 +39,9 @@ pub(crate) struct ScalarExpressionResolvedGeometryTarget {
 }
 
 /// A source-text offset range, `[start, end)`. Never read for evaluation
-/// (Task 16's evaluator and Task 18's Rust counterpart don't use spans -
-/// source-span re-association is a TS-adapter responsibility, per D17 in
-/// docs/typed-variables/decisions.md), but still part of the real wire shape
-/// TS produces, so still decoded and validated for shape.
+/// (the evaluators don't use spans - source-span re-association is a
+/// TypeScript-adapter responsibility, but the
+/// span remains part of the wire shape and is decoded and validated here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ScalarSpan {
     pub(crate) start: usize,

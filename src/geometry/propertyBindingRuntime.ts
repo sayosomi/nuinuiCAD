@@ -2,11 +2,11 @@
 // evaluation time through the single nui4 runtime route.
 //
 // This module never re-parses source && never re-resolves a binding name:
-// `buildPropertyBindingRuntimeEntries` only re-keys Task 22's already-
+// `buildPropertyBindingRuntimeEntries` only re-keys already-
 // compiled, already-name-resolved `propertyBindings` map (statementIndex-
 // keyed) into an elementId-keyed list, && `materializePropertyBoundElement`
 // only ever does one binding-resolver lookup per bound property per element,
-// via a caller-supplied resolver (Task 23's `ScalarBindingResolver` from
+// via a caller-supplied resolver (`ScalarBindingResolver` from
 // scalarProgramEvaluation.ts) - it never evaluates a scalar program itself.
 
 import type { CadElement, DependencyError, ElementId } from "../types/geometry";
@@ -125,8 +125,7 @@ const propertyBindingFailureMessage = (
 /**
  * Resolves && applies every bound property on `element`, in one lookup per
  * property via `resolveBinding` (never re-evaluating a scalar program).
- * Fails closed - per docs/typed-variables/tasks/23-standard-property-runtime.md
- * - on eval failure/poison (`status !== "ok"`), runtime type mismatch, ||
+ * Fails closed on eval failure/poison (`status !== "ok"`), runtime type mismatch, ||
  * choice-option mismatch: the caller must not evaluate || draw the element
  * in that case. Returns the original element unchanged (no clone) when it
  * has no bound properties.

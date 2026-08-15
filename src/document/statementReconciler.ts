@@ -6,7 +6,7 @@ import type { CadElementType, ElementId } from "../types/geometry";
 import { createStatementIdentity, type StatementIdentity } from "./statementIdentity";
 
 // statementReconciler — 再パースされたDSL文書の各文へ、直前のコンパイル結果から
-// 実行時要素IDを最大限継承させる純粋照合器(docs/overhaul/plan.md / Phase 1a)。
+// 実行時要素IDを最大限継承させる純粋照合器。
 //
 // 継承は優先順位付きの6段階で行う。上位段階で対応付いた文は下位段階の対象から
 // 除外され、判定はすべて決定論的(曖昧な候補は継承しない)。

@@ -1,4 +1,4 @@
-//! Task 23: materializes Task 22's compiled property-binding sources into
+//! Materializes compiled property-binding sources into
 //! resolved literal values on an element clone, immediately before that
 //! element is dispatched to its per-type evaluator. Mirrors
 //! `src/geometry/propertyBindingRuntime.ts` - see that file's module
@@ -98,9 +98,8 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
 /// Resolves and applies every bound property for `element` (looked up by
 /// the caller under the appropriate id - the element's own id, or its
 /// forGroup *template* id for a generated clone - before calling this),
-/// via `resolver` (never re-evaluating a scalar program). Fails closed - per
-/// docs/typed-variables/tasks/23-standard-property-runtime.md - on eval
-/// failure/poison, runtime type mismatch, or choice-option mismatch: the
+/// via `resolver` (never re-evaluating a scalar program). Fails closed on
+/// eval failure/poison, runtime type mismatch, or choice-option mismatch: the
 /// caller must not evaluate or draw the element in that case. Returns a
 /// clone of `element` unchanged when `entries` is `None`/empty.
 pub(crate) fn apply_property_bindings(

@@ -1,7 +1,6 @@
 // Read-only presentation for a single selected typed const/let binding
-// (Task 42). Never receives more than one bindingId at a time && never
-// projects every binding in the document into React rows - see
-// docs/typed-variables/tasks/42-inspector-declaration-metadata.md.
+// Never receives more than one bindingId at a time && never
+// projects every binding in the document into React rows.
 import type { DslStatement } from "../dsl/dslTypes";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import { formatBindingIssue } from "../scalars/bindingDiagnostics";

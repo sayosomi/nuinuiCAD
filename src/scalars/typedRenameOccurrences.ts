@@ -1,12 +1,11 @@
-// Task 37: occurrence enumeration for typed binding rename safety analysis.
-// Pure - reads only already-compiled analysis records (Task 19 scalarProgram,
-// Task 26 textTemplates, Task 22 propertyBindings, Task 29 setStatements, &&
+// Occurrence enumeration for typed binding rename safety analysis.
+// Pure - reads only already-compiled analysis records (scalarProgram,
+// textTemplates, propertyBindings, setStatements, &&
 // the raw already-parsed DslStatement stream for `set` target names). Never
 // re-parses DSL source, never calls compileDslDocument/parseDsl.
 //
-// Completeness boundary (see docs/typed-variables/tasks/37-typed-rename-analysis.md
-// && this task's plan file): initializer/set-rhs/property/template
-// occurrences are only ever enumerated for statements that already compiled
+// Completeness boundary: initializer/set-rhs/property/template
+// occurrences are enumerated only for statements that already compiled
 // successfully - each source map here only contains resolved entries. A
 // currently-broken reference is an existing, independent compile diagnostic
 // && out of reach without re-parsing raw text, which this module avoids.

@@ -1,11 +1,9 @@
-// AST/diagnostic types for typed scalar expressions (initializers, future
-// `set` RHS, future conditions). Production-unconnected: see
-// docs/typed-variables/tasks/14-ts-expression-parser.md. Consumed later by
-// Task 15 (typecheck, adds binding IDs/types) && Task 17 (Rust payload
-// schema validation) - this module defines the shared shape only, with no
-// name resolution, typecheck, || evaluation logic of its own.
+// AST/diagnostic types for typed scalar expressions used by declaration
+// initializers, `set` RHS values, and conditions. This module defines the
+// shared shape only, with no name resolution, typecheck, || evaluation logic
+// of its own.
 //
-// `ScalarSpan` is reused directly from literalScanner.ts (Task 09) rather
+// `ScalarSpan` is reused directly from literalScanner.ts rather
 // than redefined here - it is already the shared span shape across the
 // scalar subsystem.
 
@@ -49,8 +47,8 @@ export interface ScalarBooleanLiteralNode {
 
 /**
  * A bare choice token with no expected type available to resolve it against
- * (this parser never branches on type). Task 15 resolves this against the
- * declared/expected choice type; until then it is kept as an explicit
+ * (this parser never branches on type). The typechecker resolves this against
+ * the declared/expected choice type; until then it is kept as an explicit
  * "unresolved" node rather than guessed at.
  */
 export interface ScalarUnresolvedChoiceLiteralNode {
