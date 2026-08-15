@@ -119,6 +119,14 @@ describe("bezierExtremePoint evaluation", () => {
 
   it("distinguishes invalid and out-of-range segment indexes", () => {
     const elements = [point("start", 0, 0), point("end", 10, 0), curve("curve", 90, 10, -90, 10)];
+    const negative = evaluateElements([...elements, extreme("extreme", "curve", 90, -1)]);
+    expect(negative.computedGeometry.has("extreme")).toBe(false);
+    expect(negative.errors[0]).toMatchObject({
+      elementId: "extreme",
+      missingDependencyId: "extreme",
+      message: "extreme の区間番号は0以上の整数で指定してください。"
+    });
+
     const nonInteger = evaluateElements([...elements, extreme("extreme", "curve", 90, 0.5)]);
     expect(nonInteger.errors[0]?.message).toBe("extreme の区間番号は0以上の整数で指定してください。");
 
@@ -126,6 +134,36 @@ describe("bezierExtremePoint evaluation", () => {
     expect(outOfRange.errors[0]?.message).toBe(
       "extreme の区間番号 1 に対応する区間がありません。区間数は 1 個です。"
     );
+  });
+
+  it("reports a missing Bezier source as a dependency error", () => {
+    const result = evaluateElements([
+      extreme("extreme", "missing", 90)
+    ]);
+    expect(result.computedGeometry.has("extreme")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "extreme",
+      missingDependencyId: "missing",
+      missingDependencyName: undefined
+    });
+  });
+
+  it("reports a disabled Bezier source as the missing dependency", () => {
+    const disabledCurve = curve("curve", 90, 10, -90, 10);
+    disabledCurve.activity = "disabled";
+    const result = evaluateElements([
+      point("start", 0, 0),
+      point("end", 10, 0),
+      disabledCurve,
+      extreme("extreme", "curve", 90)
+    ]);
+    expect(result.computedGeometry.has("extreme")).toBe(false);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "extreme",
+      missingDependencyId: "curve",
+      missingDependencyName: "curve"
+    });
+    expect(result.errors[0]?.message).toContain("curve");
   });
 
   it("accepts a split-generated computed Bezier source", () => {

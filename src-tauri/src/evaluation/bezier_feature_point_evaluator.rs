@@ -178,8 +178,24 @@ pub(crate) fn evaluate_bezier_extreme_point(
 
 #[cfg(test)]
 mod tests {
+    use super::super::{evaluate_document_input, EvaluationInput};
     use super::*;
     use serde_json::json;
+
+    fn evaluation_input(elements: Vec<Value>) -> EvaluationInput {
+        EvaluationInput {
+            property_bindings: None,
+            control_boolean_bindings: None,
+            condition_expressions: None,
+            text_templates: None,
+            text_property_bindings: None,
+            elements,
+            evaluation_limit_index: None,
+            scalar_expression_payload: None,
+            scalar_program: None,
+            binding_versions: None,
+        }
+    }
 
     fn source_geometry(kind: &str) -> Value {
         json!({
@@ -260,6 +276,111 @@ mod tests {
         assert_eq!(
             state.errors.first().map(|error| error.message.as_str()),
             Some("extreme の参照先はベジェ曲線の計算結果ではありません。ベジェ曲線を指定してください。")
+        );
+    }
+
+    #[test]
+    fn reports_a_missing_source_as_a_dependency_error() {
+        let result = evaluate_document_input(evaluation_input(vec![json!({
+            "id": "extreme",
+            "name": "extreme",
+            "type": "bezierExtremePoint",
+            "activity": "visible",
+            "baseLineId": "missing",
+            "segmentIndex": 0,
+            "directionDeg": 90
+        })]));
+
+        assert!(result
+            .computed_geometry
+            .iter()
+            .all(|geometry| geometry["elementId"] != "extreme"));
+        let error = result.errors.first().expect("expected dependency error");
+        assert_eq!(error.element_id, "extreme");
+        assert_eq!(error.missing_dependency_id, "missing");
+        assert_eq!(error.missing_dependency_name, None);
+    }
+
+    #[test]
+    fn reports_a_disabled_source_as_the_missing_dependency() {
+        let result = evaluate_document_input(evaluation_input(vec![
+            json!({
+                "id": "curve",
+                "name": "ベジェ線",
+                "type": "bezierCurve",
+                "activity": "disabled",
+                "startPoint": { "mode": "coordinate", "x": 0, "y": 0 },
+                "startHandleAngleDeg": 90,
+                "startHandleLength": 10,
+                "intermediatePoints": [],
+                "endPoint": { "mode": "coordinate", "x": 10, "y": 0 },
+                "endHandleAngleDeg": -90,
+                "endHandleLength": 10
+            }),
+            json!({
+                "id": "extreme",
+                "name": "extreme",
+                "type": "bezierExtremePoint",
+                "activity": "visible",
+                "baseLineId": "curve",
+                "segmentIndex": 0,
+                "directionDeg": 90
+            }),
+        ]));
+
+        assert!(result
+            .computed_geometry
+            .iter()
+            .all(|geometry| geometry["elementId"] != "extreme"));
+        let error = result
+            .errors
+            .iter()
+            .find(|error| error.element_id == "extreme")
+            .expect("expected disabled dependency error");
+        assert_eq!(error.missing_dependency_id, "curve");
+        assert_eq!(error.missing_dependency_name.as_deref(), Some("ベジェ線"));
+        assert!(error.message.contains("ベジェ線"));
+    }
+
+    #[test]
+    fn reports_a_negative_segment_index_as_a_geometry_error() {
+        let result = evaluate_document_input(evaluation_input(vec![
+            json!({
+                "id": "curve",
+                "name": "ベジェ線",
+                "type": "bezierCurve",
+                "activity": "visible",
+                "startPoint": { "mode": "coordinate", "x": 0, "y": 0 },
+                "startHandleAngleDeg": 90,
+                "startHandleLength": 10,
+                "intermediatePoints": [],
+                "endPoint": { "mode": "coordinate", "x": 10, "y": 0 },
+                "endHandleAngleDeg": -90,
+                "endHandleLength": 10
+            }),
+            json!({
+                "id": "extreme",
+                "name": "extreme",
+                "type": "bezierExtremePoint",
+                "activity": "visible",
+                "baseLineId": "curve",
+                "segmentIndex": -1,
+                "directionDeg": 90
+            }),
+        ]));
+
+        assert!(result
+            .computed_geometry
+            .iter()
+            .all(|geometry| geometry["elementId"] != "extreme"));
+        let error = result
+            .errors
+            .iter()
+            .find(|error| error.element_id == "extreme")
+            .expect("expected segment index error");
+        assert_eq!(
+            error.message,
+            "extreme の区間番号は0以上の整数で指定してください。"
         );
     }
 }
