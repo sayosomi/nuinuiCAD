@@ -10,6 +10,36 @@ import {
 } from "./evaluationParitySupport";
 
 describe("arithmetic operator numeric runtime Rust parity", () => {
+  it("retains an empty scalar program for ref-free typed module expressions", () => {
+    const fixture = fixtureFromSource([
+      "nui 4",
+      "module Example() {",
+      "  point P = coordinate(x: 2 ^ 3, y: 5 % 3)",
+      "}",
+      "instance A = Example()"
+    ].join("\n"));
+    const compiled = fixture.compiled?.doc;
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled?.scalarProgram).toBeDefined();
+    expect(compiled?.scalarProgram?.statements).toHaveLength(0);
+
+    const input = buildRustEvaluationInput(fixture.elements, optionsFor(fixture));
+    const numericBindings = input.scalarExpressionPayload?.numericBindings ?? [];
+    expect(numericBindings).toHaveLength(2);
+    expect(numericBindings.every((entry) => entry.typedExpression)).toBe(true);
+    expect(input.bindingVersions).toBeDefined();
+    expect(input.bindingVersions?.versions).toHaveLength(0);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, optionsFor(fixture));
+    const rustPayload = evaluateWithRustFixture(process.cwd(), fixture);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const tsResult = evaluationPayloadToResult(tsPayload);
+    const p = fixture.elements.find((element) => element.name === "P");
+    expect(p).toBeDefined();
+    expect(tsResult.computedGeometry.get(p!.id)).toMatchObject({ kind: "point", x: 8, y: 2 });
+  }, 30_000);
+
   it("carries typed ^ / % ASTs through both numeric runtime payloads", () => {
     const fixture = fixtureFromSource([
       "nui 4",
