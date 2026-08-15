@@ -85,6 +85,7 @@ mod property_binding_runtime_tests;
 mod pure_typed_production_performance_tests;
 #[cfg(test)]
 mod scalar_expression_payload_compat_tests;
+mod scalar_expression_runtime;
 #[cfg(test)]
 mod scalar_program_integration_tests;
 #[cfg(test)]

@@ -6,7 +6,12 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value};
 
 use super::errors::geometry_error;
-use super::scalars::{ScalarDocumentBindingResolver, ScalarEvaluation, ScalarValue};
+use super::scalar_expression_runtime::evaluate_document_typed_expression;
+use super::scalars::{
+    declared_scalar_expression_type, validate_typed_expression_payload,
+    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue, TypedBuiltinArgument,
+    TypedScalarExpression,
+};
 use super::types::{element_name, DependencyError, EvaluationState};
 
 #[derive(Debug)]
@@ -23,6 +28,7 @@ pub(crate) struct ValidatedNumericBinding {
     parameter_key: String,
     expression: String,
     references: Vec<ValidatedNumericBindingReference>,
+    typed_expression: Option<TypedScalarExpression>,
 }
 
 fn payload_error(message: impl Into<String>) -> String {
@@ -119,6 +125,65 @@ fn numeric_expression_mut<'a>(
     object.get_mut(parameter_key)
 }
 
+fn validate_typed_expression_runtime_targets(
+    expression: &TypedScalarExpression,
+    elements_by_id: &HashMap<&str, &Value>,
+    valid_binding_ids: &HashSet<&str>,
+) -> Result<(), String> {
+    let mut pending = vec![expression];
+    while let Some(node) = pending.pop() {
+        match node {
+            TypedScalarExpression::Reference { binding_id, .. } => {
+                if let Some(binding_id) = binding_id {
+                    if !valid_binding_ids.contains(binding_id.as_str()) {
+                        return Err(payload_error(
+                            "numeric binding typedExpression reference bindingId does not exist in the scalar program",
+                        ));
+                    }
+                }
+            }
+            TypedScalarExpression::GeometryProperty { element_id, .. } => {
+                if !elements_by_id.contains_key(element_id.as_str()) {
+                    return Err(payload_error(
+                        "numeric binding typedExpression geometry target does not match an element",
+                    ));
+                }
+            }
+            TypedScalarExpression::Unary { operand, .. }
+            | TypedScalarExpression::Group {
+                expression: operand,
+                ..
+            } => pending.push(operand),
+            TypedScalarExpression::Binary { left, right, .. } => {
+                pending.push(left);
+                pending.push(right);
+            }
+            TypedScalarExpression::Call { args, .. } => {
+                for argument in args {
+                    if let TypedBuiltinArgument::Scalar { expression } = argument {
+                        pending.push(expression);
+                    } else if let TypedBuiltinArgument::GeometryReference {
+                        target: Some(target),
+                        ..
+                    } = argument
+                    {
+                        if !elements_by_id.contains_key(target.statement_id.as_str()) {
+                            return Err(payload_error(
+                                "numeric binding typedExpression geometry target does not match an element",
+                            ));
+                        }
+                    }
+                }
+            }
+            TypedScalarExpression::NumberLiteral { .. }
+            | TypedScalarExpression::StringLiteral { .. }
+            | TypedScalarExpression::BooleanLiteral { .. }
+            | TypedScalarExpression::ChoiceLiteral { .. } => {}
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_numeric_bindings_payload(
     payload: &Value,
     elements_by_id: &HashMap<&str, &Value>,
@@ -136,7 +201,7 @@ pub(crate) fn validate_numeric_bindings_payload(
         if object.keys().any(|key| {
             !matches!(
                 key.as_str(),
-                "elementId" | "parameterKey" | "expression" | "references"
+                "elementId" | "parameterKey" | "expression" | "references" | "typedExpression"
             )
         }) {
             return Err(payload_error("numeric binding has an unexpected field"));
@@ -163,6 +228,29 @@ pub(crate) fn validate_numeric_bindings_payload(
         if !seen.insert((element_id.clone(), parameter_key.clone())) {
             return Err(payload_error("duplicate numeric binding entry"));
         }
+        let typed_expression = object
+            .get("typedExpression")
+            .map(validate_typed_expression_payload)
+            .transpose()
+            .map_err(|error| {
+                payload_error(format!(
+                    "numeric binding typedExpression is invalid: {}: {}",
+                    error.code.as_str(),
+                    error.message
+                ))
+            })?;
+        if let Some(typed_expression) = typed_expression.as_ref() {
+            if declared_scalar_expression_type(typed_expression) != Some(ScalarType::Number) {
+                return Err(payload_error(
+                    "numeric binding typedExpression must have number type",
+                ));
+            }
+            validate_typed_expression_runtime_targets(
+                typed_expression,
+                elements_by_id,
+                valid_binding_ids,
+            )?;
+        }
         let element = elements_by_id
             .get(element_id.as_str())
             .ok_or_else(|| payload_error("numeric binding elementId does not match an element"))?;
@@ -174,8 +262,12 @@ pub(crate) fn validate_numeric_bindings_payload(
         let refs = object
             .get("references")
             .and_then(Value::as_array)
-            .filter(|refs| !refs.is_empty())
-            .ok_or_else(|| payload_error("numeric binding references must be a non-empty array"))?;
+            .ok_or_else(|| payload_error("numeric binding references must be an array"))?;
+        if typed_expression.is_none() && refs.is_empty() {
+            return Err(payload_error(
+                "numeric binding references must be a non-empty array",
+            ));
+        }
         let mut references = Vec::with_capacity(refs.len());
         let mut last_end = 0usize;
         for reference in refs {
@@ -254,6 +346,7 @@ pub(crate) fn validate_numeric_bindings_payload(
             parameter_key,
             expression,
             references,
+            typed_expression,
         });
     }
     Ok(result)
@@ -328,6 +421,25 @@ pub(crate) fn apply_numeric_bindings(
         if current != entry.expression {
             return Err(runtime_error(&materialized, &entry.parameter_key, true));
         }
+        if let Some(expression) = entry.typed_expression.as_ref() {
+            let evaluation = evaluate_document_typed_expression(expression, resolver, state);
+            let ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(value),
+            } = evaluation
+            else {
+                return Err(runtime_error(&materialized, &entry.parameter_key, false));
+            };
+            if !value.is_finite() {
+                return Err(runtime_error(&materialized, &entry.parameter_key, false));
+            }
+            let Some(target) = numeric_expression_mut(&mut materialized, &entry.parameter_key)
+            else {
+                return Err(runtime_error(&materialized, &entry.parameter_key, true));
+            };
+            *target = Value::from(value);
+            continue;
+        }
         let mut expression = current.to_owned();
         for reference in entry.references.iter().rev() {
             let evaluation = resolver.resolve_binding(&reference.binding_id, state);
@@ -368,7 +480,184 @@ pub(crate) fn apply_numeric_bindings(
 
 #[cfg(test)]
 mod tests {
-    use super::numeric_literal_for_expression;
+    use super::*;
+    use serde_json::json;
+
+    fn point_with_expression(expression: &str) -> Value {
+        json!({
+            "id": "p",
+            "name": "P",
+            "type": "freePoint",
+            "activity": "visible",
+            "x": {"kind": "expression", "expression": expression},
+            "y": 0
+        })
+    }
+
+    fn number_literal(value: f64) -> Value {
+        json!({
+            "kind": "numberLiteral",
+            "span": {"start": 0, "end": 1},
+            "value": value,
+            "type": {"kind": "number"}
+        })
+    }
+
+    fn reference_expression() -> Value {
+        json!({
+            "kind": "reference",
+            "span": {"start": 0, "end": 6},
+            "nameSpan": {"start": 1, "end": 6},
+            "name": "value",
+            "bindingId": "binding:value",
+            "type": {"kind": "number"}
+        })
+    }
+
+    fn numeric_entry(
+        expression: &str,
+        typed_expression: Option<Value>,
+        references: Value,
+    ) -> Value {
+        let mut entry = json!({
+            "elementId": "p",
+            "parameterKey": "x",
+            "expression": expression,
+            "references": references
+        });
+        if let Some(typed_expression) = typed_expression {
+            entry["typedExpression"] = typed_expression;
+        }
+        entry
+    }
+
+    fn state(element: Value) -> EvaluationState {
+        EvaluationState {
+            elements: vec![element],
+            elements_by_id: HashMap::from([(String::from("p"), 0)]),
+            group_states: HashMap::new(),
+            computed_geometry: HashMap::new(),
+            computed_geometry_order: Vec::new(),
+            errors: Vec::new(),
+            warnings: Vec::new(),
+        }
+    }
+
+    struct StubResolver(ScalarEvaluation);
+
+    impl ScalarDocumentBindingResolver for StubResolver {
+        fn resolve_binding(&self, _binding_id: &str, _state: &EvaluationState) -> ScalarEvaluation {
+            self.0.clone()
+        }
+    }
+
+    #[test]
+    fn accepts_typed_numeric_entries_with_empty_references() {
+        let element = point_with_expression("7");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let decoded = validate_numeric_bindings_payload(
+            &json!([numeric_entry("7", Some(number_literal(7.0)), json!([]))]),
+            &elements_by_id,
+            &HashSet::new(),
+        );
+        assert!(decoded.is_ok());
+    }
+
+    #[test]
+    fn rejects_legacy_numeric_entries_with_empty_references() {
+        let element = point_with_expression("7");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        assert!(validate_numeric_bindings_payload(
+            &json!([numeric_entry("7", None, json!([]))]),
+            &elements_by_id,
+            &HashSet::new(),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn rejects_malformed_typed_numeric_expression() {
+        let element = point_with_expression("7");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let malformed = json!({
+            "kind": "numberLiteral",
+            "span": {"start": 0, "end": 1},
+            "value": 7,
+            "type": {"kind": "number"},
+            "unexpected": true
+        });
+        assert!(validate_numeric_bindings_payload(
+            &json!([numeric_entry("7", Some(malformed), json!([]))]),
+            &elements_by_id,
+            &HashSet::new(),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn materializes_typed_numeric_result_as_a_literal_number() {
+        let element = point_with_expression("7");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let decoded = validate_numeric_bindings_payload(
+            &json!([numeric_entry("7", Some(number_literal(7.0)), json!([]))]),
+            &elements_by_id,
+            &HashSet::new(),
+        )
+        .unwrap();
+        let result = apply_numeric_bindings(
+            &element,
+            Some(&decoded),
+            &StubResolver(ScalarEvaluation::Error {
+                r#type: ScalarType::Number,
+                issue_code: "unused".to_owned(),
+                binding_id: None,
+            }),
+            &state(element.clone()),
+        )
+        .unwrap();
+        assert_eq!(result["x"], json!(7.0));
+    }
+
+    #[test]
+    fn typed_numeric_evaluation_errors_fail_closed_for_wrong_type_error_and_non_finite() {
+        let cases = [
+            ScalarEvaluation::Ok {
+                r#type: ScalarType::Boolean,
+                value: ScalarValue::Boolean(true),
+            },
+            ScalarEvaluation::Error {
+                r#type: ScalarType::Number,
+                issue_code: "evaluation-error".to_owned(),
+                binding_id: None,
+            },
+            ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(f64::NAN),
+            },
+        ];
+        for evaluation in cases {
+            let element = point_with_expression("@value");
+            let elements_by_id = HashMap::from([("p", &element)]);
+            let valid_ids = HashSet::from(["binding:value"]);
+            let decoded = validate_numeric_bindings_payload(
+                &json!([numeric_entry(
+                    "@value",
+                    Some(reference_expression()),
+                    json!([])
+                )]),
+                &elements_by_id,
+                &valid_ids,
+            )
+            .unwrap();
+            assert!(apply_numeric_bindings(
+                &element,
+                Some(&decoded),
+                &StubResolver(evaluation),
+                &state(element.clone()),
+            )
+            .is_err());
+        }
+    }
 
     #[test]
     fn expands_finite_exponents_without_losing_the_ieee_value() {

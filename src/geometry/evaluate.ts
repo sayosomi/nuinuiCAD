@@ -348,7 +348,8 @@ export const evaluateElements = (
       const materialized = materializeNumericBindingElement(
         element,
         numericEntriesForElement,
-        scalarBindingResolver!.resolveBinding
+        scalarBindingResolver!.resolveBinding,
+        resolveScalarGeometryProperty
       );
       if (!materialized.ok) {
         errors.push(materialized.error);

@@ -260,13 +260,18 @@ export const analyzeTypedDeclarations = ({
     if (!element) return false;
     if (element.type === "conditionalGroup" || element.type === "forGroup") return true;
     return statement.attrs.some((attr) => {
-      if (!isScalarExpressionCandidateSource(attr.value)) return false;
+      const hasTypedNumericOperator = /[\^%]/.test(attr.value);
+      if (!isScalarExpressionCandidateSource(attr.value) && !hasTypedNumericOperator) return false;
       const parameterKey = parameterKeyForArg(element.type, attr.key);
       const definition = findParameterDefinition(element, parameterKey);
       const expectedType = scalarTypeForParameterDefinition(definition);
       if (!expectedType) return false;
       if (expectedType.kind !== "number") return true;
       const localVariableNames = new Set((element.numericVariables ?? []).map((variable) => variable.name));
+      // The legacy numeric evaluator intentionally does not own these
+      // operators. Ensure the empty scalar catalog is still built so the
+      // numeric binding compiler can typecheck ref-free ^ / % expressions.
+      if (hasTypedNumericOperator) return true;
       return scanExpressionReferences(attr.value).some((match) =>
         match.kind === "elementProperty"
           ? match.sigil

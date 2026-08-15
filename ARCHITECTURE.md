@@ -139,6 +139,12 @@ Primary:
 dependency/runtime infrastructure を owner とする。同じ scalar semantics の
 parallel implementation を作らない。
 
+Runtime-ready な numeric element / Module expression は
+`TypedScalarExpression` として lowering され、TS/Rust の runtime payload を
+経由して shared typed scalar evaluator まで運ぶ。legacy-only / runtime-unready
+numeric expression は既存 legacy numeric evaluator path に残し、typed numeric
+expression を source text に戻して legacy parser で再解釈しない。
+
 ### Module
 
 Representative owners:

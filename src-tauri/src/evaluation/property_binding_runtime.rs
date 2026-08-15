@@ -14,10 +14,10 @@
 use serde_json::Value;
 
 use super::errors::geometry_error;
-use super::numeric_expression::computed_reference_value;
+use super::scalar_expression_runtime::evaluate_document_typed_expression;
 use super::scalars::{
-    evaluate_typed_expression, ScalarDocumentBindingResolver, ScalarEvaluation,
-    ScalarEvaluationEnvironment, ScalarType, ScalarValue, ValidatedPropertyBinding,
+    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue,
+    ValidatedPropertyBinding,
 };
 use super::types::{element_name, DependencyError, EvaluationState};
 
@@ -58,43 +58,6 @@ fn property_binding_failure_message(element: &Value, parameter_key: &str) -> Str
     )
 }
 
-struct ResolverEnvironment<'a> {
-    resolver: &'a dyn ScalarDocumentBindingResolver,
-    state: &'a EvaluationState,
-}
-
-impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
-    fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
-        self.resolver.resolve_binding(binding_id, self.state)
-    }
-
-    fn lookup_geometry_property(
-        &self,
-        element_id: &str,
-        property: &str,
-        _target_source_order: usize,
-    ) -> ScalarEvaluation {
-        let Some(geometry) = self.state.computed_geometry.get(element_id) else {
-            return ScalarEvaluation::Error {
-                r#type: ScalarType::Number,
-                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
-                binding_id: None,
-            };
-        };
-        let Some(value) = computed_reference_value(geometry, property) else {
-            return ScalarEvaluation::Error {
-                r#type: ScalarType::Number,
-                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
-                binding_id: None,
-            };
-        };
-        ScalarEvaluation::Ok {
-            r#type: ScalarType::Number,
-            value: ScalarValue::Number(value),
-        }
-    }
-}
-
 /// Resolves and applies every bound property for `element` (looked up by
 /// the caller under the appropriate id - the element's own id, or its
 /// forGroup *template* id for a generated clone - before calling this),
@@ -122,7 +85,7 @@ pub(crate) fn apply_property_bindings(
 
     for entry in entries {
         let evaluation = if let Some(expression) = entry.expression.as_ref() {
-            evaluate_typed_expression(expression, &ResolverEnvironment { resolver, state })
+            evaluate_document_typed_expression(expression, resolver, state)
         } else if let Some(binding_id) = entry.binding_id.as_ref() {
             resolver.resolve_binding(binding_id, state)
         } else {
