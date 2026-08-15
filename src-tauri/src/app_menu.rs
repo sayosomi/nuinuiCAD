@@ -139,6 +139,8 @@ const DRAW_ITEMS: &[MenuSpec] = &[
     cmd("addLineDivisionPoint", "線上分点を追加"),
     cmd("addIntersectionPoint", "交点を追加"),
     cmd("addLineTangentOffsetPoint", "線上オフセット点を追加"),
+    cmd("addBezierBulgePoint", "Bezier最大膨らみ点を追加"),
+    cmd("addBezierExtremePoint", "Bezier方向極値点を追加"),
     SEP,
     cmd("addLine", "line を追加"),
     cmd("addAngleLengthLine", "角度距離線を追加"),

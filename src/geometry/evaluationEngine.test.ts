@@ -80,6 +80,25 @@ const bezierCurve: CadElement = {
   endHandleLength: 0
 };
 
+const bezierExtremePoint: CadElement = {
+  id: "extreme",
+  name: "方向極値点",
+  type: "bezierExtremePoint",
+  activity: "visible",
+  baseLineId: "curve",
+  segmentIndex: 0,
+  directionDeg: 90
+};
+
+const bezierBulgePoint: CadElement = {
+  id: "bulge",
+  name: "最大膨らみ点",
+  type: "bezierBulgePoint",
+  activity: "visible",
+  baseLineId: "curve",
+  segmentIndex: 0
+};
+
 const offsetLine: CadElement = {
   id: "offset",
   name: "オフセット",
@@ -279,6 +298,8 @@ describe("canUseRustEvaluationForElements", () => {
 
   it("allows bezierCurve and supported point elements that reference it", () => {
     expect(canUseRustEvaluationForElements([pointA, pointB, bezierCurve])).toBe(true);
+    expect(canUseRustEvaluationForElements([pointA, pointB, bezierCurve, bezierExtremePoint])).toBe(true);
+    expect(canUseRustEvaluationForElements([pointA, pointB, bezierCurve, bezierBulgePoint])).toBe(true);
     expect(
       canUseRustEvaluationForElements([
         pointA,
@@ -290,6 +311,33 @@ describe("canUseRustEvaluationForElements", () => {
         intersectionPoint("line", "curve")
       ])
     ).toBe(true);
+  });
+
+  it("keeps Bezier extreme points on the TypeScript path when their source is missing", () => {
+    expect(canUseRustEvaluationForElements([
+      { ...bezierExtremePoint, baseLineId: "missing" }
+    ])).toBe(false);
+  });
+
+  it("keeps Bezier bulge points on the TypeScript path when their source is missing", () => {
+    expect(canUseRustEvaluationForElements([
+      { ...bezierBulgePoint, baseLineId: "missing" }
+    ])).toBe(false);
+  });
+
+  it("allows a Bezier bulge point to be used as a downstream point reference", () => {
+    const downstream: CadElement = {
+      ...line,
+      id: "downstream",
+      startPoint: { mode: "reference", pointId: "bulge" }
+    };
+    expect(canUseRustEvaluationForElements([
+      pointA,
+      pointB,
+      bezierCurve,
+      bezierBulgePoint,
+      downstream
+    ])).toBe(true);
   });
 
   it("allows offsetLine and supported point elements that reference it", () => {

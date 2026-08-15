@@ -66,6 +66,8 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "threePointArcLine",
   "cornerRadiusArcLine",
   "bezierCurve",
+  "bezierBulgePoint",
+  "bezierExtremePoint",
   "offsetLine",
   "splitLine",
   "edge",
@@ -99,7 +101,9 @@ const rustSupportedPointReferenceTypes = new Set<CadElement["type"]>([
   "divisionPoint",
   "lineDivisionPoint",
   "lineTangentOffsetPoint",
-  "intersectionPoint"
+  "intersectionPoint",
+  "bezierBulgePoint",
+  "bezierExtremePoint"
 ]);
 
 const rustSupportedDerivedPointSourceTypes = new Set<CadElement["type"]>([
@@ -268,6 +272,12 @@ const canUseRustEvaluationForElement = (
     return referencesRustSupportedLine(element.endpoint.lineId, elementsById);
   }
   if (element.type === "lineTangentOffsetPoint") {
+    return referencesRustSupportedLine(element.baseLineId, elementsById);
+  }
+  if (element.type === "bezierExtremePoint") {
+    return referencesRustSupportedLine(element.baseLineId, elementsById);
+  }
+  if (element.type === "bezierBulgePoint") {
     return referencesRustSupportedLine(element.baseLineId, elementsById);
   }
   if (element.type === "intersectionPoint") {

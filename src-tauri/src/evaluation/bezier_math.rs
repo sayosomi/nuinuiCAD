@@ -3,7 +3,71 @@ use serde_json::{json, Value};
 // Shared pure math for cubic Bézier segments, reused by the split, intersection,
 // and endpoint-move evaluators. Mirrors `src/geometry/bezierMath.ts`.
 
-const EPSILON: f64 = 1e-9;
+pub(crate) const EPSILON: f64 = 1e-9;
+
+pub(crate) fn solve_real_quadratic(a: f64, b: f64, c: f64) -> Vec<f64> {
+    if a.abs() <= EPSILON {
+        if b.abs() <= EPSILON {
+            return Vec::new();
+        }
+        return vec![-c / b];
+    }
+
+    let discriminant = b * b - 4.0 * a * c;
+    if discriminant < -EPSILON {
+        return Vec::new();
+    }
+    if discriminant.abs() <= EPSILON {
+        return vec![-b / (2.0 * a)];
+    }
+
+    let root_distance = discriminant.sqrt();
+    let mut roots = vec![
+        (-b - root_distance) / (2.0 * a),
+        (-b + root_distance) / (2.0 * a),
+    ];
+    roots.sort_by(|left, right| left.total_cmp(right));
+    if (roots[1] - roots[0]).abs() <= EPSILON {
+        vec![roots[0]]
+    } else {
+        roots
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct BezierFeatureCandidate {
+    pub(crate) t: f64,
+    pub(crate) score: f64,
+}
+
+pub(crate) fn select_best_bezier_feature_candidate(
+    candidates: &[BezierFeatureCandidate],
+) -> Option<BezierFeatureCandidate> {
+    let mut best = None;
+    for candidate in candidates {
+        let Some(current) = best else {
+            best = Some(*candidate);
+            continue;
+        };
+        if candidate.score > current.score + EPSILON {
+            best = Some(*candidate);
+            continue;
+        }
+        if (candidate.score - current.score).abs() > EPSILON {
+            continue;
+        }
+
+        let candidate_center_distance = (candidate.t - 0.5).abs();
+        let current_center_distance = (current.t - 0.5).abs();
+        if candidate_center_distance < current_center_distance - EPSILON
+            || ((candidate_center_distance - current_center_distance).abs() <= EPSILON
+                && candidate.t < current.t)
+        {
+            best = Some(*candidate);
+        }
+    }
+    best
+}
 
 #[derive(Clone, Copy)]
 pub(crate) struct Point {
@@ -36,6 +100,10 @@ pub(crate) fn interpolate(start: Point, end: Point, t: f64) -> Point {
 
 pub(crate) fn dot(a: Point, b: Point) -> f64 {
     a.x * b.x + a.y * b.y
+}
+
+pub(crate) fn cross(a: Point, b: Point) -> f64 {
+    a.x * b.y - a.y * b.x
 }
 
 pub(crate) fn cubic_point(segment: &Value, t: f64) -> Option<Point> {
@@ -194,4 +262,61 @@ pub(crate) fn split_bezier_like(segment: &Value, t: f64) -> Option<(Point, Value
             "control2": { "x": p23.x, "y": p23.y }
         }),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        cross, select_best_bezier_feature_candidate, solve_real_quadratic, BezierFeatureCandidate,
+        Point,
+    };
+
+    #[test]
+    fn computes_the_signed_2d_cross_product() {
+        assert_eq!(
+            cross(Point { x: 3.0, y: 2.0 }, Point { x: 1.0, y: 4.0 }),
+            10.0
+        );
+    }
+
+    #[test]
+    fn solves_real_quadratic_roots_in_ascending_order() {
+        assert_eq!(solve_real_quadratic(1.0, -3.0, 2.0), vec![1.0, 2.0]);
+        assert_eq!(solve_real_quadratic(-1.0, 3.0, -2.0), vec![1.0, 2.0]);
+    }
+
+    #[test]
+    fn handles_double_linear_constant_and_non_real_degenerations() {
+        assert_eq!(solve_real_quadratic(1.0, -2.0, 1.0), vec![1.0]);
+        assert_eq!(solve_real_quadratic(0.0, 2.0, -4.0), vec![2.0]);
+        assert!(solve_real_quadratic(0.0, 0.0, 1.0).is_empty());
+        assert!(solve_real_quadratic(1.0, 0.0, 1.0).is_empty());
+    }
+
+    #[test]
+    fn treats_a_near_zero_discriminant_as_a_double_root() {
+        assert_eq!(solve_real_quadratic(1.0, 2.0, 1.0 + 1e-10), vec![-1.0]);
+    }
+
+    #[test]
+    fn applies_the_center_then_smaller_t_tie_break() {
+        assert_eq!(
+            select_best_bezier_feature_candidate(&[
+                BezierFeatureCandidate { t: 0.0, score: 1.0 },
+                BezierFeatureCandidate { t: 0.6, score: 1.0 },
+            ])
+            .unwrap()
+            .t,
+            0.6
+        );
+        assert_eq!(
+            select_best_bezier_feature_candidate(&[
+                BezierFeatureCandidate { t: 0.0, score: 1.0 },
+                BezierFeatureCandidate { t: 1.0, score: 1.0 },
+            ])
+            .unwrap()
+            .t,
+            0.0
+        );
+    }
 }

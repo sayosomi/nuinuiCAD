@@ -289,6 +289,31 @@ describe("createCadElement", () => {
     });
   });
 
+  it("creates Bezier extreme points using the first line as the default source", () => {
+    expect(createCadElement("bezierExtremePoint", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "bezierExtremePoint-test-id",
+      name: "方向極値点1",
+      type: "bezierExtremePoint",
+      activity: "visible",
+      numericVariables: [],
+      baseLineId: "line-ab",
+      segmentIndex: 0,
+      directionDeg: 0
+    });
+  });
+
+  it("creates Bezier bulge points using the first line as the default source", () => {
+    expect(createCadElement("bezierBulgePoint", sampleElements, { createId: createTestId })).toMatchObject({
+      id: "bezierBulgePoint-test-id",
+      name: "最大膨らみ点1",
+      type: "bezierBulgePoint",
+      activity: "visible",
+      numericVariables: [],
+      baseLineId: "line-ab",
+      segmentIndex: 0
+    });
+  });
+
   it("creates copy lines using the first two points and first line as defaults", () => {
     expect(createCadElement("copyLine", sampleElements, { createId: createTestId })).toMatchObject({
       id: "copyLine-test-id",

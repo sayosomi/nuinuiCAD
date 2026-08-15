@@ -10,7 +10,7 @@ export type BezierLikeSegment = {
   end: Point;
 };
 
-const EPSILON = 1e-9;
+export const EPSILON = 1e-9;
 
 export const distance = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
 
@@ -20,6 +20,54 @@ export const interpolate = (start: Point, end: Point, t: number): Point => ({
 });
 
 export const dot = (a: Point, b: Point) => a.x * b.x + a.y * b.y;
+
+export const cross = (a: Point, b: Point) => a.x * b.y - a.y * b.x;
+
+export const solveRealQuadratic = (a: number, b: number, c: number): number[] => {
+  if (Math.abs(a) <= EPSILON) {
+    if (Math.abs(b) <= EPSILON) return [];
+    return [-c / b];
+  }
+
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < -EPSILON) return [];
+  if (Math.abs(discriminant) <= EPSILON) return [-b / (2 * a)];
+
+  const rootDistance = Math.sqrt(discriminant);
+  const roots = [
+    (-b - rootDistance) / (2 * a),
+    (-b + rootDistance) / (2 * a)
+  ].sort((left, right) => left - right);
+  return Math.abs(roots[1] - roots[0]) <= EPSILON ? [roots[0]] : roots;
+};
+
+export type BezierFeatureCandidate = {
+  t: number;
+  score: number;
+};
+
+export const selectBestBezierFeatureCandidate = (
+  candidates: readonly BezierFeatureCandidate[]
+): BezierFeatureCandidate | null => {
+  let best: BezierFeatureCandidate | null = null;
+  for (const candidate of candidates) {
+    if (!best || candidate.score > best.score + EPSILON) {
+      best = candidate;
+      continue;
+    }
+    if (Math.abs(candidate.score - best.score) > EPSILON) continue;
+
+    const candidateCenterDistance = Math.abs(candidate.t - 0.5);
+    const bestCenterDistance = Math.abs(best.t - 0.5);
+    if (
+      candidateCenterDistance < bestCenterDistance - EPSILON ||
+      (Math.abs(candidateCenterDistance - bestCenterDistance) <= EPSILON && candidate.t < best.t)
+    ) {
+      best = candidate;
+    }
+  }
+  return best;
+};
 
 export const cubicPointAt = (segment: BezierLikeSegment, t: number): Point => {
   const inverse = 1 - t;

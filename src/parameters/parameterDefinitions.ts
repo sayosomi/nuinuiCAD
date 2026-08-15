@@ -261,6 +261,26 @@ const parameterDefinitionsForElement = (
         },
         { key: "distance", label: "距離", kind: "number" },
       ];
+    case "bezierExtremePoint":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "baseLineId", label: "ベジェ線", kind: "lineReference" },
+        { key: "segmentIndex", label: "区間番号", kind: "number" },
+        {
+          key: "directionDeg",
+          label: "方向",
+          kind: "number",
+          stepLevels: angleNumericParameterStepLevels,
+        },
+      ];
+    case "bezierBulgePoint":
+      return [
+        ...commonParameters,
+        ...numericVariableParameters(element),
+        { key: "baseLineId", label: "ベジェ線", kind: "lineReference" },
+        { key: "segmentIndex", label: "区間番号", kind: "number" },
+      ];
     case "splitLine":
       return [
         ...commonParameters,

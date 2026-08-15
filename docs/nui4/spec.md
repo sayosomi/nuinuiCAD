@@ -360,6 +360,71 @@ the final argument has a trailing comma. A single-line call is parseable, but
 the Source Editor's canonical formatter emits the stable multi-line shape for a
 multi-argument call.
 
+### Bezier direction extreme points
+
+`bezierExtremePoint` creates a point at the maximum projection of one cubic
+Bezier segment in a requested direction:
+
+```text
+point 上端 = bezierExtremePoint(
+  source: @ベジェ線,
+  segmentIndex: 0,
+  direction: 90,
+)
+```
+
+`source` is required and must resolve at runtime to computed geometry whose
+`kind` is `bezierCurve`. This is a runtime geometry requirement rather than a
+check of the source element type, so a Bezier result produced by a normal split,
+trim, or extend evaluation is accepted; straight lines, arcs, and offset-line
+results are rejected. `segmentIndex` is an optional numeric value with default
+`0`, and must resolve to a finite, non-negative integer within the source's
+segment range. `direction` is a required finite numeric degree value. Direction
+`0` is right, `90` is up, `180` is left, and `270` is down. Negative values and
+values above `360` are normalized using the existing degree normalization rule.
+
+For the selected cubic segment `B(t)`, let `V` be the unit vector for
+`direction`. The result maximizes `dot(B(t), V)` over `0 <= t <= 1`. Candidates
+are both endpoints and every interior stationary point satisfying
+`dot(B'(t), V) = 0`. If candidate scores are equal, the candidate closest to
+`t = 0.5` wins; if that distance is also equal, the smaller `t` wins. A flat
+projection returns `t = 0.5`. Canonical serialization always writes the
+defaulted `segmentIndex`, including when it was omitted from the input.
+
+### Bezier bulge points
+
+`bezierBulgePoint` creates a point at the maximum unsigned bulge of one cubic
+Bezier segment relative to the chord through that segment's endpoints:
+
+```text
+point 膨らみ点 = bezierBulgePoint(
+  source: @ベジェ線,
+)
+```
+
+`source` is required. `segmentIndex` is an optional numeric value with default
+`0`; canonical serialization writes `segmentIndex: 0` when it was omitted.
+Exactly one selected cubic segment is evaluated. The value must be finite,
+non-negative, integral, and within the source segment range.
+
+For the selected segment `P0, P1, P2, P3`, let `B(t)` be its cubic curve,
+`D = P3 - P0`, and `L = |D|`. Interior candidates satisfy
+`cross(D, B'(t)) = 0`, where `B'(t)` is quadratic. Candidate scores are the
+unsigned perpendicular chord distances
+`abs(cross(D, B(t) - P0)) / L`. Thus an S curve compares absolute distances on
+both sides of the chord. Endpoints are not added as ordinary candidates. A
+flat derivative scalar uses `t = 0.5`; a completely chord-collinear curve
+therefore returns its zero-bulge point at parameter `t = 0.5` rather than an
+assumed geometric midpoint. Candidate selection uses the common tie-break:
+larger score, then closer to `t = 0.5`, then smaller `t`.
+
+If `L <= EPSILON`, the selected segment has a degenerate chord and evaluation
+reports a geometry error. The source is accepted based on runtime computed
+geometry `kind == "bezierCurve"`, not the declaration type: original Bezier
+geometry and Bezier geometry produced by split, trim, or extend are accepted;
+other computed kinds such as line, arc, or offset line produce a geometry
+error, while missing or disabled sources produce a dependency error.
+
 ## Groups and activity
 
 `group` combines four roles:

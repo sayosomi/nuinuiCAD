@@ -267,6 +267,70 @@ fn remaps_an_element_local_numeric_variables_value_referencing_an_ancestor() {
     );
 }
 
+#[test]
+fn remaps_bezier_extreme_point_source_and_numeric_references() {
+    let mut ancestor_element_id_map = HashMap::new();
+    ancestor_element_id_map.insert("curve".to_owned(), "curve@outer:0".to_owned());
+
+    let mut element = json!({
+        "id": "generated-extreme",
+        "type": "bezierExtremePoint",
+        "activity": "visible",
+        "baseLineId": "curve",
+        "segmentIndex": { "kind": "expression", "expression": "curve.length + 1" },
+        "directionDeg": { "kind": "expression", "expression": "curve.startAngleDeg + 90" }
+    });
+
+    remap_ancestor_element_references(&mut element, &ancestor_element_id_map);
+
+    assert_eq!(
+        element.get("baseLineId").and_then(Value::as_str),
+        Some("curve@outer:0")
+    );
+    assert_eq!(
+        element
+            .get("segmentIndex")
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("curve@outer:0.length + 1")
+    );
+    assert_eq!(
+        element
+            .get("directionDeg")
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("curve@outer:0.startAngleDeg + 90")
+    );
+}
+
+#[test]
+fn remaps_bezier_bulge_point_source_and_segment_index_reference() {
+    let mut ancestor_element_id_map = HashMap::new();
+    ancestor_element_id_map.insert("curve".to_owned(), "curve@outer:0".to_owned());
+
+    let mut element = json!({
+        "id": "generated-bulge",
+        "type": "bezierBulgePoint",
+        "activity": "visible",
+        "baseLineId": "curve",
+        "segmentIndex": { "kind": "expression", "expression": "curve.length + 1" }
+    });
+
+    remap_ancestor_element_references(&mut element, &ancestor_element_id_map);
+
+    assert_eq!(
+        element.get("baseLineId").and_then(Value::as_str),
+        Some("curve@outer:0")
+    );
+    assert_eq!(
+        element
+            .get("segmentIndex")
+            .and_then(|value| value.get("expression"))
+            .and_then(Value::as_str),
+        Some("curve@outer:0.length + 1")
+    );
+}
+
 // remap_current_invocation_numeric_references: coverage for the Blocking-1
 // gap - a current forGroup invocation's own id_map (as opposed to an
 // ancestor's) previously only reached structural fields via for_group.rs's

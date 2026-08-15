@@ -2,10 +2,47 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { compileDslToElements } from "./dslCompiler";
 import { compileDslDocument } from "./dslDocument";
-import { serializeElementsToDsl } from "./dslSerializer";
+import { documentDslRefs, serializeElementsToDsl } from "./dslSerializer";
+import { serializeElementStatementBlock, serializeElementStatementLogical } from "./dslSerializeElement";
 import { UNCLOSED_CALL_CODE } from "./dslCallParser";
 
 describe("DSL compiler", () => {
+  it("serializes an omitted bezierExtremePoint segmentIndex as canonical zero", () => {
+    const result = compileDslToElements([
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "curve ベジェ線 = bezier(start: @A, end: @B, startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "point 上端 = bezierExtremePoint(\n  source: @ベジェ線,\n  direction: 90,\n)"
+    ].join("\n"), { elements: [] });
+
+    expect(result.diagnostics).toEqual([]);
+    const extreme = result.elements.at(-1)!;
+    const statement = serializeElementStatementBlock(extreme, documentDslRefs(result.elements));
+    expect(statement.args.map((arg) => arg.text)).toEqual([
+      "source: @ベジェ線",
+      "segmentIndex: 0",
+      "direction: 90"
+    ]);
+    expect(serializeElementStatementLogical(extreme, documentDslRefs(result.elements))).toBe(
+      "point 上端 = bezierExtremePoint(source: @ベジェ線, segmentIndex: 0, direction: 90)"
+    );
+  });
+
+  it("serializes an omitted bezierBulgePoint segmentIndex as canonical zero", () => {
+    const result = compileDslToElements([
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "curve ベジェ線 = bezier(start: @A, end: @B, startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "point 膨らみ点 = bezierBulgePoint(\n  source: @ベジェ線,\n)"
+    ].join("\n"), { elements: [] });
+
+    expect(result.diagnostics).toEqual([]);
+    const bulge = result.elements.at(-1)!;
+    expect(serializeElementStatementLogical(bulge, documentDslRefs(result.elements))).toBe(
+      "point 膨らみ点 = bezierBulgePoint(source: @ベジェ線, segmentIndex: 0)"
+    );
+  });
+
   it("creates basic drafting elements from short DSL syntax", () => {
     const result = compileDslToElements(
       [

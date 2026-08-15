@@ -10,6 +10,8 @@ export const supportsNumericVariables = (element: CadElement) =>
   element.type === "lineDivisionPoint" ||
   element.type === "intersectionPoint" ||
   element.type === "lineTangentOffsetPoint" ||
+  element.type === "bezierExtremePoint" ||
+  element.type === "bezierBulgePoint" ||
   element.type === "line" ||
   element.type === "angleLengthLine" ||
   element.type === "arcLine" ||

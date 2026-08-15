@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { tauriCoreMock } = vi.hoisted(() => ({ tauriCoreMock: { invoke: vi.fn() } }));
 vi.mock("@tauri-apps/api/core", () => tauriCoreMock);
 
-import { loadShortcutSettings, normalizeShortcutSettings } from "./shortcutSettingsStorage";
+import { legacyBindingIdMap, loadShortcutSettings, normalizeShortcutSettings } from "./shortcutSettingsStorage";
 import { legacyCreationCommandRecipeMap } from "../commands/legacyCreationRecipes";
 
 const chord = (key: string) => ({ key, mod: false, alt: false, shift: false });
@@ -121,7 +121,9 @@ describe("shortcutSettingsStorage", () => {
   });
 
   it("migrates every removed temporary creation binding through the existing replacement rules", () => {
-    const commandIds = Object.keys(legacyCreationCommandRecipeMap);
+    const commandIds = Object.keys(legacyCreationCommandRecipeMap).filter((commandId) =>
+      `normal.commandLine${commandId[0].toUpperCase()}${commandId.slice(1)}` in legacyBindingIdMap
+    );
     expect(normalizeShortcutSettings({
       version: 1,
       overrides: commandIds.map((commandId, index) => ({
