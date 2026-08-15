@@ -14,6 +14,7 @@ const defaultNameBases: Record<CadElementType, string> = {
   intersectionPoint: "交点",
   lineTangentOffsetPoint: "線上オフセット点",
   bezierExtremePoint: "方向極値点",
+  bezierBulgePoint: "最大膨らみ点",
   line: "直線",
   angleLengthLine: "角度距離線",
   arcLine: "円弧線",
@@ -340,7 +341,8 @@ const isPointLikeElement = (element: CadElement) =>
   element.type === "lineDivisionPoint" ||
   element.type === "intersectionPoint" ||
   element.type === "lineTangentOffsetPoint" ||
-  element.type === "bezierExtremePoint";
+  element.type === "bezierExtremePoint" ||
+  element.type === "bezierBulgePoint";
 
 const lineNamePrefixes = [
   "直線",

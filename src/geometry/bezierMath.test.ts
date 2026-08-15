@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { selectBestBezierFeatureCandidate, solveRealQuadratic } from "./bezierMath";
+import { cross, selectBestBezierFeatureCandidate, solveRealQuadratic } from "./bezierMath";
+
+describe("Bezier shared vector math", () => {
+  it("computes the signed 2D cross product", () => {
+    expect(cross({ x: 3, y: 2 }, { x: 1, y: 4 })).toBe(10);
+  });
+});
 
 describe("Bezier quadratic helpers", () => {
   it("solves real quadratic roots in ascending order", () => {

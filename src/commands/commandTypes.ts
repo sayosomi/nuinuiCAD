@@ -100,6 +100,7 @@ export type CommandId =
   | "addLineDivisionPoint"
   | "addIntersectionPoint"
   | "addLineTangentOffsetPoint"
+  | "addBezierBulgePoint"
   | "addBezierExtremePoint"
   | "addLine"
   | "addAngleLengthLine"

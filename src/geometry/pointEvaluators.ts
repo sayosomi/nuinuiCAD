@@ -1,7 +1,7 @@
 import type { CadElement, ComputedBezierSegment, NumericValue } from "../types/geometry";
 import { pointAnchorForElement } from "../model/pointAnchors";
 import { degreesToRadians, normalizeDegrees360 } from "../scalars/angleMath";
-import { cubicDerivativeAt, cubicPointAt, dot, EPSILON, selectBestBezierFeatureCandidate, solveRealQuadratic } from "./bezierMath";
+import { cross, cubicDerivativeAt, cubicPointAt, dot, EPSILON, selectBestBezierFeatureCandidate, solveRealQuadratic } from "./bezierMath";
 import { CIRCLE_EPSILON } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getComputedPointOrError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import { pointAtDistanceFromEndpoint, isLineLikeGeometry, tangentAtPointOnLineLikeGeometry } from "./linePaths";
@@ -53,6 +53,39 @@ const bezierExtremePointAt = (
       t: 0.5,
       score: dot(cubicPointAt(segment, 0.5), direction)
     });
+  }
+
+  const selected = selectBestBezierFeatureCandidate(candidates);
+  return cubicPointAt(segment, selected?.t ?? 0.5);
+};
+
+const bezierBulgePointAt = (segment: ComputedBezierSegment) => {
+  const chord = {
+    x: segment.end.x - segment.start.x,
+    y: segment.end.y - segment.start.y
+  };
+  const chordLength = Math.hypot(chord.x, chord.y);
+  if (chordLength <= EPSILON) return null;
+
+  const derivativeCross = (t: number) => cross(chord, cubicDerivativeAt(segment, t));
+  const q0 = derivativeCross(0);
+  const qHalf = derivativeCross(0.5);
+  const q1 = derivativeCross(1);
+  const c = q0;
+  const a = 2 * (q1 + q0 - 2 * qHalf);
+  const b = q1 - q0 - a;
+  const scoreAt = (t: number) =>
+    Math.abs(cross(chord, {
+      x: cubicPointAt(segment, t).x - segment.start.x,
+      y: cubicPointAt(segment, t).y - segment.start.y
+    })) / chordLength;
+  const candidates = [] as { t: number; score: number }[];
+
+  for (const root of solveRealQuadratic(a, b, c)) {
+    if (root > 0 && root < 1) candidates.push({ t: root, score: scoreAt(root) });
+  }
+  if (Math.abs(q0) <= EPSILON && Math.abs(qHalf) <= EPSILON && Math.abs(q1) <= EPSILON) {
+    candidates.push({ t: 0.5, score: scoreAt(0.5) });
   }
 
   const selected = selectBestBezierFeatureCandidate(candidates);
@@ -404,6 +437,65 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           x: Math.cos(normalizedDirection),
           y: Math.sin(normalizedDirection)
         });
+        computedGeometry.set(element.id, {
+          kind: "point",
+          elementId: element.id,
+          name: element.name,
+          x: point.x,
+          y: point.y
+        });
+        break;
+      }
+      case "bezierBulgePoint": {
+        const source = computedGeometry.get(element.baseLineId);
+        if (!source) {
+          errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId, errors));
+          break;
+        }
+        if (source.kind !== "bezierCurve") {
+          errors.push(
+            geometryError(
+              element,
+              `${element.name} の参照先はベジェ曲線の計算結果ではありません。ベジェ曲線を指定してください。`
+            )
+          );
+          break;
+        }
+
+        const segmentIndex = evaluateNumber(element.segmentIndex);
+        if (segmentIndex === undefined) break;
+        if (!Number.isFinite(segmentIndex)) {
+          errors.push(geometryError(element, `${element.name} の区間番号は有限の数値で指定してください。`));
+          break;
+        }
+        if (!Number.isInteger(segmentIndex) || segmentIndex < 0) {
+          errors.push(geometryError(element, `${element.name} の区間番号は0以上の整数で指定してください。`));
+          break;
+        }
+        if (segmentIndex >= source.segments.length) {
+          errors.push(
+            geometryError(
+              element,
+              `${element.name} の区間番号 ${segmentIndex} に対応する区間がありません。区間数は ${source.segments.length} 個です。`
+            )
+          );
+          break;
+        }
+
+        const segment = source.segments[segmentIndex];
+        const chordLength = Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y);
+        if (chordLength <= EPSILON) {
+          errors.push(
+            geometryError(
+              element,
+              `${element.name} の選択区間は始点と終点が一致しているため、膨らみの基準線を定義できません。`
+            )
+          );
+          break;
+        }
+
+        const point = bezierBulgePointAt(segment);
+        if (!point) break;
         computedGeometry.set(element.id, {
           kind: "point",
           elementId: element.id,

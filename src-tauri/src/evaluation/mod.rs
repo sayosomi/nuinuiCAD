@@ -109,7 +109,7 @@ use serde_json::Value;
 
 use activity::effective_activity_by_element_id;
 use bezier_evaluator::evaluate_bezier_curve;
-use bezier_feature_point_evaluator::evaluate_bezier_extreme_point;
+use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
 use control_boolean_runtime::{
     resolve_conditional_group_branch, resolve_for_group_effective_show_generated,
 };
@@ -534,6 +534,7 @@ fn evaluate_element_by_type(
         Some("bezierExtremePoint") => {
             evaluate_bezier_extreme_point(&element, &local_variables, state)
         }
+        Some("bezierBulgePoint") => evaluate_bezier_bulge_point(&element, &local_variables, state),
         Some("intersectionPoint") => evaluate_intersection_point(&element, &local_variables, state),
         Some("line") => evaluate_line(&element, &local_variables, state),
         Some("angleLengthLine") => evaluate_angle_length_line(&element, &local_variables, state),

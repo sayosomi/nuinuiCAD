@@ -133,6 +133,21 @@ describe("command-line session commands", () => {
     expect(cancelCommandLineSession()).toBe(true);
   });
 
+  it("starts the Bezier bulge point creation session through its command definition", () => {
+    expect(creationCommandDefinitions.addBezierBulgePoint.run(undefined)).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      recipe: {
+        type: "bezierBulgePoint",
+        steps: [
+          { kind: "line", key: "baseLineId" },
+          { kind: "number", key: "segmentIndex" },
+          { kind: "name" }
+        ]
+      }
+    });
+    expect(cancelCommandLineSession()).toBe(true);
+  });
+
   it("makes an unnamed element through explicit skip", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
     submitCommandLineInput("3 + 4");

@@ -41,7 +41,8 @@ export const isPointLikeElement = (element: CadElement) =>
   element.type === "lineDivisionPoint" ||
   element.type === "intersectionPoint" ||
   element.type === "lineTangentOffsetPoint" ||
-  element.type === "bezierExtremePoint";
+  element.type === "bezierExtremePoint" ||
+  element.type === "bezierBulgePoint";
 
 export const updateSelectedElement = (updater: (element: CadElement) => CadElement) => {
   const { elements } = useCadDocumentStore.getState();

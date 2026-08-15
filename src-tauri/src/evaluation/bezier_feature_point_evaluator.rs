@@ -2,8 +2,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use super::bezier_math::{
-    cubic_derivative, cubic_point, dot, select_best_bezier_feature_candidate, solve_real_quadratic,
-    BezierFeatureCandidate, Point, EPSILON,
+    cross, cubic_derivative, cubic_point, dot, select_best_bezier_feature_candidate,
+    solve_real_quadratic, value_point, BezierFeatureCandidate, Point, EPSILON,
 };
 use super::errors::{dependency_error, geometry_error};
 use super::numeric_expression::evaluate_numeric_or_push;
@@ -13,6 +13,10 @@ use super::types::{element_id, element_name, insert_geometry, EvaluationState};
 
 fn derivative_projection(segment: &Value, direction: Point, t: f64) -> Option<f64> {
     Some(dot(cubic_derivative(segment, t)?, direction))
+}
+
+fn derivative_cross(segment: &Value, chord: Point, t: f64) -> Option<f64> {
+    Some(cross(chord, cubic_derivative(segment, t)?))
 }
 
 pub(crate) fn evaluate_bezier_extreme_point(
@@ -160,6 +164,163 @@ pub(crate) fn evaluate_bezier_extreme_point(
             t: 0.5,
             score: dot(point, direction),
         });
+    }
+
+    let Some(best) = select_best_bezier_feature_candidate(&candidates) else {
+        return;
+    };
+    let Some(point) = cubic_point(segment, best.t) else {
+        return;
+    };
+    let id = element_id(element).unwrap_or_default();
+    insert_geometry(
+        state,
+        id.clone(),
+        computed_point(id, element_name(element), point.x, point.y),
+    );
+}
+
+pub(crate) fn evaluate_bezier_bulge_point(
+    element: &Value,
+    local_variables: &(HashMap<String, f64>, HashMap<String, String>),
+    state: &mut EvaluationState,
+) {
+    let Some(base_line_id) = element.get("baseLineId").and_then(Value::as_str) else {
+        return;
+    };
+    let Some(source) = state.computed_geometry.get(base_line_id).cloned() else {
+        state
+            .errors
+            .push(dependency_error(state, element, base_line_id));
+        return;
+    };
+    if source.get("kind").and_then(Value::as_str) != Some("bezierCurve") {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} の参照先はベジェ曲線の計算結果ではありません。ベジェ曲線を指定してください。",
+                element_name(element)
+            ),
+        ));
+        return;
+    }
+
+    let Some(segment_index) = evaluate_numeric_or_push(
+        element.get("segmentIndex").unwrap_or(&Value::Null),
+        state,
+        element,
+        &local_variables.0,
+        &local_variables.1,
+    ) else {
+        return;
+    };
+    if !segment_index.is_finite() {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} の区間番号は有限の数値で指定してください。",
+                element_name(element)
+            ),
+        ));
+        return;
+    }
+    if segment_index.fract() != 0.0 || segment_index < 0.0 {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} の区間番号は0以上の整数で指定してください。",
+                element_name(element)
+            ),
+        ));
+        return;
+    }
+
+    let Some(segments) = source.get("segments").and_then(Value::as_array) else {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} の参照ベジェ曲線を評価できません。",
+                element_name(element)
+            ),
+        ));
+        return;
+    };
+    if segment_index >= segments.len() as f64 {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} の区間番号 {} に対応する区間がありません。区間数は {} 個です。",
+                element_name(element),
+                segment_index,
+                segments.len()
+            ),
+        ));
+        return;
+    }
+
+    let segment = &segments[segment_index as usize];
+    let Some(start) = segment.get("start").and_then(value_point) else {
+        return;
+    };
+    let Some(end) = segment.get("end").and_then(value_point) else {
+        return;
+    };
+    let chord = Point {
+        x: end.x - start.x,
+        y: end.y - start.y,
+    };
+    let chord_length = chord.x.hypot(chord.y);
+    if chord_length <= EPSILON {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} の選択区間は始点と終点が一致しているため、膨らみの基準線を定義できません。",
+                element_name(element)
+            ),
+        ));
+        return;
+    }
+
+    let Some(q0) = derivative_cross(segment, chord, 0.0) else {
+        return;
+    };
+    let Some(q_half) = derivative_cross(segment, chord, 0.5) else {
+        return;
+    };
+    let Some(q1) = derivative_cross(segment, chord, 1.0) else {
+        return;
+    };
+    let c = q0;
+    let a = 2.0 * (q1 + q0 - 2.0 * q_half);
+    let b = q1 - q0 - a;
+    let score_at = |t: f64| -> Option<f64> {
+        let point = cubic_point(segment, t)?;
+        Some(
+            cross(
+                chord,
+                Point {
+                    x: point.x - start.x,
+                    y: point.y - start.y,
+                },
+            )
+            .abs()
+                / chord_length,
+        )
+    };
+    let mut candidates = Vec::with_capacity(3);
+    for root in solve_real_quadratic(a, b, c) {
+        if root > 0.0 && root < 1.0 {
+            let Some(score) = score_at(root) else {
+                return;
+            };
+            candidates.push(BezierFeatureCandidate { t: root, score });
+        }
+    }
+    if q0.abs() <= EPSILON && q_half.abs() <= EPSILON && q1.abs() <= EPSILON {
+        let Some(score) = score_at(0.5) else {
+            return;
+        };
+        candidates.push(BezierFeatureCandidate { t: 0.5, score });
     }
 
     let Some(best) = select_best_bezier_feature_candidate(&candidates) else {
@@ -382,5 +543,227 @@ mod tests {
             error.message,
             "extreme の区間番号は0以上の整数で指定してください。"
         );
+    }
+
+    fn curve_element(
+        id: &str,
+        activity: &str,
+        start: (f64, f64),
+        end: (f64, f64),
+        start_handle: (f64, f64),
+        end_handle: (f64, f64),
+    ) -> Value {
+        json!({
+            "id": id,
+            "name": id,
+            "type": "bezierCurve",
+            "activity": activity,
+            "startPoint": { "mode": "coordinate", "x": start.0, "y": start.1 },
+            "startHandleAngleDeg": start_handle.0,
+            "startHandleLength": start_handle.1,
+            "intermediatePoints": [],
+            "endPoint": { "mode": "coordinate", "x": end.0, "y": end.1 },
+            "endHandleAngleDeg": end_handle.0,
+            "endHandleLength": end_handle.1
+        })
+    }
+
+    fn bulge_element(segment_index: Value) -> Value {
+        json!({
+            "id": "bulge",
+            "name": "bulge",
+            "type": "bezierBulgePoint",
+            "activity": "visible",
+            "baseLineId": "curve",
+            "segmentIndex": segment_index
+        })
+    }
+
+    fn bulge_element_for_source(base_line_id: &str, segment_index: Value) -> Value {
+        let mut element = bulge_element(segment_index);
+        element["baseLineId"] = json!(base_line_id);
+        element
+    }
+
+    fn evaluate_bulge(curve: Value, segment_index: Value) -> super::super::EvaluationPayload {
+        evaluate_document_input(evaluation_input(vec![curve, bulge_element(segment_index)]))
+    }
+
+    #[test]
+    fn evaluates_an_interior_bulge_through_production_dispatch() {
+        let result = evaluate_bulge(
+            curve_element(
+                "curve",
+                "visible",
+                (0.0, 0.0),
+                (10.0, 0.0),
+                (90.0, 10.0),
+                (-90.0, 10.0),
+            ),
+            json!(0),
+        );
+        let point = result
+            .computed_geometry
+            .iter()
+            .find(|geometry| geometry["elementId"] == "bulge")
+            .expect("expected bulge point");
+        assert!((point["x"].as_f64().unwrap() - 5.0).abs() < 1e-9);
+        assert!((point["y"].as_f64().unwrap() - 7.5).abs() < 1e-9);
+        assert!(result.errors.is_empty());
+    }
+
+    #[test]
+    fn compares_symmetric_bulges_as_unsigned_distances() {
+        let angle = (10.0_f64 / (10.0 / 3.0)).atan().to_degrees();
+        let length = (100.0_f64 + (100.0 / 9.0)).sqrt();
+        let result = evaluate_bulge(
+            curve_element(
+                "curve",
+                "visible",
+                (0.0, 0.0),
+                (10.0, 0.0),
+                (angle, length),
+                (angle, length),
+            ),
+            json!(0),
+        );
+        let point = result
+            .computed_geometry
+            .iter()
+            .find(|geometry| geometry["elementId"] == "bulge")
+            .expect("expected bulge point");
+        assert!((point["x"].as_f64().unwrap() - 2.11324865405187).abs() < 1e-9);
+        assert!((point["y"].as_f64().unwrap() - 2.88675134594813).abs() < 1e-9);
+        assert!(result.errors.is_empty());
+    }
+
+    #[test]
+    fn uses_t_half_for_a_flat_curve() {
+        let result = evaluate_bulge(
+            curve_element(
+                "curve",
+                "visible",
+                (0.0, 0.0),
+                (10.0, 0.0),
+                (0.0, 0.0),
+                (0.0, 10.0),
+            ),
+            json!(0),
+        );
+        let point = result
+            .computed_geometry
+            .iter()
+            .find(|geometry| geometry["elementId"] == "bulge")
+            .expect("expected bulge point");
+        assert!((point["x"].as_f64().unwrap() - 1.25).abs() < 1e-9);
+        assert!((point["y"].as_f64().unwrap()).abs() < 1e-9);
+        assert!(result.errors.is_empty());
+    }
+
+    #[test]
+    fn reports_a_degenerate_chord_as_a_geometry_error() {
+        let result = evaluate_bulge(
+            curve_element(
+                "curve",
+                "visible",
+                (0.0, 0.0),
+                (0.0, 0.0),
+                (90.0, 10.0),
+                (-90.0, 10.0),
+            ),
+            json!(0),
+        );
+        assert!(result
+            .computed_geometry
+            .iter()
+            .all(|geometry| geometry["elementId"] != "bulge"));
+        assert_eq!(
+            result.errors.first().map(|error| error.message.as_str()),
+            Some(
+                "bulge の選択区間は始点と終点が一致しているため、膨らみの基準線を定義できません。"
+            )
+        );
+    }
+
+    #[test]
+    fn reports_an_existing_non_bezier_geometry_as_a_geometry_error() {
+        let result = evaluate_document_input(evaluation_input(vec![
+            json!({
+                "id": "line",
+                "name": "line",
+                "type": "line",
+                "activity": "visible",
+                "startPoint": { "mode": "coordinate", "x": 0, "y": 0 },
+                "endPoint": { "mode": "coordinate", "x": 10, "y": 0 }
+            }),
+            bulge_element_for_source("line", json!(0)),
+        ]));
+        assert_eq!(
+            result.errors.first().map(|error| error.message.as_str()),
+            Some("bulge の参照先はベジェ曲線の計算結果ではありません。ベジェ曲線を指定してください。")
+        );
+    }
+
+    #[test]
+    fn reports_missing_and_disabled_sources_as_dependency_errors() {
+        let missing = evaluate_document_input(evaluation_input(vec![bulge_element(json!(0))]));
+        assert_eq!(
+            missing
+                .errors
+                .first()
+                .map(|error| error.missing_dependency_id.as_str()),
+            Some("curve")
+        );
+
+        let disabled = evaluate_bulge(
+            curve_element(
+                "curve",
+                "disabled",
+                (0.0, 0.0),
+                (10.0, 0.0),
+                (90.0, 10.0),
+                (-90.0, 10.0),
+            ),
+            json!(0),
+        );
+        let error = disabled
+            .errors
+            .first()
+            .expect("expected disabled dependency error");
+        assert_eq!(error.missing_dependency_id, "curve");
+    }
+
+    #[test]
+    fn reports_non_integer_and_out_of_range_segment_indexes() {
+        for (segment_index, message) in [
+            (
+                json!(-1),
+                "bulge の区間番号は0以上の整数で指定してください。",
+            ),
+            (
+                json!(0.5),
+                "bulge の区間番号は0以上の整数で指定してください。",
+            ),
+            (
+                json!(1),
+                "bulge の区間番号 1 に対応する区間がありません。区間数は 1 個です。",
+            ),
+        ] {
+            let result = evaluate_bulge(
+                curve_element(
+                    "curve",
+                    "visible",
+                    (0.0, 0.0),
+                    (10.0, 0.0),
+                    (90.0, 10.0),
+                    (-90.0, 10.0),
+                ),
+                segment_index,
+            );
+            assert_eq!(
+                result.errors.first().map(|error| error.message.as_str()),
+                Some(message)
+            );
+        }
     }
 }

@@ -252,6 +252,43 @@ describe("duplicateElements", () => {
     });
   });
 
+  it("remaps Bezier bulge point source and numeric expressions", () => {
+    const elements: CadElement[] = [
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        activity: "visible",
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        startHandleAngleDeg: 0,
+        startHandleLength: 10,
+        intermediatePoints: [],
+        endPoint: { mode: "coordinate", x: 10, y: 0 },
+        endHandleAngleDeg: 180,
+        endHandleLength: 10
+      },
+      {
+        id: "bulge",
+        name: "最大膨らみ点",
+        type: "bezierBulgePoint",
+        activity: "visible",
+        baseLineId: "curve",
+        segmentIndex: { kind: "expression", expression: "curve.length" }
+      }
+    ];
+
+    const change = duplicateElements(elements, ["curve", "bulge"], {
+      createId: (type) => `${type}-copy`
+    });
+    const copied = change?.elements.find((element) => element.id === "bezierBulgePoint-copy");
+
+    expect(copied).toMatchObject({
+      type: "bezierBulgePoint",
+      baseLineId: "bezierCurve-copy",
+      segmentIndex: { kind: "expression", expression: "bezierCurve-copy.length" }
+    });
+  });
+
   it("duplicates a selected group with its descendants and remaps parent groups", () => {
     const ids = ["group-copy", "point-a-copy", "point-b-copy", "line-copy"];
     const elements: CadElement[] = [

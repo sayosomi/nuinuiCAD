@@ -28,6 +28,21 @@ describe("DSL compiler", () => {
     );
   });
 
+  it("serializes an omitted bezierBulgePoint segmentIndex as canonical zero", () => {
+    const result = compileDslToElements([
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "curve ベジェ線 = bezier(start: @A, end: @B, startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
+      "point 膨らみ点 = bezierBulgePoint(\n  source: @ベジェ線,\n)"
+    ].join("\n"), { elements: [] });
+
+    expect(result.diagnostics).toEqual([]);
+    const bulge = result.elements.at(-1)!;
+    expect(serializeElementStatementLogical(bulge, documentDslRefs(result.elements))).toBe(
+      "point 膨らみ点 = bezierBulgePoint(source: @ベジェ線, segmentIndex: 0)"
+    );
+  });
+
   it("creates basic drafting elements from short DSL syntax", () => {
     const result = compileDslToElements(
       [

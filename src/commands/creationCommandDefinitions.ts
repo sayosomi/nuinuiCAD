@@ -98,6 +98,15 @@ export const creationCommandDefinitions = {
     },
     run: (context) => startCreationSessionForCommand("addLineTangentOffsetPoint", context)
   },
+  addBezierBulgePoint: {
+    id: "addBezierBulgePoint",
+    label: "Bezier最大膨らみ点を追加",
+    palette: {
+      order: 7.25,
+      keywords: ["bezier", "curve", "bulge", "ベジェ", "曲線", "膨らみ", "最大", "点", "追加"]
+    },
+    run: (context) => startCreationSessionForCommand("addBezierBulgePoint", context)
+  },
   addBezierExtremePoint: {
     id: "addBezierExtremePoint",
     label: "Bezier方向極値点を追加",

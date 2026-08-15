@@ -238,6 +238,34 @@ flat の場合は `t = 0.5` です。
 `bezierCurve` である必要があります。そのため通常の split、trim、extend が生成した
 Bezier geometry は利用できますが、直線、円弧、offset line の結果はエラーになります。
 
+### Bezier最大膨らみ点
+
+`bezierBulgePoint` は、指定した cubic Bezier の1区間について、始点と終点を通る
+基準線からの膨らみが最大になる点を作図します。
+
+```text
+point 膨らみ点 = bezierBulgePoint(
+  source: @ベジェ線,
+)
+```
+
+`source` は必須です。`segmentIndex` は数値で、省略時は `0` です。canonical
+serialization では省略した場合も `segmentIndex: 0` が明示されます。指定できるのは
+1つの cubic Bezier 区間だけで、区間番号は有限な 0 以上の整数かつ範囲内でなければなりません。
+
+選択区間を `P0, P1, P2, P3`、その曲線を `B(t)` (`0 <= t <= 1`) とし、`D = P3 - P0`、
+`L = |D|` とします。候補は `cross(D, B'(t)) = 0` を満たす区間内部の停留点です。
+各候補の score は符号を持たない基準線からの垂直距離
+`abs(cross(D, B(t) - P0)) / L` で比較します。そのためS字曲線では基準線の上下両側の
+absolute distanceを比較します。端点は通常候補に含めず、flatな曲線では `t = 0.5` を
+候補にします。score、`t = 0.5` への近さ、最後に小さい `t` という共通のtie-breakを使います。
+
+`L <= EPSILON` の退化したchordは、基準線を定義できないgeometry errorになります。
+完全にchord上のBezierは膨らみ `0` で、parameter `t = 0.5` を返します。
+`source` は宣言型ではなく評価時の computed geometry の `kind` が `bezierCurve` である必要があり、
+original Bezierとsplit/trim/extend後もBezier kindの結果を受け付けます。line、arc、offset line
+など別のkindはgeometry error、missingまたはdisabled sourceはdependency errorです。
+
 ## モジュール
 
 定義は `module`、呼び出しは `instance` と明示的に区別します。定義は instance より前に置き、引数は名前付きで渡します。

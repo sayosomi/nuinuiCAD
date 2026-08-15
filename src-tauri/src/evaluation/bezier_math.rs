@@ -102,6 +102,10 @@ pub(crate) fn dot(a: Point, b: Point) -> f64 {
     a.x * b.x + a.y * b.y
 }
 
+pub(crate) fn cross(a: Point, b: Point) -> f64 {
+    a.x * b.y - a.y * b.x
+}
+
 pub(crate) fn cubic_point(segment: &Value, t: f64) -> Option<Point> {
     let start = segment.get("start").and_then(value_point)?;
     let control1 = segment.get("control1").and_then(value_point)?;
@@ -263,8 +267,17 @@ pub(crate) fn split_bezier_like(segment: &Value, t: f64) -> Option<(Point, Value
 #[cfg(test)]
 mod tests {
     use super::{
-        select_best_bezier_feature_candidate, solve_real_quadratic, BezierFeatureCandidate,
+        cross, select_best_bezier_feature_candidate, solve_real_quadratic, BezierFeatureCandidate,
+        Point,
     };
+
+    #[test]
+    fn computes_the_signed_2d_cross_product() {
+        assert_eq!(
+            cross(Point { x: 3.0, y: 2.0 }, Point { x: 1.0, y: 4.0 }),
+            10.0
+        );
+    }
 
     #[test]
     fn solves_real_quadratic_roots_in_ascending_order() {

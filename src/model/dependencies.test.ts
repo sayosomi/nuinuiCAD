@@ -134,6 +134,19 @@ describe("dependencies", () => {
     expect(getDirectParentIds(extreme)).toEqual(["curve", "ab", "bc"]);
   });
 
+  it("returns Bezier bulge point line and numeric expression references", () => {
+    const bulge: CadElement = {
+      id: "bulge",
+      name: "最大膨らみ点",
+      type: "bezierBulgePoint",
+      activity: "visible",
+      baseLineId: "curve",
+      segmentIndex: { kind: "expression", expression: "ab.length" }
+    };
+
+    expect(getDirectParentIds(bulge)).toEqual(["curve", "ab"]);
+  });
+
   it("returns arc line center and numeric expression references as direct parent ids", () => {
     const arc: CadElement = {
       id: "arc",

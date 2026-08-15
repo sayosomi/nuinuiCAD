@@ -44,6 +44,17 @@ describe("pointAnchors", () => {
     })).toBe(true);
   });
 
+  it("treats Bezier bulge points as ordinary point elements", () => {
+    expect(isPointElement({
+      id: "bulge",
+      name: "最大膨らみ点",
+      type: "bezierBulgePoint",
+      activity: "visible",
+      baseLineId: "curve",
+      segmentIndex: 0
+    })).toBe(true);
+  });
+
   it("labels Bezier intermediate derived points with stable indexes", () => {
     expect(pointAnchorLabel(derivedAnchor("curve", "intermediate:mid-b"), [curve])).toBe(
       "曲線.中間点2"

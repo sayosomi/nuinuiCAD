@@ -150,6 +150,12 @@ export const getDirectParentIds = (
           ...extractNumericExpressionReferences(element.segmentIndex),
           ...extractNumericExpressionReferences(element.directionDeg)
         ].map((reference) => reference.elementId);
+      case "bezierBulgePoint":
+        return [
+          ...numericVariableReferences(element),
+          { elementId: element.baseLineId },
+          ...extractNumericExpressionReferences(element.segmentIndex)
+        ].map((reference) => reference.elementId);
       case "splitLine":
         return [
           ...numericVariableReferences(element),
@@ -290,6 +296,7 @@ export const getDirectParentIds = (
     case "intersectionPoint":
     case "lineTangentOffsetPoint":
     case "bezierExtremePoint":
+    case "bezierBulgePoint":
       return numericExpressionParentIds();
     case "line":
     case "angleLengthLine":

@@ -221,6 +221,21 @@ describe("parameterAccess", () => {
     expect(supportsNumericVariables(point)).toBe(true);
   });
 
+  it("uses generic access for Bezier bulge point fields", () => {
+    const point: CadElement = {
+      id: "bulge",
+      name: "最大膨らみ点",
+      type: "bezierBulgePoint",
+      activity: "visible",
+      baseLineId: "curve",
+      segmentIndex: 1
+    };
+
+    expect(getParameterValue(point, "baseLineId")).toBe("curve");
+    expect(setParameterValue(point, "segmentIndex", 2)).toMatchObject({ segmentIndex: 2 });
+    expect(supportsNumericVariables(point)).toBe(true);
+  });
+
   it("updates split line references and supports numeric variables", () => {
     const line: CadElement = {
       id: "split",

@@ -21,6 +21,8 @@ export const interpolate = (start: Point, end: Point, t: number): Point => ({
 
 export const dot = (a: Point, b: Point) => a.x * b.x + a.y * b.y;
 
+export const cross = (a: Point, b: Point) => a.x * b.y - a.y * b.x;
+
 export const solveRealQuadratic = (a: number, b: number, c: number): number[] => {
   if (Math.abs(a) <= EPSILON) {
     if (Math.abs(b) <= EPSILON) return [];

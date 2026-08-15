@@ -75,7 +75,8 @@ export const isPointElement = (element: CadElement) =>
   element.type === "lineDivisionPoint" ||
   element.type === "intersectionPoint" ||
   element.type === "lineTangentOffsetPoint" ||
-  element.type === "bezierExtremePoint";
+  element.type === "bezierExtremePoint" ||
+  element.type === "bezierBulgePoint";
 
 export const pointAnchorForElement = (element: CadElement): PointAnchor | null => {
   if (element.type === "offsetPoint" || element.type === "polarOffsetPoint") {

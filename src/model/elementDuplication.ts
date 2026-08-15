@@ -188,6 +188,12 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         segmentIndex: remapNumericValue(element.segmentIndex, idMap),
         directionDeg: remapNumericValue(element.directionDeg, idMap)
       };
+    case "bezierBulgePoint":
+      return {
+        ...element,
+        baseLineId: mapId(element.baseLineId, idMap),
+        segmentIndex: remapNumericValue(element.segmentIndex, idMap)
+      };
     case "line":
       return {
         ...element,
