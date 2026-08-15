@@ -42,6 +42,15 @@ const scalarBindingFor = (
   return evaluationPayloadToResult(payload).computedScalarBindings?.get(binding.id);
 };
 
+const expectScalarNumberClose = (
+  value: ReturnType<typeof scalarBindingFor>,
+  expected: number
+): void => {
+  expect(value?.status).toBe("ok");
+  if (value?.status !== "ok" || value.value.kind !== "number") throw new Error("expected a numeric scalar success");
+  expect(value.value.value).toBeCloseTo(expected, 10);
+};
+
 describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", () => {
   it.each(fixtureNames)("%s matches the TypeScript reference payload", (name: string) => {
     const fixture = readParityFixture(repoRoot, name);
@@ -209,6 +218,70 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(evaluated.errors.filter((error) => error.elementId === offset.id || error.elementId === template.id)).toEqual([]);
       expect(evaluated.computedGeometry.get(offset.id)).toMatchObject({ kind: "offsetLine" });
       expect(evaluated.computedGeometry.get(template.id)).toMatchObject({ kind: "text", text: "丸め=10" });
+    }
+  }, 30000);
+
+  it("asserts nui4 trigonometric scalar, geometry, module, text, and print values in both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-trigonometric-functions.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    for (const payload of [tsPayload, rustPayload]) {
+      for (const [name, expected] of [
+        ["sin30", 0.5], ["cos60", 0.5], ["tan45", 1],
+        ["asinHalf", 30], ["acosHalf", 60], ["atanOne", 45],
+        ["atan2Right", 0], ["atan2Up", 90], ["atan2Left", 180], ["atan2Down", 270],
+        ["atan2Diagonal", 45], ["atan2Zero", 0], ["nestedTrig", 30], ["referenceTrig", -1]
+      ] as const) {
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
+      }
+      for (const name of [
+        "tanInvalid90", "tanInvalid270", "tanInvalidNegative90",
+        "asinInvalidLow", "asinInvalidHigh", "acosInvalidLow", "acosInvalidHigh"
+      ] as const) {
+        expect(scalarBindingFor(fixture, payload, name)).toMatchObject({
+          status: "error",
+          issueCode: "evaluation-invalid-builtin-argument"
+        });
+      }
+
+      const evaluated = evaluationPayloadToResult(payload);
+      const origin = fixture.elements.find((element) => element.name === "Origin")!;
+      const offset = fixture.elements.find((element) => element.name === "TrigOffset")!;
+      const template = fixture.elements.find((element) => element.name === "TrigTemplate")!;
+      const modulePoint = fixture.elements.find((element) => element.name === "ModulePoint")!;
+      expect(evaluated.computedGeometry.get(origin.id)).toMatchObject({ kind: "point" });
+      const originGeometry = evaluated.computedGeometry.get(origin.id);
+      if (originGeometry?.kind !== "point") throw new Error("Origin must be a computed point");
+      expect(originGeometry.x).toBeCloseTo(0.5, 10);
+      expect(originGeometry.y).toBeCloseTo(0.5, 10);
+      expect(evaluated.errors.filter((error) => error.elementId === offset.id)).toEqual([]);
+      expect(evaluated.computedGeometry.get(offset.id)).toMatchObject({ kind: "offsetLine" });
+      expect(evaluated.computedGeometry.get(template.id)).toMatchObject({ kind: "text", text: "sin30=0.5" });
+      const moduleGeometry = evaluated.computedGeometry.get(modulePoint.id);
+      expect(moduleGeometry).toMatchObject({ kind: "point", y: 0 });
+      if (moduleGeometry?.kind !== "point") throw new Error("ModulePoint must be a computed point");
+      expect(moduleGeometry.x).toBeCloseTo(0.5, 10);
+
+      const compiled = fixture.compiled!.doc!;
+      const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
+      const resolved = resolvePrintLayout({
+        layout,
+        elements: compiled.document.elements,
+        evaluation: evaluated,
+        numericBindingLookup: {
+          numericBindings: compiled.numericBindings ?? new Map(),
+          byKey: compiled.statementMap.byKey,
+          bindingVersions: compiled.bindingVersions
+        }
+      });
+      expect(resolved).toMatchObject({ columns: 8, rows: 2 });
+      expect(resolved.overlapMm).toBeCloseTo(0.5, 10);
+      expect(resolved.scale).toBeCloseTo(1, 10);
+      expect(resolved.placements[0]).toMatchObject({ x: 8, y: 2 });
+      expect(resolved.placements[0]?.angleDeg).toBeCloseTo(45, 10);
     }
   }, 30000);
 

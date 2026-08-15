@@ -4,6 +4,9 @@
 //! closed builtin identity and already-evaluated numeric arguments; source
 //! names, arity/type resolution, and AST traversal belong to other layers.
 
+use super::angle_math::{
+    atan2_degrees_360, degrees_to_radians, is_odd_multiple_of_90_degrees, radians_to_degrees,
+};
 use super::types::BuiltinFunctionName;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -298,6 +301,48 @@ pub(crate) fn evaluate_builtin_function(
             BuiltinFunctionEvaluation::Ok(BuiltinFunctionValue::Boolean(
                 (args[0] - args[1]).abs() <= args[2],
             ))
+        }
+        BuiltinFunctionName::Sin => {
+            if !has_finite_arguments(args, 1) {
+                return invalid_argument();
+            }
+            finite_number_result(degrees_to_radians(args[0]).sin())
+        }
+        BuiltinFunctionName::Cos => {
+            if !has_finite_arguments(args, 1) {
+                return invalid_argument();
+            }
+            finite_number_result(degrees_to_radians(args[0]).cos())
+        }
+        BuiltinFunctionName::Tan => {
+            if !has_finite_arguments(args, 1) || is_odd_multiple_of_90_degrees(args[0]) {
+                return invalid_argument();
+            }
+            finite_number_result(degrees_to_radians(args[0]).tan())
+        }
+        BuiltinFunctionName::Asin => {
+            if !has_finite_arguments(args, 1) || !(-1.0..=1.0).contains(&args[0]) {
+                return invalid_argument();
+            }
+            finite_number_result(radians_to_degrees(args[0].asin()))
+        }
+        BuiltinFunctionName::Acos => {
+            if !has_finite_arguments(args, 1) || !(-1.0..=1.0).contains(&args[0]) {
+                return invalid_argument();
+            }
+            finite_number_result(radians_to_degrees(args[0].acos()))
+        }
+        BuiltinFunctionName::Atan => {
+            if !has_finite_arguments(args, 1) {
+                return invalid_argument();
+            }
+            finite_number_result(radians_to_degrees(args[0].atan()))
+        }
+        BuiltinFunctionName::Atan2 => {
+            if !has_finite_arguments(args, 2) {
+                return invalid_argument();
+            }
+            finite_number_result(atan2_degrees_360(args[0], args[1]))
         }
         BuiltinFunctionName::Distance
         | BuiltinFunctionName::Angle

@@ -264,6 +264,13 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
     expect(candidates).toEqual(expect.arrayContaining([
       { kind: "function", name: "round", returnType: { kind: "number" } },
       { kind: "function", name: "roundTo", returnType: { kind: "number" } },
+      { kind: "function", name: "sin", returnType: { kind: "number" } },
+      { kind: "function", name: "cos", returnType: { kind: "number" } },
+      { kind: "function", name: "tan", returnType: { kind: "number" } },
+      { kind: "function", name: "asin", returnType: { kind: "number" } },
+      { kind: "function", name: "acos", returnType: { kind: "number" } },
+      { kind: "function", name: "atan", returnType: { kind: "number" } },
+      { kind: "function", name: "atan2", returnType: { kind: "number" } },
       { kind: "function", name: "distance", returnType: { kind: "number" } },
       { kind: "function", name: "angle", returnType: { kind: "number" } },
       { kind: "function", name: "lineDistance", returnType: { kind: "number" } }

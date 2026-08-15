@@ -18,6 +18,7 @@ import type {
 } from "./typedExpressionAst";
 import type { ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument } from "./typedExpressionAst";
 import { evaluateBuiltinFunction } from "./builtinFunctionSemantics";
+import { atan2Degrees360 } from "./angleMath";
 import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarType, type ScalarValue } from "./types";
 import type { ComputedGeometry, ComputedLine, ComputedPoint } from "../types/geometry";
 
@@ -72,7 +73,7 @@ const distanceBetweenPoints = (point1: ComputedPoint, point2: ComputedPoint): nu
   Math.hypot(point2.x - point1.x, point2.y - point1.y);
 
 const angleBetweenPoints = (point1: ComputedPoint, point2: ComputedPoint): number =>
-  (Math.atan2(point2.y - point1.y, point2.x - point1.x) * 180 / Math.PI + 360) % 360;
+  atan2Degrees360(point2.y - point1.y, point2.x - point1.x);
 
 const distancePointToInfiniteLine = (point: ComputedPoint, line: ComputedLine): number | null => {
   const dx = line.end.x - line.start.x;

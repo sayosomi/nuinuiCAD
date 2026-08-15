@@ -1327,6 +1327,18 @@ describe("typed value completion (Task 39)", () => {
           type: "function"
         }),
         expect.objectContaining({
+          label: "sin",
+          apply: "sin(",
+          detail: "sin(number) -> number",
+          type: "function"
+        }),
+        expect.objectContaining({
+          label: "atan2",
+          apply: "atan2(",
+          detail: "atan2(number, number) -> number",
+          type: "function"
+        }),
+        expect.objectContaining({
           label: "distance",
           apply: "distance(",
           detail: "distance(point, point) -> number",

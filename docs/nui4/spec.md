@@ -195,6 +195,13 @@ The current builtin catalog is:
 | `ceil` | `ceil(number) -> number`, `ceil(number, number) -> number` |
 | `roundTo` | `roundTo(number, number) -> number` |
 | `isClose` | `isClose(number, number, number) -> boolean` |
+| `sin` | `sin(number) -> number` |
+| `cos` | `cos(number) -> number` |
+| `tan` | `tan(number) -> number` |
+| `asin` | `asin(number) -> number` |
+| `acos` | `acos(number) -> number` |
+| `atan` | `atan(number) -> number` |
+| `atan2` | `atan2(number, number) -> number` |
 | `distance` | `distance(point, point) -> number` |
 | `angle` | `angle(point, point) -> number` |
 | `lineDistance` | `lineDistance(point, line) -> number` |
@@ -205,6 +212,18 @@ position and must be an integer. `round` uses an away-from-zero midpoint rule
 step, and `isClose` requires a non-negative tolerance. Invalid arguments and
 non-finite results are explicit evaluation diagnostics; no implicit numeric
 conversion is performed.
+
+The trigonometric builtins use degrees as their public angle unit. `sin`,
+`cos`, and `tan` take degree inputs. `asin`, `acos`, and `atan` return degree
+outputs. `asin` and `acos` accept only inputs in `[-1, 1]`. `tan` reports an
+evaluation error for an exact odd multiple of 90 degrees; values that are not
+exactly singular are evaluated normally. `atan2` takes arguments in the order
+`atan2(y, x)` and returns a degree in `0 <= result < 360`: right is `0°`, up is
+`90°`, left is `180°`, and down is `270°`. `atan2(0, 0)` returns `0`.
+Non-finite inputs fail with an invalid-argument evaluation error, and
+non-finite results fail with a non-finite-result evaluation error. `atan2` and
+the existing `angle(point, point)` builtin share the same direction and
+normalization rule.
 
 The geometry measurement builtins use the existing geometry interface types.
 `distance` returns the Euclidean distance between two points. `angle` returns

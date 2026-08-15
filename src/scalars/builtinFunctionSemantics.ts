@@ -1,4 +1,10 @@
 import type { BuiltinFunctionName } from "./builtinFunctions";
+import {
+  atan2Degrees360,
+  degreesToRadians,
+  isOddMultipleOf90Degrees,
+  radiansToDegrees
+} from "./angleMath";
 
 export type BuiltinFunctionEvaluation =
   | {
@@ -143,6 +149,27 @@ export const evaluateBuiltinFunction = (
       if (!hasFiniteArguments(args, 3) || args[2] < 0) return invalidArgument();
       return { status: "ok", value: Math.abs(args[0] - args[1]) <= args[2] };
     }
+    case "sin":
+      if (!hasFiniteArguments(args, 1)) return invalidArgument();
+      return finiteNumberResult(Math.sin(degreesToRadians(args[0])));
+    case "cos":
+      if (!hasFiniteArguments(args, 1)) return invalidArgument();
+      return finiteNumberResult(Math.cos(degreesToRadians(args[0])));
+    case "tan":
+      if (!hasFiniteArguments(args, 1) || isOddMultipleOf90Degrees(args[0])) return invalidArgument();
+      return finiteNumberResult(Math.tan(degreesToRadians(args[0])));
+    case "asin":
+      if (!hasFiniteArguments(args, 1) || args[0] < -1 || args[0] > 1) return invalidArgument();
+      return finiteNumberResult(radiansToDegrees(Math.asin(args[0])));
+    case "acos":
+      if (!hasFiniteArguments(args, 1) || args[0] < -1 || args[0] > 1) return invalidArgument();
+      return finiteNumberResult(radiansToDegrees(Math.acos(args[0])));
+    case "atan":
+      if (!hasFiniteArguments(args, 1)) return invalidArgument();
+      return finiteNumberResult(radiansToDegrees(Math.atan(args[0])));
+    case "atan2":
+      if (!hasFiniteArguments(args, 2)) return invalidArgument();
+      return finiteNumberResult(atan2Degrees360(args[0], args[1]));
     default:
       // Geometry builtins are catalog-only until a later task adds geometry
       // argument resolution and lowering; they must not enter scalar runtime.

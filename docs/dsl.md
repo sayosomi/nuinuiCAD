@@ -73,6 +73,13 @@ ceil(number) -> number
 ceil(number, number) -> number
 roundTo(number, number) -> number
 isClose(number, number, number) -> boolean
+sin(number) -> number
+cos(number) -> number
+tan(number) -> number
+asin(number) -> number
+acos(number) -> number
+atan(number) -> number
+atan2(number, number) -> number
 ```
 
 例えば、宣言、`set` の右辺、条件式、文字列補間、scalar property、
@@ -88,6 +95,11 @@ text note = label(text: "幅 ${round(@seam, 1)}mm", anchor: @A, size: 3)
 `round`、`floor`、`ceil` の桁数は整数で、`round` の .5 はゼロから遠ざかる
 方向に丸めます（`round(1.5)` は `2`、`round(-1.5)` は `-2`）。
 `roundTo` の step は正数、`isClose` の tolerance は 0 以上である必要があります。
+`sin`、`cos`、`tan` の入力角度と、`asin`、`acos`、`atan` の出力角度は degree
+です。`asin` と `acos` の入力は `[-1, 1]` に限られ、`tan` は 90° の奇数倍
+そのものを入力すると evaluation error になります。`atan2` は `atan2(y, x)` の
+順で、結果は `[0, 360)` degree に正規化されます（右 0°、上 90°、左 180°、
+下 270°、`atan2(0, 0)` は 0）。
 引数の型・個数が違う場合や計算結果が有限値でない場合は、診断として表示されます。
 暗黙の数値変換はありません。
 

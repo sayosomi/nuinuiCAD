@@ -9,6 +9,7 @@
 //! Mirrors `src/scalars/expressionEvaluator.ts` field-for-field, including
 //! its exact `evaluation-*` issue-code vocabulary.
 
+use super::angle_math::atan2_degrees_360;
 use super::builtin_function_semantics::{
     evaluate_builtin_function, BuiltinFunctionError, BuiltinFunctionValue,
 };
@@ -224,7 +225,7 @@ pub(crate) fn evaluate_geometry_builtin_call(
                 ) => {
                     let dx = second.x - first.x;
                     let dy = second.y - first.y;
-                    (dy.atan2(dx) * 180.0 / std::f64::consts::PI + 360.0) % 360.0
+                    atan2_degrees_360(dy, dx)
                 }
                 (
                     BuiltinFunctionName::LineDistance,

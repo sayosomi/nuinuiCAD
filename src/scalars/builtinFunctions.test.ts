@@ -37,4 +37,19 @@ describe("nui4 builtin function catalog", () => {
       returnType: { kind: "boolean" }
     });
   });
+
+  it("defines the trigonometric scalar signatures", () => {
+    for (const name of ["sin", "cos", "tan", "asin", "acos", "atan"] as const) {
+      expect(definitionOf(name)?.signatures[0]).toEqual({
+        argumentTypes: [{ kind: "number" }],
+        returnType: { kind: "number" }
+      });
+      expect(isBuiltinFunctionName(name)).toBe(true);
+    }
+    expect(definitionOf("atan2")?.signatures[0]).toEqual({
+      argumentTypes: [{ kind: "number" }, { kind: "number" }],
+      returnType: { kind: "number" }
+    });
+    expect(isBuiltinFunctionName("atan2")).toBe(true);
+  });
 });

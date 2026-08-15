@@ -11,6 +11,13 @@ export type BuiltinFunctionName =
   | "ceil"
   | "roundTo"
   | "isClose"
+  | "sin"
+  | "cos"
+  | "tan"
+  | "asin"
+  | "acos"
+  | "atan"
+  | "atan2"
   | "distance"
   | "angle"
   | "lineDistance";
@@ -48,6 +55,13 @@ export const BUILTIN_FUNCTION_DEFINITIONS: readonly BuiltinFunctionDefinition[] 
   { name: "ceil", signatures: [numeric(1), numeric(2)] },
   { name: "roundTo", signatures: [numeric(2)] },
   { name: "isClose", signatures: [{ argumentTypes: [NUMBER_TYPE, NUMBER_TYPE, NUMBER_TYPE], returnType: BOOLEAN_TYPE }] },
+  { name: "sin", signatures: [numeric(1)] },
+  { name: "cos", signatures: [numeric(1)] },
+  { name: "tan", signatures: [numeric(1)] },
+  { name: "asin", signatures: [numeric(1)] },
+  { name: "acos", signatures: [numeric(1)] },
+  { name: "atan", signatures: [numeric(1)] },
+  { name: "atan2", signatures: [numeric(2)] },
   { name: "distance", signatures: [{ argumentTypes: ["point", "point"], returnType: NUMBER_TYPE }] },
   { name: "angle", signatures: [{ argumentTypes: ["point", "point"], returnType: NUMBER_TYPE }] },
   { name: "lineDistance", signatures: [{ argumentTypes: ["point", "line"], returnType: NUMBER_TYPE }] }

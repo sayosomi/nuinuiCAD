@@ -127,6 +127,13 @@ pub(crate) enum BuiltinFunctionName {
     Ceil,
     RoundTo,
     IsClose,
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Atan2,
     Distance,
     Angle,
     LineDistance,
@@ -144,6 +151,13 @@ impl BuiltinFunctionName {
             "ceil" => Some(Self::Ceil),
             "roundTo" => Some(Self::RoundTo),
             "isClose" => Some(Self::IsClose),
+            "sin" => Some(Self::Sin),
+            "cos" => Some(Self::Cos),
+            "tan" => Some(Self::Tan),
+            "asin" => Some(Self::Asin),
+            "acos" => Some(Self::Acos),
+            "atan" => Some(Self::Atan),
+            "atan2" => Some(Self::Atan2),
             "distance" => Some(Self::Distance),
             "angle" => Some(Self::Angle),
             "lineDistance" => Some(Self::LineDistance),
@@ -166,6 +180,10 @@ impl BuiltinFunctionName {
                 BuiltinArgumentType::Scalar,
                 BuiltinArgumentType::Scalar,
             ]],
+            Self::Sin | Self::Cos | Self::Tan | Self::Asin | Self::Acos | Self::Atan => {
+                &[&[BuiltinArgumentType::Scalar]]
+            }
+            Self::Atan2 => &[&[BuiltinArgumentType::Scalar, BuiltinArgumentType::Scalar]],
             Self::Distance | Self::Angle => &[&[
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),

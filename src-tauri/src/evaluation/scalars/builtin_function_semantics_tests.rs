@@ -20,6 +20,18 @@ fn non_finite_result() -> BuiltinFunctionEvaluation {
     BuiltinFunctionEvaluation::Error(BuiltinFunctionError::NonFiniteResult)
 }
 
+fn assert_number_close(result: BuiltinFunctionEvaluation, expected: f64) {
+    match result {
+        BuiltinFunctionEvaluation::Ok(BuiltinFunctionValue::Number(value)) => {
+            assert!(
+                (value - expected).abs() < 1e-10,
+                "{value} is not close to {expected}"
+            );
+        }
+        other => panic!("expected numeric success, got {other:?}"),
+    }
+}
+
 #[test]
 fn evaluates_basic_numeric_builtins() {
     assert_eq!(
@@ -162,4 +174,136 @@ fn rejects_non_finite_round_to_intermediates() {
         evaluate_builtin_function(BuiltinFunctionName::RoundTo, &[f64::MAX, min_subnormal]),
         non_finite_result()
     );
+}
+
+#[test]
+fn evaluates_trigonometric_functions_in_degrees() {
+    for (degrees, expected) in [
+        (0.0, 0.0),
+        (30.0, 0.5),
+        (90.0, 1.0),
+        (180.0, 0.0),
+        (-30.0, -0.5),
+        (390.0, 0.5),
+    ] {
+        assert_number_close(
+            evaluate_builtin_function(BuiltinFunctionName::Sin, &[degrees]),
+            expected,
+        );
+    }
+    for (degrees, expected) in [
+        (0.0, 1.0),
+        (60.0, 0.5),
+        (90.0, 0.0),
+        (180.0, -1.0),
+        (-60.0, 0.5),
+        (420.0, 0.5),
+    ] {
+        assert_number_close(
+            evaluate_builtin_function(BuiltinFunctionName::Cos, &[degrees]),
+            expected,
+        );
+    }
+    assert_number_close(
+        evaluate_builtin_function(BuiltinFunctionName::Tan, &[0.0]),
+        0.0,
+    );
+    assert_number_close(
+        evaluate_builtin_function(BuiltinFunctionName::Tan, &[45.0]),
+        1.0,
+    );
+    assert_number_close(
+        evaluate_builtin_function(BuiltinFunctionName::Tan, &[135.0]),
+        -1.0,
+    );
+}
+
+#[test]
+fn rejects_tangent_singularities_by_the_exact_degree_contract() {
+    for degrees in [90.0, 270.0, -90.0, -270.0, 450.0] {
+        assert_eq!(
+            evaluate_builtin_function(BuiltinFunctionName::Tan, &[degrees]),
+            invalid_argument()
+        );
+    }
+    assert!(matches!(
+        evaluate_builtin_function(BuiltinFunctionName::Tan, &[90.0 + 1e-10]),
+        BuiltinFunctionEvaluation::Ok(BuiltinFunctionValue::Number(_))
+    ));
+}
+
+#[test]
+fn evaluates_inverse_trigonometric_functions_in_degrees_and_validates_domains() {
+    for (name, value, expected) in [
+        (BuiltinFunctionName::Asin, -1.0, -90.0),
+        (BuiltinFunctionName::Asin, 0.0, 0.0),
+        (BuiltinFunctionName::Asin, 0.5, 30.0),
+        (BuiltinFunctionName::Asin, 1.0, 90.0),
+        (BuiltinFunctionName::Acos, -1.0, 180.0),
+        (BuiltinFunctionName::Acos, 0.0, 90.0),
+        (BuiltinFunctionName::Acos, 0.5, 60.0),
+        (BuiltinFunctionName::Acos, 1.0, 0.0),
+        (BuiltinFunctionName::Atan, -1.0, -45.0),
+        (BuiltinFunctionName::Atan, 0.0, 0.0),
+        (BuiltinFunctionName::Atan, 1.0, 45.0),
+    ] {
+        assert_number_close(evaluate_builtin_function(name, &[value]), expected);
+    }
+    for name in [BuiltinFunctionName::Asin, BuiltinFunctionName::Acos] {
+        for value in [-1.000001, 1.000001] {
+            assert_eq!(
+                evaluate_builtin_function(name, &[value]),
+                invalid_argument()
+            );
+        }
+    }
+}
+
+#[test]
+fn normalizes_atan2_y_x_to_compass_degrees() {
+    for (y, x, expected) in [
+        (0.0, 1.0, 0.0),
+        (1.0, 0.0, 90.0),
+        (0.0, -1.0, 180.0),
+        (-1.0, 0.0, 270.0),
+        (1.0, 1.0, 45.0),
+        (1.0, -1.0, 135.0),
+        (-1.0, -1.0, 225.0),
+        (-1.0, 1.0, 315.0),
+        (0.0, 0.0, 0.0),
+    ] {
+        assert_number_close(
+            evaluate_builtin_function(BuiltinFunctionName::Atan2, &[y, x]),
+            expected,
+        );
+    }
+}
+
+#[test]
+fn rejects_non_finite_trigonometric_inputs() {
+    for name in [
+        BuiltinFunctionName::Sin,
+        BuiltinFunctionName::Cos,
+        BuiltinFunctionName::Tan,
+        BuiltinFunctionName::Asin,
+        BuiltinFunctionName::Acos,
+        BuiltinFunctionName::Atan,
+    ] {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(
+                evaluate_builtin_function(name, &[value]),
+                invalid_argument()
+            );
+        }
+    }
+    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert_eq!(
+            evaluate_builtin_function(BuiltinFunctionName::Atan2, &[value, 1.0]),
+            invalid_argument()
+        );
+        assert_eq!(
+            evaluate_builtin_function(BuiltinFunctionName::Atan2, &[0.0, value]),
+            invalid_argument()
+        );
+    }
 }
