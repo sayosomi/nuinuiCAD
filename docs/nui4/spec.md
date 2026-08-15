@@ -125,15 +125,16 @@ number is not silently converted to a string or boolean, a choice is not silentl
 converted to a string, and a geometry value is not silently converted to a
 different geometry type.
 
-Scalar initializers, `set` right-hand sides, construction arguments, module
-arguments, conditions, property values, and array members all use one typed
-expression surface model. nui4 does not expose separate historical
+Scalar initializers, `set` right-hand sides, runtime-ready numeric construction
+fields, module arguments, conditions, property values, array members, and
+`printLayout` / `place` numeric fields all use one typed expression surface
+model. nui4 does not expose separate historical
 `NumericValue`, numeric-expression, or property-binding opt-in language features.
 
 The formal operator set is:
 
 ```text
-+  -  *  /
++  -  *  /  %  ^
 <  <=  >  >=  ==  !=
 and
 or
@@ -143,13 +144,23 @@ not
 The constraints are:
 
 - `+`, `-`, `*`, and `/` operate on `number` values and produce `number`.
+- `number ^ number -> number` and `number % number -> number`.
+- `^` is right-associative and binds more tightly than unary `+` and `-`.
+  `%` has the same multiplicative precedence as `*` and `/` and is
+  left-associative. For example, `2 ^ 3 ^ 2 = 512`, `-2 ^ 2 = -4`,
+  `2 ^ -2 = 0.25`, and `20 % 6 % 4 = 2`.
+- `%` is remainder, not percent. It follows JavaScript / Rust remainder
+  semantics: the result has the dividend's sign (`-5 % 3 = -2`,
+  `5 % -3 = 2`, `-5 % -3 = -2`).
 - Comparisons operate on compatible values and produce `boolean`.
 - Equality and inequality require compatible operand types and produce
   `boolean`; there is no coercive equality.
 - `and` and `or` require `boolean` operands and produce `boolean`.
 - `not` requires a `boolean` operand and produces `boolean`.
 - Division by zero and other invalid runtime operations are explicit evaluation
-  diagnostics.
+  diagnostics. `5 % 0` produces `evaluation-remainder-by-zero`. A non-finite
+  power result such as `(-1) ^ 0.5`, `0 ^ -1`, or `10 ^ 10000` produces
+  `evaluation-non-finite-result`.
 
 Named scalar function calls use the following syntax:
 
@@ -500,7 +511,8 @@ printLayout A4(
 ```
 
 `layoutVar` is not a nui4 declaration. Layout values participate in the same
-typed-expression and source-order rules as all other values.
+typed-expression and source-order rules as all other values, including `^`
+and `%` in header and `place` numeric fields.
 
 ## Choice literals and arrays
 

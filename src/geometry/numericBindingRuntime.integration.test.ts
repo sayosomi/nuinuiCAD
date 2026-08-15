@@ -28,6 +28,29 @@ const point = (compiled: LastGoodDslDocument, name: string) => {
 };
 
 describe("general numeric typed binding runtime", () => {
+  it.each([
+    ["2 ^ 3", 8],
+    ["5 % 3", 2],
+    ["2 ^ 3 ^ 2", 512],
+    ["-2 ^ 2", -4],
+    ["2 ^ -2", 0.25]
+  ])("keeps ref-free typed arithmetic in the runtime for %s", (expression, expected) => {
+    const compiled = compile(["nui 4", `point P = coordinate(x: ${expression}, y: 0)`].join("\n"));
+    const binding = [...(compiled.numericBindings?.values() ?? [])].find((candidate) => candidate.parameterKey === "x");
+    expect(binding?.typedExpression).toBeDefined();
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(result.errors).toEqual([]);
+    expect((result.computedGeometry.get(point(compiled, "P").id) as { x: number }).x).toBe(expected);
+  });
+
+  it("keeps remainder by zero on the typed runtime failure path", () => {
+    const compiled = compile(["nui 4", "point P = coordinate(x: 5 % 0, y: 0)"].join("\n"));
+    const binding = [...(compiled.numericBindings?.values() ?? [])].find((candidate) => candidate.parameterKey === "x");
+    expect(binding?.typedExpression).toBeDefined();
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(result.errors).toEqual([expect.objectContaining({ elementId: point(compiled, "P").id })]);
+  });
+
   it("evaluates a BindingId-compiled typed number in coordinate x", () => {
     const compiled = compile(["nui 4", "const length: number = 12.3456", "point B = coordinate(x: @length, y: 0)"].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -88,6 +111,8 @@ describe("general numeric typed binding runtime", () => {
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(result.errors).toEqual([]);
     expect((result.computedGeometry.get(point(compiled, "C").id) as { x: number }).x).toBe(7);
+    const binding = [...(compiled.numericBindings?.values() ?? [])].find((candidate) => candidate.parameterKey === "x");
+    expect(binding?.typedExpression).toBeDefined();
   });
 
   describe("Rule R self-reference fall-through (review fix: no more `continue` on self-name)", () => {

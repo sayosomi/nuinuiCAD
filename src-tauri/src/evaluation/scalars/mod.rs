@@ -79,11 +79,14 @@ pub(crate) use mutation::{ForGroupMutationStatement, ScalarMutationResolver};
 pub(crate) use mutation_payload::{validate_binding_versions_payload, ValidatedBindingVersions};
 pub(crate) use program_payload::{validate_scalar_program_payload, ValidatedScalarProgram};
 pub(crate) use property_binding_payload::{
-    validate_property_bindings_payload, ValidatedPropertyBinding,
+    declared_type as declared_scalar_expression_type, validate_property_bindings_payload,
+    ValidatedPropertyBinding,
 };
 pub(crate) use text::{
     evaluate_text_template_segments, NumericExpressionHoleEvaluator, TextTemplateHoleOrigin,
 };
 pub(crate) use text_property_binding_payload::validate_text_property_bindings_payload;
 pub(crate) use text_template_payload::{validate_text_templates_payload, ValidatedTextTemplate};
-pub(crate) use types::{ScalarEvaluation, ScalarType, ScalarValue, TypedScalarExpression};
+pub(crate) use types::{
+    ScalarEvaluation, ScalarType, ScalarValue, TypedBuiltinArgument, TypedScalarExpression,
+};

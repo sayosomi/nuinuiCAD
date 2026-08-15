@@ -47,9 +47,22 @@ describe("tokenizeScalarExpression / parens and operators", () => {
   });
 
   it("tokenizes each 1-char operator with an exact span", () => {
-    for (const operator of ["+", "-", "*", "/", "<", ">", "!"] as const) {
+    for (const operator of ["+", "-", "*", "/", "%", "^", "<", ">", "!"] as const) {
       expect(tokenizeOk(operator)).toEqual([{ kind: "operator", value: operator, span: { start: 0, end: 1 } }]);
     }
+  });
+
+  it("tokenizes power and remainder with exact source ranges", () => {
+    expect(tokenizeOk("2 ^ 3")).toEqual([
+      { kind: "literal", literal: { kind: "number", span: { start: 0, end: 1 }, raw: "2", value: 2 } },
+      { kind: "operator", value: "^", span: { start: 2, end: 3 } },
+      { kind: "literal", literal: { kind: "number", span: { start: 4, end: 5 }, raw: "3", value: 3 } }
+    ]);
+    expect(tokenizeOk("10 % 3")).toEqual([
+      { kind: "literal", literal: { kind: "number", span: { start: 0, end: 2 }, raw: "10", value: 10 } },
+      { kind: "operator", value: "%", span: { start: 3, end: 4 } },
+      { kind: "literal", literal: { kind: "number", span: { start: 5, end: 6 }, raw: "3", value: 3 } }
+    ]);
   });
 
   it("uses the Unicode identifier grammar for nui4 word-operator boundaries", () => {

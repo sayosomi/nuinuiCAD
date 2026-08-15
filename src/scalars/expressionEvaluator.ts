@@ -224,7 +224,7 @@ const evaluateEqualityOperator = (
 };
 
 const evaluateArithmeticOrComparisonOperator = (
-  operator: "+" | "-" | "*" | "/" | "<" | "<=" | ">" | ">=",
+  operator: "+" | "-" | "*" | "/" | "%" | "^" | "<" | "<=" | ">" | ">=",
   leftNode: TypedScalarExpression,
   rightNode: TypedScalarExpression,
   type: ScalarType,
@@ -245,6 +245,8 @@ const evaluateArithmeticOrComparisonOperator = (
       return finiteNumberResult(type, leftNumber - rightNumber);
     case "*":
       return finiteNumberResult(type, leftNumber * rightNumber);
+    case "^":
+      return finiteNumberResult(type, Math.pow(leftNumber, rightNumber));
     case "/": {
       const quotient = leftNumber / rightNumber;
       if (rightNumber === 0) {
@@ -252,6 +254,9 @@ const evaluateArithmeticOrComparisonOperator = (
       }
       return finiteNumberResult(type, quotient);
     }
+    case "%":
+      if (rightNumber === 0) return { status: "error", type, issueCode: "evaluation-remainder-by-zero" };
+      return finiteNumberResult(type, leftNumber % rightNumber);
     case "<":
       return { status: "ok", type, value: { kind: "boolean", value: leftNumber < rightNumber } };
     case "<=":

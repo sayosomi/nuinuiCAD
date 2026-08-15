@@ -1307,7 +1307,10 @@ export const compileDslDocument = (
     const hasModuleScalarBindings = moduleScalarCompilation.bindingAnalysis.catalog.bindings.some((binding) =>
       binding.resolutionMode === "preResolvedOnly"
     );
-    if (documentScalarAnalysis || hasModuleScalarBindings) {
+    const hasModuleTypedNumericBindings = moduleScalarCompilation.materializedNumericBindings.some(
+      (entry) => entry.binding.typedExpression !== undefined
+    );
+    if (documentScalarAnalysis || hasModuleScalarBindings || hasModuleTypedNumericBindings) {
       scalarAnalysis = documentScalarAnalysis
         ? { ...documentScalarAnalysis, bindingAnalysis: moduleScalarCompilation.bindingAnalysis }
         : {

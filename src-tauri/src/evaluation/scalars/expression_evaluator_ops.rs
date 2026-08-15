@@ -453,6 +453,7 @@ pub(crate) fn finish_eager_binary(
         ScalarBinaryOperator::Add => finite_number_result(r#type, left_number + right_number),
         ScalarBinaryOperator::Sub => finite_number_result(r#type, left_number - right_number),
         ScalarBinaryOperator::Mul => finite_number_result(r#type, left_number * right_number),
+        ScalarBinaryOperator::Pow => finite_number_result(r#type, left_number.powf(right_number)),
         ScalarBinaryOperator::Div => {
             let quotient = left_number / right_number;
             if right_number == 0.0 {
@@ -463,6 +464,17 @@ pub(crate) fn finish_eager_binary(
                 }
             } else {
                 finite_number_result(r#type, quotient)
+            }
+        }
+        ScalarBinaryOperator::Remainder => {
+            if right_number == 0.0 {
+                ScalarEvaluation::Error {
+                    r#type,
+                    issue_code: "evaluation-remainder-by-zero".to_owned(),
+                    binding_id: None,
+                }
+            } else {
+                finite_number_result(r#type, left_number % right_number)
             }
         }
         ScalarBinaryOperator::Lt => ScalarEvaluation::Ok {

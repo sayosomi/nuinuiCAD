@@ -24,6 +24,8 @@ export type ScalarExpressionOperatorSymbol =
   | "-"
   | "*"
   | "/"
+  | "%"
+  | "^"
   | "!";
 
 export type ScalarExpressionToken =
@@ -49,7 +51,7 @@ export interface ScalarExpressionTokenizeResult {
 // Checked before 1-char operators so ` && `/` || `/`==`/`!=`/`>=`/`<=` never
 // tokenize as two separate single-char operators.
 const TWO_CHAR_OPERATORS = new Set(["&&", "||", "==", "!=", ">=", "<="]);
-const ONE_CHAR_OPERATORS = new Set(["+", "-", "*", "/", "<", ">", "!"]);
+const ONE_CHAR_OPERATORS = new Set(["+", "-", "*", "/", "%", "^", "<", ">", "!"]);
 const WORD_OPERATORS: Readonly<Record<string, ScalarExpressionOperatorSymbol>> = {
   and: "&&",
   or: "||",

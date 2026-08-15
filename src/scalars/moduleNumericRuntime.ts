@@ -6,6 +6,7 @@ import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import type { Binding } from "./bindingCatalog";
 import type { CompiledNumericBinding, CompiledNumericBindingReference } from "./numericBindingCompiler";
+import type { TypedScalarExpression } from "./typedExpressionAst";
 
 const scalarValueExpression = (element: CadElement, parameterKey: string): Extract<NumericValue, { kind: "expression" }> | undefined => {
   const value = getParameterValue(element, parameterKey) as NumericValue | undefined;
@@ -27,8 +28,13 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic) =
 export const numericSourceForModuleSite = (
   element: CadElement,
   site: ModuleScalarExpressionSite,
-  bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined
+  bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
+  loweredExpression?: TypedScalarExpression
 ): CompiledNumericBinding | undefined => {
+  // Element-local and iteration values remain owned by the legacy numeric
+  // evaluator. A mixed expression may retain source-splice references, but
+  // must not be partially lowered to the standalone typed evaluator.
+  let runtimeReady = site.elementLocalVariableIndex === undefined;
   const parameterKey = site.elementLocalVariableIndex === undefined
     ? site.parameterKey
     : element.numericVariables?.[site.elementLocalVariableIndex]
@@ -48,9 +54,15 @@ export const numericSourceForModuleSite = (
     const match = matches[index];
     if (!match) return undefined;
     const target = reference.target;
-    if (!target || (target.kind !== "parameter" && target.kind !== "moduleLocal" && target.kind !== "documentBinding")) continue;
+    if (!target || (target.kind !== "parameter" && target.kind !== "moduleLocal" && target.kind !== "documentBinding")) {
+      runtimeReady = false;
+      continue;
+    }
     const binding = bindingForTarget(target as ModuleScalarSourceTarget, reference.name, reference.span.start);
-    if (!binding || binding.kind !== "typed") return undefined;
+    if (!binding || binding.kind !== "typed") {
+      runtimeReady = false;
+      continue;
+    }
     compiledReferences.push({
       bindingId: binding.id,
       name: reference.name,
@@ -63,6 +75,16 @@ export const numericSourceForModuleSite = (
     });
   }
 
-  if (compiledReferences.length === 0) return undefined;
-  return { parameterKey, expression: value.expression, references: compiledReferences };
+  if (runtimeReady && loweredExpression && loweredExpression.type?.kind !== "number") return undefined;
+  if (!runtimeReady || !loweredExpression) {
+    return compiledReferences.length === 0
+      ? undefined
+      : { parameterKey, expression: value.expression, references: compiledReferences };
+  }
+  return {
+    parameterKey,
+    expression: value.expression,
+    references: compiledReferences,
+    ...(loweredExpression ? { typedExpression: loweredExpression } : {})
+  };
 };

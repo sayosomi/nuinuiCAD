@@ -1,0 +1,58 @@
+nui 4
+
+const powerBasic: number = 2 ^ 3
+const remainderBasic: number = 5 % 3
+const powerRightAssociative: number = 2 ^ 3 ^ 2
+const powerUnaryPrecedence: number = -2 ^ 2
+const powerNegativeExponent: number = 2 ^ -2
+
+point Origin = coordinate(
+  x: 2 ^ 3,
+  y: 5 % 3,
+)
+
+group Pattern(
+  printEnabled: true,
+  printAnchor: @Origin,
+) {
+  point B = coordinate(
+    x: 100,
+    y: 0,
+  )
+
+  point C = coordinate(
+    x: 100,
+    y: 50,
+  )
+
+  line AB = segment(
+    start: @Origin,
+    end: @B,
+  )
+
+  line BC = segment(
+    start: @B,
+    end: @C,
+  )
+}
+
+stop
+
+printLayout A4(
+  width: 2 ^ 3,
+  height: 5 % 3,
+  columns: 2 ^ 3,
+  rows: 5 % 3,
+  overlap: 2 ^ -2,
+  scale: 2 ^ -2,
+  canvas: (2 ^ 3, 5 % 3),
+) {
+  const layoutBase: number = 2
+
+  place @Pattern(
+    x: 2 ^ 3,
+    y: 5 % 3,
+    angle: @layoutBase ^ 5,
+    mirrorX: false,
+  )
+}

@@ -41,7 +41,9 @@ import { unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
-import type { ScalarExpressionResolvedReference } from "./typedExpressionAst";
+import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { createElementNameContext } from "../model/elementNames";
+import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
 
 export type CompiledNumericBindingReference = {
   bindingId: BindingId;
@@ -61,6 +63,7 @@ export type CompiledNumericBinding = {
   /** Identity check for runtime materialization; never used as a lookup key. */
   expression: string;
   references: readonly CompiledNumericBindingReference[];
+  typedExpression?: TypedScalarExpression;
 };
 
 export type NumericBindingCompilation = {
@@ -135,6 +138,9 @@ export const compileNumericBindings = ({
   includeStatement?: DslStatementInclusion;
 }): NumericBindingCompilation => {
   const byId = new Map(elements.map((element) => [element.id, element]));
+  const sourceOrderByElementId = new Map<ElementId, number>();
+  for (const [sourceOrder, elementId] of elementIdByStatementIndex) sourceOrderByElementId.set(elementId, sourceOrder);
+  const nameContext = createElementNameContext([...elements]);
   const printLayoutById = new Map((printLayouts ?? []).map((layout) => [layout.id, layout]));
   const candidates: Candidate[] = [];
   const requests: SiteReferenceRequest[] = [];
@@ -150,10 +156,14 @@ export const compileNumericBindings = ({
     elementId?: ElementId
   ) => {
     if (!value || !isNumericExpression(value) || !valueSpan) return;
-    const refs = referencesIn(logicalText.slice(valueSpan.start, valueSpan.end), valueSpan);
-    const hasGeometryProperty = scanExpressionReferences(logicalText.slice(valueSpan.start, valueSpan.end))
-      .some((match) => match.kind === "elementProperty" && match.sigil);
-    if (!refs.length && !hasGeometryProperty) return;
+    const source = logicalText.slice(valueSpan.start, valueSpan.end);
+    const scannedReferences = scanExpressionReferences(source);
+    const refs = referencesIn(source, valueSpan);
+    const hasGeometryProperty = scannedReferences.some((match) => match.kind === "elementProperty" && match.sigil);
+    // Qualified frontend references are not typed scalar bindings. They stay
+    // on their existing owner; unlike a genuinely ref-free expression, they
+    // must not be offered to the typed checker without a resolution entry.
+    if (!elementId && scannedReferences.length > 0 && !refs.length && !hasGeometryProperty) return;
     candidates.push({
       key,
       statement,
@@ -279,10 +289,14 @@ export const compileNumericBindings = ({
     // compile-time checker below. Other scalar references, including
     // iteration bindings, use that checker whenever its AST can represent the
     // expression.
-    const staysInLegacyEvaluator = candidate.references.length > 0 && candidate.references.every((_, index) => {
+    const hasLegacyOwnedReference = candidate.references.some((_, index) => {
       const resolution = resolutions.get(`${candidate.key}:${index}`);
-      return resolution?.kind === "resolvedLocal";
+      return resolution?.kind === "resolvedLocal" ||
+        (resolution?.kind === "resolved" && resolution.binding.kind !== "typed");
     });
+    const hasElementLocalReference = candidate.references.some((_, index) =>
+      resolutions.get(`${candidate.key}:${index}`)?.kind === "resolvedLocal"
+    );
 
     let rejected = false;
     const typedRefs: { reference: CandidateReference; bindingId: BindingId }[] = [];
@@ -331,6 +345,8 @@ export const compileNumericBindings = ({
     const canTypecheckScalarReferences = scalarTypecheckReferences.every((resolution) =>
       resolution.kind === "resolved" || resolution.kind === "resolvedType"
     );
+    let typedExpression: TypedScalarExpression | undefined;
+    let typedReferenceSpans: { name: string; span: { start: number; end: number } }[] = [];
     if (canTypecheckScalarReferences) {
       // Typecheck the original DSL spelling. The normalized numeric spelling
       // intentionally removes `@` from geometry measurements (for example
@@ -343,8 +359,8 @@ export const compileNumericBindings = ({
       if (!typedParsed.ast) {
         const issue = typedParsed.diagnostics[0];
         // Legacy measurement/function syntax remains owned by the numeric
-        // evaluator when no typed binding is involved. A typed reference,
-        // however, must not silently fall through an unrepresentable AST.
+        // evaluator when no standalone typed route is possible. Mixed
+        // typed/local expressions retain their existing source-splice path.
         if (issue && typedRefs.length > 0) diagnostics.push(diagnosticAt(
           spans,
           candidate.statement,
@@ -352,39 +368,76 @@ export const compileNumericBindings = ({
           issue.code,
           issue.message
         ));
-        if (typedRefs.length > 0) continue;
+        if (typedRefs.length === 0 || !hasLegacyOwnedReference) continue;
       } else {
+        // Map references in the normalized legacy expression, not the source
+        // AST: geometry-property normalization removes an `@` and can shift
+        // every later binding's offset.
+        typedReferenceSpans = scanExpressionReferences(candidate.expression)
+          .filter((match): match is Extract<typeof match, { kind: "binding" }> => match.kind === "binding")
+          .map((match) => ({ name: match.query, span: { start: match.from, end: match.to } }));
         const typedChecked = typecheckScalarExpression(typedParsed.ast, {
           expectedType: { kind: "number" },
           references: scalarTypecheckReferences
         });
         if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
-          for (const issue of typedChecked.diagnostics) diagnostics.push(diagnosticAt(
-            spans,
-            candidate.statement,
-            { start: candidate.valueSpan.start + issue.span.start, end: candidate.valueSpan.start + issue.span.end },
-            issue.code,
-            issue.message
-          ));
-          continue;
+          if (hasElementLocalReference) {
+            for (const issue of typedChecked.diagnostics) diagnostics.push(diagnosticAt(
+              spans,
+              candidate.statement,
+              { start: candidate.valueSpan.start + issue.span.start, end: candidate.valueSpan.start + issue.span.end },
+              issue.code,
+              issue.message
+            ));
+          }
+          if (typedRefs.length === 0 || !hasLegacyOwnedReference) continue;
+        }
+        const geometryResolution = resolveTypedGeometryProperties(
+          typedChecked.typed,
+          elements,
+          sourceOrderByElementId,
+          {
+            currentElement: candidate.elementId ? byId.get(candidate.elementId) : undefined,
+            nameContext,
+            currentSourceOrder: candidate.statementIndex
+          }
+        );
+        if (!hasLegacyOwnedReference && geometryResolution.issues.length === 0 && typedChecked.type?.kind === "number") {
+          typedExpression = geometryResolution.expression;
         }
       }
     }
-    if (staysInLegacyEvaluator) continue;
+    if (!typedExpression && typedReferenceSpans.length === 0 && candidate.references.length === 0) continue;
     let tokens: ReturnType<typeof tokenize>;
-    try {
-      tokens = tokenize(candidate.expression);
-    } catch {
-      diagnostics.push(diagnosticAt(
-        spans, candidate.statement, candidate.references[0].span, NUMERIC_BINDING_MAPPING_CODE,
-        "numeric 式の型付き参照を正準の評価対象へ対応付けられません。"
-      ));
-      continue;
+    if (typedExpression || typedReferenceSpans.length > 0) {
+      tokens = [];
+    } else {
+      try {
+        tokens = tokenize(candidate.expression);
+      } catch {
+        diagnostics.push(diagnosticAt(
+          spans, candidate.statement, candidate.references[0].span, NUMERIC_BINDING_MAPPING_CODE,
+          "numeric 式の型付き参照を正準の評価対象へ対応付けられません。"
+        ));
+        continue;
+      }
     }
     const references: CompiledNumericBindingReference[] = [];
     for (const { reference, bindingId } of typedRefs) {
-      const token = tokens.find((item) => item.type === "localVariable" && item.variableId === reference.name && !references.some((used) => used.expressionStart === item.start));
-      if (!token) {
+      const typedReference = typedReferenceSpans.find((candidateReference) =>
+        candidateReference.name === reference.name &&
+        !references.some((used) => used.expressionStart === candidateReference.span.start)
+      );
+      const expressionStart = typedReference?.span.start ?? tokens.find((item) =>
+        item.type === "localVariable" && item.variableId === reference.name &&
+        !references.some((used) => used.expressionStart === item.start)
+      )?.start;
+      const expressionEnd = typedReference?.span.end ?? tokens.find((item) =>
+        item.type === "localVariable" && item.variableId === reference.name &&
+        !references.some((used) => used.expressionStart === item.start)
+      )?.end;
+      if (expressionStart === undefined || expressionEnd === undefined ||
+          candidate.expression.slice(expressionStart, expressionEnd) !== `@${reference.name}`) {
         diagnostics.push(diagnosticAt(
           spans, candidate.statement, reference.span, NUMERIC_BINDING_MAPPING_CODE,
           "numeric 式の型付き参照を正準の評価対象へ対応付けられません。"
@@ -393,14 +446,21 @@ export const compileNumericBindings = ({
         break;
       }
       references.push({ bindingId, name: reference.name, span: reference.span, nameSpan: reference.nameSpan,
-        physicalNameSpan: exactPhysicalSpan(spans, candidate.statement, reference.nameSpan), expressionStart: token.start, expressionEnd: token.end,
+        physicalNameSpan: exactPhysicalSpan(spans, candidate.statement, reference.nameSpan), expressionStart, expressionEnd,
         site: {
           scopeId: bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(candidate.statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId,
           statementIndex: candidate.statementIndex,
           ...(candidate.elementId ? { elementLocal: { ownerId: candidate.elementId, order: Number.MAX_SAFE_INTEGER } } : {})
         } });
     }
-    if (!rejected && references.length) sourcesByOccurrenceKey.set(candidate.key, { parameterKey: candidate.parameterKey, expression: candidate.expression, references });
+    if (!rejected && (references.length || typedExpression)) {
+      sourcesByOccurrenceKey.set(candidate.key, {
+        parameterKey: candidate.parameterKey,
+        expression: candidate.expression,
+        references,
+        ...(typedExpression ? { typedExpression } : {})
+      });
+    }
   }
   return { sourcesByOccurrenceKey, diagnostics };
 };

@@ -213,6 +213,68 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
+  it("parses power as a right-associative operator", () => {
+    expect(parseOk("2 ^ 3 ^ 2")).toEqual({
+      kind: "binary",
+      operator: "^",
+      span: { start: 0, end: 9 },
+      left: { kind: "numberLiteral", span: { start: 0, end: 1 }, value: 2 },
+      right: {
+        kind: "binary",
+        operator: "^",
+        span: { start: 4, end: 9 },
+        left: { kind: "numberLiteral", span: { start: 4, end: 5 }, value: 3 },
+        right: { kind: "numberLiteral", span: { start: 8, end: 9 }, value: 2 }
+      }
+    });
+  });
+
+  it("places power above unary while allowing a unary right operand", () => {
+    expect(parseOk("-2 ^ 2")).toMatchObject({
+      kind: "unary",
+      operator: "-",
+      operand: { kind: "binary", operator: "^", left: { value: 2 }, right: { value: 2 } }
+    });
+    expect(parseOk("(-2) ^ 2")).toMatchObject({
+      kind: "binary",
+      operator: "^",
+      left: { kind: "group", expression: { kind: "unary", operator: "-", operand: { value: 2 } } },
+      right: { value: 2 }
+    });
+    expect(parseOk("2 ^ -2")).toMatchObject({
+      kind: "binary",
+      operator: "^",
+      left: { value: 2 },
+      right: { kind: "unary", operator: "-", operand: { value: 2 } }
+    });
+  });
+
+  it("left-associates remainder with multiplication and division", () => {
+    expect(parseOk("20 % 6 % 4")).toMatchObject({
+      kind: "binary",
+      operator: "%",
+      left: { kind: "binary", operator: "%", left: { value: 20 }, right: { value: 6 } },
+      right: { value: 4 }
+    });
+    expect(parseOk("2 * 3 ^ 2")).toMatchObject({
+      kind: "binary",
+      operator: "*",
+      left: { value: 2 },
+      right: { kind: "binary", operator: "^", left: { value: 3 }, right: { value: 2 } }
+    });
+    expect(parseOk("10 + 7 % 4 * 2")).toMatchObject({
+      kind: "binary",
+      operator: "+",
+      left: { value: 10 },
+      right: {
+        kind: "binary",
+        operator: "*",
+        left: { kind: "binary", operator: "%", left: { value: 7 }, right: { value: 4 } },
+        right: { value: 2 }
+      }
+    });
+  });
+
   it("binds + tighter than comparison", () => {
     const ast = parseOk("1 + 2 < 3 + 4");
     expect(ast).toMatchObject({
@@ -374,7 +436,7 @@ describe("parseScalarExpression / parentheses and group span", () => {
 
 describe("parseScalarExpression / error scenarios", () => {
   it("reports a malformed token", () => {
-    expect(parseErr("1 % 2").code).toBe("unexpected-token");
+    expect(parseErr("1 $ 2").code).toBe("unexpected-token");
   });
 
   it("reports a missing left operand", () => {
@@ -473,6 +535,14 @@ describe("parseScalarExpression / depth guard", () => {
     const source = "!".repeat(5000) + "true";
     const result = parseScalarExpression(source, fullSpan(source));
     expect(result.ast).toBeNull();
+    expect(result.diagnostics[0].code).toBe("expression-depth-exceeded");
+  });
+
+  it("returns expression-depth-exceeded instead of recursing without a guard on a power chain", () => {
+    const source = `${"2 ^ ".repeat(5000)}2`;
+    const result = parseScalarExpression(source, fullSpan(source));
+    expect(result.ast).toBeNull();
+    expect(result.diagnostics).toHaveLength(1);
     expect(result.diagnostics[0].code).toBe("expression-depth-exceeded");
   });
 

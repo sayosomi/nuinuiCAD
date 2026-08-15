@@ -10,6 +10,7 @@ import type {
 } from "../types/geometry";
 import { evaluateNumericValue, isNumericExpression, makeNumericExpression } from "../geometry/numericExpressions";
 import {
+  evaluatePrintLayoutTypedNumericBinding,
   materializePrintLayoutNumericBinding,
   printLayoutCompiledNumericBinding,
   printLayoutPlacementStatementKey,
@@ -285,18 +286,31 @@ const resolveNumericValue = ({
       : printLayoutCompiledNumericBinding(numericBindingLookup, statementKey, parameterKey as string))
     : undefined;
   const sourceOrder = statementKey ? numericBindingLookup?.byKey.get(statementKey)?.statementIndex : undefined;
-  const materialized = binding && binding.expression === value.expression
-    ? materializePrintLayoutNumericBinding(
-        binding,
-        evaluation.computedScalarBindings,
-        evaluation.computedScalarBindingVersions,
-        numericBindingLookup?.bindingVersions,
-        sourceOrder
-      )
-    : null;
-  const effectiveValue: NumericValue = materialized !== null ? { kind: "expression", expression: materialized } : value;
+  if (binding && binding.expression === value.expression && numericBindingLookup) {
+    if (binding.typedExpression) {
+      const typedEvaluation = evaluatePrintLayoutTypedNumericBinding(binding, evaluation, numericBindingLookup, sourceOrder);
+      if (
+        typedEvaluation?.status === "ok" &&
+        typedEvaluation.type.kind === "number" &&
+        typedEvaluation.value.kind === "number" &&
+        Number.isFinite(typedEvaluation.value.value)
+      ) {
+        return typedEvaluation.value.value;
+      }
+      return fallback;
+    }
+    const materialized = materializePrintLayoutNumericBinding(binding, evaluation, numericBindingLookup, sourceOrder);
+    const effectiveValue: NumericValue = materialized !== null ? { kind: "expression", expression: materialized } : value;
+    const result = evaluateNumericValue({
+      value: effectiveValue,
+      computedGeometry: evaluation.computedGeometry,
+      elementsById: new Map(elements.map((element) => [element.id, element])),
+      elements
+    });
+    return result.value ?? fallback;
+  }
   const result = evaluateNumericValue({
-    value: effectiveValue,
+    value,
     computedGeometry: evaluation.computedGeometry,
     elementsById: new Map(elements.map((element) => [element.id, element])),
     elements

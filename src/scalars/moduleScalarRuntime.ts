@@ -993,7 +993,12 @@ export const compileModuleScalarRuntime = ({
           materializedPropertyBindings.push({ elementId: runtime.elementId, parameterKey: site.parameterKey, source: property });
           if (site.parameterKey === "printEnabled") materializedGroupPrintEnabledBindings.set(runtime.elementId, property);
         }
-        const numeric = numericSourceForModuleSite(element, site, (target) => resolvedBindingForContext(target, context));
+        const numeric = numericSourceForModuleSite(
+          element,
+          site,
+          (target) => resolvedBindingForContext(target, context),
+          loweredSiteExpression.expression
+        );
         if (numeric) materializedNumericBindings.push({ elementId: runtime.elementId, binding: numeric });
       }
       // A geometry parameter can carry a coordinate anchor. When that alias

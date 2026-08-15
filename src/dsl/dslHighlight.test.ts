@@ -39,6 +39,15 @@ describe("DSL highlighting", () => {
     );
   });
 
+  it("classifies power and remainder as operators", () => {
+    expect(highlightDslLine("const value: number = 2 ^ 3 % 2")).toEqual(
+      expect.arrayContaining([
+        { kind: "operator", text: "^" },
+        { kind: "operator", text: "%" }
+      ])
+    );
+  });
+
   it("classifies stop as a keyword, not a reference", () => {
     expect(tokenKinds("stop")).toEqual(["keyword"]);
   });

@@ -112,6 +112,50 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("carries lowered module numeric expressions through typed runtime materialization", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module Example(seed: number) {",
+      "  point P = coordinate(x: @seed ^ 2, y: 5 % 3)",
+      "}",
+      "instance A = Example(seed: 3)"
+    ].join("\n"));
+    expectValid(compiled);
+    const p = elementNamed(compiled, "P");
+    const numericBindings = (compiled.materializedNumericBindings ?? [])
+      .filter((entry) => entry.elementId === p.id);
+    expect(numericBindings).toHaveLength(2);
+    expect(numericBindings.every((entry) => entry.binding.typedExpression)).toBe(true);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(p.id)).toMatchObject({ kind: "point", x: 9, y: 2 });
+  });
+
+  it("keeps an empty scalar program for ref-free typed numeric module expressions", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module Example() {",
+      "  point P = coordinate(x: 2 ^ 3, y: 5 % 3)",
+      "}",
+      "instance A = Example()"
+    ].join("\n"));
+    expectValid(compiled);
+    expect(compiled.scalarProgram).toBeDefined();
+    expect(compiled.scalarProgram?.statements).toEqual([]);
+    expect(compiled.numericBindings).toBeDefined();
+
+    const p = elementNamed(compiled, "P");
+    const numericBindings = (compiled.materializedNumericBindings ?? [])
+      .filter((entry) => entry.elementId === p.id);
+    expect(numericBindings).toHaveLength(2);
+    expect(numericBindings.every((entry) => entry.binding.typedExpression)).toBe(true);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(p.id)).toMatchObject({ kind: "point", x: 8, y: 2 });
+  });
+
   it("lowers module geometry builtin operands to each materialized runtime target", () => {
     const compiled = compileWithIds([
       "nui 4",
