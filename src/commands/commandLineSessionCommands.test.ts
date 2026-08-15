@@ -21,6 +21,7 @@ import {
 import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
 import type { CreationRecipe } from "./creationRecipes";
 import { legacyCreationCommandRecipeMap } from "./legacyCreationRecipes";
+import { creationCommandDefinitions } from "./creationCommandDefinitions";
 
 describe("command-line session commands", () => {
   let unregister = () => {};
@@ -114,6 +115,22 @@ describe("command-line session commands", () => {
       const temporaryId = `commandLine${commandId[0].toUpperCase()}${commandId.slice(1)}`;
       expect(commandLineCommandDefinitions).not.toHaveProperty(temporaryId);
     }
+  });
+
+  it("starts the Bezier extreme point creation session through its command definition", () => {
+    expect(creationCommandDefinitions.addBezierExtremePoint.run(undefined)).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      recipe: {
+        type: "bezierExtremePoint",
+        steps: [
+          { kind: "line", key: "baseLineId" },
+          { kind: "number", key: "segmentIndex" },
+          { kind: "number", key: "directionDeg" },
+          { kind: "name" }
+        ]
+      }
+    });
+    expect(cancelCommandLineSession()).toBe(true);
   });
 
   it("makes an unnamed element through explicit skip", () => {

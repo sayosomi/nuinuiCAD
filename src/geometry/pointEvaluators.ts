@@ -1,6 +1,8 @@
-import type { CadElement, NumericValue } from "../types/geometry";
+import type { CadElement, ComputedBezierSegment, NumericValue } from "../types/geometry";
 import { pointAnchorForElement } from "../model/pointAnchors";
-import { CIRCLE_EPSILON, degreesToRadians } from "./evaluateGeometryPrimitives";
+import { degreesToRadians, normalizeDegrees360 } from "../scalars/angleMath";
+import { cubicDerivativeAt, cubicPointAt, dot, EPSILON, selectBestBezierFeatureCandidate, solveRealQuadratic } from "./bezierMath";
+import { CIRCLE_EPSILON } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getComputedPointOrError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import { pointAtDistanceFromEndpoint, isLineLikeGeometry, tangentAtPointOnLineLikeGeometry } from "./linePaths";
 import { findLineIntersections } from "./lineIntersections";
@@ -19,6 +21,42 @@ const decodeDivisionPlacement = (
   return record?.kind === "distance"
     ? { kind: "distance", value: record.value }
     : { kind: "ratio", value: record?.value };
+};
+
+const bezierExtremePointAt = (
+  segment: ComputedBezierSegment,
+  direction: { x: number; y: number }
+) => {
+  const derivativeProjection = (t: number) => dot(cubicDerivativeAt(segment, t), direction);
+  const f0 = derivativeProjection(0);
+  const fHalf = derivativeProjection(0.5);
+  const f1 = derivativeProjection(1);
+  const c = f0;
+  const a = 2 * (f1 + f0 - 2 * fHalf);
+  const b = f1 - f0 - a;
+  const candidates = [0, 1].map((t) => ({
+    t,
+    score: dot(cubicPointAt(segment, t), direction)
+  }));
+
+  for (const root of solveRealQuadratic(a, b, c)) {
+    if (root > 0 && root < 1) {
+      candidates.push({
+        t: root,
+        score: dot(cubicPointAt(segment, root), direction)
+      });
+    }
+  }
+
+  if (Math.abs(f0) <= EPSILON && Math.abs(fHalf) <= EPSILON && Math.abs(f1) <= EPSILON) {
+    candidates.push({
+      t: 0.5,
+      score: dot(cubicPointAt(segment, 0.5), direction)
+    });
+  }
+
+  const selected = selectBestBezierFeatureCandidate(candidates);
+  return cubicPointAt(segment, selected?.t ?? 0.5);
 };
 
 export const evaluatePointElement = (element: CadElement, context: ElementEvaluationContext) => {
@@ -315,6 +353,63 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           name: element.name,
           x: basePoint.x + Math.cos(angleRad) * distance,
           y: basePoint.y + Math.sin(angleRad) * distance
+        });
+        break;
+      }
+      case "bezierExtremePoint": {
+        const source = computedGeometry.get(element.baseLineId);
+        if (!source) {
+          errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId, errors));
+          break;
+        }
+        if (source.kind !== "bezierCurve") {
+          errors.push(
+            geometryError(
+              element,
+              `${element.name} の参照先はベジェ曲線の計算結果ではありません。ベジェ曲線を指定してください。`
+            )
+          );
+          break;
+        }
+
+        const segmentIndex = evaluateNumber(element.segmentIndex);
+        if (segmentIndex === undefined) break;
+        if (!Number.isFinite(segmentIndex)) {
+          errors.push(geometryError(element, `${element.name} の区間番号は有限の数値で指定してください。`));
+          break;
+        }
+        if (!Number.isInteger(segmentIndex) || segmentIndex < 0) {
+          errors.push(geometryError(element, `${element.name} の区間番号は0以上の整数で指定してください。`));
+          break;
+        }
+        if (segmentIndex >= source.segments.length) {
+          errors.push(
+            geometryError(
+              element,
+              `${element.name} の区間番号 ${segmentIndex} に対応する区間がありません。区間数は ${source.segments.length} 個です。`
+            )
+          );
+          break;
+        }
+
+        const directionDeg = evaluateNumber(element.directionDeg);
+        if (directionDeg === undefined) break;
+        if (!Number.isFinite(directionDeg)) {
+          errors.push(geometryError(element, `${element.name} の方向は有限の数値で指定してください。`));
+          break;
+        }
+
+        const normalizedDirection = degreesToRadians(normalizeDegrees360(directionDeg));
+        const point = bezierExtremePointAt(source.segments[segmentIndex], {
+          x: Math.cos(normalizedDirection),
+          y: Math.sin(normalizedDirection)
+        });
+        computedGeometry.set(element.id, {
+          kind: "point",
+          elementId: element.id,
+          name: element.name,
+          x: point.x,
+          y: point.y
         });
         break;
       }

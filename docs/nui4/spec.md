@@ -360,6 +360,37 @@ the final argument has a trailing comma. A single-line call is parseable, but
 the Source Editor's canonical formatter emits the stable multi-line shape for a
 multi-argument call.
 
+### Bezier direction extreme points
+
+`bezierExtremePoint` creates a point at the maximum projection of one cubic
+Bezier segment in a requested direction:
+
+```text
+point 上端 = bezierExtremePoint(
+  source: @ベジェ線,
+  segmentIndex: 0,
+  direction: 90,
+)
+```
+
+`source` is required and must resolve at runtime to computed geometry whose
+`kind` is `bezierCurve`. This is a runtime geometry requirement rather than a
+check of the source element type, so a Bezier result produced by a normal split,
+trim, or extend evaluation is accepted; straight lines, arcs, and offset-line
+results are rejected. `segmentIndex` is an optional numeric value with default
+`0`, and must resolve to a finite, non-negative integer within the source's
+segment range. `direction` is a required finite numeric degree value. Direction
+`0` is right, `90` is up, `180` is left, and `270` is down. Negative values and
+values above `360` are normalized using the existing degree normalization rule.
+
+For the selected cubic segment `B(t)`, let `V` be the unit vector for
+`direction`. The result maximizes `dot(B(t), V)` over `0 <= t <= 1`. Candidates
+are both endpoints and every interior stationary point satisfying
+`dot(B'(t), V) = 0`. If candidate scores are equal, the candidate closest to
+`t = 0.5` wins; if that distance is also equal, the smaller `t` wins. A flat
+projection returns `t = 0.5`. Canonical serialization always writes the
+defaulted `segmentIndex`, including when it was omitted from the input.
+
 ## Groups and activity
 
 `group` combines four roles:

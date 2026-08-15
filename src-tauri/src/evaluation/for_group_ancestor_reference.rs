@@ -304,6 +304,11 @@ fn remap_element_references(
             remap_numeric_field(object, "tangentAngleDeg", id_map);
             remap_numeric_field(object, "distance", id_map);
         }
+        Some("bezierExtremePoint") => {
+            map_id_field(object, "baseLineId", id_map, scope);
+            remap_numeric_field(object, "segmentIndex", id_map);
+            remap_numeric_field(object, "directionDeg", id_map);
+        }
         Some("line") => {
             remap_point_anchor_field(object, "startPoint", id_map, scope);
             remap_point_anchor_field(object, "endPoint", id_map, scope);

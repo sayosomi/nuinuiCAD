@@ -162,6 +162,7 @@ describe("creationRecipes", () => {
       lineDivisionPoint: "point 作成lineDivisionPoint = onLine(from: @AB.start, ratio: 12, steps: [ratio: 0.01])",
       intersectionPoint: "point 作成intersectionPoint = intersection(line1: @AB, line2: @AB, index: 12, extensions: true)",
       lineTangentOffsetPoint: "point 作成lineTangentOffsetPoint = tangentOffset(line: @AB, base: @A, angle: 12, distance: 12)",
+      bezierExtremePoint: "point 作成bezierExtremePoint = bezierExtremePoint(source: @AB, segmentIndex: 12, direction: 12)",
       line: "line 作成line = segment(start: @A, end: @A)",
       angleLengthLine: "line 作成angleLengthLine = polar(start: @A, angle: 12, length: 12)",
       arcLine: "arc 作成arcLine = arc(center: @A, radius: 12, start: 12, end: 12)",

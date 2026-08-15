@@ -98,6 +98,15 @@ export const creationCommandDefinitions = {
     },
     run: (context) => startCreationSessionForCommand("addLineTangentOffsetPoint", context)
   },
+  addBezierExtremePoint: {
+    id: "addBezierExtremePoint",
+    label: "Bezier方向極値点を追加",
+    palette: {
+      order: 7.5,
+      keywords: ["bezier", "curve", "extreme", "direction", "ベジェ", "曲線", "極値", "方向", "点", "追加"]
+    },
+    run: (context) => startCreationSessionForCommand("addBezierExtremePoint", context)
+  },
   addLine: {
     id: "addLine",
     label: "line を追加",

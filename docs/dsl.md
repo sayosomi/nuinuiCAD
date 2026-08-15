@@ -200,6 +200,44 @@ for i in range(
 
 `if Name (...)`、`for Name (...)`、`{@name}`、`@stop` は廃止されています。
 
+### Bezier方向極値点
+
+`bezierExtremePoint` は、指定した cubic Bezier の区間で、指定方向への
+射影が最大になる点を作図します。
+
+```text
+point 上端 = bezierExtremePoint(
+  source: @ベジェ線,
+  direction: 90,
+)
+```
+
+`source` は必須です。`segmentIndex` は数値で、省略時は `0` です。canonical
+serialization では省略した場合も次のように `segmentIndex: 0` が明示されます。
+
+```text
+point 上端 = bezierExtremePoint(
+  source: @ベジェ線,
+  segmentIndex: 0,
+  direction: 90,
+)
+```
+
+`direction` は必須の degree 値で、`0` が右、`90` が上、`180` が左、`270` が下です。
+負の値と 360 を超える値は既存の角度 helper で `[0, 360)` に正規化されます。
+`segmentIndex` は有限な 0 以上の整数で、対象区間の範囲内でなければなりません。
+`direction` も有限値でなければなりません。
+
+選択した cubic Bezier を `B(t)`、方向の単位ベクトルを `V` とすると、結果は
+`dot(B(t), V)` が `0 <= t <= 1` で最大になる点です。候補は両端点と、
+`dot(B'(t), V) = 0` を満たす区間内部の停留点です。候補の値が同値なら `t = 0.5`
+に近いものを選び、中央からの距離も同じなら小さい `t` を選びます。射影が全区間で
+flat の場合は `t = 0.5` です。
+
+`source` は source 要素の型名ではなく、評価時の computed geometry の `kind` が
+`bezierCurve` である必要があります。そのため通常の split、trim、extend が生成した
+Bezier geometry は利用できますが、直線、円弧、offset line の結果はエラーになります。
+
 ## モジュール
 
 定義は `module`、呼び出しは `instance` と明示的に区別します。定義は instance より前に置き、引数は名前付きで渡します。

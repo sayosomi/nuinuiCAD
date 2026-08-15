@@ -22,6 +22,7 @@ const calls = [
   ["point", "onLine", "lineDivisionPoint"],
   ["point", "intersection", "intersectionPoint"],
   ["point", "tangentOffset", "lineTangentOffsetPoint"],
+  ["point", "bezierExtremePoint", "bezierExtremePoint"],
   ["line", "segment", "line"],
   ["line", "polar", "angleLengthLine"],
   ["line", "offset", "offsetLine"],

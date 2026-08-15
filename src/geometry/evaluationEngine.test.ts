@@ -80,6 +80,16 @@ const bezierCurve: CadElement = {
   endHandleLength: 0
 };
 
+const bezierExtremePoint: CadElement = {
+  id: "extreme",
+  name: "方向極値点",
+  type: "bezierExtremePoint",
+  activity: "visible",
+  baseLineId: "curve",
+  segmentIndex: 0,
+  directionDeg: 90
+};
+
 const offsetLine: CadElement = {
   id: "offset",
   name: "オフセット",
@@ -279,6 +289,7 @@ describe("canUseRustEvaluationForElements", () => {
 
   it("allows bezierCurve and supported point elements that reference it", () => {
     expect(canUseRustEvaluationForElements([pointA, pointB, bezierCurve])).toBe(true);
+    expect(canUseRustEvaluationForElements([pointA, pointB, bezierCurve, bezierExtremePoint])).toBe(true);
     expect(
       canUseRustEvaluationForElements([
         pointA,
@@ -290,6 +301,12 @@ describe("canUseRustEvaluationForElements", () => {
         intersectionPoint("line", "curve")
       ])
     ).toBe(true);
+  });
+
+  it("keeps Bezier extreme points on the TypeScript path when their source is missing", () => {
+    expect(canUseRustEvaluationForElements([
+      { ...bezierExtremePoint, baseLineId: "missing" }
+    ])).toBe(false);
   });
 
   it("allows offsetLine and supported point elements that reference it", () => {

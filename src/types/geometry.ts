@@ -145,6 +145,13 @@ export type LineTangentOffsetPointElement = CadElementBase & {
   distance: NumericValue;
 };
 
+export type BezierExtremePointElement = CadElementBase & {
+  type: "bezierExtremePoint";
+  baseLineId: ElementId;
+  segmentIndex: NumericValue;
+  directionDeg: NumericValue;
+};
+
 export type PointAnchor =
   | {
       mode: "reference";
@@ -346,6 +353,7 @@ export type CadElement =
   | LineDivisionPointElement
   | IntersectionPointElement
   | LineTangentOffsetPointElement
+  | BezierExtremePointElement
   | LineElement
   | AngleLengthLineElement
   | ArcLineElement
@@ -579,6 +587,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   lineDivisionPoint: "線上分点",
   intersectionPoint: "交点",
   lineTangentOffsetPoint: "線上オフセット点",
+  bezierExtremePoint: "Bezier方向極値点",
   line: "line",
   angleLengthLine: "角度距離線",
   arcLine: "arc line",
@@ -610,6 +619,7 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   lineDivisionPoint: "point",
   intersectionPoint: "point",
   lineTangentOffsetPoint: "point",
+  bezierExtremePoint: "point",
   line: "line",
   angleLengthLine: "line",
   arcLine: "line",

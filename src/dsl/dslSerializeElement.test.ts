@@ -27,6 +27,7 @@ const calls: ReadonlyArray<readonly [CadElementType, string, string]> = [
   ["polarOffsetPoint", "point", "polar"], ["divisionPoint", "point", "between"],
   ["lineDivisionPoint", "point", "onLine"], ["intersectionPoint", "point", "intersection"],
   ["lineTangentOffsetPoint", "point", "tangentOffset"], ["line", "line", "segment"],
+  ["bezierExtremePoint", "point", "bezierExtremePoint"],
   ["angleLengthLine", "line", "polar"], ["offsetLine", "line", "offset"],
   ["splitLine", "line", "split"],
   ["copyLine", "line", "copy"],
@@ -45,7 +46,7 @@ const bareMutationTypes: ReadonlySet<CadElementType> =
   new Set(["edge", "extendTrim", "move", "symmetricMove", "pathReverse"]);
 
 describe("DSL nui 4 element serializer", () => {
-  it("serializes all 27 element types from their registry construction", () => {
+  it("serializes all 28 element types from their registry construction", () => {
     for (const [type, category, construction] of calls) {
       const element = minimal(type);
       const block = serializeElementStatementBlock(element, documentDslRefs([...referenceElements, element]));

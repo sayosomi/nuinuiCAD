@@ -181,6 +181,13 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         tangentAngleDeg: remapNumericValue(element.tangentAngleDeg, idMap),
         distance: remapNumericValue(element.distance, idMap)
       };
+    case "bezierExtremePoint":
+      return {
+        ...element,
+        baseLineId: mapId(element.baseLineId, idMap),
+        segmentIndex: remapNumericValue(element.segmentIndex, idMap),
+        directionDeg: remapNumericValue(element.directionDeg, idMap)
+      };
     case "line":
       return {
         ...element,

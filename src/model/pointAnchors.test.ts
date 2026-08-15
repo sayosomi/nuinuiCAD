@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
-import { derivedAnchor, derivedPointLabel, pointAnchorLabel } from "./pointAnchors";
+import { derivedAnchor, derivedPointLabel, isPointElement, pointAnchorLabel } from "./pointAnchors";
 
 const curve: CadElement = {
   id: "curve",
@@ -32,6 +32,18 @@ const curve: CadElement = {
 };
 
 describe("pointAnchors", () => {
+  it("treats Bezier extreme points as ordinary point elements", () => {
+    expect(isPointElement({
+      id: "extreme",
+      name: "方向極値点",
+      type: "bezierExtremePoint",
+      activity: "visible",
+      baseLineId: "curve",
+      segmentIndex: 0,
+      directionDeg: 90
+    })).toBe(true);
+  });
+
   it("labels Bezier intermediate derived points with stable indexes", () => {
     expect(pointAnchorLabel(derivedAnchor("curve", "intermediate:mid-b"), [curve])).toBe(
       "曲線.中間点2"

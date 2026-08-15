@@ -120,6 +120,20 @@ describe("dependencies", () => {
     expect(getDirectParentIds(curve)).toEqual(["a", "b", "c"]);
   });
 
+  it("returns Bezier extreme point line and numeric expression references", () => {
+    const extreme: CadElement = {
+      id: "extreme",
+      name: "方向極値点",
+      type: "bezierExtremePoint",
+      activity: "visible",
+      baseLineId: "curve",
+      segmentIndex: { kind: "expression", expression: "ab.length" },
+      directionDeg: { kind: "expression", expression: "bc.startAngleDeg" }
+    };
+
+    expect(getDirectParentIds(extreme)).toEqual(["curve", "ab", "bc"]);
+  });
+
   it("returns arc line center and numeric expression references as direct parent ids", () => {
     const arc: CadElement = {
       id: "arc",

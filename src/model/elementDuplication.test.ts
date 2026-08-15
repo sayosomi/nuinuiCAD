@@ -213,6 +213,45 @@ describe("duplicateElements", () => {
     });
   });
 
+  it("remaps Bezier extreme point source and numeric expressions", () => {
+    const elements: CadElement[] = [
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        activity: "visible",
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        startHandleAngleDeg: 0,
+        startHandleLength: 10,
+        intermediatePoints: [],
+        endPoint: { mode: "coordinate", x: 10, y: 0 },
+        endHandleAngleDeg: 180,
+        endHandleLength: 10
+      },
+      {
+        id: "extreme",
+        name: "方向極値点",
+        type: "bezierExtremePoint",
+        activity: "visible",
+        baseLineId: "curve",
+        segmentIndex: { kind: "expression", expression: "curve.length" },
+        directionDeg: { kind: "expression", expression: "curve.startAngleDeg + 90" }
+      }
+    ];
+
+    const change = duplicateElements(elements, ["curve", "extreme"], {
+      createId: (type) => `${type}-copy`
+    });
+    const copied = change?.elements.find((element) => element.id === "bezierExtremePoint-copy");
+
+    expect(copied).toMatchObject({
+      type: "bezierExtremePoint",
+      baseLineId: "bezierCurve-copy",
+      segmentIndex: { kind: "expression", expression: "bezierCurve-copy.length" },
+      directionDeg: { kind: "expression", expression: "bezierCurve-copy.startAngleDeg + 90" }
+    });
+  });
+
   it("duplicates a selected group with its descendants and remaps parent groups", () => {
     const ids = ["group-copy", "point-a-copy", "point-b-copy", "line-copy"];
     const elements: CadElement[] = [

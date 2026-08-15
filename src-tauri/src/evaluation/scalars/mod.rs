@@ -36,6 +36,8 @@ mod text_property_binding_payload;
 mod text_template_payload;
 mod types;
 
+pub(crate) use angle_math::{degrees_to_radians, normalize_degrees_360};
+
 #[cfg(test)]
 mod bindings_tests;
 #[cfg(test)]

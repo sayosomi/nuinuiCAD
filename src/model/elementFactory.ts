@@ -24,7 +24,8 @@ export const createCadElement = (
       element.type === "divisionPoint" ||
       element.type === "lineDivisionPoint" ||
       element.type === "intersectionPoint" ||
-      element.type === "lineTangentOffsetPoint"
+      element.type === "lineTangentOffsetPoint" ||
+      element.type === "bezierExtremePoint"
   );
   const firstPointId = points[0]?.id ?? "";
   const secondPointId = points[1]?.id ?? firstPointId;
@@ -217,6 +218,21 @@ export const createCadElement = (
         basePoint: baseLine ? derivedAnchor(baseLine.id, "start") : referenceAnchor(firstPointId),
         tangentAngleDeg: 0,
         distance: 0
+      };
+    }
+    case "bezierExtremePoint": {
+      const id = createId(type);
+      const pointCount = elements.filter((element) => element.type === "bezierExtremePoint").length;
+      const requestedName = `方向極値点${pointCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        activity: "visible",
+        numericVariables: [],
+        baseLineId: lineLikeElements[0]?.id ?? "",
+        segmentIndex: 0,
+        directionDeg: 0
       };
     }
     case "line": {

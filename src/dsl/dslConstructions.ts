@@ -118,6 +118,12 @@ const constructionSpecs: DslConstructionSpec[] = [
     elementType: "lineTangentOffsetPoint",
     args: [required("line", "baseLineId"), required("base", "basePoint"), arg("angle", "tangentAngleDeg"), arg("distance")],
   },
+  {
+    category: "point",
+    construction: "bezierExtremePoint",
+    elementType: "bezierExtremePoint",
+    args: [required("source", "baseLineId"), arg("segmentIndex"), required("direction", "directionDeg")],
+  },
   { category: "line", construction: "segment", elementType: "line", args: [required("start", "startPoint"), required("end", "endPoint")] },
   { category: "line", construction: "polar", elementType: "angleLengthLine", args: [required("start", "startPoint"), arg("angle", "angleDeg"), arg("length")] },
   {
