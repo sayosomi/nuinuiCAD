@@ -22,6 +22,7 @@ export const VSCodePerformanceApp = ({ api }: { api: VscodeWebviewApi }) => {
   const evaluationDocument = useCadDocumentStore(effectiveCompiledDocument);
   const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
+  const latestHostDocumentVersionRef = useRef<number | null>(null);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
   const evaluationOptions = useMemo(
@@ -40,11 +41,13 @@ export const VSCodePerformanceApp = ({ api }: { api: VscodeWebviewApi }) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
       if (message.type === "replaceTextDocument") {
+        latestHostDocumentVersionRef.current = message.documentVersion;
         useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
           currentFilePath: null,
           dirtySinceSave: false
         });
       } else if (message.type === "commitText") {
+        latestHostDocumentVersionRef.current = message.documentVersion;
         useCadDocumentStore.getState().commitText(message.sourceText, "editor", {
           cursorLineAtBurstStart: null
         });
@@ -73,7 +76,12 @@ export const VSCodePerformanceApp = ({ api }: { api: VscodeWebviewApi }) => {
         evaluation={evaluationState.evaluation}
         evaluationState={evaluationState}
         canvasFocusRef={canvasFocusRef}
-        postCanonicalSourceText={(sourceText) => api.postMessage({ type: "canvasCommit", sourceText })}
+        postCanonicalSourceText={(sourceText) => {
+          if (benchmarkConfig) return;
+          const expectedDocumentVersion = latestHostDocumentVersionRef.current;
+          if (expectedDocumentVersion === null) return;
+          api.postMessage({ type: "canvasCommit", sourceText, expectedDocumentVersion });
+        }}
       />
       <VSCodeBenchmarkCaptureRunner
         config={benchmarkConfig}

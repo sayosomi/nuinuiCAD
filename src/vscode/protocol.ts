@@ -10,7 +10,7 @@ export type VscodeRustEvaluationRequest = {
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
   | VscodeRustEvaluationRequest
-  | { type: "canvasCommit"; sourceText: string }
+  | { type: "canvasCommit"; sourceText: string; expectedDocumentVersion: number }
   | { type: "benchmarkResult"; result: unknown }
   | { type: "benchmarkError"; error: string };
 
@@ -30,8 +30,8 @@ export type VscodeBenchmarkConfig = {
 };
 
 export type ExtensionToVscodeMessage =
-  | { type: "replaceTextDocument"; sourceText: string }
-  | { type: "commitText"; sourceText: string }
+  | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
+  | { type: "commitText"; sourceText: string; documentVersion: number }
   | { type: "rustEvaluationResponse"; id: number; payload: unknown }
   | { type: "rustEvaluationError"; id: number; error: string }
   | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig };

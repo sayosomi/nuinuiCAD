@@ -42,20 +42,30 @@ const webviewHtml = (panel: vscode.WebviewPanel, context: vscode.ExtensionContex
 const rustBinaryPath = (context: vscode.ExtensionContext): string =>
   process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(context.extensionPath, "..", "src-tauri", "target", "debug", "evaluation_stdio");
 
-const postDocumentText = (panel: vscode.WebviewPanel, sourceText: string): void => {
-  void panel.webview.postMessage({ type: "commitText", sourceText } satisfies ExtensionToVscodeMessage);
+const postDocumentText = (panel: vscode.WebviewPanel, sourceText: string, documentVersion: number): void => {
+  void panel.webview.postMessage({ type: "commitText", sourceText, documentVersion } satisfies ExtensionToVscodeMessage);
+};
+
+const postAuthoritativeDocument = (panel: vscode.WebviewPanel, document: vscode.TextDocument): void => {
+  void panel.webview.postMessage({
+    type: "replaceTextDocument",
+    sourceText: document.getText(),
+    documentVersion: document.version
+  } satisfies ExtensionToVscodeMessage);
+};
+
+const activeNuiEditor = (): vscode.TextEditor | undefined => {
+  const editor = vscode.window.activeTextEditor;
+  return editor?.document.fileName.endsWith(".nui") ? editor : undefined;
 };
 
 export const activate = (context: vscode.ExtensionContext): void => {
   let rustProcess: RustEvaluationProcess | null = null;
   const benchmarkConfig = benchmarkConfigFromEnvironment();
+  let benchmarkStarted = false;
+  let benchmarkEditorListener: vscode.Disposable | null = null;
 
-  const command = vscode.commands.registerCommand("nuinuiCAD.openPerformancePoc", () => {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor || !editor.document.fileName.endsWith(".nui")) {
-      void vscode.window.showErrorMessage("nuinuiCAD Performance PoC requires an active .nui Text Editor.");
-      return;
-    }
+  const createPerformancePanel = (editor: vscode.TextEditor): void => {
     const document = editor.document;
     const panel = vscode.window.createWebviewPanel(
       "nuinuiCAD.performancePoc",
@@ -69,17 +79,24 @@ export const activate = (context: vscode.ExtensionContext): void => {
     panel.webview.html = webviewHtml(panel, context);
 
     const post = (message: ExtensionToVscodeMessage) => void panel.webview.postMessage(message);
-    const onDocumentChange = vscode.workspace.onDidChangeTextDocument((event) => {
-      if (event.document.uri.toString() !== document.uri.toString()) return;
-      postDocumentText(panel, event.document.getText());
-    });
+    const onDocumentChange: vscode.Disposable = benchmarkConfig
+      ? { dispose: () => undefined }
+      : vscode.workspace.onDidChangeTextDocument((event) => {
+        if (event.document.uri.toString() !== document.uri.toString()) return;
+        postDocumentText(panel, event.document.getText(), event.document.version);
+      });
     const onMessage = panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "webviewReady") {
-        post({ type: "replaceTextDocument", sourceText: document.getText() });
+        postAuthoritativeDocument(panel, document);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
         return;
       }
       if (message.type === "canvasCommit") {
+        if (benchmarkConfig) return;
+        if (document.version !== message.expectedDocumentVersion) {
+          postAuthoritativeDocument(panel, document);
+          return;
+        }
         const edit = new vscode.WorkspaceEdit();
         edit.replace(document.uri, fullDocumentRange(document), message.sourceText);
         await vscode.workspace.applyEdit(edit);
@@ -109,16 +126,48 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const disposePanel = panel.onDidDispose(() => {
       onDocumentChange.dispose();
       onMessage.dispose();
-      if (!benchmarkConfig) rustProcess?.dispose();
-      if (benchmarkConfig) rustProcess?.dispose();
+      rustProcess?.dispose();
       if (benchmarkConfig && !existsSync(benchmarkConfig.resultPath) && !existsSync(`${benchmarkConfig.resultPath}.error.json`)) {
         writeFileSync(`${benchmarkConfig.resultPath}.error.json`, JSON.stringify({ runId: benchmarkConfig.runId, error: "Performance PoC panel closed before completion" }, null, 2), "utf8");
       }
     });
     context.subscriptions.push(onDocumentChange, onMessage, disposePanel);
+  };
+
+  const startBenchmark = (editor: vscode.TextEditor): void => {
+    if (!benchmarkConfig || benchmarkStarted) return;
+    benchmarkStarted = true;
+    benchmarkEditorListener?.dispose();
+    benchmarkEditorListener = null;
+    createPerformancePanel(editor);
+  };
+
+  const command = vscode.commands.registerCommand("nuinuiCAD.openPerformancePoc", () => {
+    const editor = activeNuiEditor();
+    if (!editor) {
+      void vscode.window.showErrorMessage("nuinuiCAD Performance PoC requires an active .nui Text Editor.");
+      return;
+    }
+    if (benchmarkConfig) {
+      startBenchmark(editor);
+      return;
+    }
+    createPerformancePanel(editor);
   });
 
   context.subscriptions.push(command, { dispose: () => rustProcess?.dispose() });
+  if (benchmarkConfig) {
+    const startWhenEditorIsReady = () => {
+      const editor = activeNuiEditor();
+      if (editor) startBenchmark(editor);
+    };
+    if (activeNuiEditor()) {
+      startWhenEditorIsReady();
+    } else {
+      benchmarkEditorListener = vscode.window.onDidChangeActiveTextEditor(startWhenEditorIsReady);
+      context.subscriptions.push(benchmarkEditorListener);
+    }
+  }
 };
 
 export const deactivate = (): void => undefined;

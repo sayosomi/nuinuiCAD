@@ -8,7 +8,9 @@
   "engines": {
     "vscode": ">=1.90.0"
   },
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
