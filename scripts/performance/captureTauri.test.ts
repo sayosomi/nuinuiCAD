@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { EventEmitter } from "node:events";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   BENCHMARK_PROTOCOL,
@@ -10,6 +11,8 @@ import {
 import type { BenchmarkResult } from "../../src/performance/benchmarkResultSchema";
 import {
   captureTauri,
+  CAPTURE_SHUTDOWN_TIMEOUT_MS,
+  launchTauri,
   parseCaptureTauriArgs,
   TauriCaptureChildProcessError,
   type CaptureTauriDependencies,
@@ -20,7 +23,12 @@ const manifestPath = resolve(process.cwd(), "performance/fixtures/manifest.json"
 const manifestText = readFileSync(manifestPath, "utf8");
 const fixtureSource = readFileSync(resolve(process.cwd(), "performance/fixtures/interactive-medium-v1.nui"), "utf8");
 
-const validResult = (): BenchmarkResult => {
+const validResult = (identity: {
+  target?: BenchmarkResult["target"];
+  fixtureId?: string;
+  fixtureHash?: string;
+  gitCommit?: string;
+} = {}): BenchmarkResult => {
   const scenarios = Object.fromEntries(BENCHMARK_SCENARIO_IDS.map((scenarioId) => [scenarioId, {
     metrics: Object.fromEntries(REQUIRED_METRICS_BY_SCENARIO[scenarioId].map((metricId) => [metricId, {
       samples: Array.from({ length: BENCHMARK_PROTOCOL.trials }, (_, index) => index + 1),
@@ -31,15 +39,18 @@ const validResult = (): BenchmarkResult => {
   }]));
   return {
     schemaVersion: BENCHMARK_SCHEMA_VERSION,
-    target: "tauri",
+    target: identity.target ?? "tauri",
     capturedAt: "2026-08-16T00:00:00.000Z",
-    build: { gitCommit: "a".repeat(40), appVersion: "0.0.0" },
+    build: { gitCommit: identity.gitCommit ?? "b".repeat(40), appVersion: "0.0.0" },
     environment: {
       machine: { platform: "test", arch: "test", osRelease: "test", cpuModel: "test", logicalCpuCount: 2 },
       webviewUserAgent: "test",
       renderSurface: { cssWidthPx: 100, cssHeightPx: 100, backingWidthPx: 200, backingHeightPx: 200, devicePixelRatio: 2 }
     },
-    fixture: { id: "interactive-medium-v1", hash: `sha256:${"a".repeat(64)}` },
+    fixture: {
+      id: identity.fixtureId ?? "interactive-medium-v1",
+      hash: identity.fixtureHash ?? "sha256:5ce3d10605cd751f50eea0734e6c9a8ed869bba4454644ce0d0cd2de5234ab15"
+    },
     protocol: BENCHMARK_PROTOCOL,
     scenarios
   };
@@ -60,6 +71,38 @@ const deps = (overrides: Partial<CaptureTauriDependencies> = {}): CaptureTauriDe
   ...overrides
 });
 
+type FakeChild = EventEmitter & {
+  pid?: number;
+  kill: ReturnType<typeof vi.fn>;
+};
+
+const fakeChild = (): FakeChild => {
+  const child = new EventEmitter() as FakeChild;
+  child.kill = vi.fn();
+  return child;
+};
+
+const defaultLaunchDeps = (child: FakeChild) => {
+  const tempDirectory = mkdtempSync(join("/tmp", "nuinuicad-capture-test-"));
+  let resultPath = "";
+  const spawnProcess = vi.fn((_command: string, _args: readonly string[], options: { env?: Record<string, string> }) => {
+    resultPath = JSON.parse(options.env!.VITE_BENCHMARK_CAPTURE_CONFIG).resultPath;
+    return child;
+  });
+  return {
+    resultPath: () => resultPath,
+    dependencies: deps({
+      launchTauri: (config, repositoryPath) => launchTauri(
+        config,
+        repositoryPath,
+        spawnProcess as unknown as typeof import("node:child_process").spawn
+      ),
+      createTempDirectory: () => tempDirectory,
+      removeTempDirectory: (path) => rmSync(path, { recursive: true, force: true })
+    })
+  };
+};
+
 describe("captureTauri", () => {
   it("parses required CLI options and rejects a missing fixture before launch", async () => {
     expect(parseCaptureTauriArgs(["--fixture", "interactive-medium-v1", "--output", "/tmp/out.json"])).toEqual({
@@ -78,6 +121,82 @@ describe("captureTauri", () => {
       deps({ readFile, hashSource: () => `sha256:${"0".repeat(64)}`, launchTauri })
     )).rejects.toThrow("hash mismatch");
     expect(launchTauri).not.toHaveBeenCalled();
+  });
+
+  it("does not resolve when only the completion result file is detected", async () => {
+    vi.useFakeTimers();
+    try {
+      const child = fakeChild();
+      const launch = defaultLaunchDeps(child);
+      const pending = captureTauri(
+        { fixtureId: "interactive-medium-v1", outputPath: "/tmp/out.json", manifestPath },
+        launch.dependencies
+      );
+      writeFileSync(launch.resultPath(), "{}");
+      let settled = false;
+      void pending.finally(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(settled).toBe(false);
+
+      child.emit("exit", 0, null);
+      await expect(pending).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("accepts frontend completion after the actual child exit", async () => {
+    vi.useFakeTimers();
+    try {
+      const child = fakeChild();
+      const launch = defaultLaunchDeps(child);
+      const pending = captureTauri(
+        { fixtureId: "interactive-medium-v1", outputPath: "/tmp/out.json", manifestPath },
+        launch.dependencies
+      );
+      writeFileSync(launch.resultPath(), "{}");
+      await vi.advanceTimersByTimeAsync(100);
+      child.emit("exit", null, "SIGTERM");
+      await expect(pending).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("terminates a child after shutdown timeout and waits for its exit", async () => {
+    vi.useFakeTimers();
+    try {
+      const child = fakeChild();
+      const launch = defaultLaunchDeps(child);
+      const pending = captureTauri(
+        { fixtureId: "interactive-medium-v1", outputPath: "/tmp/out.json", manifestPath },
+        launch.dependencies
+      );
+      writeFileSync(launch.resultPath(), "{}");
+      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(CAPTURE_SHUTDOWN_TIMEOUT_MS);
+      expect(child.kill).toHaveBeenCalledTimes(1);
+
+      let settled = false;
+      void pending.finally(() => { settled = true; });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      child.emit("exit", 143, "SIGTERM");
+      await expect(pending).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("fails when the child exits abnormally without completion", async () => {
+    const child = fakeChild();
+    const launch = defaultLaunchDeps(child);
+    const pending = captureTauri(
+      { fixtureId: "interactive-medium-v1", outputPath: "/tmp/out.json", manifestPath },
+      launch.dependencies
+    );
+    child.emit("exit", 7, null);
+    await expect(pending).rejects.toBeInstanceOf(TauriCaptureChildProcessError);
   });
 
   it("assembles launcher metadata, validates the temporary result, and writes through result IO", async () => {
@@ -110,5 +229,19 @@ describe("captureTauri", () => {
       deps({ readResult: () => { throw new Error("Invalid benchmark result"); }, removeTempDirectory })
     )).rejects.toThrow("Invalid benchmark result");
     expect(removeTempDirectory).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["target", validResult({ target: "vscode" }), "target"],
+    ["fixture.id", validResult({ fixtureId: "other-fixture" }), "fixture.id"],
+    ["fixture.hash", validResult({ fixtureHash: "sha256:wrong" }), "fixture.hash"],
+    ["build.gitCommit", validResult({ gitCommit: "c".repeat(40) }), "build.gitCommit"]
+  ] as const)("rejects a temporary result with a %s identity mismatch without writing output", async (_label, result, field) => {
+    const writeResult = vi.fn();
+    await expect(captureTauri(
+      { fixtureId: "interactive-medium-v1", outputPath: "/tmp/out.json", manifestPath },
+      deps({ readResult: () => result, writeResult })
+    )).rejects.toThrow(`Benchmark result ${field} mismatch`);
+    expect(writeResult).not.toHaveBeenCalled();
   });
 });

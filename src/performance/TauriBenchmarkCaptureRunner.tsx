@@ -7,6 +7,7 @@ import type { RefObject } from "react";
 import type { BenchmarkScenarioId } from "./benchmarkContract";
 import {
   runBenchmarkCapture,
+  type BenchmarkRunContext,
   type BenchmarkCaptureHost
 } from "./benchmarkCaptureRunner";
 import {
@@ -109,7 +110,7 @@ export type TauriBenchmarkCaptureDependencies = {
   ) => void;
   getAppVersion: () => Promise<string>;
   writeFile: (path: string, content: string) => Promise<void>;
-  closeWindow: () => Promise<void>;
+  destroyWindow: () => Promise<void>;
 };
 
 export type TauriBenchmarkCaptureRunInput = {
@@ -230,7 +231,7 @@ const defaultDependencies = (): TauriBenchmarkCaptureDependencies => ({
   },
   getAppVersion: () => getVersion(),
   writeFile: (path, content) => invoke("write_document_file", { path, content }),
-  closeWindow: () => getCurrentWindow().close()
+  destroyWindow: () => getCurrentWindow().destroy()
 });
 
 const withGuardTimeout = async <T,>(promise: Promise<T>, description: string): Promise<T> => {
@@ -309,26 +310,38 @@ const sourceEditRange = (
   return { valueStart, valueEnd: valueStart + anchor.from.length };
 };
 
+const SAMPLE_COMPLETION_GUARD_TIMEOUT_MS = 30_000;
+
 const sampleWaiter = (
   dependencies: TauriBenchmarkCaptureDependencies,
-  expected: BenchmarkSampleHandle
+  expected: BenchmarkSampleHandle,
+  context: BenchmarkRunContext
 ): Promise<CompletedBenchmarkSample> => new Promise((resolve, reject) => {
   let finished = false;
-  let unsubscribe: () => void = () => undefined;
+  let unsubscribe: (() => void) | null = null;
+  const timeout = { id: 0 };
   const finish = (callback: () => void) => {
     if (finished) return;
     finished = true;
-    unsubscribe();
+    window.clearTimeout(timeout.id);
+    unsubscribe?.();
     callback();
   };
   const accept = (sample: CompletedBenchmarkSample) => {
+    if (finished) return;
     if (sample.sampleId !== expected.sampleId || sample.scenarioId !== expected.scenarioId) {
       finish(() => reject(new Error("Received stale or wrong benchmark sample completion")));
       return;
     }
     finish(() => resolve(sample));
   };
-  unsubscribe = dependencies.instrumentation.subscribeSamples(accept);
+  timeout.id = window.setTimeout(() => finish(() => reject(new Error(
+    `Benchmark sample completion timed out: scenario=${context.scenarioId}, ` +
+    `sampleId=${expected.sampleId}, phase=${context.phase}, iteration=${context.iteration}`
+  ))), SAMPLE_COMPLETION_GUARD_TIMEOUT_MS);
+  const subscription = dependencies.instrumentation.subscribeSamples(accept);
+  if (finished) subscription();
+  else unsubscribe = subscription;
   const queued = dependencies.instrumentation.drainSamples();
   if (queued.length > 0) {
     if (queued.length !== 1) {
@@ -512,7 +525,7 @@ export const runTauriBenchmarkCapture = async ({
         buttons: 1
       });
     },
-    awaitCompletedSample: (handle) => sampleWaiter(dependencies, handle),
+    awaitCompletedSample: (handle, context) => sampleWaiter(dependencies, handle, context),
     teardownScenario: (scenarioId, setup) => {
       if (scenarioId === "source-edit-v1") return;
       if (setup.kind !== "pointer") throw new Error(`Invalid setup for ${scenarioId}`);
@@ -639,9 +652,9 @@ export const TauriBenchmarkCaptureRunner = ({
       })
       .finally(async () => {
         try {
-          await dependencies.closeWindow();
+          await dependencies.destroyWindow();
         } catch (error) {
-          console.error("Unable to close benchmark window", error);
+          console.error("Unable to destroy benchmark window", error);
         }
       });
   }, [canvasFocusRef, config, dependencyOverrides]);

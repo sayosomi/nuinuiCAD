@@ -63,7 +63,11 @@ const config = (overrides: Partial<TauriBenchmarkCaptureConfig> = {}): TauriBenc
   ...overrides
 });
 
-const fakeDependencies = (overrides: Partial<TauriBenchmarkCaptureDependencies> = {}) => {
+const fakeDependencies = (
+  overrides: Partial<TauriBenchmarkCaptureDependencies> = {},
+  options: { autoComplete?: boolean } = {}
+) => {
+  const autoComplete = options.autoComplete ?? true;
   let currentSource = source;
   let revision = 1;
   let selectedElementId: string | null = null;
@@ -71,6 +75,7 @@ const fakeDependencies = (overrides: Partial<TauriBenchmarkCaptureDependencies> 
   let nextSampleId = 1;
   const queuedSamples: CompletedBenchmarkSample[] = [];
   const listeners = new Set<(sample: CompletedBenchmarkSample) => void>();
+  const allListeners = new Set<(sample: CompletedBenchmarkSample) => void>();
   const events: Array<{ type: string; x?: number; y?: number; pointerId?: number; buttons?: number }> = [];
   const complete = () => {
     if (!currentSample) return;
@@ -81,6 +86,10 @@ const fakeDependencies = (overrides: Partial<TauriBenchmarkCaptureDependencies> 
     queuedSamples.push(sample);
     for (const listener of listeners) listener(sample);
   };
+  const emitLateCompletion = (sample: CompletedBenchmarkSample) => {
+    for (const listener of allListeners) listener(sample);
+  };
+  const abortSample = vi.fn(() => { currentSample = null; });
   const viewport = document.createElement("div");
   Object.defineProperty(viewport, "clientLeft", { value: 0 });
   viewport.getBoundingClientRect = () => ({ left: 10, top: 20, width: 1000, height: 700, right: 1010, bottom: 720, x: 10, y: 20, toJSON: () => ({}) });
@@ -91,17 +100,18 @@ const fakeDependencies = (overrides: Partial<TauriBenchmarkCaptureDependencies> 
         nextSampleId += 1;
         return currentSample;
       },
-      abortSample: () => { currentSample = null; },
+      abortSample,
       drainSamples: () => queuedSamples.splice(0, queuedSamples.length),
       subscribeSamples: (listener) => {
         listeners.add(listener);
+        allListeners.add(listener);
         return () => listeners.delete(listener);
       }
     },
     frameObserver: { waitForCurrentDrawAndFrame: () => ({ revision, promise: Promise.resolve(), cancel: vi.fn() }) },
     getDocumentSnapshot: () => ({ sourceText: currentSource, docText: currentSource, compiledDocumentRevision: revision, elements }),
     replaceTextDocument: (nextSource) => { currentSource = nextSource; revision += 1; selectedElementId = null; },
-    commitText: (nextSource) => { currentSource = nextSource; revision += 1; complete(); },
+    commitText: (nextSource) => { currentSource = nextSource; revision += 1; if (autoComplete) complete(); },
     clearPreview: vi.fn(),
     resetCanvasViewport: vi.fn(),
     getUiSnapshot: () => ({ selectedElementId, canvasViewport: { panX: 0, panY: 0, zoom: 1 } }),
@@ -119,20 +129,20 @@ const fakeDependencies = (overrides: Partial<TauriBenchmarkCaptureDependencies> 
     getRenderSurface: () => ({ cssWidthPx: 1000, cssHeightPx: 700, backingWidthPx: 2000, backingHeightPx: 1400, devicePixelRatio: 2 }),
     dispatchPointerEvent: (_viewport, type, point, options) => {
       events.push({ type, x: point.clientX, y: point.clientY, pointerId: options.pointerId, buttons: options.buttons });
-      if (type === "pointermove") complete();
+      if (type === "pointermove" && autoComplete) complete();
     },
     getAppVersion: async () => "0.0.0",
     writeFile: async () => undefined,
-    closeWindow: async () => undefined,
+    destroyWindow: async () => undefined,
     ...overrides
   };
-  return { deps, events };
+  return { deps, events, abortSample, listenerCount: () => listeners.size, emitLateCompletion };
 };
 
 describe("Tauri benchmark capture runner", () => {
   it("does nothing without benchmark config", () => {
-    const closeWindow = vi.fn();
-    const { deps } = fakeDependencies({ closeWindow });
+    const destroyWindow = vi.fn();
+    const { deps } = fakeDependencies({ destroyWindow });
     render(
       <TauriBenchmarkCaptureRunner
         config={null}
@@ -143,7 +153,7 @@ describe("Tauri benchmark capture runner", () => {
         dependencies={deps}
       />
     );
-    expect(closeWindow).not.toHaveBeenCalled();
+    expect(destroyWindow).not.toHaveBeenCalled();
   });
 
   it("uses production reset/commit boundaries and one real pointer event per drag action", async () => {
@@ -167,6 +177,31 @@ describe("Tauri benchmark capture runner", () => {
     expect(curveDown.y).toBe(360);
     expect(curveMove.x! - curveDown.x!).toBe(12);
     expect(curveMove.y! - curveDown.y!).toBe(-8);
+  });
+
+  it("fails a sample with scenario and sample identity when completion times out", async () => {
+    vi.useFakeTimers();
+    try {
+      const base = fakeDependencies({}, { autoComplete: false });
+      const pending = runTauriBenchmarkCapture({ config: config(), dependencies: base.deps });
+      const rejection = expect(pending).rejects.toThrow(
+        "Benchmark sample completion timed out: scenario=source-edit-v1, sampleId=1"
+      );
+      await vi.advanceTimersByTimeAsync(30_000);
+      await rejection;
+      expect(base.abortSample).toHaveBeenCalled();
+      expect(base.listenerCount()).toBe(0);
+
+      base.emitLateCompletion({
+        sampleId: 1,
+        scenarioId: "source-edit-v1",
+        metrics: { compileMs: 1 }
+      });
+      expect(base.abortSample).toHaveBeenCalled();
+      expect(base.listenerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("fails closed for reference evaluation, changed surface, wrong target type, and bad source anchors", async () => {
@@ -198,7 +233,7 @@ describe("Tauri benchmark capture runner", () => {
 
   it("claims a StrictMode runId only once", async () => {
     const { deps } = fakeDependencies();
-    const closeWindow = vi.fn(async () => undefined);
+    const destroyWindow = vi.fn(async () => undefined);
     const runId = `strict-${Date.now()}-${Math.random()}`;
     render(
       <StrictMode>
@@ -208,10 +243,10 @@ describe("Tauri benchmark capture runner", () => {
           evaluationState={deps.getEvaluationSnapshot().evaluationState}
           compiledDocumentRevision={1}
           canvasFocusRef={createRef()}
-          dependencies={{ ...deps, closeWindow }}
+          dependencies={{ ...deps, destroyWindow }}
         />
       </StrictMode>
     );
-    await waitFor(() => expect(closeWindow).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    await waitFor(() => expect(destroyWindow).toHaveBeenCalledTimes(1), { timeout: 3000 });
   });
 });

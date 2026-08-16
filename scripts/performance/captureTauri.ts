@@ -15,7 +15,10 @@ import {
   type BenchmarkFixtureManifest,
   type BenchmarkFixtureManifestEntry
 } from "../../src/performance/benchmarkFixtureManifest";
-import type { BenchmarkMachine } from "../../src/performance/benchmarkResultSchema";
+import type {
+  BenchmarkMachine,
+  BenchmarkResult
+} from "../../src/performance/benchmarkResultSchema";
 import {
   readBenchmarkResultFile,
   writeBenchmarkResultFile
@@ -23,7 +26,8 @@ import {
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const defaultManifestPath = resolve(repositoryRoot, "performance/fixtures/manifest.json");
-const CAPTURE_COMPLETION_TIMEOUT_MS = 120_000;
+export const CAPTURE_COMPLETION_TIMEOUT_MS = 10 * 60_000;
+export const CAPTURE_SHUTDOWN_TIMEOUT_MS = 10_000;
 
 export type CaptureTauriOptions = {
   fixtureId: string;
@@ -89,9 +93,19 @@ const defaultDependencies = (): CaptureTauriDependencies => ({
   },
   createRunId: () => randomUUID(),
   createTempDirectory: () => mkdtempSync(join(os.tmpdir(), "nuinuicad-tauri-capture-")),
-  launchTauri: (config, repositoryPath) => {
+  launchTauri,
+  readResult: readBenchmarkResultFile,
+  writeResult: writeBenchmarkResultFile,
+  removeTempDirectory: (path) => rmSync(path, { recursive: true, force: true })
+});
+
+export const launchTauri = (
+  config: TauriBenchmarkCaptureConfig,
+  repositoryPath: string,
+  spawnProcess: typeof spawn = spawn
+): Promise<number> => {
     const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-    const child = spawn(npmCommand, ["run", "desktop:dev", "--", "--no-watch"], {
+    const child = spawnProcess(npmCommand, ["run", "desktop:dev", "--", "--no-watch"], {
       cwd: repositoryPath,
       env: {
         ...process.env,
@@ -102,12 +116,18 @@ const defaultDependencies = (): CaptureTauriDependencies => ({
       detached: process.platform !== "win32"
     });
     return new Promise<number>((resolveExit, reject) => {
-      let timer: NodeJS.Timeout | undefined;
+      let completionTimer: NodeJS.Timeout | undefined;
+      let shutdownTimer: NodeJS.Timeout | undefined;
       let finished = false;
+      let completionReported = false;
+      let terminationRequested = false;
+      let terminationFailure: Error | null = null;
       const cleanup = () => {
-        if (timer !== undefined) clearTimeout(timer);
+        if (completionTimer !== undefined) clearTimeout(completionTimer);
+        if (shutdownTimer !== undefined) clearTimeout(shutdownTimer);
         child.removeListener("error", onError);
         child.removeListener("exit", onExit);
+        child.removeListener("close", onClose);
       };
       const finish = (callback: () => void) => {
         if (finished) return;
@@ -116,42 +136,60 @@ const defaultDependencies = (): CaptureTauriDependencies => ({
         callback();
       };
       const onError = (error: Error) => finish(() => reject(error));
-      const onExit = (code: number | null) => finish(() => resolveExit(code ?? 1));
+      const onExit = (code: number | null) => {
+        const reported = completionReported || existsSync(config.resultPath) || existsSync(`${config.resultPath}.error.json`);
+        if (reported) {
+          finish(() => resolveExit(0));
+        } else if (terminationFailure) {
+          finish(() => reject(terminationFailure));
+        } else {
+          finish(() => resolveExit(code ?? 1));
+        }
+      };
+      const onClose = (code: number | null) => onExit(code);
       const terminate = () => {
         try {
           if (process.platform !== "win32" && child.pid) process.kill(-child.pid, "SIGTERM");
           else child.kill();
         } catch {
-          child.kill();
+          try {
+            child.kill();
+          } catch {
+            // The exit event remains the source of truth for process termination.
+          }
         }
       };
+      const requestTermination = (failure: Error | null) => {
+        if (terminationRequested || finished) return;
+        terminationRequested = true;
+        terminationFailure = failure;
+        shutdownTimer = setTimeout(() => {
+          const reason = terminationFailure ?? new Error("Tauri benchmark process did not exit after termination");
+          finish(() => reject(reason));
+        }, CAPTURE_SHUTDOWN_TIMEOUT_MS);
+        terminate();
+      };
       const checkCompletion = () => {
+        if (finished || terminationRequested) return;
         if (existsSync(config.resultPath) || existsSync(`${config.resultPath}.error.json`)) {
-          finish(() => {
-            terminate();
-            resolveExit(0);
-          });
+          completionReported = true;
+          if (completionTimer !== undefined) clearTimeout(completionTimer);
+          shutdownTimer = setTimeout(() => requestTermination(null), CAPTURE_SHUTDOWN_TIMEOUT_MS);
           return;
         }
         if (Date.now() >= completionDeadline) {
-          finish(() => {
-            terminate();
-            reject(new Error("Tauri benchmark did not report completion before timeout"));
-          });
+          requestTermination(new Error("Tauri benchmark did not report completion before timeout"));
           return;
         }
-        timer = setTimeout(checkCompletion, 100);
+        completionTimer = setTimeout(checkCompletion, 100);
       };
       const completionDeadline = Date.now() + CAPTURE_COMPLETION_TIMEOUT_MS;
       child.once("error", onError);
       child.once("exit", onExit);
+      child.once("close", onClose);
       checkCompletion();
     });
-  },
-  readResult: readBenchmarkResultFile,
-  writeResult: writeBenchmarkResultFile,
-  removeTempDirectory: (path) => rmSync(path, { recursive: true, force: true })
-});
+};
 
 export const parseCaptureTauriArgs = (argv: readonly string[]): CaptureTauriOptions => {
   let fixtureId: string | undefined;
@@ -223,9 +261,38 @@ export const captureTauri = async (
       throw new Error(`Tauri benchmark did not produce ${temporaryResultPath}`);
     }
     const result = dependencies.readResult(temporaryResultPath);
+    assertBenchmarkResultIdentity(result, {
+      fixtureId: fixture.id,
+      fixtureHash: fixture.hash,
+      gitCommit
+    });
     dependencies.writeResult(options.outputPath, result);
   } finally {
     dependencies.removeTempDirectory(tempDirectory);
+  }
+};
+
+const assertBenchmarkResultIdentity = (
+  result: BenchmarkResult,
+  expected: { fixtureId: string; fixtureHash: string; gitCommit: string }
+): void => {
+  if (result.target !== "tauri") {
+    throw new Error(`Benchmark result target mismatch: expected "tauri", received "${result.target}"`);
+  }
+  if (result.fixture.id !== expected.fixtureId) {
+    throw new Error(
+      `Benchmark result fixture.id mismatch: expected "${expected.fixtureId}", received "${result.fixture.id}"`
+    );
+  }
+  if (result.fixture.hash !== expected.fixtureHash) {
+    throw new Error(
+      `Benchmark result fixture.hash mismatch: expected "${expected.fixtureHash}", received "${result.fixture.hash}"`
+    );
+  }
+  if (result.build.gitCommit !== expected.gitCommit) {
+    throw new Error(
+      `Benchmark result build.gitCommit mismatch: expected "${expected.gitCommit}", received "${result.build.gitCommit}"`
+    );
   }
 };
 
