@@ -3,7 +3,7 @@ import {
   createContinuousDragDiagnostic,
   type ContinuousDragDiagnostic
 } from "./continuousDragDiagnostic";
-import type { CadElement } from "../types/geometry";
+import type { CadElement, EvaluationResult } from "../types/geometry";
 
 const makeElements = (id: string): CadElement[] => [{
   id,
@@ -13,6 +13,12 @@ const makeElements = (id: string): CadElement[] => [{
   x: 0,
   y: 0
 }];
+
+const makeEvaluation = (): EvaluationResult => ({
+  computedGeometry: new Map(),
+  errors: [],
+  warnings: []
+});
 
 const makeDiagnostic = () => {
   let timestamp = 0;
@@ -132,6 +138,52 @@ describe("continuous drag diagnostic", () => {
     expect(mutation?.moveSeq).toBe(1);
     expect(evaluation?.moveSeq).toBe(1);
     expect(evaluation?.evaluationRequestRevision).toBe(11);
+    expect(mutation?.previewElementCount).toBe(1);
+    expect(mutation).not.toHaveProperty("previewElementIds");
+  });
+
+  it("records the preview command before the preview element mutation", () => {
+    const { diagnostic, scheduled, log } = makeDiagnostic();
+    const dragId = diagnostic.beginDrag({ kind: "point", baseElements: [] });
+    const move = diagnostic.beginMove(dragId);
+    if (!move) throw new Error("Expected an active diagnostic move");
+    const elements = makeElements("preview");
+    diagnostic.withActiveMove(move, () => {
+      expect(diagnostic.recordPreviewCommand()).toBe(true);
+      expect(diagnostic.bindPreviewElements(elements)).toBe(true);
+    });
+    const attempt = diagnostic.beginEvaluationAttempt(elements, {
+      evaluationRevision: 7,
+      evaluationRequestRevision: 11,
+      requestKey: "request"
+    });
+    if (!attempt) throw new Error("Expected a diagnostic evaluation attempt");
+    diagnostic.recordEvaluationSettlement(attempt, {
+      promise: "resolved",
+      status: "ready",
+      source: "rust",
+      isStale: false,
+      current: false
+    });
+    diagnostic.endDrag(dragId, "commit");
+    scheduled.shift()?.();
+
+    const trace = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      events: Array<Record<string, unknown>>;
+    };
+    expect(trace.events.map((event) => event.type)).toEqual([
+      "drag-start",
+      "pointermove-entry",
+      "preview-command",
+      "preview-elements-mutation",
+      "evaluation-attempt-start",
+      "evaluation-resolved",
+      "evaluation-outcome",
+      "drag-end"
+    ]);
+    const command = trace.events.find((event) => event.type === "preview-command");
+    expect(command?.dragId).toBe(dragId);
+    expect(command?.moveSeq).toBe(1);
   });
 
   it("distinguishes cancelled results from current adoption", () => {
@@ -196,6 +248,45 @@ describe("continuous drag diagnostic", () => {
     expect(log).toHaveBeenCalledTimes(1);
   });
 
+  it("waits for the current evaluation draw and finalizes exactly once afterward", () => {
+    const { diagnostic, scheduled, log } = makeDiagnostic();
+    const dragId = diagnostic.beginDrag({ kind: "point", baseElements: [] });
+    const evaluation = makeEvaluation();
+    const { attempt } = beginAttempt(diagnostic, dragId, makeElements("current"));
+
+    diagnostic.recordEvaluationSettlement(attempt, {
+      promise: "resolved",
+      status: "ready",
+      source: "rust",
+      isStale: false,
+      current: true,
+      evaluation
+    });
+    diagnostic.endDrag(dragId, "commit");
+
+    expect(scheduled).toHaveLength(1);
+    scheduled.shift()?.();
+    expect(log).not.toHaveBeenCalled();
+
+    diagnostic.recordCanvasDraw(evaluation, {
+      status: "ready",
+      source: "rust",
+      isStale: false,
+      current: true
+    });
+    expect(scheduled).toHaveLength(1);
+    scheduled.shift()?.();
+    expect(log).toHaveBeenCalledTimes(1);
+
+    diagnostic.recordCanvasDraw(evaluation, {
+      status: "ready",
+      source: "rust",
+      isStale: false,
+      current: true
+    });
+    expect(log).toHaveBeenCalledTimes(1);
+  });
+
   it("records effect cleanup and finalizes exactly once after all attempts settle", () => {
     const { diagnostic, scheduled, log } = makeDiagnostic();
     const dragId = diagnostic.beginDrag({ kind: "point", baseElements: [] });
@@ -218,5 +309,13 @@ describe("continuous drag diagnostic", () => {
     scheduled.shift()?.();
     scheduled.shift()?.();
     expect(log).toHaveBeenCalledTimes(1);
+
+    const trace = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      events: Array<Record<string, unknown>>;
+    };
+    const cleanup = trace.events.find((event) => event.type === "evaluation-effect-cleanup");
+    expect(cleanup?.status).toBe("cancelled");
+    expect(cleanup?.current).toBe(false);
+    expect(cleanup).not.toHaveProperty("isStale");
   });
 });

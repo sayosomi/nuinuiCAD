@@ -32,7 +32,9 @@ export type ContinuousDragTrace = {
 
 type InternalTrace = {
   trace: ContinuousDragTrace;
+  nextMoveSeq: number;
   pendingAttempts: Set<ContinuousDragEvaluationAttempt>;
+  pendingCurrentDraws: Set<ContinuousDragEvaluationAttempt>;
   finalizeScheduled: boolean;
   finalized: boolean;
 };
@@ -71,6 +73,7 @@ export type ContinuousDragDiagnostic = {
   }) => number;
   beginMove: (dragId: number) => ContinuousDragMove | null;
   withActiveMove: <T>(move: ContinuousDragMove | null, callback: () => T) => T;
+  recordPreviewCommand: () => boolean;
   bindPreviewElements: (elements: CadElement[]) => boolean;
   beginEvaluationAttempt: (
     elements: CadElement[],
@@ -174,7 +177,7 @@ export const createContinuousDragDiagnostic = ({
     scheduleFinalize(() => {
       internal.finalizeScheduled = false;
       if (!internal.trace.terminal || internal.finalized) return;
-      if (internal.pendingAttempts.size > 0) return;
+      if (internal.pendingAttempts.size > 0 || internal.pendingCurrentDraws.size > 0) return;
 
       internal.finalized = true;
       internal.trace.finalizedAt = now();
@@ -195,7 +198,9 @@ export const createContinuousDragDiagnostic = ({
         kind,
         events: []
       },
+      nextMoveSeq: 1,
       pendingAttempts: new Set(),
+      pendingCurrentDraws: new Set(),
       finalizeScheduled: false,
       finalized: false
     };
@@ -212,9 +217,8 @@ export const createContinuousDragDiagnostic = ({
   const beginMove = (dragId: number): ContinuousDragMove | null => {
     const internal = traceForDrag(dragId);
     if (!internal || internal.trace.terminal) return null;
-    const lastMoveSeq = internal.trace.events.reduce((latest, event) =>
-      event.moveSeq && event.moveSeq > latest ? event.moveSeq : latest, 0);
-    const move = { trace: internal, moveSeq: lastMoveSeq + 1 };
+    const move = { trace: internal, moveSeq: internal.nextMoveSeq };
+    internal.nextMoveSeq += 1;
     appendEvent(internal, "pointermove-entry", { moveSeq: move.moveSeq });
     return move;
   };
@@ -228,13 +232,18 @@ export const createContinuousDragDiagnostic = ({
     }
   };
 
+  const recordPreviewCommand = (): boolean => {
+    if (!activeMove || activeMove.trace.finalized || activeMove.trace.trace.terminal) return false;
+    appendEvent(activeMove.trace, "preview-command", { moveSeq: activeMove.moveSeq });
+    return true;
+  };
+
   const bindPreviewElements = (elements: CadElement[]): boolean => {
     if (!activeMove || activeMove.trace.finalized || activeMove.trace.trace.terminal) return false;
     elementsToMove.set(elements, activeMove);
     appendEvent(activeMove.trace, "preview-elements-mutation", {
       moveSeq: activeMove.moveSeq,
-      previewElementCount: elements.length,
-      previewElementIds: elements.map((element) => element.id)
+      previewElementCount: elements.length
     });
     return true;
   };
@@ -353,7 +362,10 @@ export const createContinuousDragDiagnostic = ({
     });
     attempt.settled = true;
     internal.pendingAttempts.delete(attempt);
-    if (settlement.evaluation) evaluationsToAttempt.set(settlement.evaluation, attempt);
+    if (settlement.evaluation) {
+      evaluationsToAttempt.set(settlement.evaluation, attempt);
+      if (settlement.current) internal.pendingCurrentDraws.add(attempt);
+    }
     scheduleFinalizeIfReady(internal);
   };
 
@@ -366,10 +378,9 @@ export const createContinuousDragDiagnostic = ({
       evaluationRevision: attempt.evaluationRevision,
       evaluationRequestRevision: attempt.evaluationRequestRevision,
       ...(attempt.vscodeRequestId === undefined ? {} : { vscodeRequestId: attempt.vscodeRequestId }),
-      status: attempt.settled ? "settled" : "evaluating",
+      status: attempt.settled ? "settled" : "cancelled",
       source: "rust",
-      isStale: !attempt.settled,
-      current: !attempt.settled
+      current: false
     });
   };
 
@@ -400,6 +411,9 @@ export const createContinuousDragDiagnostic = ({
       ...(input.isStale === undefined ? {} : { isStale: input.isStale }),
       current: input.current
     });
+    if (attempt && input.current && internal.pendingCurrentDraws.delete(attempt)) {
+      scheduleFinalizeIfReady(internal);
+    }
   };
 
   const recordTerminalCommit = (dragId: number, trigger: string): void => {
@@ -427,6 +441,7 @@ export const createContinuousDragDiagnostic = ({
     beginDrag,
     beginMove,
     withActiveMove,
+    recordPreviewCommand,
     bindPreviewElements,
     beginEvaluationAttempt,
     withActiveEvaluationAttempt,

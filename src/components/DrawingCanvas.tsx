@@ -1067,8 +1067,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       claimPointerMoveEntry(pointerMoveEntry, "bezier-handle");
       event.preventDefault();
       const diagnosticMove = continuousDragDiagnostic.beginMove(bezierHandleDrag.diagnosticDragId);
-      const result = continuousDragDiagnostic.withActiveMove(diagnosticMove, () =>
-        hostAdapter.moveBezierHandleByDelta({
+      const result = continuousDragDiagnostic.withActiveMove(diagnosticMove, () => {
+        continuousDragDiagnostic.recordPreviewCommand();
+        return hostAdapter.moveBezierHandleByDelta({
           elementId: bezierHandleDrag.elementId,
           bezierHandleRole: bezierHandleDrag.role,
           intermediatePointId: bezierHandleDrag.intermediatePointId,
@@ -1079,8 +1080,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           commitMode: "preview",
           baseElements: bezierHandleDrag.baseElements,
           baseEvaluation: bezierHandleDrag.baseEvaluation
-        })
-      );
+        });
+      });
       if (isRejectedDocumentMutation(result)) {
         continuousDragDiagnostic.recordAbort(
           bezierHandleDrag.diagnosticDragId,
@@ -1113,8 +1114,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       });
 
       const diagnosticMove = continuousDragDiagnostic.beginMove(pointDrag.diagnosticDragId);
-      const result = continuousDragDiagnostic.withActiveMove(diagnosticMove, () =>
-        hostAdapter.movePointElementByDelta({
+      const result = continuousDragDiagnostic.withActiveMove(diagnosticMove, () => {
+        continuousDragDiagnostic.recordPreviewCommand();
+        return hostAdapter.movePointElementByDelta({
           elementId: pointDrag.elementId,
           dx: worldDelta.dx,
           dy: worldDelta.dy,
@@ -1123,8 +1125,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           commitMode: "preview",
           baseElements: pointDrag.baseElements,
           baseEvaluation: pointDrag.baseEvaluation
-        })
-      );
+        });
+      });
       if (isRejectedDocumentMutation(result)) {
         continuousDragDiagnostic.recordAbort(pointDrag.diagnosticDragId, "preview-mutation-rejected");
         continuousDragDiagnostic.endDrag(pointDrag.diagnosticDragId, "abort");
