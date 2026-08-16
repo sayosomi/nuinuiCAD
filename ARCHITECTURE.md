@@ -225,7 +225,10 @@ runtime payload を decode / validate / evaluate する。
 
 Tauri productionは `evaluationEngine.ts` の `evaluate_document` transport adapter
 から既存の `evaluation::evaluate_document` を呼び出す。Parityのcargo exampleは
-同じRust evaluatorと同じrunner preparationを利用する。
+同じRust evaluatorと `buildRustEvaluationInput` のprojectionを利用する。Parity
+harnessはRust evaluator自体のcorrectness検証のため、production Rust eligibilityとは
+独立してRust inputを構築できる。Current-release fixtureは別途production Rust
+eligibilityをassertする。
 
 ### Rendering / hit testing
 
