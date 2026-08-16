@@ -2,7 +2,6 @@ import type { EvaluationPayload } from "../geometry/evaluationPayload";
 import type { RustEvaluationTransport } from "../geometry/rustEvaluationRunner";
 import type { EvaluateDocumentInput } from "../geometry/rustEvaluationInput";
 import type { ExtensionToVscodeMessage, VscodeToExtensionMessage } from "./protocol";
-import { continuousDragDiagnostic } from "../performance/continuousDragDiagnostic";
 
 type QueuedRequest = {
   id: number;
@@ -41,10 +40,6 @@ export class VscodeRustTransport {
   }
 
   private send(request: QueuedRequest): void {
-    continuousDragDiagnostic.recordTransportSend(
-      request.id,
-      (this.inFlight ? 1 : 0) + (this.latestPending ? 1 : 0)
-    );
     this.postMessage({ type: "rustEvaluationRequest", id: request.id, input: request.input });
   }
 
@@ -52,13 +47,7 @@ export class VscodeRustTransport {
     if (message.type !== "rustEvaluationResponse" && message.type !== "rustEvaluationError") return false;
     const request = this.inFlight;
     if (!request || request.id !== message.id) return false;
-    const pendingCount = 1 + (this.latestPending ? 1 : 0);
     this.inFlight = null;
-    continuousDragDiagnostic.recordTransportResponse(
-      message.id,
-      pendingCount,
-      this.latestPending ? 1 : 0
-    );
     if (message.type === "rustEvaluationError") request.reject(new Error(message.error));
     else request.resolve(message.payload as EvaluationPayload);
     if (this.latestPending) {

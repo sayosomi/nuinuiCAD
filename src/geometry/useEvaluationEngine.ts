@@ -14,7 +14,6 @@ import {
   isTauriRuntime
 } from "./evaluationEngine";
 import { ScalarOutputDecodeError } from "./evaluationPayload";
-import { continuousDragDiagnostic } from "../performance/continuousDragDiagnostic";
 
 export type EvaluationSource = "reference" | "rust" | "fallback";
 export type EvaluationStatus = "idle" | "evaluating" | "ready" | "failed";
@@ -208,25 +207,8 @@ export const useEvaluationEngine = (
     }
 
     let cancelled = false;
-    const diagnosticAttempt = continuousDragDiagnostic.beginEvaluationAttempt(elements, {
-      evaluationRevision,
-      evaluationRequestRevision,
-      requestKey
-    });
-    const evaluationPromise = continuousDragDiagnostic.withActiveEvaluationAttempt(
-      diagnosticAttempt,
-      () => evaluateElementsWithRust(elements, evaluationOptions, rustTransport)
-    );
-    evaluationPromise
+    evaluateElementsWithRust(elements, evaluationOptions, rustTransport)
       .then((nextEvaluation) => {
-        continuousDragDiagnostic.recordEvaluationSettlement(diagnosticAttempt, {
-          promise: "resolved",
-          status: "ready",
-          source: "rust",
-          isStale: cancelled,
-          current: !cancelled,
-          evaluation: nextEvaluation
-        });
         if (cancelled) return;
         const shadowReferenceEvaluation = deferScalarReferenceEvaluation
           ? evaluateElementsReference(elements, evaluationOptions)
@@ -255,14 +237,6 @@ export const useEvaluationEngine = (
       })
       .catch((error: unknown) => {
         const failClosed = mustFailClosedAfterRustError(scalarProgram, error);
-        continuousDragDiagnostic.recordEvaluationSettlement(diagnosticAttempt, {
-          promise: "rejected",
-          status: "failed",
-          source: failClosed ? "rust" : "fallback",
-          isStale: cancelled,
-          current: !cancelled,
-          error
-        });
         if (!cancelled) {
           if (failClosed) {
             console.error("Rust scalar evaluation failed; preserving the command failure.", error);
@@ -304,7 +278,6 @@ export const useEvaluationEngine = (
 
     return () => {
       cancelled = true;
-      continuousDragDiagnostic.recordEvaluationEffectCleanup(diagnosticAttempt);
     };
   }, [
     elements,

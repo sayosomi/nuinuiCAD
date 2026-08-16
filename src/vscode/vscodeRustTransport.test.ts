@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { continuousDragDiagnostic } from "../performance/continuousDragDiagnostic";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 
 describe("VscodeRustTransport", () => {
@@ -76,26 +75,5 @@ describe("VscodeRustTransport", () => {
     await expect(pending).rejects.toThrow("disposed");
     await expect(transport.evaluate({ elements: [] })).rejects.toThrow("disposed");
     expect(postMessage).toHaveBeenCalledTimes(1);
-  });
-
-  it("records diagnostics only for actual sends and responses", async () => {
-    const postMessage = vi.fn();
-    const send = vi.spyOn(continuousDragDiagnostic, "recordTransportSend");
-    const response = vi.spyOn(continuousDragDiagnostic, "recordTransportResponse");
-    const transport = new VscodeRustTransport(postMessage);
-    const first = transport.evaluate({ elements: [] });
-    const superseded = transport.evaluate({ elements: [] });
-    const latest = transport.evaluate({ elements: [] });
-
-    await expect(superseded).rejects.toThrow("superseded");
-    transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { value: 1 } });
-    transport.handleMessage({ type: "rustEvaluationResponse", id: 3, payload: { value: 3 } });
-    await expect(first).resolves.toEqual({ value: 1 });
-    await expect(latest).resolves.toEqual({ value: 3 });
-
-    expect(send).toHaveBeenCalledTimes(2);
-    expect(response).toHaveBeenCalledTimes(2);
-    send.mockRestore();
-    response.mockRestore();
   });
 });
