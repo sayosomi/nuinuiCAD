@@ -35,6 +35,8 @@ export type PointerMoveEntry = Readonly<{
   enteredAt: number;
 }>;
 
+export type BenchmarkDragKind = "point" | "bezier-handle";
+
 export type BenchmarkRustAttempt = Readonly<{
   sampleId: number;
   startedAt: number;
@@ -54,7 +56,7 @@ export type BenchmarkInstrumentation = {
   measureCompile: <T>(timing: SourceChangeTiming | null, compile: () => T) => T;
   beginPreviewMutation: () => PreviewMutationTiming | null;
   capturePointerMoveEntry: () => PointerMoveEntry | null;
-  claimPointerMoveEntry: (entry: PointerMoveEntry | null) => boolean;
+  claimPointerMoveEntry: (entry: PointerMoveEntry | null, dragKind: BenchmarkDragKind) => boolean;
   bindElementsToActiveSample: (
     elements: CadElement[],
     timing: SourceChangeTiming | PreviewMutationTiming
@@ -168,6 +170,7 @@ export const createBenchmarkInstrumentation = ({
     if (
       !sample ||
       (sample.scenarioId !== "point-drag-v1" && sample.scenarioId !== "bezier-handle-drag-v1") ||
+      sample.pointerMoveStartedAt === undefined ||
       sample.previewMutationStartedAt !== undefined
     ) {
       return null;
@@ -188,10 +191,17 @@ export const createBenchmarkInstrumentation = ({
     return { sampleId: sample.sampleId, enteredAt: now() };
   };
 
-  const claimPointerMoveEntry = (entry: PointerMoveEntry | null): boolean => {
+  const claimPointerMoveEntry = (
+    entry: PointerMoveEntry | null,
+    dragKind: BenchmarkDragKind
+  ): boolean => {
     if (!entry) return false;
     const sample = activeSampleFor(entry.sampleId);
     if (!sample || sample.pointerMoveStartedAt !== undefined) return false;
+    const expectedScenario = dragKind === "point"
+      ? "point-drag-v1"
+      : "bezier-handle-drag-v1";
+    if (sample.scenarioId !== expectedScenario) return false;
     sample.pointerMoveStartedAt = entry.enteredAt;
     return true;
   };

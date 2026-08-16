@@ -1006,7 +1006,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         return;
       }
 
-      claimPointerMoveEntry(pointerMoveEntry);
+      claimPointerMoveEntry(pointerMoveEntry, "bezier-handle");
       event.preventDefault();
       const result = dispatchCommand("moveBezierHandleByDelta", {
         elementId: bezierHandleDrag.elementId,
@@ -1035,7 +1035,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         return;
       }
 
-      claimPointerMoveEntry(pointerMoveEntry);
+      claimPointerMoveEntry(pointerMoveEntry, "point");
       event.preventDefault();
       const screenDx = event.clientX - pointDrag.startClientX;
       const screenDy = event.clientY - pointDrag.startClientY;

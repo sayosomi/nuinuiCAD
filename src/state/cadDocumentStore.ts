@@ -537,7 +537,7 @@ const rejectExternalDocumentReset = () => {
 export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   ...initialCadDocumentState(),
   commitText: (nextText, origin, options) => {
-    const sourceChangeTiming = beginSourceChange();
+    const sourceChangeTiming = origin === "editor" ? beginSourceChange() : null;
     if (sourceEditSession.isComposing()) {
       useCadUiStore.getState().setCommandErrorMessage(
         "日本語入力の確定中はDSL入力をcommitできません。入力を確定してから再操作してください。"

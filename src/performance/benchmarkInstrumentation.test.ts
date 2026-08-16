@@ -89,39 +89,58 @@ describe("benchmark instrumentation", () => {
     expect(instrumentation.drainCompletedBenchmarkSamples()).toEqual([]);
   });
 
-  it("keeps pointer and preview starts separate and shares the draw path", () => {
+  it("requires a matching pointer claim before starting preview and shares the draw path", () => {
     const { instrumentation, frames, setTime } = harness();
     instrumentation.beginBenchmarkSample("point-drag-v1");
 
     setTime(10);
-    const previewTiming = instrumentation.beginPreviewMutation();
-    expect(instrumentation.bindElementsToActiveSample(elements, previewTiming!)).toBe(true);
+    expect(instrumentation.beginPreviewMutation()).toBeNull();
 
     setTime(20);
     const pendingPointerEntry = instrumentation.capturePointerMoveEntry();
-    expect(instrumentation.claimPointerMoveEntry(null)).toBe(false);
+    expect(instrumentation.claimPointerMoveEntry(null, "point")).toBe(false);
     setTime(30);
     const pointerEntry = instrumentation.capturePointerMoveEntry();
-    expect(instrumentation.claimPointerMoveEntry(pointerEntry)).toBe(true);
-    expect(instrumentation.claimPointerMoveEntry(pendingPointerEntry)).toBe(false);
+    expect(instrumentation.claimPointerMoveEntry(pointerEntry, "point")).toBe(true);
+    expect(instrumentation.claimPointerMoveEntry(pendingPointerEntry, "point")).toBe(false);
 
     setTime(40);
+    const previewTiming = instrumentation.beginPreviewMutation();
+    expect(previewTiming).not.toBeNull();
+    expect(instrumentation.bindElementsToActiveSample(elements, previewTiming!)).toBe(true);
+
+    setTime(50);
     const attempt = instrumentation.beginRustRoundTrip(elements);
     const result = evaluation();
-    setTime(50);
-    instrumentation.finishRustRoundTrip(attempt, result);
     setTime(60);
+    instrumentation.finishRustRoundTrip(attempt, result);
+    setTime(70);
     instrumentation.measureCanvasDraw(result, true, () => {
-      setTime(65);
+      setTime(75);
     });
-    frames[0](100);
+    frames[0](110);
 
     expect(instrumentation.drainCompletedBenchmarkSamples()[0]?.metrics).toEqual({
-      pointerMoveToFrameMs: 70,
-      previewMutationToFrameMs: 90,
+      pointerMoveToFrameMs: 80,
+      previewMutationToFrameMs: 70,
       rustRoundTripMs: 10,
       canvasDrawMs: 5
     });
+  });
+
+  it("claims only the drag kind that matches the active scenario", () => {
+    const { instrumentation } = harness();
+
+    instrumentation.beginBenchmarkSample("point-drag-v1");
+    const pointEntry = instrumentation.capturePointerMoveEntry();
+    expect(instrumentation.claimPointerMoveEntry(pointEntry, "bezier-handle")).toBe(false);
+    expect(instrumentation.claimPointerMoveEntry(pointEntry, "point")).toBe(true);
+    instrumentation.abortBenchmarkSample();
+
+    instrumentation.beginBenchmarkSample("bezier-handle-drag-v1");
+    const bezierEntry = instrumentation.capturePointerMoveEntry();
+    expect(instrumentation.claimPointerMoveEntry(bezierEntry, "point")).toBe(false);
+    expect(instrumentation.claimPointerMoveEntry(bezierEntry, "bezier-handle")).toBe(true);
   });
 
   it("uses distinct attempts and never lets stale or aborted callbacks close a new sample", () => {
@@ -151,9 +170,10 @@ describe("benchmark instrumentation", () => {
     expect(instrumentation.drainCompletedBenchmarkSamples()).toEqual([]);
 
     setTime(200);
+    const callCountBefore = now.mock.calls.length;
     instrumentation.finishRustRoundTrip(firstAttempt, firstEvaluation);
     instrumentation.measureCanvasDraw(firstEvaluation, false, () => "stale");
     expect(instrumentation.drainCompletedBenchmarkSamples()).toEqual([]);
-    expect(now).not.toHaveBeenCalledWith(200);
+    expect(now.mock.calls.length).toBe(callCountBefore);
   });
 });

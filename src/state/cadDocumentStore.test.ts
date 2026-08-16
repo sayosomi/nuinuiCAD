@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { commitDocumentChangeAndSelect } from "../commands/commitDocumentChangeAndSelect";
@@ -13,10 +13,75 @@ import {
   useCadDocumentStore
 } from "./cadDocumentStore";
 import { useCadUiStore } from "./cadUiStore";
+import {
+  abortBenchmarkSample,
+  beginBenchmarkSample,
+  beginPreviewMutation,
+  beginRustRoundTrip,
+  beginSourceChange,
+  capturePointerMoveEntry,
+  claimPointerMoveEntry,
+  drainCompletedBenchmarkSamples
+} from "../performance/benchmarkInstrumentation";
 
 describe("cadDocumentStore file state", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
+  });
+
+  afterEach(() => {
+    abortBenchmarkSample();
+    drainCompletedBenchmarkSamples();
+  });
+
+  it("starts and binds source timing only for editor-origin commits", () => {
+    beginBenchmarkSample("source-edit-v1");
+    const source = dslTextForElements([
+      { id: "editor-point", name: "EditorPoint", type: "freePoint", activity: "visible", x: 10, y: 0 }
+    ]);
+
+    useCadDocumentStore.getState().commitText(source, "editor");
+
+    expect(beginSourceChange()).toBeNull();
+    expect(beginRustRoundTrip(useCadDocumentStore.getState().elements)).not.toBeNull();
+  });
+
+  it("does not let a non-editor commit claim a source sample before an editor commit", () => {
+    beginBenchmarkSample("source-edit-v1");
+    const fileSource = dslTextForElements([
+      { id: "file-point", name: "FilePoint", type: "freePoint", activity: "visible", x: 1, y: 0 }
+    ]);
+    const editorSource = dslTextForElements([
+      { id: "editor-point", name: "EditorPoint", type: "freePoint", activity: "visible", x: 2, y: 0 }
+    ]);
+
+    useCadDocumentStore.getState().commitText(fileSource, "file");
+    useCadDocumentStore.getState().commitText(editorSource, "editor");
+
+    expect(beginSourceChange()).toBeNull();
+    expect(beginRustRoundTrip(useCadDocumentStore.getState().elements)).not.toBeNull();
+  });
+
+  it("starts preview timing and binds elements only after a matching point claim", () => {
+    beginBenchmarkSample("point-drag-v1");
+    const firstPreviewElements = useCadDocumentStore.getState().elements.map((element) => ({ ...element }));
+
+    expect(useCadDocumentStore.getState().previewDocumentChange({ elements: firstPreviewElements })).toEqual({
+      status: "applied"
+    });
+    expect(beginPreviewMutation()).toBeNull();
+
+    const pointerEntry = capturePointerMoveEntry();
+    expect(claimPointerMoveEntry(pointerEntry, "point")).toBe(true);
+
+    const matchingPreviewElements = useCadDocumentStore.getState().elements.map((element) => ({
+      ...element,
+      ...(element.type === "freePoint" && typeof element.x === "number" ? { x: element.x + 1 } : {})
+    }));
+    expect(useCadDocumentStore.getState().previewDocumentChange({ elements: matchingPreviewElements })).toEqual({
+      status: "applied"
+    });
+    expect(beginRustRoundTrip(matchingPreviewElements)).not.toBeNull();
   });
 
   it("marks committed edits, undo, and redo as dirty", () => {
