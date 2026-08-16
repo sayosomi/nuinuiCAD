@@ -59,6 +59,7 @@ import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting"
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ElementId } from "../types/geometry";
 import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
+import { TauriBenchmarkCaptureRunner } from "../performance/TauriBenchmarkCaptureRunner";
 
 const commandLineCreationCommandIds = new Set(legacyCreationCommandIds);
 
@@ -622,6 +623,12 @@ export const AppLayout = () => {
       <CommandPalette commandContext={commandContext} />
       <PickModeStatus />
       <ShortcutHelpOverlay isPickMode={isPickMode} />
+      <TauriBenchmarkCaptureRunner
+        evaluation={evaluation}
+        evaluationState={evaluationState}
+        compiledDocumentRevision={compiledDocumentRevision}
+        canvasFocusRef={canvasFocusRef}
+      />
       {showPaletteSettings ? (
         <Suspense fallback={null}>
           <PaletteSettingsDialog />

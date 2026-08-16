@@ -1,0 +1,218 @@
+import { describe, expect, it, vi } from "vitest";
+import type { CadElement, EvaluationResult } from "../types/geometry";
+import { createBenchmarkInstrumentation } from "./benchmarkInstrumentation";
+
+const elements = [] as CadElement[];
+
+const evaluation = (): EvaluationResult => ({
+  computedGeometry: new Map(),
+  errors: [],
+  warnings: []
+});
+
+const harness = () => {
+  let time = 0;
+  const now = vi.fn(() => time);
+  const frames: Array<(timestamp: number) => void> = [];
+  const instrumentation = createBenchmarkInstrumentation({
+    now,
+    requestAnimationFrame: (callback) => {
+      frames.push(callback);
+      return frames.length;
+    }
+  });
+  return {
+    instrumentation,
+    now,
+    frames,
+    setTime: (nextTime: number) => {
+      time = nextTime;
+    }
+  };
+};
+
+describe("benchmark instrumentation", () => {
+  it("stays passive without an active sample", () => {
+    const { instrumentation, now, frames } = harness();
+    const result = evaluation();
+
+    expect(instrumentation.beginSourceChange()).toBeNull();
+    expect(instrumentation.beginPreviewMutation()).toBeNull();
+    expect(instrumentation.capturePointerMoveEntry()).toBeNull();
+    expect(instrumentation.beginRustRoundTrip(elements)).toBeNull();
+    expect(instrumentation.measureCanvasDraw(result, true, () => "drawn")).toBe("drawn");
+
+    expect(now).not.toHaveBeenCalled();
+    expect(frames).toHaveLength(0);
+  });
+
+  it("arms one sample, records source and Rust/draw timings, and drains once", () => {
+    const { instrumentation, frames, setTime } = harness();
+    const sample = instrumentation.beginBenchmarkSample("source-edit-v1");
+    expect(sample).not.toBeNull();
+    expect(instrumentation.beginBenchmarkSample("source-edit-v1")).toBeNull();
+
+    setTime(10);
+    const sourceTiming = instrumentation.beginSourceChange();
+    setTime(20);
+    instrumentation.measureCompile(sourceTiming, () => {
+      setTime(25);
+      return undefined;
+    });
+    expect(sourceTiming).not.toBeNull();
+    expect(instrumentation.bindElementsToActiveSample(elements, sourceTiming!)).toBe(true);
+
+    setTime(30);
+    const attempt = instrumentation.beginRustRoundTrip(elements);
+    const result = evaluation();
+    setTime(40);
+    instrumentation.finishRustRoundTrip(attempt, result);
+
+    setTime(50);
+    expect(instrumentation.measureCanvasDraw(result, true, () => {
+      setTime(60);
+      return "drawn";
+    })).toBe("drawn");
+    expect(frames).toHaveLength(1);
+
+    frames[0](100);
+    expect(instrumentation.drainCompletedBenchmarkSamples()).toEqual([{
+      sampleId: sample!.sampleId,
+      scenarioId: "source-edit-v1",
+      metrics: {
+        compileMs: 5,
+        rustRoundTripMs: 10,
+        canvasDrawMs: 10,
+        sourceChangeToFrameMs: 90
+      }
+    }]);
+    expect(instrumentation.drainCompletedBenchmarkSamples()).toEqual([]);
+  });
+
+  it("requires a matching pointer claim before starting preview and shares the draw path", () => {
+    const { instrumentation, frames, setTime } = harness();
+    instrumentation.beginBenchmarkSample("point-drag-v1");
+
+    setTime(10);
+    expect(instrumentation.beginPreviewMutation()).toBeNull();
+
+    setTime(20);
+    const pendingPointerEntry = instrumentation.capturePointerMoveEntry();
+    expect(instrumentation.claimPointerMoveEntry(null, "point")).toBe(false);
+    setTime(30);
+    const pointerEntry = instrumentation.capturePointerMoveEntry();
+    expect(instrumentation.claimPointerMoveEntry(pointerEntry, "point")).toBe(true);
+    expect(instrumentation.claimPointerMoveEntry(pendingPointerEntry, "point")).toBe(false);
+
+    setTime(40);
+    const previewTiming = instrumentation.beginPreviewMutation();
+    expect(previewTiming).not.toBeNull();
+    expect(instrumentation.bindElementsToActiveSample(elements, previewTiming!)).toBe(true);
+
+    setTime(50);
+    const attempt = instrumentation.beginRustRoundTrip(elements);
+    const result = evaluation();
+    setTime(60);
+    instrumentation.finishRustRoundTrip(attempt, result);
+    setTime(70);
+    instrumentation.measureCanvasDraw(result, true, () => {
+      setTime(75);
+    });
+    frames[0](110);
+
+    expect(instrumentation.drainCompletedBenchmarkSamples()[0]?.metrics).toEqual({
+      pointerMoveToFrameMs: 80,
+      previewMutationToFrameMs: 70,
+      rustRoundTripMs: 10,
+      canvasDrawMs: 5
+    });
+  });
+
+  it("claims only the drag kind that matches the active scenario", () => {
+    const { instrumentation } = harness();
+
+    instrumentation.beginBenchmarkSample("point-drag-v1");
+    const pointEntry = instrumentation.capturePointerMoveEntry();
+    expect(instrumentation.claimPointerMoveEntry(pointEntry, "bezier-handle")).toBe(false);
+    expect(instrumentation.claimPointerMoveEntry(pointEntry, "point")).toBe(true);
+    instrumentation.abortBenchmarkSample();
+
+    instrumentation.beginBenchmarkSample("bezier-handle-drag-v1");
+    const bezierEntry = instrumentation.capturePointerMoveEntry();
+    expect(instrumentation.claimPointerMoveEntry(bezierEntry, "point")).toBe(false);
+    expect(instrumentation.claimPointerMoveEntry(bezierEntry, "bezier-handle")).toBe(true);
+  });
+
+  it("uses distinct attempts and never lets stale or aborted callbacks close a new sample", () => {
+    const { instrumentation, frames, now, setTime } = harness();
+    instrumentation.beginBenchmarkSample("source-edit-v1");
+    setTime(10);
+    const sourceTiming = instrumentation.beginSourceChange();
+    instrumentation.measureCompile(sourceTiming, () => undefined);
+    instrumentation.bindElementsToActiveSample(elements, sourceTiming!);
+
+    setTime(20);
+    const firstAttempt = instrumentation.beginRustRoundTrip(elements);
+    const firstEvaluation = evaluation();
+    const secondAttempt = instrumentation.beginRustRoundTrip(elements);
+    const secondEvaluation = evaluation();
+    expect(firstAttempt).not.toBe(secondAttempt);
+    setTime(30);
+    instrumentation.finishRustRoundTrip(firstAttempt, firstEvaluation);
+    instrumentation.finishRustRoundTrip(secondAttempt, secondEvaluation);
+    setTime(40);
+    instrumentation.measureCanvasDraw(firstEvaluation, true, () => undefined);
+    expect(frames).toHaveLength(1);
+
+    instrumentation.abortBenchmarkSample();
+    instrumentation.beginBenchmarkSample("source-edit-v1");
+    frames[0](100);
+    expect(instrumentation.drainCompletedBenchmarkSamples()).toEqual([]);
+
+    setTime(200);
+    const callCountBefore = now.mock.calls.length;
+    instrumentation.finishRustRoundTrip(firstAttempt, firstEvaluation);
+    instrumentation.measureCanvasDraw(firstEvaluation, false, () => "stale");
+    expect(instrumentation.drainCompletedBenchmarkSamples()).toEqual([]);
+    expect(now.mock.calls.length).toBe(callCountBefore);
+  });
+
+  it("notifies subscribers with the exact completed sample id", () => {
+    const { instrumentation, frames, setTime } = harness();
+    const completions: number[] = [];
+    const unsubscribe = instrumentation.subscribeCompletedBenchmarkSamples((sample) => {
+      completions.push(sample.sampleId);
+    });
+    const sample = instrumentation.beginBenchmarkSample("source-edit-v1")!;
+    setTime(10);
+    const sourceTiming = instrumentation.beginSourceChange();
+    instrumentation.measureCompile(sourceTiming, () => undefined);
+    instrumentation.bindElementsToActiveSample(elements, sourceTiming!);
+    const attempt = instrumentation.beginRustRoundTrip(elements);
+    const result = evaluation();
+    instrumentation.finishRustRoundTrip(attempt, result);
+    instrumentation.measureCanvasDraw(result, true, () => undefined);
+    frames[0]!(20);
+    expect(completions).toEqual([sample.sampleId]);
+    unsubscribe();
+  });
+
+  it("does not notify an aborted sample or its late RAF", () => {
+    const { instrumentation, frames, setTime } = harness();
+    const completions: number[] = [];
+    instrumentation.subscribeCompletedBenchmarkSamples((sample) => completions.push(sample.sampleId));
+    instrumentation.beginBenchmarkSample("source-edit-v1");
+    setTime(10);
+    const sourceTiming = instrumentation.beginSourceChange();
+    instrumentation.measureCompile(sourceTiming, () => undefined);
+    instrumentation.bindElementsToActiveSample(elements, sourceTiming!);
+    const attempt = instrumentation.beginRustRoundTrip(elements);
+    const result = evaluation();
+    instrumentation.finishRustRoundTrip(attempt, result);
+    instrumentation.measureCanvasDraw(result, true, () => undefined);
+    instrumentation.abortBenchmarkSample();
+    frames[0]!(20);
+    expect(completions).toEqual([]);
+    expect(instrumentation.drainCompletedBenchmarkSamples()).toEqual([]);
+  });
+});

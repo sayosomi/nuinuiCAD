@@ -12,6 +12,10 @@ import { hasSetVersions, isRustLinearMutationEligible } from "../scalars/linearM
 import { hasCanonicalForGroupMutationOwners } from "../scalars/forGroupMutationControl";
 import { referencesIn } from "../scalars/typedDependencyGraph";
 import { buildRustEvaluationInput } from "./rustEvaluationInput";
+import {
+  beginRustRoundTrip,
+  finishRustRoundTrip
+} from "../performance/benchmarkInstrumentation";
 
 export type EvaluationEngineMode = "reference" | "parity" | "shadow" | "rust";
 
@@ -398,10 +402,13 @@ export const evaluateElementsWithRust = async (
   const input = buildRustEvaluationInput(elements, options, {
     includeBindingVersions: rustEligible
   });
+  const rustAttempt = beginRustRoundTrip(elements);
   const payload = await invoke<EvaluationPayload>("evaluate_document", {
     input
   });
-  return evaluationPayloadToResult(payload);
+  const result = evaluationPayloadToResult(payload);
+  finishRustRoundTrip(rustAttempt, result);
+  return result;
 };
 
 const normalizeEvaluationPayloadForComparison = (value: unknown): unknown => {

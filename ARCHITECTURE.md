@@ -234,6 +234,26 @@ evaluation options 構築を独自に持っている。
 重要: 将来計画にある `buildEvaluationContext(...)` はまだ存在しないため、
 current architecture として書かない。
 
+### Performance comparison foundation
+
+Primary:
+
+- `src/performance/`
+- `scripts/performance/`
+- `performance/fixtures/`
+
+Tauri / future host で共有する benchmark protocol、result schema、statistics、
+comparison logic、固定 `.nui` workload の owner。
+
+`src/performance/` は benchmark protocol、result schema、statistics、passive
+instrumentation、host-neutral benchmark execution、Tauri capture orchestration、
+result assembly を owner とする。`scripts/performance/` は Tauri capture CLI と
+result IO / comparison を担当する。Benchmark state は application store や Rust
+state に追加せず、通常 run ではほぼ no-op になる独立 subsystem である。
+
+`src-tauri/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
+test であり、cross-host UI comparison foundation とは別責務。
+
 ## Core architecture invariants
 
 - `.nui` `sourceText` is canonical。

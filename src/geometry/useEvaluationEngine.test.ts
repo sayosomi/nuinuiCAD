@@ -9,8 +9,18 @@ import { buildConditionalGroupConditionsByElementId } from "./controlBooleanRunt
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import * as evaluationEngine from "./evaluationEngine";
-import { evaluateElementsReferencePayload } from "./evaluationEngine";
+import { evaluateElementsReferencePayload, evaluateElementsWithRust } from "./evaluationEngine";
 import { useEvaluationEngine } from "./useEvaluationEngine";
+import {
+  abortBenchmarkSample,
+  beginBenchmarkSample,
+  beginSourceChange,
+  bindElementsToActiveSample,
+  drainCompletedBenchmarkSamples,
+  measureCompile,
+  measureCanvasDraw
+} from "../performance/benchmarkInstrumentation";
+import * as benchmarkInstrumentation from "../performance/benchmarkInstrumentation";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn()
@@ -89,6 +99,8 @@ const clearTauriRuntime = () => {
 };
 
 afterEach(() => {
+  abortBenchmarkSample();
+  drainCompletedBenchmarkSamples();
   clearTauriRuntime();
   vi.unstubAllEnvs();
   invokeMock.mockReset();
@@ -172,6 +184,59 @@ describe("useEvaluationEngine", () => {
     expect(result.current.source).toBe("rust");
     expect(result.current.status).toBe("evaluating");
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("evaluate_document", expect.any(Object)));
+  });
+
+  it("measures the production Rust round trip around invoke and payload decoding", async () => {
+    setTauriRuntime();
+    const sample = beginBenchmarkSample("source-edit-v1");
+    expect(sample).not.toBeNull();
+    const sourceTiming = beginSourceChange();
+    measureCompile(sourceTiming, () => undefined);
+    expect(bindElementsToActiveSample(elements, sourceTiming!)).toBe(true);
+
+    const payload = evaluateElementsReferencePayload(elements);
+    invokeMock.mockResolvedValue(payload);
+    const frames: Array<(timestamp: number) => void> = [];
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const requestAnimationFrame = vi.fn((callback: (timestamp: number) => void) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    Object.defineProperty(window, "requestAnimationFrame", {
+      configurable: true,
+      value: requestAnimationFrame
+    });
+    const now = vi.spyOn(performance, "now")
+      .mockReturnValueOnce(20)
+      .mockReturnValueOnce(50)
+      .mockReturnValueOnce(70)
+      .mockReturnValueOnce(90)
+      .mockReturnValueOnce(60)
+      .mockReturnValueOnce(65);
+    const rustAttempts = vi.spyOn(benchmarkInstrumentation, "beginRustRoundTrip");
+
+    const result = await evaluateElementsWithRust(elements);
+    const secondResult = await evaluateElementsWithRust(elements);
+
+    expect(invokeMock).toHaveBeenCalledTimes(2);
+    expect(invokeMock).toHaveBeenNthCalledWith(1, "evaluate_document", expect.any(Object));
+    expect(now.mock.invocationCallOrder[0]).toBeLessThan(invokeMock.mock.invocationCallOrder[0]!);
+    expect(now.mock.invocationCallOrder[1]).toBeGreaterThan(invokeMock.mock.invocationCallOrder[0]!);
+    expect(rustAttempts).toHaveBeenCalledTimes(2);
+    expect(rustAttempts.mock.results[0]?.value).not.toBe(rustAttempts.mock.results[1]?.value);
+    expect(result).not.toBe(secondResult);
+
+    measureCanvasDraw(result, true, () => undefined);
+    expect(frames).toHaveLength(1);
+    frames[0](100_000);
+
+    const completed = drainCompletedBenchmarkSamples();
+    expect(completed).toHaveLength(1);
+    expect(completed[0]?.metrics.rustRoundTripMs).toBe(30);
+    Object.defineProperty(window, "requestAnimationFrame", {
+      configurable: true,
+      value: originalRequestAnimationFrame
+    });
   });
 
   it("adopts the Rust result for a canonical forGroup mutation graph", async () => {

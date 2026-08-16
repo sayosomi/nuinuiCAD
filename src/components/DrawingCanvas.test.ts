@@ -16,6 +16,14 @@ import { useCadUiStore } from "../state/cadUiStore";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { worldToScreen } from "./canvasViewport";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
+import {
+  abortBenchmarkSample,
+  beginBenchmarkSample,
+  capturePointerMoveEntry,
+  claimPointerMoveEntry,
+  drainCompletedBenchmarkSamples
+} from "../performance/benchmarkInstrumentation";
+import { waitForCurrentDrawAndFrame } from "../performance/benchmarkFrameObserver";
 import type {
   CadElement,
   ComputedBezierCurve,
@@ -283,6 +291,13 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("notifies the passive frame observer after the current production draw", async () => {
+    const revision = useCadStore.getState().compiledDocumentRevision;
+    const wait = waitForCurrentDrawAndFrame(revision);
+    renderDrawingCanvas();
+    await wait.promise;
+  });
+
   it("draws Bezier offset line segments as canvas Bezier curves", () => {
     const context = mockCanvasContext();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
@@ -1439,6 +1454,121 @@ describe("DrawingCanvas point dragging", () => {
     } finally {
       unregister();
     }
+  });
+});
+
+describe("DrawingCanvas benchmark drag hooks", () => {
+  afterEach(() => {
+    abortBenchmarkSample();
+    drainCompletedBenchmarkSamples();
+  });
+
+  it("claims a point drag through the production pointermove handler", () => {
+    beginBenchmarkSample("point-drag-v1");
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 260,
+      pointerId: 1
+    });
+
+    const entry = capturePointerMoveEntry();
+    expect(claimPointerMoveEntry(entry, "point")).toBe(false);
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 320,
+      clientY: 260,
+      pointerId: 1
+    });
+  });
+
+  it("claims a Bezier handle drag through the production pointermove handler", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"]
+    });
+    beginBenchmarkSample("bezier-handle-drag-v1");
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 345,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 345,
+      clientY: 205,
+      pointerId: 1
+    });
+
+    const entry = capturePointerMoveEntry();
+    expect(claimPointerMoveEntry(entry, "bezier-handle")).toBe(false);
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 345,
+      clientY: 205,
+      pointerId: 1
+    });
+  });
+
+  it("does not claim a point sample for a Bezier handle movement", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"]
+    });
+    beginBenchmarkSample("point-drag-v1");
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 345,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 345,
+      clientY: 205,
+      pointerId: 1
+    });
+
+    const entry = capturePointerMoveEntry();
+    expect(claimPointerMoveEntry(entry, "point")).toBe(true);
+  });
+
+  it("does not claim an unrelated pointer id", () => {
+    beginBenchmarkSample("point-drag-v1");
+    const { viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 260,
+      pointerId: 2
+    });
+
+    const entry = capturePointerMoveEntry();
+    expect(claimPointerMoveEntry(entry, "point")).toBe(true);
   });
 });
 
