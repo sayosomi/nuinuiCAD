@@ -287,6 +287,86 @@ describe("continuous drag diagnostic", () => {
     expect(log).toHaveBeenCalledTimes(1);
   });
 
+  it("finalizes when a current-adopted evaluation is cleaned up before its draw", () => {
+    const { diagnostic, scheduled, log } = makeDiagnostic();
+    const dragId = diagnostic.beginDrag({ kind: "point", baseElements: [] });
+    const evaluation = makeEvaluation();
+    const { activeMove, attempt } = beginAttempt(diagnostic, dragId, makeElements("current"));
+
+    diagnostic.recordEvaluationSettlement(attempt, {
+      promise: "resolved",
+      status: "ready",
+      source: "rust",
+      isStale: false,
+      current: true,
+      evaluation
+    });
+    diagnostic.endDrag(dragId, "commit");
+
+    scheduled.shift()?.();
+    expect(log).not.toHaveBeenCalled();
+
+    diagnostic.recordEvaluationEffectCleanup(attempt);
+    expect(scheduled).toHaveLength(1);
+    scheduled.shift()?.();
+    expect(log).toHaveBeenCalledTimes(1);
+
+    const trace = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      events: Array<Record<string, unknown>>;
+    };
+    expect(trace.events.map((event) => event.type)).toEqual([
+      "drag-start",
+      "pointermove-entry",
+      "preview-elements-mutation",
+      "evaluation-attempt-start",
+      "evaluation-resolved",
+      "evaluation-outcome",
+      "drag-end",
+      "evaluation-effect-cleanup",
+      "evaluation-superseded-before-draw"
+    ]);
+    const superseded = trace.events.find((event) => event.type === "evaluation-superseded-before-draw");
+    expect(superseded?.moveSeq).toBe(activeMove.moveSeq);
+    expect(superseded?.evaluationAttemptId).toBe(attempt.attemptId);
+    expect(superseded?.evaluationRevision).toBe(attempt.evaluationRevision);
+    expect(superseded?.evaluationRequestRevision).toBe(attempt.evaluationRequestRevision);
+    expect(superseded?.current).toBe(false);
+  });
+
+  it("does not mark an evaluation superseded after its current draw", () => {
+    const { diagnostic, scheduled, log } = makeDiagnostic();
+    const dragId = diagnostic.beginDrag({ kind: "point", baseElements: [] });
+    const evaluation = makeEvaluation();
+    const { attempt } = beginAttempt(diagnostic, dragId, makeElements("current"));
+
+    diagnostic.recordEvaluationSettlement(attempt, {
+      promise: "resolved",
+      status: "ready",
+      source: "rust",
+      isStale: false,
+      current: true,
+      evaluation
+    });
+    diagnostic.endDrag(dragId, "commit");
+    diagnostic.recordCanvasDraw(evaluation, {
+      status: "ready",
+      source: "rust",
+      isStale: false,
+      current: true
+    });
+    diagnostic.recordEvaluationEffectCleanup(attempt);
+
+    expect(scheduled).toHaveLength(1);
+    scheduled.shift()?.();
+    expect(log).toHaveBeenCalledTimes(1);
+
+    const trace = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      events: Array<Record<string, unknown>>;
+    };
+    expect(trace.events.some((event) => event.type === "evaluation-superseded-before-draw")).toBe(false);
+    expect(trace.events.some((event) => event.type === "canvas-draw" && event.current === true)).toBe(true);
+  });
+
   it("records effect cleanup and finalizes exactly once after all attempts settle", () => {
     const { diagnostic, scheduled, log } = makeDiagnostic();
     const dragId = diagnostic.beginDrag({ kind: "point", baseElements: [] });

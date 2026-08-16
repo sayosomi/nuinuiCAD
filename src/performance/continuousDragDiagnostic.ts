@@ -372,7 +372,8 @@ export const createContinuousDragDiagnostic = ({
   const recordEvaluationEffectCleanup = (attempt: ContinuousDragEvaluationAttempt | null): void => {
     if (!attempt || attempt.cleanupRecorded || attempt.move.trace.finalized) return;
     attempt.cleanupRecorded = true;
-    appendEvent(attempt.move.trace, "evaluation-effect-cleanup", {
+    const internal = attempt.move.trace;
+    appendEvent(internal, "evaluation-effect-cleanup", {
       moveSeq: attempt.move.moveSeq,
       evaluationAttemptId: attempt.attemptId,
       evaluationRevision: attempt.evaluationRevision,
@@ -382,6 +383,17 @@ export const createContinuousDragDiagnostic = ({
       source: "rust",
       current: false
     });
+    if (attempt.settled && internal.pendingCurrentDraws.delete(attempt)) {
+      appendEvent(internal, "evaluation-superseded-before-draw", {
+        moveSeq: attempt.move.moveSeq,
+        evaluationAttemptId: attempt.attemptId,
+        evaluationRevision: attempt.evaluationRevision,
+        evaluationRequestRevision: attempt.evaluationRequestRevision,
+        ...(attempt.vscodeRequestId === undefined ? {} : { vscodeRequestId: attempt.vscodeRequestId }),
+        current: false
+      });
+    }
+    scheduleFinalizeIfReady(internal);
   };
 
   const recordCanvasDraw = (
