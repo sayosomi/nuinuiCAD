@@ -3,8 +3,10 @@
 This directory contains the shared, host-neutral benchmark contract for comparing
 the Tauri application with a future VS Code host. It defines the protocol,
 scenario and metric names, result schema, statistics, comparison behavior, and
-fixed `.nui` workloads. It does not contain production timing instrumentation,
-a baseline runner, or host-specific benchmark code.
+fixed `.nui` workloads. Passive production timing instrumentation, sample
+correlation, and raw timing capture live in `src/performance/`.
+
+There is not yet a baseline runner or actual result-capture orchestration.
 
 ## Official protocol
 

@@ -29,6 +29,12 @@ import { sampleElements } from "../sampleData";
 import type { LineSplice } from "../document/textPatch";
 import type { SourceUpdate } from "../editor/sourceEditorTypes";
 import { sourceEditSession } from "../editor/sourceEditSession";
+import {
+  beginPreviewMutation,
+  beginSourceChange,
+  bindElementsToActiveSample,
+  measureCompile
+} from "../performance/benchmarkInstrumentation";
 import type {
   CadElement,
   DocumentPalette,
@@ -531,6 +537,7 @@ const rejectExternalDocumentReset = () => {
 export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
   ...initialCadDocumentState(),
   commitText: (nextText, origin, options) => {
+    const sourceChangeTiming = beginSourceChange();
     if (sourceEditSession.isComposing()) {
       useCadUiStore.getState().setCommandErrorMessage(
         "日本語入力の確定中はDSL入力をcommitできません。入力を確定してから再操作してください。"
@@ -541,7 +548,10 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     set((state) => {
       if (nextText === state.sourceText) return clearedPreviewState();
       const previousSelection = useCadUiStore.getState();
-      const result = compileCanonicalText(state, nextText);
+      const result = measureCompile(sourceChangeTiming, () => compileCanonicalText(state, nextText));
+      if (sourceChangeTiming && result.docText === result.sourceText) {
+        bindElementsToActiveSample(result.doc.document.elements, sourceChangeTiming);
+      }
       selectionElements = result.doc.document.elements;
       // A typing burst can move the cursor before it commits; the snapshot must
       // pair the pre-burst text with the pre-burst cursor line, not wherever the
@@ -577,6 +587,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     });
   },
   previewDocumentChange: (change) => {
+    const previewMutationTiming = beginPreviewMutation();
     const guarded = guardDocumentMutation();
     if (guarded) {
       set(clearedPreviewState());
@@ -590,6 +601,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         ? change.evaluationLimitIndex
         : null
     });
+    if (previewMutationTiming) bindElementsToActiveSample(change.elements, previewMutationTiming);
     return { status: "applied" };
   },
   clearPreviewDocumentChange: () => set(clearedPreviewState()),

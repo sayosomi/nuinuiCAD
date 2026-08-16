@@ -64,6 +64,11 @@ import {
   type PendingCanvasPointerTransition
 } from "./pendingCanvasPointer";
 import { evaluationStateIsCurrentFor } from "../geometry/useEvaluationEngine";
+import {
+  capturePointerMoveEntry,
+  claimPointerMoveEntry,
+  measureCanvasDraw
+} from "../performance/benchmarkInstrumentation";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -155,6 +160,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     statementInfoByElementId
   }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
+  const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
   const palette = useCadDocumentStore((state) => state.palette);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
@@ -331,34 +337,41 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvas.height = Math.round(viewportSize.height * ratio);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
 
-    renderCanvasGeometry({
-      ctx,
-      size: viewportSize,
-      viewport: canvasViewport,
-      lines,
-      arcs,
-      curves,
-      offsetLines,
-      images: overlayImages,
-      points,
-      visibleElementIds,
-      selectedElementIdSet,
-      selectedElementId,
-      elementColors,
-      showCanvasPoints,
-      isPointPickActive: Boolean(activePointPickTarget),
-      isNumericReferencePickActive: Boolean(activeNumericReferencePickTarget),
-      isLinePickActive: Boolean(activeLinePickTarget),
-      onImageAssetSettled: scheduleImageRender
-    });
+    measureCanvasDraw(
+      evaluation,
+      evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision),
+      () => renderCanvasGeometry({
+        ctx,
+        size: viewportSize,
+        viewport: canvasViewport,
+        lines,
+        arcs,
+        curves,
+        offsetLines,
+        images: overlayImages,
+        points,
+        visibleElementIds,
+        selectedElementIdSet,
+        selectedElementId,
+        elementColors,
+        showCanvasPoints,
+        isPointPickActive: Boolean(activePointPickTarget),
+        isNumericReferencePickActive: Boolean(activeNumericReferencePickTarget),
+        isLinePickActive: Boolean(activeLinePickTarget),
+        onImageAssetSettled: scheduleImageRender
+      })
+    );
   }, [
     activePointPickTarget,
     activeNumericReferencePickTarget,
     activeLinePickTarget,
     arcs,
     canvasViewport,
+    compiledDocumentRevision,
     curves,
     elementColors,
+    evaluation,
+    evaluationState,
     imageRenderVersion,
     offsetLines,
     overlayImages,
@@ -977,6 +990,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const pointerMoveEntry = capturePointerMoveEntry();
     if (pendingPointerStateRef.current.kind === "waiting") {
       applyPendingPointerTransition(movePendingCanvasPointer(
         pendingPointerStateRef.current,
@@ -992,6 +1006,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         return;
       }
 
+      claimPointerMoveEntry(pointerMoveEntry);
       event.preventDefault();
       const result = dispatchCommand("moveBezierHandleByDelta", {
         elementId: bezierHandleDrag.elementId,
@@ -1020,6 +1035,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         return;
       }
 
+      claimPointerMoveEntry(pointerMoveEntry);
       event.preventDefault();
       const screenDx = event.clientX - pointDrag.startClientX;
       const screenDy = event.clientY - pointDrag.startClientY;
