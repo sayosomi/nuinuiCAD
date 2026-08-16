@@ -23,6 +23,9 @@ const defaultManifestPath = resolve(repositoryRoot, "performance/fixtures/manife
 export const CAPTURE_VSCODE_COMPLETION_TIMEOUT_MS = 10 * 60_000;
 export const CAPTURE_VSCODE_SHUTDOWN_TIMEOUT_MS = 10_000;
 
+export const createVscodeTempDirectory = (platform: NodeJS.Platform = process.platform): string =>
+  mkdtempSync(join(platform === "darwin" ? "/tmp" : os.tmpdir(), platform === "darwin" ? "nvc-" : "nuinuicad-vscode-capture-"));
+
 export type CaptureVscodeOptions = {
   fixtureId: string;
   baselinePath: string;
@@ -93,7 +96,7 @@ const defaultDependencies = (): CaptureVscodeDependencies => ({
   },
   getExtensionVersion: (extensionPath) => (JSON.parse(readFileSync(join(extensionPath, "package.json"), "utf8")) as { version: string }).version,
   createRunId: () => randomUUID(),
-  createTempDirectory: () => mkdtempSync(join(os.tmpdir(), "nuinuicad-vscode-capture-")),
+  createTempDirectory: () => createVscodeTempDirectory(),
   writeFile: (path, content) => writeFileSync(path, content, "utf8"),
   buildExtension: (repositoryPath) => execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build:vscode"], { cwd: repositoryPath, stdio: "inherit" }),
   buildRust: (repositoryPath) => execFileSync("cargo", ["build", "--manifest-path", "src-tauri/Cargo.toml", "--bin", "evaluation_stdio"], { cwd: repositoryPath, stdio: "inherit" }),

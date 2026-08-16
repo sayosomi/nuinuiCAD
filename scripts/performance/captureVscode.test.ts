@@ -13,6 +13,7 @@ import type { BenchmarkMachine, BenchmarkResult } from "../../src/performance/be
 import {
   assertVscodeBaseline,
   captureVscode,
+  createVscodeTempDirectory,
   launchVscode,
   parseCaptureVscodeArgs,
   type CaptureVscodeDependencies,
@@ -91,6 +92,17 @@ const dependenciesFor = (
 };
 
 describe("captureVscode", () => {
+  it("uses a short /tmp-based temporary root on macOS", () => {
+    const tempRoot = createVscodeTempDirectory("darwin");
+
+    try {
+      expect(tempRoot).toMatch(/^\/tmp\/nvc-[A-Za-z0-9]{6}$/);
+      expect(tempRoot.length).toBeLessThan(40);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("launches VS Code with benchmark startup UI suppressed", () => {
     const tempRoot = mkdtempSync(join(tmpdir(), "nuinuicad-vscode-launch-test-"));
     const child = { once: vi.fn(), kill: vi.fn() };
