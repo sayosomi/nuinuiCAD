@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { forwardRef, useMemo } from "react";
+import { forwardRef, useEffect, useMemo } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -7,7 +7,12 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
 import { DrawingCanvas } from "../components/DrawingCanvas";
 import type { DrawingCanvasHandle } from "../components/DrawingCanvas";
-import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
+import type {
+  CanvasHostAdapter,
+  CanvasPointDragAction,
+  CanvasBezierHandleDragAction
+} from "../components/canvasHostAdapter";
+import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 
 type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -54,18 +59,44 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       statementInfoByElementId
     }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
 
+    const dispatchGeometryAction = useMemo(
+      () => (action: CanvasPointDragAction | CanvasBezierHandleDragAction) => {
+        if ("bezierHandleRole" in action) {
+          return dispatchCommand("moveBezierHandleByDelta", action);
+        }
+        return dispatchCommand("movePointElementByDelta", action);
+      },
+      []
+    );
+    const dragPreviewScheduler = useMemo(
+      () => new VscodeDragPreviewScheduler(dispatchGeometryAction),
+      [dispatchGeometryAction]
+    );
+
+    useEffect(() => () => dragPreviewScheduler.dispose(), [dragPreviewScheduler]);
+    useEffect(() => {
+      if (!evaluationState) return;
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (!cancelled) dragPreviewScheduler.observeEvaluationState(evaluationState);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [dragPreviewScheduler, evaluationState]);
+
     const commitGeometryCommand = useMemo(() => ({
       movePointElementByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["movePointElementByDelta"]>>[0]) => {
-        const result = dispatchCommand("movePointElementByDelta", action);
+        const result = dragPreviewScheduler.dispatchCommit(action);
         if (mutationWasApplied(result)) postCanonicalSourceText(useCadDocumentStore.getState().sourceText);
         return result;
       },
       moveBezierHandleByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["moveBezierHandleByDelta"]>>[0]) => {
-        const result = dispatchCommand("moveBezierHandleByDelta", action);
+        const result = dragPreviewScheduler.dispatchCommit(action);
         if (mutationWasApplied(result)) postCanonicalSourceText(useCadDocumentStore.getState().sourceText);
         return result;
       }
-    }), [postCanonicalSourceText]);
+    }), [dragPreviewScheduler, postCanonicalSourceText]);
 
     const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
       elements,
@@ -103,10 +134,10 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
       selectElement: (elementId, selectionMode) => dispatchCommand("selectElement", { elementId, selectionMode }),
       movePointElementByDelta: (action) => action.commitMode === "preview"
-        ? dispatchCommand("movePointElementByDelta", action)
+        ? dragPreviewScheduler.dispatchPreview(action, evaluationState)
         : commitGeometryCommand.movePointElementByDelta(action),
       moveBezierHandleByDelta: (action) => action.commitMode === "preview"
-        ? dispatchCommand("moveBezierHandleByDelta", action)
+        ? dragPreviewScheduler.dispatchPreview(action, evaluationState)
         : commitGeometryCommand.moveBezierHandleByDelta(action),
       applyPickedNumericReference: (numericReferenceExpression) => dispatchCommand("applyPickedNumericReference", {
         numericReferenceExpression
@@ -128,8 +159,10 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       commandLineSession,
       commitGeometryCommand,
       compiledDocumentRevision,
+      dragPreviewScheduler,
       elements,
       evaluationLimitIndex,
+      evaluationState,
       moduleSemanticContext,
       palette,
       selectedElementId,

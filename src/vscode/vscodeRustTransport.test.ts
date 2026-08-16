@@ -3,102 +3,99 @@ import { continuousDragDiagnostic } from "../performance/continuousDragDiagnosti
 import { VscodeRustTransport } from "./vscodeRustTransport";
 
 describe("VscodeRustTransport", () => {
-  it("matches opaque responses by request id and rejects errors", async () => {
+  it("sends only the first request while keeping the latest pending request", async () => {
     const postMessage = vi.fn();
     const transport = new VscodeRustTransport(postMessage);
     const first = transport.evaluate({ elements: [] });
-    const second = transport.evaluate({ elements: [] });
-    expect(postMessage).toHaveBeenNthCalledWith(1, expect.objectContaining({ type: "rustEvaluationRequest", id: 1 }));
-    expect(postMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({ type: "rustEvaluationRequest", id: 2 }));
+    const superseded = transport.evaluate({ elements: [] });
+    const latest = transport.evaluate({ elements: [] });
 
-    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 99, payload: { ignored: true } })).toBe(false);
-    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 2, payload: { value: 2 } })).toBe(true);
-    expect(await second).toEqual({ value: 2 });
-    expect(transport.handleMessage({ type: "rustEvaluationError", id: 1, error: "evaluation failed" })).toBe(true);
-    await expect(first).rejects.toThrow("evaluation failed");
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    expect(postMessage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ type: "rustEvaluationRequest", id: 1 })
+    );
+    await expect(superseded).rejects.toThrow("superseded");
+
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { value: 1 } })).toBe(true);
+    expect(postMessage).toHaveBeenCalledTimes(2);
+    expect(postMessage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ type: "rustEvaluationRequest", id: 3 })
+    );
+    await expect(first).resolves.toEqual({ value: 1 });
+
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 3, payload: { value: 3 } })).toBe(true);
+    await expect(latest).resolves.toEqual({ value: 3 });
   });
 
-  it("rejects pending requests on dispose", async () => {
-    const transport = new VscodeRustTransport(vi.fn());
-    const pending = transport.evaluate({ elements: [] });
-    transport.dispose();
-    await expect(pending).rejects.toThrow("disposed");
-  });
-
-  it("posts every request and preserves response resolution while diagnostics are enabled", async () => {
+  it("advances the latest pending request after an error response", async () => {
     const postMessage = vi.fn();
     const transport = new VscodeRustTransport(postMessage);
-    const dragId = continuousDragDiagnostic.beginDrag({ kind: "point", baseElements: [] });
-    const firstElements = [{
-      id: "preview-1",
-      name: "preview-1",
-      type: "freePoint" as const,
-      activity: "visible" as const,
-      x: 0,
-      y: 0
-    }];
-    const secondElements = [{
-      id: "preview-2",
-      name: "preview-2",
-      type: "freePoint" as const,
-      activity: "visible" as const,
-      x: 0,
-      y: 0
-    }];
-    const firstMove = continuousDragDiagnostic.beginMove(dragId);
-    if (!firstMove) throw new Error("Expected first move");
-    continuousDragDiagnostic.withActiveMove(firstMove, () => {
-      continuousDragDiagnostic.bindPreviewElements(firstElements);
-    });
-    const firstAttempt = continuousDragDiagnostic.beginEvaluationAttempt(firstElements, {
-      evaluationRevision: 1,
-      evaluationRequestRevision: 1,
-      requestKey: "first"
-    });
-    if (!firstAttempt) throw new Error("Expected first evaluation attempt");
-    const first = continuousDragDiagnostic.withActiveEvaluationAttempt(
-      firstAttempt,
-      () => transport.evaluate({ elements: [] })
-    );
+    const first = transport.evaluate({ elements: [] });
+    const latest = transport.evaluate({ elements: [] });
 
-    const secondMove = continuousDragDiagnostic.beginMove(dragId);
-    if (!secondMove) throw new Error("Expected second move");
-    continuousDragDiagnostic.withActiveMove(secondMove, () => {
-      continuousDragDiagnostic.bindPreviewElements(secondElements);
-    });
-    const secondAttempt = continuousDragDiagnostic.beginEvaluationAttempt(secondElements, {
-      evaluationRevision: 2,
-      evaluationRequestRevision: 2,
-      requestKey: "second"
-    });
-    if (!secondAttempt) throw new Error("Expected second evaluation attempt");
-    const second = continuousDragDiagnostic.withActiveEvaluationAttempt(
-      secondAttempt,
-      () => transport.evaluate({ elements: [] })
-    );
-
+    expect(transport.handleMessage({ type: "rustEvaluationError", id: 1, error: "evaluation failed" })).toBe(true);
     expect(postMessage).toHaveBeenCalledTimes(2);
-    expect(postMessage.mock.calls.map(([message]) => message.id)).toEqual([1, 2]);
-    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 2, payload: { value: 2 } })).toBe(true);
-    expect(transport.handleMessage({ type: "rustEvaluationError", id: 1, error: "failed" })).toBe(true);
-    await expect(second).resolves.toEqual({ value: 2 });
-    await expect(first).rejects.toThrow("failed");
+    expect(postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: "rustEvaluationRequest", id: 2 })
+    );
+    await expect(first).rejects.toThrow("evaluation failed");
 
-    continuousDragDiagnostic.recordEvaluationSettlement(firstAttempt, {
-      promise: "rejected",
-      status: "failed",
-      source: "rust",
-      isStale: false,
-      current: true,
-      error: "failed"
-    });
-    continuousDragDiagnostic.recordEvaluationSettlement(secondAttempt, {
-      promise: "resolved",
-      status: "ready",
-      source: "rust",
-      isStale: false,
-      current: true
-    });
-    continuousDragDiagnostic.endDrag(dragId, "commit");
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 2, payload: { value: 2 } })).toBe(true);
+    await expect(latest).resolves.toEqual({ value: 2 });
+  });
+
+  it("preserves request id matching and ignores responses for unsent or unknown requests", async () => {
+    const postMessage = vi.fn();
+    const transport = new VscodeRustTransport(postMessage);
+    const first = transport.evaluate({ elements: [] });
+    const pending = transport.evaluate({ elements: [] });
+
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 99, payload: { ignored: true } })).toBe(false);
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 2, payload: { ignored: true } })).toBe(false);
+    expect(postMessage).toHaveBeenCalledTimes(1);
+
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { value: 1 } })).toBe(true);
+    expect(postMessage).toHaveBeenCalledTimes(2);
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { duplicate: true } })).toBe(false);
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 2, payload: { value: 2 } })).toBe(true);
+    await expect(first).resolves.toEqual({ value: 1 });
+    await expect(pending).resolves.toEqual({ value: 2 });
+  });
+
+  it("rejects in-flight and pending requests on dispose and rejects later evaluations", async () => {
+    const postMessage = vi.fn();
+    const transport = new VscodeRustTransport(postMessage);
+    const inFlight = transport.evaluate({ elements: [] });
+    const pending = transport.evaluate({ elements: [] });
+
+    transport.dispose();
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { ignored: true } })).toBe(false);
+    await expect(inFlight).rejects.toThrow("disposed");
+    await expect(pending).rejects.toThrow("disposed");
+    await expect(transport.evaluate({ elements: [] })).rejects.toThrow("disposed");
+    expect(postMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("records diagnostics only for actual sends and responses", async () => {
+    const postMessage = vi.fn();
+    const send = vi.spyOn(continuousDragDiagnostic, "recordTransportSend");
+    const response = vi.spyOn(continuousDragDiagnostic, "recordTransportResponse");
+    const transport = new VscodeRustTransport(postMessage);
+    const first = transport.evaluate({ elements: [] });
+    const superseded = transport.evaluate({ elements: [] });
+    const latest = transport.evaluate({ elements: [] });
+
+    await expect(superseded).rejects.toThrow("superseded");
+    transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { value: 1 } });
+    transport.handleMessage({ type: "rustEvaluationResponse", id: 3, payload: { value: 3 } });
+    await expect(first).resolves.toEqual({ value: 1 });
+    await expect(latest).resolves.toEqual({ value: 3 });
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(response).toHaveBeenCalledTimes(2);
+    send.mockRestore();
+    response.mockRestore();
   });
 });
