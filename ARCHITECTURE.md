@@ -49,6 +49,26 @@ DrawingCanvas
 canvasRenderer + CanvasOverlay
 ```
 
+Tauri production evaluation follows:
+
+```text
+AppLayout
+→ Tauri transport
+→ existing Rust evaluate_document
+```
+
+The local VS Code performance PoC follows a separate host bridge while reusing
+the same Webview document/evaluation/Canvas path:
+
+```text
+VS Code TextDocument / Extension Host
+→ Webview production document/evaluation/Canvas
+→ Extension Host persistent stdio transport
+→ existing Rust evaluate_document
+```
+
+This is a performance PoC host path, not a completed production migration.
+
 Fatal source でも current-source diagnostics は更新され、last-good compiled
 document は保持される。Current source と compiled document は意図的に別
 lifecycle である。
@@ -242,6 +262,7 @@ Primary:
 
 - `src/components/AppLayout.tsx`
 - `src/components/TauriDrawingCanvas.tsx`
+- `src/vscode/VSCodeDrawingCanvas.tsx`
 - `src/components/canvasHostAdapter.ts`
 - `src/components/DrawingCanvas.tsx`
 - `src/components/canvasRenderer.ts`
@@ -253,7 +274,9 @@ Current rendering architecture は AppLayout → TauriDrawingCanvas →
 CanvasHostAdapter → DrawingCanvas → canvasRenderer + CanvasOverlay。TauriDrawingCanvas
 が現在のstore、command、Source Editor、画像URL、CommandRibbonOverlayをadapterへ
 接続し、DrawingCanvasはhost-neutralなinteraction/rendering ownerとして
-canvasとoverlayを描画する。将来hostの実装はcurrent architectureではない。
+canvasとoverlayを描画する。VSCodeDrawingCanvasは同じstore、command、CanvasHostAdapter、
+DrawingCanvasを使い、Webviewからのcanonical source commitだけをExtension Hostへ
+中継する。VS Code側に別のrendererやdrag transformは持たない。
 
 Current invariants:
 
@@ -312,10 +335,16 @@ Tauri / future host で共有する benchmark protocol、result schema、statist
 comparison logic、固定 `.nui` workload の owner。
 
 `src/performance/` は benchmark protocol、result schema、statistics、passive
-instrumentation、host-neutral benchmark execution、Tauri capture orchestration、
-result assembly を owner とする。`scripts/performance/` は Tauri capture CLI と
-result IO / comparison を担当する。Benchmark state は application store や Rust
-state に追加せず、通常 run ではほぼ no-op になる独立 subsystem である。
+instrumentation、host-neutral benchmark execution、browser capture scenario、
+Tauri / VS Code capture orchestration、result assembly を owner とする。
+`scripts/performance/` は Tauri / VS Code capture CLI と result IO / comparison を
+担当する。Benchmark state は application store や Rust state に追加せず、通常 run
+ではほぼ no-op になる独立 subsystem である。
+
+`src/vscode/` は local Webview / Extension Host message bridge、VS Code Canvas
+adapter、PoC app、benchmark result handoffを担当する。`vscode-extension/` は
+desktop-local extension host、persistent Rust stdio relay、document bridgeを担当
+し、Rust input / payload の semantic projectionは行わない。
 
 `src-tauri/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。

@@ -40,6 +40,13 @@ describe("benchmark result assembly", () => {
     expect(result.scenarios["source-edit-v1"]?.metrics.compileMs.max).toBe(21);
   });
 
+  it("assembles the same schema for the VS Code target", () => {
+    const result = assembleBenchmarkResult(input({ target: "vscode" }));
+    expect(result.target).toBe("vscode");
+    expect(result.protocol).toEqual(BENCHMARK_PROTOCOL);
+    expect(Object.keys(result.scenarios)).toEqual([...BENCHMARK_SCENARIO_IDS]);
+  });
+
   it("fails closed for wrong counts, missing metrics, and invalid samples", () => {
     expect(() => assembleBenchmarkResult(input({ samples: samples().slice(1) }))).toThrow("exactly 21");
     const missing = samples().map((sample) => ({ ...sample, metrics: { ...sample.metrics } }));

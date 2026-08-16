@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import type { EvaluateElementsOptions } from "./evaluate";
 import { canUseRustEvaluationForElements } from "./rustEvaluationEligibility";
+import type { RustEvaluationTransport } from "./rustEvaluationRunner";
 import {
   emptyEvaluationResult,
   type EvaluationEngineMode,
@@ -82,7 +83,8 @@ const requestRevisionFor = (key: string) => {
 export const useEvaluationEngine = (
   elements: CadElement[],
   options: EvaluateElementsOptions,
-  evaluationRevision = 0
+  evaluationRevision = 0,
+  rustTransport?: RustEvaluationTransport
 ): EvaluationEngineState => {
   const evaluationLimitIndex = options.evaluationLimitIndex;
   const scalarProgram = options.scalarProgram;
@@ -137,8 +139,8 @@ export const useEvaluationEngine = (
       textPropertyBindingEntries
     ]
   );
-  const engineMode = getEvaluationEngineMode();
-  const tauriRuntime = isTauriRuntime();
+  const tauriRuntime = isTauriRuntime() || rustTransport !== undefined;
+  const engineMode = getEvaluationEngineMode(tauriRuntime);
   const rustEligible = canUseRustEvaluationForElements(elements, evaluationOptions);
   const parityMode = isParityEvaluationEngineMode(engineMode);
   const deferScalarReferenceEvaluation = parityMode && scalarProgram !== undefined && tauriRuntime && rustEligible;
@@ -205,7 +207,7 @@ export const useEvaluationEngine = (
     }
 
     let cancelled = false;
-    evaluateElementsWithRust(elements, evaluationOptions)
+    evaluateElementsWithRust(elements, evaluationOptions, rustTransport)
       .then((nextEvaluation) => {
         if (cancelled) return;
         const shadowReferenceEvaluation = deferScalarReferenceEvaluation
@@ -234,8 +236,9 @@ export const useEvaluationEngine = (
         }
       })
       .catch((error: unknown) => {
+        const failClosed = mustFailClosedAfterRustError(scalarProgram, error);
         if (!cancelled) {
-          if (mustFailClosedAfterRustError(scalarProgram, error)) {
+          if (failClosed) {
             console.error("Rust scalar evaluation failed; preserving the command failure.", error);
             setAsyncEvaluation({
               requestKey,
@@ -289,7 +292,8 @@ export const useEvaluationEngine = (
     requestKey,
     rustEligible,
     scalarProgram,
-    tauriRuntime
+    tauriRuntime,
+    rustTransport
   ]);
 
   if (engineMode === "reference" || !rustEligible || !tauriRuntime) {

@@ -172,6 +172,37 @@ describe("useEvaluationEngine", () => {
     expect(result.current.evaluation.computedGeometry.size).toBe(0);
   });
 
+  it("uses an injected Rust transport without Tauri globals and preserves round-trip timing", async () => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    const sample = beginBenchmarkSample("source-edit-v1");
+    expect(sample).not.toBeNull();
+    const sourceTiming = beginSourceChange();
+    measureCompile(sourceTiming, () => undefined);
+    expect(bindElementsToActiveSample(elements, sourceTiming!)).toBe(true);
+
+    const transport = vi.fn(async (input: { elements: CadElement[] }) => {
+      expect(input.elements).toBe(elements);
+      return evaluateElementsReferencePayload(elements);
+    });
+    const begin = vi.spyOn(benchmarkInstrumentation, "beginRustRoundTrip");
+    const finish = vi.spyOn(benchmarkInstrumentation, "finishRustRoundTrip");
+    vi.spyOn(performance, "now")
+      .mockReturnValueOnce(20)
+      .mockReturnValueOnce(50)
+      .mockReturnValue(50);
+
+    const { result } = renderHook(() =>
+      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 23, transport)
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.mode).toBe("rust");
+    expect(result.current.source).toBe("rust");
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(begin.mock.invocationCallOrder[0]).toBeLessThan(transport.mock.invocationCallOrder[0]!);
+    expect(finish.mock.invocationCallOrder[0]).toBeGreaterThan(transport.mock.invocationCallOrder[0]!);
+  });
+
   it("uses Rust by default in Tauri dev when the document is supported", async () => {
     setTauriRuntime();
     invokeMock.mockResolvedValue(evaluateElementsReferencePayload(elements));

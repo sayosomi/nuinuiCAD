@@ -14,7 +14,10 @@ import {
 } from "./benchmarkResultSchema";
 import { calculateBenchmarkStatistics } from "./benchmarkStatistics";
 
+export type BenchmarkResultTarget = "tauri" | "vscode";
+
 export type BenchmarkResultAssemblyInput = {
+  target?: BenchmarkResultTarget;
   fixture: { id: string; hash: string };
   build: { gitCommit: string; appVersion: string };
   environment: {
@@ -35,6 +38,7 @@ const samplesForScenario = (
 ) => samples.filter((sample) => sample.scenarioId === scenarioId);
 
 export const assembleBenchmarkResult = ({
+  target = "tauri",
   fixture,
   build,
   environment,
@@ -70,7 +74,7 @@ export const assembleBenchmarkResult = ({
 
   const result: BenchmarkResult = {
     schemaVersion: BENCHMARK_SCHEMA_VERSION,
-    target: "tauri",
+    target,
     capturedAt,
     build,
     environment,

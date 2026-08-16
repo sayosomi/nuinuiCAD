@@ -43,10 +43,10 @@ export const resolveEvaluationEngineMode = ({
 export const isParityEvaluationEngineMode = (mode: EvaluationEngineMode) =>
   mode === "parity" || mode === "shadow";
 
-export const getEvaluationEngineMode = (): EvaluationEngineMode =>
+export const getEvaluationEngineMode = (tauriRuntime = isTauriRuntime()): EvaluationEngineMode =>
   resolveEvaluationEngineMode({
     configuredMode: import.meta.env.VITE_EVALUATION_ENGINE,
-    tauriRuntime: isTauriRuntime(),
+    tauriRuntime,
     dev: import.meta.env.DEV
   });
 
@@ -87,11 +87,12 @@ const tauriRustEvaluationTransport: RustEvaluationTransport = (input) =>
 
 export const evaluateElementsWithRust = async (
   elements: CadElement[],
-  options: EvaluateElementsOptions = {}
+  options: EvaluateElementsOptions = {},
+  transport: RustEvaluationTransport = tauriRustEvaluationTransport
 ): Promise<EvaluationResult> => {
   const prepared = prepareRustEvaluation(elements, options);
   const rustAttempt = beginRustRoundTrip(elements);
-  const result = await evaluatePreparedRust(prepared, tauriRustEvaluationTransport);
+  const result = await evaluatePreparedRust(prepared, transport);
   finishRustRoundTrip(rustAttempt, result);
   return result;
 };

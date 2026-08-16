@@ -1,9 +1,15 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import { resolve } from "node:path";
 
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
+  resolve: {
+    alias: {
+      vscode: resolve("vscode-extension/src/vscode-test-module.ts")
+    }
+  },
   server: {
     port: 5173,
     strictPort: true,

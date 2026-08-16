@@ -108,7 +108,10 @@ const metricIsComplete = (metrics: BenchmarkMetrics, metricId: BenchmarkMetricId
 
 export const createBenchmarkInstrumentation = ({
   now = () => performance.now(),
-  requestAnimationFrame = (callback) => window.requestAnimationFrame(callback)
+  requestAnimationFrame = (callback) =>
+    (globalThis as typeof globalThis & {
+      requestAnimationFrame: (frame: (timestamp: number) => void) => number;
+    }).requestAnimationFrame(callback)
 }: BenchmarkInstrumentationDependencies = {}): BenchmarkInstrumentation => {
   let nextSampleId = 1;
   let activeSample: Sample | null = null;

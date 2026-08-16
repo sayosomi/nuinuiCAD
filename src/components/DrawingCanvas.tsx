@@ -326,9 +326,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvas.height = Math.round(viewportSize.height * ratio);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
 
+    const isCurrent = evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision);
     measureCanvasDraw(
       evaluation,
-      evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision),
+      isCurrent,
       () => {
         const result = renderCanvasGeometry({
           ctx,
@@ -350,7 +351,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           isLinePickActive: Boolean(activeLinePickTarget),
           onImageAssetSettled: scheduleImageRender
         });
-        if (evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)) {
+        if (isCurrent) {
           notifyProductionDrawCompleted(compiledDocumentRevision, true);
         }
         return result;

@@ -1,0 +1,24 @@
+{
+  "name": "nuinuicad-vscode-performance-poc",
+  "displayName": "nuinuiCAD VS Code Performance PoC",
+  "description": "Local-only nuinuiCAD performance comparison host",
+  "version": "0.0.0",
+  "publisher": "yosomi",
+  "private": true,
+  "engines": {
+    "vscode": ">=1.90.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "nuinuiCAD.openPerformancePoc",
+        "title": "nuinuiCAD: Open Performance PoC"
+      }
+    ]
+  },
+  "scripts": {}
+}
