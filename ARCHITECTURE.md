@@ -67,8 +67,8 @@ VS Code TextDocument / Extension Host
 → existing Rust evaluate_document
 ```
 
-The current command branding still says Performance PoC, but the supported
-document lifecycle is production-oriented for file-scheme `.nui` documents.
+The supported command is `nuinuiCAD: Open Canvas`, and the document lifecycle
+is production-oriented for file-scheme `.nui` documents.
 
 Fatal source でも current-source diagnostics は更新され、last-good compiled
 document は保持される。Current source と compiled document は意図的に別
@@ -348,7 +348,7 @@ Primary:
 
 - `vscode-extension/src/extension.ts`
 - `vscode-extension/src/rustEvaluationProcessOwner.ts`
-- `src/vscode/VSCodePerformanceApp.tsx`
+- `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
 - `src/vscode/protocol.ts`
 

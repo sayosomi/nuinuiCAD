@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import * as vscode from "vscode";
 import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
@@ -214,9 +214,29 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (sessions.get(session.key) !== session) return;
     sessions.delete(session.key);
     disposeSessionListeners(session);
+    updatePanelTitles();
   };
 
-  const createPerformancePanel = (editor: vscode.TextEditor): void => {
+  const updatePanelTitles = (): void => {
+    const sessionsByBasename = new Map<string, DocumentSession[]>();
+    for (const session of sessions.values()) {
+      const name = basename(session.document.fileName);
+      const group = sessionsByBasename.get(name) ?? [];
+      group.push(session);
+      sessionsByBasename.set(name, group);
+    }
+
+    for (const [name, matchingSessions] of sessionsByBasename) {
+      for (const session of matchingSessions) {
+        const documentName = matchingSessions.length === 1
+          ? name
+          : vscode.workspace.asRelativePath(session.document.uri, true);
+        session.panel.title = `${documentName} — nuinuiCAD`;
+      }
+    }
+  };
+
+  const createCanvasPanel = (editor: vscode.TextEditor): void => {
     const document = editor.document;
     const key = documentKey(document);
     const existing = sessions.get(key);
@@ -226,8 +246,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
 
     const panel = vscode.window.createWebviewPanel(
-      "nuinuiCAD.performancePoc",
-      "nuinuiCAD Performance PoC",
+      "nuinuiCAD.canvas",
+      `${basename(document.fileName)} — nuinuiCAD`,
       vscode.ViewColumn.Beside,
       {
         enableScripts: true,
@@ -237,6 +257,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     panel.webview.html = webviewHtml(panel, context);
     const session: DocumentSession = { key, document, panel, disposables: [] };
     sessions.set(key, session);
+    updatePanelTitles();
 
     const post = (message: ExtensionToVscodeMessage) => void panel.webview.postMessage(message);
     if (!benchmarkConfig) {
@@ -292,20 +313,20 @@ export const activate = (context: vscode.ExtensionContext): void => {
     benchmarkStarted = true;
     benchmarkEditorListener?.dispose();
     benchmarkEditorListener = null;
-    createPerformancePanel(editor);
+    createCanvasPanel(editor);
   };
 
-  const command = vscode.commands.registerCommand("nuinuiCAD.openPerformancePoc", () => {
+  const command = vscode.commands.registerCommand("nuinuiCAD.openCanvas", () => {
     const editor = activeNuiEditor();
     if (!editor) {
-      void vscode.window.showErrorMessage("nuinuiCAD Performance PoC requires an active .nui Text Editor.");
+      void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor.");
       return;
     }
     if (benchmarkConfig) {
       startBenchmark(editor);
       return;
     }
-    createPerformancePanel(editor);
+    createCanvasPanel(editor);
   });
 
   const closeDocumentListener = vscode.workspace.onDidCloseTextDocument((document) => {

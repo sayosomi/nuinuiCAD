@@ -16,6 +16,7 @@ type TestEditor = {
 };
 
 type TestPanel = {
+  title: string;
   webview: {
     cspSource: string;
     html: string;
@@ -48,7 +49,8 @@ const mocks = vi.hoisted(() => ({
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
   onDidChangeTextDocument: vi.fn(),
-  onDidCloseTextDocument: vi.fn()
+  onDidCloseTextDocument: vi.fn(),
+  asRelativePath: vi.fn()
 }));
 
 vi.mock("vscode", () => {
@@ -72,7 +74,8 @@ vi.mock("vscode", () => {
         return mocks.textDocuments;
       },
       onDidChangeTextDocument: mocks.onDidChangeTextDocument,
-      onDidCloseTextDocument: mocks.onDidCloseTextDocument
+      onDidCloseTextDocument: mocks.onDidCloseTextDocument,
+      asRelativePath: mocks.asRelativePath
     },
     commands: { registerCommand: mocks.registerCommand },
     Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
@@ -135,6 +138,7 @@ const contextFor = () => ({
 
 const panelFor = (): TestPanel => {
   const panel = {
+    title: "",
     webview: {
       cspSource: "csp",
       html: "",
@@ -213,6 +217,7 @@ afterEach(() => {
   mocks.onDidChangeActiveTextEditor.mockReset();
   mocks.onDidChangeTextDocument.mockReset();
   mocks.onDidCloseTextDocument.mockReset();
+  mocks.asRelativePath.mockReset();
 });
 
 describe("VS Code production document lifecycle", () => {
@@ -220,8 +225,18 @@ describe("VS Code production document lifecycle", () => {
     setup();
 
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.openCanvas", expect.any(Function));
     mocks.commandHandler?.();
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the production canvas view type and a unique document title", () => {
+    const document = documentFor("/tmp/front.nui", "file:///tmp/front.nui");
+    setup(false, editorFor(document));
+    const panel = openPanelFor();
+
+    expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.canvas");
+    expect(panel.title).toBe("front.nui — nuinuiCAD");
   });
 
   it("reuses and reveals the existing panel when the same document command runs twice", () => {
@@ -246,6 +261,9 @@ describe("VS Code production document lifecycle", () => {
     mocks.commandHandler?.();
     const panelB = mocks.panels[1]!;
 
+    expect(panelA.title).toBe("a.nui — nuinuiCAD");
+    expect(panelB.title).toBe("b.nui — nuinuiCAD");
+
     documentA.version = 2;
     documentA.setSourceText("nui 4\nA changed\n");
     mocks.documentChangeListeners[0]?.({ document: documentA });
@@ -253,6 +271,49 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.panels).toHaveLength(2);
     expect(panelA.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
     expect(panelB.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
+  });
+
+  it("adds directory context to all sessions when basenames collide", () => {
+    const documentA = documentFor("/workspace/patterns/front.nui", "file:///workspace/patterns/front.nui");
+    const documentB = documentFor("/workspace/archive/front.nui", "file:///workspace/archive/front.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    mocks.asRelativePath.mockImplementation((uri: { toString: () => string }) =>
+      uri.toString().replace("file:///workspace/", "")
+    );
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorA, editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.commandHandler?.();
+    const panelB = mocks.panels[1]!;
+
+    expect(panelA.title).toBe("patterns/front.nui — nuinuiCAD");
+    expect(panelB.title).toBe("archive/front.nui — nuinuiCAD");
+    expect(mocks.asRelativePath).toHaveBeenCalledWith(documentA.uri, true);
+    expect(mocks.asRelativePath).toHaveBeenCalledWith(documentB.uri, true);
+  });
+
+  it("returns the remaining session to its basename title after a collision is disposed", () => {
+    const documentA = documentFor("/workspace/patterns/front.nui", "file:///workspace/patterns/front.nui");
+    const documentB = documentFor("/workspace/archive/front.nui", "file:///workspace/archive/front.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    mocks.asRelativePath.mockImplementation((uri: { toString: () => string }) =>
+      uri.toString().replace("file:///workspace/", "")
+    );
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorA, editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.commandHandler?.();
+    const panelB = mocks.panels[1]!;
+
+    panelA.dispose();
+
+    expect(panelB.title).toBe("front.nui — nuinuiCAD");
   });
 
   it("disposing panel A leaves panel B alive and syncing its document", () => {
