@@ -2,12 +2,21 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as vscode from "vscode";
+import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
+import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
+
+type DocumentSession = {
+  key: string;
+  document: vscode.TextDocument;
+  panel: vscode.WebviewPanel;
+  disposables: vscode.Disposable[];
+};
 
 const benchmarkConfigFromEnvironment = (): VscodeBenchmarkConfig | null => {
   const raw = process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
@@ -54,19 +63,168 @@ const postAuthoritativeDocument = (panel: vscode.WebviewPanel, document: vscode.
   } satisfies ExtensionToVscodeMessage);
 };
 
+const documentKey = (document: vscode.TextDocument): string => document.uri.toString();
+
+const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
+  left === right || documentKey(left) === documentKey(right);
+
+const isSupportedNuiDocument = (document: vscode.TextDocument): boolean =>
+  document.uri.scheme === "file" && document.fileName.endsWith(".nui");
+
 const activeNuiEditor = (): vscode.TextEditor | undefined => {
   const editor = vscode.window.activeTextEditor;
-  return editor?.document.fileName.endsWith(".nui") ? editor : undefined;
+  return editor && isSupportedNuiDocument(editor.document) ? editor : undefined;
+};
+
+const isOpenDocument = (document: vscode.TextDocument): boolean =>
+  vscode.workspace.textDocuments.some((candidate) => sameDocument(candidate, document));
+
+const visibleEditorFor = (document: vscode.TextDocument): vscode.TextEditor | undefined =>
+  vscode.window.visibleTextEditors.find((editor) => sameDocument(editor.document, document));
+
+const sourceNewline = (sourceText: string): string => {
+  const separators = [...sourceText.matchAll(/\r?\n/g)].map((match) => match[0]);
+  return separators.length > 0 && separators.every((value) => value === "\r\n") ? "\r\n" : "\n";
+};
+
+const lineStartsFor = (sourceText: string): { starts: number[]; separatorLengths: number[]; lineCount: number } => {
+  const starts = [0];
+  const separatorLengths: number[] = [];
+  for (const match of sourceText.matchAll(/\r?\n/g)) {
+    starts.push((match.index ?? 0) + match[0].length);
+    separatorLengths.push(match[0].length);
+  }
+  return { starts, separatorLengths, lineCount: sourceText.split(/\r?\n/).length };
+};
+
+const textEditForLineSplice = (
+  document: vscode.TextDocument,
+  sourceText: string,
+  splice: LineSplice
+): { range: vscode.Range; replacement: string } => {
+  const { starts, separatorLengths, lineCount } = lineStartsFor(sourceText);
+  const startIndex = splice.startLine - 1;
+  const deletesLines = splice.endLine >= splice.startLine;
+  const newline = sourceNewline(sourceText);
+  const replacement = splice.replacementLines.join(newline);
+  let from: number;
+  let to: number;
+  let insert: string;
+
+  if (!deletesLines) {
+    from = startIndex < lineCount ? starts[startIndex] : sourceText.length;
+    to = from;
+    insert = splice.replacementLines.length > 0
+      ? startIndex < lineCount
+        ? `${replacement}${newline}`
+        : `${lineCount > 0 ? newline : ""}${replacement}`
+      : "";
+  } else if (splice.endLine < lineCount) {
+    from = starts[startIndex];
+    to = starts[splice.endLine];
+    insert = splice.replacementLines.length > 0 ? `${replacement}${newline}` : "";
+  } else if (startIndex === 0) {
+    from = 0;
+    to = sourceText.length;
+    insert = replacement;
+  } else {
+    from = starts[startIndex] - separatorLengths[startIndex - 1];
+    to = sourceText.length;
+    insert = splice.replacementLines.length > 0 ? `${newline}${replacement}` : "";
+  }
+
+  return {
+    range: new vscode.Range(document.positionAt(from), document.positionAt(to)),
+    replacement: insert
+  };
+};
+
+const disposeSessionListeners = (session: DocumentSession): void => {
+  for (const disposable of session.disposables.splice(0)) disposable.dispose();
 };
 
 export const activate = (context: vscode.ExtensionContext): void => {
-  let rustProcess: RustEvaluationProcess | null = null;
+  const sessions = new Map<string, DocumentSession>();
+  const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
   const benchmarkConfig = benchmarkConfigFromEnvironment();
   let benchmarkStarted = false;
   let benchmarkEditorListener: vscode.Disposable | null = null;
 
+  const resync = (session: DocumentSession): void => {
+    if (sessions.get(session.key) !== session || !isOpenDocument(session.document)) return;
+    postAuthoritativeDocument(session.panel, session.document);
+  };
+
+  const applyCanvasCommit = async (
+    session: DocumentSession,
+    message: Extract<VscodeToExtensionMessage, { type: "canvasCommit" }>
+  ): Promise<void> => {
+    if (!isOpenDocument(session.document) || session.document.version !== message.expectedDocumentVersion) {
+      resync(session);
+      return;
+    }
+
+    const editor = visibleEditorFor(session.document);
+    if (!editor) {
+      resync(session);
+      return;
+    }
+
+    const sourceText = session.document.getText();
+    const lineEdits: Array<{ range: vscode.Range; replacement: string }> = [];
+    if (message.mutationKind === "model-patch") {
+      if (!message.splices) {
+        resync(session);
+        return;
+      }
+      try {
+        const patchedText = applyLineSplices(sourceText, message.splices);
+        if (patchedText !== message.sourceText) {
+          resync(session);
+          return;
+        }
+        lineEdits.push(...message.splices.map((splice) => textEditForLineSplice(session.document, sourceText, splice)));
+      } catch {
+        resync(session);
+        return;
+      }
+    }
+    let editResult: Thenable<boolean>;
+    try {
+      editResult = editor.edit((editBuilder) => {
+        if (message.mutationKind === "model-patch") {
+          for (const edit of lineEdits) editBuilder.replace(edit.range, edit.replacement);
+          return;
+        }
+        editBuilder.replace(fullDocumentRange(session.document), message.sourceText);
+      }, { undoStopBefore: true, undoStopAfter: true });
+    } catch {
+      resync(session);
+      return;
+    }
+
+    try {
+      if (!(await editResult)) resync(session);
+    } catch {
+      resync(session);
+    }
+  };
+
+  const disposeSession = (session: DocumentSession): void => {
+    if (sessions.get(session.key) !== session) return;
+    sessions.delete(session.key);
+    disposeSessionListeners(session);
+  };
+
   const createPerformancePanel = (editor: vscode.TextEditor): void => {
     const document = editor.document;
+    const key = documentKey(document);
+    const existing = sessions.get(key);
+    if (existing) {
+      existing.panel.reveal(vscode.ViewColumn.Beside);
+      return;
+    }
+
     const panel = vscode.window.createWebviewPanel(
       "nuinuiCAD.performancePoc",
       "nuinuiCAD Performance PoC",
@@ -77,35 +235,32 @@ export const activate = (context: vscode.ExtensionContext): void => {
       }
     );
     panel.webview.html = webviewHtml(panel, context);
+    const session: DocumentSession = { key, document, panel, disposables: [] };
+    sessions.set(key, session);
 
     const post = (message: ExtensionToVscodeMessage) => void panel.webview.postMessage(message);
-    const onDocumentChange: vscode.Disposable = benchmarkConfig
-      ? { dispose: () => undefined }
-      : vscode.workspace.onDidChangeTextDocument((event) => {
-        if (event.document.uri.toString() !== document.uri.toString()) return;
-        postDocumentText(panel, event.document.getText(), event.document.version);
-      });
-    const onMessage = panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
+    if (!benchmarkConfig) {
+      session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
+        if (sameDocument(event.document, session.document)) {
+          postDocumentText(panel, event.document.getText(), event.document.version);
+        }
+      }));
+    }
+
+    session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "webviewReady") {
-        postAuthoritativeDocument(panel, document);
+        postAuthoritativeDocument(panel, session.document);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
         return;
       }
       if (message.type === "canvasCommit") {
         if (benchmarkConfig) return;
-        if (document.version !== message.expectedDocumentVersion) {
-          postAuthoritativeDocument(panel, document);
-          return;
-        }
-        const edit = new vscode.WorkspaceEdit();
-        edit.replace(document.uri, fullDocumentRange(document), message.sourceText);
-        await vscode.workspace.applyEdit(edit);
+        await applyCanvasCommit(session, message);
         return;
       }
       if (message.type === "rustEvaluationRequest") {
-        rustProcess ??= new RustEvaluationProcess(rustBinaryPath(context));
         try {
-          const payload = await rustProcess.request(message.input);
+          const payload = await rustProcessOwner.get().request(message.input);
           post({ type: "rustEvaluationResponse", id: message.id, payload });
         } catch (error) {
           post({ type: "rustEvaluationError", id: message.id, error: error instanceof Error ? error.message : String(error) });
@@ -122,16 +277,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
         if (!benchmarkConfig) return;
         writeFileSync(`${benchmarkConfig.resultPath}.error.json`, JSON.stringify({ runId: benchmarkConfig.runId, error: message.error }, null, 2), "utf8");
       }
-    });
-    const disposePanel = panel.onDidDispose(() => {
-      onDocumentChange.dispose();
-      onMessage.dispose();
-      rustProcess?.dispose();
+    }));
+
+    panel.onDidDispose(() => {
+      disposeSession(session);
       if (benchmarkConfig && !existsSync(benchmarkConfig.resultPath) && !existsSync(`${benchmarkConfig.resultPath}.error.json`)) {
         writeFileSync(`${benchmarkConfig.resultPath}.error.json`, JSON.stringify({ runId: benchmarkConfig.runId, error: "Performance PoC panel closed before completion" }, null, 2), "utf8");
       }
     });
-    context.subscriptions.push(onDocumentChange, onMessage, disposePanel);
   };
 
   const startBenchmark = (editor: vscode.TextEditor): void => {
@@ -155,7 +308,21 @@ export const activate = (context: vscode.ExtensionContext): void => {
     createPerformancePanel(editor);
   });
 
-  context.subscriptions.push(command, { dispose: () => rustProcess?.dispose() });
+  const closeDocumentListener = vscode.workspace.onDidCloseTextDocument((document) => {
+    const session = sessions.get(documentKey(document));
+    if (session && sameDocument(session.document, document)) session.panel.dispose();
+  });
+  const disposeAllSessions = {
+    dispose: () => {
+      for (const session of [...sessions.values()]) disposeSession(session);
+      sessions.clear();
+    }
+  };
+  const disposeRustProcess = {
+    dispose: () => rustProcessOwner.dispose()
+  };
+  context.subscriptions.push(command, closeDocumentListener, disposeAllSessions, disposeRustProcess);
+
   if (benchmarkConfig) {
     const startWhenEditorIsReady = () => {
       const editor = activeNuiEditor();

@@ -57,8 +57,8 @@ AppLayout
 → existing Rust evaluate_document
 ```
 
-The local VS Code performance PoC follows a separate host bridge while reusing
-the same Webview document/evaluation/Canvas path:
+The VS Code host path follows a separate bridge while reusing the same Webview
+document/evaluation/Canvas path:
 
 ```text
 VS Code TextDocument / Extension Host
@@ -67,7 +67,8 @@ VS Code TextDocument / Extension Host
 → existing Rust evaluate_document
 ```
 
-This is a performance PoC host path, not a completed production migration.
+The current command branding still says Performance PoC, but the supported
+document lifecycle is production-oriented for file-scheme `.nui` documents.
 
 Fatal source でも current-source diagnostics は更新され、last-good compiled
 document は保持される。Current source と compiled document は意図的に別
@@ -341,10 +342,49 @@ Tauri / VS Code capture orchestration、result assembly を owner とする。
 担当する。Benchmark state は application store や Rust state に追加せず、通常 run
 ではほぼ no-op になる独立 subsystem である。
 
-`src/vscode/` は local Webview / Extension Host message bridge、VS Code Canvas
-adapter、PoC app、benchmark result handoffを担当する。`vscode-extension/` は
-desktop-local extension host、persistent Rust stdio relay、document bridgeを担当
-し、Rust input / payload の semantic projectionは行わない。
+### VS Code production document lifecycle
+
+Primary:
+
+- `vscode-extension/src/extension.ts`
+- `vscode-extension/src/rustEvaluationProcessOwner.ts`
+- `src/vscode/VSCodePerformanceApp.tsx`
+- `src/vscode/VSCodeDrawingCanvas.tsx`
+- `src/vscode/protocol.ts`
+
+VS Code `TextDocument` is the production source authority. The Webview
+`cadDocumentStore` is a disposable mirror hydrated from the authoritative
+document and is never restored as a host-side source. The current scope is
+`file:`-scheme `.nui` documents, including workspace and outside-workspace
+files and dirty in-memory content; untitled and non-file documents are not
+supported.
+
+The extension keeps one Canvas session per document URI and supports multiple
+documents at once. Reopening the command for an existing URI reveals its panel;
+an active-editor change never rebinds that session. Session disposal removes
+only its panel/listener ownership. Closing the matching TextDocument disposes
+that session, so a later open performs a fresh authoritative handshake.
+
+Canvas pointerup commits reuse the production store's `SourceUpdate` boundary.
+`model-patch` messages carry the existing `LineSplice[]` and are applied as one
+visible `TextEditor.edit()` transaction after version and source checks.
+`reset` is the only whole-document fallback. Successful Canvas commits are
+acknowledged only by the normal `TextEditor.edit()` →
+`onDidChangeTextDocument` → `commitText` echo path.
+
+`RustEvaluationProcess` is lazy and extension-wide through
+`RustEvaluationProcessOwner`; all document sessions share it. A panel does not
+own or kill the process. Unexpected process death rejects pending work, clears
+the dead owner, and allows the next evaluation request to respawn it. The
+existing bounded latest-wins Rust transport, stale evaluation discard,
+`VscodeDragPreviewScheduler`, shared DrawingCanvas, and production compiler /
+evaluator remain reused from the performance PoC path.
+
+`src/vscode/` owns the local Webview / Extension Host message bridge, VS Code
+Canvas adapter, app, and benchmark result handoff. `vscode-extension/` owns the
+desktop-local extension host, session registry, persistent Rust stdio relay,
+and TextDocument edit bridge; it does not perform Rust input / payload semantic
+projection.
 
 `src-tauri/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。
