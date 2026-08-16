@@ -1,21 +1,16 @@
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { startSession } from "../commands/commandLineSession";
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
 import { creationRecipeForType } from "../commands/creationRecipes";
 import { evaluateElements } from "../geometry/evaluate";
 import { pickCandidates } from "../model/pickCandidates";
-import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { DEFAULT_CANVAS_VIEWPORT } from "../state/cadUiStore";
 import type { CadElement, ComputedLine, ComputedPoint, EvaluationResult } from "../types/geometry";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 
 describe("useCanvasOverlayData", () => {
-  beforeEach(() => {
-    useCadDocumentStore.setState(initialCadDocumentState());
-  });
-
   it("keeps a planned group's first child in the virtual command-line point overlay", () => {
     const elements: CadElement[] = [
       {
@@ -52,7 +47,9 @@ describe("useCanvasOverlayData", () => {
       pointPickCandidates,
       viewportSize: { width: 500, height: 400 },
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-      documentPath: null
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
     }));
 
     expect(result.current.overlayPointPickCandidates.map((candidate) => candidate.anchor)).toEqual([
@@ -89,7 +86,9 @@ describe("useCanvasOverlayData", () => {
       pointPickCandidates,
       viewportSize: { width: 500, height: 400 },
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-      documentPath: null
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
     }));
     expect(result.current.overlayPointPickCandidates).toEqual([]);
   });
@@ -128,7 +127,9 @@ describe("useCanvasOverlayData", () => {
       pointPickCandidates: [],
       viewportSize: { width: 500, height: 400 },
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-      documentPath: null
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
     }));
 
     expect(result.current.lines).toEqual([]);
@@ -153,7 +154,9 @@ describe("useCanvasOverlayData", () => {
       pointPickCandidates: [],
       viewportSize: { width: 500, height: 400 },
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-      documentPath: null
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
     }));
 
     expect(result.current.lines.map((line) => line.elementId)).toEqual([privateId]);
@@ -191,7 +194,9 @@ describe("useCanvasOverlayData", () => {
       }],
       viewportSize: { width: 500, height: 400 },
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-      documentPath: null
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
     }));
 
     expect(evaluation.computedGeometry.has(generatedId)).toBe(true);
@@ -222,7 +227,9 @@ describe("useCanvasOverlayData", () => {
         pointPickCandidates,
         viewportSize: { width: 500, height: 400 },
         canvasViewport: { panX: 0, panY: 0, zoom },
-        documentPath: null,
+        visibilityProfiles: [],
+        activeVisibilityProfileId: null,
+        resolveImageSourceUrl: (sourcePath) => sourcePath,
       }),
       { initialProps: { sourceElements: elements, zoom: 0.25 } },
     );

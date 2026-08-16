@@ -4,8 +4,6 @@ import type {
   WheelEvent as ReactWheelEvent
 } from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState } from "react";
-import { dispatchCommand } from "../commands/commands";
-import type { CommandContext } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
@@ -13,10 +11,7 @@ import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidate
 import { isSemanticGeometryCandidateAllowed } from "../model/moduleSemanticCandidateBoundary";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
 import { resolvedElementColorMap } from "../palette/elementColors";
-import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
-import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
-import { sourceEditSession } from "../editor/sourceEditSession";
-import { useCadUiStore } from "../state/cadUiStore";
+import type { BezierHandleRole as CommandBezierHandleRole } from "../model/elementDragTransforms";
 import type {
   CadElement,
   ElementId,
@@ -24,7 +19,6 @@ import type {
 } from "../types/geometry";
 import { CanvasCandidateMenus } from "./CanvasCandidateMenus";
 import { CanvasOverlay } from "./CanvasOverlay";
-import { CommandRibbonOverlay } from "./CommandRibbonOverlay";
 import {
   hitTestCanvasGeometry,
   hitTestLineCandidates,
@@ -43,6 +37,7 @@ import {
 } from "./canvasViewport";
 import { renderCanvasGeometry } from "./canvasRenderer";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
+import type { CanvasHostAdapter } from "./canvasHostAdapter";
 import type {
   LinePickCandidate,
   LinePickCandidateMenu,
@@ -75,8 +70,7 @@ type DrawingCanvasProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
-  commandContext?: CommandContext;
-  leftPanelDockRef: RefObject<HTMLDivElement | null>;
+  hostAdapter: CanvasHostAdapter;
 };
 
 /** Narrow command-facing boundary for Canvas state that must not survive creation-session re-entry. */
@@ -125,8 +119,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   evaluation,
   evaluationState,
   canvasFocusRef,
-  commandContext = {},
-  leftPanelDockRef
+  hostAdapter
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
@@ -149,34 +142,26 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     useState<PointPickCandidateMenu | null>(null);
   const [linePickCandidateMenu, setLinePickCandidateMenu] =
     useState<LinePickCandidateMenu | null>(null);
-  const elements = useCadDocumentStore(effectiveElements);
-  const documentElements = useCadDocumentStore((state) => state.elements);
-  const moduleMaterialization = useCadDocumentStore((state) => state.doc.moduleMaterialization);
-  const moduleSemanticAnalysis = useCadDocumentStore((state) => state.doc.moduleSemanticAnalysis);
-  const sourceLexicalNamespace = useCadDocumentStore((state) => state.doc.sourceLexicalNamespace);
-  const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap?.byElementId);
-  const moduleSemanticContext = useMemo(() => ({
-    moduleMaterialization,
-    moduleSemanticAnalysis,
-    sourceLexicalNamespace,
-    statementInfoByElementId
-  }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
-  const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
-  const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
-  const palette = useCadDocumentStore((state) => state.palette);
-  const selectedElementId = useCadUiStore((state) => state.selectedElementId);
-  const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
-  const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
-  const canvasViewport = useCadUiStore((state) => state.canvasViewport);
-  const panCanvasViewport = useCadUiStore((state) => state.panCanvasViewport);
-  const zoomCanvasViewportAt = useCadUiStore((state) => state.zoomCanvasViewportAt);
-  const showCanvasElementNames = useCadUiStore((state) => state.showCanvasElementNames);
-  const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
-  const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
-  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
-  const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
-  const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
-  const commandLineSession = useCadUiStore((state) => state.commandLineSession);
+  const {
+    elements,
+    canonicalElements: documentElements,
+    evaluationLimitIndex,
+    compiledDocumentRevision,
+    palette,
+    visibilityProfiles,
+    activeVisibilityProfileId,
+    moduleSemanticContext,
+    selectedElementId,
+    selectedElementIds,
+    canvasViewport,
+    showCanvasElementNames,
+    showCanvasPoints,
+    showPrintPreviewWindow,
+    activePointPickTarget,
+    activeNumericReferencePickTarget,
+    activeLinePickTarget,
+    commandLineSession
+  } = hostAdapter;
   const previewElementIds = useMemo(() => {
     const documentElementIds = new Set(documentElements.map((element) => element.id));
     return new Set(elements.filter((element) => !documentElementIds.has(element.id)).map((element) => element.id));
@@ -261,7 +246,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     excludedInteractionElementIds: previewElementIds,
     viewportSize,
     canvasViewport,
-    documentPath: currentFilePath
+    visibilityProfiles,
+    activeVisibilityProfileId,
+    resolveImageSourceUrl: hostAdapter.resolveImageSourceUrl
   });
   const interactiveOverlayLines = useMemo(
     () => overlayLines.filter(({ line }) => !previewElementIds.has(line.elementId)),
@@ -305,12 +292,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     return evaluation;
   }, [evaluation, evaluationState?.isStale]);
   const currentDocumentDragBase = useCallback(() => {
-    const state = useCadDocumentStore.getState();
+    const state = hostAdapter.getCurrentCanonicalDocument();
     return {
       baseElements: state.elements,
       baseEvaluation: reusableDragEvaluation(state.elements)
     };
-  }, [reusableDragEvaluation]);
+  }, [hostAdapter, reusableDragEvaluation]);
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;
@@ -449,39 +436,37 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       width: event.currentTarget.clientWidth,
       height: event.currentTarget.clientHeight
     };
-    zoomCanvasViewportAt(Math.pow(WHEEL_ZOOM_BASE, -event.deltaY / 100), anchor);
+    hostAdapter.zoomCanvasViewportAt(Math.pow(WHEEL_ZOOM_BASE, -event.deltaY / 100), anchor);
   };
 
   const applyMeasurementCandidate = useCallback((candidate: LineMeasurementCandidate) => {
     const expression = `${candidate.line.elementId}.${candidate.property}`;
     if (activeNumericReferencePickTarget) {
-      dispatchCommand("applyPickedNumericReference", {
-        numericReferenceExpression: expression
-      });
+      hostAdapter.applyPickedNumericReference(expression);
     } else {
       if (!measurementCandidateMenu) return;
-      dispatchCommand("applyNumericExpressionReference", {
+      hostAdapter.applyNumericExpressionReference({
         elementId: measurementCandidateMenu.targetElementId,
         parameterKey: measurementCandidateMenu.targetParameterKey,
         numericExpression: expression
       });
     }
     setMeasurementCandidateMenu(null);
-  }, [activeNumericReferencePickTarget, measurementCandidateMenu]);
+  }, [activeNumericReferencePickTarget, hostAdapter, measurementCandidateMenu]);
   const applyLinePickCandidate = useCallback((candidate: LinePickCandidate) => {
-    dispatchCommand("applyPickedLine", {
+    hostAdapter.applyPickedLine({
       pickedLineId: candidate.line.elementId,
       ...(candidate.sourceReference ? { pickedLineSourceReference: candidate.sourceReference } : {})
     });
     setLinePickCandidateMenu(null);
-  }, []);
+  }, [hostAdapter]);
   const applyPointPickCandidate = useCallback((candidate: PointPickCandidate) => {
-    dispatchCommand("applyPickedPoint", {
+    hostAdapter.applyPickedPoint({
       pickedPointAnchor: candidate.anchor,
       ...(candidate.sourceReference ? { pickedPointSourceReference: candidate.sourceReference } : {})
     });
     setPointPickCandidateMenu(null);
-  }, []);
+  }, [hostAdapter]);
   /** Resolves a drawn overlay line to the id a line pick would apply, || null when
    * the line is not pickable for the active line-pick target. */
   const pickableLineIdForLinePick = useCallback((lineElementId: ElementId) => {
@@ -599,17 +584,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const scheduleEditorFocus = useCallback((pointerId: number, pointerReleased: boolean) => {
     if (pointerReleased) {
       pendingEditorFocusRef.current = null;
-      commandContext.focusSourceEditor?.();
+      hostAdapter.focusSourceEditor();
       return;
     }
     pendingEditorFocusRef.current = { pointerId };
-  }, [commandContext]);
+  }, [hostAdapter]);
 
   const resolveEditorFocusReservation = useCallback((pointerId: number) => {
     if (pendingEditorFocusRef.current?.pointerId !== pointerId) return;
     pendingEditorFocusRef.current = null;
-    commandContext.focusSourceEditor?.();
-  }, [commandContext]);
+    hostAdapter.focusSourceEditor();
+  }, [hostAdapter]);
 
   const discardEditorFocusReservation = useCallback((pointerId: number) => {
     if (pendingEditorFocusRef.current?.pointerId === pointerId) {
@@ -694,11 +679,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
     if (handle) {
       focusCanvas();
-      dispatchCommand("selectElement", { elementId: handle.curveId, selectionMode: selectionModeFor(intent) });
+      hostAdapter.selectElement(handle.curveId, selectionModeFor(intent));
       const dragBase = currentDocumentDragBase();
       if (intent.pointerReleased) {
         if (movement >= DEFERRED_DRAG_THRESHOLD_PX) {
-          dispatchCommand("moveBezierHandleByDelta", {
+          hostAdapter.moveBezierHandleByDelta({
             elementId: handle.curveId,
             bezierHandleRole: handle.role,
             intermediatePointId: handle.intermediatePointId,
@@ -746,7 +731,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
 
     focusCanvas();
-    dispatchCommand("selectElement", { elementId, selectionMode: selectionModeFor(intent) });
+    hostAdapter.selectElement(elementId, selectionModeFor(intent));
     if (!interactiveOverlayPoints.some(({ point }) => point.elementId === elementId)) {
       scheduleEditorFocus(intent.pointerId, intent.pointerReleased);
       return;
@@ -760,7 +745,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           zoom: canvasViewport.zoom,
           axisLockKeys: axisLockKeysRef.current
         });
-        dispatchCommand("movePointElementByDelta", {
+        hostAdapter.movePointElementByDelta({
           elementId,
           dx: worldDelta.dx,
           dy: worldDelta.dy,
@@ -807,6 +792,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     interactiveOverlayTexts,
     scheduleEditorFocus,
     selectedBezierHandles,
+    hostAdapter,
     viewportSize.height,
     viewportSize.width
   ]);
@@ -834,13 +820,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const terminalPendingPointer = useCallback((message: string) => {
     const transition = cancelPendingCanvasPointer(pendingPointerStateRef.current);
     applyPendingPointerTransition(transition);
-    useCadUiStore.getState().setCommandErrorMessage(message);
-  }, [applyPendingPointerTransition]);
+    hostAdapter.setCommandErrorMessage(message);
+  }, [applyPendingPointerTransition, hostAdapter]);
 
   useEffect(() => {
     if (pendingPointerState.kind !== "waiting") return;
     const intent = pendingPointerState.intent;
-    const documentState = useCadDocumentStore.getState();
+    const documentState = hostAdapter.getCurrentCanonicalDocument();
     if (documentState.docText !== documentState.sourceText) {
       terminalPendingPointer("DSLの構文エラーを修復してからキャンバス操作を実行してください。");
       return;
@@ -875,6 +861,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     applyPendingPointerTransition,
     canvasFocusRef,
     evaluationState,
+    hostAdapter,
     pendingPointerState,
     resolvePrimaryPointerIntent,
     terminalPendingPointer
@@ -919,7 +906,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       axisLockKeys: axisLockKeysRef.current
     });
 
-    dispatchCommand("movePointElementByDelta", {
+    hostAdapter.movePointElementByDelta({
       elementId: drag.elementId,
       dx: worldDelta.dx,
       dy: worldDelta.dy,
@@ -940,7 +927,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
     captureLedger.release(event.pointerId);
 
-    dispatchCommand("moveBezierHandleByDelta", {
+    hostAdapter.moveBezierHandleByDelta({
       elementId: drag.elementId,
       bezierHandleRole: drag.role,
       intermediatePointId: drag.intermediatePointId,
@@ -958,16 +945,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const flushResult = sourceEditSession.flush("canvas-pointerdown");
+    const flushResult = hostAdapter.flushSourceEditorOnCanvasPointerDown();
     if (flushResult === "blocked-composition") {
-      useCadUiStore.getState().setCommandErrorMessage(
+      hostAdapter.setCommandErrorMessage(
         "日本語入力の確定中はキャンバス操作を開始できません。入力を確定してから再操作してください。"
       );
       return;
     }
     if (event.button === 0) {
       syntheticPointerEventRef.current = event.isTrusted === false;
-      const documentState = useCadDocumentStore.getState();
+      const documentState = hostAdapter.getCurrentCanonicalDocument();
       // Immediate hit testing is only allowed against a render that reflects
       // the current document. A pointerdown flush, a stale || in-flight
       // evaluation (e.g. the editor's own debounced commit already flushed),
@@ -1034,7 +1021,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
       claimPointerMoveEntry(pointerMoveEntry, "bezier-handle");
       event.preventDefault();
-      const result = dispatchCommand("moveBezierHandleByDelta", {
+      const result = hostAdapter.moveBezierHandleByDelta({
         elementId: bezierHandleDrag.elementId,
         bezierHandleRole: bezierHandleDrag.role,
         intermediatePointId: bezierHandleDrag.intermediatePointId,
@@ -1072,7 +1059,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         axisLockKeys: axisLockKeysRef.current
       });
 
-      const result = dispatchCommand("movePointElementByDelta", {
+      const result = hostAdapter.movePointElementByDelta({
         elementId: pointDrag.elementId,
         dx: worldDelta.dx,
         dy: worldDelta.dy,
@@ -1099,7 +1086,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
     const dx = event.clientX - drag.lastX;
     const dy = event.clientY - drag.lastY;
-    panCanvasViewport(dx, dy);
+    hostAdapter.panCanvasViewport(dx, dy);
     panDragRef.current = {
       ...drag,
       lastX: event.clientX,
@@ -1174,17 +1161,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           isNumericReferencePickActive={Boolean(activeNumericReferencePickTarget)}
           isLinePickActive={Boolean(activeLinePickTarget)}
         />
-        <CommandRibbonOverlay
-          commandContext={commandContext}
-          leftPanelDockRef={leftPanelDockRef}
-          viewportSize={viewportSize}
-        />
+        {hostAdapter.renderHostOverlay?.(viewportSize)}
         <div className="canvas-display-controls" aria-label="キャンバス表示設定">
           <button
             type="button"
             className={showCanvasElementNames ? "active-toggle" : ""}
             aria-pressed={showCanvasElementNames}
-            onClick={() => dispatchCommand("toggleCanvasElementNames")}
+            onClick={() => hostAdapter.toggleCanvasElementNames()}
           >
             要素名
           </button>
@@ -1192,7 +1175,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             type="button"
             className={showCanvasPoints ? "active-toggle" : ""}
             aria-pressed={showCanvasPoints}
-            onClick={() => dispatchCommand("toggleCanvasPoints")}
+            onClick={() => hostAdapter.toggleCanvasPoints()}
           >
             点
           </button>
@@ -1200,7 +1183,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             type="button"
             className={showPrintPreviewWindow ? "active-toggle" : ""}
             aria-pressed={showPrintPreviewWindow}
-            onClick={() => dispatchCommand("togglePrintPreviewWindow")}
+            onClick={() => hostAdapter.togglePrintPreviewWindow()}
           >
             印刷
           </button>

@@ -38,6 +38,12 @@ TS: reference / parity / test
         ↓
 EvaluationResult
         ↓
+AppLayout
+        ↓
+TauriDrawingCanvas
+        ↓
+CanvasHostAdapter
+        ↓
 DrawingCanvas
         ↓
 canvasRenderer + CanvasOverlay
@@ -234,13 +240,27 @@ eligibilityをassertする。
 
 Primary:
 
+- `src/components/AppLayout.tsx`
+- `src/components/TauriDrawingCanvas.tsx`
+- `src/components/canvasHostAdapter.ts`
 - `src/components/DrawingCanvas.tsx`
 - `src/components/canvasRenderer.ts`
 - `src/components/CanvasOverlay.tsx`
 - `src/components/useCanvasOverlayData.ts`
 - `src/components/DrawingCanvasHitTest.ts`
 
-Current rendering architecture は Canvas main rendering + overlay。
+Current rendering architecture は AppLayout → TauriDrawingCanvas →
+CanvasHostAdapter → DrawingCanvas → canvasRenderer + CanvasOverlay。TauriDrawingCanvas
+が現在のstore、command、Source Editor、画像URL、CommandRibbonOverlayをadapterへ
+接続し、DrawingCanvasはhost-neutralなinteraction/rendering ownerとして
+canvasとoverlayを描画する。将来hostの実装はcurrent architectureではない。
+
+Current invariants:
+
+- DrawingCanvasのinteraction logicはhost-neutral boundary越しに既存command/document ownerを使う。
+- Drag previewはephemeralで、pointerupだけがcanonical document commitを行う。
+- Runtime `CadElement[]` identityはadapterでcloneしない。
+- Performance instrumentationはproduction DrawingCanvas/evaluation/render pathを引き続き測る。
 
 ### Commands / keyboard / parameters
 
