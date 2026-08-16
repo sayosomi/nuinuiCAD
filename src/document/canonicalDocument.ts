@@ -1,5 +1,6 @@
 import {
   compileDslDocument,
+  NEW_DOCUMENT_DSL_MAJOR_VERSION,
   serializeDocumentToDsl,
   type CompiledDslDocument,
   type DslDocumentData,
@@ -13,6 +14,8 @@ import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import { createCadElementId } from "../model/cadIds";
 import type { ElementId } from "../types/geometry";
 import type { TypedDependencyGraph } from "../scalars/typedDependencyGraph";
+import { defaultDocumentPalette } from "../palette/palette";
+import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import { applyLineSplices, buildTextPatch, UnappliedTextPatchError, type LineSplice } from "./textPatch";
 import { reconcileStatements } from "./statementReconciler";
 import { zipAssignedElementIds } from "./shadowText";
@@ -334,4 +337,22 @@ export const regenerateCanonicalFromModel = (
     bindingIssueDiagnostics: compiled.doc.bindingIssueDiagnostics ?? [],
     typedDependencyGraph: compiled.doc.typedDependencyGraph
   };
+};
+
+const emptyFileSnapshot = (): DslDocumentData => ({
+  elements: [],
+  palette: defaultDocumentPalette(),
+  visibilityRoles: [],
+  visibilityProfiles: [defaultVisibilityProfile()],
+  activeVisibilityProfileId: defaultVisibilityProfile().id,
+  printLayouts: [],
+  activePrintLayoutId: "",
+  evaluationLimitIndex: undefined
+});
+
+export const compileFreshCanonicalText = (
+  sourceText: string
+): TextCompileResult => {
+  const baseline = regenerateCanonicalFromModel(emptyFileSnapshot(), NEW_DOCUMENT_DSL_MAJOR_VERSION);
+  return compileCanonicalText(baseline, sourceText);
 };

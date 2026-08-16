@@ -7,7 +7,7 @@
 // are kept off the (not-yet-typed-template-aware) Rust path.
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
-import { canUseRustEvaluationForElements } from "./evaluationEngine";
+import { canUseRustEvaluationForElements } from "./rustEvaluationEligibility";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";
 import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";

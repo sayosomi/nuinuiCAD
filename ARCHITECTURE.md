@@ -13,7 +13,7 @@
 ```text
 .nui sourceText
         ↓
-CadDocumentStore
+CadDocumentStore application adapter or AutomationDocument
         ↓
 compileCanonicalText
         ↓
@@ -27,9 +27,11 @@ current-source diagnostics
 +
 last-good compiled document
         ↓
-AppLayout builds evaluation runtime inputs
+shared production evaluation context builder
         ↓
-useEvaluationEngine
+AppLayout / parity consumers
+        ↓
+useEvaluationEngine / rustEvaluationRunner / Rust input
         ↓
 Tauri production: Rust evaluate_document
 TS: reference / parity / test
@@ -54,14 +56,19 @@ Primary:
 - `src/main.tsx`
 - `src/components/AppLayout.tsx`
 
-`AppLayout` が compiled document から evaluation runtime options を組み立て、
-`useEvaluationEngine` へ渡す main orchestration point。
+`src/geometry/productionEvaluationContext.ts` の shared builder が last-good
+compiled document を `EvaluateElementsOptions` にlowerする。`AppLayout` は
+effective runtime elements と evaluation limit を選択してこのbuilderを呼び、
+`useEvaluationEngine`へ渡す。Runtime elementsはbuilderの所有外なので、Canvas
+drag previewではelementsだけをephemeralに差し替えられ、Source Editor preview
+では対応するcompiled metadataも差し替えられる。
 
 ### Canonical document state
 
 Primary:
 
 - `src/state/cadDocumentStore.ts`
+- `src/document/automationDocument.ts`
 
 Important current contract:
 
@@ -72,6 +79,22 @@ Important current contract:
 - `compiledDocumentRevision` = last-good compiled document identity
 - Current-source diagnostics と last-good compiled document は分離される。
 - Preview state は ephemeral。
+
+`src/document/canonicalDocument.ts` の production primitives は、
+`compileFreshCanonicalText` と `compileCanonicalText` を通じて次の二つの
+consumer が共有する。
+
+- `CadDocumentStore`: application document adapter、Source Editor notification、
+  preview、history、file lifecycle を owner とする。
+- `AutomationDocument`: React / Zustand / Tauri に依存しない host-independent
+  facade。current source と current-source diagnostics、last-good compiled
+  document、source lifecycle revision、compiled-document lifecycle revision を
+保持する。
+
+`AutomationDocument` は既存の parser、statement reconciler、compiler、Module
+semantic / materialization path をそのまま利用し、materialized Module children
+を source representation に flatten しない。Future Evaluation Context や
+Headless Rust はこの architecture の current component ではない。
 
 ### Compilation / source mutation
 
@@ -163,16 +186,32 @@ Primary:
 
 - `src/geometry/useEvaluationEngine.ts`
 - `src/geometry/evaluationEngine.ts`
+- `src/geometry/rustEvaluationEligibility.ts`
+- `src/geometry/rustEvaluationRunner.ts`
 - `src/geometry/evaluate.ts`
+- `src/geometry/productionEvaluationContext.ts`
 
-TypeScript evaluator は reference / parity / test path。`useEvaluationEngine` は
-`evaluationRevision` / `evaluationRequestRevision` を管理する。
+`productionEvaluationContext.ts` がcompiled documentのscalar program、binding
+runtime entries、text/control metadata、source/Module mutation ownersを一度だけ
+element-id keyed runtime metadataへlowerする。TypeScript evaluator は reference /
+parity / test path。`useEvaluationEngine` は`evaluationRevision` /
+`evaluationRequestRevision`を管理し、revision/request/stale semanticsをownerとする。
+
+`rustEvaluationEligibility.ts` はRust supported element/reference types、compiled
+reference validation、binding mutation、conditional / forGroup ownerのRust eligibility
+をownerとする。`rustEvaluationRunner.ts` はReact、Tauri、Node、benchmarkから独立した
+Rust request preparation / transport contractであり、既存の
+`buildRustEvaluationInput` と `evaluationPayloadToResult` を再利用する。
+`evaluationEngine.ts` はTauri transport adapterとreference / parity integrationを
+担当する。`buildRustEvaluationInput` は引き続きsole JSON-shaped Rust projection
+ownerである。将来のheadless hostはこのtransport実装だけを差し替えられる。
 
 ### Rust evaluation
 
 Primary:
 
 - `src-tauri/src/evaluation/`
+- `src/geometry/rustEvaluationRunner.ts` (request boundary)
 
 Production Tauri evaluator。
 
@@ -183,6 +222,13 @@ Public command boundary:
 Rust evaluator は `.nui` source text を parse したり source name resolution を
 やり直す owner ではない。TypeScript compile / lowering 側で構築された resolved
 runtime payload を decode / validate / evaluate する。
+
+Tauri productionは `evaluationEngine.ts` の `evaluate_document` transport adapter
+から既存の `evaluation::evaluate_document` を呼び出す。Parityのcargo exampleは
+同じRust evaluatorと `buildRustEvaluationInput` のprojectionを利用する。Parity
+harnessはRust evaluator自体のcorrectness検証のため、production Rust eligibilityとは
+独立してRust inputを構築できる。Current-release fixtureは別途production Rust
+eligibilityをassertする。
 
 ### Rendering / hit testing
 
@@ -228,11 +274,11 @@ Representative:
 - `test/fixtures/evaluation/`
 - Rust evaluator tests in `src-tauri/src/evaluation/`
 
-`test/evaluationParitySupport.ts` は current code では `AppLayout` と類似した
-evaluation options 構築を独自に持っている。
-
-重要: 将来計画にある `buildEvaluationContext(...)` はまだ存在しないため、
-current architecture として書かない。
+`test/evaluationParitySupport.ts` の`optionsFor`は同じshared production
+evaluation context builderを呼ぶthin wrapperである。Rust parityは既存の
+`buildRustEvaluationInput(fixture.elements, optionsFor(fixture))`から
+`evaluate_fixture`、`evaluate_document`へ進み、Rust payload boundaryやbenchmark
+protocolはこのloweringの外側にある。
 
 ### Performance comparison foundation
 

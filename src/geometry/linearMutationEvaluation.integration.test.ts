@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "../document/canonicalDocument";
 import { emptyDocument } from "../dsl/dslDocumentTestUtils";
-import { canUseRustEvaluationForElements } from "./evaluationEngine";
+import { canUseRustEvaluationForElements } from "./rustEvaluationEligibility";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 import {
   buildConditionalGroupConditionsByElementId,

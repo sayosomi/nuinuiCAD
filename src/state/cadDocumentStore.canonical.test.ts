@@ -181,6 +181,24 @@ describe("cadDocumentStore canonical text", () => {
     expect(pointId("B")).toBe(bId);
   });
 
+  it("starts each text-document load in a fresh identity domain", () => {
+    const source = onePointSource();
+
+    useCadDocumentStore.getState().replaceTextDocument(source, {
+      currentFilePath: "/tmp/first.nui",
+      dirtySinceSave: false
+    });
+    const firstId = pointId("A");
+
+    useCadDocumentStore.getState().replaceTextDocument(source, {
+      currentFilePath: "/tmp/second.nui",
+      dirtySinceSave: false
+    });
+    const secondId = pointId("A");
+
+    expect(secondId).not.toBe(firstId);
+  });
+
   it("keeps bridge element object identity and ignores preview/snapshot state", () => {
     seedText(twoPointSource());
     const before = useCadDocumentStore.getState();
