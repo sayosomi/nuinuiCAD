@@ -14,6 +14,8 @@ import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadDocumentStore, useCadStore } from "../state/useCadStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { DrawingCanvas } from "./DrawingCanvas";
+import { TauriDrawingCanvas } from "./TauriDrawingCanvas";
+import type { CanvasHostAdapter } from "./canvasHostAdapter";
 import { worldToScreen } from "./canvasViewport";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 import {
@@ -176,7 +178,7 @@ const mockCanvasContext = () => ({
 
 const renderDrawingCanvas = () => {
   const view = render(
-    createElement(DrawingCanvas, {
+    createElement(TauriDrawingCanvas, {
       evaluation: evaluateElements(useCadStore.getState().elements),
       canvasFocusRef: createRef<HTMLDivElement>(),
       leftPanelDockRef: createRef<HTMLDivElement>()
@@ -187,6 +189,56 @@ const renderDrawingCanvas = () => {
     throw new Error("Missing canvas viewport");
   }
   return { ...view, viewport };
+};
+
+const createFakeCanvasHostAdapter = (
+  overrides: Partial<CanvasHostAdapter> = {}
+): CanvasHostAdapter => {
+  const elements = useCadStore.getState().elements;
+  return {
+    elements,
+    canonicalElements: elements,
+    evaluationLimitIndex: undefined,
+    compiledDocumentRevision: 0,
+    palette: defaultDocumentPalette(),
+    visibilityProfiles: [],
+    activeVisibilityProfileId: null,
+    moduleSemanticContext: {},
+    selectedElementId: useCadStore.getState().selectedElementId,
+    selectedElementIds: useCadStore.getState().selectedElementIds,
+    canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+    showCanvasElementNames: true,
+    showCanvasPoints: true,
+    showPrintPreviewWindow: false,
+    activePointPickTarget: null,
+    activeNumericReferencePickTarget: null,
+    activeLinePickTarget: null,
+    commandLineSession: null,
+    flushSourceEditorOnCanvasPointerDown: vi.fn<CanvasHostAdapter["flushSourceEditorOnCanvasPointerDown"]>(() => "clean"),
+    setCommandErrorMessage: vi.fn(),
+    focusSourceEditor: vi.fn(),
+    getCurrentCanonicalDocument: () => ({
+      elements,
+      sourceRevision: 0,
+      compiledDocumentRevision: 0,
+      sourceText: "",
+      docText: ""
+    }),
+    panCanvasViewport: vi.fn(),
+    zoomCanvasViewportAt: vi.fn(),
+    selectElement: vi.fn(),
+    movePointElementByDelta: vi.fn(),
+    moveBezierHandleByDelta: vi.fn(),
+    applyPickedNumericReference: vi.fn(),
+    applyNumericExpressionReference: vi.fn(),
+    applyPickedLine: vi.fn(),
+    applyPickedPoint: vi.fn(),
+    toggleCanvasElementNames: vi.fn(),
+    toggleCanvasPoints: vi.fn(),
+    togglePrintPreviewWindow: vi.fn(),
+    resolveImageSourceUrl: (sourcePath) => sourcePath,
+    ...overrides
+  };
 };
 
 const referenceEvaluationState = (revision: number): EvaluationEngineState => ({
@@ -291,6 +343,58 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("uses the host adapter for preview and commit actions with one drag base", () => {
+    const hostAdapter = createFakeCanvasHostAdapter();
+    const evaluation = evaluateElements(hostAdapter.elements);
+    const evaluationState: EvaluationEngineState = {
+      evaluation,
+      evaluationRevision: 0,
+      evaluationRequestRevision: 0,
+      mode: "reference",
+      source: "reference",
+      status: "idle",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    const view = render(createElement(DrawingCanvas, {
+      evaluation,
+      evaluationState,
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter
+    }));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Missing canvas viewport");
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 260,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 320,
+      clientY: 260,
+      pointerId: 1
+    });
+
+    const pointActions = vi.mocked(hostAdapter.movePointElementByDelta).mock.calls;
+    expect(pointActions).toHaveLength(2);
+    expect(pointActions.map(([action]) => action.commitMode)).toEqual(["preview", "commit"]);
+    expect(pointActions[0]?.[0].baseElements).toBe(hostAdapter.canonicalElements);
+    expect(pointActions[1]?.[0].baseElements).toBe(hostAdapter.canonicalElements);
+    expect(pointActions[1]?.[0].baseElements).toBe(pointActions[0]?.[0].baseElements);
+    expect(hostAdapter.canonicalElements).toBe(useCadStore.getState().elements);
+  });
+
   it("notifies the passive frame observer after the current production draw", async () => {
     const revision = useCadStore.getState().compiledDocumentRevision;
     const wait = waitForCurrentDrawAndFrame(revision);
@@ -1355,10 +1459,11 @@ describe("DrawingCanvas point dragging", () => {
     const beforeRevision = useCadDocumentStore.getState().compiledDocumentRevision;
     const staleEvaluation = referenceEvaluationState(beforeRevision);
     const canvasFocusRef = createRef<HTMLDivElement>();
-    const view = render(createElement(DrawingCanvas, {
+    const view = render(createElement(TauriDrawingCanvas, {
       evaluation: staleEvaluation.evaluation,
       evaluationState: staleEvaluation,
       canvasFocusRef,
+      commandContext: {},
       leftPanelDockRef: createRef<HTMLDivElement>()
     }));
     const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport")!;
@@ -1381,10 +1486,11 @@ describe("DrawingCanvas point dragging", () => {
       expect(pointBId).toBeDefined();
       await act(async () => {
         const fresh = referenceEvaluationState(currentRevision);
-        view.rerender(createElement(DrawingCanvas, {
+        view.rerender(createElement(TauriDrawingCanvas, {
           evaluation: fresh.evaluation,
           evaluationState: fresh,
           canvasFocusRef,
+          commandContext: {},
           leftPanelDockRef: createRef<HTMLDivElement>()
         }));
       });
@@ -1627,7 +1733,7 @@ describe("DrawingCanvas pending pointer intents", () => {
       canvasFocusRef,
       leftPanelDockRef
     });
-    const view = render(createElement(DrawingCanvas, propsFor(staleState)));
+    const view = render(createElement(TauriDrawingCanvas, propsFor(staleState)));
     const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
     if (!viewport) throw new Error("Missing canvas viewport");
 
@@ -1646,7 +1752,7 @@ describe("DrawingCanvas pending pointer intents", () => {
 
     const deliverEvaluationState = async (overrides?: Partial<EvaluationEngineState>) => {
       await act(async () => {
-        view.rerender(createElement(DrawingCanvas, propsFor({
+        view.rerender(createElement(TauriDrawingCanvas, propsFor({
           ...referenceEvaluationState(useCadDocumentStore.getState().compiledDocumentRevision),
           ...overrides
         })));

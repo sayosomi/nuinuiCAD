@@ -22,7 +22,7 @@ import {
 } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { CommandPalette } from "./CommandPalette";
-import { DrawingCanvas } from "./DrawingCanvas";
+import { TauriDrawingCanvas } from "./TauriDrawingCanvas";
 import { CommandLineBar } from "./CommandLineBar";
 import { RightPanel } from "./RightPanel";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
@@ -442,7 +442,7 @@ export const AppLayout = () => {
       ) : (
         <>
           <div className="canvas-workspace" ref={canvasWorkspaceRef}>
-            <DrawingCanvas
+            <TauriDrawingCanvas
               ref={drawingCanvasRef}
               evaluation={evaluation}
               evaluationState={evaluationState}

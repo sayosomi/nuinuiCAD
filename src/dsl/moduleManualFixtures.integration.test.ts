@@ -217,6 +217,7 @@ describe("Module v1 manual fixtures", () => {
     const privateId = children.find((element) => element.name === "脇コピー")!.id;
     expect(result.computedGeometry.get(privateId)).toMatchObject({ kind: "offsetLine", elementId: privateId });
     expect(origins.get(privateId)).toMatchObject({ kind: "moduleBody", instancePath: expect.any(Array) });
+    const documentState = useCadDocumentStore.getState();
     const { result: canvas } = renderHook(() => useCanvasOverlayData({
       evaluation: result,
       elements: compiled.document!.elements,
@@ -224,7 +225,9 @@ describe("Module v1 manual fixtures", () => {
       pointPickCandidates: [],
       viewportSize: { width: 500, height: 400 },
       canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-      documentPath: null
+      visibilityProfiles: documentState.visibilityProfiles,
+      activeVisibilityProfileId: documentState.activeVisibilityProfileId,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
     }));
     expect(canvas.current.offsetLines.some((line) => line.elementId === privateId)).toBe(true);
     expect(hitTestCanvasGeometry({

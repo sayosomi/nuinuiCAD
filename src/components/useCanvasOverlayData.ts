@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import type { CanvasViewport } from "../state/cadUiStore";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { runtimeOnlyElementTypes } from "../types/geometry";
 import type {
   CadElement,
@@ -14,6 +13,7 @@ import type {
   ElementId,
   EvaluationResult
 } from "../types/geometry";
+import type { VisibilityProfile } from "../types/geometry";
 import { effectiveVisibleElementIds } from "../model/groups";
 import {
   effectiveVisibleElementIdsForProfile,
@@ -33,7 +33,6 @@ import {
   sampleOffsetLineScreenPoints
 } from "./DrawingCanvasHitTest";
 import { type ViewportSize, worldToScreen } from "./canvasViewport";
-import { imageSourceUrl } from "./imageSourceUrls";
 import type { BezierHandleOverlay, CanvasOverlayData } from "./DrawingCanvasTypes";
 
 const isPoint = (geometry: unknown): geometry is ComputedPoint =>
@@ -71,7 +70,9 @@ export const useCanvasOverlayData = ({
   excludedInteractionElementIds,
   viewportSize,
   canvasViewport,
-  documentPath
+  visibilityProfiles,
+  activeVisibilityProfileId,
+  resolveImageSourceUrl
 }: {
   evaluation: EvaluationResult;
   elements: CadElement[];
@@ -80,10 +81,10 @@ export const useCanvasOverlayData = ({
   excludedInteractionElementIds?: ReadonlySet<ElementId>;
   viewportSize: ViewportSize;
   canvasViewport: CanvasViewport;
-  documentPath: string | null;
+  visibilityProfiles: VisibilityProfile[];
+  activeVisibilityProfileId: string | null;
+  resolveImageSourceUrl: (sourcePath: string) => string;
 }): CanvasOverlayData => {
-  const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
-  const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
   const visibleElementIds = useMemo(
     () => {
       const baseVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(elements);
@@ -192,12 +193,12 @@ export const useCanvasOverlayData = ({
         .filter((image) => visibleElementIds.has(image.elementId))
         .map((image) => ({
           image,
-          sourceUrl: imageSourceUrl(image.sourcePath, documentPath),
+          sourceUrl: resolveImageSourceUrl(image.sourcePath),
           corners: imageWorldCorners(image).map((point) =>
             worldToScreen(point, viewportSize, canvasViewport)
           )
         })),
-    [canvasViewport, documentPath, images, viewportSize, visibleElementIds]
+    [canvasViewport, images, resolveImageSourceUrl, viewportSize, visibleElementIds]
   );
   const overlayTexts = useMemo(
     () =>
