@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import { VSCodePerformanceApp } from "./VSCodePerformanceApp";
+import { VSCodeApp } from "./VSCodeApp";
 import type { VscodeWebviewApi } from "./protocol";
 import "../styles.css";
 
@@ -12,5 +12,5 @@ const api = vscodeWindow.acquireVsCodeApi?.();
 if (!api) throw new Error("VS Code Webview API is unavailable");
 
 createRoot(document.getElementById("root")!).render(
-  <VSCodePerformanceApp api={api} />
+  <VSCodeApp api={api} />
 );

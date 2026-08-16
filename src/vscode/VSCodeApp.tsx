@@ -17,7 +17,7 @@ import type {
   VscodeWebviewApi
 } from "./protocol";
 
-export const VSCodePerformanceApp = ({ api }: { api: VscodeWebviewApi }) => {
+export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore(effectiveEvaluationLimitIndex);
   const evaluationDocument = useCadDocumentStore(effectiveCompiledDocument);
