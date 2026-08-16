@@ -4,10 +4,9 @@ import { join } from "node:path";
 import type { CadElement } from "../src/types/geometry";
 import { compileCanonicalText, regenerateCanonicalFromModel, type TextCompileResult } from "../src/document/canonicalDocument";
 import { emptyDocument } from "../src/dsl/dslDocumentTestUtils";
-import { canUseRustEvaluationForElements } from "../src/geometry/evaluationEngine";
-import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
+import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 import { runtimeScalarDiagnostics } from "../src/scalars/runtimeScalarDiagnostics";
 import type { EvaluateElementsOptions } from "../src/geometry/evaluate";
 
@@ -55,10 +54,11 @@ export const evaluateWithRustFixture = (
   fixture: EvaluationFixture
 ): EvaluationPayload => {
   const cargoManifest = join(repoRoot, "src-tauri", "Cargo.toml");
+  const prepared = prepareRustEvaluation(fixture.elements, optionsFor(fixture));
   const output = execFileSync(
     "cargo",
     ["run", "--quiet", "--manifest-path", cargoManifest, "--example", "evaluate_fixture"],
-    { encoding: "utf8", input: JSON.stringify(buildRustEvaluationInput(fixture.elements, optionsFor(fixture))) }
+    { encoding: "utf8", input: JSON.stringify(prepared.input) }
   );
   return JSON.parse(output) as EvaluationPayload;
 };
@@ -81,7 +81,7 @@ export const normalizeParityPayload = (value: unknown): unknown => {
 };
 
 export const isRustEligibleFixture = (fixture: EvaluationFixture) =>
-  canUseRustEvaluationForElements(fixture.elements, optionsFor(fixture));
+  prepareRustEvaluation(fixture.elements, optionsFor(fixture)).rustEligible;
 
 export const runtimeDiagnosticsFor = (fixture: EvaluationFixture, payload: EvaluationPayload) => {
   const doc = fixture.compiled?.doc;

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import type { EvaluateElementsOptions } from "./evaluate";
+import { canUseRustEvaluationForElements } from "./rustEvaluationEligibility";
 import {
-  canUseRustEvaluationForElements,
   emptyEvaluationResult,
   type EvaluationEngineMode,
   evaluateElementsReference,

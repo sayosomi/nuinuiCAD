@@ -31,7 +31,7 @@ shared production evaluation context builder
         ↓
 AppLayout / parity consumers
         ↓
-useEvaluationEngine / Rust input
+useEvaluationEngine / rustEvaluationRunner / Rust input
         ↓
 Tauri production: Rust evaluate_document
 TS: reference / parity / test
@@ -186,6 +186,8 @@ Primary:
 
 - `src/geometry/useEvaluationEngine.ts`
 - `src/geometry/evaluationEngine.ts`
+- `src/geometry/rustEvaluationEligibility.ts`
+- `src/geometry/rustEvaluationRunner.ts`
 - `src/geometry/evaluate.ts`
 - `src/geometry/productionEvaluationContext.ts`
 
@@ -195,11 +197,21 @@ element-id keyed runtime metadataへlowerする。TypeScript evaluator は refer
 parity / test path。`useEvaluationEngine` は`evaluationRevision` /
 `evaluationRequestRevision`を管理し、revision/request/stale semanticsをownerとする。
 
+`rustEvaluationEligibility.ts` はRust supported element/reference types、compiled
+reference validation、binding mutation、conditional / forGroup ownerのRust eligibility
+をownerとする。`rustEvaluationRunner.ts` はReact、Tauri、Node、benchmarkから独立した
+Rust request preparation / transport contractであり、既存の
+`buildRustEvaluationInput` と `evaluationPayloadToResult` を再利用する。
+`evaluationEngine.ts` はTauri transport adapterとreference / parity integrationを
+担当する。`buildRustEvaluationInput` は引き続きsole JSON-shaped Rust projection
+ownerである。将来のheadless hostはこのtransport実装だけを差し替えられる。
+
 ### Rust evaluation
 
 Primary:
 
 - `src-tauri/src/evaluation/`
+- `src/geometry/rustEvaluationRunner.ts` (request boundary)
 
 Production Tauri evaluator。
 
@@ -210,6 +222,10 @@ Public command boundary:
 Rust evaluator は `.nui` source text を parse したり source name resolution を
 やり直す owner ではない。TypeScript compile / lowering 側で構築された resolved
 runtime payload を decode / validate / evaluate する。
+
+Tauri productionは `evaluationEngine.ts` の `evaluate_document` transport adapter
+から既存の `evaluation::evaluate_document` を呼び出す。Parityのcargo exampleは
+同じRust evaluatorと同じrunner preparationを利用する。
 
 ### Rendering / hit testing
 

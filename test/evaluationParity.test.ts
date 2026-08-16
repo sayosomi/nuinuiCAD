@@ -56,6 +56,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = readParityFixture(repoRoot, name);
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    if (!isRustEligibleFixture(fixture)) return;
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
 
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
+import { canUseRustEvaluationForElements } from "./rustEvaluationEligibility";
 import {
-  canUseRustEvaluationForElements,
   evaluationResultsMatch,
   resolveEvaluationEngineMode
 } from "./evaluationEngine";
