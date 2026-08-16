@@ -28,6 +28,11 @@ type TestPanel = {
   onDidDispose: ReturnType<typeof vi.fn>;
 };
 
+type TestRustProcess = {
+  request: ReturnType<typeof vi.fn>;
+  dispose: ReturnType<typeof vi.fn>;
+};
+
 const mocks = vi.hoisted(() => ({
   activeTextEditor: null as TestEditor | null,
   visibleTextEditors: [] as TestEditor[],
@@ -37,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   documentChangeListeners: [] as Array<(event: { document: TestDocument }) => void>,
   documentCloseListeners: [] as Array<(document: TestDocument) => void>,
   panels: [] as TestPanel[],
+  rustProcesses: [] as TestRustProcess[],
   showErrorMessage: vi.fn(),
   createWebviewPanel: vi.fn(),
   registerCommand: vi.fn(),
@@ -75,6 +81,17 @@ vi.mock("vscode", () => {
   };
 // @ts-expect-error Vitest's runtime supports the virtual-module options used here.
 }, { virtual: true });
+
+vi.mock("./rustEvaluationProcess", () => ({
+  RustEvaluationProcess: class {
+    readonly request = vi.fn(async (input: unknown) => ({ input }));
+    readonly dispose = vi.fn();
+
+    constructor() {
+      mocks.rustProcesses.push(this);
+    }
+  }
+}));
 
 import { activate } from "./extension";
 
@@ -189,6 +206,7 @@ afterEach(() => {
   mocks.documentChangeListeners.length = 0;
   mocks.documentCloseListeners.length = 0;
   mocks.panels.length = 0;
+  mocks.rustProcesses.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.createWebviewPanel.mockReset();
   mocks.registerCommand.mockReset();
@@ -235,6 +253,60 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.panels).toHaveLength(2);
     expect(panelA.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
     expect(panelB.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
+  });
+
+  it("disposing panel A leaves panel B alive and syncing its document", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorA, editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.commandHandler?.();
+    const panelB = mocks.panels[1]!;
+
+    panelA.dispose();
+    expect(panelA.dispose).toHaveBeenCalledTimes(1);
+    expect(panelB.dispose).not.toHaveBeenCalled();
+
+    documentB.version = 2;
+    documentB.setSourceText("nui 4\n# panel B change\n");
+    for (const listener of mocks.documentChangeListeners) listener({ document: documentB });
+
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      sourceText: "nui 4\n# panel B change\n",
+      documentVersion: 2
+    }));
+  });
+
+  it("panel disposal does not dispose the shared Rust process used by another panel", async () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorA, editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.commandHandler?.();
+    const panelB = mocks.panels[1]!;
+
+    await messageHandlerFor(panelA)({ type: "rustEvaluationRequest", id: 1, input: { request: "first" } });
+    expect(mocks.rustProcesses).toHaveLength(1);
+    const sharedProcess = mocks.rustProcesses[0]!;
+
+    panelA.dispose();
+    expect(sharedProcess.dispose).not.toHaveBeenCalled();
+
+    await messageHandlerFor(panelB)({ type: "rustEvaluationRequest", id: 2, input: { request: "second" } });
+    expect(mocks.rustProcesses).toHaveLength(1);
+    expect(sharedProcess.request).toHaveBeenCalledTimes(2);
+    expect(sharedProcess.dispose).not.toHaveBeenCalled();
   });
 
   it("auto-starts once when benchmark config exists and an active .nui editor becomes ready", () => {
@@ -307,6 +379,26 @@ describe("VS Code production document lifecycle", () => {
       type: "replaceTextDocument",
       sourceText: "nui 4\n# reopened\n",
       documentVersion: 4
+    });
+  });
+
+  it("reopens a fresh panel after panel-only disposal and hydrates current document text and version", async () => {
+    setup();
+    const editor = mocks.activeTextEditor!;
+    const panelA = openPanelFor(editor);
+
+    panelA.dispose();
+    editor.document.version = 6;
+    editor.document.setSourceText("nui 4\n# panel reopened\n");
+    const panelB = openPanelFor(editor);
+    await messageHandlerFor(panelB)({ type: "webviewReady" });
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(panelB).not.toBe(panelA);
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith({
+      type: "replaceTextDocument",
+      sourceText: "nui 4\n# panel reopened\n",
+      documentVersion: 6
     });
   });
 
