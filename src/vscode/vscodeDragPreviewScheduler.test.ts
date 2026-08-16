@@ -67,6 +67,45 @@ describe("VscodeDragPreviewScheduler", () => {
     expect(dispatch).not.toHaveBeenCalledWith(intermediate);
   });
 
+  it("does not settle against the settled state that existed before materialization", () => {
+    const dispatch = vi.fn().mockReturnValue({ status: "applied" });
+    const scheduler = new VscodeDragPreviewScheduler(dispatch);
+    const stateBeforeMaterialization = settledEvaluation(12);
+
+    scheduler.dispatchPreview(pointAction({ dx: 1 }), stateBeforeMaterialization);
+    scheduler.dispatchPreview(pointAction({ dx: 2 }));
+    scheduler.observeEvaluationState(stateBeforeMaterialization);
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles when the current evaluation revision is lower than the old state", () => {
+    const dispatch = vi.fn().mockReturnValue({ status: "applied" });
+    const scheduler = new VscodeDragPreviewScheduler(dispatch);
+    const stateBeforeMaterialization = settledEvaluation(12);
+    const latest = pointAction({ dx: 2 });
+
+    scheduler.dispatchPreview(pointAction({ dx: 1 }), stateBeforeMaterialization);
+    scheduler.dispatchPreview(latest);
+    scheduler.observeEvaluationState({ ...stateBeforeMaterialization, status: "evaluating" });
+    scheduler.observeEvaluationState(settledEvaluation(11));
+
+    expect(dispatch).toHaveBeenLastCalledWith(latest);
+  });
+
+  it("settles when a same-revision current state is observed after materialization", () => {
+    const dispatch = vi.fn().mockReturnValue({ status: "applied" });
+    const scheduler = new VscodeDragPreviewScheduler(dispatch);
+    const stateBeforeMaterialization = settledEvaluation(12);
+    const latest = pointAction({ dx: 2 });
+
+    scheduler.dispatchPreview(pointAction({ dx: 1 }), stateBeforeMaterialization);
+    scheduler.dispatchPreview(latest);
+    scheduler.observeEvaluationState(settledEvaluation(12));
+
+    expect(dispatch).toHaveBeenLastCalledWith(latest);
+  });
+
   it("waits for a current failed evaluation as well as a ready evaluation", () => {
     const dispatch = vi.fn().mockReturnValue({ status: "applied" });
     const scheduler = new VscodeDragPreviewScheduler(dispatch);
@@ -133,6 +172,19 @@ describe("VscodeDragPreviewScheduler", () => {
     scheduler.observeEvaluationState({ ...settledEvaluation(), isStale: true });
     expect(dispatch).toHaveBeenCalledTimes(1);
     scheduler.observeEvaluationState(settledEvaluation());
+    expect(dispatch).toHaveBeenLastCalledWith(latest);
+  });
+
+  it("does not accept a stale failed evaluation as settlement", () => {
+    const dispatch = vi.fn().mockReturnValue({ status: "applied" });
+    const scheduler = new VscodeDragPreviewScheduler(dispatch);
+    const latest = pointAction({ dx: 2 });
+
+    scheduler.dispatchPreview(pointAction({ dx: 1 }));
+    scheduler.dispatchPreview(latest);
+    scheduler.observeEvaluationState({ ...settledEvaluation(), status: "failed", isStale: true });
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    scheduler.observeEvaluationState({ ...settledEvaluation(), status: "failed" });
     expect(dispatch).toHaveBeenLastCalledWith(latest);
   });
 });
