@@ -24,6 +24,8 @@
     "bench:evaluation": "cargo test --manifest-path src-tauri/Cargo.toml performance_ -- --ignored --nocapture --test-threads=1",
     "bench:compare": "tsx scripts/performance/compare.ts",
     "bench:capture:tauri": "tsx scripts/performance/captureTauri.ts",
+    "bench:capture:vscode": "tsx scripts/performance/captureVscode.ts",
+    "build:vscode": "node scripts/vscode/build.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -52,6 +54,8 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/vscode": "^1.103.2",
+    "esbuild": "^0.28.2",
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
     "eslint-plugin-react-refresh": "latest",

@@ -487,7 +487,7 @@ export const selectionCommandDefinitions = {
     label: "点を移動",
     run: (context) => {
       if (!context) return;
-      movePointElementByDelta(context);
+      return movePointElementByDelta(context);
     }
   },
   moveBezierHandleByDelta: {
@@ -495,7 +495,7 @@ export const selectionCommandDefinitions = {
     label: "曲線ハンドルを移動",
     run: (context) => {
       if (!context) return;
-      moveBezierHandleByDelta(context);
+      return moveBezierHandleByDelta(context);
     }
   },
   cycleElementActivity: {
