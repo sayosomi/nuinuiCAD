@@ -4,7 +4,7 @@ import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import { effectiveElements, effectiveEvaluationLimitIndex, useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
 import { imageSourceUrl } from "./imageSourceUrls";
@@ -31,7 +31,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
   }, ref) {
     const elements = useCadDocumentStore(effectiveElements);
     const canonicalElements = useCadDocumentStore((state) => state.elements);
-    const evaluationLimitIndex = useCadDocumentStore(effectiveEvaluationLimitIndex);
+    const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
     const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
     const palette = useCadDocumentStore((state) => state.palette);
     const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
