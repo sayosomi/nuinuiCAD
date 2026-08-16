@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   BENCHMARK_PROTOCOL,
@@ -10,8 +13,10 @@ import type { BenchmarkMachine, BenchmarkResult } from "../../src/performance/be
 import {
   assertVscodeBaseline,
   captureVscode,
+  launchVscode,
   parseCaptureVscodeArgs,
-  type CaptureVscodeDependencies
+  type CaptureVscodeDependencies,
+  type VscodeBenchmarkCaptureConfig
 } from "./captureVscode";
 
 const machine: BenchmarkMachine = {
@@ -86,6 +91,63 @@ const dependenciesFor = (
 };
 
 describe("captureVscode", () => {
+  it("launches VS Code with benchmark startup UI suppressed", () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), "nuinuicad-vscode-launch-test-"));
+    const child = { once: vi.fn(), kill: vi.fn() };
+    const spawnProcess = vi.fn((command: string, args: string[], options: object) => {
+      void command;
+      void args;
+      void options;
+      return child;
+    });
+    const config = {
+      runId: "run-1",
+      fixtureId: fixture.id,
+      fixtureHash,
+      fixtureSource,
+      fixture,
+      resultPath: join(tempRoot, "result.json"),
+      build: {
+        gitCommit: "a".repeat(40),
+        appVersion: "0.0.0",
+        machine
+      },
+      expectedRenderSurface: {
+        cssWidthPx: 1000,
+        cssHeightPx: 700,
+        backingWidthPx: 2000,
+        backingHeightPx: 1400,
+        devicePixelRatio: 2
+      }
+    } satisfies VscodeBenchmarkCaptureConfig;
+
+    try {
+      launchVscode(
+        config,
+        "/repository",
+        "/extension",
+        "/fixture.nui",
+        "/evaluation_stdio",
+        spawnProcess as unknown as typeof import("node:child_process").spawn
+      );
+
+      const args = spawnProcess.mock.calls[0]?.[1];
+      expect(args).toEqual([
+        "--new-window",
+        "--user-data-dir", join(tempRoot, "user-data"),
+        "--extensions-dir", join(tempRoot, "extensions"),
+        "--extensionDevelopmentPath=/extension",
+        "--skip-welcome",
+        "--skip-sessions-welcome",
+        "--skip-release-notes",
+        "--disable-workspace-trust",
+        "/fixture.nui"
+      ]);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("parses the required CLI contract", () => {
     expect(parseCaptureVscodeArgs([
       "--fixture", "interactive-medium-v1", "--baseline", "tauri-result.json", "--output", "vscode-result.json"

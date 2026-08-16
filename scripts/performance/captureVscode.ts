@@ -121,6 +121,10 @@ export const launchVscode = (
     "--user-data-dir", userDataPath,
     "--extensions-dir", extensionsPath,
     `--extensionDevelopmentPath=${extensionPath}`,
+    "--skip-welcome",
+    "--skip-sessions-welcome",
+    "--skip-release-notes",
+    "--disable-workspace-trust",
     fixturePath
   ], {
     cwd: repositoryPath,
