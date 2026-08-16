@@ -6,6 +6,7 @@ import {
   commitLineSplicePatch,
   commitModelBridge,
   compileCanonicalText,
+  compileFreshCanonicalText,
   regenerateCanonicalFromModel,
   type CanonicalDocumentValue,
   type LastGoodDslDocument
@@ -413,17 +414,6 @@ const initialSnapshot = (): DslDocumentData => ({
   activeVisibilityProfileId: defaultVisibilityProfile().id,
   printLayouts: [DEFAULT_PRINT_LAYOUT],
   activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
-  evaluationLimitIndex: undefined
-});
-
-const emptyFileSnapshot = (): DslDocumentData => ({
-  elements: [],
-  palette: defaultDocumentPalette(),
-  visibilityRoles: [],
-  visibilityProfiles: [defaultVisibilityProfile()],
-  activeVisibilityProfileId: defaultVisibilityProfile().id,
-  printLayouts: [],
-  activePrintLayoutId: "",
   evaluationLimitIndex: undefined
 });
 
@@ -870,8 +860,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       selectionAnchorElementId: null
     };
     set((state) => {
-      const baseline = regenerateCanonicalFromModel(emptyFileSnapshot(), NEW_DOCUMENT_DSL_MAJOR_VERSION);
-      const compiled = compileCanonicalText(baseline, sourceText);
+      const compiled = compileFreshCanonicalText(sourceText);
       selectionElements = compiled.doc.document.elements;
       return {
         ...canonicalFields(compiled),

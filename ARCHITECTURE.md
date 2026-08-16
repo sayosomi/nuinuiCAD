@@ -13,7 +13,7 @@
 ```text
 .nui sourceText
         ↓
-CadDocumentStore
+CadDocumentStore application adapter or AutomationDocument
         ↓
 compileCanonicalText
         ↓
@@ -62,6 +62,7 @@ Primary:
 Primary:
 
 - `src/state/cadDocumentStore.ts`
+- `src/document/automationDocument.ts`
 
 Important current contract:
 
@@ -72,6 +73,22 @@ Important current contract:
 - `compiledDocumentRevision` = last-good compiled document identity
 - Current-source diagnostics と last-good compiled document は分離される。
 - Preview state は ephemeral。
+
+`src/document/canonicalDocument.ts` の production primitives は、
+`compileFreshCanonicalText` と `compileCanonicalText` を通じて次の二つの
+consumer が共有する。
+
+- `CadDocumentStore`: application document adapter、Source Editor notification、
+  preview、history、file lifecycle を owner とする。
+- `AutomationDocument`: React / Zustand / Tauri に依存しない host-independent
+  facade。current source と current-source diagnostics、last-good compiled
+  document、source lifecycle revision、compiled-document lifecycle revision を
+保持する。
+
+`AutomationDocument` は既存の parser、statement reconciler、compiler、Module
+semantic / materialization path をそのまま利用し、materialized Module children
+を source representation に flatten しない。Future Evaluation Context や
+Headless Rust はこの architecture の current component ではない。
 
 ### Compilation / source mutation
 
