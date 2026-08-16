@@ -2,6 +2,7 @@ import type { EvaluationPayload } from "../geometry/evaluationPayload";
 import type { RustEvaluationTransport } from "../geometry/rustEvaluationRunner";
 import type { EvaluateDocumentInput } from "../geometry/rustEvaluationInput";
 import type { ExtensionToVscodeMessage, VscodeToExtensionMessage } from "./protocol";
+import { continuousDragDiagnostic } from "../performance/continuousDragDiagnostic";
 
 type PendingRequest = {
   resolve: (payload: EvaluationPayload) => void;
@@ -23,6 +24,7 @@ export class VscodeRustTransport {
     this.nextRequestId += 1;
     return new Promise<EvaluationPayload>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
+      continuousDragDiagnostic.recordTransportSend(id, this.pending.size);
       this.postMessage({ type: "rustEvaluationRequest", id, input });
     });
   }
@@ -31,7 +33,9 @@ export class VscodeRustTransport {
     if (message.type !== "rustEvaluationResponse" && message.type !== "rustEvaluationError") return false;
     const request = this.pending.get(message.id);
     if (!request) return false;
+    const pendingCount = this.pending.size;
     this.pending.delete(message.id);
+    continuousDragDiagnostic.recordTransportResponse(message.id, pendingCount, this.pending.size);
     if (message.type === "rustEvaluationError") request.reject(new Error(message.error));
     else request.resolve(message.payload as EvaluationPayload);
     return true;

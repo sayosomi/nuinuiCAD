@@ -36,6 +36,7 @@ import {
   bindElementsToActiveSample,
   measureCompile
 } from "../performance/benchmarkInstrumentation";
+import { continuousDragDiagnostic } from "../performance/continuousDragDiagnostic";
 import type {
   CadElement,
   DocumentPalette,
@@ -591,6 +592,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         ? change.evaluationLimitIndex
         : null
     });
+    continuousDragDiagnostic.bindPreviewElements(change.elements);
     if (previewMutationTiming) bindElementsToActiveSample(change.elements, previewMutationTiming);
     return { status: "applied" };
   },

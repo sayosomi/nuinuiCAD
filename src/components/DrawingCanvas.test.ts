@@ -379,16 +379,22 @@ describe("DrawingCanvas rendering", () => {
       clientY: 260,
       pointerId: 1
     });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 330,
+      clientY: 270,
+      pointerId: 1
+    });
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: 320,
-      clientY: 260,
+      clientX: 330,
+      clientY: 270,
       pointerId: 1
     });
 
     const pointActions = vi.mocked(hostAdapter.movePointElementByDelta).mock.calls;
-    expect(pointActions).toHaveLength(2);
-    expect(pointActions.map(([action]) => action.commitMode)).toEqual(["preview", "commit"]);
+    expect(pointActions).toHaveLength(3);
+    expect(pointActions.map(([action]) => action.commitMode)).toEqual(["preview", "preview", "commit"]);
     expect(pointActions[0]?.[0].baseElements).toBe(hostAdapter.canonicalElements);
     expect(pointActions[1]?.[0].baseElements).toBe(hostAdapter.canonicalElements);
     expect(pointActions[1]?.[0].baseElements).toBe(pointActions[0]?.[0].baseElements);

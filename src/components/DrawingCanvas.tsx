@@ -65,6 +65,7 @@ import {
   measureCanvasDraw
 } from "../performance/benchmarkInstrumentation";
 import { notifyProductionDrawCompleted } from "../performance/benchmarkFrameObserver";
+import { continuousDragDiagnostic } from "../performance/continuousDragDiagnostic";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -82,6 +83,7 @@ export type DrawingCanvasHandle = {
 type PointDragState = {
   pointerId: number;
   elementId: ElementId;
+  diagnosticDragId: number;
   startClientX: number;
   startClientY: number;
   zoom: number;
@@ -92,6 +94,7 @@ type PointDragState = {
 type BezierHandleDragState = {
   pointerId: number;
   elementId: ElementId;
+  diagnosticDragId: number;
   role: CommandBezierHandleRole;
   intermediatePointId?: string;
   startClientX: number;
@@ -326,10 +329,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvas.height = Math.round(viewportSize.height * ratio);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
 
+    const isCurrent = evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision);
     measureCanvasDraw(
       evaluation,
-      evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision),
+      isCurrent,
       () => {
+        continuousDragDiagnostic.recordCanvasDraw(evaluation, {
+          evaluationRequestRevision: evaluationState?.evaluationRequestRevision,
+          status: evaluationState?.status,
+          source: evaluationState?.source,
+          isStale: evaluationState?.isStale,
+          current: isCurrent
+        });
         const result = renderCanvasGeometry({
           ctx,
           size: viewportSize,
@@ -350,7 +361,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           isLinePickActive: Boolean(activeLinePickTarget),
           onImageAssetSettled: scheduleImageRender
         });
-        if (evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)) {
+        if (isCurrent) {
           notifyProductionDrawCompleted(compiledDocumentRevision, true);
         }
         return result;
@@ -701,9 +712,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       }
       scheduleEditorFocus(intent.pointerId, false);
       beginCapture();
+      const diagnosticDragId = continuousDragDiagnostic.beginDrag({
+        kind: "bezier-handle",
+        baseElements: dragBase.baseElements,
+        baseEvaluation: dragBase.baseEvaluation
+      });
       bezierHandleDragRef.current = {
         pointerId: intent.pointerId,
         elementId: handle.curveId,
+        diagnosticDragId,
         role: handle.role,
         intermediatePointId: handle.intermediatePointId,
         startClientX: intent.start.clientX,
@@ -761,9 +778,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
     scheduleEditorFocus(intent.pointerId, false);
     beginCapture();
+    const diagnosticDragId = continuousDragDiagnostic.beginDrag({
+      kind: "point",
+      baseElements: dragBase.baseElements,
+      baseEvaluation: dragBase.baseEvaluation
+    });
     pointDragRef.current = {
       pointerId: intent.pointerId,
       elementId,
+      diagnosticDragId,
       startClientX: intent.start.clientX,
       startClientY: intent.start.clientY,
       zoom: canvasViewport.zoom,
@@ -891,7 +914,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
   };
 
-  const stopPointDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const stopPointDragging = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    trigger = "pointerup"
+  ) => {
     const drag = pointDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
@@ -906,7 +932,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       axisLockKeys: axisLockKeysRef.current
     });
 
-    hostAdapter.movePointElementByDelta({
+    continuousDragDiagnostic.recordTerminalCommit(drag.diagnosticDragId, trigger);
+    const result = hostAdapter.movePointElementByDelta({
       elementId: drag.elementId,
       dx: worldDelta.dx,
       dy: worldDelta.dy,
@@ -917,17 +944,28 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       baseEvaluation: drag.baseEvaluation
     });
 
+    if (isRejectedDocumentMutation(result)) {
+      continuousDragDiagnostic.recordAbort(drag.diagnosticDragId, "terminal-commit-rejected");
+      continuousDragDiagnostic.endDrag(drag.diagnosticDragId, "abort");
+    } else {
+      continuousDragDiagnostic.endDrag(drag.diagnosticDragId, "commit");
+    }
+
     pointDragRef.current = null;
     setIsPointDragging(false);
   };
 
-  const stopBezierHandleDragging = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const stopBezierHandleDragging = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    trigger = "pointerup"
+  ) => {
     const drag = bezierHandleDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
     captureLedger.release(event.pointerId);
 
-    hostAdapter.moveBezierHandleByDelta({
+    continuousDragDiagnostic.recordTerminalCommit(drag.diagnosticDragId, trigger);
+    const result = hostAdapter.moveBezierHandleByDelta({
       elementId: drag.elementId,
       bezierHandleRole: drag.role,
       intermediatePointId: drag.intermediatePointId,
@@ -939,6 +977,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       baseElements: drag.baseElements,
       baseEvaluation: drag.baseEvaluation
     });
+
+    if (isRejectedDocumentMutation(result)) {
+      continuousDragDiagnostic.recordAbort(drag.diagnosticDragId, "terminal-commit-rejected");
+      continuousDragDiagnostic.endDrag(drag.diagnosticDragId, "abort");
+    } else {
+      continuousDragDiagnostic.endDrag(drag.diagnosticDragId, "commit");
+    }
 
     bezierHandleDragRef.current = null;
     setIsBezierHandleDragging(false);
@@ -1015,25 +1060,33 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const bezierHandleDrag = bezierHandleDragRef.current;
     if (bezierHandleDrag?.pointerId === event.pointerId) {
       if ((event.buttons & 1) === 0) {
-        stopBezierHandleDragging(event);
+        stopBezierHandleDragging(event, "terminal-pointermove");
         return;
       }
 
       claimPointerMoveEntry(pointerMoveEntry, "bezier-handle");
       event.preventDefault();
-      const result = hostAdapter.moveBezierHandleByDelta({
-        elementId: bezierHandleDrag.elementId,
-        bezierHandleRole: bezierHandleDrag.role,
-        intermediatePointId: bezierHandleDrag.intermediatePointId,
-        dx: (event.clientX - bezierHandleDrag.startClientX) / bezierHandleDrag.zoom,
-        dy: -(event.clientY - bezierHandleDrag.startClientY) / bezierHandleDrag.zoom,
-        angleLocked: polarLockKeysRef.current.angle,
-        distanceLocked: polarLockKeysRef.current.distance,
-        commitMode: "preview",
-        baseElements: bezierHandleDrag.baseElements,
-        baseEvaluation: bezierHandleDrag.baseEvaluation
-      });
+      const diagnosticMove = continuousDragDiagnostic.beginMove(bezierHandleDrag.diagnosticDragId);
+      const result = continuousDragDiagnostic.withActiveMove(diagnosticMove, () =>
+        hostAdapter.moveBezierHandleByDelta({
+          elementId: bezierHandleDrag.elementId,
+          bezierHandleRole: bezierHandleDrag.role,
+          intermediatePointId: bezierHandleDrag.intermediatePointId,
+          dx: (event.clientX - bezierHandleDrag.startClientX) / bezierHandleDrag.zoom,
+          dy: -(event.clientY - bezierHandleDrag.startClientY) / bezierHandleDrag.zoom,
+          angleLocked: polarLockKeysRef.current.angle,
+          distanceLocked: polarLockKeysRef.current.distance,
+          commitMode: "preview",
+          baseElements: bezierHandleDrag.baseElements,
+          baseEvaluation: bezierHandleDrag.baseEvaluation
+        })
+      );
       if (isRejectedDocumentMutation(result)) {
+        continuousDragDiagnostic.recordAbort(
+          bezierHandleDrag.diagnosticDragId,
+          "preview-mutation-rejected"
+        );
+        continuousDragDiagnostic.endDrag(bezierHandleDrag.diagnosticDragId, "abort");
         captureLedger.release(event.pointerId);
         bezierHandleDragRef.current = null;
         setIsBezierHandleDragging(false);
@@ -1044,7 +1097,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const pointDrag = pointDragRef.current;
     if (pointDrag?.pointerId === event.pointerId) {
       if ((event.buttons & 1) === 0) {
-        stopPointDragging(event);
+        stopPointDragging(event, "terminal-pointermove");
         return;
       }
 
@@ -1059,17 +1112,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         axisLockKeys: axisLockKeysRef.current
       });
 
-      const result = hostAdapter.movePointElementByDelta({
-        elementId: pointDrag.elementId,
-        dx: worldDelta.dx,
-        dy: worldDelta.dy,
-        angleLocked: polarLockKeysRef.current.angle,
-        distanceLocked: polarLockKeysRef.current.distance,
-        commitMode: "preview",
-        baseElements: pointDrag.baseElements,
-        baseEvaluation: pointDrag.baseEvaluation
-      });
+      const diagnosticMove = continuousDragDiagnostic.beginMove(pointDrag.diagnosticDragId);
+      const result = continuousDragDiagnostic.withActiveMove(diagnosticMove, () =>
+        hostAdapter.movePointElementByDelta({
+          elementId: pointDrag.elementId,
+          dx: worldDelta.dx,
+          dy: worldDelta.dy,
+          angleLocked: polarLockKeysRef.current.angle,
+          distanceLocked: polarLockKeysRef.current.distance,
+          commitMode: "preview",
+          baseElements: pointDrag.baseElements,
+          baseEvaluation: pointDrag.baseEvaluation
+        })
+      );
       if (isRejectedDocumentMutation(result)) {
+        continuousDragDiagnostic.recordAbort(pointDrag.diagnosticDragId, "preview-mutation-rejected");
+        continuousDragDiagnostic.endDrag(pointDrag.diagnosticDragId, "abort");
         captureLedger.release(event.pointerId);
         pointDragRef.current = null;
         setIsPointDragging(false);
@@ -1121,8 +1179,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             ));
             return;
           }
-          stopBezierHandleDragging(event);
-          stopPointDragging(event);
+          stopBezierHandleDragging(event, "pointercancel");
+          stopPointDragging(event, "pointercancel");
           stopPanning(event);
           resolveEditorFocusReservation(event.pointerId);
         }}
