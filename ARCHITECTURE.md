@@ -27,9 +27,11 @@ current-source diagnostics
 +
 last-good compiled document
         ↓
-AppLayout builds evaluation runtime inputs
+shared production evaluation context builder
         ↓
-useEvaluationEngine
+AppLayout / parity consumers
+        ↓
+useEvaluationEngine / Rust input
         ↓
 Tauri production: Rust evaluate_document
 TS: reference / parity / test
@@ -54,8 +56,12 @@ Primary:
 - `src/main.tsx`
 - `src/components/AppLayout.tsx`
 
-`AppLayout` が compiled document から evaluation runtime options を組み立て、
-`useEvaluationEngine` へ渡す main orchestration point。
+`src/geometry/productionEvaluationContext.ts` の shared builder が last-good
+compiled document を `EvaluateElementsOptions` にlowerする。`AppLayout` は
+effective runtime elements と evaluation limit を選択してこのbuilderを呼び、
+`useEvaluationEngine`へ渡す。Runtime elementsはbuilderの所有外なので、Canvas
+drag previewではelementsだけをephemeralに差し替えられ、Source Editor preview
+では対応するcompiled metadataも差し替えられる。
 
 ### Canonical document state
 
@@ -181,9 +187,13 @@ Primary:
 - `src/geometry/useEvaluationEngine.ts`
 - `src/geometry/evaluationEngine.ts`
 - `src/geometry/evaluate.ts`
+- `src/geometry/productionEvaluationContext.ts`
 
-TypeScript evaluator は reference / parity / test path。`useEvaluationEngine` は
-`evaluationRevision` / `evaluationRequestRevision` を管理する。
+`productionEvaluationContext.ts` がcompiled documentのscalar program、binding
+runtime entries、text/control metadata、source/Module mutation ownersを一度だけ
+element-id keyed runtime metadataへlowerする。TypeScript evaluator は reference /
+parity / test path。`useEvaluationEngine` は`evaluationRevision` /
+`evaluationRequestRevision`を管理し、revision/request/stale semanticsをownerとする。
 
 ### Rust evaluation
 
@@ -245,11 +255,11 @@ Representative:
 - `test/fixtures/evaluation/`
 - Rust evaluator tests in `src-tauri/src/evaluation/`
 
-`test/evaluationParitySupport.ts` は current code では `AppLayout` と類似した
-evaluation options 構築を独自に持っている。
-
-重要: 将来計画にある `buildEvaluationContext(...)` はまだ存在しないため、
-current architecture として書かない。
+`test/evaluationParitySupport.ts` の`optionsFor`は同じshared production
+evaluation context builderを呼ぶthin wrapperである。Rust parityは既存の
+`buildRustEvaluationInput(fixture.elements, optionsFor(fixture))`から
+`evaluate_fixture`、`evaluate_document`へ進み、Rust payload boundaryやbenchmark
+protocolはこのloweringの外側にある。
 
 ### Performance comparison foundation
 
