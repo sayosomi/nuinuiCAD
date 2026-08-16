@@ -245,12 +245,11 @@ Primary:
 Tauri / future host で共有する benchmark protocol、result schema、statistics、
 comparison logic、固定 `.nui` workload の owner。
 
-`src/performance/benchmarkInstrumentation.ts` は、Tauri production pipeline の
-passive timing instrumentation、sample correlation、raw timing capture を担当する。
-これは benchmark state を application store や Rust state に追加せず、通常 run では
-ほぼ no-op になる独立 subsystem である。
-
-Baseline runner と実際の benchmark result capture orchestration はまだ存在しない。
+`src/performance/` は benchmark protocol、result schema、statistics、passive
+instrumentation、host-neutral benchmark execution、Tauri capture orchestration、
+result assembly を owner とする。`scripts/performance/` は Tauri capture CLI と
+result IO / comparison を担当する。Benchmark state は application store や Rust
+state に追加せず、通常 run ではほぼ no-op になる独立 subsystem である。
 
 `src-tauri/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。

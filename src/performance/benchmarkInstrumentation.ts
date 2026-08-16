@@ -13,6 +13,8 @@ export type CompletedBenchmarkSample = {
   metrics: BenchmarkMetrics;
 };
 
+export type CompletedBenchmarkSampleListener = (sample: CompletedBenchmarkSample) => void;
+
 export type BenchmarkSampleHandle = Readonly<{
   sampleId: number;
   scenarioId: BenchmarkScenarioId;
@@ -52,6 +54,7 @@ export type BenchmarkInstrumentation = {
   beginBenchmarkSample: (scenarioId: BenchmarkScenarioId) => BenchmarkSampleHandle | null;
   abortBenchmarkSample: () => void;
   drainCompletedBenchmarkSamples: () => CompletedBenchmarkSample[];
+  subscribeCompletedBenchmarkSamples: (listener: CompletedBenchmarkSampleListener) => () => void;
   beginSourceChange: () => SourceChangeTiming | null;
   measureCompile: <T>(timing: SourceChangeTiming | null, compile: () => T) => T;
   beginPreviewMutation: () => PreviewMutationTiming | null;
@@ -110,6 +113,7 @@ export const createBenchmarkInstrumentation = ({
   let nextSampleId = 1;
   let activeSample: Sample | null = null;
   const completedSamples: CompletedBenchmarkSample[] = [];
+  const completedSampleListeners = new Set<CompletedBenchmarkSampleListener>();
   const elementsToSample = new WeakMap<CadElement[], ElementBinding>();
   const evaluationsToAttempt = new WeakMap<EvaluationResult, RustAttempt>();
 
@@ -139,6 +143,13 @@ export const createBenchmarkInstrumentation = ({
 
   const drainCompletedBenchmarkSamples = (): CompletedBenchmarkSample[] =>
     completedSamples.splice(0, completedSamples.length);
+
+  const subscribeCompletedBenchmarkSamples = (
+    listener: CompletedBenchmarkSampleListener
+  ): (() => void) => {
+    completedSampleListeners.add(listener);
+    return () => completedSampleListeners.delete(listener);
+  };
 
   const beginSourceChange = (): SourceChangeTiming | null => {
     const sample = activeSample;
@@ -271,11 +282,13 @@ export const createBenchmarkInstrumentation = ({
 
     const requiredMetrics = REQUIRED_METRICS_BY_SCENARIO[sample.scenarioId];
     if (requiredMetrics.every((metricId) => metricIsComplete(sample.metrics, metricId))) {
-      completedSamples.push({
+      const completedSample = {
         sampleId: sample.sampleId,
         scenarioId: sample.scenarioId,
         metrics: { ...sample.metrics }
-      });
+      } satisfies CompletedBenchmarkSample;
+      completedSamples.push(completedSample);
+      for (const listener of completedSampleListeners) listener(completedSample);
     }
     activeSample = null;
   };
@@ -307,6 +320,7 @@ export const createBenchmarkInstrumentation = ({
     beginBenchmarkSample,
     abortBenchmarkSample,
     drainCompletedBenchmarkSamples,
+    subscribeCompletedBenchmarkSamples,
     beginSourceChange,
     measureCompile,
     beginPreviewMutation,
@@ -325,6 +339,7 @@ export const {
   beginBenchmarkSample,
   abortBenchmarkSample,
   drainCompletedBenchmarkSamples,
+  subscribeCompletedBenchmarkSamples,
   beginSourceChange,
   measureCompile,
   beginPreviewMutation,

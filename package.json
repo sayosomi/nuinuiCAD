@@ -23,6 +23,7 @@
     "test:parity": "VITE_RUN_RUST_PARITY=1 vitest run test/evaluationParity.test.ts",
     "bench:evaluation": "cargo test --manifest-path src-tauri/Cargo.toml performance_ -- --ignored --nocapture --test-threads=1",
     "bench:compare": "tsx scripts/performance/compare.ts",
+    "bench:capture:tauri": "tsx scripts/performance/captureTauri.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

@@ -69,6 +69,7 @@ import {
   claimPointerMoveEntry,
   measureCanvasDraw
 } from "../performance/benchmarkInstrumentation";
+import { notifyProductionDrawCompleted } from "../performance/benchmarkFrameObserver";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -134,6 +135,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const pendingEditorFocusRef = useRef<{ pointerId: number } | null>(null);
   const pendingPointerStateRef = useRef(initialPendingCanvasPointerState());
   const [captureLedger] = useState(createCanvasPointerCaptureLedger);
+  const syntheticPointerEventRef = useRef(false);
   const [pendingPointerState, setPendingPointerState] = useState(initialPendingCanvasPointerState);
   const axisLockKeysRef = useRef<AxisLockKeys>({ x: false, y: false });
   const polarLockKeysRef = useRef<PolarLockKeys>({ angle: false, distance: false });
@@ -340,26 +342,32 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     measureCanvasDraw(
       evaluation,
       evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision),
-      () => renderCanvasGeometry({
-        ctx,
-        size: viewportSize,
-        viewport: canvasViewport,
-        lines,
-        arcs,
-        curves,
-        offsetLines,
-        images: overlayImages,
-        points,
-        visibleElementIds,
-        selectedElementIdSet,
-        selectedElementId,
-        elementColors,
-        showCanvasPoints,
-        isPointPickActive: Boolean(activePointPickTarget),
-        isNumericReferencePickActive: Boolean(activeNumericReferencePickTarget),
-        isLinePickActive: Boolean(activeLinePickTarget),
-        onImageAssetSettled: scheduleImageRender
-      })
+      () => {
+        const result = renderCanvasGeometry({
+          ctx,
+          size: viewportSize,
+          viewport: canvasViewport,
+          lines,
+          arcs,
+          curves,
+          offsetLines,
+          images: overlayImages,
+          points,
+          visibleElementIds,
+          selectedElementIdSet,
+          selectedElementId,
+          elementColors,
+          showCanvasPoints,
+          isPointPickActive: Boolean(activePointPickTarget),
+          isNumericReferencePickActive: Boolean(activeNumericReferencePickTarget),
+          isLinePickActive: Boolean(activeLinePickTarget),
+          onImageAssetSettled: scheduleImageRender
+        });
+        if (evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)) {
+          notifyProductionDrawCompleted(compiledDocumentRevision, true);
+        }
+        return result;
+      }
     );
   }, [
     activePointPickTarget,
@@ -568,6 +576,23 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         ? "range" as const
         : "replace" as const;
 
+  const capturePointer = useCallback((viewport: HTMLDivElement, pointerId: number) => {
+    try {
+      captureLedger.capture(viewport, pointerId);
+    } catch (error) {
+      // WebViews reject setPointerCapture for an untrusted synthetic pointer
+      // id. Keep the DOM event on the production canvas path while preserving
+      // the normal error behavior for trusted user input.
+      if (
+        !syntheticPointerEventRef.current ||
+        !(error instanceof DOMException) ||
+        error.name !== "NotFoundError"
+      ) {
+        throw error;
+      }
+    }
+  }, [captureLedger]);
+
   // Normal Canvas selection reserves a Source Editor focus handoff for once the
   // gesture settles. Reference picking, blank clicks, && panning never call this,
   // so they never move focus off the canvas.
@@ -619,7 +644,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const movement = pendingCanvasPointerDistance(intent);
     const beginCapture = () => {
       if (intent.pointerReleased) return;
-      captureLedger.capture(viewport, intent.pointerId);
+      capturePointer(viewport, intent.pointerId);
     };
     const focusCanvas = () => viewport.focus();
     const handle = hitTestBezierHandle(screen, selectedBezierHandles, BEZIER_HANDLE_HIT_RADIUS_PX);
@@ -767,7 +792,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     applyLinePickCandidate,
     applyPointPickCandidate,
     canvasViewport.zoom,
-    captureLedger,
+    capturePointer,
     currentDocumentDragBase,
     hasCommandLineGhost,
     linePickCandidatesAt,
@@ -941,6 +966,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       return;
     }
     if (event.button === 0) {
+      syntheticPointerEventRef.current = event.isTrusted === false;
       const documentState = useCadDocumentStore.getState();
       // Immediate hit testing is only allowed against a render that reflects
       // the current document. A pointerdown flush, a stale || in-flight
@@ -970,7 +996,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         // before this gesture acquires one; the ledger entry then belongs to
         // the new gesture even when the pointer id is reused.
         applyPendingPointerTransition(beginPendingCanvasPointer(pendingPointerStateRef.current, intent));
-        captureLedger.capture(event.currentTarget, event.pointerId);
+        capturePointer(event.currentTarget, event.pointerId);
         return;
       }
       resolvePrimaryPointerIntent({ ...intent, pointerReleased: false }, event.currentTarget);

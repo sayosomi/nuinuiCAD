@@ -23,6 +23,7 @@ import {
   claimPointerMoveEntry,
   drainCompletedBenchmarkSamples
 } from "../performance/benchmarkInstrumentation";
+import { waitForCurrentDrawAndFrame } from "../performance/benchmarkFrameObserver";
 import type {
   CadElement,
   ComputedBezierCurve,
@@ -290,6 +291,13 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("notifies the passive frame observer after the current production draw", async () => {
+    const revision = useCadStore.getState().compiledDocumentRevision;
+    const wait = waitForCurrentDrawAndFrame(revision);
+    renderDrawingCanvas();
+    await wait.promise;
+  });
+
   it("draws Bezier offset line segments as canvas Bezier curves", () => {
     const context = mockCanvasContext();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(

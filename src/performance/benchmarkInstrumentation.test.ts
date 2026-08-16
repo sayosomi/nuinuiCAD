@@ -176,4 +176,43 @@ describe("benchmark instrumentation", () => {
     expect(instrumentation.drainCompletedBenchmarkSamples()).toEqual([]);
     expect(now.mock.calls.length).toBe(callCountBefore);
   });
+
+  it("notifies subscribers with the exact completed sample id", () => {
+    const { instrumentation, frames, setTime } = harness();
+    const completions: number[] = [];
+    const unsubscribe = instrumentation.subscribeCompletedBenchmarkSamples((sample) => {
+      completions.push(sample.sampleId);
+    });
+    const sample = instrumentation.beginBenchmarkSample("source-edit-v1")!;
+    setTime(10);
+    const sourceTiming = instrumentation.beginSourceChange();
+    instrumentation.measureCompile(sourceTiming, () => undefined);
+    instrumentation.bindElementsToActiveSample(elements, sourceTiming!);
+    const attempt = instrumentation.beginRustRoundTrip(elements);
+    const result = evaluation();
+    instrumentation.finishRustRoundTrip(attempt, result);
+    instrumentation.measureCanvasDraw(result, true, () => undefined);
+    frames[0]!(20);
+    expect(completions).toEqual([sample.sampleId]);
+    unsubscribe();
+  });
+
+  it("does not notify an aborted sample or its late RAF", () => {
+    const { instrumentation, frames, setTime } = harness();
+    const completions: number[] = [];
+    instrumentation.subscribeCompletedBenchmarkSamples((sample) => completions.push(sample.sampleId));
+    instrumentation.beginBenchmarkSample("source-edit-v1");
+    setTime(10);
+    const sourceTiming = instrumentation.beginSourceChange();
+    instrumentation.measureCompile(sourceTiming, () => undefined);
+    instrumentation.bindElementsToActiveSample(elements, sourceTiming!);
+    const attempt = instrumentation.beginRustRoundTrip(elements);
+    const result = evaluation();
+    instrumentation.finishRustRoundTrip(attempt, result);
+    instrumentation.measureCanvasDraw(result, true, () => undefined);
+    instrumentation.abortBenchmarkSample();
+    frames[0]!(20);
+    expect(completions).toEqual([]);
+    expect(instrumentation.drainCompletedBenchmarkSamples()).toEqual([]);
+  });
 });

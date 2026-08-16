@@ -4,9 +4,31 @@ This directory contains the shared, host-neutral benchmark contract for comparin
 the Tauri application with a future VS Code host. It defines the protocol,
 scenario and metric names, result schema, statistics, comparison behavior, and
 fixed `.nui` workloads. Passive production timing instrumentation, sample
-correlation, and raw timing capture live in `src/performance/`.
+correlation, raw timing capture, the host-neutral protocol runner, and Tauri
+capture orchestration live in `src/performance/`. The Node launcher and result
+file IO live in `scripts/performance/`.
 
-There is not yet a baseline runner or actual result-capture orchestration.
+## Tauri baseline capture
+
+Run a local Tauri capture with one of the frozen fixtures:
+
+```text
+npm run bench:capture:tauri -- \
+  --fixture interactive-medium-v1 \
+  --output /tmp/nuinuicad-tauri-medium.json
+```
+
+Available fixture IDs are `interactive-medium-v1` and
+`interactive-large-v1`. Each capture runs 5 warm-ups and 21 measured trials
+for `source-edit-v1`, `point-drag-v1`, and `bezier-handle-drag-v1`. The source
+edit changes `benchOffset` from `6` to `7`; the drag scenarios use one
+production DOM pointermove with their manifest-defined CSS-pixel deltas.
+
+Capture requires the Tauri Rust production evaluation path. Keep the benchmark
+window at a fixed size and device-pixel ratio for the complete run; resize or
+DPR changes fail the capture. The output JSON is hardware- and environment-
+specific, so baseline result files are not automatically committed to the
+repository.
 
 ## Official protocol
 
