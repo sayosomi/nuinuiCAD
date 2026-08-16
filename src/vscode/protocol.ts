@@ -1,5 +1,6 @@
 import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixtureManifest";
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
+import type { LineSplice } from "../document/textPatch";
 
 export type VscodeRustEvaluationRequest = {
   type: "rustEvaluationRequest";
@@ -10,7 +11,13 @@ export type VscodeRustEvaluationRequest = {
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
   | VscodeRustEvaluationRequest
-  | { type: "canvasCommit"; sourceText: string; expectedDocumentVersion: number }
+  | {
+      type: "canvasCommit";
+      sourceText: string;
+      expectedDocumentVersion: number;
+      mutationKind: "model-patch" | "reset";
+      splices?: readonly LineSplice[];
+    }
   | { type: "benchmarkResult"; result: unknown }
   | { type: "benchmarkError"; error: string };
 

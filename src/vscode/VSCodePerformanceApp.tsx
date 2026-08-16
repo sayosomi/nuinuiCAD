@@ -10,6 +10,7 @@ import {
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
 import { VSCodeBenchmarkCaptureRunner } from "./VSCodeBenchmarkCaptureRunner";
 import { VscodeRustTransport } from "./vscodeRustTransport";
+import { isStaleHostDocumentVersion } from "./hostDocumentVersion";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -41,12 +42,14 @@ export const VSCodePerformanceApp = ({ api }: { api: VscodeWebviewApi }) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
       if (message.type === "replaceTextDocument") {
+        if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         latestHostDocumentVersionRef.current = message.documentVersion;
         useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
           currentFilePath: null,
           dirtySinceSave: false
         });
       } else if (message.type === "commitText") {
+        if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         latestHostDocumentVersionRef.current = message.documentVersion;
         useCadDocumentStore.getState().commitText(message.sourceText, "editor", {
           cursorLineAtBurstStart: null
@@ -80,7 +83,15 @@ export const VSCodePerformanceApp = ({ api }: { api: VscodeWebviewApi }) => {
           if (benchmarkConfig) return;
           const expectedDocumentVersion = latestHostDocumentVersionRef.current;
           if (expectedDocumentVersion === null) return;
-          api.postMessage({ type: "canvasCommit", sourceText, expectedDocumentVersion });
+          const sourceUpdate = useCadDocumentStore.getState().sourceUpdate;
+          const mutationKind = sourceUpdate.kind === "model-patch" ? "model-patch" : "reset";
+          api.postMessage({
+            type: "canvasCommit",
+            sourceText,
+            expectedDocumentVersion,
+            mutationKind,
+            ...(sourceUpdate.kind === "model-patch" ? { splices: sourceUpdate.splices } : {})
+          });
         }}
       />
       <VSCodeBenchmarkCaptureRunner

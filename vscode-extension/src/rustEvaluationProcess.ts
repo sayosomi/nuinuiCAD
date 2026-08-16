@@ -9,6 +9,7 @@ type PendingRequest = {
 export type RustEvaluationProcessDependencies = {
   spawnProcess?: typeof spawn;
   reportDiagnostic?: (message: string) => void;
+  onTerminated?: () => void;
 };
 
 export class RustEvaluationProcess {
@@ -16,19 +17,26 @@ export class RustEvaluationProcess {
   private readonly pending = new Map<number, PendingRequest>();
   private nextRequestId = 1;
   private disposed = false;
+  private terminated = false;
 
   constructor(binaryPath: string, dependencies: RustEvaluationProcessDependencies = {}) {
     const spawnProcess = dependencies.spawnProcess ?? spawn;
     const reportDiagnostic = dependencies.reportDiagnostic ?? ((message) => console.error(message));
+    const onTerminated = dependencies.onTerminated ?? (() => undefined);
     this.child = spawnProcess(binaryPath, [], { stdio: ["pipe", "pipe", "pipe"] });
     const lines = createInterface({ input: this.child.stdout });
     lines.on("line", (line) => this.handleLine(line));
     this.child.stderr.on("data", (chunk: Buffer | string) => {
       reportDiagnostic(`evaluation_stdio: ${String(chunk).trimEnd()}`);
     });
-    this.child.once("error", (error) => this.rejectAll(error));
+    this.child.once("error", (error) => {
+      this.rejectAll(error);
+      this.notifyTerminated(onTerminated);
+    });
     this.child.once("exit", (code, signal) => {
-      if (!this.disposed) this.rejectAll(new Error(`evaluation_stdio exited: code=${code}, signal=${signal ?? "none"}`));
+      if (this.disposed) return;
+      this.rejectAll(new Error(`evaluation_stdio exited: code=${code}, signal=${signal ?? "none"}`));
+      this.notifyTerminated(onTerminated);
     });
   }
 
@@ -74,5 +82,11 @@ export class RustEvaluationProcess {
   private rejectAll(error: Error): void {
     for (const pending of this.pending.values()) pending.reject(error);
     this.pending.clear();
+  }
+
+  private notifyTerminated(onTerminated: () => void): void {
+    if (this.terminated) return;
+    this.terminated = true;
+    onTerminated();
   }
 }
