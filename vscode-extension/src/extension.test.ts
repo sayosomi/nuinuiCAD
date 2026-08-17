@@ -7,6 +7,7 @@ type TestDocument = {
   getText: () => string;
   positionAt: (offset: number) => { offset: number };
   setSourceText: (text: string) => void;
+  onGetText?: () => void;
 };
 
 type TestEditor = {
@@ -34,28 +35,54 @@ type TestRustProcess = {
   dispose: ReturnType<typeof vi.fn>;
 };
 
+type TestDiagnosticCollection = {
+  name: string;
+  set: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
+  clear: ReturnType<typeof vi.fn>;
+  dispose: ReturnType<typeof vi.fn>;
+};
+
 const mocks = vi.hoisted(() => ({
   activeTextEditor: null as TestEditor | null,
   visibleTextEditors: [] as TestEditor[],
   textDocuments: [] as TestDocument[],
   commandHandler: null as (() => void) | null,
   activeEditorListeners: [] as Array<() => void>,
+  documentOpenListeners: [] as Array<(document: TestDocument) => void>,
   documentChangeListeners: [] as Array<(event: { document: TestDocument }) => void>,
   documentCloseListeners: [] as Array<(document: TestDocument) => void>,
   panels: [] as TestPanel[],
   rustProcesses: [] as TestRustProcess[],
+  diagnosticCollections: [] as TestDiagnosticCollection[],
+  contexts: [] as Array<{ subscriptions: Array<{ dispose: () => void }> }>,
   showErrorMessage: vi.fn(),
   createWebviewPanel: vi.fn(),
+  createDiagnosticCollection: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
+  onDidOpenTextDocument: vi.fn(),
   onDidChangeTextDocument: vi.fn(),
   onDidCloseTextDocument: vi.fn(),
   asRelativePath: vi.fn()
 }));
 
 vi.mock("vscode", () => {
+  class Position {
+    constructor(public readonly line: number, public readonly character: number) {}
+  }
   class Range {
     constructor(public readonly start: unknown, public readonly end: unknown) {}
+  }
+  class Diagnostic {
+    code?: string | number;
+    source?: string;
+
+    constructor(
+      public readonly range: unknown,
+      public readonly message: string,
+      public readonly severity: number
+    ) {}
   }
   return {
     window: {
@@ -73,14 +100,21 @@ vi.mock("vscode", () => {
       get textDocuments() {
         return mocks.textDocuments;
       },
+      onDidOpenTextDocument: mocks.onDidOpenTextDocument,
       onDidChangeTextDocument: mocks.onDidChangeTextDocument,
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
       asRelativePath: mocks.asRelativePath
     },
     commands: { registerCommand: mocks.registerCommand },
+    languages: {
+      createDiagnosticCollection: mocks.createDiagnosticCollection
+    },
     Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
     ViewColumn: { Beside: 2 },
-    Range
+    DiagnosticSeverity: { Error: 0, Warning: 1 },
+    Position,
+    Range,
+    Diagnostic
   };
 // @ts-expect-error Vitest's runtime supports the virtual-module options used here.
 }, { virtual: true });
@@ -110,7 +144,10 @@ const documentFor = (
     fileName,
     version: 1,
     uri: { scheme: uri.startsWith("file:") ? "file" : "untitled", toString: () => uri },
-    getText: () => sourceText,
+    getText: () => {
+      document.onGetText?.();
+      return sourceText;
+    },
     positionAt: (offset) => ({ offset }),
     setSourceText: (nextText) => { sourceText = nextText; }
   };
@@ -166,12 +203,18 @@ const panelFor = (): TestPanel => {
 const messageHandlerFor = (panel: TestPanel) =>
   (panel as TestPanel & { messageHandler: (message: unknown) => Promise<void> }).messageHandler;
 
-const setup = (benchmark = false, activeEditor: TestEditor | null = editorFor()) => {
+const setup = (
+  benchmark = false,
+  activeEditor: TestEditor | null = editorFor(),
+  openDocuments?: TestDocument[]
+) => {
   if (benchmark) process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG = JSON.stringify({ runId: "run-1", resultPath: "/tmp/result.json" });
   else delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   mocks.activeTextEditor = activeEditor;
   mocks.visibleTextEditors = activeEditor ? [activeEditor] : [];
-  mocks.textDocuments = activeEditor ? [activeEditor.document] : [];
+  mocks.textDocuments = openDocuments ?? (activeEditor ? [activeEditor.document] : []);
+  const context = contextFor();
+  mocks.contexts.push(context);
   mocks.registerCommand.mockImplementation((_name: string, handler: () => void) => {
     mocks.commandHandler = handler;
     return disposable();
@@ -179,6 +222,21 @@ const setup = (benchmark = false, activeEditor: TestEditor | null = editorFor())
   mocks.createWebviewPanel.mockImplementation(() => panelFor());
   mocks.onDidChangeActiveTextEditor.mockImplementation((listener: () => void) => {
     mocks.activeEditorListeners.push(listener);
+    return disposable();
+  });
+  mocks.createDiagnosticCollection.mockImplementation((name: string) => {
+    const collection: TestDiagnosticCollection = {
+      name,
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+      dispose: vi.fn()
+    };
+    mocks.diagnosticCollections.push(collection);
+    return collection;
+  });
+  mocks.onDidOpenTextDocument.mockImplementation((listener: (document: TestDocument) => void) => {
+    mocks.documentOpenListeners.push(listener);
     return disposable();
   });
   mocks.onDidChangeTextDocument.mockImplementation((listener: (event: { document: TestDocument }) => void) => {
@@ -189,7 +247,20 @@ const setup = (benchmark = false, activeEditor: TestEditor | null = editorFor())
     mocks.documentCloseListeners.push(listener);
     return disposable();
   });
-  activate(contextFor() as unknown as Parameters<typeof activate>[0]);
+  activate(context as unknown as Parameters<typeof activate>[0]);
+  return context;
+};
+
+const emitDocumentChange = (document: TestDocument): void => {
+  for (const listener of mocks.documentChangeListeners) listener({ document });
+};
+
+const emitDocumentOpen = (document: TestDocument): void => {
+  for (const listener of mocks.documentOpenListeners) listener(document);
+};
+
+const emitDocumentClose = (document: TestDocument): void => {
+  for (const listener of mocks.documentCloseListeners) listener(document);
 };
 
 const openPanelFor = (editor = mocks.activeTextEditor!): TestPanel => {
@@ -207,14 +278,19 @@ afterEach(() => {
   mocks.textDocuments.length = 0;
   mocks.commandHandler = null;
   mocks.activeEditorListeners.length = 0;
+  mocks.documentOpenListeners.length = 0;
   mocks.documentChangeListeners.length = 0;
   mocks.documentCloseListeners.length = 0;
   mocks.panels.length = 0;
   mocks.rustProcesses.length = 0;
+  mocks.diagnosticCollections.length = 0;
+  mocks.contexts.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.createWebviewPanel.mockReset();
+  mocks.createDiagnosticCollection.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
+  mocks.onDidOpenTextDocument.mockReset();
   mocks.onDidChangeTextDocument.mockReset();
   mocks.onDidCloseTextDocument.mockReset();
   mocks.asRelativePath.mockReset();
@@ -266,7 +342,7 @@ describe("VS Code production document lifecycle", () => {
 
     documentA.version = 2;
     documentA.setSourceText("nui 4\nA changed\n");
-    mocks.documentChangeListeners[0]?.({ document: documentA });
+    emitDocumentChange(documentA);
 
     expect(mocks.panels).toHaveLength(2);
     expect(panelA.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
@@ -393,7 +469,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
-    expect(mocks.onDidChangeTextDocument).not.toHaveBeenCalled();
+    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(1);
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
   });
 
@@ -406,7 +482,7 @@ describe("VS Code production document lifecycle", () => {
 
     document.version = 2;
     document.setSourceText("nui 4\n# changed\n");
-    mocks.documentChangeListeners[0]?.({ document });
+    emitDocumentChange(document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
   });
 
@@ -423,7 +499,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.commandHandler?.();
     const panelB = mocks.panels[1]!;
 
-    mocks.documentCloseListeners[0]?.(documentA);
+    emitDocumentClose(documentA);
     expect(panelA.dispose).toHaveBeenCalledTimes(1);
     expect(panelB.dispose).not.toHaveBeenCalled();
 
@@ -565,7 +641,123 @@ describe("VS Code production document lifecycle", () => {
 
     editor.document.version = 2;
     editor.document.setSourceText("nui 4\n# committed\n");
-    mocks.documentChangeListeners[0]?.({ document: editor.document });
+    emitDocumentChange(editor.document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
+  });
+});
+
+describe("VS Code compiler diagnostics lifecycle", () => {
+  const invalidSource = "nui 4\npoint A = coordinate(x: 0, y: )\n";
+
+  const collectionFor = (): TestDiagnosticCollection => mocks.diagnosticCollections[0]!;
+
+  it("bootstraps already-open supported documents without opening Canvas", () => {
+    const document = documentFor("/tmp/bootstrap.nui", "file:///tmp/bootstrap.nui", invalidSource);
+    const context = setup(false, null, [document]);
+    const collection = collectionFor();
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.createDiagnosticCollection).toHaveBeenCalledWith("nuinuiCAD");
+    expect(collection.set).toHaveBeenCalledWith(document.uri, [
+      expect.objectContaining({
+        message: "引数「y」の値がありません。",
+        code: "missing-attribute-value",
+        source: "nuinuiCAD",
+        severity: 0
+      })
+    ]);
+    expect(context.subscriptions).toContain(collection);
+  });
+
+  it("creates diagnostics for documents opened after activation", () => {
+    setup(false, null, []);
+    const document = documentFor("/tmp/opened.nui", "file:///tmp/opened.nui", invalidSource);
+    mocks.textDocuments.push(document);
+
+    emitDocumentOpen(document);
+
+    expect(collectionFor().set).toHaveBeenCalledWith(document.uri, expect.any(Array));
+  });
+
+  it("recompiles unsaved current text on change and publishes binding issues", () => {
+    const document = documentFor(
+      "/tmp/changed.nui",
+      "file:///tmp/changed.nui",
+      "nui 4\nconst x: number = 1\nconst x: number = 2\n"
+    );
+    setup(false, null, [document]);
+    const collection = collectionFor();
+    const initialCallCount = collection.set.mock.calls.length;
+
+    document.version = 2;
+    document.setSourceText("nui 4\npoint A = coordinate(x: 0, y: 1)\n");
+    emitDocumentChange(document);
+
+    expect(initialCallCount).toBe(1);
+    expect(collection.set).toHaveBeenLastCalledWith(document.uri, []);
+  });
+
+  it("keeps document diagnostics isolated when another URI closes", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui", invalidSource);
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui", invalidSource);
+    setup(false, null, [documentA, documentB]);
+    const collection = collectionFor();
+
+    emitDocumentClose(documentA);
+    expect(collection.delete).toHaveBeenCalledWith(documentA.uri);
+    expect(collection.delete).not.toHaveBeenCalledWith(documentB.uri);
+
+    documentB.version = 2;
+    documentB.setSourceText("nui 4\npoint B = coordinate(x: 0, y: 1)\n");
+    emitDocumentChange(documentB);
+    expect(collection.set).toHaveBeenLastCalledWith(documentB.uri, []);
+  });
+
+  it("ignores untitled and non-nui documents", () => {
+    const untitled = documentFor("/tmp/untitled.nui", "untitled:/tmp/untitled.nui", invalidSource);
+    const textFile = documentFor("/tmp/pattern.txt", "file:///tmp/pattern.txt", invalidSource);
+    setup(false, null, [untitled, textFile]);
+    const collection = collectionFor();
+
+    emitDocumentOpen(untitled);
+    emitDocumentOpen(textFile);
+    emitDocumentChange(untitled);
+    emitDocumentChange(textFile);
+
+    expect(collection.set).not.toHaveBeenCalled();
+    expect(collection.delete).not.toHaveBeenCalled();
+  });
+
+  it("does not publish when the document version changes during compilation", () => {
+    const document = documentFor("/tmp/stale.nui", "file:///tmp/stale.nui", "nui 4\n");
+    setup(false, null, [document]);
+    const collection = collectionFor();
+    const initialCallCount = collection.set.mock.calls.length;
+
+    document.version = 2;
+    document.setSourceText(invalidSource);
+    document.onGetText = () => { document.version = 3; };
+    emitDocumentChange(document);
+
+    expect(collection.set.mock.calls).toHaveLength(initialCallCount);
+  });
+
+  it("does not publish an old session after close and same-URI reopen", () => {
+    const document = documentFor("/tmp/reopen.nui", "file:///tmp/reopen.nui", "nui 4\n");
+    setup(false, null, [document]);
+    const collection = collectionFor();
+    const reopened = documentFor("/tmp/reopen.nui", "file:///tmp/reopen.nui", invalidSource);
+
+    document.version = 2;
+    document.setSourceText(invalidSource);
+    document.onGetText = () => {
+      mocks.textDocuments = [reopened];
+      emitDocumentClose(document);
+      emitDocumentOpen(reopened);
+    };
+    emitDocumentChange(document);
+
+    expect(collection.set).toHaveBeenCalledTimes(2);
+    expect(collection.set).toHaveBeenLastCalledWith(reopened.uri, expect.any(Array));
   });
 });
