@@ -1130,11 +1130,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return semantic(null, "invalid", nameSpan);
   };
   for (const [statementIndex, statement] of statements.entries()) {
-    if (statement.kind !== "element" || (!isGeometryDeclarationCategory(statement.category) && statement.category !== "mutation") || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
-    const spec = constructionFor(statement.category, statement.construction);
-    if (!spec || !statement.type) continue;
-    const definitionsByKey = new Map(getParameterDefinitions({ type: statement.type, intermediatePoints: [] } as never).map((definition) => [definition.key, definition]));
-    const sites: ModuleGeometryReferenceSite[] = [];
+    if ((statement.kind !== "group" && statement.kind !== "element") || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
+    const spec = statement.kind === "group"
+      ? constructionFor("group", "")
+      : constructionFor(statement.category, statement.construction);
+    if (!spec) continue;
     if (parentArg) {
       const parentValueSpan = statement.payloadSpans[parentArg.arg];
       if (parentValueSpan) {
@@ -1148,6 +1148,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         });
       }
     }
+    if (statement.kind !== "element" || (!isGeometryDeclarationCategory(statement.category) && statement.category !== "mutation") || !statement.type) continue;
+    const definitionsByKey = new Map(getParameterDefinitions({ type: statement.type, intermediatePoints: [] } as never).map((definition) => [definition.key, definition]));
+    const sites: ModuleGeometryReferenceSite[] = [];
     for (const arg of spec.args) {
       if (arg.special || !arg.parameterKey && !definitionsByKey.has(arg.arg)) continue;
       const parameterKey = arg.parameterKey ?? arg.arg;

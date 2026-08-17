@@ -108,6 +108,64 @@ describe("queryDslDefinition", () => {
     })).toBeNull();
   });
 
+  it("resolves parent references from root group declarations", () => {
+    const source = [
+      "nui 4",
+      "group Outer {",
+      "}",
+      "group Inner (parent: @Outer) {",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const runtimeIndependent = {
+      ...compiled,
+      document: compiled.document ? { ...compiled.document, elements: [] } : null
+    };
+    const referenceOffset = source.indexOf("@Outer") + "@Outer".length;
+    const result = queryDslDefinition({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position: referenceOffset,
+      semantic: { sourceRevision: 7, compiled: runtimeIndependent }
+    });
+
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.referenceRange)).toBe("Outer");
+    expect(sourceSlice(source, result!.declarationRange)).toBe("Outer");
+    expect(queryDslDefinition({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position: source.indexOf("group Outer") + "group ".length + 1,
+      semantic: { sourceRevision: 7, compiled: runtimeIndependent }
+    })).toBeNull();
+  });
+
+  it("resolves parent references from root conditional and for containers", () => {
+    const source = [
+      "nui 4",
+      "group Outer {",
+      "}",
+      "if (true, parent: @Outer) {",
+      "}",
+      "for i in range(from: 0, count: 1, parent: @Outer) {",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const queryAt = (token: string, from = 0) => {
+      const tokenOffset = source.indexOf(token, from);
+      return queryDslDefinition({
+        source: { normalizedSource: source, sourceRevision: 7 },
+        position: tokenOffset + token.length,
+        semantic: { sourceRevision: 7, compiled }
+      });
+    };
+    const ifReference = queryAt("@Outer");
+    const forReference = queryAt("@Outer", source.indexOf("for "));
+
+    expect(ifReference).not.toBeNull();
+    expect(forReference).not.toBeNull();
+    expect(sourceSlice(source, ifReference!.declarationRange)).toBe("Outer");
+    expect(sourceSlice(source, forReference!.declarationRange)).toBe("Outer");
+  });
+
   it("fails closed for unresolved, ambiguous, and non-container parent references", () => {
     const unresolved = [
       "nui 4",
@@ -129,6 +187,13 @@ describe("queryDslDefinition", () => {
       "point Child = coordinate(x: 0, y: 0, parent: @Base)"
     ].join("\n");
     expect(exactQuery(invalid, "@Base")).toBeNull();
+
+    const unresolvedContainer = [
+      "nui 4",
+      "group Inner (parent: @Missing) {",
+      "}"
+    ].join("\n");
+    expect(exactQuery(unresolvedContainer, "@Missing")).toBeNull();
   });
 
   it("uses the resolved BindingId for a typed reference", () => {

@@ -600,6 +600,41 @@ describe("module semantic analysis", () => {
     expect(reference?.nameSpan).toEqual({ start: 46, end: 51 });
   });
 
+  it("projects root group, conditional, and for parent references without materialization", () => {
+    const source = [
+      "nui 4",
+      "group Outer {",
+      "}",
+      "group Inner (parent: @Outer) {",
+      "}",
+      "if (true, parent: @Outer) {",
+      "}",
+      "for i in range(from: 0, count: 1, parent: @Outer) {",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const analysis = compiled.sourceSemanticAnalysis!;
+    const groupReference = analysis.rootParentReferencesByStatementId.get("statement:test:3")?.reference;
+    const conditionalReference = analysis.rootParentReferencesByStatementId.get("statement:test:5")?.reference;
+    const forReference = analysis.rootParentReferencesByStatementId.get("statement:test:7")?.reference;
+
+    expect(compiled.moduleMaterialization).toBeUndefined();
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    for (const reference of [groupReference, conditionalReference, forReference]) {
+      expect(reference).toMatchObject({
+        source: "@Outer",
+        resolution: "resolved",
+        target: {
+          kind: "sourceContainer",
+          statementId: "statement:test:1",
+          statementIndex: 1,
+          containerKind: "group"
+        }
+      });
+    }
+
+  });
+
   it("does not duplicate ordinary root geometry diagnostics in the source projection", () => {
     const compiled = compileWithIds([
       "nui 4",
