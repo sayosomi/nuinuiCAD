@@ -1,5 +1,5 @@
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
-import { constructionFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
+import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOf,
@@ -46,6 +46,9 @@ import type {
   ModuleGeometryReferenceSemantic,
   ModuleGeometryReferenceSite,
   ModuleGeometrySourceTarget,
+  ModuleParentReferenceSemantic,
+  ModuleParentReferenceSite,
+  ModuleParentSourceTarget,
   ModuleInstanceSemantic,
   ModuleGeometryReferenceRole,
   ModuleScalarExpressionSemantic,
@@ -211,6 +214,19 @@ const declarationGeometryPropertyTarget = (
     statementIndex: declaration.statementIndex,
     category: declaration.statement.category,
     property
+  };
+};
+
+const declarationParentTarget = (
+  declaration: SourceLexicalDeclaration,
+  stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>
+): ModuleParentSourceTarget | null => {
+  if (declaration.kind !== "group" && declaration.kind !== "conditionalGroup" && declaration.kind !== "forGroup") return null;
+  return {
+    kind: "sourceContainer",
+    statementId: statementIdAt(stableStatementIdByIndex, declaration.statementIndex),
+    statementIndex: declaration.statementIndex,
+    containerKind: declaration.kind
   };
 };
 
@@ -1066,12 +1082,72 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   // owns validation, while qualified module exports retain this pass's
   // established diagnostic behavior.
   const rootGeometryReferencesByStatementId = new Map<StatementIdentity, ModuleGeometryReferenceSite[]>();
+  const rootParentReferencesByStatementId = new Map<StatementIdentity, ModuleParentReferenceSite>();
+  const parentArg = commonArgSpecs.find((arg) => arg.special === "parent");
+  const resolveRootParent = (
+    statementIndex: number,
+    rawValue: string,
+    span: DslSpan
+  ): ModuleParentReferenceSemantic => {
+    const trimmed = rawValue.trim();
+    const logicalSource = input.logicalTextByStatementIndex?.get(statementIndex);
+    const trimmedStart = logicalSource
+      ? logicalSource.indexOf(trimmed, Math.max(0, span.start))
+      : -1;
+    const semanticSpan = trimmedStart >= 0
+      ? { start: trimmedStart, end: trimmedStart + trimmed.length }
+      : span;
+    const semantic = (
+      target: ModuleParentSourceTarget | null,
+      resolution: ModuleParentReferenceSemantic["resolution"],
+      nameSpan?: DslSpan
+    ): ModuleParentReferenceSemantic => ({
+      source: rawValue,
+      span: semanticSpan,
+      ...(nameSpan ? { nameSpan } : {}),
+      target,
+      resolution
+    });
+    if (!trimmed) return semantic(null, "undefined");
+    const parsedReference = parseDslSourceReference(trimmed);
+    if (parsedReference.kind !== "valid" || parsedReference.reference.property) return semantic(null, "invalid");
+    const reference = parsedReference.reference;
+    const nameSpan = {
+      start: semanticSpan.start + reference.pathRange.start,
+      end: semanticSpan.start + reference.pathRange.end
+    };
+    const path = parseDslReferenceToken(reference.pathText);
+    const lookup = path.segments.length === 1 && !path.absolute
+      ? sourceDeclarationResolution(sourceNamespace, statementIndex, path.segments[0])
+      : resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
+    if (lookup.kind === "resolved") {
+      const target = declarationParentTarget(lookup.declaration, stableStatementIdByIndex);
+      return target ? semantic(target, "resolved", nameSpan) : semantic(null, "invalid", nameSpan);
+    }
+    if (lookup.kind === "undefined") return semantic(null, "undefined", nameSpan);
+    if (lookup.kind === "forward") return semantic(null, "forward", nameSpan);
+    if (lookup.kind === "ambiguous") return semantic(null, "ambiguous", nameSpan);
+    return semantic(null, "invalid", nameSpan);
+  };
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "element" || (!isGeometryDeclarationCategory(statement.category) && statement.category !== "mutation") || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
     const spec = constructionFor(statement.category, statement.construction);
     if (!spec || !statement.type) continue;
     const definitionsByKey = new Map(getParameterDefinitions({ type: statement.type, intermediatePoints: [] } as never).map((definition) => [definition.key, definition]));
     const sites: ModuleGeometryReferenceSite[] = [];
+    if (parentArg) {
+      const parentValueSpan = statement.payloadSpans[parentArg.arg];
+      if (parentValueSpan) {
+        const raw = input.logicalTextByStatementIndex?.get(statementIndex)?.slice(parentValueSpan.start, parentValueSpan.end)
+          ?? statement.attrs.find((attr) => attr.key === parentArg.arg)?.value
+          ?? "";
+        rootParentReferencesByStatementId.set(statementIdAt(stableStatementIdByIndex, statementIndex), {
+          parameterKey: "parent",
+          span: parentValueSpan,
+          reference: resolveRootParent(statementIndex, raw, parentValueSpan)
+        });
+      }
+    }
     for (const arg of spec.args) {
       if (arg.special || !arg.parameterKey && !definitionsByKey.has(arg.arg)) continue;
       const parameterKey = arg.parameterKey ?? arg.arg;
@@ -1360,6 +1436,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     callEdges,
     rootScalarExpressionsByStatementId,
     rootGeometryReferencesByStatementId,
+    rootParentReferencesByStatementId,
     diagnostics
   };
 };

@@ -75,6 +75,62 @@ describe("queryDslDefinition", () => {
     expect(result!.declarationRange.from).toBe(source.indexOf("  point Same" ) + "  point ".length);
   });
 
+  it("resolves parent references to source container declarations without runtime materialization", () => {
+    const source = [
+      "nui 4",
+      "group Front {",
+      "}",
+      "point Child = coordinate(x: 0, y: 0, parent: @Front)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const runtimeIndependent = {
+      ...compiled,
+      document: compiled.document ? { ...compiled.document, elements: [] } : null
+    };
+    const referenceOffset = source.indexOf("@Front") + "@Front".length;
+    const result = queryDslDefinition({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position: referenceOffset,
+      semantic: { sourceRevision: 7, compiled: runtimeIndependent }
+    });
+
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.referenceRange)).toBe("Front");
+    expect(sourceSlice(source, result!.declarationRange)).toBe("Front");
+    expect(result!.referenceRange).toEqual({ from: source.indexOf("@Front") + 1, to: source.indexOf("@Front") + 1 + "Front".length });
+    expect(result!.declarationRange).toEqual({ from: source.indexOf("group Front") + "group ".length, to: source.indexOf("group Front") + "group Front".length });
+
+    const declarationPosition = source.indexOf("group Front") + "group ".length + 1;
+    expect(queryDslDefinition({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position: declarationPosition,
+      semantic: { sourceRevision: 7, compiled: runtimeIndependent }
+    })).toBeNull();
+  });
+
+  it("fails closed for unresolved, ambiguous, and non-container parent references", () => {
+    const unresolved = [
+      "nui 4",
+      "point Child = coordinate(x: 0, y: 0, parent: @Missing)"
+    ].join("\n");
+    expect(exactQuery(unresolved, "@Missing")).toBeNull();
+
+    const ambiguous = [
+      "nui 4",
+      "group One {}",
+      "group One {}",
+      "point Child = coordinate(x: 0, y: 0, parent: @One)"
+    ].join("\n");
+    expect(exactQuery(ambiguous, "@One")).toBeNull();
+
+    const invalid = [
+      "nui 4",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Child = coordinate(x: 0, y: 0, parent: @Base)"
+    ].join("\n");
+    expect(exactQuery(invalid, "@Base")).toBeNull();
+  });
+
   it("uses the resolved BindingId for a typed reference", () => {
     const source = [
       "nui 4",

@@ -574,6 +574,32 @@ describe("module semantic analysis", () => {
     });
   });
 
+  it("projects root parent references by source container StatementIdentity", () => {
+    const source = [
+      "nui 4",
+      "group Front {",
+      "}",
+      "point Child = coordinate(x: 0, y: 0, parent: @Front)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const reference = compiled.sourceSemanticAnalysis!.rootParentReferencesByStatementId
+      .get("statement:test:3")?.reference;
+
+    expect(compiled.sourceSemanticAnalysis!.definitions).toEqual([]);
+    expect(compiled.moduleMaterialization).toBeUndefined();
+    expect(reference).toMatchObject({
+      source: "@Front",
+      resolution: "resolved",
+      target: {
+        kind: "sourceContainer",
+        statementId: "statement:test:1",
+        statementIndex: 1,
+        containerKind: "group"
+      }
+    });
+    expect(reference?.nameSpan).toEqual({ start: 46, end: 51 });
+  });
+
   it("does not duplicate ordinary root geometry diagnostics in the source projection", () => {
     const compiled = compileWithIds([
       "nui 4",

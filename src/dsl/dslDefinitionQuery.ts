@@ -123,6 +123,20 @@ const rootGeometryPropertyCandidates = (compiled: CompiledDslDocument): Definiti
   return candidates;
 };
 
+const rootParentCandidates = (compiled: CompiledDslDocument): DefinitionCandidate[] => {
+  const candidates: DefinitionCandidate[] = [];
+  const statementIndexById = compiled.statementMap?.statementIndexByStatementId;
+  for (const [statementId, site] of compiled.moduleSemanticAnalysis?.rootParentReferencesByStatementId ?? []) {
+    const statementIndex = statementIndexById?.get(statementId);
+    const target = site.reference.target;
+    if (statementIndex === undefined || !target || site.reference.resolution !== "resolved" || !site.reference.nameSpan) continue;
+    const referenceRange = physicalReferenceRange(compiled, statementIndex, site.reference.nameSpan);
+    const declarationRange = declarationRangeForStatementIdentity(compiled, target.statementId);
+    if (referenceRange && declarationRange) candidates.push({ referenceRange, declarationRange });
+  }
+  return candidates;
+};
+
 const bindingCandidatesFromExpression = (
   compiled: CompiledDslDocument,
   bindingAnalysis: BindingAnalysis,
@@ -266,6 +280,9 @@ export const queryDslDefinition = ({ source, position, semantic }: DslDefinition
 
   const geometryProperty = candidateAt(rootGeometryPropertyCandidates(sourceSemanticCompiled), position);
   if (geometryProperty) return geometryProperty;
+
+  const parent = candidateAt(rootParentCandidates(sourceSemanticCompiled), position);
+  if (parent) return parent;
 
   const bindingAnalysis = semantic.bindingAnalysis ?? compiled.bindingAnalysis;
   if (bindingAnalysis) {
