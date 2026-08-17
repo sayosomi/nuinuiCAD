@@ -383,8 +383,12 @@ evaluator remain reused from the performance PoC path.
 `src/vscode/` owns the local Webview / Extension Host message bridge, VS Code
 Canvas adapter, app, and benchmark result handoff. `vscode-extension/` owns the
 desktop-local extension host, session registry, persistent Rust stdio relay,
-and TextDocument edit bridge; it does not perform Rust input / payload semantic
-projection.
+TextDocument edit bridge, and the extension-wide compiler diagnostics adapter.
+Compiler diagnostics keep one analysis session per supported document URI,
+reuse the production `AutomationDocument` compiler boundary for current
+`TextDocument` source, and publish the resulting source diagnostics through one
+VS Code `DiagnosticCollection`; the adapter does not perform parsing, binding
+analysis, or runtime evaluation.
 
 `src-tauri/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。

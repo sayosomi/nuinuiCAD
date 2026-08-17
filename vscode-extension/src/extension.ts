@@ -5,6 +5,11 @@ import * as vscode from "vscode";
 import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
+import {
+  createCompilerDiagnosticsSession,
+  type CompilerDiagnostic,
+  type CompilerDiagnosticsSession
+} from "./compilerDiagnostics";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -28,6 +33,23 @@ const nonce = () => randomBytes(16).toString("hex");
 
 const fullDocumentRange = (document: vscode.TextDocument): vscode.Range =>
   new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
+
+const toVscodeDiagnostic = (diagnostic: CompilerDiagnostic): vscode.Diagnostic => {
+  const severity = diagnostic.severity === "error"
+    ? vscode.DiagnosticSeverity.Error
+    : vscode.DiagnosticSeverity.Warning;
+  const result = new vscode.Diagnostic(
+    new vscode.Range(
+      new vscode.Position(diagnostic.range.start.line, diagnostic.range.start.character),
+      new vscode.Position(diagnostic.range.end.line, diagnostic.range.end.character)
+    ),
+    diagnostic.message,
+    severity
+  );
+  if (diagnostic.code !== undefined) result.code = diagnostic.code;
+  result.source = diagnostic.source;
+  return result;
+};
 
 const webviewHtml = (panel: vscode.WebviewPanel, context: vscode.ExtensionContext): string => {
   const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.js"));
@@ -145,10 +167,61 @@ const disposeSessionListeners = (session: DocumentSession): void => {
 
 export const activate = (context: vscode.ExtensionContext): void => {
   const sessions = new Map<string, DocumentSession>();
+  const compilerDiagnosticSessions = new Map<string, CompilerDiagnosticsSession>();
+  const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
   const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
   const benchmarkConfig = benchmarkConfigFromEnvironment();
   let benchmarkStarted = false;
   let benchmarkEditorListener: vscode.Disposable | null = null;
+
+  const publishCompilerDiagnostics = (document: vscode.TextDocument): void => {
+    if (!isSupportedNuiDocument(document)) return;
+
+    const key = documentKey(document);
+    const capturedUri = key;
+    const capturedVersion = document.version;
+    let session = compilerDiagnosticSessions.get(key);
+    let diagnostics: CompilerDiagnostic[];
+    if (session) {
+      diagnostics = session.replaceSource(document.getText());
+    } else {
+      session = createCompilerDiagnosticsSession(document.getText());
+      compilerDiagnosticSessions.set(key, session);
+      diagnostics = session.getDiagnostics();
+    }
+
+    if (
+      documentKey(document) !== capturedUri ||
+      compilerDiagnosticSessions.get(key) !== session ||
+      !isOpenDocument(document) ||
+      document.version !== capturedVersion
+    ) return;
+    compilerDiagnosticCollection.set(document.uri, diagnostics.map(toVscodeDiagnostic));
+  };
+
+  const compilerDiagnosticOpenListener = vscode.workspace.onDidOpenTextDocument((document) => {
+    publishCompilerDiagnostics(document);
+  });
+  const compilerDiagnosticChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
+    publishCompilerDiagnostics(event.document);
+  });
+  const compilerDiagnosticCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
+    if (!isSupportedNuiDocument(document)) return;
+    const key = documentKey(document);
+    compilerDiagnosticSessions.delete(key);
+    compilerDiagnosticCollection.delete(document.uri);
+  });
+  const disposeCompilerDiagnosticSessions = {
+    dispose: () => compilerDiagnosticSessions.clear()
+  };
+  context.subscriptions.push(
+    compilerDiagnosticCollection,
+    compilerDiagnosticOpenListener,
+    compilerDiagnosticChangeListener,
+    compilerDiagnosticCloseListener,
+    disposeCompilerDiagnosticSessions
+  );
+  for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 
   const resync = (session: DocumentSession): void => {
     if (sessions.get(session.key) !== session || !isOpenDocument(session.document)) return;
