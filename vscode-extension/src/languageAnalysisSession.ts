@@ -45,17 +45,16 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
       if (
         source.normalizedSource !== normalizedCurrentSource ||
         source.sourceRevision !== currentSourceRevision() ||
-        state.status === "fatal" ||
-        state.docText !== currentRawSource ||
-        state.doc.spans.sourceMap.source !== normalizedCurrentSource ||
-        state.doc.statementMap?.sourceRevision !== source.sourceRevision
+        state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource
       ) return undefined;
 
       return {
         sourceRevision: source.sourceRevision,
         sourceText: normalizedCurrentSource,
-        compiled: state.doc,
-        ...(state.doc.bindingAnalysis ? { bindingAnalysis: state.doc.bindingAnalysis } : {})
+        compiled: state.currentCompiled,
+        ...(state.currentCompiled.bindingAnalysis
+          ? { bindingAnalysis: state.currentCompiled.bindingAnalysis }
+          : {})
       };
     }
   };

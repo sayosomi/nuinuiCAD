@@ -48,6 +48,23 @@ describe("queryDslCompletion", () => {
     expect(argument?.candidates.every((candidate) => candidate.kind === "argumentName")).toBe(true);
   });
 
+  it("completes the next argument name after a comma in an incomplete call", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point P = offset(",
+      "  from: @A,",
+      "  d",
+      ")"
+    ].join("\n");
+    const position = source.indexOf("\n  d") + "\n  d".length;
+    const result = queryIncomplete(source, position);
+
+    expect(result?.category).toBe("argument");
+    expect(labels(result)).toEqual(expect.arrayContaining(["dx", "dy"]));
+    expect(result && source.slice(result.replacementRange.from, result.replacementRange.to)).toBe("d");
+  });
+
   it("uses the builtin argument owner, including spreadAngle's named arguments", () => {
     const source = "nui 4\nconst value: number = spreadAngle(";
     const result = queryIncomplete(source);

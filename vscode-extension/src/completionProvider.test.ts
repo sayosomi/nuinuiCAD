@@ -126,6 +126,55 @@ describe("VS Code native nui completion provider", () => {
     expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["dx", "dy"]));
   });
 
+  it("supports the manual E2E cases for incomplete argument, qualified member, and property completion", () => {
+    const argumentSource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point P = offset(",
+      "  from: @A,",
+      "  d",
+      ")"
+    ].join("\n");
+    const argumentItems = itemsFor(argumentSource, 4, 3);
+    const argument = argumentItems.find((item) => item.label === "dx")!;
+    expect(argumentItems.map((item) => item.label)).toEqual(expect.arrayContaining(["dx", "dy"]));
+    expect(argument.range).toMatchObject({
+      start: { line: 4, character: 2 },
+      end: { line: 4, character: 3 }
+    });
+
+    const qualifiedSource = [
+      "nui 4",
+      "group 前身頃 {",
+      "  point か = coordinate(x: 0, y: 0)",
+      "}",
+      "point 使用 = offset(from: @前身頃::, dx: 0, dy: 0)"
+    ].join("\n");
+    const qualifiedLine = qualifiedSource.split("\n")[4]!;
+    const qualifiedPosition = qualifiedLine.indexOf("@前身頃::") + "@前身頃::".length;
+    const qualified = itemsFor(qualifiedSource, 4, qualifiedPosition).find((item) => item.label === "か")!;
+    expect(qualified.insertText).toBe("か");
+    expect(qualified.range).toMatchObject({
+      start: { line: 4, character: qualifiedPosition },
+      end: { line: 4, character: qualifiedPosition }
+    });
+
+    const propertySource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "line AB = segment(start: @A, end: @A)",
+      "const value: number = @AB.le"
+    ].join("\n");
+    const propertyLine = propertySource.split("\n")[3]!;
+    const propertyPosition = propertyLine.indexOf("@AB.le") + "@AB.le".length;
+    const property = itemsFor(propertySource, 3, propertyPosition).find((item) => item.label === "length")!;
+    expect(property.insertText).toBe("length");
+    expect(property.range).toMatchObject({
+      start: { line: 3, character: propertyPosition - 2 },
+      end: { line: 3, character: propertyPosition }
+    });
+  });
+
   it("keeps @, module ::, and property . prefixes outside the replacement", () => {
     const referenceSource = [
       "nui 4",

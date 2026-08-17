@@ -55,13 +55,28 @@ describe("VS Code document-scoped language analysis session", () => {
     });
   });
 
-  it("fails closed for fatal source without leaking last-good semantics", () => {
-    const session = createLanguageAnalysisSession(validSource);
-    expect(session.completionSemanticSnapshot(sourceSnapshotFor(validSource, 1))).toBeDefined();
+  it("uses exact current partial semantics for fatal source without leaking last-good data", () => {
+    const session = createLanguageAnalysisSession("nui 4\nconst old: number = 1\nconst value: number = @old");
+    expect(session.completionSemanticSnapshot(sourceSnapshotFor(
+      "nui 4\nconst old: number = 1\nconst value: number = @old",
+      1
+    ))).toBeDefined();
 
     session.replaceSource(fatalSource);
 
-    expect(session.completionSemanticSnapshot(sourceSnapshotFor(fatalSource, 2))).toBeUndefined();
+    const snapshot = session.completionSemanticSnapshot(sourceSnapshotFor(fatalSource, 2));
+    expect(snapshot).toMatchObject({
+      sourceRevision: 2,
+      sourceText: fatalSource,
+      compiled: expect.objectContaining({
+        spans: expect.objectContaining({
+          sourceMap: expect.objectContaining({ source: fatalSource })
+        })
+      })
+    });
+    expect(snapshot?.bindingAnalysis?.catalog.bindings ?? []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "old" })])
+    );
   });
 
   it("matches CRLF raw source against the LF-normalized completion snapshot", () => {

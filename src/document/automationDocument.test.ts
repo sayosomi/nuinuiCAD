@@ -33,6 +33,7 @@ describe("AutomationDocument", () => {
     expect(state.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
     expect(state.doc.document.elements).toEqual([]);
     expect(state.docText).not.toBe(fatalSource);
+    expect(state.currentCompiled.spans.sourceMap.source).toBe(fatalSource);
     expect(state.revision).toBe(0);
     expect(state.compiledRevision).toBe(0);
   });
@@ -54,6 +55,8 @@ describe("AutomationDocument", () => {
     expect(secondFatal.revision).toBe(2);
     expect(secondFatal.compiledRevision).toBe(0);
     expect(secondFatal.doc).toBe(firstFatal.doc);
+    expect(firstFatal.currentCompiled.spans.sourceMap.source).toBe(fatalSource);
+    expect(secondFatal.currentCompiled.spans.sourceMap.source).toBe(`${fatalSource}\n# still broken`);
 
     document.replaceSource(recovered);
     const recoveredState = document.getState();
