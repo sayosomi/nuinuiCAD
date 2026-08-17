@@ -1,0 +1,430 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "nui",
+  "scopeName": "source.nui",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#statement-heads"
+    },
+    {
+      "include": "#expression"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.nui",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.nui",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "string.quoted.double.nui"
+            }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": {
+              "name": "string.quoted.double.nui"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#string-escapes"
+            },
+            {
+              "include": "#interpolation"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.nui",
+          "begin": "'",
+          "beginCaptures": {
+            "0": {
+              "name": "string.quoted.single.nui"
+            }
+          },
+          "end": "'",
+          "endCaptures": {
+            "0": {
+              "name": "string.quoted.single.nui"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#string-escapes"
+            },
+            {
+              "include": "#interpolation"
+            }
+          ]
+        }
+      ]
+    },
+    "string-escapes": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.nui",
+          "match": "\\\\(?:n|r|t|\\\\|\"|')"
+        }
+      ]
+    },
+    "interpolation": {
+      "patterns": [
+        {
+          "name": "meta.interpolation.nui",
+          "begin": "(\\$\\{)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.section.interpolation.begin.nui"
+            }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.interpolation.end.nui"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#expression"
+            }
+          ]
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "begin": "(?<![\\p{L}\\p{N}_-])(group)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.declaration.group.nui"
+            }
+          },
+          "end": "(?=\\{|\\n|$)",
+          "patterns": [
+            {
+              "name": "entity.name.namespace.nui",
+              "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+            }
+          ]
+        },
+        {
+          "begin": "(?<![\\p{L}\\p{N}_-])(module)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.declaration.module.nui"
+            }
+          },
+          "end": "(?=\\{|\\n|$)",
+          "patterns": [
+            {
+              "name": "entity.name.type.module.nui",
+              "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+            },
+            {
+              "begin": "\\(",
+              "end": "\\)",
+              "patterns": [
+                {
+                  "include": "#expression"
+                },
+                {
+                  "name": "variable.parameter.nui",
+                  "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "begin": "(?<![\\p{L}\\p{N}_-])(instance)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.declaration.instance.nui"
+            }
+          },
+          "end": "(?=\\{|\\n|$|=)",
+          "patterns": [
+            {
+              "name": "entity.name.variable.nui",
+              "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+            }
+          ]
+        },
+        {
+          "begin": "(?<![\\p{L}\\p{N}_-])(const|let)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.modifier.nui"
+            }
+          },
+          "end": "(?==|\\{|\\n|$|[,;])",
+          "patterns": [
+            {
+              "name": "entity.name.variable.nui",
+              "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+            }
+          ]
+        },
+        {
+          "begin": "(?<![\\p{L}\\p{N}_-])(number|string|boolean|choice|point|line|path|curve|arc|text|image)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.type.nui"
+            }
+          },
+          "end": "(?==|\\{|\\n|$|;)",
+          "patterns": [
+            {
+              "name": "entity.name.variable.nui",
+              "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+            }
+          ]
+        }
+      ]
+    },
+    "statement-heads": {
+      "patterns": [
+        {
+          "begin": "(?<![\\p{L}\\p{N}_-])(?:color|role|view|printLayout)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?\\s*\\()",
+          "end": "(?=\\()"
+        }
+      ]
+    },
+    "expression": {
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#strings"
+        },
+        {
+          "include": "#references"
+        },
+        {
+          "include": "#choice-expression"
+        },
+        {
+          "include": "#named-arguments"
+        },
+        {
+          "include": "#keywords"
+        },
+        {
+          "include": "#operators"
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "include": "#booleans"
+        },
+        {
+          "include": "#types-in-position"
+        },
+        {
+          "include": "#properties"
+        },
+        {
+          "include": "#calls"
+        }
+      ]
+    },
+    "references": {
+      "patterns": [
+        {
+          "begin": "(@)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.variable.nui"
+            }
+          },
+          "end": "(?=$|[\\s,;()\\[\\]{}+*/%^<>!=])",
+          "patterns": [
+            {
+              "include": "#namespace-access"
+            },
+            {
+              "include": "#reference-property"
+            },
+            {
+              "name": "variable.other.nui",
+              "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+            }
+          ]
+        }
+      ]
+    },
+    "namespace-access": {
+      "patterns": [
+        {
+          "name": "punctuation.accessor.namespace.nui",
+          "match": "::"
+        },
+        {
+          "name": "punctuation.accessor.nui",
+          "match": "\\."
+        }
+      ]
+    },
+    "reference-property": {
+      "patterns": [
+        {
+          "name": "variable.other.property.nui",
+          "match": "(?<=\\.)[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+        }
+      ]
+    },
+    "choice-expression": {
+      "patterns": [
+        {
+          "begin": "(?<![\\p{L}\\p{N}_-])(choice)(?=\\s*\\()",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.type.nui"
+            }
+          },
+          "end": "\\)",
+          "patterns": [
+            {
+              "include": "#strings"
+            },
+            {
+              "include": "#references"
+            },
+            {
+              "include": "#numbers"
+            },
+            {
+              "include": "#booleans"
+            },
+            {
+              "name": "constant.other.enum.nui",
+              "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+            }
+          ]
+        }
+      ]
+    },
+    "named-arguments": {
+      "patterns": [
+        {
+          "name": "variable.parameter.nui",
+          "match": "(?<![\\p{L}\\p{N}_-])[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?(?=\\s*:(?!:))"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.nui",
+          "match": "(?<![\\p{L}\\p{N}_-])(?:if|else|for|in|stop)(?![\\p{L}\\p{N}_-])"
+        },
+        {
+          "name": "keyword.operator.logical.nui",
+          "match": "(?<![\\p{L}\\p{N}_-])(?:and|or|not)(?![\\p{L}\\p{N}_-])"
+        },
+        {
+          "name": "storage.modifier.nui",
+          "match": "(?<![\\p{L}\\p{N}_-])(?:const|let)(?![\\p{L}\\p{N}_-])"
+        },
+        {
+          "name": "storage.modifier.export.nui",
+          "match": "(?<![\\p{L}\\p{N}_-])export(?![\\p{L}\\p{N}_-])"
+        },
+        {
+          "name": "keyword.other.nui",
+          "match": "(?<![\\p{L}\\p{N}_-])set(?![\\p{L}\\p{N}_-])"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.comparison.nui",
+          "match": "<=|>=|==|!=|<|>"
+        },
+        {
+          "name": "keyword.operator.arithmetic.nui",
+          "match": "[+\\-*/%^]"
+        },
+        {
+          "name": "keyword.operator.assignment.nui",
+          "match": "="
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.nui",
+          "match": "(?<![\\p{L}\\p{N}_])(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?![\\p{L}\\p{N}_])"
+        }
+      ]
+    },
+    "booleans": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.nui",
+          "match": "(?<![\\p{L}\\p{N}_-])(?:true|false)(?![\\p{L}\\p{N}_-])"
+        }
+      ]
+    },
+    "types-in-position": {
+      "patterns": [
+        {
+          "name": "storage.type.nui",
+          "match": "(?<![\\p{L}\\p{N}_-])(?:number|string|boolean|choice|point|line|path|curve|arc|text|image)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?(?:\\s*(?:=|[,)]|$)))"
+        },
+        {
+          "captures": {
+            "2": {
+              "name": "storage.type.nui"
+            }
+          },
+          "match": "(:\\s*)(number|string|boolean|choice|point|line|path|curve|arc|text|image)(?=\\s*(?:[,)]|=|$))"
+        }
+      ]
+    },
+    "properties": {
+      "patterns": [
+        {
+          "name": "punctuation.accessor.nui",
+          "match": "\\."
+        },
+        {
+          "name": "variable.other.property.nui",
+          "match": "(?<=\\.)[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
+        }
+      ]
+    },
+    "calls": {
+      "patterns": [
+        {
+          "name": "entity.name.function.nui",
+          "match": "(?<![\\p{L}\\p{N}_-])[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?(?=\\s*\\()"
+        }
+      ]
+    }
+  }
+}
