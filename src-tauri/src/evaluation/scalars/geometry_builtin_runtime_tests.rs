@@ -44,6 +44,12 @@ fn state_with_geometry(
     }
 }
 
+fn disabled_state_with_geometry(id: &str, geometry: serde_json::Value) -> EvaluationState {
+    let mut state = state_with_geometry(id, geometry, true);
+    state.elements = vec![json!({"id": id, "activity": "disabled"})];
+    state
+}
+
 fn target(
     id: &str,
     index: usize,
@@ -107,6 +113,19 @@ fn earlier_point_target_resolves() {
         ),
         Ok(GeometryBuiltinRuntimeTarget::Point(_))
     ));
+}
+
+#[test]
+fn disabled_geometry_target_has_a_distinct_runtime_failure() {
+    let state = disabled_state_with_geometry("point-id", point_value(2.0, 3.0));
+    assert_eq!(
+        resolve_geometry_builtin_target(
+            &state,
+            2,
+            &target("point-id", 1, GeometryInterfaceType::Point)
+        ),
+        Err(GeometryBuiltinRuntimeError::Disabled)
+    );
 }
 
 #[test]
@@ -263,7 +282,7 @@ fn zero_length_line_rejects_at_and_below_threshold() {
                 2,
                 &target("line", 1, GeometryInterfaceType::Line)
             ),
-            Err(GeometryBuiltinRuntimeError::InvalidArgument)
+            Err(GeometryBuiltinRuntimeError::ZeroLengthLine)
         );
     }
 }

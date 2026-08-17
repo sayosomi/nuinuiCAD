@@ -92,6 +92,14 @@ describe("resolveBuiltinGeometryArguments", () => {
     expect(targetOf(lineDistance, 1)).toMatchObject({ statementId: "stable-3", statementIndex: 3, geometryType: "line" });
   });
 
+  it("claims geometry references during wrong-arity recovery without adding a geometry diagnostic", () => {
+    const result = resolve("distance(@A)", [sourceGeometryResolution("A", sourceNamespace)]);
+
+    expect(result.issues).toEqual([]);
+    expect([...result.claimedReferenceOccurrenceIndexes]).toEqual([0]);
+    expect(targetOf(result, 0)).toEqual({ statementId: "stable-1", statementIndex: 1, geometryType: "point" });
+  });
+
   it("resolves lineAngle positional line arguments to stable strict-line targets", () => {
     const result = resolve("lineAngle(@AB, @OtherLine)", [
       sourceGeometryResolution("AB", sourceNamespace),

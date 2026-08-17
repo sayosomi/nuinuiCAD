@@ -43,11 +43,16 @@ export const numericSourceForModuleSite = (
 
   const matches = scanExpressionReferences(value.expression).filter((match) => match.kind === "binding");
   const references = semanticReferencesUsedByAst(site.expression);
-  if (matches.length !== references.length) return undefined;
 
   const compiledReferences: CompiledNumericBindingReference[] = [];
-  for (const [index, reference] of references.entries()) {
-    const match = matches[index];
+  const usedMatchIndexes = new Set<number>();
+  for (const reference of references) {
+    const matchIndex = matches.findIndex((candidate, index) =>
+      !usedMatchIndexes.has(index) && candidate.query === reference.name
+    );
+    if (matchIndex < 0) return undefined;
+    usedMatchIndexes.add(matchIndex);
+    const match = matches[matchIndex];
     if (!match) return undefined;
     const target = reference.target;
     if (!target || (target.kind !== "parameter" && target.kind !== "moduleLocal" && target.kind !== "documentBinding")) {

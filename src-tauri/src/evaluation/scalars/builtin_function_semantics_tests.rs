@@ -20,6 +20,10 @@ fn non_finite_result() -> BuiltinFunctionEvaluation {
     BuiltinFunctionEvaluation::Error(BuiltinFunctionError::NonFiniteResult)
 }
 
+fn semantic_error(error: BuiltinFunctionError) -> BuiltinFunctionEvaluation {
+    BuiltinFunctionEvaluation::Error(error)
+}
+
 fn assert_number_close(result: BuiltinFunctionEvaluation, expected: f64) {
     match result {
         BuiltinFunctionEvaluation::Ok(BuiltinFunctionValue::Number(value)) => {
@@ -56,7 +60,7 @@ fn evaluates_basic_numeric_builtins() {
 fn rejects_invalid_sqrt_argument() {
     assert_eq!(
         evaluate_builtin_function(BuiltinFunctionName::Sqrt, &[-1.0]),
-        invalid_argument()
+        semantic_error(BuiltinFunctionError::SqrtNegativeInput)
     );
 }
 
@@ -112,7 +116,11 @@ fn rounds_to_a_positive_step_using_the_same_midpoint_rule() {
     );
     assert_eq!(
         evaluate_builtin_function(BuiltinFunctionName::RoundTo, &[10.0, 0.0]),
-        invalid_argument()
+        semantic_error(BuiltinFunctionError::RoundToNonPositiveStep)
+    );
+    assert_eq!(
+        evaluate_builtin_function(BuiltinFunctionName::RoundTo, &[10.0, -0.5]),
+        semantic_error(BuiltinFunctionError::RoundToNonPositiveStep)
     );
 }
 
@@ -124,7 +132,7 @@ fn evaluates_is_close_and_rejects_negative_tolerance() {
     );
     assert_eq!(
         evaluate_builtin_function(BuiltinFunctionName::IsClose, &[10.0, 10.0, -1.0]),
-        invalid_argument()
+        semantic_error(BuiltinFunctionError::IsCloseNegativeTolerance)
     );
 }
 
@@ -223,7 +231,7 @@ fn rejects_tangent_singularities_by_the_exact_degree_contract() {
     for degrees in [90.0, 270.0, -90.0, -270.0, 450.0] {
         assert_eq!(
             evaluate_builtin_function(BuiltinFunctionName::Tan, &[degrees]),
-            invalid_argument()
+            semantic_error(BuiltinFunctionError::TanOddMultipleOf90)
         );
     }
     assert!(matches!(
@@ -253,7 +261,11 @@ fn evaluates_inverse_trigonometric_functions_in_degrees_and_validates_domains() 
         for value in [-1.000001, 1.000001] {
             assert_eq!(
                 evaluate_builtin_function(name, &[value]),
-                invalid_argument()
+                semantic_error(match name {
+                    BuiltinFunctionName::Asin => BuiltinFunctionError::AsinOutOfRange,
+                    BuiltinFunctionName::Acos => BuiltinFunctionError::AcosOutOfRange,
+                    _ => unreachable!(),
+                })
             );
         }
     }

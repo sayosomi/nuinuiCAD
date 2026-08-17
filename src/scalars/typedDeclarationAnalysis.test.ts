@@ -91,6 +91,29 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     expect(fixture.bindingAnalysis.graph.edgesByFromBindingId.get(bindingIdForName(fixture, "wrongLine"))).toBeUndefined();
   });
 
+  it("reports wrong geometry builtin arity once without reclassifying the geometry child as scalar", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 4",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "const BadArity: number = distance(@Origin)"
+    ].join("\n"), { expectNoDiagnostics: false });
+
+    expect(fixture.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["function-arity-mismatch"]);
+    expect(fixture.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("scalar-namespace-type-mismatch");
+  });
+
+  it("keeps an independent missing geometry child diagnostic during wrong-arity recovery", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 4",
+      "const BadArity: number = distance(@Missing)"
+    ].join("\n"), { expectNoDiagnostics: false });
+    const codes = fixture.diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(codes.filter((code) => code === "function-arity-mismatch")).toHaveLength(1);
+    expect(codes).toContain("builtin-geometry-argument-invalid");
+    expect(codes).not.toContain("scalar-namespace-type-mismatch");
+  });
+
   it("resolves derived point builtin operands without scalar or numeric geometry-property edges", () => {
     const fixture = typedDeclarationAnalysisFor([
       "nui 4",

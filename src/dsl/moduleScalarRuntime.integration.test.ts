@@ -156,6 +156,38 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(p.id)).toMatchObject({ kind: "point", x: 8, y: 2 });
   });
 
+  it("evaluates module geometry builtin operands through the production lowered path", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "point P = coordinate(x: 3, y: 4)",
+      "line Baseline = segment(start: (0, 0), end: (1, 0))",
+      "module Example(baseline: line, p: point, delta: number) {",
+      "  let measured: number = 0",
+      "  set measured = distance(@baseline.start, @p)",
+      "  export point Q = coordinate(",
+      "    x: @measured + @delta,",
+      "    y: lineDistance(@p, @baseline)",
+      "  )",
+      "}",
+      "instance Use = Example(baseline: @Baseline, p: @P, delta: 2)",
+      "point ExpectedModuleQ = coordinate(x: 7, y: 4)",
+      "const moduleCheck: number = distance(@Use::Q, @ExpectedModuleQ)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const modulePoint = elementNamed(compiled, "Q");
+    expect(result.computedGeometry.get(modulePoint.id)).toMatchObject({ kind: "point", x: 7, y: 4 });
+    const moduleCheck = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "moduleCheck");
+    expect(moduleCheck).toBeDefined();
+    expect(result.computedScalarBindings?.get(moduleCheck!.id)).toEqual({
+      status: "ok",
+      type: { kind: "number" },
+      value: { kind: "number", value: 0 }
+    });
+  });
+
   it("lowers module geometry builtin operands to each materialized runtime target", () => {
     const compiled = compileWithIds([
       "nui 4",

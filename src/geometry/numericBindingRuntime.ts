@@ -10,7 +10,8 @@ import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import type { ScalarEvaluation } from "../scalars/types";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
-import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
+import type { ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { getParameterValue, setParameterValue } from "../parameters/parameterAccess";
 import { isNumericExpression } from "./numericExpressions";
 import { geometryError } from "./evaluationContext";
@@ -100,6 +101,9 @@ type NumericBindingResolveFn = (bindingId: BindingId) => ScalarEvaluation;
 type NumericBindingGeometryResolveFn = (
   reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>
 ) => ScalarEvaluation;
+type NumericBindingGeometryTargetResolveFn = (
+  target: ScalarExpressionResolvedGeometryTarget
+) => GeometryBuiltinTargetLookupResult | undefined;
 
 export type NumericMaterializationResult =
   | { ok: true; element: CadElement }
@@ -115,7 +119,8 @@ export const materializeNumericBindingElement = (
   element: CadElement,
   entries: readonly NumericBindingRuntimeEntry[] | undefined,
   resolveBinding: NumericBindingResolveFn,
-  resolveGeometryProperty?: NumericBindingGeometryResolveFn
+  resolveGeometryProperty?: NumericBindingGeometryResolveFn,
+  resolveGeometryTarget?: NumericBindingGeometryTargetResolveFn
 ): NumericMaterializationResult => {
   if (!entries?.length) return { ok: true, element };
   let materialized = element;
@@ -127,7 +132,8 @@ export const materializeNumericBindingElement = (
     if (entry.typedExpression) {
       const evaluation = evaluateTypedExpression(entry.typedExpression, {
         lookupBinding: resolveBinding,
-        ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {})
+        ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {}),
+        ...(resolveGeometryTarget ? { lookupGeometryTarget: resolveGeometryTarget } : {})
       });
       if (evaluation.status !== "ok" || evaluation.type.kind !== "number" || evaluation.value.kind !== "number" || !Number.isFinite(evaluation.value.value)) {
         return { ok: false, error: numericBindingFailure(materialized, entry.parameterKey) };

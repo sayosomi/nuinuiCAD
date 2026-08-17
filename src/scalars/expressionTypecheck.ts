@@ -17,7 +17,11 @@ import {
   type ScalarExpressionAst
 } from "./expressionAst";
 import type { BindingResolution } from "./bindingResolution";
-import { getBuiltinFunctionDefinition, isScalarBuiltinParameterType } from "./builtinFunctions";
+import {
+  formatBuiltinCallingStyleMismatch,
+  getBuiltinFunctionDefinition,
+  isScalarBuiltinParameterType
+} from "./builtinFunctions";
 import type {
   ScalarExpressionResolvedGeometryTarget,
   ScalarExpressionResolvedReference,
@@ -266,16 +270,41 @@ const checkNode = (
       const sourceStyle = scalarCallArgumentStyle(node.args);
       const hasNamedSignature = definition.signatures.some((candidate) => candidate.callingStyle === "named");
       const effectiveStyle = node.args.length === 0 && hasNamedSignature ? "named" : sourceStyle;
+      const positionalRecoverySignature = definition.signatures.find((candidate) => candidate.callingStyle === "positional");
+      const recoverInvalidCallArguments = (): TypedBuiltinArgument[] => node.args.map((arg, argumentIndex) => {
+        const parameterType = positionalRecoverySignature?.parameters[argumentIndex]?.type;
+        const sourceArgument = arg.expression;
+        if (
+          arg.kind === "positional" &&
+          (parameterType === "point" || parameterType === "line")
+        ) {
+          if (sourceArgument.kind === "reference") {
+            const resolution = nextReferenceResolution(state, sourceArgument.name, sourceArgument.span.start);
+            return {
+              kind: "geometryReference",
+              expectedGeometryType: parameterType,
+              target: resolution.kind === "resolvedGeometry" ? resolution.target : null
+            };
+          }
+          if (sourceArgument.kind === "geometryProperty" && parameterType === "point") {
+            return {
+              kind: "geometryReference",
+              expectedGeometryType: parameterType,
+              target: state.geometryBuiltinArguments?.get(sourceArgument.span.start) ?? null
+            };
+          }
+          checkNode(sourceArgument, null, state);
+          return { kind: "geometryReference", expectedGeometryType: parameterType, target: null };
+        }
+        return { kind: "scalar", expression: checkNode(sourceArgument, null, state) };
+      });
       const styleMatches = effectiveStyle !== "mixed" && definition.signatures.some((candidate) => candidate.callingStyle === effectiveStyle);
       if (!styleMatches) {
-        const args: TypedBuiltinArgument[] = node.args.map((arg) => ({
-          kind: "scalar",
-          expression: checkNode(arg.expression, null, state)
-        }));
+        const args = recoverInvalidCallArguments();
         addDiagnostic(state, {
           code: "function-call-style-mismatch",
           span: node.nameSpan,
-          message: `組み込み関数「${node.name}」の呼び出し形式が一致しません。`
+          message: formatBuiltinCallingStyleMismatch(definition)
         });
         return {
           kind: "call",
@@ -296,7 +325,7 @@ const checkNode = (
           .filter((candidate) => candidate.callingStyle === "positional")
           .map((candidate) => candidate.parameters.length);
         const arityText = acceptedArities.length === 1 ? `${acceptedArities[0]}` : acceptedArities.join("または");
-        const args: TypedBuiltinArgument[] = node.args.map((arg) => ({ kind: "scalar", expression: checkNode(arg.expression, null, state) }));
+        const args = recoverInvalidCallArguments();
         addDiagnostic(state, {
           code: "function-arity-mismatch",
           span: node.nameSpan,

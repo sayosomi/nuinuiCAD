@@ -136,6 +136,16 @@ fn finish_builtin_call(
         super::builtin_function_semantics::BuiltinFunctionEvaluation::Error(error) => {
             let issue_code = match error {
                 BuiltinFunctionError::InvalidArgument => "evaluation-invalid-builtin-argument",
+                BuiltinFunctionError::SqrtNegativeInput => "evaluation-sqrt-negative-input",
+                BuiltinFunctionError::RoundToNonPositiveStep => {
+                    "evaluation-round-to-non-positive-step"
+                }
+                BuiltinFunctionError::IsCloseNegativeTolerance => {
+                    "evaluation-is-close-negative-tolerance"
+                }
+                BuiltinFunctionError::TanOddMultipleOf90 => "evaluation-tan-odd-multiple-of-90",
+                BuiltinFunctionError::AsinOutOfRange => "evaluation-asin-out-of-range",
+                BuiltinFunctionError::AcosOutOfRange => "evaluation-acos-out-of-range",
                 BuiltinFunctionError::NonFiniteResult => "evaluation-non-finite-result",
             };
             ScalarEvaluation::Error {
@@ -274,6 +284,16 @@ pub(crate) fn evaluate_geometry_builtin_call(
         Err(GeometryBuiltinRuntimeError::InvalidArgument) => ScalarEvaluation::Error {
             r#type,
             issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+            binding_id: None,
+        },
+        Err(GeometryBuiltinRuntimeError::Disabled) => ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-geometry-builtin-disabled".to_owned(),
+            binding_id: None,
+        },
+        Err(GeometryBuiltinRuntimeError::ZeroLengthLine) => ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-zero-length-line".to_owned(),
             binding_id: None,
         },
     }

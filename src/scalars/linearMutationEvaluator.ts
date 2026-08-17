@@ -9,7 +9,7 @@ import type {
   BindingVersionGraph,
   BindingVersionId
 } from "./bindingVersions";
-import { evaluateTypedExpression } from "./expressionEvaluator";
+import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult } from "./expressionEvaluator";
 import {
   createForGroupMutationEnvironment,
   type ForGroupMutationFrame,
@@ -20,7 +20,6 @@ import type {
   ScalarExpressionResolvedGeometryTarget,
   TypedScalarGeometryPropertyReferenceNode
 } from "./typedExpressionAst";
-import type { ComputedGeometry } from "../types/geometry";
 
 export type BindingVersionRuntimeHistory = {
   versionId: BindingVersionId;
@@ -115,7 +114,7 @@ const conditionalOwners = (graph: BindingVersionGraph): ReadonlyMap<string, read
 export const createIncrementalLinearMutationEvaluator = (
   graph: BindingVersionGraph,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
-  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => ComputedGeometry | undefined
+  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined
 ): IncrementalLinearMutationEvaluator => {
   const currentByBindingId = new Map<BindingId, ScalarEvaluation>();
   const historyByVersionId = new Map<BindingVersionId, BindingVersionRuntimeHistory>();

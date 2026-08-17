@@ -266,7 +266,7 @@ export class Parser {
     if (this.consume()?.type !== "rightParen") throw new Error("閉じ括弧がありません。");
     const result = evaluateBuiltinFunction("sqrt", [value]);
     if (result.status === "error") {
-      if (result.reason === "invalid-argument" && value < 0) {
+      if (result.reason === "sqrt-negative-input") {
         throw new Error("sqrt の引数は0以上である必要があります。");
       }
       throw new Error("sqrt の計算結果が不正です。");

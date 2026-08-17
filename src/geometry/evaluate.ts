@@ -23,7 +23,8 @@ import type { BindingVersionGraph } from "../scalars/bindingVersions";
 import { hasSetVersions } from "../scalars/linearMutationEvaluator";
 import {
   createDocumentLinearScalarBindingResolver,
-  createDocumentScalarBindingResolver
+  createDocumentScalarBindingResolver,
+  resolveDocumentGeometryTarget
 } from "./scalarProgramEvaluation";
 import {
   groupPropertyBindingRuntimeEntriesByElement,
@@ -197,10 +198,10 @@ export const evaluateElements = (
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
   const linearMutationResolver = linearMutationEnabled
-    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, elementsById })
+    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, elementsById, activities })
     : undefined;
   const declarationResolver = !linearMutationResolver && options.scalarProgram
-    ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, elementsById })
+    ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, elementsById, activities })
     : undefined;
   const scalarBindingResolver = linearMutationResolver ?? declarationResolver;
   const resolveScalarGeometryProperty = (
@@ -358,11 +359,23 @@ export const evaluateElements = (
 
     const numericEntriesForElement = numericBindingEntriesByElementId?.get((sourceElement ?? element).id);
     if (numericEntriesForElement?.length) {
+      const numericSourceId = (sourceElement ?? element).id;
+      const numericSourceOrder = options.scalarExecutionPositionByElementId?.get(numericSourceId) ??
+        options.scalarExecutionPositionByElementId?.get(element.id) ??
+        options.statementInfoByElementId?.get(numericSourceId)?.statementIndex ??
+        options.sourceExecutionPositionByElementId?.get(element.id);
       const materialized = materializeNumericBindingElement(
         element,
         numericEntriesForElement,
         scalarBindingResolver!.resolveBinding,
-        resolveScalarGeometryProperty
+        resolveScalarGeometryProperty,
+        numericSourceOrder === undefined
+          ? undefined
+          : (target) => resolveDocumentGeometryTarget(
+              { computedGeometry, elementsById, activities },
+              target,
+              numericSourceOrder
+            )
       );
       if (!materialized.ok) {
         errors.push(materialized.error);

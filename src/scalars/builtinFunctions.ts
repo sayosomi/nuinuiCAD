@@ -112,3 +112,21 @@ export const formatBuiltinFunctionSignatures = (definition: BuiltinFunctionDefin
       return `${definition.name}(${parameters.join(", ")}) -> ${builtinParameterTypeDisplayName(signature.returnType)}`;
     })
     .join(" | ");
+
+const formatBuiltinArgumentExample = (type: BuiltinParameterType, index: number): string => {
+  if (typeof type === "string") return `@${type}`;
+  if (type.kind === "number") return index === 0 ? "100" : "20";
+  if (type.kind === "boolean") return "true";
+  if (type.kind === "string") return '"value"';
+  return type.options[0] ?? "value";
+};
+
+/** Formats the repair guidance for a named-only builtin from registry metadata. */
+export const formatBuiltinCallingStyleMismatch = (definition: BuiltinFunctionDefinition): string => {
+  const namedSignature = definition.signatures.find((signature) => signature.callingStyle === "named");
+  if (!namedSignature) return `組み込み関数「${definition.name}」の呼び出し形式が一致しません。`;
+  const example = namedSignature.parameters
+    .map((parameter, index) => `${parameter.name}: ${formatBuiltinArgumentExample(parameter.type, index)}`)
+    .join(", ");
+  return `${definition.name} は名前付き引数で呼び出してください。例: ${definition.name}(${example})`;
+};

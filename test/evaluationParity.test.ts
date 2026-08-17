@@ -238,15 +238,15 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(scalarBindingFor(fixture, payload, "geometryArgument")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
       expect(scalarBindingFor(fixture, payload, "sqrtInvalid")).toMatchObject({
         status: "error",
-        issueCode: "evaluation-invalid-builtin-argument"
+        issueCode: "evaluation-sqrt-negative-input"
       });
       expect(scalarBindingFor(fixture, payload, "roundToInvalid")).toMatchObject({
         status: "error",
-        issueCode: "evaluation-invalid-builtin-argument"
+        issueCode: "evaluation-round-to-non-positive-step"
       });
       expect(scalarBindingFor(fixture, payload, "closeInvalid")).toMatchObject({
         status: "error",
-        issueCode: "evaluation-invalid-builtin-argument"
+        issueCode: "evaluation-is-close-negative-tolerance"
       });
       const offset = fixture.elements.find((element) => element.name === "BuiltinOffset")!;
       const template = fixture.elements.find((element) => element.name === "BuiltinTemplate")!;
@@ -273,14 +273,17 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       ] as const) {
         expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
       }
-      for (const name of [
-        "tanInvalid90", "tanInvalid270", "tanInvalidNegative90",
-        "asinInvalidLow", "asinInvalidHigh", "acosInvalidLow", "acosInvalidHigh"
-      ] as const) {
+      for (const name of ["tanInvalid90", "tanInvalid270", "tanInvalidNegative90"] as const) {
         expect(scalarBindingFor(fixture, payload, name)).toMatchObject({
           status: "error",
-          issueCode: "evaluation-invalid-builtin-argument"
+          issueCode: "evaluation-tan-odd-multiple-of-90"
         });
+      }
+      for (const name of ["asinInvalidLow", "asinInvalidHigh"] as const) {
+        expect(scalarBindingFor(fixture, payload, name)).toMatchObject({ status: "error", issueCode: "evaluation-asin-out-of-range" });
+      }
+      for (const name of ["acosInvalidLow", "acosInvalidHigh"] as const) {
+        expect(scalarBindingFor(fixture, payload, name)).toMatchObject({ status: "error", issueCode: "evaluation-acos-out-of-range" });
       }
 
       const evaluated = evaluationPayloadToResult(payload);
@@ -409,7 +412,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       });
       expect(scalarBindingFor(fixture, payload, "disabledDistance")).toMatchObject({
         status: "error",
-        issueCode: "evaluation-geometry-builtin-unavailable"
+        issueCode: "evaluation-geometry-builtin-disabled"
       });
       expect(scalarBindingFor(fixture, payload, "derivedDistance")).toMatchObject({
         status: "ok",
@@ -449,7 +452,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       });
       expect(scalarBindingFor(fixture, payload, "lineDistanceZero")).toMatchObject({
         status: "error",
-        issueCode: "evaluation-invalid-builtin-argument"
+        issueCode: "evaluation-zero-length-line"
       });
       expect(scalarBindingFor(fixture, payload, "mutationValue")).toMatchObject({
         status: "ok",
@@ -457,8 +460,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       });
       expect(runtimeDiagnosticsFor(fixture, payload)).toEqual(expect.arrayContaining([
         expect.objectContaining({
-          code: "evaluation-geometry-builtin-unavailable",
-          message: "組み込み関数のgeometry引数を評価できません。参照先のgeometryが有効で、正常に評価済みか確認してください。",
+          code: "evaluation-geometry-builtin-disabled",
+          message: "組み込み関数のgeometry引数がdisabledのため利用できません。",
           origin: "runtime"
         })
       ]));
@@ -488,11 +491,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expectScalarNumberClose(scalarBindingFor(fixture, payload, "setValue"), 90);
       expect(scalarBindingFor(fixture, payload, "zeroFirst")).toMatchObject({
         status: "error",
-        issueCode: "evaluation-invalid-builtin-argument"
+        issueCode: "evaluation-zero-length-line"
       });
       expect(scalarBindingFor(fixture, payload, "zeroSecond")).toMatchObject({
         status: "error",
-        issueCode: "evaluation-invalid-builtin-argument"
+        issueCode: "evaluation-zero-length-line"
       });
     }
 
