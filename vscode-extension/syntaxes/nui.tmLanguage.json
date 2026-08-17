@@ -171,19 +171,15 @@
           ]
         },
         {
-          "begin": "(?<![\\p{L}\\p{N}_-])(const|let)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)",
-          "beginCaptures": {
+          "captures": {
             "1": {
               "name": "storage.modifier.nui"
+            },
+            "2": {
+              "name": "entity.name.variable.nui"
             }
           },
-          "end": "(?==|\\{|\\n|$|[,;])",
-          "patterns": [
-            {
-              "name": "entity.name.variable.nui",
-              "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
-            }
-          ]
+          "match": "(?<![\\p{L}\\p{N}_-])(const|let)\\s+([\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)(?=\\s*(?::|=|$))"
         },
         {
           "begin": "(?<![\\p{L}\\p{N}_-])(number|string|boolean|choice|point|line|path|curve|arc|text|image)(?=\\s+[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)",
@@ -402,7 +398,7 @@
               "name": "storage.type.nui"
             }
           },
-          "match": "(:\\s*)(number|string|boolean|choice|point|line|path|curve|arc|text|image)(?=\\s*(?:[,)]|=|$))"
+          "match": "(:\\s*)(number|string|boolean|choice|point|line|path)(?=\\s*(?:[,)]|=|$))"
         }
       ]
     },

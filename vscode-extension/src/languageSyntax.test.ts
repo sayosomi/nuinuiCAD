@@ -338,6 +338,72 @@ describe("nui VS Code language foundation", () => {
     await expectScope("-2 ^ 2", "2", "constant.numeric.nui");
   });
 
+  it("keeps const/let annotations in the normal type-position grammar", async () => {
+    const constNumber = "const seam: number = 5";
+    await expectScope(constNumber, "const", "storage.modifier.nui");
+    await expectScope(constNumber, "seam", "entity.name.variable.nui");
+    await expectScope(constNumber, "number", "storage.type.nui");
+    await expectNotScope(constNumber, "number", "entity.name.variable.nui");
+    await expectScope(constNumber, "=", "keyword.operator.assignment.nui");
+    await expectScope(constNumber, "5", "constant.numeric.nui");
+
+    const letNumber = "let angle: number = 90";
+    await expectScope(letNumber, "let", "storage.modifier.nui");
+    await expectScope(letNumber, "angle", "entity.name.variable.nui");
+    await expectScope(letNumber, "number", "storage.type.nui");
+
+    const constBoolean = "const show: boolean = @seam > 0 and not false";
+    await expectScope(constBoolean, "boolean", "storage.type.nui");
+    await expectScope(
+      constBoolean,
+      "@",
+      "punctuation.definition.variable.nui"
+    );
+    await expectScope(
+      constBoolean,
+      "seam",
+      "variable.other.nui"
+    );
+    await expectScope(
+      constBoolean,
+      ">",
+      "keyword.operator.comparison.nui"
+    );
+    await expectScope(
+      constBoolean,
+      "and",
+      "keyword.operator.logical.nui"
+    );
+    await expectScope(
+      constBoolean,
+      "not",
+      "keyword.operator.logical.nui"
+    );
+    await expectScope(
+      constBoolean,
+      "false",
+      "constant.language.boolean.nui"
+    );
+
+    const constChoice = "const mode: choice = choice(前, 後)";
+    await expectScope(constChoice, "mode", "entity.name.variable.nui");
+    await expectScope(constChoice, "choice", "storage.type.nui");
+    await expectScope(
+      constChoice,
+      "choice",
+      "storage.type.nui",
+      1
+    );
+    await expectScope(
+      constChoice,
+      "前",
+      "constant.other.enum.nui"
+    );
+
+    const invalidElementType = "const x: curve = 1";
+    await expectNotScope(invalidElementType, "curve", "storage.type.nui");
+  });
+
   it("avoids semantic-looking false positives", async () => {
     const loop = "for i in range(...) { x: i * 10 }";
     await expectScope(loop, "for", "keyword.control.nui");
