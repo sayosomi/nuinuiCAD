@@ -133,6 +133,34 @@ describe("queryDslCompletion", () => {
     expect(result?.replacementRange.from).toBe(source.indexOf("@前身頃::か") + "@前身頃::".length);
   });
 
+  it("filters ordinary CAD qualified members by the point reference parameter kind", () => {
+    const source = [
+      "nui 4",
+      "group G {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "  line L = segment(start: @P, end: @P)",
+      "}",
+      "point X = offset(from: @G::, dx: 0, dy: 0)"
+    ].join("\n");
+    const result = exactQuery(source, "@G::", "@G::".length);
+    expect(result?.context).toMatchObject({ expectedGeometryKind: "point" });
+    expect(labels(result)).toEqual(["P"]);
+  });
+
+  it("filters ordinary CAD qualified members by the line reference parameter kind", () => {
+    const source = [
+      "nui 4",
+      "group G {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "  line L = segment(start: @P, end: @P)",
+      "}",
+      "point X = intersection(line1: @G::, line2: @G::, index: 0, extensions: false)"
+    ].join("\n");
+    const result = exactQuery(source, "@G::", "@G::".length);
+    expect(result?.context).toMatchObject({ expectedGeometryKind: "lineReference" });
+    expect(labels(result)).toEqual(["L"]);
+  });
+
   it("uses the canonical typed-scalar geometry property vocabulary", () => {
     const source = [
       "nui 4",

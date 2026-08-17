@@ -48,9 +48,33 @@ export type DslCompletionContext =
   | { kind: "moduleParameterType"; from: number; to: number }
   | { kind: "moduleArgumentLabel"; from: number; to: number; argumentIndex: number }
   | { kind: "moduleArgumentValue"; from: number; to: number; argumentIndex: number }
-  | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; argumentIndex?: number; expectedScalarType?: ScalarType }
+  | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; argumentIndex?: number; expectedScalarType?: ScalarType; expectedGeometryKind?: DslGeometryReferenceKind }
   | { kind: "moduleReference"; from: number; to: number }
   | null;
+
+export type DslGeometryReferenceKind =
+  | "point"
+  | "line"
+  | "lineEndpointReference"
+  | "lineReference"
+  | "lineReferenceList";
+
+/** Reuses the existing element parameter schema for source geometry references. */
+export const dslGeometryReferenceKindForParameter = (
+  parameter: DslCompletionParameter | undefined
+): DslGeometryReferenceKind | null => {
+  switch (parameter?.definition.kind) {
+    case "lineEndpointReference":
+      return "lineEndpointReference";
+    case "lineReference":
+    case "lineReferenceList":
+      return parameter.definition.kind;
+    case "reference":
+      return "point";
+    default:
+      return null;
+  }
+};
 
 /**
  * Task 51: the single classifier call for every numeric-attribute completion
@@ -293,6 +317,25 @@ const referenceCompletionSpan = (
   return item ? { from: item.start, to: pos } : { from: pos, to: pos };
 };
 
+const dslQualifiedGeometryKindAt = (
+  lineText: string,
+  pos: number
+): DslGeometryReferenceKind | null => {
+  const statement = dslLineElementStatement(lineText);
+  const elementType = statement ? dslStatementElementType(statement) : null;
+  if (!statement || !elementType) return null;
+  const metadata = dslCompletionMetadataForType(elementType);
+  const span = dslLineLabeledValueSpans(lineText).find((item) => {
+    const bounds = item.start === item.end && item.rawValueSpan ? item.rawValueSpan : item;
+    return pos >= bounds.start && pos <= bounds.end;
+  });
+  if (!span) return null;
+  const parameters = metadata.parameters.filter((parameter) =>
+    parameter.source === span.source && parameter.key === span.key
+  );
+  return parameters.length === 1 ? dslGeometryReferenceKindForParameter(parameters[0]) : null;
+};
+
 /**
  * Resolves only from freshly reparsed text: `lineText` is a statement's logical
  * projection (physical lines joined at continuation points) when the caller
@@ -318,12 +361,14 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
   const qualified = code.slice(0, pos).match(new RegExp(`[^\\s"'#=()[\\]{},;:.]+::[^\\s"'#=()[\\]{},;:.]*$`));
   if (qualified) {
     const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
+    const expectedGeometryKind = dslQualifiedGeometryKindAt(lineText, pos);
     return {
       kind: "moduleQualifiedMember",
       from: pos - qualified[0].length + qualified[0].indexOf("::") + 2,
       to: pos,
       qualifiedInstanceName: qualified[0].slice(0, qualified[0].indexOf("::")).replace(/^@/, ""),
-      ...(typedDeclarationContext ? { expectedScalarType: typedDeclarationContext.declaredType } : {})
+      ...(typedDeclarationContext ? { expectedScalarType: typedDeclarationContext.declaredType } : {}),
+      ...(expectedGeometryKind ? { expectedGeometryKind } : {})
     };
   }
 

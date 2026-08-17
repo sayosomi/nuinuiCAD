@@ -1,6 +1,11 @@
 import { dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "./dslDeclarationParser";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "./dslCallCompletionCandidates";
-import { dslCompletionContextAt, type DslCompletionContext } from "./dslCompletionContext";
+import {
+  dslCompletionContextAt,
+  dslGeometryReferenceKindForParameter,
+  type DslCompletionContext,
+  type DslGeometryReferenceKind
+} from "./dslCompletionContext";
 import { dslStatementElementType } from "./dslCompletionMetadata";
 import {
   createLogicalStatementSourceMap,
@@ -212,7 +217,7 @@ const scalarFallbackCandidates = (context: ScalarExpressionCompletionContext): D
 const sourceGeometryDeclarations = (
   compiled: CompiledDslDocument,
   statementIndex: number,
-  kind: "point" | "line" | "lineEndpointReference" | "lineReference" | "lineReferenceList"
+  kind: DslGeometryReferenceKind
 ) => {
   const namespace = compiled.sourceLexicalNamespace;
   if (!namespace || statementIndex < 0) return [];
@@ -221,35 +226,43 @@ const sourceGeometryDeclarations = (
     if (declaration.kind !== "geometry" || declaration.statementIndex >= statementIndex) continue;
     const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, declaration.name);
     if (lookup.kind !== "resolved" || lookup.declaration.statementId !== declaration.statementId) continue;
-    const elementType = dslStatementElementType(declaration.statement);
-    if (!elementType) continue;
-    const element = { type: elementType } as CadElement;
-    if (kind === "lineReference" || kind === "lineReferenceList") {
-      if (isLineLikeElement(element)) candidates.push({ kind: "geometry", label: declaration.name, identity: declaration.statementId });
-      continue;
-    }
-    if (kind === "point" && isPointElement(element)) {
-      candidates.push({ kind: "geometry", label: declaration.name, identity: declaration.statementId });
-      continue;
-    }
-    if (kind === "line" && isLineLikeElement(element)) {
-      candidates.push({ kind: "geometry", label: declaration.name, identity: declaration.statementId });
-      continue;
-    }
-    if (kind === "lineEndpointReference" && isLineLikeElement(element)) {
-      candidates.push(
-        { kind: "geometry", label: `${declaration.name}.start`, identity: `${declaration.statementId}:start` },
-        { kind: "geometry", label: `${declaration.name}.end`, identity: `${declaration.statementId}:end` }
-      );
-    }
+    candidates.push(...sourceGeometryCandidatesForDeclaration(declaration.name, declaration.statementId, declaration.statement, kind));
   }
   return candidates;
+};
+
+const sourceGeometryCandidatesForDeclaration = (
+  name: string,
+  statementId: string,
+  statement: Parameters<typeof dslStatementElementType>[0],
+  expectedGeometryKind?: DslGeometryReferenceKind
+): DslCompletionCandidate[] => {
+  if (!expectedGeometryKind) return [{ kind: "geometry", label: name, identity: statementId }];
+  const elementType = dslStatementElementType(statement);
+  if (!elementType) return [];
+  const element = { type: elementType } as CadElement;
+  if (expectedGeometryKind === "lineReference" || expectedGeometryKind === "lineReferenceList") {
+    return isLineLikeElement(element) ? [{ kind: "geometry", label: name, identity: statementId }] : [];
+  }
+  if (expectedGeometryKind === "point") {
+    return isPointElement(element) ? [{ kind: "geometry", label: name, identity: statementId }] : [];
+  }
+  if (expectedGeometryKind === "line") {
+    return isLineLikeElement(element) ? [{ kind: "geometry", label: name, identity: statementId }] : [];
+  }
+  return isLineLikeElement(element)
+    ? [
+        { kind: "geometry", label: `${name}.start`, identity: `${statementId}:start` },
+        { kind: "geometry", label: `${name}.end`, identity: `${statementId}:end` }
+      ]
+    : [];
 };
 
 const sourceGeometryQualifiedMembers = (
   compiled: CompiledDslDocument,
   statementIndex: number,
-  qualifier: string
+  qualifier: string,
+  expectedGeometryKind?: DslGeometryReferenceKind
 ): DslCompletionCandidate[] | null => {
   const namespace = compiled.sourceLexicalNamespace;
   if (!namespace || statementIndex < 0) return null;
@@ -269,7 +282,12 @@ const sourceGeometryQualifiedMembers = (
       const lookup = resolveSourceLexicalPath(namespace, statementIndex, memberPath);
       return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;
     })
-    .map((declaration) => ({ kind: "geometry" as const, label: declaration.name, identity: declaration.statementId }));
+    .flatMap((declaration) => sourceGeometryCandidatesForDeclaration(
+      declaration.name,
+      declaration.statementId,
+      declaration.statement,
+      expectedGeometryKind
+    ));
 };
 
 const sourceGeometryPropertyCandidates = (
@@ -395,7 +413,12 @@ const moduleCandidatesAt = (
   statementIndex: number
 ) => {
   if (context.kind === "moduleQualifiedMember" && compiled && exact) {
-    const sourceCandidates = sourceGeometryQualifiedMembers(compiled, statementIndex, context.qualifiedInstanceName);
+    const sourceCandidates = sourceGeometryQualifiedMembers(
+      compiled,
+      statementIndex,
+      context.qualifiedInstanceName,
+      context.expectedGeometryKind
+    );
     if (sourceCandidates !== null) return sourceCandidates;
   }
   if (!compiled || !semantic || !exact || (context.kind !== "moduleCallee" && !compiled.moduleSemanticAnalysis)) return [];
@@ -495,13 +518,7 @@ const statementElementReferenceCandidates = (
   statementIndex: number
 ) => {
   if (!compiled || context.parameter.definition.kind === "number") return [];
-  const kind = context.parameter.definition.kind === "lineEndpointReference"
-    ? "lineEndpointReference"
-    : context.parameter.definition.kind === "lineReference" || context.parameter.definition.kind === "lineReferenceList"
-      ? context.parameter.definition.kind
-      : context.parameter.definition.kind === "reference"
-        ? "point"
-        : null;
+  const kind = dslGeometryReferenceKindForParameter(context.parameter);
   return kind ? sourceGeometryDeclarations(compiled, statementIndex, kind) : [];
 };
 
