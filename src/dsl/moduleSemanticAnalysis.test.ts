@@ -554,6 +554,39 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
+  it("projects ordinary root geometry references by StatementIdentity without starting Module runtime", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 1, dy: 0)"
+    ].join("\n"));
+    const reference = compiled.sourceSemanticAnalysis!.rootGeometryReferencesByStatementId
+      .get("statement:test:2")?.[0].reference;
+
+    expect(compiled.sourceSemanticAnalysis!.definitions).toEqual([]);
+    expect(compiled.moduleMaterialization).toBeUndefined();
+    expect(reference).toMatchObject({
+      resolution: "resolved",
+      target: {
+        kind: "sourceGeometry",
+        statementId: "statement:test:1"
+      }
+    });
+  });
+
+  it("does not duplicate ordinary root geometry diagnostics in the source projection", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "point B = offset(from: @Missing, dx: 1, dy: 0)"
+    ].join("\n"));
+    const missing = compiled.diagnostics.filter((diagnostic) => diagnostic.message.includes("@Missing"));
+    const reference = compiled.sourceSemanticAnalysis!.rootGeometryReferencesByStatementId
+      .get("statement:test:1")?.[0].reference;
+
+    expect(missing).toHaveLength(1);
+    expect(reference).toMatchObject({ resolution: "undefined", target: null });
+  });
+
   it("honors allowCoordinate and preserves allowNone behavior from parameter definitions", () => {
     const compiled = compileWithIds([
       "nui 4",

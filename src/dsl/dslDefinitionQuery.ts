@@ -5,15 +5,9 @@ import type { ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import { parsePropertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
-import { getParameterValue } from "../parameters/parameterAccess";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
-import type { ElementId, PointAnchor } from "../types/geometry";
-import { commonArgSpecs, constructionFor } from "./dslConstructions";
 import { exactPhysicalSpan } from "./dslDiagnosticSpan";
 import type { CompiledDslDocument } from "./dslDocument";
 import type { SourceRevision, SourceSnapshot, DslPhysicalSpan } from "./logicalStatementSourceMap";
-import { parseDslSourceReference } from "./dslReferenceTokens";
-import { splitDslList } from "./dslTokens";
 import {
   createModuleSemanticRangeIndex,
   moduleSemanticDeclarationRange,
@@ -87,146 +81,9 @@ const declarationRangeForBinding = (
 ): DslDefinitionRange | null => {
   const binding = bindingAnalysis.catalog.bindingsById.get(bindingId);
   if (!binding || binding.nameSpan === null) return null;
-  const entry = bindingAnalysis.entriesById.get(bindingId);
-  if (entry?.status.kind !== "valid" || binding.declaredType === null) return null;
   const statement = compiled.statements[binding.statementIndex];
   if (!statement) return null;
   return singlePhysicalRange(statement.namePhysicalSpan) ?? physicalRangeFor(compiled, binding.statementIndex, binding.nameSpan);
-};
-
-const declarationRangeForElementId = (
-  compiled: CompiledDslDocument,
-  elementId: ElementId
-): DslDefinitionRange | null => {
-  const sourceNamespace = compiled.sourceLexicalNamespace;
-  const elementIds = compiled.statementMap?.elementIdByStatementIndex;
-  if (!sourceNamespace || !elementIds) return null;
-  const declaration = sourceNamespace.allDeclarations.find(
-    (candidate) => elementIds.get(candidate.statementIndex) === elementId
-  );
-  if (!declaration || declaration.nameSpan === null) return null;
-  const statement = compiled.statements[declaration.statementIndex];
-  if (!statement) return null;
-  return singlePhysicalRange(statement.namePhysicalSpan) ?? physicalRangeFor(compiled, declaration.statementIndex, declaration.nameSpan);
-};
-
-const rangeForSourceReferenceName = (
-  compiled: CompiledDslDocument,
-  statementIndex: number,
-  valueSpan: { start: number; end: number },
-  value: string,
-  targetId: ElementId
-): DefinitionCandidate | null => {
-  const parsed = parseDslSourceReference(value);
-  if (parsed.kind !== "valid") return null;
-  const referenceRange = physicalRangeFor(compiled, statementIndex, {
-    start: valueSpan.start + parsed.reference.pathRange.start,
-    end: valueSpan.start + parsed.reference.pathRange.end
-  });
-  const declarationRange = declarationRangeForElementId(compiled, targetId);
-  return referenceRange && declarationRange ? { referenceRange, declarationRange } : null;
-};
-
-const sourceTextForStatement = (compiled: CompiledDslDocument, statementIndex: number) => {
-  const statement = compiled.statements[statementIndex];
-  if (!statement) return null;
-  return compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from)?.logicalText ?? null;
-};
-
-const sourceValueFor = (
-  compiled: CompiledDslDocument,
-  statementIndex: number,
-  argName: string
-): { value: string; span: { start: number; end: number } } | null => {
-  const statement = compiled.statements[statementIndex];
-  const source = sourceTextForStatement(compiled, statementIndex);
-  const span = statement?.payloadSpans[argName];
-  if (!source || !span) return null;
-  return { value: source.slice(span.start, span.end), span };
-};
-
-const targetIdFromPointAnchor = (anchor: PointAnchor | null | undefined): ElementId | null => {
-  if (!anchor) return null;
-  return anchor.mode === "reference" || anchor.mode === "derived" ? anchor.mode === "reference" ? anchor.pointId : anchor.elementId : null;
-};
-
-const ordinaryGeometryCandidates = (compiled: CompiledDslDocument): DefinitionCandidate[] => {
-  const elementIds = compiled.statementMap?.elementIdByStatementIndex;
-  const elements = compiled.document?.elements;
-  if (!elementIds || !elements) return [];
-  const elementsById = new Map(elements.map((element) => [element.id, element]));
-  const candidates: DefinitionCandidate[] = [];
-
-  const addValueReference = (
-    statementIndex: number,
-    argName: string,
-    targetId: ElementId | null
-  ) => {
-    if (!targetId) return;
-    const value = sourceValueFor(compiled, statementIndex, argName);
-    const element = value ? rangeForSourceReferenceName(compiled, statementIndex, value.span, value.value, targetId) : null;
-    if (element) candidates.push(element);
-  };
-
-  const addReferenceList = (
-    statementIndex: number,
-    argName: string,
-    targetIds: readonly ElementId[] | undefined
-  ) => {
-    if (!targetIds || targetIds.length === 0) return;
-    const value = sourceValueFor(compiled, statementIndex, argName);
-    if (!value) return;
-    let cursor = 0;
-    for (const [index, item] of splitDslList(value.value).entries()) {
-      const offset = value.value.indexOf(item, cursor);
-      if (offset < 0) continue;
-      cursor = offset + item.length;
-      const targetId = targetIds[index];
-      if (!targetId) continue;
-      const candidate = rangeForSourceReferenceName(
-        compiled,
-        statementIndex,
-        { start: value.span.start + offset, end: value.span.start + offset + item.length },
-        item,
-        targetId
-      );
-      if (candidate) candidates.push(candidate);
-    }
-  };
-
-  for (const [statementIndex, statement] of compiled.statements.entries()) {
-    if (statement.kind !== "group" && statement.kind !== "element") continue;
-    const ownerId = elementIds.get(statementIndex);
-    const owner = ownerId ? elementsById.get(ownerId) : undefined;
-    if (!owner) continue;
-    const spec = statement.kind === "group"
-      ? constructionFor("group", "")
-      : constructionFor(statement.category, statement.construction);
-    if (!spec) continue;
-
-    for (const argSpec of [...spec.args, ...commonArgSpecs]) {
-      if (argSpec.special) continue;
-      const parameterKey = argSpec.parameterKey ?? argSpec.arg;
-      const definition = getParameterDefinitions(owner).find((candidate) => candidate.key === parameterKey);
-      if (!definition) continue;
-      const value = getParameterValue(owner, parameterKey);
-      if (definition.kind === "reference") {
-        addValueReference(statementIndex, argSpec.arg, targetIdFromPointAnchor(value as PointAnchor | null | undefined));
-      } else if (definition.kind === "lineEndpointReference") {
-        addValueReference(statementIndex, argSpec.arg, (value as { lineId?: ElementId } | undefined)?.lineId ?? null);
-      } else if (definition.kind === "lineReference") {
-        addValueReference(statementIndex, argSpec.arg, typeof value === "string" ? value : null);
-      } else if (definition.kind === "lineReferenceList") {
-        addReferenceList(statementIndex, argSpec.arg, Array.isArray(value) ? value.filter((item): item is ElementId => typeof item === "string") : undefined);
-      }
-    }
-
-    // `parent` is a compiler-resolved geometry/container identity even though
-    // it is a construction special argument rather than an Inspector parameter.
-    addValueReference(statementIndex, "parent", owner.parentGroupId ?? null);
-  }
-
-  return candidates;
 };
 
 const physicalReferenceRange = (
@@ -234,6 +91,37 @@ const physicalReferenceRange = (
   statementIndex: number,
   span: { start: number; end: number }
 ) => physicalRangeFor(compiled, statementIndex, span);
+
+const declarationRangeForStatementIdentity = (
+  compiled: CompiledDslDocument,
+  statementId: string
+): DslDefinitionRange | null => {
+  const declaration = compiled.sourceLexicalNamespace?.allDeclarations.find(
+    (candidate) => candidate.statementId === statementId
+  );
+  if (!declaration) return null;
+  const statement = compiled.statements[declaration.statementIndex];
+  if (!statement) return null;
+  const nameSpan = declaration.nameSpan ?? statement.nameSpan;
+  if (!nameSpan) return null;
+  return singlePhysicalRange(statement.namePhysicalSpan) ?? physicalRangeFor(compiled, declaration.statementIndex, nameSpan);
+};
+
+const rootGeometryPropertyCandidates = (compiled: CompiledDslDocument): DefinitionCandidate[] => {
+  const candidates: DefinitionCandidate[] = [];
+  const statementIndexById = compiled.statementMap?.statementIndexByStatementId;
+  for (const [statementId, site] of compiled.moduleSemanticAnalysis?.rootScalarExpressionsByStatementId ?? []) {
+    const statementIndex = statementIndexById?.get(statementId);
+    if (statementIndex === undefined) continue;
+    for (const reference of site.expression.geometryProperties) {
+      if (reference.target?.kind !== "sourceGeometryProperty") continue;
+      const referenceRange = physicalReferenceRange(compiled, statementIndex, reference.elementNameSpan);
+      const declarationRange = declarationRangeForStatementIdentity(compiled, reference.target.statementId);
+      if (referenceRange && declarationRange) candidates.push({ referenceRange, declarationRange });
+    }
+  }
+  return candidates;
+};
 
 const bindingCandidatesFromExpression = (
   compiled: CompiledDslDocument,
@@ -337,6 +225,7 @@ const bindingCandidatesFromCompiledSources = (
 };
 
 const moduleCandidateAt = (
+  compiled: CompiledDslDocument,
   index: ModuleSemanticRangeIndex,
   position: number
 ): DefinitionCandidate | null => {
@@ -348,7 +237,11 @@ const moduleCandidateAt = (
     .sort((left, right) => (left.to - left.from) - (right.to - right.from))[0];
   if (!token) return null;
   const declarationToken = moduleSemanticDeclarationRange(index, target);
-  const declaration = declarationToken ? { from: declarationToken.from, to: declarationToken.to } : null;
+  const declaration = declarationToken
+    ? { from: declarationToken.from, to: declarationToken.to }
+    : target.kind === "moduleSource"
+      ? declarationRangeForStatementIdentity(compiled, target.statementId)
+      : null;
   if (!declaration || (declaration.from === token.from && declaration.to === token.to)) return null;
   return { referenceRange: { from: token.from, to: token.to }, declarationRange: declaration };
 };
@@ -365,8 +258,14 @@ export const queryDslDefinition = ({ source, position, semantic }: DslDefinition
   if (source.normalizedSource.includes("\r") || position < 0 || position > source.normalizedSource.length) return null;
   if (!semanticIsExact(source, semantic) || !semantic?.compiled) return null;
   const compiled = semantic.compiled;
-  const module = moduleCandidateAt(createModuleSemanticRangeIndex(compiled), position);
+  const sourceSemanticCompiled = compiled.moduleSemanticAnalysis || !compiled.sourceSemanticAnalysis
+    ? compiled
+    : { ...compiled, moduleSemanticAnalysis: compiled.sourceSemanticAnalysis };
+  const module = moduleCandidateAt(sourceSemanticCompiled, createModuleSemanticRangeIndex(sourceSemanticCompiled), position);
   if (module) return module;
+
+  const geometryProperty = candidateAt(rootGeometryPropertyCandidates(sourceSemanticCompiled), position);
+  if (geometryProperty) return geometryProperty;
 
   const bindingAnalysis = semantic.bindingAnalysis ?? compiled.bindingAnalysis;
   if (bindingAnalysis) {
@@ -377,7 +276,7 @@ export const queryDslDefinition = ({ source, position, semantic }: DslDefinition
     if (typed) return typed;
   }
 
-  return candidateAt(ordinaryGeometryCandidates(compiled), position);
+  return null;
 };
 
 export type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";

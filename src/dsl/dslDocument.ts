@@ -230,6 +230,8 @@ export type CompiledDslDocument = {
   typedDependencyGraph?: TypedDependencyGraph;
   /** Task 2 source-only lexical declarations, including inert module bodies. */
   sourceLexicalNamespace?: SourceLexicalNamespaceIndex;
+  /** Source-only semantic projection used by host-neutral Definition Query. */
+  sourceSemanticAnalysis?: ModuleSemanticAnalysis;
   /** Task 3 source-only module semantic result; never contains runtime geometry || instance IDs. */
   moduleSemanticAnalysis?: ModuleSemanticAnalysis;
   /** Task 5 runtime expansion && source-origin mapping; never persisted as source. */
@@ -1154,7 +1156,7 @@ export const compileDslDocument = (
           ] as const)
       )
     : undefined;
-  const moduleSemanticCompilation = sourceLexicalNamespace && stableStatementIdByIndex && hasModuleStatements
+  const sourceSemanticCompilation = sourceLexicalNamespace && stableStatementIdByIndex
     ? analyzeModuleSemantics({
         statements: parsed.statements,
         stableStatementIdByIndex,
@@ -1164,6 +1166,10 @@ export const compileDslDocument = (
         documentScalarBindings
       })
     : undefined;
+  // The source semantic projection is also useful for Definition Query in a
+  // document without Modules. Keep Module runtime/lowering paths gated by the
+  // existing hasModuleStatements condition below.
+  const moduleSemanticCompilation = hasModuleStatements ? sourceSemanticCompilation : undefined;
   if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
     const exportBindingSeeds = moduleScalarExportBindingSeeds(
       moduleSemanticCompilation,
@@ -1510,6 +1516,7 @@ export const compileDslDocument = (
       ...(bindingVersions ? { bindingVersions } : {}),
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
       ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
+      ...(sourceSemanticCompilation && !moduleSemanticCompilation ? { sourceSemanticAnalysis: sourceSemanticCompilation } : {}),
       ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
       ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
       ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
@@ -1592,6 +1599,7 @@ export const compileDslDocument = (
     ...(bindingVersions ? { bindingVersions } : {}),
     ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
     ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
+    ...(sourceSemanticCompilation && !moduleSemanticCompilation ? { sourceSemanticAnalysis: sourceSemanticCompilation } : {}),
     ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
     ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
     ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId

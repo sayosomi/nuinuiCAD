@@ -47,6 +47,34 @@ describe("queryDslDefinition", () => {
     expect(result!.declarationRange.from).toBe(source.indexOf("point A") + "point ".length);
   });
 
+  it("resolves ordinary geometry from source semantics without runtime materialization", () => {
+    const source = [
+      "nui 4",
+      "group Front {",
+      "  point Same = coordinate(x: 0, y: 0)",
+      "  point Use = offset(from: @Same, dx: 1, dy: 0)",
+      "}",
+      "group Back {",
+      "  point Same = coordinate(x: 10, y: 0)",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const runtimeIndependent = {
+      ...compiled,
+      document: compiled.document ? { ...compiled.document, elements: [] } : null
+    };
+    const position = source.indexOf("@Same") + "@Same".length;
+    const result = queryDslDefinition({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position,
+      semantic: { sourceRevision: 7, compiled: runtimeIndependent }
+    });
+
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.declarationRange)).toBe("Same");
+    expect(result!.declarationRange.from).toBe(source.indexOf("  point Same" ) + "  point ".length);
+  });
+
   it("uses the resolved BindingId for a typed reference", () => {
     const source = [
       "nui 4",
@@ -75,6 +103,20 @@ describe("queryDslDefinition", () => {
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.declarationRange)).toBe("value");
     expect(result!.declarationRange.from).toBe(source.indexOf("  const value" ) + "  const ".length);
+  });
+
+  it("follows a resolved BindingId even when the declaration binding is invalid", () => {
+    const source = [
+      "nui 4",
+      "const broken: number = @missing",
+      "const result: number = @broken"
+    ].join("\n");
+    const result = exactQuery(source, "@broken");
+
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.referenceRange)).toBe("broken");
+    expect(sourceSlice(source, result!.declarationRange)).toBe("broken");
+    expect(result!.declarationRange.from).toBe(source.indexOf("broken"));
   });
 
   it("resolves Module callees and parameters to their declarations", () => {
@@ -193,6 +235,26 @@ describe("queryDslDefinition", () => {
     expect(query(source.indexOf("@A in a comment") + 1)).toBeNull();
     expect(query(source.indexOf("\"@A\"") + 2)).toBeNull();
     expect(query(source.indexOf("from: @A") + "from: @".length - 1)).toBeNull();
+  });
+
+  it("returns null for builtin function names and geometry property names", () => {
+    const source = [
+      "nui 4",
+      "point Base = coordinate(x: 0, y: 0)",
+      "const width: number = abs(@Base.length)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const query = (position: number) => queryDslDefinition({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position,
+      semantic: { sourceRevision: 7, compiled }
+    });
+
+    expect(query(source.indexOf("abs") + 1)).toBeNull();
+    expect(query(source.indexOf("length"))).toBeNull();
+    const base = query(source.indexOf("@Base") + "@Base".length);
+    expect(base).not.toBeNull();
+    expect(sourceSlice(source, base!.declarationRange)).toBe("Base");
   });
 
   it("preserves exact Japanese and UTF-16 offsets", () => {
