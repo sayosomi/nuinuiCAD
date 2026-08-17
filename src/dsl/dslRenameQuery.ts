@@ -17,8 +17,12 @@ import {
 import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
-import { referencesIn } from "../scalars/typedDependencyGraph";
+import { geometryPropertiesIn, referencesIn } from "../scalars/typedDependencyGraph";
+import { parsePropertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
+import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import { resolveParameterValueSpan } from "./dslParameterSpans";
+import { coordinateComponent } from "./dslParameterSpanScanner";
 import { analyzeTypedBindingRenameInDocument } from "../document/typedRenameAnalysis";
 import {
   projectTypedRenameEdits,
@@ -150,6 +154,38 @@ const addPhysicalCandidate = (
   if (physical) addCandidate(candidates, physical.from, physical.to, identity);
 };
 
+const elementIdentity = (compiled: CompiledDslDocument, elementId: string | null): RenameIdentity | null =>
+  elementId && compiled.document?.elements.some((element) => element.id === elementId)
+    ? { kind: "element", elementId }
+    : null;
+
+/** Returns the existing compiler-owned logical value span for one numeric binding. */
+const numericValueSpan = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  parameterKey: string
+) => {
+  const statement = compiled.statements[statementIndex];
+  if (!statement) return null;
+  const logical = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
+  if (!logical) return null;
+
+  if (statement.kind === "element" || statement.kind === "group") {
+    const elementId = elementIdForStatementIndex(compiled, statementIndex);
+    const element = elementId ? compiled.document?.elements.find((candidate) => candidate.id === elementId) : undefined;
+    return element ? resolveParameterValueSpan(logical.logicalText, element, parameterKey) : null;
+  }
+
+  if (statement.kind !== "printLayout" && statement.kind !== "place") return null;
+  const coordinate = parameterKey.match(/^(.+):(x|y)$/);
+  const attributeKey = coordinate?.[1] ?? parameterKey;
+  const outer = statement.payloadSpans[attributeKey];
+  if (!outer) return null;
+  return coordinate
+    ? coordinateComponent(logical.logicalText, outer, coordinate[2] as "x" | "y")
+    : outer;
+};
+
 const addTypedCandidates = (compiled: CompiledDslDocument, candidates: RenameCandidate[]) => {
   const analysis = compiled.bindingAnalysis;
   if (!analysis) return;
@@ -199,7 +235,9 @@ const addTypedCandidates = (compiled: CompiledDslDocument, candidates: RenameCan
       addExpression(statementIndex, segment.expression);
     }
   }
-  for (const numeric of compiled.numericBindings?.values() ?? []) {
+  for (const [occurrenceKey, numeric] of compiled.numericBindings ?? []) {
+    const occurrence = parsePropertyBindingOccurrenceKey(occurrenceKey);
+    if (occurrence) addNumericGeometryPropertyCandidates(compiled, candidates, occurrence.statementIndex, numeric);
     for (const reference of numeric.references) {
       const physical = reference.physicalNameSpan?.segments.length === 1
         ? reference.physicalNameSpan.segments[0]
@@ -241,6 +279,31 @@ const addQualifiedPathCandidates = (
     const range = ranges.segments[index];
     if (range) addCandidate(candidates, range.start, range.end, identity);
   });
+};
+
+const addNumericGeometryPropertyCandidates = (
+  compiled: CompiledDslDocument,
+  candidates: RenameCandidate[],
+  statementIndex: number,
+  numeric: CompiledNumericBinding
+) => {
+  if (!numeric.typedExpression) return;
+  const valueSpan = numericValueSpan(compiled, statementIndex, numeric.parameterKey);
+  if (!valueSpan) return;
+  for (const reference of geometryPropertiesIn(numeric.typedExpression)) {
+    const identity = elementIdentity(compiled, reference.elementId);
+    if (!identity) continue;
+    addQualifiedPathCandidates(
+      compiled,
+      candidates,
+      statementIndex,
+      {
+        start: valueSpan.start + reference.elementNameSpan.start,
+        end: valueSpan.start + reference.elementNameSpan.end
+      },
+      identity
+    );
+  }
 };
 
 const addModuleSemanticPathCandidates = (compiled: CompiledDslDocument, candidates: RenameCandidate[]) => {

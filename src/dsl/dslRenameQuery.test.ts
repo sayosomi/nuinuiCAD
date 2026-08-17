@@ -76,6 +76,130 @@ describe("host-neutral DSL rename query", () => {
     expect(plan?.edits.some((edit) => source.slice(edit.from, edit.to) === "BaseCopy")).toBe(false);
   });
 
+  it("projects element-side geometry properties from numeric expressions", () => {
+    const source = [
+      "nui 4",
+      "# A in a comment",
+      "point A = coordinate(",
+      "  x: 0,",
+      "  y: 0,",
+      ")",
+      "point B = coordinate(",
+      "  x: @A.x + 10,",
+      "  y: 0,",
+      ")",
+      'text Label = label(text: "A", anchor: none, size: 3)'
+    ].join("\n");
+    const referenceStart = at(source, "@A.x");
+    const target = queryDslRenameTarget(snapshot(source), referenceStart + 1);
+    expect(target).toEqual({
+      sourceRevision: 7,
+      oldName: "A",
+      range: { from: referenceStart + 1, to: referenceStart + 2 }
+    });
+    expect(queryDslRenameTarget(snapshot(source), referenceStart + 3)).toBeNull();
+
+    const plan = planDslRenameEdits(snapshot(source), referenceStart + 1, "Renamed");
+    expect(plan).not.toBeNull();
+    expect(plan?.edits.map((edit) => edit.expectedText)).toEqual(["A", "A"]);
+    expect(plan?.edits.every((edit) => edit.newText === "Renamed")).toBe(true);
+    expect(plan?.edits.every((edit) => edit.from > source.indexOf("# A"))).toBe(true);
+    expect(source.slice(plan!.edits[0].from, plan!.edits[0].to)).toBe("A");
+    expect(source).toContain('text: "A"');
+  });
+
+  it("projects qualified numeric geometry-property segments independently", () => {
+    const source = [
+      "nui 4",
+      "group Group {",
+      "  point A = coordinate(",
+      "    x: 0,",
+      "    y: 0,",
+      "  )",
+      "}",
+      "point B = coordinate(",
+      "  x: @Group::A.x + 10,",
+      "  y: 0,",
+      ")"
+    ].join("\n");
+    const referenceStart = at(source, "@Group::A.x");
+    const group = queryDslRenameTarget(snapshot(source), referenceStart + 1);
+    const elementStart = referenceStart + "@Group::".length;
+    const element = queryDslRenameTarget(snapshot(source), elementStart);
+    expect(group?.oldName).toBe("Group");
+    expect(group?.range).toEqual({ from: referenceStart + 1, to: referenceStart + 6 });
+    expect(element?.oldName).toBe("A");
+    expect(element?.range).toEqual({ from: elementStart, to: elementStart + 1 });
+    expect(queryDslRenameTarget(snapshot(source), referenceStart + "@Group::A".length + 1)).toBeNull();
+
+    const groupPlan = planDslRenameEdits(snapshot(source), referenceStart + 1, "RenamedGroup");
+    expect(groupPlan).not.toBeNull();
+    expect(groupPlan?.edits.map((edit) => edit.expectedText)).toEqual(["Group", "Group"]);
+    const elementPlan = planDslRenameEdits(snapshot(source), elementStart, "RenamedA");
+    expect(elementPlan).not.toBeNull();
+    expect(elementPlan?.edits.map((edit) => edit.expectedText)).toEqual(["A", "A"]);
+  });
+
+  it("starts element rename from derived endpoint geometry properties", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(",
+      "  x: 0,",
+      "  y: 0,",
+      ")",
+      "point B = coordinate(",
+      "  x: 10,",
+      "  y: 0,",
+      ")",
+      "line AB = segment(",
+      "  start: @A,",
+      "  end: @B,",
+      ")",
+      "point Use = coordinate(",
+      "  x: @AB.startPoint.x + 1,",
+      "  y: 0,",
+      ")"
+    ].join("\n");
+    const referenceStart = at(source, "@AB.startPoint.x");
+    expect(queryDslRenameTarget(snapshot(source), referenceStart + 1)?.oldName).toBe("AB");
+    const plan = planDslRenameEdits(snapshot(source), referenceStart + 1, "RenamedLine");
+    expect(plan).not.toBeNull();
+    expect(plan?.edits.map((edit) => edit.expectedText)).toEqual(["AB", "AB"]);
+  });
+
+  it("starts rename from printLayout and place numeric geometry properties", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(",
+      "  x: 0,",
+      "  y: 0,",
+      ")",
+      "group G {",
+      "}",
+      "printLayout Sheet(",
+      "  output: pdf,",
+      "  paper: a4,",
+      "  orientation: portrait,",
+      "  width: 210+@A.x,",
+      "  height: 297,",
+      "  columns: 2,",
+      "  rows: 2,",
+      "  overlap: 10,",
+      "  scale: 1+@A.x,",
+      ") {",
+      "  place @G(x: 3+@A.x, y: 4+@A.x, angle: 5+@A.x, mirrorX: false)",
+      "}"
+    ].join("\n");
+    const scaleReference = source.indexOf("@A.x", source.indexOf("scale:"));
+    const placeReference = source.indexOf("@A.x", source.indexOf("place"));
+    const xReference = source.indexOf("@A.x", source.indexOf("x: 3"));
+    const yReference = source.indexOf("@A.x", source.indexOf("y: 4"));
+    const angleReference = source.indexOf("@A.x", source.indexOf("angle:"));
+    for (const referenceStart of [scaleReference, placeReference, xReference, yReference, angleReference]) {
+      expect(queryDslRenameTarget(snapshot(source), referenceStart + 1)?.oldName).toBe("A");
+    }
+  });
+
   it("routes module definitions, parameters, instances, and call labels through module semantics", () => {
     const source = [
       "nui 4",
@@ -94,6 +218,10 @@ describe("host-neutral DSL rename query", () => {
     const source = ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const stale = snapshot(source, 7);
     expect(queryDslRenameTarget({ ...stale, source: { ...stale.source, sourceRevision: 8 } }, 6)).toBeNull();
+    expect(queryDslRenameTarget({
+      ...stale,
+      semantic: { ...stale.semantic!, sourceText: `${source} ` }
+    }, 6)).toBeNull();
 
     const brokenSource = ["nui 4", "point A = offset(from: @Missing, dx: 1, dy: 0)"].join("\n");
     expect(queryDslRenameTarget(snapshot(brokenSource), at(brokenSource, "Missing"))).toBeNull();
