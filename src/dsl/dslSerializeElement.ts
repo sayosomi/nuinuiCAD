@@ -34,19 +34,6 @@ const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerialize
         ? `[${entries.map(([key, value]) => `${formatDslName(key)}: ${value}`).join("; ")}]`
         : null;
     }
-    case "vars": {
-      const variables = element.numericVariables ?? [];
-      return variables.length
-        ? `[${variables.map((variable) =>
-          `${formatDslName(variable.name)}: ${refs.numeric(variable.value, element)}`).join("; ")}]`
-        : null;
-    }
-    case "varIds": {
-      const variables = element.numericVariables ?? [];
-      return refs.includeRecordIds && variables.length
-        ? `[${variables.map((variable) => formatDslName(variable.id)).join(", ")}]`
-        : null;
-    }
     case "intermediates": {
       if (element.type !== "bezierCurve" || element.intermediatePoints.length === 0) return null;
       return `[${element.intermediatePoints.map((point) => [

@@ -52,7 +52,7 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
     if (!target || typeof target !== "object") return target;
     const value = target as Record<string, unknown>;
     if (value.kind === "parameter" || value.kind === "parameterProperty") return { kind: value.kind, definitionStatementId: value.definitionStatementId, parameterIndex: value.parameterIndex };
-    if (value.kind === "sourceGeometry" || value.kind === "sourceGeometryProperty" || value.kind === "moduleLocal" || value.kind === "elementLocalVariable" || value.kind === "iteration") return { kind: value.kind, statementId: value.statementId, variableIndex: value.variableIndex ?? null };
+    if (value.kind === "sourceGeometry" || value.kind === "sourceGeometryProperty" || value.kind === "moduleLocal" || value.kind === "iteration") return { kind: value.kind, statementId: value.statementId, variableIndex: value.variableIndex ?? null };
     if (value.kind === "documentBinding") return { kind: value.kind, bindingId: value.bindingId };
     if (value.kind === "deferredModuleScalarExport" || value.kind === "deferredModuleExport" || value.kind === "deferredModuleExportProperty") {
       const instance = analysis.instancesByStatementId.get(value.instanceStatementId as string);

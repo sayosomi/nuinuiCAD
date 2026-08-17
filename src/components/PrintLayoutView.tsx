@@ -151,13 +151,13 @@ const PrintNumberInput = ({
   // otherwise be the second IME-unsafe source in this same component.
   const [isComposing, setIsComposing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Print layout numeric expressions have no local variable pool of their
+  // Print layout numeric expressions have no private variable pool of their
   // own (typed bindings are referenced by plain @name, never rewritten
   // through an id-mapped pool - see numericBindingCompiler.ts).
-  const displayValue = formatNumericExpressionForDisplay(value, elements, []);
+  const displayValue = formatNumericExpressionForDisplay(value, elements);
   const inputValue = draft ?? displayValue;
   const valueFromInput = (input: string) =>
-    makeNumericExpression(normalizeNumericExpressionInput(input, elements, []));
+    makeNumericExpression(normalizeNumericExpressionInput(input, elements));
   const variableOptions = typedBindingOptions;
   const suggestionMatch = !isComposing
     ? numericVariableSuggestionMatch(inputValue, inputSelection.start, inputSelection.end)
@@ -213,7 +213,7 @@ const PrintNumberInput = ({
     setDraft(nextInput);
     commitValue({
       kind: "expression",
-      expression: normalizeNumericExpressionInput(nextInput, elements, [])
+      expression: normalizeNumericExpressionInput(nextInput, elements)
     } satisfies NumericExpression);
     setActiveSuggestionIndex(0);
     const nextCursor = activeSuggestionMatch.tokenStart + option.expression.length;

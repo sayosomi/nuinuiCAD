@@ -1,6 +1,6 @@
 // Runtime materialization for compiled typed occurrences inside general
 // numeric expressions. The numeric-expression compiler owns non-typed
-// local numeric syntax;
+// untyped numeric syntax;
 // this module replaces only compiler-proven BindingId slots before that
 // parser runs.  It never inserts a typed value into a name map || resolves a
 // typed name at runtime.

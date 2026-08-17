@@ -513,7 +513,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "  text Label = label(text: \"width=${@width}\", anchor: (0, 0))",
       "  text LabelLocal = label(text: \"first=${@first}\", anchor: (0, 0))",
       "  text Label2 = label(text: @caption, anchor: (0, 0))",
-      "  point P = coordinate(x: @width, y: 0, vars: [early: 10;,late: @])",
+      "  point P = coordinate(x: @width, y: 0)",
       "}"
     ].join("\n");
     const typed = await completionFor(source, source.indexOf("@first") + 1);
@@ -528,9 +528,6 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(localTemplate?.options.map((option) => option.label)).toContain("first");
     const property = await completionFor(source, source.indexOf("@caption") + 1);
     expect(property?.options.map((option) => option.label)).toContain("caption");
-    const local = await completionFor(source, source.lastIndexOf("@") + 1);
-    expect(local?.options.map((option) => option.label)).toContain("@early");
-    expect(local?.options.map((option) => option.label)).not.toContain("@late");
     const outer = await completionFor(source, source.indexOf("@outer") + 1);
     expect(outer?.options.map((option) => option.label)).not.toContain("outer");
   });

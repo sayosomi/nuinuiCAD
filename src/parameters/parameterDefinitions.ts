@@ -58,15 +58,6 @@ const commonParameters: ParameterDefinition[] = [
   { key: "colorId", label: "表示色", kind: "color" },
 ];
 
-const numericVariableParameters = (
-  element: CadElement,
-): ParameterDefinition[] =>
-  (element.numericVariables ?? []).map((variable) => ({
-    key: `variable:${variable.id}:value`,
-    label: `変数 ${variable.name}`,
-    kind: "number" as const,
-  }));
-
 const pointAnchorParameters = ({
   anchor,
   key,
@@ -133,7 +124,6 @@ const parameterDefinitionsForElement = (
     case "text":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "text", label: "テキスト", kind: "text" },
         ...pointAnchorParameters({
           anchor: element.anchor,
@@ -147,14 +137,12 @@ const parameterDefinitionsForElement = (
     case "freePoint":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "x", label: "x", kind: "number" },
         { key: "y", label: "y", kind: "number" },
       ];
     case "offsetPoint":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         {
           key: "fromPoint",
           label: "基準点",
@@ -167,7 +155,6 @@ const parameterDefinitionsForElement = (
     case "polarOffsetPoint":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         {
           key: "fromPoint",
           label: "基準点",
@@ -185,7 +172,6 @@ const parameterDefinitionsForElement = (
     case "divisionPoint":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.startPoint,
           key: "startPoint",
@@ -216,7 +202,6 @@ const parameterDefinitionsForElement = (
     case "lineDivisionPoint":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "endpoint", label: "端点", kind: "lineEndpointReference" },
         {
           key: "placementMode",
@@ -236,7 +221,6 @@ const parameterDefinitionsForElement = (
     case "intersectionPoint":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "line1Id", label: "線1", kind: "lineReference" },
         { key: "line2Id", label: "線2", kind: "lineReference" },
         { key: "intersectionIndex", label: "番号", kind: "number" },
@@ -245,7 +229,6 @@ const parameterDefinitionsForElement = (
     case "lineTangentOffsetPoint":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "baseLineId", label: "基準線", kind: "lineReference" },
         {
           key: "basePoint",
@@ -270,7 +253,6 @@ const parameterDefinitionsForElement = (
     case "bezierExtremePoint":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "baseLineId", label: "ベジェ線", kind: "lineReference" },
         { key: "segmentIndex", label: "区間番号", kind: "number" },
         {
@@ -283,14 +265,12 @@ const parameterDefinitionsForElement = (
     case "bezierBulgePoint":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "baseLineId", label: "ベジェ線", kind: "lineReference" },
         { key: "segmentIndex", label: "区間番号", kind: "number" },
       ];
     case "splitLine":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "baseLineId", label: "基準線", kind: "lineReference" },
         {
           key: "splitPoint",
@@ -302,7 +282,6 @@ const parameterDefinitionsForElement = (
     case "line":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.startPoint,
           key: "startPoint",
@@ -319,7 +298,6 @@ const parameterDefinitionsForElement = (
     case "angleLengthLine":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.startPoint,
           key: "startPoint",
@@ -337,7 +315,6 @@ const parameterDefinitionsForElement = (
     case "arcLine":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.centerPoint,
           key: "centerPoint",
@@ -361,7 +338,6 @@ const parameterDefinitionsForElement = (
     case "threePointArcLine":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.point1,
           key: "point1",
@@ -396,7 +372,6 @@ const parameterDefinitionsForElement = (
     case "cornerRadiusArcLine":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "endpoint1", label: "端点1", kind: "lineEndpointReference" },
         { key: "endpoint2", label: "端点2", kind: "lineEndpointReference" },
         { key: "radius", label: "半径", kind: "number" },
@@ -404,14 +379,12 @@ const parameterDefinitionsForElement = (
       ];
     case "edge":
       return [
-        ...numericVariableParameters(element),
         { key: "endpoint1", label: "端点1", kind: "lineEndpointReference" },
         { key: "endpoint2", label: "端点2", kind: "lineEndpointReference" },
         { key: "intersectionIndex", label: "番号", kind: "number" },
       ];
     case "extendTrim":
       return [
-        ...numericVariableParameters(element),
         { key: "endpoint", label: "端点", kind: "lineEndpointReference" },
         {
           key: "point",
@@ -427,7 +400,6 @@ const parameterDefinitionsForElement = (
     case "bezierCurve":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.startPoint,
           key: "startPoint",
@@ -482,7 +454,6 @@ const parameterDefinitionsForElement = (
     case "offsetLine":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "baseLineIds", label: "基準線", kind: "lineReferenceList" },
         { key: "offset", label: "オフセット量", kind: "number" },
         {
@@ -502,7 +473,6 @@ const parameterDefinitionsForElement = (
     case "move":
       return [
         ...(element.type === "move" ? [] : commonParameters),
-        ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.startPoint,
           key: "startPoint",
@@ -539,7 +509,6 @@ const parameterDefinitionsForElement = (
     case "symmetricMove":
       return [
         ...(element.type === "symmetricMove" ? [] : commonParameters),
-        ...numericVariableParameters(element),
         ...pointAnchorParameters({
           anchor: element.axisPoint1,
           key: "axisPoint1",
@@ -561,7 +530,6 @@ const parameterDefinitionsForElement = (
     case "image":
       return [
         ...commonParameters,
-        ...numericVariableParameters(element),
         { key: "sourcePath", label: "画像ファイル", kind: "text" },
         ...pointAnchorParameters({
           anchor: element.originPoint,

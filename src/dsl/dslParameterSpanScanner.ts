@@ -64,7 +64,7 @@ export const coordinateComponent = (source: string, span: DslSpan, component: "x
   return parts.length === 2 && target && hasText(target) ? target : null;
 };
 
-/** `[a; b; ...]` record-list decomposition (e.g. `vars: [...]`, `intermediates: [...]`). */
+/** `[a; b; ...]` record-list decomposition (for structured list arguments). */
 export const recordSpans = (source: string, span: DslSpan) => {
   if (source[span.start] !== "[" || source[span.end - 1] !== "]") return null;
   return nonEmptyDslSpans(splitDslTopLevelSpans(source, { start: span.start + 1, end: span.end - 1 }, ";"));

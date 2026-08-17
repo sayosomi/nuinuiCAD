@@ -11,7 +11,7 @@ import {
 import { isBareDslIdentifierChar, splitDslComment, splitDslTerms } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
 import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
-import { coordinateComponent, recordField, recordRemainder, recordSpans, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
+import { coordinateComponent, recordField, recordSpans, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
 import {
   placeCoordinateAttrKeys,
   placeNumericAttrKeys,
@@ -84,15 +84,7 @@ const numberFieldCompletionContext = (
   };
 };
 
-/** Local-variable-list marker: cmAutocomplete.ts routes to the vars=[...] record
- * candidate source (not the top-level @variable source) whenever the returned
- * parameter has this key, regardless of element type. */
-export const dslVarsAttributeParameterKey = "vars";
-
-/** intermediates=[...]-list marker: cmAutocomplete.ts routes to the plain
- * top-level @variable source (never the current element's local vars=, which
- * dslCompiler.ts's intermediates= evaluation never sees — see
- * dslIntermediatesFieldCompletionContext below). */
+/** intermediates=[...]-list marker used by the shared numeric completion path. */
 export const dslIntermediatesAttributeParameterKey = "intermediates";
 
 /**
@@ -118,27 +110,6 @@ const dslCoordinateLiteralCompletionContext = (
     source: parameter.source,
     key: parameter.key,
     definition: { key: parameter.definition.key, label: parameter.definition.label, kind: "number" }
-  });
-};
-
-/**
- * Locates the cursor's own record inside a live `vars=[name:expr;...]` attribute
- * && narrows to the `@`-token inside that record's expression field specifically
- * (never the name field). Uses parameter key `dslVarsAttributeParameterKey` so
- * cmAutocomplete.ts can route to the local-variable candidate source instead of
- * the top-level @variable source.
- */
-const dslVarsFieldCompletionContext = (code: string, pos: number, span: DslLabeledValueSpan): DslCompletionContext => {
-  const records = recordSpans(code, span);
-  if (!records) return null;
-  const record = records.find((item) => pos >= item.start && pos <= item.end);
-  if (!record) return null;
-  const expressionSpan = recordRemainder(code, record, 1);
-  if (!expressionSpan || pos < expressionSpan.start || pos > expressionSpan.end) return null;
-  return numberFieldCompletionContext(code, pos, expressionSpan.start, {
-    source: "attr",
-    key: dslVarsAttributeParameterKey,
-    definition: { key: dslVarsAttributeParameterKey, label: "変数", kind: "number" }
   });
 };
 
@@ -431,9 +402,6 @@ export const dslCompletionContextAt = (lineText: string, pos: number): DslComple
     if (parameter) return { kind: "parameter", from: pos, to: pos, parameter };
   }
   if (span) {
-    if (span.source === "attr" && span.key === dslVarsAttributeParameterKey) {
-      return dslVarsFieldCompletionContext(code, pos, span);
-    }
     if (span.source === "attr" && span.key === dslIntermediatesAttributeParameterKey) {
       return dslIntermediatesFieldCompletionContext(code, pos, span);
     }

@@ -22,7 +22,7 @@ const spanKey = (span: DslSpan) => `${span.start}:${span.end}`;
 // へ、attrsFromArgs が同じ引数を attrs へ写す)。同一 span の重複時は「後着を
 // 捨てる」dedupe のため、ここで attrs を先に並べて勝たせる。こうすると通常の
 // 引数は "attr"(dslCompletionMetadata.ts の source 正規化・printLayout ブロック
-// 補完・vars/intermediates ルーティングが期待する形)になり、attrs 側に対応
+// 補完・intermediates ルーティングが期待する形)になり、attrs 側に対応
 // エントリを持たない値(dslSettingsParser/dslCallParser が payloadSpans にしか
 // 書かない特別枠)は従来通り "payload" のまま残る。
 const candidateSpans = (statement: DslStatement): DslLabeledValueSpan[] => [

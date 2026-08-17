@@ -110,7 +110,6 @@ export const createCadElement = (
         name: uniqueName(id, `テキスト${textCount + 1}`),
         type,
         activity: "visible",
-        numericVariables: [],
         text: "テキスト",
         anchor: null,
         fontSize: 3
@@ -164,7 +163,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         numericParameterSteps: { ratio: 0.01 },
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId),
@@ -179,7 +177,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         numericParameterSteps: { ratio: 0.01 },
         endpoint: {
           lineId: lineLikeElements[0]?.id ?? "",
@@ -197,7 +194,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         line1Id: lineLikeElements[0]?.id ?? "",
         line2Id: lineLikeElements[1]?.id ?? lineLikeElements[0]?.id ?? "",
         intersectionIndex: 0,
@@ -214,7 +210,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         baseLineId: baseLine?.id ?? "",
         basePoint: baseLine ? derivedAnchor(baseLine.id, "start") : referenceAnchor(firstPointId),
         tangentAngleDeg: 0,
@@ -230,7 +225,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         baseLineId: lineLikeElements[0]?.id ?? "",
         segmentIndex: 0,
         directionDeg: 0
@@ -245,7 +239,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         baseLineId: lineLikeElements[0]?.id ?? "",
         segmentIndex: 0
       };
@@ -259,7 +252,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId)
       };
@@ -273,7 +265,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         startPoint: firstPointId ? referenceAnchor(firstPointId) : { mode: "coordinate", x: 0, y: 0 },
         angleDeg: 0,
         length: 100
@@ -288,7 +279,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         centerPoint: referenceAnchor(firstPointId),
         radius: 30,
         startAngleDeg: 0,
@@ -304,7 +294,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         point1: referenceAnchor(firstPointId),
         point2: referenceAnchor(secondPointId),
         point3: referenceAnchor(thirdPointId),
@@ -323,7 +312,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         endpoint1: {
           lineId: firstLine?.id ?? "",
           endpointKey: "start"
@@ -347,7 +335,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         endpoint1: {
           lineId: firstLine?.id ?? "",
           endpointKey: "start"
@@ -368,7 +355,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         endpoint: {
           lineId: lineLikeElements[0]?.id ?? "",
           endpointKey: "start"
@@ -397,7 +383,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         startPoint: referenceAnchor(firstPointId),
         startHandleAngleDeg: 0,
         startHandleLength: 30,
@@ -416,7 +401,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : [],
         offset: 10,
         side: "right",
@@ -433,7 +417,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         baseLineId: lineLikeElements[0]?.id ?? "",
         splitPoint: referenceAnchor(firstPointId)
       };
@@ -447,7 +430,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId),
         scale: 1,
@@ -465,7 +447,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId),
         scale: 1,
@@ -483,7 +464,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         axisPoint1: referenceAnchor(firstPointId),
         axisPoint2: referenceAnchor(secondPointId),
         baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
@@ -498,7 +478,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         axisPoint1: referenceAnchor(firstPointId),
         axisPoint2: referenceAnchor(secondPointId),
         baseLineIds: lineLikeElements[0] ? [lineLikeElements[0].id] : []
@@ -513,7 +492,6 @@ export const createCadElement = (
         name: uniqueName(id, requestedName),
         type,
         activity: "visible",
-        numericVariables: [],
         numericParameterSteps: { scale: 0.01 },
         sourcePath: "",
         originPoint: { mode: "coordinate", x: 0, y: 0 },

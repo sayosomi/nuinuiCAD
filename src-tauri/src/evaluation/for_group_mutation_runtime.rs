@@ -6,6 +6,7 @@
 use super::*;
 use crate::evaluation::for_group::{
     expand_for_group_iteration_from_template, for_group_loop_values, for_group_owned_template_ids,
+    iteration_local_variables,
 };
 use crate::evaluation::scalars::{ForGroupMutationEnvironment, ForGroupMutationError};
 
@@ -130,7 +131,6 @@ impl<'a> ForGroupMutationRuntime<'a> {
                         Some(&template_for_group_id),
                         context.iteration_index,
                         context.iteration_value,
-                        ancestor_iteration_variables,
                         ancestor_element_id_map,
                     );
                     generated = expanded.0;
@@ -240,9 +240,11 @@ impl<'a> ForGroupMutationRuntime<'a> {
         }
         let generated_index = state.elements_by_id[&generated_id];
         state.elements[generated_index] = generated_element.clone();
-        let Some(local_variables) = evaluate_local_variables(generated_index, state) else {
-            return Ok(ForGroupMutationRunOutcome::Completed);
-        };
+        let mut iteration_variables = ancestor_iteration_variables.to_vec();
+        if !current_iteration_variable.is_null() {
+            iteration_variables.push(current_iteration_variable.clone());
+        }
+        let local_variables = iteration_local_variables(&iteration_variables);
 
         if element_type(&generated_element) == Some("forGroup") {
             let template_for_group = self

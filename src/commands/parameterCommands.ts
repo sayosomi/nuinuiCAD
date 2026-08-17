@@ -1,47 +1,11 @@
 import { createCadElementId } from "../model/cadIds";
 import { pointAnchorOptions, referenceAnchor } from "../model/pointAnchors";
-import { supportsNumericVariables } from "../parameters/parameterAccess";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { PointAnchor } from "../types/geometry";
 import { getSelectedElement, updateSelectedElement } from "./commandRuntime";
 
 const anchorPointId = (anchor: PointAnchor) =>
   anchor.mode === "reference" ? anchor.pointId : null;
-
-export const addNumericVariable = () => {
-  const selectedElement = getSelectedElement();
-  if (!selectedElement || !supportsNumericVariables(selectedElement)) return;
-  const variable = {
-    id: createCadElementId(selectedElement.type),
-    name: `v${(selectedElement.numericVariables?.length ?? 0) + 1}`,
-    value: 30,
-  };
-  updateSelectedElement((element) =>
-    supportsNumericVariables(element)
-      ? {
-          ...element,
-          numericVariables: [...(element.numericVariables ?? []), variable],
-        }
-      : element,
-  );
-};
-
-export const deleteNumericVariable = (variableId: string | undefined) => {
-  const selectedElement = getSelectedElement();
-  if (!selectedElement || !supportsNumericVariables(selectedElement)) return;
-  const targetId = variableId ?? selectedElement.numericVariables?.at(-1)?.id;
-  if (!targetId) return;
-  updateSelectedElement((element) =>
-    supportsNumericVariables(element)
-      ? {
-          ...element,
-          numericVariables: (element.numericVariables ?? []).filter(
-            (variable) => variable.id !== targetId,
-          ),
-        }
-      : element,
-  );
-};
 
 export const addBezierIntermediatePoint = () => {
   const selectedElement = getSelectedElement();

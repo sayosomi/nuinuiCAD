@@ -90,14 +90,9 @@ fn evaluates_line_offset() {
 }
 
 #[test]
-fn evaluates_local_expression_offset() {
+fn evaluates_numeric_offset_parameter() {
     let mut elements = base_line_elements();
-    let mut offset = offset_line(
-        "offset",
-        vec!["line"],
-        json!({ "kind": "expression", "expression": "@ゆとり + 6" }),
-    );
-    offset["numericVariables"] = json!([{ "id": "ease", "name": "ゆとり", "value": 4 }]);
+    let offset = offset_line("offset", vec!["line"], json!(10));
     elements.push(offset);
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,

@@ -1,9 +1,7 @@
 import { addImage } from "./imageCreationCommands";
 import {
   addBezierIntermediatePoint,
-  addNumericVariable,
-  deleteBezierIntermediatePoint,
-  deleteNumericVariable
+  deleteBezierIntermediatePoint
 } from "./parameterCommands";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
 import { startCommandLineCreationForRecipe } from "./commandLineSessionCommands";
@@ -224,32 +222,6 @@ export const creationCommandDefinitions = {
     label: "分割線を追加",
     palette: { order: 20, keywords: ["split", "divide", "line", "分割", "分割線", "線", "追加"] },
     run: (context) => startCreationSessionForCommand("addSplitLine", context)
-  },
-  addNumericVariable: {
-    id: "addNumericVariable",
-    label: "要素内変数を追加",
-    palette: { order: 21, keywords: ["variable", "共有", "共通", "要素内", "変数", "追加"] },
-    run: () => addNumericVariable()
-  },
-  deleteNumericVariable: {
-    id: "deleteNumericVariable",
-    label: "要素内変数を削除",
-    palette: {
-      order: 22,
-      keywords: ["variable", "共有", "共通", "要素内", "変数", "削除"],
-      isAvailable: (context) => Boolean(context?.variableId)
-    },
-    run: (context) => deleteNumericVariable(context?.variableId)
-  },
-  addBezierNumericVariable: {
-    id: "addBezierNumericVariable",
-    label: "曲線の要素内変数を追加",
-    run: () => addNumericVariable()
-  },
-  deleteBezierNumericVariable: {
-    id: "deleteBezierNumericVariable",
-    label: "曲線の要素内変数を削除",
-    run: (context) => deleteNumericVariable(context?.variableId)
   },
   addBezierIntermediatePoint: {
     id: "addBezierIntermediatePoint",

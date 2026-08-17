@@ -160,7 +160,6 @@ const DRAW_ITEMS: &[MenuSpec] = &[
     SEP,
     cmd("addText", "テキストを追加"),
     SEP,
-    cmd("addNumericVariable", "要素内変数を追加"),
     cmd("addBezierIntermediatePoint", "曲線の中間点を追加"),
 ];
 

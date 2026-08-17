@@ -46,11 +46,3 @@ module Mixed(base: number) {
   }
 }
 instance MixedInstance = Mixed(base: 10)
-module ElementLocal(width: number) {
-  point ElementLocalPoint = coordinate(x: @width + @local, y: 5, vars: [local: 5])
-}
-instance ElementLocalInstance = ElementLocal(width: 10)
-module VariableInit(width: number) {
-  point VariableInitPoint = coordinate(x: @local, y: 6, vars: [local: @width + 5])
-}
-instance VariableInitInstance = VariableInit(width: 10)

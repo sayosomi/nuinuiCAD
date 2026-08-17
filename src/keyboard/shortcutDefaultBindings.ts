@@ -142,8 +142,6 @@ const contextRequiredCommandIds = new Set<CommandId>([
   "applyPickedLine",
   "cycleElementActivity",
   "setElementActivity",
-  "deleteNumericVariable",
-  "deleteBezierNumericVariable",
   "deleteBezierIntermediatePoint",
   "closeCommandPalette",
   "closeShortcutSettings"

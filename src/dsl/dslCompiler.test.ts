@@ -205,7 +205,25 @@ describe("DSL compiler", () => {
     const result = compileDslToElements("point A = coordinate(x: 0, y: 0, locked: true)", { elements: [] });
 
     expect(result.diagnostics.map((item) => item.message)).toContain(
-      "construction「coordinate」に引数「locked」はありません。候補: x、y、state、color、steps、vars、varIds、id、roles、parent、branch。"
+      "construction「coordinate」に引数「locked」はありません。候補: x、y、state、color、steps、id、roles、parent、branch。"
+    );
+    expect(result.elements).toHaveLength(0);
+  });
+
+  it("reports vars as the existing unknown argument diagnostic", () => {
+    const result = compileDslToElements("point A = coordinate(x: 0, y: 0, vars: 1)", { elements: [] });
+
+    expect(result.diagnostics.map((item) => item.message)).toContain(
+      "construction「coordinate」に引数「vars」はありません。候補: x、y、state、color、steps、id、roles、parent、branch。"
+    );
+    expect(result.elements).toHaveLength(0);
+  });
+
+  it("reports varIds as the existing unknown argument diagnostic", () => {
+    const result = compileDslToElements("point A = coordinate(x: 0, y: 0, varIds: 1)", { elements: [] });
+
+    expect(result.diagnostics.map((item) => item.message)).toContain(
+      "construction「coordinate」に引数「varIds」はありません。候補: x、y、state、color、steps、id、roles、parent、branch。"
     );
     expect(result.elements).toHaveLength(0);
   });

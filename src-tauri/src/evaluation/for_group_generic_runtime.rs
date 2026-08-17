@@ -11,6 +11,7 @@
 use super::*;
 use crate::evaluation::for_group::{
     expand_for_group_iteration_from_template, for_group_loop_values, for_group_owned_template_ids,
+    iteration_local_variables,
 };
 
 pub(super) struct GenericForGroupRuntime<'a> {
@@ -99,7 +100,6 @@ impl<'a> GenericForGroupRuntime<'a> {
                 Some(&template_for_group_id),
                 iteration_index,
                 variable_value,
-                ancestor_iteration_variables,
                 ancestor_element_id_map,
             );
             for row in rows
@@ -191,9 +191,7 @@ impl<'a> GenericForGroupRuntime<'a> {
         }
         let generated_index = state.elements_by_id[&generated_id];
         state.elements[generated_index] = generated_element.clone();
-        let Some(local_variables) = evaluate_local_variables(generated_index, state) else {
-            return;
-        };
+        let local_variables = iteration_local_variables(ancestor_iteration_variables);
 
         if element_type(&generated_element) == Some("forGroup") {
             let nested_template = self

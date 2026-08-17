@@ -220,24 +220,6 @@ describe("dslCompletionContextAt", () => {
     });
   });
 
-  describe("vars=[...] local variable record narrowing", () => {
-    it("narrows to the @token inside a later record's expression field", () => {
-      const line = "point P = coordinate(x: 0, y: 0, vars: [Width: 10;,Height: @Wi])";
-      const context = dslCompletionContextAt(line, at(line, "@Wi"));
-      expect(context).toMatchObject({
-        kind: "parameter",
-        from: line.indexOf("@Wi"),
-        to: at(line, "@Wi"),
-        parameter: { key: "vars" }
-      });
-    });
-
-    it("returns null when the cursor is in a record's name field, not its expression", () => {
-      const line = "point P = coordinate(x: 0, y: 0, vars: [Width: 10;,Height: 5])";
-      expect(dslCompletionContextAt(line, at(line, "Height"))).toBeNull();
-    });
-  });
-
   describe("place/printLayout block attributes", () => {
     it("offers number-kind @-completion for place's angle=", () => {
       const line = "place @Group1(at: (10, 20), angle: 15+@Wi)";
@@ -323,15 +305,6 @@ describe("dslCompletionContextAt", () => {
       });
     });
 
-    it("offers elementParameter narrowing inside a vars=[...] record expression field", () => {
-      const line = "point P = coordinate(x: 0, y: 0, vars: [Width: @直線AB.length])";
-      const context = dslCompletionContextAt(line, at(line, "直線AB.length"));
-      expect(context).toMatchObject({
-        kind: "elementParameter",
-        elementToken: "直線AB"
-      });
-    });
-
     it("offers elementParameter narrowing inside an intermediates=[...] numeric field", () => {
       const line = "curve C = bezier(start: A, end: B, intermediates: [pt1:@直線AB.startTangentAngleDeg:5:5:id1])";
       const context = dslCompletionContextAt(line, at(line, "直線AB.startTangentAngleDeg"));
@@ -372,12 +345,6 @@ describe("dslCompletionContextAt", () => {
       it("does not narrow the removed bare form", () => {
         const line = "point P = offset(from: A, dx: 直線AB.st)";
         expect(dslCompletionContextAt(line, at(line, "直線AB.st"))).toBeNull();
-      });
-
-      it("offers the sigil form's elementParameter narrowing inside vars=[...] too", () => {
-        const line = "point P = coordinate(x: 0, y: 0, vars: [Width: @直線AB.length])";
-        const context = dslCompletionContextAt(line, at(line, "@直線AB.length"));
-        expect(context).toMatchObject({ kind: "elementParameter", elementToken: "直線AB", sigil: true });
       });
 
       it("suppresses the bare form's elementParameter narrowing", () => {

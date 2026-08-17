@@ -20,7 +20,6 @@ import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnos
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
-import { buildElementLocalRangeIndexFromElements, type ElementLocalRangeIndex } from "./elementLocalRangeIndex";
 import { describeScalarType } from "./expressionTypecheck";
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
@@ -72,11 +71,7 @@ export type TextTemplateDependency = {
   readonly bindingId: BindingId;
   readonly name: string;
   readonly span: ScalarSpan;
-  /** The text element owning this hole, when known - lets a consumer (e.g.
-   * typedRenameOccurrences.ts) build a `site.elementLocal` for this
-   * occurrence, matching what `analyzeTextTemplate` itself already resolves
-   * against. Undefined only for a hypothetical caller with no owning
-   * element; every real document occurrence has one. */
+  /** The text element owning this hole, when known. */
   readonly elementId?: ElementId;
 };
 
@@ -116,8 +111,7 @@ export const analyzeTextTemplate = (
   bindingAnalysis: BindingAnalysis | undefined,
   scopeId: string | undefined,
   statementIndex: number,
-  elementLocalOwnerId: string | undefined,
-  elementLocalRangeIndex: ElementLocalRangeIndex
+  elementId: ElementId | undefined
 ): { template: TextTemplateAst | null; diagnostics: readonly OccurrenceDiagnostic[] } => {
   const scanned = scanTextTemplateLiteral(source, valueSpan);
   if (scanned.kind === "error") {
@@ -142,15 +136,14 @@ export const analyzeTextTemplate = (
           name: reference.name,
           site: {
             scopeId: scopeId!,
-            statementIndex,
-            ...(elementLocalOwnerId !== undefined ? { elementLocal: { ownerId: elementLocalOwnerId, order: Number.MAX_SAFE_INTEGER } } : {})
+            statementIndex
           }
         });
       });
     });
   }
   const resolutions = canResolve && requests.length > 0
-    ? resolveReferencesAtSites(bindingAnalysis!.catalog, requests, elementLocalRangeIndex)
+    ? resolveReferencesAtSites(bindingAnalysis!.catalog, requests)
     : new Map<string, BindingResolution>();
   const resolutionAt = (holeIndex: number, referenceIndex: number) => resolutions.get(requestKey(holeIndex, referenceIndex));
 
@@ -199,7 +192,7 @@ export const analyzeTextTemplate = (
     const ast = hole.ast;
 
     // A hole with no references, || whose every reference resolves to a
-    // non-typed catalog kind (element-local || iteration), || whose
+    // non-typed catalog kind (iteration), || whose
     // references cannot be resolved at all (no binding catalog present -
     // canResolve is false) stays in the numeric-expression path, exactly
     // like a bare numeric-expression property. Only a hole with at least one
@@ -210,7 +203,7 @@ export const analyzeTextTemplate = (
         !canResolve ||
         hole.references.every((_, referenceIndex) => {
           const resolution = resolutionAt(holeIndex, referenceIndex);
-          return resolution?.kind === "resolvedLocal" || (resolution?.kind === "resolved" && resolution.binding.kind !== "typed");
+          return resolution?.kind === "resolved" && resolution.binding.kind !== "typed";
         }));
 
     if (isNumericEligible) {
@@ -229,7 +222,7 @@ export const analyzeTextTemplate = (
     const referenceResolutions: BindingResolution[] = [];
     hole.references.forEach((reference, referenceIndex) => {
       const resolution = canResolve ? resolutionAt(holeIndex, referenceIndex) : undefined;
-      // `resolution.kind !== "resolved"` also catches a "resolvedLocal" ||
+      // `resolution.kind !== "resolved"` also catches a
       // "resolved"-but-non-typed reference reaching this strict typed-hole
       // path: isNumericEligible already routes an all-non-typed hole to the
       // numeric-expression path above, so this only fires for a hole mixing
@@ -261,7 +254,7 @@ export const analyzeTextTemplate = (
         bindingId: resolution.binding.id,
         name: reference.name,
         span: reference.span,
-        ...(elementLocalOwnerId !== undefined ? { elementId: elementLocalOwnerId } : {})
+        ...(elementId !== undefined ? { elementId } : {})
       });
     });
     if (hasReferenceDiagnostic) continue;
@@ -342,7 +335,6 @@ export const compileTextTemplates = ({
   includeStatement
 }: CompileTextTemplatesInput): TextTemplateCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
-  const elementLocalRangeIndex = buildElementLocalRangeIndexFromElements(elements);
   const diagnostics: DslDiagnostic[] = [];
   const templatesByOccurrenceKey = new Map<string, TextTemplateAst>();
 
@@ -361,7 +353,7 @@ export const compileTextTemplates = ({
       ? bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId
       : undefined;
 
-    const { template, diagnostics: occurrenceDiagnostics } = analyzeTextTemplate(paddedSource, span, bindingAnalysis, scopeId, statementIndex, elementId, elementLocalRangeIndex);
+    const { template, diagnostics: occurrenceDiagnostics } = analyzeTextTemplate(paddedSource, span, bindingAnalysis, scopeId, statementIndex, elementId);
     if (occurrenceDiagnostics.length > 0) {
       diagnostics.push(...occurrenceDiagnostics.map((diagnostic) => diagnosticAt(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message)));
       return;

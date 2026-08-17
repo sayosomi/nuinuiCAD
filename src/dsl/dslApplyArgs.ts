@@ -12,7 +12,7 @@ import { isLineLikeElement } from "../model/pointAnchors";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
-import type { CadElement, ElementId, NumericValue, NumericVariable, VisibilityRole } from "../types/geometry";
+import type { CadElement, ElementId, NumericValue, VisibilityRole } from "../types/geometry";
 import {
   resolveAnchor as resolveAnchorFromDsl,
   resolveEndpoint as resolveEndpointFromDsl,
@@ -91,13 +91,6 @@ const diagnostic = (line: number, message: string): DslDiagnostic => ({
   message,
 });
 
-const warning = (line: number, message: string): DslDiagnostic => ({
-  severity: "warning",
-  line,
-  column: 1,
-  message,
-});
-
 const booleanValue = (value: string) =>
   ["true", "1", "yes", "on"].includes(value.toLowerCase())
     ? true
@@ -155,15 +148,6 @@ const referenceListItems = (value: string): Array<{ text: string; offset: number
   return items;
 };
 
-const remapLocalVariableReferences = (value: NumericValue, ids: ReadonlyMap<string, string>): NumericValue =>
-  typeof value === "object" && value !== null && value.kind === "expression"
-    ? {
-        ...value,
-        expression: value.expression.replace(/@([^\s()+*/.<>!=&|]+)/g, (match, id: string) =>
-          ids.has(id) ? `@${ids.get(id)}` : match),
-      }
-    : value;
-
 const normalArgs = (spec: DslConstructionSpec, args: readonly ScannedArg[]) => {
   const byName = new Map<string, ScannedArg>();
   let positionalIndex = 0;
@@ -210,7 +194,6 @@ export const applyArgs = (
       normalizeNumericExpressionInput(
         source,
         resolvers.elementsForExpressions,
-        next.numericVariables ?? [],
         next,
         resolvers.nameContext,
       ),
@@ -360,42 +343,6 @@ export const applyArgs = (
       case "color":
         next = setParameterValue(next, parameterKey, unquoteDslString(value));
         break;
-    }
-  }
-
-  const vars = byName.get("vars");
-  if (vars) {
-    const variables: NumericVariable[] = [];
-    for (const record of splitDslRecords(vars.value)) {
-      const [name = "", ...expression] = splitRecordFields(record);
-      const variable: NumericVariable = {
-        id: `local-variable-${variables.length + 1}`,
-        name: unquoteDslString(name),
-        value: 0,
-      };
-      next = { ...next, numericVariables: [...variables, variable] };
-      variable.value = numeric(expression.join(":") || "0");
-      variables.push(variable);
-      next = { ...next, numericVariables: [...variables] };
-    }
-  }
-
-  const varIds = byName.get("varIds");
-  if (varIds) {
-    const ids = splitDslList(varIds.value);
-    const variables = next.numericVariables ?? [];
-    if (ids.length !== variables.length || ids.some((value) => !value.trim())) {
-      diagnostics.push(warning(resolvers.line, "varIds は vars と同じ数の空でないIDを指定してください。"));
-    } else {
-      const remappedIds = new Map(variables.map((variable, index) => [variable.id, ids[index]]));
-      next = {
-        ...next,
-        numericVariables: variables.map((variable, index) => ({
-          ...variable,
-          id: ids[index],
-          value: remapLocalVariableReferences(variable.value, remappedIds),
-        })),
-      };
     }
   }
 

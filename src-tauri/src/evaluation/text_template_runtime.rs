@@ -96,7 +96,7 @@ impl NumericExpressionHoleEvaluator for TextTemplateRuntimeContext<'_> {
     /// own `numeric_error` would otherwise produce - and never a second,
     /// duplicate error.
     fn evaluate_numeric_expression_hole(&mut self, raw: &str) -> Option<String> {
-        let normalized = normalize_text_expression(raw.trim(), self.element, self.state);
+        let normalized = normalize_text_expression(raw.trim(), self.state);
         let value = json!({ "kind": "expression", "expression": normalized });
         match numeric_value(
             &value,

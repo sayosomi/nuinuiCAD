@@ -115,6 +115,10 @@ Phase 5cでは `focusElementList` と `enterElementListMode` を統合し、正�
 | `toggleSelectedElementVisibility` |
 | `toggleSelectedElementEnabled` |
 | `commandLineAddVariable` |
+| `addNumericVariable` |
+| `deleteNumericVariable` |
+| `addBezierNumericVariable` |
+| `deleteBezierNumericVariable` |
 
 ## 3. ID不変で挙動が変わったもの(移行不要)
 

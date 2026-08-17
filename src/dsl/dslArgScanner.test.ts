@@ -47,12 +47,12 @@ describe("scanCallArgs", () => {
   });
 
   it("does not split nested values, quoted strings, or reference forms", () => {
-    const source = 'call(at: (0, 0), sources: [AB, CD], vars: [高さ: 10; 幅: @x * 2], text: "(: #)", ref: @前身頃::交点, endpoint: @AB.end)';
+    const source = 'call(at: (0, 0), sources: [AB, CD], records: [高さ: 10; 幅: @x * 2], text: "(: #)", ref: @前身頃::交点, endpoint: @AB.end)';
 
     expect(scan(source).args.map((arg) => [arg.key, arg.value])).toEqual([
       ["at", "(0, 0)"],
       ["sources", "[AB, CD]"],
-      ["vars", "[高さ: 10; 幅: @x * 2]"],
+      ["records", "[高さ: 10; 幅: @x * 2]"],
       ["text", '"(: #)"'],
       ["ref", "@前身頃::交点"],
       ["endpoint", "@AB.end"],

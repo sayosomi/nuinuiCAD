@@ -974,34 +974,6 @@ describe("module scalar runtime integration", () => {
     expect([...result.computedGeometry.values()].filter((value) => value.kind === "point").map((value) => value.x)).toEqual([11, 12]);
   });
 
-  it("maps a module scalar in a materialized element-local vars expression", () => {
-    const compiled = compileWithIds([
-      "nui 4",
-      "module M(width: number) {",
-      "  point P = coordinate(x: @width + @local, y: 0, vars: [local: 5])",
-      "}",
-      "instance A = M(width: 10)"
-    ].join("\n"));
-    expectValid(compiled);
-    const result = evaluateCompiled(compiled);
-    expect(result.errors).toEqual([]);
-    expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ kind: "point", x: 15 });
-  });
-
-  it("materializes a module scalar in an element-local vars initializer", () => {
-    const compiled = compileWithIds([
-      "nui 4",
-      "module M(width: number) {",
-      "  point P = coordinate(x: @local, y: 0, vars: [local: @width + 5])",
-      "}",
-      "instance A = M(width: 10)"
-    ].join("\n"));
-    expectValid(compiled);
-    const result = evaluateCompiled(compiled);
-    expect(result.errors).toEqual([]);
-    expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ kind: "point", x: 15 });
-  });
-
   it("passes an iteration-local scalar into a nested module call", () => {
     const compiled = compileWithIds([
       "nui 4",

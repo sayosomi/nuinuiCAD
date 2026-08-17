@@ -1,8 +1,6 @@
 import type { CadElement, CadElementType } from "../types/geometry";
 
 export type DslArgSpecial =
-  | "vars"
-  | "varIds"
   | "steps"
   | "roles"
   | "intermediates"
@@ -80,8 +78,6 @@ export const commonArgSpecs: DslArgSpec[] = [
   arg("state"),
   arg("color", "colorId"),
   special("steps", "steps"),
-  special("vars", "vars"),
-  special("varIds", "varIds"),
   special("id", "id"),
   special("roles", "roles"),
   special("parent", "parent"),

@@ -89,7 +89,7 @@ const setVisibleTypedBindings = (
  * only the catalog's own kind/mutability/declaredType shape (mirrors
  * setStatementCompiler.ts's classifySetTargetResolution's target-validity
  * chain, minus the status check that function also deliberately skips).
- * const/iteration/elementLocal are excluded by kind/mutability, never
+ * const/iteration are excluded by kind/mutability, never
  * by status.
  */
 export const setTargetCandidates = (deps: SetCompletionSiteDeps): readonly SetTargetCandidate[] =>

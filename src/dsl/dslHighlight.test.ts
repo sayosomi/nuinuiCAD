@@ -85,12 +85,5 @@ describe("DSL highlighting", () => {
         { kind: "reference", text: "seam" }
       ])
     );
-    expect(highlightDslLine("  vars: [Width: 10; ,Height: @W]")).toEqual(
-      expect.arrayContaining([
-        { kind: "attributeKey", text: "vars" },
-        { kind: "attributeKey", text: "Width" },
-        { kind: "attributeKey", text: "Height" }
-      ])
-    );
   });
 });

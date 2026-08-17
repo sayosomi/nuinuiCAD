@@ -105,10 +105,10 @@ describe("normalizeNumericExpressionInput", () => {
       }
     ];
 
-    expect(normalizeNumericExpressionInput("脇線.長さ", elements, [], elements[2])).toBe(
+    expect(normalizeNumericExpressionInput("脇線.長さ", elements, elements[2])).toBe(
       "front-line.length"
     );
-    expect(normalizeNumericExpressionInput("後身頃::脇線.長さ", elements, [], elements[2])).toBe(
+    expect(normalizeNumericExpressionInput("後身頃::脇線.長さ", elements, elements[2])).toBe(
       "back-line.length"
     );
   });
@@ -139,33 +139,6 @@ describe("normalizeNumericExpressionInput", () => {
     expect(normalizeNumericExpressionInput("曲線AC.長さ >= 100  or  曲線AC.長さ == 0", elements)).toBe(
       "curve-ac.length >= 100  or  curve-ac.length == 0"
     );
-  });
-
-  it("normalizes Japanese curve handle references and local variable references", () => {
-    const elements: CadElement[] = [
-      {
-        id: "curve-ac",
-        name: "曲線AC",
-        type: "bezierCurve",
-        activity: "visible",
-        numericVariables: [{ id: "shared", name: "共通長", value: 30 }],
-        startPoint: { mode: "reference", pointId: "a" },
-        startHandleAngleDeg: 0,
-        startHandleLength: 20,
-        intermediatePoints: [],
-        endPoint: { mode: "reference", pointId: "c" },
-        endHandleAngleDeg: 0,
-        endHandleLength: 20
-      }
-    ];
-
-    expect(
-      normalizeNumericExpressionInput(
-        "曲線AC.始点ハンドル長 + @共通長",
-        elements,
-        elements[0].type === "bezierCurve" ? elements[0].numericVariables ?? [] : []
-      )
-    ).toBe("curve-ac.startHandleLength + @shared");
   });
 
   it("formats Bezier intermediate point references with their point index", () => {
@@ -206,28 +179,6 @@ describe("normalizeNumericExpressionInput", () => {
         elements
       )
     ).toBe("distance(曲線AC.中間点2, 曲線AC.終点)");
-  });
-
-  it("normalizes a qualified local variable display name", () => {
-    const point: CadElement = {
-      id: "point-a",
-      name: "袖",
-      type: "freePoint",
-      activity: "visible",
-      numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
-      x: 0,
-      y: 0
-    };
-    const elements = [point];
-
-    expect(
-      normalizeNumericExpressionInput(
-        "@袖.寸法",
-        elements,
-        point.numericVariables ?? [],
-        point
-      )
-    ).toBe("@local-width");
   });
 
   it("normalizes the nui 4 sigil form of an element property reference (Task 51)", () => {
@@ -286,7 +237,7 @@ describe("normalizeNumericExpressionInput", () => {
     expect(normalizeNumericExpressionInput("@AB.startPoint.x", elements)).toBe("line-ab.startPoint.x");
   });
 
-  it("falls through to the element-property arm for @Self.property when Self has no matching local variable (Rule R review fix)", () => {
+  it("normalizes @Self.property as an element-property reference (Rule R review fix)", () => {
     const point: CadElement = {
       id: "point-a",
       name: "袖",
@@ -296,12 +247,11 @@ describe("normalizeNumericExpressionInput", () => {
       y: 0
     };
 
-    // No local variable named "length" exists on 袖 at all (count 0), so
-    // Rule R's local-variable arm never applies; the sigil is dropped && X
-    // resolves as an ordinary (self-referencing) element-property IR rather
+    // The sigil is dropped and the token resolves as an ordinary
+    // (self-referencing) element-property IR rather
     // than being left as an unconverted `@袖.length`. Evaluation, not
     // normalize, is what later rejects the self-reference.
-    expect(normalizeNumericExpressionInput("@袖.length", [point], [], point)).toBe("point-a.length");
+    expect(normalizeNumericExpressionInput("@袖.length", [point], point)).toBe("point-a.length");
   });
 
   it("resolves an element-property reference even when a same-named binding exists elsewhere", () => {
@@ -332,51 +282,7 @@ describe("normalizeNumericExpressionInput", () => {
     expect(normalizeNumericExpressionInput("@CD.length", elements)).toBe("line-cd.length");
   });
 
-  it("falls through to the element-property arm for an ambiguous (duplicate-named) local variable (Rule R review fix)", () => {
-    const point: CadElement = {
-      id: "point-a",
-      name: "袖",
-      type: "freePoint",
-      activity: "visible",
-      numericVariables: [
-        { id: "local-width-1", name: "寸法", value: 30 },
-        { id: "local-width-2", name: "寸法", value: 40 }
-      ],
-      x: 0,
-      y: 0
-    };
-
-    // Two local variables share the name "寸法", so Rule R's "exactly one"
-    // condition fails && the qualified-variable loop skips it; the sigil
-    // loop below must still fall through && resolve 袖 as an element-
-    // property reference rather than leaving `@袖.寸法` unconverted.
-    expect(
-      normalizeNumericExpressionInput(
-        "@袖.寸法",
-        [point],
-        point.numericVariables ?? [],
-        point
-      )
-    ).toBe("point-a.寸法");
-  });
-
-  it("Rule R matrix: self-name + exactly one matching local variable still resolves to the binding (unchanged by the review fix)", () => {
-    const point: CadElement = {
-      id: "point-a",
-      name: "袖",
-      type: "freePoint",
-      activity: "visible",
-      numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
-      x: 0,
-      y: 0
-    };
-
-    expect(
-      normalizeNumericExpressionInput("@袖.寸法", [point], point.numericVariables ?? [], point)
-    ).toBe("@local-width");
-  });
-
-  it("falls through to the element-property arm for a self-referencing Japanese property label on a measurable element type", () => {
+  it("normalizes a self-referencing Japanese property label on a measurable element type", () => {
     const curve: CadElement = {
       id: "curve-ac",
       name: "曲線AC",
@@ -391,12 +297,11 @@ describe("normalizeNumericExpressionInput", () => {
       endHandleLength: 20
     };
 
-    // 曲線AC has no local variable at all, so Rule R's local-variable arm
-    // never applies; the measurable-element (Japanese-label) sigil loop -
+    // The measurable-element (Japanese-label) sigil loop -
     // not just the generic nameTokens loop exercised by the freePoint cases
     // above - must also fall through for a self-reference.
     expect(
-      normalizeNumericExpressionInput("@曲線AC.長さ", [curve], [], curve)
+      normalizeNumericExpressionInput("@曲線AC.長さ", [curve], curve)
     ).toBe("curve-ac.length");
   });
 
@@ -411,7 +316,7 @@ describe("normalizeNumericExpressionInput", () => {
     };
 
     expect(
-      normalizeNumericExpressionInput("@AB.startPoint.x", [line], [], line)
+      normalizeNumericExpressionInput("@AB.startPoint.x", [line], line)
     ).toBe("line-ab.startPoint.x");
   });
 
@@ -464,7 +369,6 @@ describe("normalizeNumericExpressionInput", () => {
         type: "line",
         activity: "visible",
         parentGroupId: "front",
-        numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" }
       },
@@ -485,18 +389,15 @@ describe("normalizeNumericExpressionInput", () => {
     ];
     const context = createElementNameContext(elements);
     const current = elements[1];
-    const locals = current.numericVariables ?? [];
 
     for (const source of [
-      "脇線.長さ + @寸法",
-      "@脇線.寸法 + @基準寸法",
       "distance(\"前身頃::脇線\":start, 前身頃::脇線:end)",
       "曲線.始点ハンドル長 + 曲線.終点ハンドル長",
       "42",
       "unrelated + 1"
     ]) {
-      expect(normalizeNumericExpressionInput(source, elements, locals, current, context)).toBe(
-        normalizeNumericExpressionInput(source, elements, locals, current)
+      expect(normalizeNumericExpressionInput(source, elements, current, context)).toBe(
+        normalizeNumericExpressionInput(source, elements, current)
       );
     }
   });
@@ -535,17 +436,15 @@ describe("normalizeNumericExpressionInput", () => {
         type: "line",
         activity: "visible",
         parentGroupId: "group-front",
-        numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
         startPoint: { mode: "reference", pointId: "point-a" },
         endPoint: { mode: "reference", pointId: "point-b" }
       }
     ];
     const current = elements[3];
     const context = createElementNameContext(elements);
-    const locals = current.numericVariables ?? [];
     const fragments = [
       "脇線", "前身頃::脇線", "\"前身頃::脇線\"", "点A", "点B",
-      ".長さ", ".length", ":start", ":end", "@寸法", "@脇線.寸法", "@基準寸法",
+      ".長さ", ".length", ":start", ":end",
       "distance(", "点線距離(", ", ", ") + ", " + ", " - ", " * 2", "42", " "
     ];
 
@@ -553,8 +452,8 @@ describe("normalizeNumericExpressionInput", () => {
       fc.property(
         fc.array(fc.constantFrom(...fragments), { minLength: 1, maxLength: 12 }).map((parts) => parts.join("")),
         (source) => {
-          expect(normalizeNumericExpressionInput(source, elements, locals, current, context)).toBe(
-            normalizeNumericExpressionInput(source, elements, locals, current)
+          expect(normalizeNumericExpressionInput(source, elements, current, context)).toBe(
+            normalizeNumericExpressionInput(source, elements, current)
           );
         }
       ),
@@ -587,48 +486,4 @@ describe("normalizeNumericExpressionInput", () => {
     );
   });
 
-  it("formats a local variable id for display", () => {
-    const point: CadElement = {
-      id: "point-a",
-      name: "袖",
-      type: "freePoint",
-      activity: "visible",
-      numericVariables: [{ id: "local-width", name: "寸法", value: 30 }],
-      x: { kind: "expression", expression: "@local-width" },
-      y: 0
-    };
-
-    expect(
-      formatNumericExpressionForDisplay(
-        expression("@local-width"),
-        [point],
-        point.numericVariables ?? [],
-        point
-      )
-    ).toBe("@袖.寸法");
-  });
-
-  it("falls back to local variable ids when display names are ambiguous", () => {
-    const point: CadElement = {
-      id: "point-a",
-      name: "袖",
-      type: "freePoint",
-      activity: "visible",
-      numericVariables: [
-        { id: "local-width-1", name: "寸法", value: 30 },
-        { id: "local-width-2", name: "寸法", value: 40 }
-      ],
-      x: 0,
-      y: 0
-    };
-
-    expect(
-      formatNumericExpressionForDisplay(
-        expression("@local-width-1 + @local-width-2"),
-        [point],
-        point.numericVariables ?? [],
-        point
-      )
-    ).toBe("@local-width-1 + @local-width-2");
-  });
 });

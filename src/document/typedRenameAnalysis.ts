@@ -5,7 +5,6 @@
 // CompiledDslDocument, this file only adapts one to the other.
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import type { BindingId } from "../scalars/bindingCatalog";
-import { buildElementLocalRangeIndexFromElements } from "../scalars/elementLocalRangeIndex";
 import { analyzeTypedBindingRename, type TypedRenameAnalysis, type TypedRenameSpan } from "../scalars/typedRenameAnalysis";
 import { buildTypedRenameSplices, type TypedRenameSpliceEntry } from "./typedRenameSplice";
 import { applyLineSplices } from "./textPatch";
@@ -38,8 +37,7 @@ export const analyzeTypedBindingRenameInDocument = ({
     setStatements: compiled.setStatements,
     propertyBindings: compiled.propertyBindings,
     textTemplates: compiled.textTemplates,
-    numericBindings: compiled.numericBindings,
-    elementLocalRangeIndex: buildElementLocalRangeIndexFromElements(compiled.document?.elements ?? [])
+    numericBindings: compiled.numericBindings
   });
   if (analysis.verdict === "rejected" || !compiled.moduleSemanticAnalysis) return analysis;
 

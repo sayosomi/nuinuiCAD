@@ -43,11 +43,6 @@ export type DependencyCollectionOptions = {
   textTemplatesByElementId?: ReadonlyMap<ElementId, TextTemplateAst>;
 };
 
-const numericVariableReferences = (element: CadElement) =>
-  (element.numericVariables ?? []).flatMap((variable) =>
-    extractNumericExpressionReferences(variable.value)
-  );
-
 const pointAnchorParentIds = (anchor: PointAnchor) =>
   anchor.mode === "coordinate"
     ? [
@@ -87,57 +82,48 @@ export const getDirectParentIds = (
         return [];
       case "conditionalGroup":
         return [
-          ...numericVariableReferences(element),
           ...extractNumericExpressionReferences(element.condition)
         ].map((reference) => reference.elementId);
       case "forGroup":
         return [
-          ...numericVariableReferences(element),
           ...extractNumericExpressionReferences(element.start),
           ...extractNumericExpressionReferences(element.count),
           ...extractNumericExpressionReferences(element.step)
         ].map((reference) => reference.elementId);
       case "freePoint":
         return [
-          ...numericVariableReferences(element),
           ...extractNumericExpressionReferences(element.x),
           ...extractNumericExpressionReferences(element.y)
         ].map((reference) => reference.elementId);
       case "offsetPoint":
         return [
-          ...numericVariableReferences(element),
           ...extractNumericExpressionReferences(element.dx),
           ...extractNumericExpressionReferences(element.dy)
         ].map((reference) => reference.elementId);
       case "polarOffsetPoint":
         return [
-          ...numericVariableReferences(element),
           ...extractNumericExpressionReferences(element.angleDeg),
           ...extractNumericExpressionReferences(element.distance)
         ].map((reference) => reference.elementId);
       case "divisionPoint":
         return [
-          ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
           ...pointAnchorParentIds(element.endPoint).map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.placement.value)
         ].map((reference) => reference.elementId);
       case "lineDivisionPoint":
         return [
-          ...numericVariableReferences(element),
           { elementId: element.endpoint.lineId },
           ...extractNumericExpressionReferences(element.placement.value)
         ].map((reference) => reference.elementId);
       case "intersectionPoint":
         return [
-          ...numericVariableReferences(element),
           { elementId: element.line1Id },
           { elementId: element.line2Id },
           ...extractNumericExpressionReferences(element.intersectionIndex)
         ].map((reference) => reference.elementId);
       case "lineTangentOffsetPoint":
         return [
-          ...numericVariableReferences(element),
           { elementId: element.baseLineId },
           ...pointAnchorParentIds(element.basePoint).map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.tangentAngleDeg),
@@ -145,39 +131,33 @@ export const getDirectParentIds = (
         ].map((reference) => reference.elementId);
       case "bezierExtremePoint":
         return [
-          ...numericVariableReferences(element),
           { elementId: element.baseLineId },
           ...extractNumericExpressionReferences(element.segmentIndex),
           ...extractNumericExpressionReferences(element.directionDeg)
         ].map((reference) => reference.elementId);
       case "bezierBulgePoint":
         return [
-          ...numericVariableReferences(element),
           { elementId: element.baseLineId },
           ...extractNumericExpressionReferences(element.segmentIndex)
         ].map((reference) => reference.elementId);
       case "splitLine":
         return [
-          ...numericVariableReferences(element),
           { elementId: element.baseLineId },
           ...pointAnchorParentIds(element.splitPoint).map((elementId) => ({ elementId }))
         ].map((reference) => reference.elementId);
       case "line":
         return [
-          ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
           ...pointAnchorParentIds(element.endPoint).map((elementId) => ({ elementId }))
         ].map((reference) => reference.elementId);
       case "angleLengthLine":
         return [
-          ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.angleDeg),
           ...extractNumericExpressionReferences(element.length)
         ].map((reference) => reference.elementId);
       case "arcLine":
         return [
-          ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.centerPoint).map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.radius),
           ...extractNumericExpressionReferences(element.startAngleDeg),
@@ -185,7 +165,6 @@ export const getDirectParentIds = (
         ].map((reference) => reference.elementId);
       case "threePointArcLine":
         return [
-          ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.point1).map((elementId) => ({ elementId })),
           ...pointAnchorParentIds(element.point2).map((elementId) => ({ elementId })),
           ...pointAnchorParentIds(element.point3).map((elementId) => ({ elementId })),
@@ -194,7 +173,6 @@ export const getDirectParentIds = (
         ].map((reference) => reference.elementId);
       case "cornerRadiusArcLine":
         return [
-          ...numericVariableReferences(element),
           { elementId: element.endpoint1.lineId },
           { elementId: element.endpoint2.lineId },
           ...extractNumericExpressionReferences(element.radius),
@@ -202,25 +180,21 @@ export const getDirectParentIds = (
         ].map((reference) => reference.elementId);
       case "edge":
         return [
-          ...numericVariableReferences(element),
           { elementId: element.endpoint1.lineId },
           { elementId: element.endpoint2.lineId },
           ...extractNumericExpressionReferences(element.intersectionIndex)
         ].map((reference) => reference.elementId);
       case "extendTrim":
         return [
-          ...numericVariableReferences(element),
           { elementId: element.endpoint.lineId },
           ...pointAnchorParentIds(element.point).map((elementId) => ({ elementId }))
         ].map((reference) => reference.elementId);
       case "pathReverse":
         return [
-          ...numericVariableReferences(element),
           { elementId: element.targetLineId }
         ].map((reference) => reference.elementId);
       case "bezierCurve":
         return [
-          ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.startHandleAngleDeg),
           ...extractNumericExpressionReferences(element.startHandleLength),
@@ -236,14 +210,12 @@ export const getDirectParentIds = (
         ].map((reference) => reference.elementId);
       case "offsetLine":
         return [
-          ...numericVariableReferences(element),
           ...element.baseLineIds.map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.offset)
         ].map((reference) => reference.elementId);
       case "copyLine":
       case "move":
         return [
-          ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
           ...pointAnchorParentIds(element.endPoint).map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.scale),
@@ -253,21 +225,18 @@ export const getDirectParentIds = (
       case "symmetricCopyLine":
       case "symmetricMove":
         return [
-          ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.axisPoint1).map((elementId) => ({ elementId })),
           ...pointAnchorParentIds(element.axisPoint2).map((elementId) => ({ elementId })),
           ...element.baseLineIds.map((elementId) => ({ elementId }))
         ].map((reference) => reference.elementId);
       case "image":
         return [
-          ...numericVariableReferences(element),
           ...pointAnchorParentIds(element.originPoint).map((elementId) => ({ elementId })),
           ...extractNumericExpressionReferences(element.scale),
           ...extractNumericExpressionReferences(element.angleDeg)
         ].map((reference) => reference.elementId);
       case "text":
         return [
-          ...numericVariableReferences(element),
           ...textGeometryParentReferences(element, textTemplatesByElementId),
           ...(element.anchor ? pointAnchorParentIds(element.anchor).map((elementId) => ({ elementId })) : []),
           ...extractNumericExpressionReferences(element.fontSize)

@@ -34,7 +34,6 @@ const normalizedReference = (
     const tokens = tokenize(normalizeNumericExpressionInput(
       `@${elementName}.${property}`,
       [...elements],
-      [],
       currentElement,
       nameContext
     ));

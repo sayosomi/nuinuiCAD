@@ -88,10 +88,6 @@ const legacyCreationRecipes = () =>
 
 const nonElementCreationCommandIds = new Set([
   "addImage",
-  "addNumericVariable",
-  "deleteNumericVariable",
-  "addBezierNumericVariable",
-  "deleteBezierNumericVariable",
   "addBezierIntermediatePoint",
   "deleteBezierIntermediatePoint"
 ]);

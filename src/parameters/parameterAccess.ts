@@ -1,44 +1,10 @@
-import { singleLocalVariableReference } from "../geometry/numericExpressions";
 import { pointAnchorForElement, referenceAnchor } from "../model/pointAnchors";
 import type { CadElement, NumericValue, PointAnchor } from "../types/geometry";
-
-export const supportsNumericVariables = (element: CadElement) =>
-  element.type === "freePoint" ||
-  element.type === "offsetPoint" ||
-  element.type === "polarOffsetPoint" ||
-  element.type === "divisionPoint" ||
-  element.type === "lineDivisionPoint" ||
-  element.type === "intersectionPoint" ||
-  element.type === "lineTangentOffsetPoint" ||
-  element.type === "bezierExtremePoint" ||
-  element.type === "bezierBulgePoint" ||
-  element.type === "line" ||
-  element.type === "angleLengthLine" ||
-  element.type === "arcLine" ||
-    element.type === "threePointArcLine" ||
-    element.type === "cornerRadiusArcLine" ||
-    element.type === "edge" ||
-    element.type === "extendTrim" ||
-    element.type === "bezierCurve" ||
-  element.type === "offsetLine" ||
-  element.type === "splitLine" ||
-  element.type === "copyLine" ||
-  element.type === "symmetricCopyLine" ||
-  element.type === "move" ||
-  element.type === "symmetricMove" ||
-  element.type === "image" ||
-  element.type === "text";
 
 export const parseIntermediateParameterKey = (key: string) => {
   const [, intermediatePointId, field] = key.split(":");
   if (!key.startsWith("intermediate:") || !intermediatePointId || !field) return null;
   return { intermediatePointId, field };
-};
-
-export const parseVariableParameterKey = (key: string) => {
-  const [, variableId, field] = key.split(":");
-  if (!key.startsWith("variable:") || !variableId || field !== "value") return null;
-  return { variableId };
 };
 
 export const parseAnchorCoordinateParameterKey = (key: string) => {
@@ -214,10 +180,6 @@ export const getParameterValue = (element: CadElement, key: string) => {
   }
   const anchor = getPointAnchor(element, key);
   if (anchor) return anchor;
-  const variable = parseVariableParameterKey(key);
-  if (variable) {
-    return element.numericVariables?.find((item) => item.id === variable.variableId)?.value;
-  }
   const parsed = parseIntermediateParameterKey(key);
   if (parsed && element.type === "bezierCurve") {
     const intermediate = element.intermediatePoints.find(
@@ -257,15 +219,6 @@ export const setParameterValue = (
         : value as PointAnchor;
     return setPointAnchor(element, key, anchor);
   }
-  const variable = parseVariableParameterKey(key);
-  if (variable) {
-    return {
-      ...element,
-      numericVariables: (element.numericVariables ?? []).map((item) =>
-        item.id === variable.variableId ? { ...item, value: value as NumericValue } : item
-      )
-    };
-  }
   const parsed = parseIntermediateParameterKey(key);
   if (parsed && element.type === "bezierCurve") {
     return {
@@ -294,15 +247,5 @@ export const setNumericParameterOrLocalVariable = (
   key: string,
   value: NumericValue
 ): CadElement => {
-  const currentValue = getParameterValue(element, key);
-  const variableId = singleLocalVariableReference(currentValue as NumericValue);
-  if (variableId) {
-    return {
-      ...element,
-      numericVariables: (element.numericVariables ?? []).map((variable) =>
-        variable.id === variableId ? { ...variable, value } : variable
-      )
-    };
-  }
   return setParameterValue(element, key, value);
 };

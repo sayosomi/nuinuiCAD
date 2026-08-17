@@ -64,7 +64,6 @@ describe("createCadElement", () => {
       name: "テキスト1",
       type: "text",
       activity: "visible",
-      numericVariables: [],
       text: "テキスト",
       anchor: null,
       fontSize: 3
@@ -77,7 +76,6 @@ describe("createCadElement", () => {
       name: "分点AB",
       type: "divisionPoint",
       activity: "visible",
-      numericVariables: [],
       numericParameterSteps: { ratio: 0.01 },
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
@@ -91,7 +89,6 @@ describe("createCadElement", () => {
       name: "AB分点",
       type: "lineDivisionPoint",
       activity: "visible",
-      numericVariables: [],
       numericParameterSteps: { ratio: 0.01 },
       endpoint: { lineId: "line-ab", endpointKey: "start" },
       placement: { kind: "ratio", value: 0.5 }
@@ -133,7 +130,6 @@ describe("createCadElement", () => {
       name: "交点AB_BC",
       type: "intersectionPoint",
       activity: "visible",
-      numericVariables: [],
       line1Id: "line-ab",
       line2Id: "line-bc",
       intersectionIndex: 0,
@@ -147,7 +143,6 @@ describe("createCadElement", () => {
       name: "AB上オフセット点",
       type: "lineTangentOffsetPoint",
       activity: "visible",
-      numericVariables: [],
       baseLineId: "line-ab",
       basePoint: { mode: "derived", elementId: "line-ab", pointKey: "start" },
       tangentAngleDeg: 0,
@@ -162,7 +157,6 @@ describe("createCadElement", () => {
       name: "直線AB 2",
       type: "line",
       activity: "visible",
-      numericVariables: [],
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" }
     });
@@ -174,7 +168,6 @@ describe("createCadElement", () => {
       name: "A方向線",
       type: "angleLengthLine",
       activity: "visible",
-      numericVariables: [],
       startPoint: { mode: "reference", pointId: "point-a" },
       angleDeg: 0,
       length: 100
@@ -187,7 +180,6 @@ describe("createCadElement", () => {
       name: "A円弧",
       type: "arcLine",
       activity: "visible",
-      numericVariables: [],
       centerPoint: { mode: "reference", pointId: "point-a" },
       radius: 30,
       startAngleDeg: 0,
@@ -201,7 +193,6 @@ describe("createCadElement", () => {
       name: "円弧AC",
       type: "threePointArcLine",
       activity: "visible",
-      numericVariables: [],
       point1: { mode: "reference", pointId: "point-a" },
       point2: { mode: "reference", pointId: "point-b" },
       point3: { mode: "reference", pointId: "point-c" },
@@ -216,7 +207,6 @@ describe("createCadElement", () => {
       name: "AB_BC角R",
       type: "cornerRadiusArcLine",
       activity: "visible",
-      numericVariables: [],
       endpoint1: { lineId: "line-ab", endpointKey: "start" },
       endpoint2: { lineId: "line-bc", endpointKey: "start" },
       radius: 10,
@@ -232,7 +222,6 @@ describe("createCadElement", () => {
       name: "",
       type: "edge",
       activity: "visible",
-      numericVariables: [],
       endpoint1: { lineId: "line-ab", endpointKey: "start" },
       endpoint2: { lineId: "line-bc", endpointKey: "start" },
       intersectionIndex: 0
@@ -245,7 +234,6 @@ describe("createCadElement", () => {
       name: "",
       type: "extendTrim",
       activity: "visible",
-      numericVariables: [],
       endpoint: { lineId: "line-ab", endpointKey: "start" },
       point: { mode: "reference", pointId: "point-a" }
     });
@@ -267,7 +255,6 @@ describe("createCadElement", () => {
       name: "曲線AB",
       type: "bezierCurve",
       activity: "visible",
-      numericVariables: [],
       startPoint: { mode: "reference", pointId: "point-a" },
       startHandleAngleDeg: 0,
       startHandleLength: 30,
@@ -284,7 +271,6 @@ describe("createCadElement", () => {
       name: "AB分割",
       type: "splitLine",
       activity: "visible",
-      numericVariables: [],
       baseLineId: "line-ab",
       splitPoint: { mode: "reference", pointId: "point-a" }
     });
@@ -296,7 +282,6 @@ describe("createCadElement", () => {
       name: "方向極値点1",
       type: "bezierExtremePoint",
       activity: "visible",
-      numericVariables: [],
       baseLineId: "line-ab",
       segmentIndex: 0,
       directionDeg: 0
@@ -309,7 +294,6 @@ describe("createCadElement", () => {
       name: "最大膨らみ点1",
       type: "bezierBulgePoint",
       activity: "visible",
-      numericVariables: [],
       baseLineId: "line-ab",
       segmentIndex: 0
     });
@@ -321,7 +305,6 @@ describe("createCadElement", () => {
       name: "ABコピー",
       type: "copyLine",
       activity: "visible",
-      numericVariables: [],
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
       scale: 1,
@@ -337,7 +320,6 @@ describe("createCadElement", () => {
       name: "",
       type: "move",
       activity: "visible",
-      numericVariables: [],
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" },
       scale: 1,
@@ -353,7 +335,6 @@ describe("createCadElement", () => {
       name: "AB対称コピー",
       type: "symmetricCopyLine",
       activity: "visible",
-      numericVariables: [],
       axisPoint1: { mode: "reference", pointId: "point-a" },
       axisPoint2: { mode: "reference", pointId: "point-b" },
       baseLineIds: ["line-ab"]
@@ -366,7 +347,6 @@ describe("createCadElement", () => {
       name: "",
       type: "symmetricMove",
       activity: "visible",
-      numericVariables: [],
       axisPoint1: { mode: "reference", pointId: "point-a" },
       axisPoint2: { mode: "reference", pointId: "point-b" },
       baseLineIds: ["line-ab"]

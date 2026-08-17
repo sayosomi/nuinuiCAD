@@ -1,7 +1,7 @@
 import { isNumericExpression } from "../geometry/numericExpressions";
 import { elementNameTokensForContext } from "../model/elementNames";
 import type { ElementNameContext, ElementNameToken } from "../model/elementNames";
-import type { CadElement, ElementId, NumericValue, NumericVariable } from "../types/geometry";
+import type { CadElement, ElementId, NumericValue } from "../types/geometry";
 
 // DSL出力用の式フォーマッタ。内部式が持つ要素ID・変数IDを、
 // normalizeNumericExpressionInput が同じ内部式へ戻せるトークンに変換する。
@@ -36,7 +36,6 @@ export const shortestDslTokensById = (
 export const formatNumericValueForDsl = (
   value: NumericValue,
   elements: CadElement[],
-  localVariables: NumericVariable[] = [],
   currentElement?: CadElement,
   context?: ElementNameContext
 ): string => {
@@ -44,23 +43,11 @@ export const formatNumericValueForDsl = (
 
   const tokenById = shortestDslTokensById(elements, currentElement, context);
   const elementsById = context?.elementsById ?? new Map(elements.map((element) => [element.id, element]));
-  const localVariableNameCounts = new Map<string, number>();
-  for (const variable of localVariables) {
-    localVariableNameCounts.set(variable.name, (localVariableNameCounts.get(variable.name) ?? 0) + 1);
-  }
-  const localVariableTokenById = new Map(
-    localVariables
-      .filter((variable) => (localVariableNameCounts.get(variable.name) ?? 0) === 1)
-      .map((variable) => [variable.id, variable.name])
-  );
-
   return value.expression
     .replace(/&&/g, " and ")
     .replace(/\|\|/g, " or ")
     .replace(/!(?!=)/g, "not ")
-    .replace(/@([^\s()+*/.<>!=&|]+)/g, (match, variableId: string) => {
-      const localName = localVariableTokenById.get(variableId);
-      if (localName) return `@${localName}`;
+    .replace(/@([^\s()+*/.<>!=&|]+)/g, (match) => {
       return match;
     })
     .replace(/([\w-]+):(\w+)/g, (match, elementId: string, pointKey: string) => {

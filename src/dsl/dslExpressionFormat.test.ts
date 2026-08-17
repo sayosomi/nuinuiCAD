@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeNumericExpressionInput } from "../geometry/numericExpressions";
 import { createElementNameContext } from "../model/elementNames";
-import type { NumericVariable } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 
@@ -24,23 +23,16 @@ const buildElements = () => {
 
 const elements = buildElements();
 
-const roundTrip = (expression: string, localVariables: NumericVariable[] = []) =>
+const roundTrip = (expression: string) =>
   normalizeNumericExpressionInput(
-    formatNumericValueForDsl({ kind: "expression", expression }, elements, localVariables),
-    elements,
-    localVariables
+    formatNumericValueForDsl({ kind: "expression", expression }, elements),
+    elements
   );
 
 describe("formatNumericValueForDsl", () => {
   it("formats plain numbers like the serializer", () => {
     expect(formatNumericValueForDsl(42, elements)).toBe("42");
     expect(formatNumericValueForDsl(-1.5, elements)).toBe("-1.5");
-  });
-
-  it("round-trips element-local numeric variable references", () => {
-    const localVariables: NumericVariable[] = [{ id: "v1", name: "bust", value: 840 }];
-    expect(formatNumericValueForDsl({ kind: "expression", expression: "@v1 / 4" }, elements, localVariables)).toBe("@bust / 4");
-    expect(roundTrip("@v1 / 4", localVariables)).toBe("@v1 / 4");
   });
 
   it("round-trips measurement property references with English keys", () => {
@@ -91,37 +83,16 @@ describe("formatNumericValueForDsl", () => {
     expect(formatNumericValueForDsl({ kind: "expression", expression: "missing-id.length" }, elements)).toBe("missing-id.length");
   });
 
-  it("round-trips local variables such as layout variables", () => {
-    const locals: NumericVariable[] = [{ id: "print-variable-1", name: "余白", value: 20 }];
-    expect(
-      formatNumericValueForDsl({ kind: "expression", expression: "@print-variable-1 * 2" }, elements, locals)
-    ).toBe("@余白 * 2");
-    expect(roundTrip("@print-variable-1 * 2", locals)).toBe("@print-variable-1 * 2");
-  });
-
-  it("keeps ambiguous local variable names as raw ids", () => {
-    const locals: NumericVariable[] = [
-      { id: "print-variable-1", name: "n", value: 1 },
-      { id: "print-variable-2", name: "n", value: 2 }
-    ];
-    expect(
-      formatNumericValueForDsl({ kind: "expression", expression: "@print-variable-1 + 1" }, elements, locals)
-    ).toBe("@print-variable-1 + 1");
-  });
-
   it("keeps formatting equivalent with and without a prebuilt name context", () => {
     const context = createElementNameContext(elements);
-    const locals: NumericVariable[] = [{ id: "print-variable-1", name: "余白", value: 20 }];
 
     for (const value of [
-      { kind: "expression" as const, expression: "@v1 / 4" },
       { kind: "expression" as const, expression: "distance(p1, l1) + l1.length" },
       { kind: "expression" as const, expression: "distance(p2, p3)" },
-      { kind: "expression" as const, expression: "@print-variable-1 * 2" },
       42
     ]) {
-      expect(formatNumericValueForDsl(value, elements, locals, undefined, context)).toBe(
-        formatNumericValueForDsl(value, elements, locals)
+      expect(formatNumericValueForDsl(value, elements, undefined, context)).toBe(
+        formatNumericValueForDsl(value, elements)
       );
     }
   });

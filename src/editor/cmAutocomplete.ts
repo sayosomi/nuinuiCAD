@@ -10,12 +10,10 @@ import {
 } from "@codemirror/autocomplete";
 import { Prec, type Extension, type Text } from "@codemirror/state";
 import { keymap, type Command, type EditorView } from "@codemirror/view";
-import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, dslVarsAttributeParameterKey, type DslCompletionContext } from "../dsl/dslCompletionContext";
+import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, type DslCompletionContext } from "../dsl/dslCompletionContext";
 import { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "../dsl/dslDeclarationParser";
-import { dslStatementElementType } from "../dsl/dslCompletionMetadata";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
-import { dslLocalVariableCompletionOptions } from "../dsl/dslLocalVariableCompletionCandidates";
 import { dslEnclosingPrintLayoutLine } from "../dsl/dslPrintLayoutBlockLocation";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import {
@@ -26,7 +24,7 @@ import {
   type LogicalStatement,
   type LogicalStatementSourceMap
 } from "../dsl/logicalStatementSourceMap";
-import { localNumericReferenceOptions, type NumericReferenceOption } from "../geometry/numericReferenceOptions";
+import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
 import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationResult, PrintLayout } from "../types/geometry";
 import type { PrintLayoutRangeIndex, ScopeBodyRangeIndex, StatementRangeIndex, TypedDeclarationRangeIndex } from "./statementRangeIndex";
 import { deepestContainingScopeId, typedDeclarationBindingIdAtCursor } from "./statementRangeIndex";
@@ -185,15 +183,6 @@ const printLayoutIdsByLiveLine = (doc: Text, ranges: PrintLayoutRangeIndex): Map
  * matches what the live line currently says it is (same "don't trust a stale
  * cross-reference past a structural edit" guard dslReferenceCompletionOptions
  * already applies elsewhere). */
-const currentLiveElement = (source: string, position: number, elementId: ElementId | undefined, elements: readonly CadElement[]) => {
-  if (!elementId) return undefined;
-  const statement = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 }).statements
-    .find((candidate) => position >= candidate.documentRange.from && position <= candidate.documentRange.to);
-  const liveType = statement ? dslStatementElementType(statement) : null;
-  if (!liveType) return undefined;
-  return elements.find((element) => element.id === elementId && element.type === liveType);
-};
-
 const asVariableCompletions = (options: readonly NumericReferenceOption[]): Completion[] =>
   options.map((option) => ({ label: option.displayExpression, apply: option.expression, detail: option.detail, type: "constant" }));
 
@@ -897,21 +886,9 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       type: "enum",
       sortText: String(index).padStart(4, "0")
     }));
-  } else if (completionContext.parameter.key === dslVarsAttributeParameterKey) {
-    const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());
-    const localCandidates = asVariableCompletions(dslLocalVariableCompletionOptions({
-      lineText: input.lineText,
-      pos: input.localPos,
-      elementId: statementElementIds.get(input.cursorLineNumber),
-      elements: options.elements()
-    }));
-    const module = moduleScalarCompletions(options, input, context, { kind: "number" });
-    completions = mergeCompletionCandidates(localCandidates, module.candidates);
   } else if (completionContext.parameter.key === dslIntermediatesAttributeParameterKey) {
-    // intermediates=' angle/incoming/outgoing are evaluated with the element's
-    // local vars= pool hardcoded to [] (verified in dslCompiler.ts) — bypass
-    // the generic "number" branch below entirely so its local-vars union never
-    // leaks in, && call the plain top-level source unmodified.
+    // Intermediates use the shared typed numeric source; do not offer
+    // element-specific completion candidates here.
     completions = [];
   } else if (completionContext.parameter.source === "printLayoutBlock") {
     const bindingAnalysis = options.bindingAnalysis();
@@ -945,21 +922,12 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         } : {})
       })
       : [];
-    const elements = options.elements();
-    const statementElementIds = statementElementIdsByLiveLine(input.doc, options.statementRanges());
-    const currentElement = currentLiveElement(input.source, context.pos, statementElementIds.get(input.cursorLineNumber), elements);
-    const localOptions = currentElement
-      ? localNumericReferenceOptions({ element: currentElement, localVariableLimit: currentElement.numericVariables?.length ?? 0 })
-      : [];
     const moduleBodySite = Boolean(availableMetadata && ((site && isModuleBodySite(availableMetadata, site)) || isInsideModuleSemanticStatement(availableMetadata, context.pos)));
     const staleModuleBody = availableMetadata && options.semanticMetadataFresh?.() === false &&
       (moduleBodySite || isInsideModuleSemanticStatement(availableMetadata, context.pos));
     completions = moduleBodySite
-      ? mergeCompletionCandidates(moduleCandidates, asVariableCompletions(localOptions))
-      : moduleCandidates.length > 0 ? moduleCandidates : staleModuleBody ? [] : [
-      ...typedNumberBindingCompletions(options, input, context),
-      ...asVariableCompletions(localOptions)
-    ];
+      ? moduleCandidates
+      : moduleCandidates.length > 0 ? moduleCandidates : staleModuleBody ? [] : typedNumberBindingCompletions(options, input, context);
   } else {
     const query = input.lineText.slice(completionContext.from, input.localPos).replace(/^@/, "");
     if (!query.trim()) return null;

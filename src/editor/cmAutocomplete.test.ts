@@ -156,7 +156,7 @@ describe("createDslCompletionSource", () => {
     expect(result?.from).toBe(pos - 1);
     expect(result?.to).toBe(pos);
     expect(result?.options.map((option) => option.label)).toEqual([
-      "dx", "dy", "state", "color", "steps", "vars"
+      "dx", "dy", "state", "color", "steps"
     ]);
     expect(result?.options.every((option) => typeof option.apply === "string" && option.apply.endsWith(": "))).toBe(true);
   });
@@ -602,62 +602,6 @@ describe("createDslCompletionSource", () => {
       const result = await Promise.resolve(completionSource({ state: dirtyState, pos, explicit: true } as never));
       expect(result === null || result.options.length === 0).toBe(true);
     });
-  });
-
-  // KNOWN GAP (flagged, not fixed here): the intermediates= completion branch
-  // in cmAutocomplete.ts unconditionally clears completions rather than
-  // calling the plain top-level typed-binding source its own comment
-  // describes, so neither local vars= nor top-level const/let candidates are
-  // ever offered here. Only the "never leaks the element's own vars=" half
-  // of this test's original title still holds.
-  it("never offers the current element's own vars= for intermediates=, even though it currently offers no candidates at all", async () => {
-    const bodyLines = dslLinesForElements([
-      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
-      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 10 },
-      {
-        id: "c", name: "C", type: "bezierCurve", activity: "visible",
-        startPoint: { mode: "reference", pointId: "a" }, startHandleAngleDeg: 0, startHandleLength: 0,
-        endPoint: { mode: "reference", pointId: "b" }, endHandleAngleDeg: 0, endHandleLength: 0,
-        intermediatePoints: [{
-          id: "pt1",
-          point: { mode: "reference", pointId: "a" },
-          handleAngleDeg: { kind: "expression", expression: "0+@Gl" },
-          incomingHandleLength: 5,
-          outgoingHandleLength: 5
-        }],
-        numericVariables: [{ id: "local", name: "Local", value: 5 }]
-      }
-    ]);
-    const source = ["nui 4", "const GlobalLen: number = 15", ...bodyLines].join("\n");
-    const statements = parseDsl(source).statements;
-    const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-    const compiled = compileDslDocument(source, { assignedStatementIds });
-    expect(compiled.document).not.toBeNull();
-    expect(compiled.statementMap).not.toBeNull();
-    const state = EditorState.create({ doc: source });
-    const statementRanges = createStatementRangeIndex(state.doc, compiled.statementMap!);
-    const printLayoutRanges = createPrintLayoutRangeIndex(state.doc, compiled.statementMap!);
-    const typedRanges = createTypedDeclarationRangeIndex(state.doc, compiled.statementMap!);
-    const scopeRanges = createScopeBodyRangeIndex(state.doc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex);
-    const pos = source.indexOf("@Gl") + "@Gl".length;
-    const completionSource = createDslCompletionSource({
-      elements: () => compiled.document!.elements,
-      statementRanges: () => statementRanges,
-      printLayouts: () => compiled.document!.printLayouts,
-      printLayoutRanges: () => printLayoutRanges,
-      isComposing: () => false,
-      computedGeometry: () => undefined,
-      effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined,
-      bindingAnalysis: () => compiled.bindingAnalysis,
-      typedDeclarationRanges: () => typedRanges,
-      scopeBodyRanges: () => scopeRanges,
-      statementInfoByElementId: () => compiled.statementMap!.byElementId,
-    });
-    const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
-    expect(result).not.toBeNull();
-    const labels = result!.options.map((option) => option.label);
-    expect(labels).not.toContain("@Local");
   });
 
   describe("elementParameter (ElementName.parameterKey) completion", () => {
@@ -1109,7 +1053,7 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
     await expect.poll(() => completionStatus(view.state), { timeout: 1000, interval: 20 }).toBe("active");
     const emptyLabels = currentCompletions(view.state).map((option) => option.label);
     expect(emptyLabels).toEqual(["right", "left"]);
-    for (const generic of ["color", "enable", "state", "steps", "vars", "visible"]) {
+    for (const generic of ["color", "enable", "state", "steps", "visible"]) {
       expect(emptyLabels).not.toContain(generic);
     }
 

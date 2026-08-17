@@ -6,8 +6,7 @@ import {
   consumeReference,
   derivedReferenceIds,
   expressionReferences,
-  nestedExpressionReferences,
-  nestedVariableReferences
+  nestedExpressionReferences
 } from "./renameReferenceValues";
 
 export type RenameReferenceForm = "direct" | "derived" | "expression" | "print-layout-place";
@@ -42,7 +41,6 @@ const elementSlots = ({
   elementIds: ReadonlySet<ElementId>;
   hasExplicitParent: boolean;
 }): RenameReferenceSlot[] => {
-  const localVariableIds = new Set((element.numericVariables ?? []).map((variable) => variable.id));
   const expressionIds = new Map<string, number>();
   for (const reference of nestedExpressionReferences(element)) {
     expressionIds.set(reference.id, (expressionIds.get(reference.id) ?? 0) + 1);
@@ -79,18 +77,6 @@ const elementSlots = ({
       state: stateFor(element.parentGroupId, elementIds)
     });
   }
-  // Numeric-expression @tokens are runtime IDs after compilation. The
-  // dependency index intentionally omits variable-scope edges, so retain them
-  // as separate slots to catch dangling @name capture on a variable rename.
-  nestedVariableReferences(element, localVariableIds).forEach((id, index) => {
-    slots.push({
-      key: `element:${element.id}:variable:${index}`,
-      line,
-      owner,
-      form: "expression",
-      state: stateFor(id, elementIds)
-    });
-  });
   return slots;
 };
 
@@ -100,14 +86,12 @@ const numericSlots = ({
   line,
   owner,
   elementIds,
-  localVariableIds
 }: {
   values: NumericValue[];
   keyPrefix: string;
   line: number;
   owner: RenameReferenceSlot["owner"];
   elementIds: ReadonlySet<ElementId>;
-  localVariableIds: ReadonlySet<string>;
 }): RenameReferenceSlot[] => values.flatMap((value, valueIndex) =>
   expressionReferences(value).map((reference, referenceIndex) => ({
     key: `${keyPrefix}:numeric:${valueIndex}:${referenceIndex}`,
@@ -115,15 +99,7 @@ const numericSlots = ({
     owner,
     form: reference.form,
     state: stateFor(reference.id, elementIds)
-  })).concat(
-    nestedVariableReferences(value, localVariableIds).map((id, referenceIndex) => ({
-      key: `${keyPrefix}:variable:${valueIndex}:${referenceIndex}`,
-      line,
-      owner,
-      form: "expression" as const,
-      state: stateFor(id, elementIds)
-    }))
-  )
+  }))
 );
 
 const layoutSlots = (
@@ -139,9 +115,6 @@ const layoutSlots = (
     return { complete: false, message: `printLayout ${layout.id} の文を特定できません。` };
   }
   const owner = { kind: "print-layout" as const, layoutId: layout.id };
-  // printLayoutにはlocal変数プールが無い(typed const/letのみ参照する) -
-  // nestedVariableReferencesは常に空集合に対して呼ぶ。
-  const localVariableIds = new Set<string>();
   const slots = numericSlots({
     values: [
       layout.columns,
@@ -154,8 +127,7 @@ const layoutSlots = (
     keyPrefix: `layout:${layout.id}:header`,
     line: info.line,
     owner,
-    elementIds,
-    localVariableIds
+    elementIds
   });
   const members = compiled.statements.filter(
     (member) => member.enclosing?.statementIndex === info.statementIndex
@@ -179,8 +151,7 @@ const layoutSlots = (
       keyPrefix: `layout:${layout.id}:place:${index}`,
       line: member.line,
       owner,
-      elementIds,
-      localVariableIds
+      elementIds
     }));
   });
   return { complete: true, slots };

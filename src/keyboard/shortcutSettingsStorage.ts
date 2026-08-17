@@ -98,7 +98,11 @@ export const retiredCommandIds = [
   "toggleElementEnabled",
   "toggleSelectedElementVisibility",
   "toggleSelectedElementEnabled",
-  "commandLineAddVariable"
+  "commandLineAddVariable",
+  "addNumericVariable",
+  "deleteNumericVariable",
+  "addBezierNumericVariable",
+  "deleteBezierNumericVariable"
 ] as const;
 
 const retiredCommandIdSet = new Set<string>(retiredCommandIds);

@@ -27,7 +27,6 @@ const userFacingCommonArgumentNames = new Set([
   "state",
   "color",
   "steps",
-  "vars",
 ]);
 
 const completionArgumentSpecs = (spec: DslConstructionSpec) => {

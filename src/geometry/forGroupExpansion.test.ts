@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { elementDisplayName } from "../model/elementNames";
 import type { CadElement, ForGroupElement, FreePointElement } from "../types/geometry";
-import { evaluateLocalVariables } from "./evaluationContext";
 import { expandForGroupIteration, forGroupGeneratedElementId } from "./forGroupExpansion";
 import { makeNumericExpression } from "./numericExpressions";
 
@@ -153,6 +152,29 @@ describe("expandForGroupIteration (anonymous mutation name invariant)", () => {
 
     expect(generatedLine.name).toBe("[i=0] 線AB");
   });
+
+  it("does not add element-local numeric variables to generated clones", () => {
+    const line: CadElement = {
+      id: "line-ab",
+      name: "線AB",
+      type: "line",
+      activity: "visible",
+      parentGroupId: forGroup.id,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" }
+    };
+
+    const { generatedElements } = expandForGroupIteration({
+      elements: [...basePoints, forGroup, line],
+      forGroup,
+      iterationIndex: 0,
+      variableValue: 0
+    });
+    const generatedLine = generatedElements.find((element) => element.type === "line");
+
+    expect(generatedLine).toBeDefined();
+    expect(generatedLine).not.toHaveProperty("numericVariables");
+  });
 });
 
 describe("expandForGroupIteration (nested forGroup ownership and iteration context)", () => {
@@ -216,8 +238,7 @@ describe("expandForGroupIteration (nested forGroup ownership and iteration conte
       forGroup: generatedInner,
       templateForGroupId: innerForGroupTemplate.id,
       iterationIndex: 0,
-      variableValue: 0,
-      ancestorIterationVariables: [outerExpanded.iterationVariable]
+      variableValue: 0
     });
     const generatedP = innerExpanded.generatedElements.find(
       (element) => element.type === "freePoint"
@@ -251,16 +272,14 @@ describe("expandForGroupIteration (nested forGroup ownership and iteration conte
       forGroup: generatedInner0,
       templateForGroupId: innerForGroupTemplate.id,
       iterationIndex: 0,
-      variableValue: 0,
-      ancestorIterationVariables: [outerIteration0.iterationVariable]
+      variableValue: 0
     });
     const innerExpanded1 = expandForGroupIteration({
       elements,
       forGroup: generatedInner1,
       templateForGroupId: innerForGroupTemplate.id,
       iterationIndex: 0,
-      variableValue: 0,
-      ancestorIterationVariables: [outerIteration1.iterationVariable]
+      variableValue: 0
     });
     const generatedP0 = innerExpanded0.generatedElements.find((e) => e.type === "freePoint")!;
     const generatedP1 = innerExpanded1.generatedElements.find((e) => e.type === "freePoint")!;
@@ -269,102 +288,4 @@ describe("expandForGroupIteration (nested forGroup ownership and iteration conte
     expect(generatedP0.parentGroupId).not.toBe(generatedP1.parentGroupId);
   });
 
-  it("gives a nested body element both the outer and inner ancestor iteration variables, resolvable to @i and @j", () => {
-    const outerExpanded = expandForGroupIteration({
-      elements,
-      forGroup: outerForGroup,
-      iterationIndex: 1,
-      variableValue: 1
-    });
-    const generatedInner = outerExpanded.generatedElements.find((e) => e.type === "forGroup") as ForGroupElement;
-    const innerExpanded = expandForGroupIteration({
-      elements,
-      forGroup: generatedInner,
-      templateForGroupId: innerForGroupTemplate.id,
-      iterationIndex: 2,
-      variableValue: 2,
-      ancestorIterationVariables: [outerExpanded.iterationVariable]
-    });
-    const generatedP = innerExpanded.generatedElements.find((e) => e.type === "freePoint")!;
-    // evaluateLocalVariables keys localVariableValues by both binding id &&
-    // by plain name, so a `@i` / `@j` numeric expression resolves by name
-    // directly.
-    const localVariables = evaluateLocalVariables(generatedP, new Map(), new Map(), [], elements);
-    expect(localVariables?.localVariableValues.get("i")).toBe(1);
-    expect(localVariables?.localVariableValues.get("j")).toBe(2);
-  });
-
-  it("shadows an outer loop variable with an inner loop variable of the same name", () => {
-    const outerNamedI: ForGroupElement = { ...outerForGroup, variableName: "i" };
-    const innerNamedI: ForGroupElement = { ...innerForGroupTemplate, variableName: "i" };
-    const bodyReferencingI: FreePointElement = {
-      ...pointTemplate,
-      x: makeNumericExpression("@i"),
-      y: makeNumericExpression("0")
-    };
-    const shadowElements: CadElement[] = [outerNamedI, innerNamedI, bodyReferencingI];
-
-    const outerExpanded = expandForGroupIteration({
-      elements: shadowElements,
-      forGroup: outerNamedI,
-      iterationIndex: 0,
-      variableValue: 100
-    });
-    const generatedInner = outerExpanded.generatedElements.find((e) => e.type === "forGroup") as ForGroupElement;
-    const innerExpanded = expandForGroupIteration({
-      elements: shadowElements,
-      forGroup: generatedInner,
-      templateForGroupId: innerNamedI.id,
-      iterationIndex: 0,
-      variableValue: 5,
-      ancestorIterationVariables: [outerExpanded.iterationVariable]
-    });
-    const generatedP = innerExpanded.generatedElements.find((e) => e.type === "freePoint")!;
-    const localVariables = evaluateLocalVariables(generatedP, new Map(), new Map(), [], shadowElements);
-    // Both bindings are present (by id) in numericVariables, but resolving
-    // by plain name "i" must yield the inner (later, higher-precedence)
-    // value - the inner loop shadows the outer loop.
-    expect(generatedP.numericVariables?.filter((variable) => variable.name === "i")).toHaveLength(2);
-    expect(localVariables!.localVariableValues.get("i")).toBe(5);
-  });
-
-  it("lets a body element's own local variable shadow the loop's iteration variable of the same name (existing precedence rule)", () => {
-    const bodyWithOwnLocalVar: FreePointElement = {
-      ...pointTemplate,
-      parentGroupId: "outer",
-      x: makeNumericExpression("@i"),
-      y: makeNumericExpression("0"),
-      numericVariables: [{ id: "p:own-i", name: "i", value: -1 }]
-    };
-    const localElements: CadElement[] = [outerForGroup, bodyWithOwnLocalVar];
-    const { generatedElements } = expandForGroupIteration({
-      elements: localElements,
-      forGroup: outerForGroup,
-      iterationIndex: 0,
-      variableValue: 42,
-      ancestorIterationVariables: []
-    });
-    const generatedP = generatedElements.find((element) => element.type === "freePoint")!;
-    const localVariables = evaluateLocalVariables(generatedP, new Map(), new Map(), [], localElements);
-    // The body element's own declared "i" (-1) must win over the loop's own
-    // "i" (42) - this precedence predates this fix && must not change.
-    expect(localVariables?.localVariableValues.get("i")).toBe(-1);
-  });
-
-  it("does not forward the forGroup element's own numericVariables to children - only the explicit ancestorIterationVariables parameter", () => {
-    const forGroupWithOwnLocalVar: ForGroupElement = {
-      ...outerForGroup,
-      numericVariables: [{ id: "outer:own", name: "ownVar", value: 999 }]
-    };
-    const localElements: CadElement[] = [forGroupWithOwnLocalVar, { ...pointTemplate, parentGroupId: forGroupWithOwnLocalVar.id }];
-    const { generatedElements } = expandForGroupIteration({
-      elements: localElements,
-      forGroup: forGroupWithOwnLocalVar,
-      iterationIndex: 0,
-      variableValue: 0,
-      ancestorIterationVariables: []
-    });
-    const generatedP = generatedElements.find((element) => element.type === "freePoint")!;
-    expect(generatedP.numericVariables?.some((variable) => variable.name === "ownVar")).toBe(false);
-  });
 });

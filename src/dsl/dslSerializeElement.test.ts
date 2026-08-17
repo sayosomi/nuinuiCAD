@@ -99,7 +99,6 @@ describe("DSL nui 4 element serializer", () => {
       activity: "disabled" as const,
       colorId: "pattern-black",
       numericParameterSteps: { x: 0.1 },
-      numericVariables: [{ id: "local-1", name: "幅", value: 12 }],
     };
     const refs = documentDslRefs([...referenceElements, point]);
 
@@ -109,13 +108,13 @@ describe("DSL nui 4 element serializer", () => {
         { key: "x", text: "x: -(bust / 4)" }, { key: "y", text: "y: -2" },
         { key: "state", text: "state: disabled" },
         { key: "color", text: "color: pattern-black" },
-        { key: "steps", text: "steps: [x: 0.1]" }, { key: "vars", text: "vars: [幅: 12]" },
+        { key: "steps", text: "steps: [x: 0.1]" },
       ],
       close: ")",
       argumentSeparator: "comma",
     });
     expect(serializeElementStatementLogical(point, refs)).toBe(
-      'point "前 身" = coordinate(x: -(bust / 4), y: -2, state: disabled, color: pattern-black, steps: [x: 0.1], vars: [幅: 12])',
+      'point "前 身" = coordinate(x: -(bust / 4), y: -2, state: disabled, color: pattern-black, steps: [x: 0.1])',
     );
 
     const curve = {
@@ -135,7 +134,6 @@ describe("DSL nui 4 element serializer", () => {
       ...minimal("divisionPoint"), placement: { kind: "distance" as const, value: 24 },
       activity: "disabled" as const, colorId: "red",
       numericParameterSteps: { distance: 1 },
-      numericVariables: [{ id: "local-1", name: "幅", value: 5 }],
       parentGroupId: "g1", conditionalBranch: "else" as const,
     };
     const args = serializeElementStatementBlock(division, flatRefs()).args;

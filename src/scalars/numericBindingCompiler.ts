@@ -1,5 +1,5 @@
 // Compiles typed references embedded in the numeric-expression language.
-// Geometry measurements && element-local numeric variables remain in that
+// Geometry measurements && runtime iteration bindings remain in that
 // language; only a resolved typed `@name` occurrence is replaced by
 // its stable BindingId at runtime.
 import type { CadElement, ElementId, NumericValue, PrintLayout } from "../types/geometry";
@@ -35,7 +35,6 @@ import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
 import type { BindingReferenceSite } from "./bindingResolution";
-import { buildElementLocalRangeIndexFromElements } from "./elementLocalRangeIndex";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
@@ -86,7 +85,7 @@ type Candidate = {
   source: string;
   valueSpan: DslSpan;
   references: readonly CandidateReference[];
-  /** Absent for printLayout/place occurrences - they have no element-local pool. */
+  /** Absent for printLayout/place occurrences. */
   elementId?: ElementId;
 };
 
@@ -179,9 +178,7 @@ export const compileNumericBindings = ({
     refs.forEach((reference, index) => requests.push({
       key: `${key}:${index}`,
       name: reference.name,
-      site: elementId
-        ? { scopeId, statementIndex, elementLocal: { ownerId: elementId, order: Number.MAX_SAFE_INTEGER } }
-        : { scopeId, statementIndex }
+      site: { scopeId, statementIndex }
     }));
   };
 
@@ -279,24 +276,16 @@ export const compileNumericBindings = ({
     }
   });
 
-  const elementLocalRangeIndex = buildElementLocalRangeIndexFromElements(elements);
-  const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests, elementLocalRangeIndex);
+  const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests);
   const sourcesByOccurrenceKey = new Map<string, CompiledNumericBinding>();
   const diagnostics: DslDiagnostic[] = [];
   for (const candidate of candidates) {
-    // Element-local numeric variables remain owned by the legacy evaluator at
-    // runtime, but their numeric type still participates in the shared
-    // compile-time checker below. Other scalar references, including
-    // iteration bindings, use that checker whenever its AST can represent the
-    // expression.
+    // Runtime iteration bindings remain owned by the numeric evaluator, while
+    // typed bindings use the shared compile-time checker below.
     const hasLegacyOwnedReference = candidate.references.some((_, index) => {
       const resolution = resolutions.get(`${candidate.key}:${index}`);
-      return resolution?.kind === "resolvedLocal" ||
-        (resolution?.kind === "resolved" && resolution.binding.kind !== "typed");
+      return resolution?.kind === "resolved" && resolution.binding.kind !== "typed";
     });
-    const hasElementLocalReference = candidate.references.some((_, index) =>
-      resolutions.get(`${candidate.key}:${index}`)?.kind === "resolvedLocal"
-    );
 
     let rejected = false;
     const typedRefs: { reference: CandidateReference; bindingId: BindingId }[] = [];
@@ -307,12 +296,6 @@ export const compileNumericBindings = ({
         rejected = true;
         return;
       }
-      if (resolution.kind === "resolvedLocal") {
-        // Element-local references keep the existing numeric evaluator path
-        // even when another occurrence in this same expression is a
-        // compiled typed slot.
-        return;
-      }
       if (resolution.kind !== "resolved") {
         // Binding analysis already emits the duplicate/self invalidation
         // diagnostic.  Do not report the same underlying cause again here.
@@ -321,7 +304,7 @@ export const compileNumericBindings = ({
       }
       const binding = resolution.binding;
       if (binding.kind !== "typed") {
-        // Iteration references keep the existing numeric evaluator path
+        // Runtime iteration references keep the existing numeric evaluator path
         // even when another occurrence in this same expression is a
         // compiled typed slot.
         return;
@@ -337,11 +320,7 @@ export const compileNumericBindings = ({
     });
     if (rejected) continue;
     const typedResolutions = candidate.references.map((_, index) => resolutions.get(candidate.key + ":" + index));
-    const scalarTypecheckReferences: (BindingResolution | ScalarExpressionResolvedReference)[] = typedResolutions.map((resolution) =>
-      resolution?.kind === "resolvedLocal"
-        ? { kind: "resolvedType", bindingId: null, type: { kind: "number" } }
-        : resolution!
-    );
+    const scalarTypecheckReferences: (BindingResolution | ScalarExpressionResolvedReference)[] = typedResolutions.map((resolution) => resolution!);
     const canTypecheckScalarReferences = scalarTypecheckReferences.every((resolution) =>
       resolution.kind === "resolved" || resolution.kind === "resolvedType"
     );
@@ -353,14 +332,14 @@ export const compileNumericBindings = ({
       // `@AB.length` becomes `AB.length`) for the legacy numeric evaluator,
       // but that representation is not valid input for the shared scalar
       // parser. Geometry properties themselves are already typed as number;
-      // typed && element-local binding occurrences use the supplied
-      // resolutions; geometry properties remain intrinsic numeric nodes.
+      // typed binding occurrences use the supplied resolutions; geometry
+      // properties remain intrinsic numeric nodes.
       const typedParsed = parseScalarExpression(candidate.source, { start: 0, end: candidate.source.length });
       if (!typedParsed.ast) {
         const issue = typedParsed.diagnostics[0];
         // Legacy measurement/function syntax remains owned by the numeric
         // evaluator when no standalone typed route is possible. Mixed
-        // typed/local expressions retain their existing source-splice path.
+        // typed/iteration expressions retain their existing source-splice path.
         if (issue && typedRefs.length > 0) diagnostics.push(diagnosticAt(
           spans,
           candidate.statement,
@@ -381,7 +360,7 @@ export const compileNumericBindings = ({
           references: scalarTypecheckReferences
         });
         if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
-          if (hasElementLocalReference) {
+          if (hasLegacyOwnedReference) {
             for (const issue of typedChecked.diagnostics) diagnostics.push(diagnosticAt(
               spans,
               candidate.statement,
@@ -450,7 +429,6 @@ export const compileNumericBindings = ({
         site: {
           scopeId: bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(candidate.statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId,
           statementIndex: candidate.statementIndex,
-          ...(candidate.elementId ? { elementLocal: { ownerId: candidate.elementId, order: Number.MAX_SAFE_INTEGER } } : {})
         } });
     }
     if (!rejected && (references.length || typedExpression)) {

@@ -210,18 +210,6 @@ describe("DSL nui 4 compiler argument application", () => {
     ]);
   });
 
-  it("remaps local variable references after applying vars and varIds in either source order", () => {
-    const result = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [
-      arg("varIds", "[width-id, half-id]"),
-      arg("vars", "[幅: 12; 半分: @幅 / 2]"),
-    ], resolvers);
-    expect(result.diagnostics).toEqual([]);
-    expect(result.element.numericVariables).toEqual([
-      { id: "width-id", name: "幅", value: 12 },
-      { id: "half-id", name: "半分", value: { kind: "expression", expression: "@width-id / 2" } },
-    ]);
-  });
-
   it("returns compiler-owned metadata and retains unresolved references with warnings", () => {
     const result = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
       arg("sources", "[@missing]"), arg("id", "line-id"), arg("parent", "parent-token"), arg("branch", "else"),

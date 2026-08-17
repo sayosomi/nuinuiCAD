@@ -15,7 +15,6 @@ export type ModuleParameterSlot = {
 export type ModuleScalarSourceTarget =
   | (ModuleParameterSlot & { kind: "parameter" })
   | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string }
-  | { kind: "elementLocalVariable"; statementId: StatementIdentity; statementIndex: number; variableIndex: number; name: string }
   | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number }
   | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number }
   | {
@@ -193,8 +192,6 @@ export type ModuleScalarExpressionSite = {
   parameterKey: string | null;
   span: DslSpan;
   expression: ModuleScalarExpressionSemantic;
-  /** Source-order index within an element's `vars` initializer. */
-  elementLocalVariableIndex?: number;
 };
 
 export type ModuleTextTemplateHoleSite = {

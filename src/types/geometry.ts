@@ -12,7 +12,6 @@ export type CadElementBase = {
   colorId?: string;
   parentGroupId?: ElementId;
   conditionalBranch?: ConditionalBranch;
-  numericVariables?: NumericVariable[];
   numericParameterSteps?: Partial<Record<string, number>>;
 };
 
@@ -76,14 +75,6 @@ export type NumericExpression = {
 export type NumericValue = number | NumericExpression;
 
 export type ConditionalBranch = "then" | "else";
-
-export type NumericVariable = {
-  id: string;
-  name: string;
-  value: NumericValue;
-};
-
-export type BezierNumericVariable = NumericVariable;
 
 export type FreePointElement = CadElementBase & {
   type: "freePoint";

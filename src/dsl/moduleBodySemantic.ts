@@ -10,7 +10,6 @@ import { splitDslList, unquoteDslString } from "./dslTokens";
 import { recordField, recordSpans } from "./dslParameterSpanScanner";
 import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
 import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
-import { analyzeElementLocalVariables, type ElementLocalVariableResolver } from "./moduleElementLocalVariableSemantic";
 import type { DslSpan, DslStatement } from "./dslTypes";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { ScalarType } from "../scalars/types";
@@ -163,8 +162,7 @@ export const analyzeModuleBody = ({
     bodySemantic: ModuleBodyStatementSemantic | null,
     parameterKey: string,
     span: DslSpan,
-    expression: ModuleScalarExpressionSemantic | null,
-    elementLocalVariableIndex?: number
+    expression: ModuleScalarExpressionSemantic | null
   ) => {
     if (!bodySemantic || !expression) return;
     bodySemantic.scalarExpressions = [
@@ -172,8 +170,7 @@ export const analyzeModuleBody = ({
       {
         parameterKey,
         span,
-        expression,
-        ...(elementLocalVariableIndex === undefined ? {} : { elementLocalVariableIndex })
+        expression
       }
     ];
   };
@@ -198,8 +195,7 @@ export const analyzeModuleBody = ({
   const analyzeTextTemplate = (
     statementIndex: number,
     bodySemantic: ModuleBodyStatementSemantic | null,
-    valueSpan: DslSpan,
-    localResolver: ElementLocalVariableResolver | null
+    valueSpan: DslSpan
   ): boolean => {
     const source = sourceTextFor(statementIndex);
     const raw = source.slice(valueSpan.start, valueSpan.end);
@@ -216,7 +212,7 @@ export const analyzeModuleBody = ({
         source.slice(hole.contentSpan.start, hole.contentSpan.end),
         hole.contentSpan,
         null,
-        localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
+        (reference) => resolveBodyScalar(statementIndex, reference),
         (reference) => resolveBodyBareScalar(statementIndex, reference),
         (reference) => resolveBodyGeometryProperty(statementIndex, reference),
         (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
@@ -232,8 +228,7 @@ export const analyzeModuleBody = ({
   const analyzeIntermediates = (
     statementIndex: number,
     bodySemantic: ModuleBodyStatementSemantic | null,
-    valueSpan: DslSpan,
-    localResolver: ElementLocalVariableResolver | null
+    valueSpan: DslSpan
   ) => {
     const source = sourceTextFor(statementIndex);
     for (const record of recordSpans(source, valueSpan) ?? []) {
@@ -248,7 +243,7 @@ export const analyzeModuleBody = ({
           {
             allowCoordinate: true,
             role: "pointReference",
-            scalarResolver: localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
+            scalarResolver: (reference) => resolveBodyScalar(statementIndex, reference),
             bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
             geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
           }
@@ -263,7 +258,7 @@ export const analyzeModuleBody = ({
           source.slice(fieldSpan.start, fieldSpan.end),
           fieldSpan,
           { kind: "number" },
-          localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
+          (reference) => resolveBodyScalar(statementIndex, reference),
           (reference) => resolveBodyBareScalar(statementIndex, reference),
           (reference) => resolveBodyGeometryProperty(statementIndex, reference),
           (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
@@ -370,20 +365,6 @@ export const analyzeModuleBody = ({
       const spec = statement.kind === "group" ? constructionFor("group", "") : constructionFor(statement.category, statement.construction);
       if (spec) {
         const specialArgs = [...(spec.args ?? []), ...commonArgSpecs].filter((arg) => arg.special);
-        const varsArg = specialArgs.find((arg) => arg.special === "vars");
-        const localResolver = varsArg && statement.payloadSpans[varsArg.arg]
-          ? analyzeElementLocalVariables({
-              source: sourceTextFor(statementIndex),
-              statementIndex,
-              valueSpan: statement.payloadSpans[varsArg.arg],
-              bodySemantic,
-              analyzeExpression,
-              addScalar,
-              resolveBodyScalar: (reference) => resolveBodyScalar(statementIndex, reference),
-              resolveBodyBareScalar: (reference) => resolveBodyBareScalar(statementIndex, reference),
-              resolveBodyGeometryProperty: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
-            })
-          : null;
         const definitionsByArg = new Map(getParameterDefinitionsForType(spec.elementType).map((parameter) => [parameter.key, parameter]));
         for (const arg of spec.args) {
           if (arg.special || !arg.parameterKey && !definitionsByArg.has(arg.arg)) continue;
@@ -414,7 +395,7 @@ export const analyzeModuleBody = ({
                 allowCoordinate: parameter.allowCoordinate === true,
                 allowNone: parameter.allowNone,
                 role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference",
-                scalarResolver: localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
+                scalarResolver: (reference) => resolveBodyScalar(statementIndex, reference),
                 bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
                 geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
               });
@@ -425,7 +406,7 @@ export const analyzeModuleBody = ({
               ? ({ kind: "boolean" } as const)
               : scalarTypeForParameterDefinition(parameter);
             if (!expectedType) continue;
-            const template = parameter.kind === "text" ? analyzeTextTemplate(statementIndex, bodySemantic, valueSpan, localResolver) : false;
+            const template = parameter.kind === "text" ? analyzeTextTemplate(statementIndex, bodySemantic, valueSpan) : false;
             const expression = template
               ? null
               : parameter.kind === "text" && !isScalarExpressionCandidateSource(value)
@@ -435,7 +416,7 @@ export const analyzeModuleBody = ({
                   value,
                   valueSpan,
                   expectedType,
-                  localResolver ?? ((reference) => resolveBodyScalar(statementIndex, reference)),
+                  (reference) => resolveBodyScalar(statementIndex, reference),
                   (reference) => resolveBodyBareScalar(statementIndex, reference),
                   (reference) => resolveBodyGeometryProperty(statementIndex, reference),
                   (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
@@ -446,7 +427,7 @@ export const analyzeModuleBody = ({
         for (const arg of specialArgs) {
           if (arg.special !== "intermediates") continue;
           const valueSpan = statement.payloadSpans[arg.arg];
-          if (valueSpan) analyzeIntermediates(statementIndex, bodySemantic, valueSpan, localResolver);
+          if (valueSpan) analyzeIntermediates(statementIndex, bodySemantic, valueSpan);
         }
         if (bodySemantic) bodySemantic.scalarExpressions = [...bodySemantic.scalarExpressions].sort((left, right) => left.span.start - right.span.start);
       }

@@ -101,8 +101,8 @@ export type SetTargetClassification =
 
 /**
  * The single target-validity chain for a `set` statement's name resolution:
- * must resolve, must be a `let` (never `const`, nor iteration/
- * elementLocal, all of which carry mutability "readonly"), && must have a
+ * must resolve, must be a `let` (never `const` nor iteration, which carry
+ * mutability "readonly"), && must have a
  * known declared type. Shared with rename safety analysis
  * (src/scalars/typedRenameAnalysis.ts), which classifies the same target
  * name's resolution before && after a candidate rename - this must stay the

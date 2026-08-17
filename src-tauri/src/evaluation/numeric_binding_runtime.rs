@@ -51,18 +51,7 @@ fn utf16_byte_offset(value: &str, offset: usize) -> Option<usize> {
 
 fn numeric_expression<'a>(element: &'a Value, parameter_key: &str) -> Option<&'a str> {
     let object = element.as_object()?;
-    let value = if let Some(rest) = parameter_key.strip_prefix("variable:") {
-        let (id, field) = rest.split_once(':')?;
-        if field != "value" {
-            return None;
-        }
-        object
-            .get("numericVariables")?
-            .as_array()?
-            .iter()
-            .find(|item| item.get("id").and_then(Value::as_str) == Some(id))?
-            .get("value")?
-    } else if let Some(rest) = parameter_key.strip_prefix("intermediate:") {
+    let value = if let Some(rest) = parameter_key.strip_prefix("intermediate:") {
         let (id, field) = rest.split_once(':')?;
         object
             .get("intermediatePoints")?
@@ -93,18 +82,6 @@ fn numeric_expression_mut<'a>(
     parameter_key: &str,
 ) -> Option<&'a mut Value> {
     let object = element.as_object_mut()?;
-    if let Some(rest) = parameter_key.strip_prefix("variable:") {
-        let (id, field) = rest.split_once(':')?;
-        if field != "value" {
-            return None;
-        }
-        return object
-            .get_mut("numericVariables")?
-            .as_array_mut()?
-            .iter_mut()
-            .find(|item| item.get("id").and_then(Value::as_str) == Some(id))?
-            .get_mut("value");
-    }
     if let Some(rest) = parameter_key.strip_prefix("intermediate:") {
         let (id, field) = rest.split_once(':')?;
         return object

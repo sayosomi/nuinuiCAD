@@ -198,7 +198,6 @@ describe("elementNames", () => {
           name: "",
           type: "intersectionPoint",
           activity: "visible",
-          numericVariables: [],
           line1Id: "line-a",
           line2Id: "line-b",
           intersectionIndex: 0,

@@ -85,7 +85,6 @@ export const moduleSemanticTargetKey = (target: ModuleSemanticTarget): string =>
     return `parameter:${target.slot.definitionStatementId}:${target.slot.parameterIndex}`;
   }
   if (target.kind === "documentBinding") return `documentBinding:${target.bindingId}`;
-  if (target.kind === "moduleElementLocalVariable") return `elementLocal:${target.statementId}:${target.variableIndex}`;
   return `${target.kind}:${target.statementId}`;
 };
 
@@ -100,7 +99,6 @@ const sourceTarget = (target: ModuleSourceTarget | null): ModuleSemanticTarget |
   if (target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty" || target.kind === "moduleLocal") {
     return { kind: "moduleSource", statementId: target.statementId };
   }
-  if (target.kind === "elementLocalVariable") return { kind: "moduleElementLocalVariable", statementId: target.statementId, variableIndex: target.variableIndex };
   if (target.kind === "iteration") return { kind: "moduleIteration", statementId: target.statementId };
   if (target.kind === "documentBinding") return { kind: "documentBinding", bindingId: target.bindingId };
   return null;

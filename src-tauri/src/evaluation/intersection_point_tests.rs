@@ -347,7 +347,7 @@ fn reports_no_intersection_and_overlapping_lines() {
 }
 
 #[test]
-fn evaluates_intersection_index_numeric_variables_and_expressions() {
+fn evaluates_intersection_index_numeric_parameter() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
         control_boolean_bindings: None,
@@ -366,12 +366,9 @@ fn evaluates_intersection_index_numeric_variables_and_expressions() {
                 "name": "交点",
                 "type": "intersectionPoint",
                 "activity": "visible",
-                "numericVariables": [
-                    { "id": "index", "name": "番号", "value": 0 }
-                ],
                 "line1Id": "ab",
                 "line2Id": "cd",
-                "intersectionIndex": { "kind": "expression", "expression": "@番号" },
+                "intersectionIndex": 0,
                 "useExtensions": false
             })),
         ],
