@@ -133,6 +133,117 @@ describe("VS Code native nui definition provider", () => {
     });
   });
 
+  it("follows typed binding shadowing through the semantic identity", () => {
+    const source = [
+      "nui 4",
+      "const value: number = 1",
+      "group Inner {",
+      "  const value: number = 2",
+      "  const result: number = @value",
+      "}"
+    ].join("\n");
+    const referenceLine = source.split("\n")[4]!;
+    const links = definitionFor(source, 4, referenceLine.indexOf("@value") + "@value".length);
+
+    expect(links).toHaveLength(1);
+    expect(links?.[0]?.targetSelectionRange).toMatchObject({
+      start: { line: 3, character: "  const ".length },
+      end: { line: 3, character: "  const value".length }
+    });
+  });
+
+  it("projects a qualified reference to the resolved Module export declaration", () => {
+    const source = [
+      "nui 4",
+      "module Producer() {",
+      "  export point Public = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Source = Producer()",
+      "point Use = offset(from: @Source::Public, dx: 1, dy: 0)"
+    ].join("\n");
+    const referenceLine = source.split("\n")[5]!;
+    const memberOffset = referenceLine.indexOf("Public");
+    const links = definitionFor(source, 5, memberOffset + "Public".length);
+
+    expect(links).toHaveLength(1);
+    expect(links?.[0]?.originSelectionRange).toMatchObject({
+      start: { line: 5, character: memberOffset },
+      end: { line: 5, character: memberOffset + "Public".length }
+    });
+    expect(links?.[0]?.targetSelectionRange).toMatchObject({
+      start: { line: 2, character: "  export point ".length },
+      end: { line: 2, character: "  export point Public".length }
+    });
+  });
+
+  it("projects a Module callee to its declaration", () => {
+    const source = [
+      "nui 4",
+      "module Measure(width: number) {",
+      "}",
+      "instance Call = Measure(width: 10)"
+    ].join("\n");
+    const referenceLine = source.split("\n")[3]!;
+    const calleeOffset = referenceLine.indexOf("Measure");
+    const links = definitionFor(source, 3, calleeOffset + "Measure".length);
+
+    expect(links).toHaveLength(1);
+    expect(links?.[0]?.targetSelectionRange).toMatchObject({
+      start: { line: 1, character: "module ".length },
+      end: { line: 1, character: "module Measure".length }
+    });
+  });
+
+  it("returns undefined for unresolved and ambiguous references", () => {
+    const unresolved = [
+      "nui 4",
+      "point B = offset(from: @Missing, dx: 1, dy: 0)"
+    ].join("\n");
+    const unresolvedLine = unresolved.split("\n")[1]!;
+    expect(definitionFor(
+      unresolved,
+      1,
+      unresolvedLine.indexOf("@Missing") + "@Missing".length
+    )).toBeUndefined();
+
+    const ambiguous = [
+      "nui 4",
+      "group One {",
+      "  point Same = coordinate(x: 0, y: 0)",
+      "}",
+      "group Two {",
+      "  point Same = coordinate(x: 1, y: 0)",
+      "}",
+      "point Use = offset(from: @Same, dx: 1, dy: 0)"
+    ].join("\n");
+    const ambiguousLine = ambiguous.split("\n")[7]!;
+    expect(definitionFor(
+      ambiguous,
+      7,
+      ambiguousLine.indexOf("@Same") + "@Same".length
+    )).toBeUndefined();
+  });
+
+  it("does not jump to a last-good declaration after the current source becomes fatal", () => {
+    const initialSource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 1, dy: 0)"
+    ].join("\n");
+    const fatalSource = "nui 4\npoint B = offset(from: @A, dx: 1, dy: 0";
+    const session = createLanguageAnalysisSession(initialSource);
+    session.replaceSource(fatalSource);
+    const provider = createNuiDefinitionProvider(() => session);
+    const referenceLine = fatalSource.split("\n")[1]!;
+    const links = provider.provideDefinition(
+      documentFor(fatalSource) as vscode.TextDocument,
+      new vscode.Position(1, referenceLine.indexOf("@A") + "@A".length),
+      undefined as never
+    ) as vscode.DefinitionLink[] | undefined;
+
+    expect(links).toBeUndefined();
+  });
+
   it("synchronizes the session from the current TextDocument before querying", () => {
     const initialSource = "nui 4\npoint A = coordinate(x: 0, y: 0)";
     const currentSource = [

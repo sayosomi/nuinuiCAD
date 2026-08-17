@@ -6,7 +6,14 @@ type TestDocument = {
   version: number;
   uri: { scheme: string; toString: () => string };
   getText: () => string;
-  positionAt: (offset: number) => { offset: number };
+  offsetAt: (position: { line: number; character: number }) => number;
+  positionAt: (offset: number) => { line: number; character: number };
+  lineAt: (line: number) => {
+    range: {
+      start: { line: number; character: number };
+      end: { line: number; character: number };
+    };
+  };
   setSourceText: (text: string) => void;
   onGetText?: () => void;
 };
@@ -169,6 +176,22 @@ const documentFor = (
   initialSource = "nui 4\n"
 ): TestDocument => {
   let sourceText = initialSource;
+  const lineStartsFor = (): number[] => {
+    const starts = [0];
+    for (let index = 0; index < sourceText.length; index += 1) {
+      if (sourceText[index] === "\n") starts.push(index + 1);
+    }
+    return starts;
+  };
+  const lineBoundsFor = (line: number): { line: number; start: number; end: number } => {
+    const starts = lineStartsFor();
+    const boundedLine = Math.min(Math.max(line, 0), starts.length - 1);
+    const start = starts[boundedLine]!;
+    let end = boundedLine + 1 < starts.length ? starts[boundedLine + 1]! : sourceText.length;
+    if (sourceText[end - 1] === "\n") end -= 1;
+    if (sourceText[end - 1] === "\r") end -= 1;
+    return { line: boundedLine, start, end };
+  };
   const document: TestDocument = {
     fileName,
     version: 1,
@@ -177,7 +200,27 @@ const documentFor = (
       document.onGetText?.();
       return sourceText;
     },
-    positionAt: (offset) => ({ offset }),
+    offsetAt: (position) => {
+      const bounds = lineBoundsFor(position.line);
+      const character = Math.min(Math.max(position.character, 0), bounds.end - bounds.start);
+      return bounds.start + character;
+    },
+    positionAt: (offset) => {
+      const starts = lineStartsFor();
+      const clampedOffset = Math.min(Math.max(offset, 0), sourceText.length);
+      let line = 0;
+      while (line + 1 < starts.length && starts[line + 1]! <= clampedOffset) line += 1;
+      return { line, character: clampedOffset - starts[line]! };
+    },
+    lineAt: (line) => {
+      const bounds = lineBoundsFor(line);
+      return {
+        range: {
+          start: { line: bounds.line, character: 0 },
+          end: { line: bounds.line, character: bounds.end - bounds.start }
+        }
+      };
+    },
     setSourceText: (nextText) => { sourceText = nextText; }
   };
   return document;
@@ -858,5 +901,37 @@ describe("VS Code native definition lifecycle", () => {
 
     expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
     expect(context.subscriptions).toContain(registration.disposable);
+  });
+
+  it("shares the diagnostic session for definition lookup without Canvas or Rust", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 1, dy: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/definition.nui", "file:///tmp/definition.nui", source);
+    const fromSource = vi.spyOn(AutomationDocument, "fromSource");
+    setup(false, null, [document]);
+    const registration = mocks.definitionRegistrations[0]!;
+    const provider = registration.provider as {
+      provideDefinition: (
+        document: TestDocument,
+        position: { line: number; character: number },
+        token: unknown
+      ) => unknown;
+    };
+    const referenceLine = source.split("\n")[2]!;
+    const links = provider.provideDefinition(
+      document,
+      { line: 2, character: referenceLine.indexOf("@A") + "@A".length },
+      undefined
+    ) as Array<{ targetSelectionRange: { start: { line: number; character: number } } }> | undefined;
+
+    expect(fromSource).toHaveBeenCalledTimes(1);
+    expect(links).toHaveLength(1);
+    expect(links?.[0]?.targetSelectionRange.start).toEqual({ line: 1, character: "point ".length });
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.rustProcesses).toHaveLength(0);
+    fromSource.mockRestore();
   });
 });

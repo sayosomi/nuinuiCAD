@@ -99,6 +99,13 @@ describe("VS Code document-scoped language analysis session", () => {
         })
       })
     });
+    const definitionSnapshot = session.definitionSemanticSnapshot(sourceSnapshotFor(fatalSource, 2));
+    expect(definitionSnapshot?.bindingAnalysis?.catalog.bindings ?? []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "old" })])
+    );
+    expect(definitionSnapshot?.compiled?.sourceLexicalNamespace?.allDeclarations ?? []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "old" })])
+    );
   });
 
   it("matches CRLF raw source against the LF-normalized completion snapshot", () => {
@@ -126,5 +133,13 @@ describe("VS Code document-scoped language analysis session", () => {
       "nui 4\npoint Other = coordinate(x: 0, y: 1)\n",
       1
     ))).toBeUndefined();
+  });
+
+  it("fails closed when only the requested source revision is stale", () => {
+    const session = createLanguageAnalysisSession(validSource);
+    const staleRevision = sourceSnapshotFor(validSource, 2);
+
+    expect(session.completionSemanticSnapshot(staleRevision)).toBeUndefined();
+    expect(session.definitionSemanticSnapshot(staleRevision)).toBeUndefined();
   });
 });
