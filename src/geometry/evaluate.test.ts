@@ -766,6 +766,39 @@ describe("evaluateElements", () => {
     }
   });
 
+  it("shadows an outer iteration binding when a nested for group reuses its variable name", () => {
+    const { result, elementId } = compileAndEvaluate(`nui 4
+for i in range(from: 100, count: 2, step: 100) {
+  for i in range(from: 1, count: 2, step: 1) {
+    point P = coordinate(x: @i, y: 0)
+  }
+}`);
+    expect(result.errors).toEqual([]);
+
+    const outerId = elementId("Outer");
+    const innerId = elementId("Inner");
+    const pointId = elementId("P");
+    for (let outerIndex = 0; outerIndex < 2; outerIndex += 1) {
+      const generatedInnerId = forGroupGeneratedElementId({
+        forGroupId: outerId,
+        templateElementId: innerId,
+        iterationIndex: outerIndex
+      });
+      for (let innerIndex = 0; innerIndex < 2; innerIndex += 1) {
+        const generatedPointId = forGroupGeneratedElementId({
+          forGroupId: generatedInnerId,
+          templateElementId: pointId,
+          iterationIndex: innerIndex
+        });
+        expect(result.computedGeometry.get(generatedPointId)).toMatchObject({
+          kind: "point",
+          x: 1 + innerIndex,
+          y: 0
+        });
+      }
+    }
+  });
+
   it("gives generated forGroup and body instances a parentGroupId that points at the runtime instance chain, never a source template id", () => {
     const outer: CadElement = {
       id: "outer",

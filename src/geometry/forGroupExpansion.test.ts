@@ -152,6 +152,29 @@ describe("expandForGroupIteration (anonymous mutation name invariant)", () => {
 
     expect(generatedLine.name).toBe("[i=0] 線AB");
   });
+
+  it("does not add element-local numeric variables to generated clones", () => {
+    const line: CadElement = {
+      id: "line-ab",
+      name: "線AB",
+      type: "line",
+      activity: "visible",
+      parentGroupId: forGroup.id,
+      startPoint: { mode: "reference", pointId: "point-a" },
+      endPoint: { mode: "reference", pointId: "point-b" }
+    };
+
+    const { generatedElements } = expandForGroupIteration({
+      elements: [...basePoints, forGroup, line],
+      forGroup,
+      iterationIndex: 0,
+      variableValue: 0
+    });
+    const generatedLine = generatedElements.find((element) => element.type === "line");
+
+    expect(generatedLine).toBeDefined();
+    expect(generatedLine).not.toHaveProperty("numericVariables");
+  });
 });
 
 describe("expandForGroupIteration (nested forGroup ownership and iteration context)", () => {
