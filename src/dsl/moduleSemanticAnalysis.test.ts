@@ -554,6 +554,100 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
+  it("projects ordinary root geometry references by StatementIdentity without starting Module runtime", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 1, dy: 0)"
+    ].join("\n"));
+    const reference = compiled.sourceSemanticAnalysis!.rootGeometryReferencesByStatementId
+      .get("statement:test:2")?.[0].reference;
+
+    expect(compiled.sourceSemanticAnalysis!.definitions).toEqual([]);
+    expect(compiled.moduleMaterialization).toBeUndefined();
+    expect(reference).toMatchObject({
+      resolution: "resolved",
+      target: {
+        kind: "sourceGeometry",
+        statementId: "statement:test:1"
+      }
+    });
+  });
+
+  it("projects root parent references by source container StatementIdentity", () => {
+    const source = [
+      "nui 4",
+      "group Front {",
+      "}",
+      "point Child = coordinate(x: 0, y: 0, parent: @Front)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const reference = compiled.sourceSemanticAnalysis!.rootParentReferencesByStatementId
+      .get("statement:test:3")?.reference;
+
+    expect(compiled.sourceSemanticAnalysis!.definitions).toEqual([]);
+    expect(compiled.moduleMaterialization).toBeUndefined();
+    expect(reference).toMatchObject({
+      source: "@Front",
+      resolution: "resolved",
+      target: {
+        kind: "sourceContainer",
+        statementId: "statement:test:1",
+        statementIndex: 1,
+        containerKind: "group"
+      }
+    });
+    expect(reference?.nameSpan).toEqual({ start: 46, end: 51 });
+  });
+
+  it("projects root group, conditional, and for parent references without materialization", () => {
+    const source = [
+      "nui 4",
+      "group Outer {",
+      "}",
+      "group Inner (parent: @Outer) {",
+      "}",
+      "if (true, parent: @Outer) {",
+      "}",
+      "for i in range(from: 0, count: 1, parent: @Outer) {",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const analysis = compiled.sourceSemanticAnalysis!;
+    const groupReference = analysis.rootParentReferencesByStatementId.get("statement:test:3")?.reference;
+    const conditionalReference = analysis.rootParentReferencesByStatementId.get("statement:test:5")?.reference;
+    const forReference = analysis.rootParentReferencesByStatementId.get("statement:test:7")?.reference;
+
+    expect(compiled.moduleMaterialization).toBeUndefined();
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    for (const reference of [groupReference, conditionalReference, forReference]) {
+      expect(reference).toMatchObject({
+        source: "@Outer",
+        resolution: "resolved",
+        target: {
+          kind: "sourceContainer",
+          statementId: "statement:test:1",
+          statementIndex: 1,
+          containerKind: "group"
+        }
+      });
+    }
+
+  });
+
+  it("does not duplicate ordinary root geometry diagnostics in the source projection", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "point B = offset(from: @Missing, dx: 1, dy: 0)"
+    ].join("\n"));
+    const missing = compiled.diagnostics.filter((diagnostic) => diagnostic.message.includes("@Missing"));
+    const reference = compiled.sourceSemanticAnalysis!.rootGeometryReferencesByStatementId
+      .get("statement:test:1")?.[0].reference;
+
+    expect(missing).toHaveLength(1);
+    expect(reference).toMatchObject({ resolution: "undefined", target: null });
+  });
+
   it("honors allowCoordinate and preserves allowNone behavior from parameter definitions", () => {
     const compiled = compileWithIds([
       "nui 4",

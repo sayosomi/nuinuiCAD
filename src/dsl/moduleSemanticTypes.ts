@@ -55,6 +55,22 @@ export type ModuleGeometrySourceTarget =
       memberSpan: DslSpan;
     };
 
+export type ModuleParentSourceTarget = {
+  kind: "sourceContainer";
+  statementId: StatementIdentity;
+  statementIndex: number;
+  containerKind: "group" | "conditionalGroup" | "forGroup";
+};
+
+export type ModuleParentReferenceSemantic = {
+  source: string;
+  span: DslSpan;
+  /** Exact container identifier token, excluding `@`. */
+  nameSpan?: DslSpan;
+  target: ModuleParentSourceTarget | null;
+  resolution: "resolved" | "undefined" | "forward" | "ambiguous" | "invalid";
+};
+
 export type ModuleGeometryPropertySourceTarget =
   | (ModuleParameterSlot & { kind: "parameterProperty"; geometryKind: "point" | "line"; property: string })
   | {
@@ -206,6 +222,12 @@ export type ModuleGeometryReferenceSite = {
   reference: ModuleGeometryReferenceSemantic;
 };
 
+export type ModuleParentReferenceSite = {
+  parameterKey: "parent";
+  span: DslSpan;
+  reference: ModuleParentReferenceSemantic;
+};
+
 /** Resolved source references attached to one statement in a module body. */
 export type ModuleBodyStatementSemantic = {
   statementId: StatementIdentity;
@@ -273,6 +295,8 @@ export type ModuleSemanticAnalysis = {
   rootScalarExpressionsByStatementId: ReadonlyMap<StatementIdentity, ModuleScalarExpressionSite>;
   /** Source-only qualified geometry references in the root document. */
   rootGeometryReferencesByStatementId: ReadonlyMap<StatementIdentity, readonly ModuleGeometryReferenceSite[]>;
+  /** Source-only parent container references in the root document. */
+  rootParentReferencesByStatementId: ReadonlyMap<StatementIdentity, ModuleParentReferenceSite>;
   diagnostics: readonly DslDiagnostic[];
 };
 

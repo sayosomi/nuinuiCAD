@@ -1,5 +1,5 @@
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
-import { constructionFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
+import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOf,
@@ -46,6 +46,9 @@ import type {
   ModuleGeometryReferenceSemantic,
   ModuleGeometryReferenceSite,
   ModuleGeometrySourceTarget,
+  ModuleParentReferenceSemantic,
+  ModuleParentReferenceSite,
+  ModuleParentSourceTarget,
   ModuleInstanceSemantic,
   ModuleGeometryReferenceRole,
   ModuleScalarExpressionSemantic,
@@ -214,6 +217,19 @@ const declarationGeometryPropertyTarget = (
   };
 };
 
+const declarationParentTarget = (
+  declaration: SourceLexicalDeclaration,
+  stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>
+): ModuleParentSourceTarget | null => {
+  if (declaration.kind !== "group" && declaration.kind !== "conditionalGroup" && declaration.kind !== "forGroup") return null;
+  return {
+    kind: "sourceContainer",
+    statementId: statementIdAt(stableStatementIdByIndex, declaration.statementIndex),
+    statementIndex: declaration.statementIndex,
+    containerKind: declaration.kind
+  };
+};
+
 const moduleCalleeDiagnosticCode = (resolution: ModuleInstanceSemantic["calleeResolution"]): string => {
   switch (resolution) {
     case "forward": return "module-forward-callee";
@@ -228,7 +244,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const { statements, stableStatementIdByIndex, sourceNamespace, spans } = input;
   const diagnostics: DslDiagnostic[] = [];
   const localDiagnosticsByStatement = new Map<number, LocalDiagnostic[]>();
+  let suppressLocalDiagnostics = false;
   const addLocal = (statementIndex: number, local: LocalDiagnostic) => {
+    if (suppressLocalDiagnostics) return;
     const bucket = localDiagnosticsByStatement.get(statementIndex) ?? [];
     bucket.push(local);
     localDiagnosticsByStatement.set(statementIndex, bucket);
@@ -945,6 +963,22 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return semantic(pointTarget, "resolved", null, derivedRole);
   };
 
+  const resolveRootGeometry = (
+    statementIndex: number,
+    rawValue: string,
+    span: DslSpan,
+    expected: "point" | "line",
+    options: Parameters<typeof resolveGeometry>[5] = {}
+  ) => {
+    const previous = suppressLocalDiagnostics;
+    suppressLocalDiagnostics = true;
+    try {
+      return resolveGeometry(statementIndex, null, rawValue, span, expected, options);
+    } finally {
+      suppressLocalDiagnostics = previous;
+    }
+  };
+
   const resolveGeometryProperty = (
     statementIndex: number,
     ownerIndex: number | null,
@@ -1042,15 +1076,79 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return resolution;
   };
 
-  // Root elements normally use the ordinary document NameIndex. Qualified
-  // module exports are the exception: retain their source-only semantic
-  // target here so the instance-aware lowering phase can resolve them without
-  // publishing materialized children into the root namespace.
+  // Root elements normally use the ordinary document NameIndex. Keep the
+  // source-only result of the same resolver here as an editor projection too;
+  // ordinary references suppress diagnostics because their existing compiler
+  // owns validation, while qualified module exports retain this pass's
+  // established diagnostic behavior.
   const rootGeometryReferencesByStatementId = new Map<StatementIdentity, ModuleGeometryReferenceSite[]>();
+  const rootParentReferencesByStatementId = new Map<StatementIdentity, ModuleParentReferenceSite>();
+  const parentArg = commonArgSpecs.find((arg) => arg.special === "parent");
+  const resolveRootParent = (
+    statementIndex: number,
+    rawValue: string,
+    span: DslSpan
+  ): ModuleParentReferenceSemantic => {
+    const trimmed = rawValue.trim();
+    const logicalSource = input.logicalTextByStatementIndex?.get(statementIndex);
+    const trimmedStart = logicalSource
+      ? logicalSource.indexOf(trimmed, Math.max(0, span.start))
+      : -1;
+    const semanticSpan = trimmedStart >= 0
+      ? { start: trimmedStart, end: trimmedStart + trimmed.length }
+      : span;
+    const semantic = (
+      target: ModuleParentSourceTarget | null,
+      resolution: ModuleParentReferenceSemantic["resolution"],
+      nameSpan?: DslSpan
+    ): ModuleParentReferenceSemantic => ({
+      source: rawValue,
+      span: semanticSpan,
+      ...(nameSpan ? { nameSpan } : {}),
+      target,
+      resolution
+    });
+    if (!trimmed) return semantic(null, "undefined");
+    const parsedReference = parseDslSourceReference(trimmed);
+    if (parsedReference.kind !== "valid" || parsedReference.reference.property) return semantic(null, "invalid");
+    const reference = parsedReference.reference;
+    const nameSpan = {
+      start: semanticSpan.start + reference.pathRange.start,
+      end: semanticSpan.start + reference.pathRange.end
+    };
+    const path = parseDslReferenceToken(reference.pathText);
+    const lookup = path.segments.length === 1 && !path.absolute
+      ? sourceDeclarationResolution(sourceNamespace, statementIndex, path.segments[0])
+      : resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
+    if (lookup.kind === "resolved") {
+      const target = declarationParentTarget(lookup.declaration, stableStatementIdByIndex);
+      return target ? semantic(target, "resolved", nameSpan) : semantic(null, "invalid", nameSpan);
+    }
+    if (lookup.kind === "undefined") return semantic(null, "undefined", nameSpan);
+    if (lookup.kind === "forward") return semantic(null, "forward", nameSpan);
+    if (lookup.kind === "ambiguous") return semantic(null, "ambiguous", nameSpan);
+    return semantic(null, "invalid", nameSpan);
+  };
   for (const [statementIndex, statement] of statements.entries()) {
-    if (statement.kind !== "element" || (!isGeometryDeclarationCategory(statement.category) && statement.category !== "mutation") || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
-    const spec = constructionFor(statement.category, statement.construction);
-    if (!spec || !statement.type) continue;
+    if ((statement.kind !== "group" && statement.kind !== "element") || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
+    const spec = statement.kind === "group"
+      ? constructionFor("group", "")
+      : constructionFor(statement.category, statement.construction);
+    if (!spec) continue;
+    if (parentArg) {
+      const parentValueSpan = statement.payloadSpans[parentArg.arg];
+      if (parentValueSpan) {
+        const raw = input.logicalTextByStatementIndex?.get(statementIndex)?.slice(parentValueSpan.start, parentValueSpan.end)
+          ?? statement.attrs.find((attr) => attr.key === parentArg.arg)?.value
+          ?? "";
+        rootParentReferencesByStatementId.set(statementIdAt(stableStatementIdByIndex, statementIndex), {
+          parameterKey: "parent",
+          span: parentValueSpan,
+          reference: resolveRootParent(statementIndex, raw, parentValueSpan)
+        });
+      }
+    }
+    if (statement.kind !== "element" || (!isGeometryDeclarationCategory(statement.category) && statement.category !== "mutation") || !statement.type) continue;
     const definitionsByKey = new Map(getParameterDefinitions({ type: statement.type, intermediatePoints: [] } as never).map((definition) => [definition.key, definition]));
     const sites: ModuleGeometryReferenceSite[] = [];
     for (const arg of spec.args) {
@@ -1060,25 +1158,45 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const valueSpan = statement.payloadSpans[arg.arg] ?? statement.payloadSpans[parameterKey];
       if (!parameter || !valueSpan || !["reference", "lineEndpointReference", "lineReference", "lineReferenceList"].includes(parameter.kind)) continue;
       const raw = input.logicalTextByStatementIndex?.get(statementIndex)?.slice(valueSpan.start, valueSpan.end) ?? statement.attrs.find((attr) => attr.key === arg.arg)?.value ?? "";
-      const parsedReference = parseDslSourceReference(raw);
-      if (parsedReference.kind !== "valid" || parsedReference.reference.path.segments.length < 2) continue;
-      const firstSegment = parsedReference.reference.path.segments[0];
-      const instanceLookup = sourceDeclarationResolution(sourceNamespace, statementIndex, firstSegment);
-      if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") continue;
       const expected = parameter.kind === "reference" || parameter.kind === "lineEndpointReference" ? "point" : "line";
+      const sitesFor = (reference: ModuleGeometryReferenceSemantic, parameterKey: string | null, span: DslSpan) => {
+        sites.push({ parameterKey, span, reference });
+      };
+      const referenceKind = (value: string): "module" | "ordinary" | "skip" => {
+        const parsedReference = parseDslSourceReference(value);
+        if (parsedReference.kind !== "valid") return "skip";
+        const path = parsedReference.reference.path;
+        if (path.segments.length === 1) return "ordinary";
+        const firstSegment = path.segments[0];
+        const instanceLookup = sourceDeclarationResolution(sourceNamespace, statementIndex, firstSegment);
+        if (instanceLookup.kind === "resolved") {
+          return instanceLookup.declaration.kind === "moduleInstance" ? "module" : "ordinary";
+        }
+        return "skip";
+      };
       if (parameter.kind === "lineReferenceList") {
         let cursor = 0;
         for (const token of splitDslList(raw)) {
           const offset = raw.indexOf(token, cursor);
           cursor = offset + token.length;
-          const reference = resolveGeometry(statementIndex, null, token, { start: valueSpan.start + Math.max(0, offset), end: valueSpan.start + Math.max(0, offset) + token.length }, expected, { role: "lineReferenceList" });
-          sites.push({ parameterKey, span: reference.span, reference });
+          const tokenSpan = { start: valueSpan.start + Math.max(0, offset), end: valueSpan.start + Math.max(0, offset) + token.length };
+          const kind = referenceKind(token);
+          if (kind === "module") {
+            sitesFor(resolveGeometry(statementIndex, null, token, tokenSpan, expected, { role: "lineReferenceList" }), parameterKey, tokenSpan);
+          } else if (kind === "ordinary") {
+            sitesFor(resolveRootGeometry(statementIndex, token, tokenSpan, expected, { role: "lineReferenceList" }), parameterKey, tokenSpan);
+          }
         }
-      } else {
+      } else if (referenceKind(raw) === "module") {
         const reference = resolveGeometry(statementIndex, null, raw, valueSpan, expected, {
           role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference"
         });
-        sites.push({ parameterKey, span: valueSpan, reference });
+        sitesFor(reference, parameterKey, valueSpan);
+      } else if (referenceKind(raw) === "ordinary") {
+        const reference = resolveRootGeometry(statementIndex, raw, valueSpan, expected, {
+          role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference"
+        });
+        sitesFor(reference, parameterKey, valueSpan);
       }
     }
     if (sites.length) rootGeometryReferencesByStatementId.set(statementIdAt(stableStatementIdByIndex, statementIndex), sites);
@@ -1203,7 +1321,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       moduleOwnerIndexOf(statements, statementIndex) !== null ||
       !statement.declaredType ||
       !statement.payloadSpans.initializer ||
-      !statement.initializer.includes("::")
+      (!statement.initializer.includes("::") && !(statement.initializer.includes("@") && statement.initializer.includes(".")))
     ) continue;
     const initializerSpan = statement.payloadSpans.initializer;
     const diagnosticsBefore = localDiagnosticsByStatement.get(statementIndex)?.length ?? 0;
@@ -1321,6 +1439,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     callEdges,
     rootScalarExpressionsByStatementId,
     rootGeometryReferencesByStatementId,
+    rootParentReferencesByStatementId,
     diagnostics
   };
 };
