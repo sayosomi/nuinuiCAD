@@ -10,8 +10,12 @@ import {
   type SourceRevision,
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
-import { parseDslReferenceToken } from "./dslReferenceTokens";
-import { resolveSourceLexicalPath, resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
+import { parseDslReferenceToken, type DslReferencePath } from "./dslReferenceTokens";
+import {
+  resolveSourceLexicalPath,
+  resolveSourceLexicalDeclaration,
+  sourceNamespaceScopeIdForDeclaration
+} from "./sourceLexicalNamespaceIndex";
 import { moduleCompletionCandidates, type ModuleCompletionCandidate } from "./moduleCompletionCandidates";
 import type { CompiledDslDocument } from "./dslDocument";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
@@ -29,7 +33,7 @@ import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import type { ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps } from "../scalars/setCompletionCandidates";
-import { numericReferencePropertiesForElement } from "../geometry/numericReferenceProperties";
+import { NUMERIC_COMPUTED_GEOMETRY_PROPERTIES } from "../geometry/numericExpressions";
 import { isLineLikeElement, isPointElement } from "../model/pointAnchors";
 import type { CadElement } from "../types/geometry";
 
@@ -242,6 +246,32 @@ const sourceGeometryDeclarations = (
   return candidates;
 };
 
+const sourceGeometryQualifiedMembers = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  qualifier: string
+): DslCompletionCandidate[] | null => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace || statementIndex < 0) return null;
+  const qualifierPath = parseDslReferenceToken(qualifier);
+  const container = resolveSourceLexicalPath(namespace, statementIndex, qualifierPath);
+  if (container.kind !== "resolved") return null;
+  const scopeId = sourceNamespaceScopeIdForDeclaration(container.declaration);
+  if (!scopeId) return null;
+  const members = namespace.declarationsByScope.get(scopeId) ?? [];
+  return members
+    .filter((declaration) => declaration.kind === "geometry" && declaration.statementIndex < statementIndex)
+    .filter((declaration) => {
+      const memberPath: DslReferencePath = {
+        absolute: qualifierPath.absolute,
+        segments: [...qualifierPath.segments, declaration.name]
+      };
+      const lookup = resolveSourceLexicalPath(namespace, statementIndex, memberPath);
+      return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;
+    })
+    .map((declaration) => ({ kind: "geometry" as const, label: declaration.name, identity: declaration.statementId }));
+};
+
 const sourceGeometryPropertyCandidates = (
   compiled: CompiledDslDocument,
   statementIndex: number,
@@ -253,11 +283,11 @@ const sourceGeometryPropertyCandidates = (
   if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry") return [];
   const elementType = dslStatementElementType(lookup.declaration.statement);
   if (!elementType) return [];
-  const element = { type: elementType } as CadElement;
-  const paths = isPointElement(element)
-    ? ["x", "y"]
-    : numericReferencePropertiesForElement(element);
-  return paths.map((label) => ({ kind: "property" as const, label, identity: `${lookup.declaration.statementId}:${label}` }));
+  return NUMERIC_COMPUTED_GEOMETRY_PROPERTIES.map((label) => ({
+    kind: "property" as const,
+    label,
+    identity: `${lookup.declaration.statementId}:${label}`
+  }));
 };
 
 const scalarCandidatesAt = (
@@ -364,6 +394,10 @@ const moduleCandidatesAt = (
   exact: boolean,
   statementIndex: number
 ) => {
+  if (context.kind === "moduleQualifiedMember" && compiled && exact) {
+    const sourceCandidates = sourceGeometryQualifiedMembers(compiled, statementIndex, context.qualifiedInstanceName);
+    if (sourceCandidates !== null) return sourceCandidates;
+  }
   if (!compiled || !semantic || !exact || (context.kind !== "moduleCallee" && !compiled.moduleSemanticAnalysis)) return [];
   const moduleKind = context.kind === "moduleCallee"
     ? "callee"

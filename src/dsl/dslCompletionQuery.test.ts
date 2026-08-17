@@ -118,6 +118,33 @@ describe("queryDslCompletion", () => {
     expect(property?.replacementRange.from).toBe(source.indexOf("@AB.le") + "@AB.".length);
   });
 
+  it("completes qualified members in the ordinary CAD namespace", () => {
+    const source = [
+      "nui 4",
+      "group 前身頃 {",
+      "  point か = coordinate(x: 0, y: 0)",
+      "}",
+      "point 使用 = offset(from: @前身頃::か, dx: 0, dy: 0)"
+    ].join("\n");
+    const result = exactQuery(source, "@前身頃::か");
+    expect(result?.category).toBe("moduleQualifiedMember");
+    expect(labels(result)).toContain("か");
+    expect(result && source.slice(result.replacementRange.from, result.replacementRange.to)).toBe("か");
+    expect(result?.replacementRange.from).toBe(source.indexOf("@前身頃::か") + "@前身頃::".length);
+  });
+
+  it("uses the canonical typed-scalar geometry property vocabulary", () => {
+    const source = [
+      "nui 4",
+      "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
+      "const value: number = @Arc.ra"
+    ].join("\n");
+    const result = exactQuery(source, "@Arc.ra");
+    expect(result?.category).toBe("elementParameter");
+    expect(labels(result)).toEqual(expect.arrayContaining(["radius", "startPoint.x", "centerPoint.x"]));
+    expect(result && source.slice(result.replacementRange.from, result.replacementRange.to)).toBe("ra");
+  });
+
   it("returns choice literals and mutable set targets only", () => {
     const source = [
       "nui 4",
