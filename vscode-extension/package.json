@@ -20,7 +20,18 @@
       {
         "id": "nui",
         "aliases": ["nuinuiCAD", "nui"],
-        "extensions": [".nui"]
+        "extensions": [".nui"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "nui",
+        "scopeName": "source.nui",
+        "path": "./syntaxes/nui.tmLanguage.json",
+        "tokenTypes": {
+          "meta.interpolation.nui": "other"
+        }
       }
     ]
   },

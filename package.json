@@ -65,6 +65,8 @@
     "tsx": "^4.23.12",
     "typescript": "latest",
     "typescript-eslint": "latest",
-    "vitest": "latest"
+    "vitest": "latest",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   }
 }
