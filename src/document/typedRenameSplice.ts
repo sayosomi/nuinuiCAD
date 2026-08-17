@@ -35,6 +35,17 @@ export type SourceSemanticRenameSpliceResult = TypedRenameSpliceResult;
 
 type PhysicalReplacement = { from: number; to: number; text: string };
 
+export type ExactRenameEdit = {
+  readonly from: number;
+  readonly to: number;
+  readonly expectedText: string;
+  readonly newText: string;
+};
+
+export type ExactRenameEditProjectionResult =
+  | { ok: true; edits: readonly ExactRenameEdit[] }
+  | { ok: false; reason: string };
+
 const lineStartOffsets = (sourceText: string): number[] => {
   const starts = [0];
   for (const match of sourceText.matchAll(/\r?\n/g)) starts.push((match.index ?? 0) + match[0].length);
@@ -67,29 +78,14 @@ export const buildTypedRenameSplices = (
 ): TypedRenameSpliceResult => {
   if (entries.length === 0) return { ok: true, splices: [] };
 
-  const normalizedSource = sourceText.replace(/\r\n/g, "\n");
-  const parsed = parseDslSnapshot({ normalizedSource, sourceRevision: 0 });
-  const sourceMap = parsed.sourceMap;
+  const projected = projectTypedRenameEdits(sourceText, compiled, entries);
+  if (!projected.ok) return projected;
 
-  const replacements: PhysicalReplacement[] = [];
-  for (const entry of entries) {
-    const statement = compiled.statements[entry.statementIndex];
-    if (!statement) return { ok: false, reason: `statementIndex ${entry.statementIndex} is out of range` };
-    const logical = sourceMap.statements.find(
-      (candidate) =>
-        candidate.range.from === statement.documentRange.from && candidate.range.to === statement.documentRange.to
-    );
-    if (!logical) return { ok: false, reason: `no logical statement projection for statementIndex ${entry.statementIndex}` };
-    const physical = entry.physicalSpan ?? physicalSpanForLogicalRange(sourceMap, logical, entry.span);
-    if (!physical || physical.segments.length !== 1) {
-      return { ok: false, reason: `non-contiguous physical projection for "${entry.oldName}"` };
-    }
-    const { from, to } = physical.segments[0];
-    if (sourceText.slice(from, to) !== entry.oldName) {
-      return { ok: false, reason: `projected span for "${entry.oldName}" does not match the live source text` };
-    }
-    replacements.push({ from, to, text: entry.newName });
-  }
+  const replacements: PhysicalReplacement[] = projected.edits.map((edit) => ({
+    from: edit.from,
+    to: edit.to,
+    text: edit.newText
+  }));
 
   const byStart = [...replacements].sort((a, b) => a.from - b.from);
   for (let index = 1; index < byStart.length; index += 1) {
@@ -126,6 +122,46 @@ export const buildTypedRenameSplices = (
   }
 
   return { ok: true, splices };
+};
+
+/** Projects analysis-approved logical spans into exact identifier edits. */
+export const projectTypedRenameEdits = (
+  sourceText: string,
+  compiled: CompiledDslDocument,
+  entries: readonly TypedRenameSpliceEntry[]
+): ExactRenameEditProjectionResult => {
+  if (entries.length === 0) return { ok: true, edits: [] };
+
+  const normalizedSource = sourceText.replace(/\r\n/g, "\n");
+  const parsed = parseDslSnapshot({ normalizedSource, sourceRevision: 0 });
+  const sourceMap = parsed.sourceMap;
+  const edits: ExactRenameEdit[] = [];
+  for (const entry of entries) {
+    const statement = compiled.statements[entry.statementIndex];
+    if (!statement) return { ok: false, reason: `statementIndex ${entry.statementIndex} is out of range` };
+    const logical = sourceMap.statements.find(
+      (candidate) =>
+        candidate.range.from === statement.documentRange.from && candidate.range.to === statement.documentRange.to
+    );
+    if (!logical) return { ok: false, reason: `no logical statement projection for statementIndex ${entry.statementIndex}` };
+    const physical = entry.physicalSpan ?? physicalSpanForLogicalRange(sourceMap, logical, entry.span);
+    if (!physical || physical.segments.length !== 1) {
+      return { ok: false, reason: `non-contiguous physical projection for "${entry.oldName}"` };
+    }
+    const { from, to } = physical.segments[0];
+    if (normalizedSource.slice(from, to) !== entry.oldName) {
+      return { ok: false, reason: `projected span for "${entry.oldName}" does not match the live source text` };
+    }
+    edits.push({ from, to, expectedText: entry.oldName, newText: entry.newName });
+  }
+
+  const ordered = [...edits].sort((left, right) => left.from - right.from || left.to - right.to);
+  for (let index = 1; index < ordered.length; index += 1) {
+    if (ordered[index].from < ordered[index - 1].to) {
+      return { ok: false, reason: "two entries project onto duplicate or overlapping source ranges" };
+    }
+  }
+  return { ok: true, edits: ordered };
 };
 
 export const buildSourceSemanticRenameSplices = buildTypedRenameSplices;

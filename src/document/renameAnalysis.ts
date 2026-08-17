@@ -13,6 +13,7 @@ import {
   type RenameReferenceForm,
   type RenameReferenceState
 } from "./renameReferenceCatalog";
+import { applyLineSplices, buildTextPatch } from "./textPatch";
 
 export type { RenameReferenceForm, RenameReferenceState } from "./renameReferenceCatalog";
 
@@ -76,6 +77,17 @@ export type RenameAnalysis =
       expectedPatchedLines: number[];
     }
   | RenameAnalysisRejected;
+
+export type ElementRenameEdit = {
+  readonly from: number;
+  readonly to: number;
+  readonly expectedText: string;
+  readonly newText: string;
+};
+
+export type ElementRenameEditProjection =
+  | { ok: true; edits: readonly ElementRenameEdit[] }
+  | { ok: false; reason: string };
 
 const descendantIds = (document: DslDocumentData, rootId: ElementId) => {
   const ids = new Set<ElementId>([rootId]);
@@ -265,4 +277,91 @@ export const analyzeRename = (input: RenameAnalysisInput): RenameAnalysis => {
       : []
   );
   return { verdict: "ok", newName, occurrences, expectedPatchedLines: changedStatements.expectedPatchedLines };
+};
+
+/**
+ * Projects the existing element rename safety result into identifier edits.
+ * The serializer remains the safety candidate owner, but only exact
+ * old-identifier -> new-identifier substitutions are exposed to host-neutral
+ * editors; statement-level patches are never returned as rename edits.
+ */
+export const projectElementRenameEdits = ({
+  sourceText,
+  compiled,
+  targetElementId,
+  analysis
+}: {
+  sourceText: string;
+  compiled: CompiledDslDocument;
+  targetElementId: ElementId;
+  analysis: Extract<RenameAnalysis, { verdict: "ok" }>;
+}): ElementRenameEditProjection => {
+  const target = compiled.document?.elements.find((element) => element.id === targetElementId);
+  if (!target || !target.name.trim()) return { ok: false, reason: "rename target has no source name" };
+  if (analysis.newName === target.name) return { ok: true, edits: [] };
+  if (!completeCompiled(compiled)) return { ok: false, reason: "complete compiled document is required" };
+
+  let candidateSource: string;
+  try {
+    const afterDocument: DslDocumentData = {
+      ...compiled.document,
+      elements: compiled.document.elements.map((element) =>
+        element.id === targetElementId ? { ...element, name: analysis.newName } : element
+      )
+    };
+    candidateSource = applyLineSplices(sourceText, buildTextPatch({ old: compiled, newDocument: afterDocument }));
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+  }
+
+  const oldSource = sourceText.replace(/\r\n/g, "\n");
+  const newSource = candidateSource.replace(/\r\n/g, "\n");
+  const oldLines = oldSource.split("\n");
+  const newLines = newSource.split("\n");
+  if (oldLines.length !== newLines.length) return { ok: false, reason: "rename candidate changed line count" };
+
+  const changedLines = new Set<number>(analysis.expectedPatchedLines);
+  const oldIdentifier = formatDslName(target.name);
+  const newIdentifier = formatDslName(analysis.newName);
+  const edits: ElementRenameEdit[] = [];
+  let lineStart = 0;
+  for (let lineIndex = 0; lineIndex < oldLines.length; lineIndex += 1) {
+    const oldLine = oldLines[lineIndex];
+    const newLine = newLines[lineIndex];
+    if (oldLine === newLine) {
+      lineStart += oldLine.length + 1;
+      continue;
+    }
+    if (!changedLines.has(lineIndex + 1)) return { ok: false, reason: "rename candidate changed an unproved source line" };
+    let oldCursor = 0;
+    let newCursor = 0;
+    while (oldCursor < oldLine.length || newCursor < newLine.length) {
+      if (
+        oldLine.startsWith(oldIdentifier, oldCursor) &&
+        newLine.startsWith(newIdentifier, newCursor)
+      ) {
+        edits.push({
+          from: lineStart + oldCursor,
+          to: lineStart + oldCursor + oldIdentifier.length,
+          expectedText: oldIdentifier,
+          newText: newIdentifier
+        });
+        oldCursor += oldIdentifier.length;
+        newCursor += newIdentifier.length;
+        continue;
+      }
+      if (oldCursor < oldLine.length && newCursor < newLine.length && oldLine[oldCursor] === newLine[newCursor]) {
+        oldCursor += 1;
+        newCursor += 1;
+        continue;
+      }
+      return { ok: false, reason: "rename candidate contains a non-identifier source change" };
+    }
+    lineStart += oldLine.length + 1;
+  }
+
+  if (edits.length !== 1 + analysis.occurrences.length) {
+    return { ok: false, reason: "rename occurrence projection is incomplete" };
+  }
+  return { ok: true, edits };
 };

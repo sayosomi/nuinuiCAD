@@ -397,7 +397,8 @@ VS Code TextDocument
 → URI-scoped language analysis session / AutomationDocument
 ├→ compiler diagnostics → DiagnosticCollection
 ├→ queryDslCompletion → CompletionItemProvider
-└→ queryDslDefinition → DefinitionProvider
+├→ queryDslDefinition → DefinitionProvider
+└→ queryDslRenameTarget / planDslRenameEdits → host-neutral rename edit plan
 ```
 
 `languageAnalysisSession.ts` owns current raw source, source replacement,
@@ -410,8 +411,11 @@ truncation remain owned by the production query. `definitionProvider.ts` keeps
 the VS Code adapter thin: it synchronizes the current `TextDocument`, converts
 UTF-16 raw offsets across CRLF normalization, delegates semantic resolution to
 `queryDslDefinition`, and projects its exact ranges to a same-document
-`DefinitionLink`. Neither diagnostics, completion, nor definition navigation
-performs runtime evaluation or starts the Rust process.
+`DefinitionLink`. Rename target and edit-plan projection similarly remain
+host-neutral; VS Code `RenameProvider` registration is an adapter boundary,
+not a second rename resolver. Neither diagnostics, completion, definition
+navigation, nor rename planning performs runtime evaluation or starts the Rust
+process.
 
 `src-tauri/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。
