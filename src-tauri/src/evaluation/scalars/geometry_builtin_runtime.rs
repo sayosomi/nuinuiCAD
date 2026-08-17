@@ -2,6 +2,7 @@ use super::types::{
     BuiltinArgumentType, BuiltinFunctionName, GeometryInterfaceType,
     ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument,
 };
+use crate::evaluation::activity::{effective_activity_by_element_id, ElementActivity};
 use crate::evaluation::point_anchor::{
     point_from_geometry, point_from_value, resolve_derived_point,
 };
@@ -51,6 +52,8 @@ impl PartialEq for GeometryBuiltinRuntimeTarget {
 pub(crate) enum GeometryBuiltinRuntimeError {
     Unavailable,
     InvalidArgument,
+    Disabled,
+    ZeroLengthLine,
 }
 
 pub(crate) fn resolve_geometry_builtin_target(
@@ -63,6 +66,13 @@ pub(crate) fn resolve_geometry_builtin_target(
         || !state.elements_by_id.contains_key(&target.statement_id)
     {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
+    }
+    let activities = effective_activity_by_element_id(&state.elements);
+    if activities
+        .get(&target.statement_id)
+        .is_some_and(|activity| activity.activity == ElementActivity::Disabled)
+    {
+        return Err(GeometryBuiltinRuntimeError::Disabled);
     }
     let Some(geometry) = state.computed_geometry.get(&target.statement_id) else {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
@@ -102,7 +112,7 @@ pub(crate) fn resolve_geometry_builtin_target(
             let dy = end.y - start.y;
             let length = dx.hypot(dy);
             if length <= 1e-9 {
-                return Err(GeometryBuiltinRuntimeError::InvalidArgument);
+                return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
             }
             Ok(GeometryBuiltinRuntimeTarget::Line { start, end })
         }
@@ -154,7 +164,7 @@ where
                 let dx = end.x - start.x;
                 let dy = end.y - start.y;
                 if dx.hypot(dy) <= 1e-9 {
-                    return Err(GeometryBuiltinRuntimeError::InvalidArgument);
+                    return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
                 }
             }
             _ => return Err(GeometryBuiltinRuntimeError::Unavailable),

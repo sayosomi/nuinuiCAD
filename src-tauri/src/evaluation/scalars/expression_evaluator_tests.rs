@@ -569,7 +569,7 @@ fn maps_builtin_runtime_argument_and_non_finite_errors() {
         evaluate_typed_expression(&invalid, &environment),
         ScalarEvaluation::Error {
             r#type: ScalarType::Number,
-            issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+            issue_code: "evaluation-sqrt-negative-input".to_owned(),
             binding_id: None,
         }
     );
@@ -1000,7 +1000,7 @@ fn evaluates_line_angle_as_the_directionless_smaller_angle() {
 }
 
 #[test]
-fn zero_length_first_or_second_line_is_invalid_for_line_angle() {
+fn zero_length_first_or_second_line_has_a_distinct_runtime_failure_for_line_angle() {
     for (first_start, first_end, second_start, second_end) in [
         ((0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (1.0, 0.0)),
         ((0.0, 0.0), (1.0, 0.0), (0.0, 0.0), (0.0, 0.0)),
@@ -1041,7 +1041,7 @@ fn zero_length_first_or_second_line_is_invalid_for_line_angle() {
             evaluate_typed_expression(&node, &environment),
             ScalarEvaluation::Error {
                 r#type: ScalarType::Number,
-                issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+                issue_code: "evaluation-zero-length-line".to_owned(),
                 binding_id: None,
             }
         );
@@ -1130,6 +1130,43 @@ fn geometry_runtime_kind_mismatch_is_unavailable() {
 }
 
 #[test]
+fn geometry_runtime_disabled_is_distinct_from_unavailable() {
+    let node = geometry_call(
+        BuiltinFunctionName::Distance,
+        vec![
+            geometry_argument(
+                GeometryInterfaceType::Point,
+                "disabled",
+                1,
+                GeometryInterfaceType::Point,
+            ),
+            geometry_argument(
+                GeometryInterfaceType::Point,
+                "disabled",
+                1,
+                GeometryInterfaceType::Point,
+            ),
+        ],
+        ScalarType::Number,
+    );
+    let environment = GeometryBuiltinEnvironment {
+        targets: HashMap::from([(
+            "disabled".to_owned(),
+            Err(GeometryBuiltinRuntimeError::Disabled),
+        )]),
+        looked_up: RefCell::new(Vec::new()),
+    };
+    assert_eq!(
+        evaluate_typed_expression(&node, &environment),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-geometry-builtin-disabled".to_owned(),
+            binding_id: None,
+        }
+    );
+}
+
+#[test]
 fn zero_length_line_is_an_invalid_builtin_argument() {
     let node = geometry_call(
         BuiltinFunctionName::LineDistance,
@@ -1163,7 +1200,7 @@ fn zero_length_line_is_an_invalid_builtin_argument() {
         evaluate_typed_expression(&node, &environment),
         ScalarEvaluation::Error {
             r#type: ScalarType::Number,
-            issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+            issue_code: "evaluation-zero-length-line".to_owned(),
             binding_id: None,
         }
     );

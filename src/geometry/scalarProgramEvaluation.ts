@@ -19,6 +19,8 @@ import type { ScalarProgram } from "../scalars/scalarProgram";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarEvaluation } from "../scalars/types";
 import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode } from "../scalars/typedExpressionAst";
+import type { GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
+import type { EffectiveElementActivity } from "../model/elementActivity";
 
 /**
  * A scalar-program binding resolver for one compiled nui 4 document.
@@ -39,9 +41,10 @@ export type LinearScalarBindingResolver = {
   ) => ForGroupMutationRunOutcome;
 };
 
-type DocumentGeometryRuntime = {
+export type DocumentGeometryRuntime = {
   computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>;
   elementsById: ReadonlyMap<ElementId, CadElement>;
+  activities: ReadonlyMap<ElementId, EffectiveElementActivity>;
 };
 
 export const resolveDocumentGeometryProperty = (
@@ -58,12 +61,15 @@ export const resolveDocumentGeometryProperty = (
     : { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
 };
 
-const resolveDocumentGeometryTarget = (
+export const resolveDocumentGeometryTarget = (
   geometry: DocumentGeometryRuntime,
   target: ScalarExpressionResolvedGeometryTarget,
   sourceOrder: number
-): ComputedGeometry | undefined => {
+): GeometryBuiltinTargetLookupResult | undefined => {
   if (target.statementIndex >= sourceOrder || !geometry.elementsById.has(target.statementId)) return undefined;
+  if (geometry.activities.get(target.statementId)?.activity === "disabled") {
+    return { kind: "unavailable", reason: "disabled" };
+  }
   const computed = geometry.computedGeometry.get(target.statementId);
   if (!computed) return undefined;
   if (!target.pointKey) return computed;
@@ -82,7 +88,7 @@ export const createDocumentScalarBindingResolver = (
         resolveDocumentGeometryProperty(geometry.computedGeometry, reference, sourceOrder)
     : undefined;
   const resolveGeometryTarget = geometry
-    ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): ComputedGeometry | undefined => {
+    ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): GeometryBuiltinTargetLookupResult | undefined => {
         return resolveDocumentGeometryTarget(geometry, target, sourceOrder);
       }
     : undefined;
@@ -104,7 +110,7 @@ export const createDocumentLinearScalarBindingResolver = (
         resolveDocumentGeometryProperty(geometry.computedGeometry, reference, sourceOrder)
     : undefined;
   const resolveGeometryTarget = geometry
-    ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): ComputedGeometry | undefined => {
+    ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): GeometryBuiltinTargetLookupResult | undefined => {
         return resolveDocumentGeometryTarget(geometry, target, sourceOrder);
       }
     : undefined;

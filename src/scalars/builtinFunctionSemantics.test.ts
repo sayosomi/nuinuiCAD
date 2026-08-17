@@ -31,7 +31,7 @@ describe("evaluateBuiltinFunction", () => {
 
   it("rejects tangent singularities by the exact degree contract", () => {
     for (const degrees of [90, 270, -90, -270, 450]) {
-      expect(evaluateBuiltinFunction("tan", [degrees])).toEqual({ status: "error", reason: "invalid-argument" });
+      expect(evaluateBuiltinFunction("tan", [degrees])).toEqual({ status: "error", reason: "tan-odd-multiple-of-90" });
     }
     expect(evaluateBuiltinFunction("tan", [90 + 1e-10]).status).toBe("ok");
   });
@@ -46,7 +46,10 @@ describe("evaluateBuiltinFunction", () => {
     }
     for (const name of ["asin", "acos"] as const) {
       for (const value of [-1.000001, 1.000001]) {
-        expect(evaluateBuiltinFunction(name, [value])).toEqual({ status: "error", reason: "invalid-argument" });
+        expect(evaluateBuiltinFunction(name, [value])).toEqual({
+          status: "error",
+          reason: name === "asin" ? "asin-out-of-range" : "acos-out-of-range"
+        });
       }
     }
   });
@@ -139,11 +142,12 @@ describe("evaluateBuiltinFunction", () => {
   it("rejects invalid arity, non-finite values, and invalid constraints", () => {
     expect(evaluateBuiltinFunction("abs", [])).toEqual({ status: "error", reason: "invalid-argument" });
     expect(evaluateBuiltinFunction("min", [1])).toEqual({ status: "error", reason: "invalid-argument" });
-    expect(evaluateBuiltinFunction("sqrt", [-1])).toEqual({ status: "error", reason: "invalid-argument" });
+    expect(evaluateBuiltinFunction("sqrt", [-1])).toEqual({ status: "error", reason: "sqrt-negative-input" });
     expect(evaluateBuiltinFunction("round", [1, 1.5])).toEqual({ status: "error", reason: "invalid-argument" });
     expect(evaluateBuiltinFunction("floor", [1, Number.POSITIVE_INFINITY])).toEqual({ status: "error", reason: "invalid-argument" });
-    expect(evaluateBuiltinFunction("roundTo", [1, 0])).toEqual({ status: "error", reason: "invalid-argument" });
-    expect(evaluateBuiltinFunction("isClose", [1, 2, -1])).toEqual({ status: "error", reason: "invalid-argument" });
+    expect(evaluateBuiltinFunction("roundTo", [1, 0])).toEqual({ status: "error", reason: "round-to-non-positive-step" });
+    expect(evaluateBuiltinFunction("roundTo", [1, -0.5])).toEqual({ status: "error", reason: "round-to-non-positive-step" });
+    expect(evaluateBuiltinFunction("isClose", [1, 2, -1])).toEqual({ status: "error", reason: "is-close-negative-tolerance" });
     expect(evaluateBuiltinFunction("abs", [Number.NaN])).toEqual({ status: "error", reason: "invalid-argument" });
   });
 

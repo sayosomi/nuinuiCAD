@@ -236,7 +236,31 @@ export const resolveBuiltinGeometryArguments = ({
           node.args.every((argument) => argument.kind === "positional")
         );
         if (signature === undefined) {
-          node.args.forEach((argument) => visit(argument.expression));
+          const recoverySignature = definition?.signatures.find((candidate) => candidate.callingStyle === "positional");
+          node.args.forEach((argument, index) => {
+            const nodeArgument = argument.expression;
+            const parameterType = recoverySignature?.parameters[index]?.type;
+            if (
+              argument.kind === "positional" &&
+              (parameterType === "point" || parameterType === "line")
+            ) {
+              if (nodeArgument.kind === "reference") {
+                resolveDirectGeometryReference(nodeArgument, parameterType);
+              } else if (nodeArgument.kind === "geometryProperty" && parameterType === "point") {
+                resolveDerivedPointGeometryProperty(nodeArgument);
+              } else {
+                visit(nodeArgument);
+                issues.push({
+                  code: "builtin-geometry-argument-invalid",
+                  span: nodeArgument.span,
+                  message: invalidDirectArgumentMessage(node.name, parameterType),
+                  occurrenceIndex: null
+                });
+              }
+              return;
+            }
+            visit(nodeArgument);
+          });
           return;
         }
         node.args.forEach((argument, index) => {

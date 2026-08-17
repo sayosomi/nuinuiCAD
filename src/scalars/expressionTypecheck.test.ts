@@ -271,9 +271,9 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it("enforces the production spreadAngle named-only argument contract", () => {
-    expect(check("spreadAngle(100, 20)").diagnostics).toEqual([
-      expect.objectContaining({ code: "function-call-style-mismatch" })
-    ]);
+    const positional = check("spreadAngle(100, 20)").diagnostics;
+    expect(positional).toEqual([expect.objectContaining({ code: "function-call-style-mismatch" })]);
+    expect(positional[0]?.message).toContain("spreadAngle は名前付き引数で呼び出してください。例: spreadAngle(length: 100, spread: 20)");
     expect(check("spreadAngle(100, spread: 20)").diagnostics).toEqual([
       expect.objectContaining({ code: "function-call-style-mismatch" })
     ]);

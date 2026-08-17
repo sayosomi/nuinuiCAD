@@ -28,14 +28,13 @@
 // respective compilation/runtime paths rather than this declaration evaluator.
 
 import type { BindingId } from "./bindingCatalog";
-import { evaluateTypedExpression, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
+import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
 import type { ScalarEvaluation } from "./types";
 import type {
   ScalarExpressionResolvedGeometryTarget,
   TypedScalarGeometryPropertyReferenceNode
 } from "./typedExpressionAst";
-import type { ComputedGeometry } from "../types/geometry";
 
 export type ScalarProgramEvaluation = {
   /** One entry per evaluated `declare` statement, keyed by its bindingId. */
@@ -70,7 +69,7 @@ const isWithinEvaluationLimit = (
 export const createLazyScalarProgramEvaluator = (
   program: ScalarProgram,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
-  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => ComputedGeometry | undefined
+  resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined
 ): LazyScalarProgramEvaluator => {
   const postStopBindingIds = new Set(program.postStopBindingIds ?? []);
   const statementByBindingId = new Map<BindingId, ScalarProgramStatement>();

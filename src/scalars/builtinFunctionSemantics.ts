@@ -13,7 +13,15 @@ export type BuiltinFunctionEvaluation =
     }
   | {
       status: "error";
-      reason: "invalid-argument" | "non-finite-result";
+      reason:
+        | "invalid-argument"
+        | "sqrt-negative-input"
+        | "round-to-non-positive-step"
+        | "is-close-negative-tolerance"
+        | "tan-odd-multiple-of-90"
+        | "asin-out-of-range"
+        | "acos-out-of-range"
+        | "non-finite-result";
     };
 
 type DecimalShiftResult =
@@ -27,6 +35,10 @@ const MAX_FINITE_DECIMAL_EXPONENT = Number(Number.MAX_VALUE.toExponential().spli
 const MIN_SUBNORMAL_DECIMAL_EXPONENT = Number(Number.MIN_VALUE.toExponential().split("e")[1]);
 
 const invalidArgument = (): BuiltinFunctionEvaluation => ({ status: "error", reason: "invalid-argument" });
+
+const semanticError = (
+  reason: Exclude<Extract<BuiltinFunctionEvaluation, { status: "error" }>["reason"], "invalid-argument" | "non-finite-result">
+): BuiltinFunctionEvaluation => ({ status: "error", reason });
 
 const nonFiniteResult = (): BuiltinFunctionEvaluation => ({ status: "error", reason: "non-finite-result" });
 
@@ -122,7 +134,8 @@ export const evaluateBuiltinFunction = (
       if (!hasFiniteArguments(args, 2)) return invalidArgument();
       return finiteNumberResult(Math.max(args[0], args[1]));
     case "sqrt":
-      if (!hasFiniteArguments(args, 1) || args[0] < 0) return invalidArgument();
+      if (!hasFiniteArguments(args, 1)) return invalidArgument();
+      if (args[0] < 0) return semanticError("sqrt-negative-input");
       return finiteNumberResult(Math.sqrt(args[0]));
     case "round":
       if (!hasFiniteArguments(args, 1) && !hasFiniteArguments(args, 2)) return invalidArgument();
@@ -140,13 +153,15 @@ export const evaluateBuiltinFunction = (
       if (!Number.isInteger(args[1])) return invalidArgument();
       return evaluateDecimalRounding("ceil", args[0], args[1]);
     case "roundTo": {
-      if (!hasFiniteArguments(args, 2) || args[1] <= 0) return invalidArgument();
+      if (!hasFiniteArguments(args, 2)) return invalidArgument();
+      if (args[1] <= 0) return semanticError("round-to-non-positive-step");
       const quotient = args[0] / args[1];
       if (!Number.isFinite(quotient)) return nonFiniteResult();
       return finiteNumberResult(roundAwayFromZero(quotient) * args[1]);
     }
     case "isClose": {
-      if (!hasFiniteArguments(args, 3) || args[2] < 0) return invalidArgument();
+      if (!hasFiniteArguments(args, 3)) return invalidArgument();
+      if (args[2] < 0) return semanticError("is-close-negative-tolerance");
       return { status: "ok", value: Math.abs(args[0] - args[1]) <= args[2] };
     }
     case "sin":
@@ -156,13 +171,16 @@ export const evaluateBuiltinFunction = (
       if (!hasFiniteArguments(args, 1)) return invalidArgument();
       return finiteNumberResult(Math.cos(degreesToRadians(args[0])));
     case "tan":
-      if (!hasFiniteArguments(args, 1) || isOddMultipleOf90Degrees(args[0])) return invalidArgument();
+      if (!hasFiniteArguments(args, 1)) return invalidArgument();
+      if (isOddMultipleOf90Degrees(args[0])) return semanticError("tan-odd-multiple-of-90");
       return finiteNumberResult(Math.tan(degreesToRadians(args[0])));
     case "asin":
-      if (!hasFiniteArguments(args, 1) || args[0] < -1 || args[0] > 1) return invalidArgument();
+      if (!hasFiniteArguments(args, 1)) return invalidArgument();
+      if (args[0] < -1 || args[0] > 1) return semanticError("asin-out-of-range");
       return finiteNumberResult(radiansToDegrees(Math.asin(args[0])));
     case "acos":
-      if (!hasFiniteArguments(args, 1) || args[0] < -1 || args[0] > 1) return invalidArgument();
+      if (!hasFiniteArguments(args, 1)) return invalidArgument();
+      if (args[0] < -1 || args[0] > 1) return semanticError("acos-out-of-range");
       return finiteNumberResult(radiansToDegrees(Math.acos(args[0])));
     case "atan":
       if (!hasFiniteArguments(args, 1)) return invalidArgument();

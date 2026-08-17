@@ -369,7 +369,7 @@ describe("evaluateTypedExpression / builtin calls", () => {
     expect(evaluateTypedExpression(builtinCall("sqrt", [numberLiteral(-1)]), environment)).toEqual({
       status: "error",
       type: { kind: "number" },
-      issueCode: "evaluation-invalid-builtin-argument"
+      issueCode: "evaluation-sqrt-negative-input"
     });
     expect(evaluateTypedExpression(builtinCall("roundTo", [numberLiteral(Number.MAX_VALUE), numberLiteral(Number.MIN_VALUE)]), environment)).toEqual({
       status: "error",
@@ -485,7 +485,7 @@ describe("evaluateTypedExpression / geometry measurement builtins", () => {
     )).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 3 } });
   });
 
-  it("fails with evaluation-invalid-builtin-argument for a zero-length line", () => {
+  it("fails with evaluation-zero-length-line for a zero-length line", () => {
     const pointTarget = geometryTarget("point", 1, "point");
     const lineTarget = geometryTarget("line", 2, "line");
     const zeroLengthLine = computedLine("zero", computedPoint("zero-start", 4, 4), computedPoint("zero-end", 4, 4));
@@ -495,7 +495,7 @@ describe("evaluateTypedExpression / geometry measurement builtins", () => {
         lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
         lookupGeometryTarget: (target) => target.statementId === "point" ? start : zeroLengthLine
       }
-    )).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-invalid-builtin-argument" });
+    )).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-zero-length-line" });
   });
 
   describe("lineAngle", () => {
@@ -596,7 +596,7 @@ describe("evaluateTypedExpression / geometry measurement builtins", () => {
       const result = position === "first"
         ? evaluateLineAngle(targetId, original.elementId)
         : evaluateLineAngle(original.elementId, targetId);
-      expect(result).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-invalid-builtin-argument" });
+      expect(result).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-zero-length-line" });
     });
   });
 
@@ -611,6 +611,18 @@ describe("evaluateTypedExpression / geometry measurement builtins", () => {
       ...(lookup ? { lookupGeometryTarget: lookup as (target: ScalarExpressionResolvedGeometryTarget) => ComputedGeometry | undefined } : {})
     });
     expect(result).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-builtin-unavailable" });
+  });
+
+  it("classifies a disabled geometry target separately from an unavailable target", () => {
+    const target = geometryTarget("disabled", 1, "point");
+    const result = evaluateTypedExpression(
+      geometryBuiltinCall("distance", [geometryReference("point", target), geometryReference("point", target)]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: () => ({ kind: "unavailable", reason: "disabled" })
+      }
+    );
+    expect(result).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-builtin-disabled" });
   });
 
   it("rejects a point builtin argument backed by a runtime line", () => {

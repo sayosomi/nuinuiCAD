@@ -22,6 +22,10 @@ import { atan2Degrees360, radiansToDegrees } from "./angleMath";
 import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarType, type ScalarValue } from "./types";
 import type { ComputedGeometry, ComputedLine, ComputedPoint } from "../types/geometry";
 
+export type GeometryBuiltinTargetLookupResult =
+  | ComputedGeometry
+  | { kind: "unavailable"; reason: "disabled" };
+
 export interface ScalarEvaluationEnvironment {
   /**
    * Resolves a runtime value for an already-resolved binding ID. Called at
@@ -37,7 +41,7 @@ export interface ScalarEvaluationEnvironment {
   lookupGeometryProperty?: (reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>) => ScalarEvaluation;
 
   /** Resolves an already-resolved geometry builtin target to runtime geometry. */
-  lookupGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget) => ComputedGeometry | undefined;
+  lookupGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget) => GeometryBuiltinTargetLookupResult | undefined;
 
 }
 
@@ -87,12 +91,12 @@ const geometryArgument = (
   argument: TypedBuiltinArgument,
   expectedGeometryType: "point" | "line",
   environment: ScalarEvaluationEnvironment
-): ComputedGeometry | undefined => {
+): GeometryBuiltinTargetLookupResult | undefined => {
   if (argument.kind !== "geometryReference" || argument.expectedGeometryType !== expectedGeometryType) return undefined;
   const target = argument.target;
   if (target === null || target.geometryType !== expectedGeometryType || !environment.lookupGeometryTarget) return undefined;
   const geometry = environment.lookupGeometryTarget(target);
-  if (!geometry) return undefined;
+  if (!geometry || geometry.kind === "unavailable") return geometry;
   if (expectedGeometryType === "point" && geometry.kind !== "point") return undefined;
   if (expectedGeometryType === "line" && geometry.kind !== "line") return undefined;
   return geometry;
@@ -296,6 +300,9 @@ const evaluateGeometryBuiltin = (
   const argumentsByPosition: ComputedGeometry[] = [];
   for (const [index, argument] of node.args.entries()) {
     const geometry = geometryArgument(argument, expectedTypes[index]!, environment);
+    if (geometry?.kind === "unavailable") {
+      return { status: "error", type, issueCode: "evaluation-geometry-builtin-disabled" };
+    }
     if (!geometry) return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
     argumentsByPosition.push(geometry);
   }
@@ -321,7 +328,7 @@ const evaluateGeometryBuiltin = (
     const firstLength = Math.hypot(firstDx, firstDy);
     const secondLength = Math.hypot(secondDx, secondDy);
     if (firstLength <= 1e-9 || secondLength <= 1e-9) {
-      return { status: "error", type, issueCode: "evaluation-invalid-builtin-argument" };
+      return { status: "error", type, issueCode: "evaluation-zero-length-line" };
     }
     const ratio = Math.abs(firstDx * secondDx + firstDy * secondDy) / (firstLength * secondLength);
     const angleRad = Math.acos(Math.min(1, Math.max(0, ratio)));
@@ -333,8 +340,21 @@ const evaluateGeometryBuiltin = (
   }
   const result = distancePointToInfiniteLine(first, second);
   return result === null
-    ? { status: "error", type, issueCode: "evaluation-invalid-builtin-argument" }
+    ? { status: "error", type, issueCode: "evaluation-zero-length-line" }
     : finiteNumberResult(type, result);
+};
+
+const builtinFunctionIssueCode = (reason: Exclude<ReturnType<typeof evaluateBuiltinFunction>, { status: "ok" }>['reason']): string => {
+  switch (reason) {
+    case "sqrt-negative-input": return "evaluation-sqrt-negative-input";
+    case "round-to-non-positive-step": return "evaluation-round-to-non-positive-step";
+    case "is-close-negative-tolerance": return "evaluation-is-close-negative-tolerance";
+    case "tan-odd-multiple-of-90": return "evaluation-tan-odd-multiple-of-90";
+    case "asin-out-of-range": return "evaluation-asin-out-of-range";
+    case "acos-out-of-range": return "evaluation-acos-out-of-range";
+    case "invalid-argument": return "evaluation-invalid-builtin-argument";
+    case "non-finite-result": return "evaluation-non-finite-result";
+  }
 };
 
 const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
@@ -358,10 +378,7 @@ const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEv
     return {
       status: "error",
       type,
-      issueCode:
-        result.reason === "invalid-argument"
-          ? "evaluation-invalid-builtin-argument"
-          : "evaluation-non-finite-result"
+      issueCode: builtinFunctionIssueCode(result.reason)
     };
   }
   if (typeof result.value === "boolean") {

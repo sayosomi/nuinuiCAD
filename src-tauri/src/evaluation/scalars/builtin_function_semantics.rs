@@ -18,6 +18,12 @@ pub(crate) enum BuiltinFunctionValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BuiltinFunctionError {
     InvalidArgument,
+    SqrtNegativeInput,
+    RoundToNonPositiveStep,
+    IsCloseNegativeTolerance,
+    TanOddMultipleOf90,
+    AsinOutOfRange,
+    AcosOutOfRange,
     NonFiniteResult,
 }
 
@@ -261,8 +267,11 @@ pub(crate) fn evaluate_builtin_function(
             finite_number_result(args[0].max(args[1]))
         }
         BuiltinFunctionName::Sqrt => {
-            if !has_finite_arguments(args, 1) || args[0] < 0.0 {
+            if !has_finite_arguments(args, 1) {
                 return invalid_argument();
+            }
+            if args[0] < 0.0 {
+                return BuiltinFunctionEvaluation::Error(BuiltinFunctionError::SqrtNegativeInput);
             }
             finite_number_result(args[0].sqrt())
         }
@@ -285,8 +294,13 @@ pub(crate) fn evaluate_builtin_function(
             evaluate_decimal_rounding(operation, args[0], args[1])
         }
         BuiltinFunctionName::RoundTo => {
-            if !has_finite_arguments(args, 2) || args[1] <= 0.0 {
+            if !has_finite_arguments(args, 2) {
                 return invalid_argument();
+            }
+            if args[1] <= 0.0 {
+                return BuiltinFunctionEvaluation::Error(
+                    BuiltinFunctionError::RoundToNonPositiveStep,
+                );
             }
             let quotient = args[0] / args[1];
             if !quotient.is_finite() {
@@ -295,8 +309,13 @@ pub(crate) fn evaluate_builtin_function(
             finite_number_result(round_away_from_zero(quotient) * args[1])
         }
         BuiltinFunctionName::IsClose => {
-            if !has_finite_arguments(args, 3) || args[2] < 0.0 {
+            if !has_finite_arguments(args, 3) {
                 return invalid_argument();
+            }
+            if args[2] < 0.0 {
+                return BuiltinFunctionEvaluation::Error(
+                    BuiltinFunctionError::IsCloseNegativeTolerance,
+                );
             }
             BuiltinFunctionEvaluation::Ok(BuiltinFunctionValue::Boolean(
                 (args[0] - args[1]).abs() <= args[2],
@@ -315,20 +334,29 @@ pub(crate) fn evaluate_builtin_function(
             finite_number_result(degrees_to_radians(args[0]).cos())
         }
         BuiltinFunctionName::Tan => {
-            if !has_finite_arguments(args, 1) || is_odd_multiple_of_90_degrees(args[0]) {
+            if !has_finite_arguments(args, 1) {
                 return invalid_argument();
+            }
+            if is_odd_multiple_of_90_degrees(args[0]) {
+                return BuiltinFunctionEvaluation::Error(BuiltinFunctionError::TanOddMultipleOf90);
             }
             finite_number_result(degrees_to_radians(args[0]).tan())
         }
         BuiltinFunctionName::Asin => {
-            if !has_finite_arguments(args, 1) || !(-1.0..=1.0).contains(&args[0]) {
+            if !has_finite_arguments(args, 1) {
                 return invalid_argument();
+            }
+            if !(-1.0..=1.0).contains(&args[0]) {
+                return BuiltinFunctionEvaluation::Error(BuiltinFunctionError::AsinOutOfRange);
             }
             finite_number_result(radians_to_degrees(args[0].asin()))
         }
         BuiltinFunctionName::Acos => {
-            if !has_finite_arguments(args, 1) || !(-1.0..=1.0).contains(&args[0]) {
+            if !has_finite_arguments(args, 1) {
                 return invalid_argument();
+            }
+            if !(-1.0..=1.0).contains(&args[0]) {
+                return BuiltinFunctionEvaluation::Error(BuiltinFunctionError::AcosOutOfRange);
             }
             finite_number_result(radians_to_degrees(args[0].acos()))
         }
