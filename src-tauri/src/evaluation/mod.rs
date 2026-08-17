@@ -720,11 +720,16 @@ fn evaluate_document_input_with_scalar_program(
             Some(id) => id,
             None => continue,
         };
-        if let Some(resolver) = scalar_mutation_resolver.as_mut() {
-            let source_order = resolver
+        let current_source_order = scalar_mutation_resolver.as_ref().map(|resolver| {
+            resolver
                 .source_order_for_element(&id)
-                .expect("validated mutation payload must contain every element source order");
-            resolver.advance_before(source_order, &state);
+                .expect("validated mutation payload must contain every element source order")
+        });
+        if let Some(source_order) = current_source_order {
+            scalar_mutation_resolver
+                .as_mut()
+                .expect("source order requires a scalar mutation resolver")
+                .advance_before(source_order, &state);
         }
         let active_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
             scalar_mutation_resolver
@@ -759,7 +764,13 @@ fn evaluate_document_input_with_scalar_program(
         if let Some(entries) = numeric_entries_by_element_id.get(&id) {
             let resolver = active_scalar_binding_resolver
                 .expect("scalar_binding_resolver must exist when numeric bindings exist");
-            match apply_numeric_bindings(&element, Some(entries), resolver, &state) {
+            match apply_numeric_bindings(
+                &element,
+                Some(entries),
+                resolver,
+                current_source_order,
+                &state,
+            ) {
                 Ok(materialized) => {
                     element = materialized;
                     state.elements[index] = element.clone();

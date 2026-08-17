@@ -385,6 +385,7 @@ pub(crate) fn apply_numeric_bindings(
     element: &Value,
     entries: Option<&Vec<ValidatedNumericBinding>>,
     resolver: &dyn ScalarDocumentBindingResolver,
+    current_source_order: Option<usize>,
     state: &EvaluationState,
 ) -> Result<Value, DependencyError> {
     let Some(entries) = entries else {
@@ -399,7 +400,12 @@ pub(crate) fn apply_numeric_bindings(
             return Err(runtime_error(&materialized, &entry.parameter_key, true));
         }
         if let Some(expression) = entry.typed_expression.as_ref() {
-            let evaluation = evaluate_document_typed_expression(expression, resolver, state);
+            let evaluation = evaluate_document_typed_expression(
+                expression,
+                resolver,
+                state,
+                current_source_order,
+            );
             let ScalarEvaluation::Ok {
                 r#type: ScalarType::Number,
                 value: ScalarValue::Number(value),
@@ -508,6 +514,76 @@ mod tests {
         entry
     }
 
+    fn line_distance_expression() -> Value {
+        json!({
+            "kind": "call",
+            "span": {"start": 0, "end": 29},
+            "nameSpan": {"start": 0, "end": 12},
+            "name": "lineDistance",
+            "target": {"kind": "builtin", "name": "lineDistance"},
+            "args": [
+                {
+                    "kind": "geometryReference",
+                    "expectedGeometryType": "point",
+                    "target": {
+                        "statementId": "p",
+                        "statementIndex": 1,
+                        "geometryType": "point"
+                    }
+                },
+                {
+                    "kind": "geometryReference",
+                    "expectedGeometryType": "line",
+                    "target": {
+                        "statementId": "baseline",
+                        "statementIndex": 0,
+                        "geometryType": "line"
+                    }
+                }
+            ],
+            "type": {"kind": "number"}
+        })
+    }
+
+    fn geometry_state(element: Value) -> EvaluationState {
+        EvaluationState {
+            elements: vec![
+                json!({
+                    "id": "baseline",
+                    "name": "Baseline",
+                    "type": "line",
+                    "activity": "visible"
+                }),
+                element,
+            ],
+            elements_by_id: HashMap::from([(String::from("baseline"), 0), (String::from("p"), 1)]),
+            group_states: HashMap::new(),
+            computed_geometry: HashMap::from([
+                (
+                    String::from("baseline"),
+                    json!({
+                        "kind": "line",
+                        "start": {"kind": "point", "elementId": "baseline", "name": "Baseline", "x": 0, "y": 0},
+                        "end": {"kind": "point", "elementId": "baseline", "name": "Baseline", "x": 1, "y": 0}
+                    }),
+                ),
+                (
+                    String::from("p"),
+                    json!({
+                        "kind": "point",
+                        "elementId": "p",
+                        "name": "P",
+                        "x": 3,
+                        "y": 4
+                    }),
+                ),
+            ]),
+            computed_geometry_order: vec![String::from("baseline"), String::from("p")],
+            errors: Vec::new(),
+            warnings: Vec::new(),
+        }
+    }
+
     fn state(element: Value) -> EvaluationState {
         EvaluationState {
             elements: vec![element],
@@ -589,10 +665,46 @@ mod tests {
                 issue_code: "unused".to_owned(),
                 binding_id: None,
             }),
+            None,
             &state(element.clone()),
         )
         .unwrap();
         assert_eq!(result["x"], json!(7.0));
+    }
+
+    #[test]
+    fn materializes_typed_numeric_geometry_builtin_with_current_source_order() {
+        let element = point_with_expression("lineDistance(@p, @baseline)");
+        let baseline = json!({
+            "id": "baseline",
+            "name": "Baseline",
+            "type": "line",
+            "activity": "visible"
+        });
+        let elements_by_id = HashMap::from([("p", &element), ("baseline", &baseline)]);
+        let decoded = validate_numeric_bindings_payload(
+            &json!([numeric_entry(
+                "lineDistance(@p, @baseline)",
+                Some(line_distance_expression()),
+                json!([])
+            )]),
+            &elements_by_id,
+            &HashSet::new(),
+        )
+        .unwrap();
+        let result = apply_numeric_bindings(
+            &element,
+            Some(&decoded),
+            &StubResolver(ScalarEvaluation::Error {
+                r#type: ScalarType::Number,
+                issue_code: "unused".to_owned(),
+                binding_id: None,
+            }),
+            Some(2),
+            &geometry_state(element.clone()),
+        )
+        .unwrap();
+        assert_eq!(result["x"], json!(4.0));
     }
 
     #[test]
@@ -630,6 +742,7 @@ mod tests {
                 &element,
                 Some(&decoded),
                 &StubResolver(evaluation),
+                None,
                 &state(element.clone()),
             )
             .is_err());
