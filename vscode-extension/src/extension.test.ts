@@ -58,10 +58,12 @@ const mocks = vi.hoisted(() => ({
   diagnosticCollections: [] as TestDiagnosticCollection[],
   contexts: [] as Array<{ subscriptions: Array<{ dispose: () => void }> }>,
   completionRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
+  definitionRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   showErrorMessage: vi.fn(),
   createWebviewPanel: vi.fn(),
   createDiagnosticCollection: vi.fn(),
   registerCompletionItemProvider: vi.fn(),
+  registerDefinitionProvider: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
   onDidOpenTextDocument: vi.fn(),
@@ -121,7 +123,8 @@ vi.mock("vscode", () => {
     commands: { registerCommand: mocks.registerCommand },
     languages: {
       createDiagnosticCollection: mocks.createDiagnosticCollection,
-      registerCompletionItemProvider: mocks.registerCompletionItemProvider
+      registerCompletionItemProvider: mocks.registerCompletionItemProvider,
+      registerDefinitionProvider: mocks.registerDefinitionProvider
     },
     Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
     ViewColumn: { Beside: 2 },
@@ -266,6 +269,11 @@ const setup = (
     mocks.completionRegistrations.push({ selector, provider, triggerCharacters, disposable: registration });
     return registration;
   });
+  mocks.registerDefinitionProvider.mockImplementation((selector: unknown, provider: unknown) => {
+    const registration = disposable();
+    mocks.definitionRegistrations.push({ selector, provider, disposable: registration });
+    return registration;
+  });
   mocks.onDidOpenTextDocument.mockImplementation((listener: (document: TestDocument) => void) => {
     mocks.documentOpenListeners.push(listener);
     return disposable();
@@ -317,10 +325,12 @@ afterEach(() => {
   mocks.diagnosticCollections.length = 0;
   mocks.contexts.length = 0;
   mocks.completionRegistrations.length = 0;
+  mocks.definitionRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.createWebviewPanel.mockReset();
   mocks.createDiagnosticCollection.mockReset();
   mocks.registerCompletionItemProvider.mockReset();
+  mocks.registerDefinitionProvider.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
   mocks.onDidOpenTextDocument.mockReset();
@@ -838,5 +848,15 @@ describe("VS Code native completion lifecycle", () => {
 
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
     expect(items.map((item) => item.label)).toContain("coordinate");
+  });
+});
+
+describe("VS Code native definition lifecycle", () => {
+  it("registers the provider with the requested selector and lifecycle disposable", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.definitionRegistrations[0]!;
+
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(context.subscriptions).toContain(registration.disposable);
   });
 });

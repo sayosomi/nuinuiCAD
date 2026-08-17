@@ -17,6 +17,10 @@ import {
   nuiCompletionSelector,
   nuiCompletionTriggerCharacters
 } from "./completionProvider";
+import {
+  createNuiDefinitionProvider,
+  nuiDefinitionSelector
+} from "./definitionProvider";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -234,13 +238,18 @@ export const activate = (context: vscode.ExtensionContext): void => {
     createNuiCompletionProvider(languageAnalysisSessionFor),
     ...nuiCompletionTriggerCharacters
   );
+  const definitionProvider = vscode.languages.registerDefinitionProvider(
+    nuiDefinitionSelector,
+    createNuiDefinitionProvider(languageAnalysisSessionFor)
+  );
   context.subscriptions.push(
     compilerDiagnosticCollection,
     compilerDiagnosticOpenListener,
     compilerDiagnosticChangeListener,
     compilerDiagnosticCloseListener,
     disposeCompilerDiagnosticSessions,
-    completionProvider
+    completionProvider,
+    definitionProvider
   );
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 

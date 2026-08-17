@@ -18,9 +18,11 @@ describe("VS Code document-scoped language analysis session", () => {
 
     session.getDiagnostics();
     session.completionSemanticSnapshot(sourceSnapshotFor(validSource, 1));
+    session.definitionSemanticSnapshot(sourceSnapshotFor(validSource, 1));
     session.replaceSource("nui 4\npoint B = coordinate(x: 0, y: 1)\n");
     session.getDiagnostics();
     session.completionSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
+    session.definitionSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
 
     expect(fromSource).toHaveBeenCalledTimes(1);
     fromSource.mockRestore();
@@ -43,12 +45,22 @@ describe("VS Code document-scoped language analysis session", () => {
       sourceText: validSource,
       compiled: expect.any(Object)
     });
+    expect(valid.definitionSemanticSnapshot(sourceSnapshotFor(validSource, 1))).toMatchObject({
+      sourceRevision: 1,
+      sourceText: validSource,
+      compiled: expect.any(Object)
+    });
 
     const warning = createLanguageAnalysisSession(warningSource);
     expect(warning.getDiagnostics()).toEqual([
       expect.objectContaining({ severity: "warning" })
     ]);
     expect(warning.completionSemanticSnapshot(sourceSnapshotFor(warningSource, 1))).toMatchObject({
+      sourceRevision: 1,
+      sourceText: warningSource,
+      compiled: expect.any(Object)
+    });
+    expect(warning.definitionSemanticSnapshot(sourceSnapshotFor(warningSource, 1))).toMatchObject({
       sourceRevision: 1,
       sourceText: warningSource,
       compiled: expect.any(Object)
@@ -77,6 +89,16 @@ describe("VS Code document-scoped language analysis session", () => {
     expect(snapshot?.bindingAnalysis?.catalog.bindings ?? []).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "old" })])
     );
+
+    expect(session.definitionSemanticSnapshot(sourceSnapshotFor(fatalSource, 2))).toMatchObject({
+      sourceRevision: 2,
+      sourceText: fatalSource,
+      compiled: expect.objectContaining({
+        spans: expect.objectContaining({
+          sourceMap: expect.objectContaining({ source: fatalSource })
+        })
+      })
+    });
   });
 
   it("matches CRLF raw source against the LF-normalized completion snapshot", () => {
@@ -87,12 +109,20 @@ describe("VS Code document-scoped language analysis session", () => {
       sourceRevision: 1,
       sourceText: validSource
     });
+    expect(session.definitionSemanticSnapshot(sourceSnapshotFor(rawSource, 1))).toMatchObject({
+      sourceRevision: 1,
+      sourceText: validSource
+    });
   });
 
   it("fails closed when the requested source does not match the session", () => {
     const session = createLanguageAnalysisSession(validSource);
 
     expect(session.completionSemanticSnapshot(sourceSnapshotFor(
+      "nui 4\npoint Other = coordinate(x: 0, y: 1)\n",
+      1
+    ))).toBeUndefined();
+    expect(session.definitionSemanticSnapshot(sourceSnapshotFor(
       "nui 4\npoint Other = coordinate(x: 0, y: 1)\n",
       1
     ))).toBeUndefined();

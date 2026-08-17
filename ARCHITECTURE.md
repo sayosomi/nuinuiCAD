@@ -349,6 +349,7 @@ Primary:
 - `vscode-extension/src/extension.ts`
 - `vscode-extension/src/languageAnalysisSession.ts`
 - `vscode-extension/src/completionProvider.ts`
+- `vscode-extension/src/definitionProvider.ts`
 - `vscode-extension/src/rustEvaluationProcessOwner.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
@@ -388,14 +389,15 @@ desktop-local extension host, Canvas session registry, persistent Rust stdio
 relay, TextDocument edit bridge, and URI-scoped language analysis sessions.
 
 The extension keeps one `NuiLanguageAnalysisSession` and one production
-`AutomationDocument` per supported document URI. Diagnostics and native
-completion share that session:
+`AutomationDocument` per supported document URI. Diagnostics, native
+completion, and native definition navigation share that session:
 
 ```text
 VS Code TextDocument
 → URI-scoped language analysis session / AutomationDocument
 ├→ compiler diagnostics → DiagnosticCollection
-└→ queryDslCompletion → CompletionItemProvider
+├→ queryDslCompletion → CompletionItemProvider
+└→ queryDslDefinition → DefinitionProvider
 ```
 
 `languageAnalysisSession.ts` owns current raw source, source replacement,
@@ -404,8 +406,12 @@ snapshot access. `compilerDiagnostics.ts` remains the diagnostic DTO and range
 conversion adapter. `completionProvider.ts` only normalizes VS Code positions,
 projects `queryDslCompletion` candidates to `CompletionItem`s, and supplies
 host insertion behavior; completion semantics, filtering, ranking, and
-truncation remain owned by the production query. Neither diagnostics nor
-completion performs runtime evaluation or starts the Rust process.
+truncation remain owned by the production query. `definitionProvider.ts` keeps
+the VS Code adapter thin: it synchronizes the current `TextDocument`, converts
+UTF-16 raw offsets across CRLF normalization, delegates semantic resolution to
+`queryDslDefinition`, and projects its exact ranges to a same-document
+`DefinitionLink`. Neither diagnostics, completion, nor definition navigation
+performs runtime evaluation or starts the Rust process.
 
 `src-tauri/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。
