@@ -78,6 +78,9 @@ pub(crate) use expression_payload::validate_typed_expression_payload;
 pub(crate) use for_group_mutation_core::{
     ForGroupMutationEnvironment, ForGroupMutationError, ForGroupMutationRunOutcome,
 };
+pub(crate) use geometry_builtin_runtime::{
+    resolve_geometry_builtin_target, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
+};
 pub(crate) use mutation::{ForGroupMutationStatement, ScalarMutationResolver};
 pub(crate) use mutation_payload::{validate_binding_versions_payload, ValidatedBindingVersions};
 pub(crate) use program_payload::{validate_scalar_program_payload, ValidatedScalarProgram};
@@ -91,5 +94,6 @@ pub(crate) use text::{
 pub(crate) use text_property_binding_payload::validate_text_property_bindings_payload;
 pub(crate) use text_template_payload::{validate_text_templates_payload, ValidatedTextTemplate};
 pub(crate) use types::{
-    ScalarEvaluation, ScalarType, ScalarValue, TypedBuiltinArgument, TypedScalarExpression,
+    ScalarEvaluation, ScalarExpressionResolvedGeometryTarget, ScalarType, ScalarValue,
+    TypedBuiltinArgument, TypedScalarExpression,
 };

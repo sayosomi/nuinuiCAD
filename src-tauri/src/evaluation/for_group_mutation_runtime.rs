@@ -229,6 +229,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 &generated_element,
                 Some(entries),
                 &loop_binding_resolver,
+                resolver.source_order_for_element(&template_id),
                 state,
             ) {
                 Ok(materialized) => generated_element = materialized,

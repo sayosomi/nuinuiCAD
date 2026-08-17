@@ -528,6 +528,26 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
+  it("asserts the Module numeric geometry builtin through the Rust production boundary", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-module-numeric-geometry-builtin.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+    const tsResult = evaluationPayloadToResult(tsPayload);
+    const rustResult = evaluationPayloadToResult(rustPayload);
+    const modulePoint = fixture.elements.find((element) => element.name === "Q");
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(tsResult.errors).toEqual([]);
+    expect(rustResult.errors).toEqual([]);
+    expect(modulePoint).toBeDefined();
+    expect(tsResult.computedGeometry.get(modulePoint!.id)).toMatchObject({ kind: "point", x: 7, y: 4 });
+    expect(rustResult.computedGeometry.get(modulePoint!.id)).toMatchObject({ kind: "point", x: 7, y: 4 });
+    expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "moduleCheck"), 0);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "moduleCheck"), 0);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
   it("asserts root set geometry builtin resolution with an unrelated module through both evaluators", () => {
     const fixture = readParityFixture(repoRoot, "nui4-module-root-set-geometry-builtin-functions.nui");
     const options = optionsFor(fixture);

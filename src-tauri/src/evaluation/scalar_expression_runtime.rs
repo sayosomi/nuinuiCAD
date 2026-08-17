@@ -8,11 +8,15 @@ use super::scalars::{
     evaluate_typed_expression, ScalarDocumentBindingResolver, ScalarEvaluation,
     ScalarEvaluationEnvironment, ScalarType, ScalarValue, TypedScalarExpression,
 };
+use super::scalars::{
+    resolve_geometry_builtin_target, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
+};
 use super::types::EvaluationState;
 
 struct ResolverEnvironment<'a> {
     resolver: &'a dyn ScalarDocumentBindingResolver,
     state: &'a EvaluationState,
+    current_source_order: Option<usize>,
 }
 
 impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
@@ -45,6 +49,16 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
             value: ScalarValue::Number(value),
         }
     }
+
+    fn lookup_geometry_builtin_target(
+        &self,
+        target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+        let Some(source_order) = self.current_source_order else {
+            return Err(GeometryBuiltinRuntimeError::Unavailable);
+        };
+        resolve_geometry_builtin_target(self.state, source_order, target)
+    }
 }
 
 /// Evaluates a typed expression using the document's existing scalar binding
@@ -53,6 +67,14 @@ pub(crate) fn evaluate_document_typed_expression(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
+    current_source_order: Option<usize>,
 ) -> ScalarEvaluation {
-    evaluate_typed_expression(expression, &ResolverEnvironment { resolver, state })
+    evaluate_typed_expression(
+        expression,
+        &ResolverEnvironment {
+            resolver,
+            state,
+            current_source_order,
+        },
+    )
 }
