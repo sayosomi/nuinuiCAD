@@ -1,4 +1,4 @@
-import { AutomationDocument, type AutomationDocumentState } from "../../src/document/automationDocument";
+import type { AutomationDocumentState } from "../../src/document/automationDocument";
 import type { DslDiagnostic } from "../../src/dsl/dslTypes";
 
 export type CompilerDiagnosticPosition = {
@@ -133,21 +133,3 @@ export const compilerDiagnosticsForState = (
   sourceText: string,
   state: Pick<AutomationDocumentState, "diagnostics" | "bindingIssueDiagnostics">
 ): CompilerDiagnostic[] => compilerDiagnosticsFor(sourceText, state.diagnostics, state.bindingIssueDiagnostics);
-
-export type CompilerDiagnosticsSession = {
-  getDiagnostics: () => CompilerDiagnostic[];
-  replaceSource: (sourceText: string) => CompilerDiagnostic[];
-};
-
-export const createCompilerDiagnosticsSession = (sourceText: string): CompilerDiagnosticsSession => {
-  const document = AutomationDocument.fromSource(sourceText);
-  let diagnostics = compilerDiagnosticsForState(document.getSource(), document.getState());
-  return {
-    getDiagnostics: () => diagnostics,
-    replaceSource: (nextSourceText) => {
-      document.replaceSource(nextSourceText);
-      diagnostics = compilerDiagnosticsForState(document.getSource(), document.getState());
-      return diagnostics;
-    }
-  };
-};

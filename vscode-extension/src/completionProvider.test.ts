@@ -1,0 +1,285 @@
+import { describe, expect, it, vi } from "vitest";
+
+const vscodeMocks = vi.hoisted(() => ({
+  CompletionItemKind: {
+    Keyword: 1,
+    Function: 2,
+    Property: 3,
+    Variable: 4,
+    Reference: 5,
+    Module: 6,
+    Value: 7,
+    Operator: 8
+  }
+}));
+
+vi.mock("vscode", () => {
+  class Position {
+    constructor(public readonly line: number, public readonly character: number) {}
+  }
+  class Range {
+    constructor(public readonly start: Position, public readonly end: Position) {}
+  }
+  class SnippetString {
+    constructor(public readonly value: string) {}
+  }
+  class CompletionItem {
+    detail?: string;
+    filterText?: string;
+    sortText?: string;
+    preselect?: boolean;
+    range?: Range;
+    insertText?: string | SnippetString;
+
+    constructor(public readonly label: string, public readonly kind: number) {}
+  }
+  return {
+    CompletionItemKind: vscodeMocks.CompletionItemKind,
+    Position,
+    Range,
+    SnippetString,
+    CompletionItem
+  };
+// @ts-expect-error Vitest's runtime supports the virtual-module options used here.
+}, { virtual: true });
+
+import * as vscode from "vscode";
+import { queryDslCompletion } from "../../src/dsl/dslCompletionQuery";
+import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  createNuiCompletionProvider,
+  normalizedOffsetAt,
+  normalizedPositionAt,
+  nuiCompletionSelector,
+  nuiCompletionTriggerCharacters,
+  projectDslCompletionItems
+} from "./completionProvider";
+
+type TestDocument = {
+  fileName: string;
+  uri: { scheme: string; toString: () => string };
+  getText: () => string;
+};
+
+const documentFor = (source: string, fileName = "/tmp/pattern.nui"): TestDocument => ({
+  fileName,
+  uri: { scheme: "file", toString: () => `file://${fileName}` },
+  getText: () => source
+});
+
+const itemsFor = (source: string, line = source.split(/\r?\n/).length - 1, character?: number) => {
+  const document = documentFor(source);
+  const normalized = source.replace(/\r\n/g, "\n");
+  const session = createLanguageAnalysisSession(source);
+  const provider = createNuiCompletionProvider(() => session);
+  const position = new vscode.Position(line, character ?? normalized.split("\n")[line]!.length);
+  return provider.provideCompletionItems(document as vscode.TextDocument, position, undefined as never, undefined as never) as vscode.CompletionItem[];
+};
+
+describe("VS Code native nui completion provider", () => {
+  it("uses the file-scoped selector and all requested trigger characters", () => {
+    expect(nuiCompletionSelector).toEqual({ language: "nui", scheme: "file" });
+    expect(nuiCompletionTriggerCharacters).toEqual(["@", ".", ":", "=", "(", ",", "[", "{"]);
+  });
+
+  it("projects query candidates, kinds, details, and absolute replacement ranges", () => {
+    const source = "nui 4\nconst value: number = ab";
+    const items = itemsFor(source);
+    const abs = items.find((item) => item.label === "abs")!;
+
+    expect(abs.kind).toBe(vscodeMocks.CompletionItemKind.Function);
+    expect(abs.detail).toContain("abs");
+    expect(abs.range).toMatchObject({
+      start: { line: 1, character: "nui 4\nconst value: number = ".length - "nui 4\n".length },
+      end: { line: 1, character: "const value: number = ab".length }
+    });
+    expect(abs.filterText).toBeUndefined();
+    expect(abs.sortText).toBeUndefined();
+    expect(abs.preselect).toBeUndefined();
+  });
+
+  it("inserts named arguments with a trailing colon and space", () => {
+    const source = "nui 4\nconst value: number = spreadAngle(";
+    const items = itemsFor(source);
+
+    expect(items.filter((item) => item.label === "length" || item.label === "spread").map((item) => item.insertText)).toEqual([
+      "length: ",
+      "spread: "
+    ]);
+  });
+
+  it("maps multiline argument ranges to the physical line", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point P = offset(",
+      "  from: @A",
+      "  d",
+      ")"
+    ].join("\n");
+    const items = itemsFor(source, 4, 3);
+
+    expect(items[0]?.range).toMatchObject({
+      start: { line: 4, character: 2 },
+      end: { line: 4, character: 3 }
+    });
+    expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["dx", "dy"]));
+  });
+
+  it("keeps @, module ::, and property . prefixes outside the replacement", () => {
+    const referenceSource = [
+      "nui 4",
+      "const width: number = 1",
+      "const value: number = @se"
+    ].join("\n");
+    const reference = itemsFor(referenceSource).find((item) => item.label === "width")!;
+    expect(reference.insertText).toBe("width");
+    expect(reference.range).toMatchObject({ start: { line: 2, character: 23 }, end: { line: 2, character: 25 } });
+
+    const qualifiedSource = [
+      "nui 4",
+      "group G {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "point X = offset(from: @G::P, dx: 0, dy: 0)"
+    ].join("\n");
+    const qualifiedLine = qualifiedSource.split("\n")[4]!;
+    const qualified = itemsFor(qualifiedSource, 4, qualifiedLine.indexOf("@G::P") + "@G::P".length).find((item) => item.label === "P")!;
+    expect(qualified.insertText).toBe("P");
+    expect(qualified.range).toMatchObject({ start: { line: 4, character: 27 }, end: { line: 4, character: 28 } });
+
+    const propertySource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "line AB = segment(start: @A, end: @A)",
+      "const value: number = @AB.length"
+    ].join("\n");
+    const propertyLine = propertySource.split("\n")[3]!;
+    const property = itemsFor(propertySource, 3, propertyLine.indexOf("@AB.length") + "@AB.length".length).find((item) => item.label === "length")!;
+    expect(property.insertText).toBe("length");
+    expect(property.range).toMatchObject({ start: { line: 3, character: 26 }, end: { line: 3, character: 32 } });
+  });
+
+  it("preserves UTF-16 Japanese ranges and removes CRLF only for the query", () => {
+    const normalized = [
+      "nui 4",
+      "point 前身頃 = coordinate(x: 0, y: 0)",
+      "point 使用 = offset(from: @前身頃, dx: 0, dy: 0)"
+    ].join("\n");
+    const source = normalized.replace(/\n/g, "\r\n");
+    const japaneseLine = normalized.split("\n")[2]!;
+    const items = itemsFor(source, 2, japaneseLine.indexOf("@前身頃") + "@前身頃".length);
+    const candidate = items.find((item) => item.label === "前身頃")!;
+    const line = normalized.split("\n")[2]!;
+    const from = line.indexOf("@前身頃") + 1;
+    expect(candidate.range).toMatchObject({
+      start: { line: 2, character: from },
+      end: { line: 2, character: from + "前身頃".length }
+    });
+  });
+
+  it("uses a snippet only for the choice type and keeps set targets bare", () => {
+    const choice = itemsFor("nui 4\nconst value: cho").find((item) => item.label === "choice")!;
+    expect(choice.insertText).toBeInstanceOf(vscode.SnippetString);
+    expect((choice.insertText as vscode.SnippetString).value).toBe("choice($0)");
+
+    const setSource = [
+      "nui 4",
+      "let target: number = 1",
+      "set target = 1"
+    ].join("\n");
+    const target = itemsFor(setSource, 2, "set target".length).find((item) => item.label === "target")!;
+    expect(target.insertText).toBe("target");
+  });
+
+  it("adds @ only for bare binding and geometry references", () => {
+    const result = {
+      context: {} as never,
+      category: "typedInitializer" as const,
+      replacementRange: { from: 10, to: 10 },
+      candidates: [
+        { kind: "binding" as const, label: "width" },
+        { kind: "geometry" as const, label: "A" }
+      ]
+    };
+    const items = projectDslCompletionItems("const x = ", result);
+    expect(items.map((item) => item.insertText)).toEqual(["@width", "@A"]);
+  });
+
+  it("does not add call parentheses and does not truncate query results", () => {
+    const construction = itemsFor("nui 4\npoint P = co").find((item) => item.label === "coordinate")!;
+    expect(construction.insertText).toBe("coordinate");
+
+    const points = Array.from({ length: 12 }, (_, index) => `point P${index} = coordinate(x: ${index}, y: 0)`);
+    const source = [
+      "nui 4",
+      ...points,
+      "line L = segment(start: @P0, end: @P1)"
+    ].join("\n");
+    const manyLine = source.split("\n")[13]!;
+    const items = itemsFor(source, 13, manyLine.indexOf("@P0") + "@P0".length);
+    expect(items.filter((item) => /^P\d+$/.test(String(item.label)))).toHaveLength(12);
+    expect(items.find((item) => item.label === "P11")?.insertText).toBe("P11");
+    for (const item of items) {
+      expect(item.filterText).toBeUndefined();
+      expect(item.sortText).toBeUndefined();
+      expect(item.preselect).toBeUndefined();
+    }
+  });
+
+  it("returns syntax candidates for incomplete source and does not require Rust", () => {
+    const source = "nui 4\npoint P = co";
+    const session = createLanguageAnalysisSession(source);
+    const provider = createNuiCompletionProvider(() => session);
+    const result = provider.provideCompletionItems(
+      documentFor(source) as vscode.TextDocument,
+      new vscode.Position(1, source.split("\n")[1]!.length),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+
+    expect(result.map((item) => item.label)).toContain("coordinate");
+    expect(session.getSource()).toBe(source);
+  });
+
+  it("projects normalized offsets in both directions without CRLF drift", () => {
+    const source = "nui 4\r\n日本語";
+    const normalized = source.replace(/\r\n/g, "\n");
+    expect(normalizedOffsetAt(normalized, new vscode.Position(1, 2))).toBe(8);
+    expect(normalizedPositionAt(normalized, 8)).toMatchObject({ line: 1, character: 2 });
+  });
+
+  it("does not use stale semantic candidates after a fatal edit", () => {
+    const source = "nui 4\nconst old: number = 1\nconst value: number = @old";
+    const session = createLanguageAnalysisSession(source);
+    const provider = createNuiCompletionProvider(() => session);
+    session.replaceSource("nui 4\npoint Broken = coordinate(");
+    const items = provider.provideCompletionItems(
+      documentFor("nui 4\npoint Broken = coordinate(") as vscode.TextDocument,
+      new vscode.Position(1, "point Broken = coordinate(".length),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+
+    expect(items.map((item) => item.label)).not.toContain("old");
+  });
+
+  it("keeps the provider limited to the query result", () => {
+    const source = "nui 4\nconst value: number = ab";
+    const session = createLanguageAnalysisSession(source);
+    const provider = createNuiCompletionProvider(() => session);
+    const normalized = source.replace(/\r\n/g, "\n");
+    const query = queryDslCompletion({
+      source: { normalizedSource: normalized, sourceRevision: session.getSourceRevision() },
+      position: normalized.length,
+      semantic: session.completionSemanticSnapshot({ normalizedSource: normalized, sourceRevision: session.getSourceRevision() })
+    });
+    const items = provider.provideCompletionItems(
+      documentFor(source) as vscode.TextDocument,
+      new vscode.Position(1, "const value: number = ab".length),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+    expect(items).toHaveLength(query?.candidates.length ?? 0);
+  });
+});

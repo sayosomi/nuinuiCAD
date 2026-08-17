@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
-import { Registry, type IGrammar, type IToken } from "vscode-textmate";
+import { Registry, type IGrammar, type IRawGrammar, type IToken } from "vscode-textmate";
 import * as oniguruma from "vscode-oniguruma";
 import { describe, expect, it } from "vitest";
 
@@ -44,7 +44,7 @@ async function loadGrammar(): Promise<IGrammar> {
           if (scopeName !== "source.nui") {
             return null;
           }
-          return JSON.parse(await readFile(grammarPath, "utf8")) as object;
+          return JSON.parse(await readFile(grammarPath, "utf8")) as IRawGrammar;
         }
       });
 
@@ -59,7 +59,7 @@ async function loadGrammar(): Promise<IGrammar> {
 }
 
 async function tokenize(line: string): Promise<TokenWithEnd[]> {
-  const tokens = (await loadGrammar()).tokenizeLine(line).tokens;
+  const tokens = (await loadGrammar()).tokenizeLine(line, null).tokens;
   return tokens.map((token, index) => ({
     ...token,
     endIndex: tokens[index + 1]?.startIndex ?? line.length
@@ -128,6 +128,7 @@ describe("nui VS Code language foundation", () => {
       contributes: {
         languages: Array<Record<string, unknown>>;
         grammars: Array<Record<string, unknown>>;
+        configurationDefaults: Record<string, Record<string, unknown>>;
       };
     };
     const language = manifest.contributes.languages.find(
@@ -149,6 +150,9 @@ describe("nui VS Code language foundation", () => {
       tokenTypes: {
         "meta.interpolation.nui": "other"
       }
+    });
+    expect(manifest.contributes.configurationDefaults).toEqual({
+      "[nui]": { "editor.wordBasedSuggestions": "off" }
     });
   });
 

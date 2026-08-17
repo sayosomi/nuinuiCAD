@@ -6,10 +6,17 @@ import { applyLineSplices, type LineSplice } from "../../src/document/textPatch"
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import {
-  createCompilerDiagnosticsSession,
-  type CompilerDiagnostic,
-  type CompilerDiagnosticsSession
+  type CompilerDiagnostic
 } from "./compilerDiagnostics";
+import {
+  createLanguageAnalysisSession,
+  type NuiLanguageAnalysisSession
+} from "./languageAnalysisSession";
+import {
+  createNuiCompletionProvider,
+  nuiCompletionSelector,
+  nuiCompletionTriggerCharacters
+} from "./completionProvider";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -167,7 +174,7 @@ const disposeSessionListeners = (session: DocumentSession): void => {
 
 export const activate = (context: vscode.ExtensionContext): void => {
   const sessions = new Map<string, DocumentSession>();
-  const compilerDiagnosticSessions = new Map<string, CompilerDiagnosticsSession>();
+  const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
   const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
   const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
   const benchmarkConfig = benchmarkConfigFromEnvironment();
@@ -180,23 +187,31 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const key = documentKey(document);
     const capturedUri = key;
     const capturedVersion = document.version;
-    let session = compilerDiagnosticSessions.get(key);
-    let diagnostics: CompilerDiagnostic[];
+    let session = languageAnalysisSessions.get(key);
+    const sourceText = document.getText();
     if (session) {
-      diagnostics = session.replaceSource(document.getText());
+      session.replaceSource(sourceText);
     } else {
-      session = createCompilerDiagnosticsSession(document.getText());
-      compilerDiagnosticSessions.set(key, session);
-      diagnostics = session.getDiagnostics();
+      session = languageAnalysisSessions.get(key) ?? createLanguageAnalysisSession(sourceText);
+      if (!languageAnalysisSessions.has(key)) languageAnalysisSessions.set(key, session);
     }
 
     if (
       documentKey(document) !== capturedUri ||
-      compilerDiagnosticSessions.get(key) !== session ||
+      languageAnalysisSessions.get(key) !== session ||
       !isOpenDocument(document) ||
       document.version !== capturedVersion
     ) return;
-    compilerDiagnosticCollection.set(document.uri, diagnostics.map(toVscodeDiagnostic));
+    compilerDiagnosticCollection.set(document.uri, session.getDiagnostics().map(toVscodeDiagnostic));
+  };
+
+  const languageAnalysisSessionFor = (document: vscode.TextDocument): NuiLanguageAnalysisSession => {
+    const key = documentKey(document);
+    const existing = languageAnalysisSessions.get(key);
+    if (existing) return existing;
+    const session = createLanguageAnalysisSession(document.getText());
+    languageAnalysisSessions.set(key, session);
+    return session;
   };
 
   const compilerDiagnosticOpenListener = vscode.workspace.onDidOpenTextDocument((document) => {
@@ -208,18 +223,24 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const compilerDiagnosticCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
     if (!isSupportedNuiDocument(document)) return;
     const key = documentKey(document);
-    compilerDiagnosticSessions.delete(key);
+    languageAnalysisSessions.delete(key);
     compilerDiagnosticCollection.delete(document.uri);
   });
   const disposeCompilerDiagnosticSessions = {
-    dispose: () => compilerDiagnosticSessions.clear()
+    dispose: () => languageAnalysisSessions.clear()
   };
+  const completionProvider = vscode.languages.registerCompletionItemProvider(
+    nuiCompletionSelector,
+    createNuiCompletionProvider(languageAnalysisSessionFor),
+    ...nuiCompletionTriggerCharacters
+  );
   context.subscriptions.push(
     compilerDiagnosticCollection,
     compilerDiagnosticOpenListener,
     compilerDiagnosticChangeListener,
     compilerDiagnosticCloseListener,
-    disposeCompilerDiagnosticSessions
+    disposeCompilerDiagnosticSessions,
+    completionProvider
   );
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 
