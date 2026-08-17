@@ -37,6 +37,16 @@ export type DslReferencePathReadResult =
   | { kind: "valid"; path: DslReferencePath; name: string; end: number }
   | { kind: "invalid"; end: number; invalidAt: number };
 
+export type DslReferencePathSegment = {
+  name: string;
+  start: number;
+  end: number;
+};
+
+export type DslReferencePathSegmentsReadResult =
+  | { kind: "valid"; absolute: boolean; segments: readonly DslReferencePathSegment[]; end: number }
+  | { kind: "invalid"; end: number; invalidAt: number };
+
 const isEscaped = (source: string, index: number) => {
   let backslashes = 0;
   for (let cursor = index - 1; cursor >= 0 && source[cursor] === "\\"; cursor -= 1) backslashes += 1;
@@ -109,6 +119,44 @@ export const readDslReferencePath = (
     name: source.slice(pathStart, cursor),
     end: cursor
   };
+};
+
+/**
+ * Projects the already-parsed qualified path into its source segments. This
+ * deliberately shares the path reader's character and quote rules; callers
+ * use the returned ranges only after semantic resolution has identified the
+ * declaration represented by each segment.
+ */
+export const readDslReferencePathSegments = (
+  source: string,
+  start = 0,
+  end = source.length
+): DslReferencePathSegmentsReadResult => {
+  const parsed = readDslReferencePath(source, start, end);
+  if (parsed.kind === "invalid") return parsed;
+
+  const absolute = source.slice(start, start + 2) === "::";
+  let cursor = absolute ? start + 2 : start;
+  const segments: DslReferencePathSegment[] = [];
+  for (const name of parsed.path.segments) {
+    const segmentStart = cursor;
+    if (source[cursor] === "\"" || source[cursor] === "'") {
+      const quote = source[cursor];
+      cursor += 1;
+      while (cursor < parsed.end) {
+        if (source[cursor] === quote && !isEscaped(source, cursor)) {
+          cursor += 1;
+          break;
+        }
+        cursor += 1;
+      }
+    } else {
+      while (cursor < parsed.end && isPathSegmentChar(source[cursor])) cursor += 1;
+    }
+    segments.push({ name, start: segmentStart, end: cursor });
+    if (source.slice(cursor, cursor + 2) === "::") cursor += 2;
+  }
+  return { kind: "valid", absolute, segments, end: parsed.end };
 };
 
 // `::` is structural only outside quoted segments. Keeping this split in one

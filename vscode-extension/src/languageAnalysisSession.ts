@@ -1,6 +1,7 @@
 import { AutomationDocument } from "../../src/document/automationDocument";
 import type { DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
 import type { DslDefinitionSemanticSnapshot } from "../../src/dsl/dslDefinitionQuery";
+import type { DslRenameSemanticSnapshot } from "../../src/dsl/dslRenameQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import {
   compilerDiagnosticsForState,
@@ -20,6 +21,9 @@ export type NuiLanguageAnalysisSession = {
   definitionSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslDefinitionSemanticSnapshot | undefined;
+  renameSemanticSnapshot: (
+    source: SourceSnapshot
+  ) => DslRenameSemanticSnapshot | undefined;
 };
 
 export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAnalysisSession => {
@@ -35,7 +39,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
 
   const semanticSnapshotFor = (
     source: SourceSnapshot
-  ): DslCompletionSemanticSnapshot & DslDefinitionSemanticSnapshot | undefined => {
+  ): DslCompletionSemanticSnapshot & DslDefinitionSemanticSnapshot & DslRenameSemanticSnapshot | undefined => {
     const state = document.getState();
     const currentRawSource = document.getSource();
     const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
@@ -65,6 +69,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     },
     getDiagnostics: () => diagnostics,
     completionSemanticSnapshot: semanticSnapshotFor,
-    definitionSemanticSnapshot: semanticSnapshotFor
+    definitionSemanticSnapshot: semanticSnapshotFor,
+    renameSemanticSnapshot: semanticSnapshotFor
   };
 };

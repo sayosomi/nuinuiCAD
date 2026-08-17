@@ -52,6 +52,11 @@ export type SourceLexicalLookup =
       segmentIndex: number;
     };
 
+export type SourceLexicalPathResolution = {
+  lookup: SourceLexicalLookup;
+  segments: readonly SourceLexicalDeclaration[];
+};
+
 export type BuildSourceLexicalNamespaceOptions = {
   includeStatement?: IncludeStatement;
   scopeIndex?: LexicalScopeIndex;
@@ -313,4 +318,29 @@ export const resolveSourceLexicalPath = (
     first.declaration,
     path.segments.slice(1)
   );
+};
+
+/**
+ * Returns the same lookup as resolveSourceLexicalPath together with the
+ * resolved declaration for every path segment. The path resolver remains the
+ * sole owner of lexical meaning; this is only an identity projection for
+ * source editors such as rename.
+ */
+export const resolveSourceLexicalPathSegments = (
+  index: SourceLexicalNamespaceIndex,
+  statementIndex: number,
+  path: DslReferencePath
+): SourceLexicalPathResolution => {
+  const lookup = resolveSourceLexicalPath(index, statementIndex, path);
+  if (lookup.kind !== "resolved") return { lookup, segments: [] };
+  const segments: SourceLexicalDeclaration[] = [];
+  for (let segmentIndex = 0; segmentIndex < path.segments.length; segmentIndex += 1) {
+    const prefix = resolveSourceLexicalPath(index, statementIndex, {
+      absolute: path.absolute,
+      segments: path.segments.slice(0, segmentIndex + 1)
+    });
+    if (prefix.kind !== "resolved") return { lookup, segments: [] };
+    segments.push(prefix.declaration);
+  }
+  return { lookup, segments };
 };
