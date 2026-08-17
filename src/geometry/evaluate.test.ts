@@ -479,7 +479,7 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.has("then-point")).toBe(false);
   });
 
-  it("evaluates for group template elements once per iteration with a local variable", () => {
+  it("evaluates for group template elements once per iteration with its iteration binding", () => {
     const result = evaluateElements([
       {
         id: "loop",
@@ -1229,16 +1229,15 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
         name: "直接線",
         type: "line",
         activity: "visible",
-        numericVariables: [{ id: "base", name: "基準", value: 10 }],
         startPoint: {
           mode: "coordinate",
-          x: { kind: "expression", expression: "@base" },
+          x: { kind: "expression", expression: "10" },
           y: 20
         },
         endPoint: {
           mode: "coordinate",
-          x: { kind: "expression", expression: "@base + 30" },
-          y: { kind: "expression", expression: "@base + 30" }
+          x: { kind: "expression", expression: "10 + 30" },
+          y: { kind: "expression", expression: "10 + 30" }
         }
       }
     ]);
@@ -5031,96 +5030,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("evaluates curve handles from local numeric variables", () => {
-    const result = evaluateElements([
-      ...validElements,
-      {
-        id: "curve",
-        name: "曲線AB",
-        type: "bezierCurve",
-        activity: "visible",
-        numericVariables: [{ id: "shared", name: "共通長", value: 40 }],
-        startPoint: { mode: "reference", pointId: "a" },
-        startHandleAngleDeg: 0,
-        startHandleLength: { kind: "expression", expression: "@shared" },
-        intermediatePoints: [],
-        endPoint: { mode: "reference", pointId: "b" },
-        endHandleAngleDeg: 0,
-        endHandleLength: { kind: "expression", expression: "@shared" }
-      }
-    ]);
-
-    const curve = result.computedGeometry.get("curve");
-    expect(result.errors).toHaveLength(0);
-    expect(curve).toMatchObject({
-      kind: "bezierCurve",
-      startHandleLength: 40,
-      endHandleLength: 40
-    });
-  });
-
-  it("evaluates free point coordinates from local numeric variables", () => {
-    const result = evaluateElements([
-      {
-        id: "a",
-        name: "点A",
-        type: "freePoint",
-        activity: "visible",
-        numericVariables: [
-          { id: "base", name: "基準", value: 20 },
-          { id: "half", name: "半分", value: { kind: "expression", expression: "@base / 2" } }
-        ],
-        x: { kind: "expression", expression: "@base" },
-        y: { kind: "expression", expression: "@half" }
-      }
-    ]);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedGeometry.get("a")).toMatchObject({ kind: "point", x: 20, y: 10 });
-  });
-
-  it("evaluates offset point deltas from local numeric variables", () => {
-    const result = evaluateElements([
-      validElements[0],
-      {
-        id: "b",
-        name: "点B",
-        type: "offsetPoint",
-        activity: "visible",
-        numericVariables: [{ id: "move", name: "移動量", value: 15 }],
-        fromPointId: "a",
-        dx: { kind: "expression", expression: "@move * 2" },
-        dy: { kind: "expression", expression: "@move" }
-      }
-    ]);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedGeometry.get("b")).toMatchObject({ kind: "point", x: 40, y: 35 });
-  });
-
-  it("evaluates polar offset parameters from local numeric variables", () => {
-    const result = evaluateElements([
-      validElements[0],
-      {
-        id: "b",
-        name: "点B",
-        type: "polarOffsetPoint",
-        activity: "visible",
-        numericVariables: [
-          { id: "angle", name: "角度", value: 90 },
-          { id: "distance", name: "距離", value: 10 }
-        ],
-        fromPointId: "a",
-        angleDeg: { kind: "expression", expression: "@angle" },
-        distance: { kind: "expression", expression: "@distance" }
-      }
-    ]);
-
-    expect(result.errors).toHaveLength(0);
-    expect(result.computedGeometry.get("b")).toMatchObject({ kind: "point", x: 10, y: 30 });
-  });
-
-  it("reports missing local numeric variables on non-curve elements", () => {
+  it("reports missing numeric references on non-curve elements", () => {
     const result = evaluateElements([
       {
         id: "a",

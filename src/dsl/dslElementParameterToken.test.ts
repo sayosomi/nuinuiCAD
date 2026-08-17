@@ -56,8 +56,8 @@ describe("dslElementParameterTokenEndingAt", () => {
     });
   });
 
-  it("respects boundaryStart to avoid matching across a vars=[...] record boundary", () => {
-    // Mimics dslVarsFieldCompletionContext's own record-field span: neither
+  it("respects boundaryStart to avoid matching across a record boundary", () => {
+    // Mimics a record-field span: neither
     // ":" nor ";" are excluded from the character classes, so without the
     // caller-supplied boundaryStart (here, the start of the second record's
     // own expression field) the match would wrongly reach back across the

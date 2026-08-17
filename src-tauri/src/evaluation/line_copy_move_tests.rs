@@ -76,7 +76,7 @@ fn copy_line_rejects_a_discontinuous_source_list() {
 }
 
 #[test]
-fn copy_line_mirror_reverses_arc_sweep_and_supports_numeric_expression() {
+fn copy_line_mirror_reverses_arc_sweep() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
         control_boolean_bindings: None,
@@ -104,9 +104,8 @@ fn copy_line_mirror_reverses_arc_sweep_and_supports_numeric_expression() {
                 "activity": "visible",
                 "startPoint": { "mode": "reference", "pointId": "origin" },
                 "endPoint": { "mode": "reference", "pointId": "move" },
-                "angleDeg": { "kind": "expression", "expression": "@angle" },
+                "angleDeg": 0,
                 "mirrorX": true,
-                "numericVariables": [{ "id": "angle", "name": "角度", "value": 0 }],
                 "baseLineIds": ["arc"]
             })),
         ],

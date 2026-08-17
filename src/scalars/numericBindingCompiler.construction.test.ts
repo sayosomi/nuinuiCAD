@@ -22,42 +22,24 @@ describe("construction numeric typed-expression bridge", () => {
       "  point P = coordinate(x: @i + 2, y: 0)",
       "}"
     ].join("\n"),
-    "point P = coordinate(x: @foo + 2, y: 0, vars: [foo: 1])",
-    "point P = coordinate(x: (@foo + 2) * 3, y: 0, vars: [foo: 1])",
-    "const n: number = 2\npoint P = coordinate(x: @foo + @n, y: 0, vars: [foo: 1])"
+    "const foo: number = 1\npoint P = coordinate(x: @foo + 2, y: 0)",
+    "const foo: number = 1\npoint P = coordinate(x: (@foo + 2) * 3, y: 0)",
+    "const foo: number = 1\nconst n: number = 2\npoint P = coordinate(x: @foo + @n, y: 0)"
   ])("accepts valid numeric arithmetic: %s", (body) => {
     const result = compile(["nui 4", body].join("\n"));
     expect(errorCodes(result)).toEqual([]);
   });
 
-  it.each([
-    "point P = coordinate(x: @foo > 0, y: 0, vars: [foo: 1])",
-    "point P = coordinate(x: (@foo + 2) >= 3, y: 0, vars: [foo: 1])",
-    "const n: number = 2\npoint P = coordinate(x: @foo > @n, y: 0, vars: [foo: 1])"
-  ])("rejects boolean results for element-local numeric variables: %s", (body) => {
-    const result = compile(["nui 4", body].join("\n"));
-    expect(errorCodes(result).filter((code) => code === "scalar-type-mismatch")).toHaveLength(1);
-  });
-
-  it("keeps geometry property typechecking alongside an element-local variable", () => {
+  it("keeps geometry property typechecking alongside a typed numeric binding", () => {
     const result = compile([
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
-      "point P = coordinate(x: @foo + @AB.length, y: 0, vars: [foo: 1])"
+      "const foo: number = 1",
+      "point P = coordinate(x: @foo + @AB.length, y: 0)"
     ].join("\n"));
     expect(errorCodes(result)).toEqual([]);
   });
 
-  it("rejects a boolean root when local and geometry references are mixed", () => {
-    const result = compile([
-      "nui 4",
-      "point A = coordinate(x: 0, y: 0)",
-      "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "point P = coordinate(x: @foo > @AB.length, y: 0, vars: [foo: 1])"
-    ].join("\n"));
-    expect(errorCodes(result).filter((code) => code === "scalar-type-mismatch")).toHaveLength(1);
-  });
 });

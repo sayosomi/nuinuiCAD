@@ -48,7 +48,7 @@ const applyFixtureText = (fixture: Nui4CanonicalElementStatement, text: string) 
 };
 
 /** Special args carry structured records/bookkeeping, not a single parameterKey. */
-const specialArgNames = new Set(["steps", "vars", "varIds", "id", "roles", "parent", "branch", "intermediates"]);
+const specialArgNames = new Set(["steps", "id", "roles", "parent", "branch", "intermediates"]);
 
 /**
  * `state`/`color` are universal `CadElement` fields that P5 serializes whenever
@@ -162,19 +162,6 @@ describe("DSL nui 4 P9 parameter value span resolution", () => {
         expect(span!.source).toBe("name");
         expect(span!.start).toBe(statement.nameSpan!.start);
         expect(span!.end).toBe(statement.nameSpan!.end);
-      }
-    }
-  });
-
-  it("resolves numericVariables records with content matching P5's own serialization", () => {
-    for (const fixture of nui4CanonicalElementStatements) {
-      for (const text of [fixture.populated, fixture.minimal]) {
-        const { element } = applyFixtureText(fixture, text);
-        for (const variable of element.numericVariables ?? []) {
-          const span = resolveParameterValueSpan(text, element, `variable:${variable.id}:value`, { committedLineText: text });
-          expect(span, `${fixture.key}.${variable.name}`).not.toBeNull();
-          expect(text.slice(span!.start, span!.end)).toBe(documentDslRefs([...refs, element]).numeric(variable.value, element));
-        }
       }
     }
   });

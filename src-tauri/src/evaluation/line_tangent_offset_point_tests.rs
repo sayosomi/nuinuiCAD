@@ -624,21 +624,17 @@ fn reports_line_tangent_offset_point_when_base_point_is_not_on_line() {
 }
 
 #[test]
-fn evaluates_line_tangent_offset_point_numeric_variables_and_expressions() {
+fn evaluates_line_tangent_offset_point_numeric_parameters() {
     let mut elements = base_line_elements();
     elements.push(element(json!({
         "id": "offset",
         "name": "式線上オフセット点",
         "type": "lineTangentOffsetPoint",
         "activity": "visible",
-        "numericVariables": [
-            { "id": "angle", "name": "角度", "value": 45 },
-            { "id": "length", "name": "距離", "value": 10 }
-        ],
         "baseLineId": "line",
         "basePoint": { "mode": "reference", "pointId": "a" },
-        "tangentAngleDeg": { "kind": "expression", "expression": "@角度" },
-        "distance": { "kind": "expression", "expression": "@距離 * 2" }
+        "tangentAngleDeg": 45,
+        "distance": 20
     })));
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,

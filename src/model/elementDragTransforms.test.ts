@@ -335,32 +335,6 @@ describe("elementDragTransforms", () => {
     );
   });
 
-  it("updates a local variable referenced by a Bezier handle length", () => {
-    const elements: CadElement[] = sampleElements.map((element) =>
-      element.id === "curve-ac" && element.type === "bezierCurve"
-        ? {
-            ...element,
-            numericVariables: [{ id: "shared", name: "共通長", value: 45 }],
-            startHandleLength: { kind: "expression" as const, expression: "@shared" },
-            endHandleLength: { kind: "expression" as const, expression: "@shared" }
-          }
-        : element
-    );
-
-    const moved = moveBezierHandleByDeltaInElements(elements, "curve-ac", {
-      role: "start",
-      dx: 10,
-      dy: -45,
-      angleLocked: true
-    });
-    const curve = elementById(moved ?? [], "curve-ac");
-
-    if (curve.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
-    expect(curve.numericVariables?.[0].value).toBeCloseTo(55);
-    expect(curve.startHandleLength).toEqual({ kind: "expression", expression: "@shared" });
-    expect(curve.endHandleLength).toEqual({ kind: "expression", expression: "@shared" });
-  });
-
   it("returns null for missing Bezier targets and invalid handle targets", () => {
     expect(
       moveBezierHandleByDeltaInElements(sampleElements, "missing", {

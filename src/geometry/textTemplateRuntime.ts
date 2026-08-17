@@ -161,7 +161,6 @@ export const evaluateElementTextTemplate = (
     const normalizedExpression = normalizeNumericExpressionInput(
       raw,
       context.elements ?? Array.from(context.elementsById.values()),
-      context.currentElement.numericVariables ?? [],
       context.currentElement
     );
     const result = evaluateNumericValue({

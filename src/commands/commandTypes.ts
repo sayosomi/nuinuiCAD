@@ -118,10 +118,6 @@ export type CommandId =
   | "addSymmetricMove"
   | "reverseSelectedPath"
   | "addImage"
-  | "addNumericVariable"
-  | "deleteNumericVariable"
-  | "addBezierNumericVariable"
-  | "deleteBezierNumericVariable"
   | "addBezierIntermediatePoint"
   | "deleteBezierIntermediatePoint"
   | "zoomInCanvas"
@@ -214,7 +210,6 @@ export type CommandContext = {
   measurementPointSlot?: MeasurementPointSlot;
   nextParameterKey?: string;
   intermediatePointId?: string;
-  variableId?: string;
   pointAnchorMode?: "reference" | "coordinate";
   pickedPointId?: ElementId;
   pickedPointAnchor?: PointAnchor;

@@ -238,36 +238,6 @@ fn leaves_a_numeric_expression_unchanged_when_it_references_nothing_in_the_ances
 }
 
 #[test]
-fn remaps_an_element_local_numeric_variables_value_referencing_an_ancestor() {
-    let mut ancestor_element_id_map = HashMap::new();
-    ancestor_element_id_map.insert("a".to_owned(), "a@outer:0".to_owned());
-
-    let mut element = json!({
-        "id": "generated-p",
-        "type": "freePoint",
-        "activity": "visible",
-        "x": 0,
-        "y": 0,
-        "numericVariables": [
-            { "id": "p:own", "name": "scratch", "value": { "kind": "expression", "expression": "a.x * 2" } }
-        ]
-    });
-
-    remap_ancestor_element_references(&mut element, &ancestor_element_id_map);
-
-    assert_eq!(
-        element
-            .get("numericVariables")
-            .and_then(Value::as_array)
-            .and_then(|variables| variables.first())
-            .and_then(|variable| variable.get("value"))
-            .and_then(|value| value.get("expression"))
-            .and_then(Value::as_str),
-        Some("a@outer:0.x * 2")
-    );
-}
-
-#[test]
 fn remaps_bezier_extreme_point_source_and_numeric_references() {
     let mut ancestor_element_id_map = HashMap::new();
     ancestor_element_id_map.insert("curve".to_owned(), "curve@outer:0".to_owned());

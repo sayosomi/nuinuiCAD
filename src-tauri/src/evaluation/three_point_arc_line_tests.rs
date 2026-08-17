@@ -204,7 +204,7 @@ fn reports_three_point_arc_geometry_error_for_collinear_points() {
 }
 
 #[test]
-fn evaluates_three_point_arc_numeric_variables_and_expressions() {
+fn evaluates_three_point_arc_numeric_parameters() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
         control_boolean_bindings: None,
@@ -220,15 +220,11 @@ fn evaluates_three_point_arc_numeric_variables_and_expressions() {
                 "name": "式三点円弧",
                 "type": "threePointArcLine",
                 "activity": "visible",
-                "numericVariables": [
-                    { "id": "start", "name": "開始", "value": 300 },
-                    { "id": "sweep", "name": "角度", "value": 90 }
-                ],
                 "point1": { "mode": "reference", "pointId": "p1" },
                 "point2": { "mode": "reference", "pointId": "p2" },
                 "point3": { "mode": "reference", "pointId": "p3" },
-                "startAngleDeg": { "kind": "expression", "expression": "@開始" },
-                "endAngleDeg": { "kind": "expression", "expression": "@開始 + @角度" }
+                "startAngleDeg": 300,
+                "endAngleDeg": 390
             })),
         ],
         evaluation_limit_index: None,

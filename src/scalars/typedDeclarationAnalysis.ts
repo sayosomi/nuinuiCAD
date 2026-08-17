@@ -55,8 +55,7 @@ export const collectReferences = (ast: ScalarExpressionAst): readonly { name: st
 };
 
 /** Whether an expression needs scalar-only syntax rather than the separate
- * numeric expression evaluator used by geometry, local numeric variables,
- * && text interpolation. */
+ * numeric expression evaluator used by geometry and text interpolation. */
 export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolean => {
   switch (ast.kind) {
     case "booleanLiteral":
@@ -267,16 +266,11 @@ export const analyzeTypedDeclarations = ({
       const expectedType = scalarTypeForParameterDefinition(definition);
       if (!expectedType) return false;
       if (expectedType.kind !== "number") return true;
-      const localVariableNames = new Set((element.numericVariables ?? []).map((variable) => variable.name));
       // The legacy numeric evaluator intentionally does not own these
       // operators. Ensure the empty scalar catalog is still built so the
       // numeric binding compiler can typecheck ref-free ^ / % expressions.
       if (hasTypedNumericOperator) return true;
-      return scanExpressionReferences(attr.value).some((match) =>
-        match.kind === "elementProperty"
-          ? match.sigil
-          : match.sigil && localVariableNames.has(match.query)
-      );
+      return scanExpressionReferences(attr.value).some((match) => match.kind === "elementProperty" && match.sigil);
     });
   });
   if (typedStatements.length === 0 && !hasPrintLayoutStatements && !hasScalarExpressionConsumers) return { diagnostics: [] };

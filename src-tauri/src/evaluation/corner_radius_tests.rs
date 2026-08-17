@@ -11,25 +11,7 @@ fn corner(endpoint1_line_id: &str, endpoint2_line_id: &str, radius: Value) -> Va
         "endpoint1": { "lineId": endpoint1_line_id, "endpointKey": "end" },
         "endpoint2": { "lineId": endpoint2_line_id, "endpointKey": "start" },
         "radius": radius,
-        "intersectionIndex": { "kind": "expression", "expression": "@index" },
-        "numericVariables": [{ "id": "index", "name": "番号", "value": 0 }]
-    }))
-}
-
-fn corner_with_variables(endpoint1_line_id: &str, endpoint2_line_id: &str) -> Value {
-    element(json!({
-        "id": "corner",
-        "name": "角R",
-        "type": "cornerRadiusArcLine",
-        "activity": "visible",
-        "endpoint1": { "lineId": endpoint1_line_id, "endpointKey": "end" },
-        "endpoint2": { "lineId": endpoint2_line_id, "endpointKey": "start" },
-        "radius": { "kind": "expression", "expression": "@radius" },
-        "intersectionIndex": { "kind": "expression", "expression": "@index" },
-        "numericVariables": [
-            { "id": "radius", "name": "半径", "value": 10 },
-            { "id": "index", "name": "番号", "value": 0 }
-        ]
+        "intersectionIndex": 0
     }))
 }
 
@@ -63,7 +45,7 @@ fn corner_radius_trims_two_lines_and_creates_arc() {
             free_point("c", "C", 100.0, 100.0),
             line("ab", "AB", "a", "b"),
             line("bc", "BC", "b", "c"),
-            corner_with_variables("ab", "bc"),
+            corner("ab", "bc", json!(10)),
         ],
         evaluation_limit_index: None,
         scalar_expression_payload: None,

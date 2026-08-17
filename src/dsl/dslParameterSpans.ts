@@ -2,9 +2,8 @@ import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import type { CadElement } from "../types/geometry";
 import { argNameForParameter } from "./dslConstructions";
 import { parseDslCallStatement, type DslCallStatement } from "./dslCallParser";
-import { coordinateComponent, recordFields, recordRemainder, recordSpans } from "./dslParameterSpanScanner";
+import { coordinateComponent, recordFields, recordSpans } from "./dslParameterSpanScanner";
 import type { DslSpan } from "./dslTypes";
-import { unquoteDslString } from "./dslTokens";
 
 export type DslParameterValueSpan = DslSpan & {
   source: "name" | "arg";
@@ -43,29 +42,6 @@ const withOptionalCoordinate = (
   if (!suffix) return withParameter(span, "arg", argKey, parameterKey);
   const component = coordinateComponent(source, span, suffix[2] as "x" | "y");
   return component ? withParameter(component, "arg", argKey, parameterKey) : null;
-};
-
-const resolveVariableValueSpan = (
-  text: string,
-  element: CadElement,
-  parameterKey: string,
-  statement: DslCallStatement
-): DslParameterValueSpan | null => {
-  const variable = element.numericVariables?.find((item) => parameterKey === `variable:${item.id}:value`);
-  const outer = statement.payloadSpans.vars;
-  if (!variable || !outer) return null;
-  const variables = element.numericVariables ?? [];
-  if (variables.filter((item) => item.name === variable.name).length !== 1) return null;
-  const records = recordSpans(text, outer);
-  if (!records) return null;
-  const matchingNames = records
-    .map((record) => recordFields(text, record)[0])
-    .filter((span): span is DslSpan => Boolean(span && hasText(span)))
-    .map((span) => unquoteDslString(text.slice(span.start, span.end)));
-  if (matchingNames.filter((name) => name === variable.name).length !== 1) return null;
-  const matchIndex = matchingNames.findIndex((name) => name === variable.name);
-  const span = recordRemainder(text, records[matchIndex], 1);
-  return span ? withParameter(span, "arg", "vars", parameterKey) : null;
 };
 
 const intermediateFieldIndex = (field: string) =>
@@ -144,10 +120,6 @@ export const resolveParameterValueSpan = (
   if (parameterKey === "placementMode") return null;
   if (isExclusivePlacementKey(element, parameterKey)) {
     if ((element as { placement: { kind: string } }).placement.kind !== parameterKey) return null;
-  }
-  if (parameterKey.startsWith("variable:")) {
-    if (statement.name !== element.name) return null;
-    return resolveVariableValueSpan(logicalText, element, parameterKey, statement);
   }
   if (element.type === "bezierCurve" && parameterKey.startsWith("intermediate:")) {
     if (statement.name !== element.name) return null;

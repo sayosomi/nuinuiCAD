@@ -22,7 +22,6 @@ describe("compileNumericBindings: printLayout/place", () => {
     expect(source).toBeDefined();
     expect(source!.references).toHaveLength(1);
     expect(source!.references[0].name).toBe("printScale");
-    expect(source!.references[0].site.elementLocal).toBeUndefined();
   });
 
   it("resolves a typed let number reference the same way", () => {

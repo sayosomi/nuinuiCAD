@@ -329,7 +329,7 @@ const printLayoutBlockLines = (
       layout.visibilityProfileId
     : undefined;
   const numeric = (value: Parameters<typeof formatNumericValueForDsl>[0]) =>
-    formatNumericValueForDsl(value, elements, [], undefined, nameContext);
+    formatNumericValueForDsl(value, elements, undefined, nameContext);
 
   const headerArgs = [
     `output: ${layout.outputKind}`,

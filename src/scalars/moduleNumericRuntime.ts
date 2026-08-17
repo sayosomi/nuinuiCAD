@@ -22,8 +22,8 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic) =
 
 /**
  * Compiles only typed scalar occurrences in a materialized numeric value.
- * Iteration && element-local references deliberately remain in the legacy
- * numeric evaluator, so a single expression can combine both systems.
+ * Iteration references remain in the legacy numeric evaluator, so a single
+ * expression can combine the typed and runtime-only systems.
  */
 export const numericSourceForModuleSite = (
   element: CadElement,
@@ -31,15 +31,11 @@ export const numericSourceForModuleSite = (
   bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
   loweredExpression?: TypedScalarExpression
 ): CompiledNumericBinding | undefined => {
-  // Element-local and iteration values remain owned by the legacy numeric
-  // evaluator. A mixed expression may retain source-splice references, but
-  // must not be partially lowered to the standalone typed evaluator.
-  let runtimeReady = site.elementLocalVariableIndex === undefined;
-  const parameterKey = site.elementLocalVariableIndex === undefined
-    ? site.parameterKey
-    : element.numericVariables?.[site.elementLocalVariableIndex]
-      ? `variable:${element.numericVariables[site.elementLocalVariableIndex].id}:value`
-      : undefined;
+  // Iteration values remain owned by the legacy numeric evaluator. A mixed
+  // expression may retain source-splice references, but must not be partially
+  // lowered to the standalone typed evaluator.
+  let runtimeReady = true;
+  const parameterKey = site.parameterKey;
   if (!parameterKey) return undefined;
 
   const value = scalarValueExpression(element, parameterKey);

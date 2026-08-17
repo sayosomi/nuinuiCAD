@@ -98,12 +98,7 @@ describe("duplicateElements", () => {
         type: "line",
         activity: "visible",
         startPoint: { mode: "reference", pointId: "point-a" },
-        endPoint: { mode: "reference", pointId: "point-b" },
-        numericVariables: [{
-          id: "local",
-          name: "補正",
-          value: { kind: "expression", expression: "distance(point-a, point-b)" }
-        }]
+        endPoint: { mode: "reference", pointId: "point-b" }
       }
     ];
 
@@ -115,11 +110,7 @@ describe("duplicateElements", () => {
     expect(copiedLine).toMatchObject({
       type: "line",
       startPoint: { mode: "reference", pointId: "point-a-copy" },
-      endPoint: { mode: "reference", pointId: "point-b" },
-      numericVariables: [{
-        id: "local",
-        value: { kind: "expression", expression: "distance(point-a-copy, point-b)" }
-      }]
+      endPoint: { mode: "reference", pointId: "point-b" }
     });
   });
 

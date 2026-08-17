@@ -152,13 +152,7 @@ export const collectSiteBatchOccurrences = (
         key: `template-hole:${occurrenceKey}:${index}`,
         site: {
           scopeId: scopeIdForStatement(input.scopeIndex, statementIndex),
-          statementIndex,
-          // Matches numericBindingCompiler.ts's own convention: a hole is
-          // evaluated after this element's locals are computed, so the
-          // element's full local range is always visible here.
-          ...(dependency.elementId !== undefined
-            ? { elementLocal: { ownerId: dependency.elementId, order: Number.MAX_SAFE_INTEGER } }
-            : {})
+          statementIndex
         },
         // TextTemplateDependency has no separate bare-identifier nameSpan
         // (unlike ScalarValueSource/TypedScalarExpression's reference node) -

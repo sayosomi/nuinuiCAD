@@ -1,12 +1,14 @@
 //! Low-level unit coverage for `expand_for_group_iteration_from_template`'s
 //! nested-forGroup ownership: parentGroupId remap to the runtime instance
 //! chain (not a source template id) and explicit ancestor-iteration-variable
-//! threading (not the whole `numericVariables` array). Runtime-level
+//! threading (not generated element JSON). Runtime-level
 //! (`evaluate_document_input`) coverage of the same scenario lives in
 //! `for_group_generic_runtime_tests.rs`.
 
 use super::*;
-use crate::evaluation::for_group::expand_for_group_iteration_from_template;
+use crate::evaluation::for_group::{
+    expand_for_group_iteration_from_template, iteration_local_variables,
+};
 use serde_json::json;
 
 fn for_group(id: &str, parent: Option<&str>, variable_name: &str, count: f64) -> Value {
@@ -55,14 +57,13 @@ fn remaps_a_direct_childs_parent_group_id_to_the_runtime_forgroup_instance() {
         point_referencing("p", "inner", "@i", "@j"),
     ];
 
-    let (outer_generated, _outer_rows, outer_iteration_variable) =
+    let (outer_generated, _outer_rows, _outer_iteration_variable) =
         expand_for_group_iteration_from_template(
             &elements,
             &elements[0],
             Some("outer"),
             0,
             0.0,
-            &[],
             &std::collections::HashMap::new(),
         );
     let (generated_inner, _) = outer_generated
@@ -86,7 +87,6 @@ fn remaps_a_direct_childs_parent_group_id_to_the_runtime_forgroup_instance() {
             Some("inner"),
             0,
             0.0,
-            std::slice::from_ref(&outer_iteration_variable),
             &std::collections::HashMap::new(),
         );
     let (generated_p, _) = inner_generated
@@ -116,14 +116,13 @@ fn does_not_mix_parent_chains_across_two_outer_iterations() {
 
     let mut generated_p_parents = Vec::new();
     for outer_iteration_index in 0..2usize {
-        let (outer_generated, _rows, outer_iteration_variable) =
+        let (outer_generated, _rows, _outer_iteration_variable) =
             expand_for_group_iteration_from_template(
                 &elements,
                 &elements[0],
                 Some("outer"),
                 outer_iteration_index,
                 outer_iteration_index as f64,
-                &[],
                 &std::collections::HashMap::new(),
             );
         let (generated_inner, _) = outer_generated
@@ -137,7 +136,6 @@ fn does_not_mix_parent_chains_across_two_outer_iterations() {
             Some("inner"),
             0,
             0.0,
-            std::slice::from_ref(&outer_iteration_variable),
             &std::collections::HashMap::new(),
         );
         let (generated_p, _) = inner_generated
@@ -169,38 +167,31 @@ fn threads_both_outer_and_inner_ancestor_iteration_variables_into_the_nested_bod
             Some("outer"),
             1,
             1.0,
-            &[],
             &std::collections::HashMap::new(),
         );
     let (generated_inner, _) = outer_generated
         .into_iter()
         .find(|(element, _)| element_type(element) == Some("forGroup"))
         .unwrap();
-    let (inner_generated, _rows, _iv) = expand_for_group_iteration_from_template(
-        &elements,
-        &generated_inner,
-        Some("inner"),
-        2,
-        2.0,
-        std::slice::from_ref(&outer_iteration_variable),
-        &std::collections::HashMap::new(),
-    );
-    let (generated_p, _) = inner_generated
+    let (inner_generated, _rows, inner_iteration_variable) =
+        expand_for_group_iteration_from_template(
+            &elements,
+            &generated_inner,
+            Some("inner"),
+            2,
+            2.0,
+            &std::collections::HashMap::new(),
+        );
+    let (_generated_p, _) = inner_generated
         .into_iter()
         .find(|(element, _)| element_type(element) == Some("freePoint"))
         .unwrap();
-    let variables = generated_p
-        .get("numericVariables")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let names: Vec<Option<&str>> = variables
-        .iter()
-        .map(|v| v.get("name").and_then(Value::as_str))
-        .collect();
-    assert_eq!(names, vec![Some("i"), Some("j")]);
-    assert_eq!(variables[0].get("value").and_then(Value::as_f64), Some(1.0));
-    assert_eq!(variables[1].get("value").and_then(Value::as_f64), Some(2.0));
+    let (values, names) =
+        iteration_local_variables(&[outer_iteration_variable, inner_iteration_variable]);
+    assert_eq!(names.get("i").map(String::as_str), Some("i"));
+    assert_eq!(names.get("j").map(String::as_str), Some("j"));
+    assert_eq!(values.get("i"), Some(&1.0));
+    assert_eq!(values.get("j"), Some(&2.0));
 }
 
 #[test]
@@ -218,70 +209,28 @@ fn an_inner_loop_variable_shadows_an_outer_loop_variable_of_the_same_name() {
             Some("outer"),
             0,
             100.0,
-            &[],
             &std::collections::HashMap::new(),
         );
     let (generated_inner, _) = outer_generated
         .into_iter()
         .find(|(element, _)| element_type(element) == Some("forGroup"))
         .unwrap();
-    let (inner_generated, _rows, _iv) = expand_for_group_iteration_from_template(
-        &elements,
-        &generated_inner,
-        Some("inner"),
-        0,
-        5.0,
-        std::slice::from_ref(&outer_iteration_variable),
-        &std::collections::HashMap::new(),
-    );
-    let (generated_p, _) = inner_generated
+    let (inner_generated, _rows, inner_iteration_variable) =
+        expand_for_group_iteration_from_template(
+            &elements,
+            &generated_inner,
+            Some("inner"),
+            0,
+            5.0,
+            &std::collections::HashMap::new(),
+        );
+    let (_generated_p, _) = inner_generated
         .into_iter()
         .find(|(element, _)| element_type(element) == Some("freePoint"))
         .unwrap();
-    let variables = generated_p
-        .get("numericVariables")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    // Both "i" bindings are present (outer=100, inner=5) - evaluate_local_variables
-    // resolves by name with last-write-wins, so the inner (later) value must
-    // win. This mirrors last_or_default resolution in local_variables.rs.
-    let values: Vec<f64> = variables
-        .iter()
-        .filter(|v| v.get("name").and_then(Value::as_str) == Some("i"))
-        .map(|v| v.get("value").and_then(Value::as_f64).unwrap())
-        .collect();
-    assert_eq!(values, vec![100.0, 5.0]);
-    assert_eq!(values.last().copied(), Some(5.0));
-}
-
-#[test]
-fn does_not_forward_the_for_groups_own_numeric_variables_only_the_explicit_ancestor_parameter() {
-    let mut outer = for_group("outer", None, "i", 1.0);
-    outer["numericVariables"] = json!([{ "id": "outer:own", "name": "ownVar", "value": 999 }]);
-    let elements = vec![outer.clone(), point_referencing("p", "outer", "0", "0")];
-
-    let (generated, _rows, _iv) = expand_for_group_iteration_from_template(
-        &elements,
-        &outer,
-        Some("outer"),
-        0,
-        0.0,
-        &[],
-        &std::collections::HashMap::new(),
-    );
-    let (generated_p, _) = generated
-        .into_iter()
-        .find(|(element, _)| element_type(element) == Some("freePoint"))
-        .unwrap();
-    let variables = generated_p
-        .get("numericVariables")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    assert!(!variables
-        .iter()
-        .any(|v| v.get("name").and_then(Value::as_str) == Some("ownVar")));
+    let (values, _) =
+        iteration_local_variables(&[outer_iteration_variable, inner_iteration_variable]);
+    assert_eq!(values.get("i"), Some(&5.0));
 }
 
 #[test]
@@ -298,14 +247,13 @@ fn a_nested_body_element_resolves_a_reference_to_an_element_generated_by_an_oute
     ];
 
     for outer_iteration_index in 0..2usize {
-        let (outer_generated, _rows, outer_iteration_variable) =
+        let (outer_generated, _rows, _outer_iteration_variable) =
             expand_for_group_iteration_from_template(
                 &elements,
                 &elements[1],
                 Some("outer"),
                 outer_iteration_index,
                 outer_iteration_index as f64,
-                &[],
                 &std::collections::HashMap::new(),
             );
         let generated_a = outer_generated
@@ -335,7 +283,6 @@ fn a_nested_body_element_resolves_a_reference_to_an_element_generated_by_an_oute
             Some("inner"),
             0,
             0.0,
-            std::slice::from_ref(&outer_iteration_variable),
             &ancestor_element_id_map,
         );
         let generated_l = inner_generated

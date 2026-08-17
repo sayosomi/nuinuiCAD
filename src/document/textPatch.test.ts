@@ -899,7 +899,6 @@ describe("textPatch 非要素セクション", () => {
         id: "二枚目",
         name: "二枚目",
         placements: [],
-        numericVariables: []
       };
       return {
         ...document,
@@ -929,7 +928,6 @@ describe("textPatch 非要素セクション", () => {
           scale: 1,
           svgCanvasWidthMm: 410,
           svgCanvasHeightMm: 584,
-          numericVariables: [],
           placements: []
         }
       ],
@@ -964,7 +962,6 @@ describe("textPatch 非要素セクション", () => {
           scale: 1,
           svgCanvasWidthMm: 410,
           svgCanvasHeightMm: 584,
-          numericVariables: [],
           placements: []
         }
       ],

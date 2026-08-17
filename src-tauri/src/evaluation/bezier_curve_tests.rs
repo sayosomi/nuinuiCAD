@@ -188,7 +188,7 @@ fn reports_bezier_curve_dependency_that_appears_too_late() {
 }
 
 #[test]
-fn evaluates_bezier_curve_numeric_variables_and_expressions() {
+fn evaluates_bezier_curve_numeric_parameters() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
         control_boolean_bindings: None,
@@ -203,17 +203,13 @@ fn evaluates_bezier_curve_numeric_variables_and_expressions() {
                 "name": "式曲線",
                 "type": "bezierCurve",
                 "activity": "visible",
-                "numericVariables": [
-                    { "id": "angle", "name": "角度", "value": 0 },
-                    { "id": "length", "name": "長さ", "value": 20 }
-                ],
                 "startPoint": { "mode": "reference", "pointId": "a" },
-                "startHandleAngleDeg": { "kind": "expression", "expression": "@角度" },
-                "startHandleLength": { "kind": "expression", "expression": "@長さ" },
+                "startHandleAngleDeg": 0,
+                "startHandleLength": 20,
                 "intermediatePoints": [],
                 "endPoint": { "mode": "reference", "pointId": "b" },
-                "endHandleAngleDeg": { "kind": "expression", "expression": "@角度" },
-                "endHandleLength": { "kind": "expression", "expression": "@長さ" }
+                "endHandleAngleDeg": 0,
+                "endHandleLength": 20
             })),
         ],
         evaluation_limit_index: None,
@@ -231,7 +227,7 @@ fn evaluates_bezier_curve_numeric_variables_and_expressions() {
 }
 
 #[test]
-fn evaluates_bezier_curve_numeric_variable_ids_with_hyphens() {
+fn evaluates_bezier_curve_with_hyphenated_element_ids() {
     let result = evaluate_document_input(EvaluationInput {
         property_bindings: None,
         control_boolean_bindings: None,
@@ -246,22 +242,13 @@ fn evaluates_bezier_curve_numeric_variable_ids_with_hyphens() {
                 "name": "曲線1",
                 "type": "bezierCurve",
                 "activity": "visible",
-                "numericVariables": [
-                    { "id": "bezierCurve-mr0d0mvz-5", "name": "v1", "value": 30 }
-                ],
                 "startPoint": { "mode": "reference", "pointId": "freePoint-mr0czcze-2" },
                 "startHandleAngleDeg": 0,
-                "startHandleLength": {
-                    "kind": "expression",
-                    "expression": "@bezierCurve-mr0d0mvz-5"
-                },
+                "startHandleLength": 30,
                 "intermediatePoints": [],
                 "endPoint": { "mode": "reference", "pointId": "offsetPoint-mr0czf1a-3" },
                 "endHandleAngleDeg": 180,
-                "endHandleLength": {
-                    "kind": "expression",
-                    "expression": "@bezierCurve-mr0d0mvz-5"
-                }
+                "endHandleLength": 30
             })),
             element(json!({
                 "id": "measurement-point",

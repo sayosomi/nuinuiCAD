@@ -12,11 +12,6 @@ import { elementDisplayName } from "../model/elementNames";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { evaluateNumericValue } from "./numericExpressions";
 
-export type LocalVariableEvaluation = {
-  localVariableValues: Map<string, number>;
-  localVariableNames: Map<string, string>;
-};
-
 export const isPoint = (
   geometry: ComputedGeometry | undefined
 ): geometry is ComputedPoint => geometry?.kind === "point";
@@ -204,36 +199,4 @@ export const getPointAnchorOrError = (
     x,
     y
   };
-};
-
-export const evaluateLocalVariables = (
-  element: CadElement,
-  computedGeometry: Map<ElementId, ComputedGeometry>,
-  elementsById: Map<ElementId, CadElement>,
-  errors: DependencyError[],
-  elements?: CadElement[]
-): LocalVariableEvaluation | null => {
-  const localVariableValues = new Map<string, number>();
-  const localVariableNames = new Map(
-    (element.numericVariables ?? []).map((variable) => [variable.id, variable.name])
-  );
-
-  for (const variable of element.numericVariables ?? []) {
-    const value = numericError(
-      element,
-      variable.value,
-      computedGeometry,
-      elementsById,
-      errors,
-      localVariableValues,
-      localVariableNames,
-      undefined,
-      elements
-    );
-    if (value === undefined) return null;
-    localVariableValues.set(variable.id, value);
-    localVariableValues.set(variable.name, value);
-  }
-
-  return { localVariableValues, localVariableNames };
 };

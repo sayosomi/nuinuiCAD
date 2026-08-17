@@ -184,17 +184,6 @@ describe("resolveBuiltinGeometryArguments", () => {
     expect(targetOf(result, 0)).toEqual({ statementId: "stable-7", statementIndex: 7, geometryType: "point" });
   });
 
-  it("does not re-search past a scalar or local lexical resolution", () => {
-    const result = resolve("distance(@A, @B)", [
-      { kind: "resolvedLocal", name: "A", local: { id: "local:A", name: "A", ownerId: "owner", startOrder: 0, endOrder: 100 } },
-      { kind: "namespace", name: "B", scopeId: "root", statementIndex: 100, reason: "incompatible", declarationKind: "typedDeclaration" }
-    ]);
-
-    expect(result.issues.map((issue) => issue.code)).toEqual(["builtin-geometry-argument-invalid", "builtin-geometry-argument-invalid"]);
-    expect(targetOf(result, 0)).toBeNull();
-    expect(targetOf(result, 1)).toBeNull();
-  });
-
   it("rejects non-reference geometry arguments while preserving nested reference traversal", () => {
     const result = resolve("distance(@A + 1, @B)", [sourceGeometryResolution("A", sourceNamespace), sourceGeometryResolution("B", sourceNamespace)]);
 

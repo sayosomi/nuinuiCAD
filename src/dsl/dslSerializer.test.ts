@@ -291,35 +291,6 @@ describe("serializeElementStatementLogical with documentDslRefs", () => {
 });
 
 describe("extended lossless attributes", () => {
-  it("round-trips element local variables through vars:", () => {
-    const first = compileDslToElements(
-      "point P = coordinate(x: 0, y: 0, id: p1, vars: [高さ: 10; 幅: @高さ * 2])",
-      { elements: [] }
-    );
-    expect(first.diagnostics).toEqual([]);
-    const element = first.elements[0];
-    expect(element.numericVariables).toHaveLength(2);
-    expect(element.numericVariables![0]).toMatchObject({ name: "高さ", value: 10 });
-    expect(element.numericVariables![1].name).toBe("幅");
-
-    const serialized = serializeElementsToDsl(first.elements);
-    expect(serialized).toBe(
-      [
-        "point P = coordinate(",
-        "  x: 0,",
-        "  y: 0,",
-        "  vars: [高さ: 10; 幅: @local-variable-1 * 2],",
-        "  varIds: [local-variable-1, local-variable-2],",
-        "  id: p1,",
-        ")"
-      ].join("\n")
-    );
-
-    const second = compileDslToElements(serialized, { elements: [] });
-    expect(second.diagnostics).toEqual([]);
-    expect(second.elements[0].numericVariables).toEqual(element.numericVariables);
-  });
-
   it("round-trips group printEnabled and printAnchor", () => {
     const first = compileDslToElements(
       "group G (id: g1,printEnabled: true,printAnchor: (10, 20)) {\n}",

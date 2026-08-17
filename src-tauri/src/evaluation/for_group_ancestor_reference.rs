@@ -242,19 +242,6 @@ fn remap_element_references(
     let Some(object) = element.as_object_mut() else {
         return;
     };
-    // Every element-local `let`/loop-variable declaration's own value may
-    // itself be an expression referencing a mapped element - applies
-    // uniformly regardless of type, mirroring remapNumericFields.
-    if let Some(variables) = object
-        .get_mut("numericVariables")
-        .and_then(Value::as_array_mut)
-    {
-        for variable in variables {
-            if let Some(variable_object) = variable.as_object_mut() {
-                remap_numeric_field(variable_object, "value", id_map);
-            }
-        }
-    }
     match element_type_name.as_deref() {
         Some("conditionalGroup") => {
             remap_numeric_field(object, "condition", id_map);

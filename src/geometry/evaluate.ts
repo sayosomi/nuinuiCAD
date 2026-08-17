@@ -1,4 +1,4 @@
-import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationResult, EvaluationWarning, ForGroupGeneratedRow, NumericVariable } from "../types/geometry";
+import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationResult, EvaluationWarning, ForGroupGeneratedRow } from "../types/geometry";
 import {
   isConditionalGroupElement,
   isForGroupElement,
@@ -10,12 +10,13 @@ import {
   effectiveElementActivity,
   effectiveElementActivityById
 } from "../model/elementActivity";
-import { evaluateLocalVariables, numericError } from "./evaluationContext";
+import { numericError } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
 import {
   expandForGroupIteration,
   forGroupOwnedTemplateElements,
-  forGroupTemplateDescendantIds
+  forGroupTemplateDescendantIds,
+  type ForGroupIterationBinding
 } from "./forGroupExpansion";
 import type { ScalarProgram } from "../scalars/scalarProgram";
 import type { BindingVersionGraph } from "../scalars/bindingVersions";
@@ -321,10 +322,22 @@ export const evaluateElements = (
     return null;
   };
 
+  const iterationLocalVariables = (bindings: readonly ForGroupIterationBinding[]) => {
+    const localVariableValues = new Map<string, number>();
+    const localVariableNames = new Map<string, string>();
+    for (const binding of bindings) {
+      localVariableNames.set(binding.id, binding.name);
+      localVariableNames.set(binding.name, binding.name);
+      localVariableValues.set(binding.id, binding.value);
+      localVariableValues.set(binding.name, binding.value);
+    }
+    return { localVariableValues, localVariableNames };
+  };
+
   const evaluateRuntimeElement = (
     element: CadElement,
     sourceElement?: CadElement,
-    ancestorIterationVariables: NumericVariable[] = [],
+    ancestorIterationVariables: ForGroupIterationBinding[] = [],
     ancestorElementIdMap: ReadonlyMap<ElementId, ElementId> = new Map()
   ) => {
     advanceLinearBindingsBefore(element, sourceElement);
@@ -358,14 +371,7 @@ export const evaluateElements = (
       element = materialized.element;
     }
 
-    const localVariables = evaluateLocalVariables(
-      element,
-      computedGeometry,
-      runtimeElementsById,
-      errors,
-      runtimeElements
-    );
-    if (!localVariables) return;
+    const localVariables = iterationLocalVariables(ancestorIterationVariables);
 
     if (isConditionalGroupElement(element)) {
       // Bound typed conditions live on the template statement/element, not
@@ -470,7 +476,7 @@ export const evaluateElements = (
         let expandedIteration = -1;
         let generatedByTemplateId = new Map<ElementId, CadElement>();
         let rowByTemplateId = new Map<ElementId, ForGroupGeneratedRow>();
-        let childAncestorIterationVariables: NumericVariable[] = ancestorIterationVariables;
+        let childAncestorIterationVariables: ForGroupIterationBinding[] = ancestorIterationVariables;
         let childAncestorElementIdMap: Map<ElementId, ElementId> = new Map(ancestorElementIdMap);
         const outcome = linearMutationResolver.runForGroup({
           ownerStatementId: mutationOwner.ownerStatementId,
@@ -493,7 +499,6 @@ export const evaluateElements = (
               templateForGroupId: sourceElement?.id,
               iterationIndex: context.iterationIndex,
               variableValue: context.iterationValue,
-              ancestorIterationVariables,
               ancestorElementIdMap
             });
             childAncestorIterationVariables = [...ancestorIterationVariables, expanded.iterationVariable];
@@ -536,7 +541,6 @@ export const evaluateElements = (
           templateForGroupId: sourceElement?.id,
           iterationIndex,
           variableValue,
-          ancestorIterationVariables,
           ancestorElementIdMap
         });
         const childAncestorIterationVariables = [...ancestorIterationVariables, iterationVariable];

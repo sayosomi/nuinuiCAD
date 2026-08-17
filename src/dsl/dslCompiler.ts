@@ -364,7 +364,7 @@ export const buildBlockPrintLayouts = ({
     const placements: PrintLayoutPlacement[] = [];
     const numeric = (source: string) =>
       makeNumericExpression(
-        normalizeNumericExpressionInput(source, elements, [], undefined, nameIndex.nameContext)
+        normalizeNumericExpressionInput(source, elements, undefined, nameIndex.nameContext)
       );
 
     for (const member of members) {

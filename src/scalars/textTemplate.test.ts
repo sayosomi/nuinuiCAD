@@ -245,15 +245,16 @@ describe("compileTextTemplates: numeric-expression holes", () => {
     expect(holeAt(template, 0).holeKind).toBe("numeric");
   });
 
-  it("a hole referencing only an element-local numeric variable compiles as a numeric-expression hole, even alongside an unrelated typed declaration", () => {
+  it("a hole referencing a typed numeric binding compiles as a numeric-expression hole", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
-      'text T = label(text: "幅は${@幅}mm", anchor: none, size: 3, vars: [幅: 42])'
+      "const 幅: number = 42",
+      'text T = label(text: "幅は${@幅}mm", anchor: none, size: 3)'
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
-    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "text"))!;
-    expect(holeAt(template, 0)).toMatchObject({ holeKind: "numeric", raw: "@幅" });
-    expect(template.dependencies).toEqual([]);
+    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(2, "text"))!;
+    expect(holeAt(template, 0)).toMatchObject({ holeKind: "number" });
+    expect(template.dependencies).toEqual([expect.objectContaining({ name: "幅" })]);
   });
 });
 
@@ -315,19 +316,4 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
     expect(result.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE);
   });
 
-  it("a hole referencing only an element-local numeric variable compiles as a numeric-expression hole with bindingAnalysis undefined", () => {
-    const source = ['text T = label(text: "幅は${@幅}mm", anchor: none, size: 3, vars: [幅: 42])'].join("\n");
-    const parsed = parseDsl(source);
-    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
-    const result = compileTextTemplates({
-      statements: parsed.statements,
-      elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
-      elements: compiled.elements,
-      bindingAnalysis: undefined,
-      spans: { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom }
-    });
-    expect(result.diagnostics).toEqual([]);
-    const template = result.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(0, "text"))!;
-    expect(holeAt(template, 0)).toMatchObject({ holeKind: "numeric", raw: "@幅" });
-  });
 });

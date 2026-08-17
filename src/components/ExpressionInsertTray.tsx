@@ -4,7 +4,6 @@ import {
   numericReferenceCandidates,
   type NumericReferenceCandidate
 } from "../geometry/numericReferencePaths";
-import { localNumericReferenceOptionsForParameter } from "../geometry/numericReferenceOptions";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import {
   DEFAULT_REFERENCE_HELPER_POSITION,
@@ -117,27 +116,7 @@ export const ExpressionInsertTray = ({
       }),
     [element, elements, evaluation, moduleSemanticContext, parameterKey, query]
   );
-  const variableOptions = useMemo(
-    () =>
-      localNumericReferenceOptionsForParameter({
-        element,
-        parameterKey
-      }),
-    [element, parameterKey]
-  );
-  const mergedCandidates: NumericReferenceCandidate[] = [
-    ...variableOptions.map((option) => ({
-      id: `variable:${option.expression}`,
-      relation: "variable" as const,
-      expression: option.expression,
-      displayExpression: option.displayExpression,
-      label: option.label,
-      detail: option.detail,
-      valueLabel: option.expression,
-      insertable: true
-    })),
-    ...candidates
-  ];
+  const mergedCandidates: NumericReferenceCandidate[] = candidates;
   const visibleCandidates = mergedCandidates
     .filter((candidate) => relationFilter === "all" || candidate.relation === relationFilter)
     .slice(0, 120);

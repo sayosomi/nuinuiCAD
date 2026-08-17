@@ -35,16 +35,6 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
     expect(errors[0].message).toContain("@AB.length");
   });
 
-  it("flags a bare reference inside a vars=[...] record", () => {
-    const source = [
-      "nui 4",
-      "line AB = segment(start: (0, 0), end: (10, 0))",
-      "point C = coordinate(x: 0, y: 0, vars: [w: AB.length])"
-    ].join("\n");
-    const errors = errorsOf(source);
-    expect(errors.some((error) => error.code === BARE_PROPERTY_REFERENCE_CODE)).toBe(true);
-  });
-
   it("rejects a bare reference in a conditional condition", () => {
     const source = [
       "nui 4",

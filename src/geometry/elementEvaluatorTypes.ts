@@ -5,10 +5,14 @@ import type {
   ElementId,
   EvaluationWarning
 } from "../types/geometry";
-import type { LocalVariableEvaluation } from "./evaluationContext";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarEvaluation } from "../scalars/types";
 import type { TextTemplateAst } from "../scalars/textTemplate";
+
+export type LocalVariableEvaluation = {
+  localVariableValues: Map<string, number>;
+  localVariableNames: Map<string, string>;
+};
 
 export type ElementEvaluationContext = {
   computedGeometry: Map<ElementId, ComputedGeometry>;

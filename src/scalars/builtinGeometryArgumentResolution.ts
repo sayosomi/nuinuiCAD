@@ -61,7 +61,6 @@ const invalidReferenceMessage = (name: string, resolution: BindingResolution): s
   if (resolution.kind === "forward") return `geometry引数の参照「@${name}」はこの位置より後で宣言されているため、まだ参照できません。`;
   if (resolution.kind === "self") return `geometry引数の参照「@${name}」は自身の宣言を参照しています。`;
   if (resolution.kind === "duplicate") return `geometry引数の参照「@${name}」は複数の宣言と一致するため一意に解決できません。`;
-  if (resolution.kind === "resolvedLocal") return `geometry引数の参照「@${name}」はelement-local scalarです。`;
   if (resolution.kind === "resolved") return `geometry引数の参照「@${name}」はgeometryではありません。`;
   if (resolution.reason === "forward") return `geometry引数の参照「@${name}」はこの位置より後で宣言されているため、まだ参照できません。`;
   if (resolution.reason === "ambiguous") return `geometry引数の参照「@${name}」は複数の宣言と一致するため一意に解決できません。`;

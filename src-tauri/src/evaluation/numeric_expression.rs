@@ -319,21 +319,9 @@ fn intermediate_point_value(segments: &[Value], property: &str) -> Option<f64> {
 }
 
 fn parameter_value<'a>(element: &'a Value, key: &str) -> Option<&'a Value> {
-    if let Some((prefix, variable_rest)) = key.split_once(':') {
-        if prefix == "variable" {
-            let (variable_id, field) = variable_rest.split_once(':')?;
-            if field != "value" {
-                return None;
-            }
-            return element
-                .get("numericVariables")?
-                .as_array()?
-                .iter()
-                .find(|variable| variable.get("id").and_then(Value::as_str) == Some(variable_id))?
-                .get("value");
-        }
+    if let Some((prefix, rest)) = key.split_once(':') {
         if prefix == "intermediate" {
-            let (point_id, field) = variable_rest.split_once(':')?;
+            let (point_id, field) = rest.split_once(':')?;
             return element
                 .get("intermediatePoints")?
                 .as_array()?

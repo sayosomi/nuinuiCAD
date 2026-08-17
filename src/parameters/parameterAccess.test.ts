@@ -4,9 +4,7 @@ import type { CadElement } from "../types/geometry";
 import {
   getParameterValue,
   getPointAnchor,
-  setNumericParameterOrLocalVariable,
-  setParameterValue,
-  supportsNumericVariables
+  setParameterValue
 } from "./parameterAccess";
 
 describe("parameterAccess", () => {
@@ -111,7 +109,6 @@ describe("parameterAccess", () => {
     expect(setParameterValue(point, "endPoint", referenceAnchor("point-c"))).toMatchObject({
       endPoint: referenceAnchor("point-c")
     });
-    expect(supportsNumericVariables(point)).toBe(true);
   });
 
   // 05: DivisionPlacement union. getParameterValue never leaks the active value
@@ -159,7 +156,6 @@ describe("parameterAccess", () => {
     ).toMatchObject({
       endpoint: { lineId: "line-b", endpointKey: "end" }
     });
-    expect(supportsNumericVariables(point)).toBe(true);
   });
 
   it("updates intersection point line references and supports numeric variables", () => {
@@ -178,7 +174,6 @@ describe("parameterAccess", () => {
     expect(setParameterValue(point, "line2Id", "line-c")).toMatchObject({
       line2Id: "line-c"
     });
-    expect(supportsNumericVariables(point)).toBe(true);
   });
 
   it("updates line tangent offset point references and supports numeric variables", () => {
@@ -201,7 +196,6 @@ describe("parameterAccess", () => {
     expect(setParameterValue(point, "basePoint", referenceAnchor("point-b"))).toMatchObject({
       basePoint: referenceAnchor("point-b")
     });
-    expect(supportsNumericVariables(point)).toBe(true);
   });
 
   it("uses generic access for Bezier extreme point fields", () => {
@@ -218,7 +212,6 @@ describe("parameterAccess", () => {
     expect(getParameterValue(point, "baseLineId")).toBe("curve");
     expect(setParameterValue(point, "segmentIndex", 2)).toMatchObject({ segmentIndex: 2 });
     expect(setParameterValue(point, "directionDeg", -90)).toMatchObject({ directionDeg: -90 });
-    expect(supportsNumericVariables(point)).toBe(true);
   });
 
   it("uses generic access for Bezier bulge point fields", () => {
@@ -233,7 +226,6 @@ describe("parameterAccess", () => {
 
     expect(getParameterValue(point, "baseLineId")).toBe("curve");
     expect(setParameterValue(point, "segmentIndex", 2)).toMatchObject({ segmentIndex: 2 });
-    expect(supportsNumericVariables(point)).toBe(true);
   });
 
   it("updates split line references and supports numeric variables", () => {
@@ -254,7 +246,6 @@ describe("parameterAccess", () => {
     expect(setParameterValue(line, "splitPoint", referenceAnchor("point-b"))).toMatchObject({
       splitPoint: referenceAnchor("point-b")
     });
-    expect(supportsNumericVariables(line)).toBe(true);
   });
 
   it("updates Bezier intermediate anchors and handle parameters", () => {
@@ -303,43 +294,4 @@ describe("parameterAccess", () => {
     });
   });
 
-  it("updates numeric variables and local variable references", () => {
-    const point: CadElement = {
-      id: "point-a",
-      name: "点A",
-      type: "freePoint",
-      activity: "visible",
-      numericVariables: [{ id: "var-1", name: "幅", value: 30 }],
-      x: { kind: "expression", expression: "@var-1" },
-      y: 20
-    };
-
-    expect(supportsNumericVariables(point)).toBe(true);
-    expect(getParameterValue(point, "variable:var-1:value")).toBe(30);
-    expect(setParameterValue(point, "variable:var-1:value", 35)).toMatchObject({
-      numericVariables: [{ id: "var-1", name: "幅", value: 35 }]
-    });
-    expect(setNumericParameterOrLocalVariable(point, "x", 42)).toMatchObject({
-      numericVariables: [{ id: "var-1", name: "幅", value: 42 }],
-      x: { kind: "expression", expression: "@var-1" }
-    });
-  });
-
-  it("supports numeric variables on ordinary elements", () => {
-    const variable: CadElement = {
-      id: "point-with-vars",
-      name: "点",
-      type: "freePoint",
-      activity: "visible",
-      numericVariables: [{ id: "var-1", name: "幅", value: 30 }],
-      x: 0,
-      y: 0
-    };
-
-    expect(supportsNumericVariables(variable)).toBe(true);
-    expect(getParameterValue(variable, "variable:var-1:value")).toBe(30);
-    expect(setParameterValue(variable, "variable:var-1:value", 40)).toMatchObject({
-      numericVariables: [{ id: "var-1", name: "幅", value: 40 }]
-    });
-  });
 });

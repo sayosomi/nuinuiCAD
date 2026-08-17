@@ -7,28 +7,13 @@ import {
   transitionScopeFrames,
   type ScopeFrame
 } from "./bindingResolutionSweepState";
-import {
-  emptyElementLocalRangeIndex,
-  resolveElementLocalRangeQueries,
-  type ElementLocalBinding,
-  type ElementLocalRangeIndex,
-  type ElementLocalRangeQuery
-} from "./elementLocalRangeIndex";
 
 export type BindingReferenceSite = {
   scopeId: ScopeId;
   statementIndex: number;
-  /** When set, the site's owning element's local numeric variables (a
-   * neutral namespace resolved via elementLocalRangeIndex.ts, never part of
-   * BindingCatalog itself) take priority over document/iteration lexical
-   * resolution (decisions.md D05). */
-  elementLocal?: { ownerId: string; order: number };
 };
 export type BindingResolution =
   | { kind: "resolved"; binding: Binding }
-  /** An element-local numeric variable match - deliberately not a `Binding`,
-   * since element-local variables never enter BindingCatalog's own lanes. */
-  | { kind: "resolvedLocal"; name: string; local: ElementLocalBinding }
   | { kind: "undefined"; name: string; scopeId: ScopeId; statementIndex: number }
   | { kind: "forward"; name: string; scopeId: ScopeId; statementIndex: number; bindingIds: readonly BindingId[] }
   | { kind: "self"; name: string; scopeId: ScopeId; statementIndex: number; bindingId: BindingId }
@@ -70,9 +55,7 @@ export type BindingLookupTraceForTests = {
   siteTraversalCount: number;
   candidateInspectionCount: number;
   emittedCandidateCount: number;
-  /** Keyed by `Binding["visibility"]["kind"]` || the literal `"elementLocal"`
-   * for an element-local candidate visit (element-local candidates are never
-   * `Binding`s, so they cannot share the `visibility.kind` type itself). */
+  /** Keyed by `Binding["visibility"]["kind"]`. */
   candidateVisitsByVisibilityKind: ReadonlyMap<string, number>;
 };
 
@@ -107,12 +90,6 @@ const recordCandidateInspection = (observer: LookupObserver | undefined, binding
   observer.candidateInspectionCount += 1;
   const kind = binding.visibility.kind;
   observer.candidateVisitsByVisibilityKind.set(kind, (observer.candidateVisitsByVisibilityKind.get(kind) ?? 0) + 1);
-};
-
-const recordLocalCandidateInspection = (observer: LookupObserver | undefined) => {
-  if (!observer) return;
-  observer.candidateInspectionCount += 1;
-  observer.candidateVisitsByVisibilityKind.set("elementLocal", (observer.candidateVisitsByVisibilityKind.get("elementLocal") ?? 0) + 1);
 };
 
 const recordEmittedCandidateCount = (observer: LookupObserver | undefined, count: number) => {
@@ -215,21 +192,9 @@ const resolutionFor = (
   catalog: BindingCatalog,
   request: SweepRequest,
   activeByName: Map<string, ScopeFrame[]>,
-  localCandidatesByRequestKey: ReadonlyMap<string, readonly ElementLocalBinding[]>,
   observer?: LookupObserver
 ): BindingResolution | null => {
   const { name, site } = request;
-  if (site.elementLocal) {
-    const local = localCandidatesByRequestKey.get(request.key) ?? [];
-    if (local.length > 1) {
-      recordEmittedCandidateCount(observer, local.length);
-      return { kind: "duplicate", name, scopeId: site.scopeId, statementIndex: site.statementIndex, bindingIds: local.map((binding) => binding.id) };
-    }
-    if (local[0]) {
-      recordEmittedCandidateCount(observer, 1);
-      return { kind: "resolvedLocal", name, local: local[0] };
-    }
-  }
   // Initializer self-detection remains owned by the existing binding sweep.
   // The source namespace quite correctly sees the declaration as future at
   // this point, but an initializer's own declaration must stay `self` rather
@@ -280,7 +245,6 @@ const resolutionFor = (
 const runSweep = (
   catalog: BindingCatalog,
   requests: readonly SweepRequest[],
-  elementLocalRangeIndex: ElementLocalRangeIndex,
   observer?: LookupObserver
 ): ReadonlyMap<string, BindingResolution> => {
   const byStatement = new Map<number, SweepRequest[]>();
@@ -294,17 +258,6 @@ const runSweep = (
     typedByStatement.set(binding.statementIndex, bucket);
   }
   if (observer) observer.requestCount += requests.length;
-  const localQueries: ElementLocalRangeQuery[] = requests
-    .filter((request) => request.site.elementLocal)
-    .map((request) => ({
-      key: request.key,
-      ownerId: request.site.elementLocal!.ownerId,
-      name: request.name,
-      order: request.site.elementLocal!.order
-    }));
-  const localCandidatesByRequestKey = localQueries.length
-    ? resolveElementLocalRangeQueries(elementLocalRangeIndex, localQueries, () => recordLocalCandidateInspection(observer))
-    : new Map<string, readonly ElementLocalBinding[]>();
   // The lexical index intentionally excludes inert module-body statements,
   // so dense catalog ranks must not be mistaken for raw source indexes.
   const sourceStatementIndices = [...catalog.scopeIndex.statementRankByIndex.keys()];
@@ -315,7 +268,7 @@ const runSweep = (
     const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
     transitionScopeFrames(catalog, frames, active, scopeId, (frame) => activateFrameNames(frame, active));
     for (const request of byStatement.get(statementIndex) ?? []) {
-      const resolved = resolutionFor(catalog, request, active, localCandidatesByRequestKey, observer);
+      const resolved = resolutionFor(catalog, request, active, observer);
       const directResolution: BindingResolution = resolved ?? (request.owner && request.owner.name === request.name
         ? { kind: "self", name: request.name, scopeId: request.site.scopeId, statementIndex: request.site.statementIndex, bindingId: request.owner.id }
         : { kind: "undefined", name: request.name, scopeId: request.site.scopeId, statementIndex: request.site.statementIndex });
@@ -371,11 +324,10 @@ const runSweep = (
  */
 export const resolveInitializerReferences = (
   catalog: BindingCatalog,
-  requests: readonly InitializerResolutionRequest[],
-  elementLocalRangeIndex: ElementLocalRangeIndex = emptyElementLocalRangeIndex
+  requests: readonly InitializerResolutionRequest[]
 ): readonly ResolvedInitializerReference[] => {
   const canonical = canonicalize(catalog, requests);
-  const resolutions = runSweep(catalog, canonical, elementLocalRangeIndex);
+  const resolutions = runSweep(catalog, canonical);
   return canonical.map((request) => ({ ...request, resolution: resolutions.get(request.key)! }));
 };
 
@@ -383,12 +335,11 @@ export const resolveInitializerReferences = (
  * production sweep rather than recreating a single-site compatibility path. */
 export const resolveInitializerReferencesWithTraceForTests = (
   catalog: BindingCatalog,
-  requests: readonly InitializerResolutionRequest[],
-  elementLocalRangeIndex: ElementLocalRangeIndex = emptyElementLocalRangeIndex
+  requests: readonly InitializerResolutionRequest[]
 ): { references: readonly ResolvedInitializerReference[]; trace: BindingLookupTraceForTests } => {
   const canonical = canonicalize(catalog, requests);
   const observer = createLookupObserver();
-  const resolutions = runSweep(catalog, canonical, elementLocalRangeIndex, observer);
+  const resolutions = runSweep(catalog, canonical, observer);
   return {
     references: canonical.map((request) => ({ ...request, resolution: resolutions.get(request.key)! })),
     trace: snapshotLookupTrace(observer)
@@ -407,24 +358,19 @@ export type SiteReferenceRequest = { key: string; name: string; site: BindingRef
  * detection all match `@name` resolution everywhere else in the language.
  * One shared sweep over the whole batch of requests, not one
  * `visibleBindingsAt` call per request - see `runSweep`'s own O(n) batching.
- * `elementLocalRangeIndex` is optional && only consulted for requests whose
- * `site.elementLocal` is set - callers that never set it (most of them) pay
- * no cost && never need to pass it.
  */
 export const resolveReferencesAtSites = (
   catalog: BindingCatalog,
-  requests: readonly SiteReferenceRequest[],
-  elementLocalRangeIndex: ElementLocalRangeIndex = emptyElementLocalRangeIndex
+  requests: readonly SiteReferenceRequest[]
 ): ReadonlyMap<string, BindingResolution> =>
-  runSweep(catalog, requests.map((request) => ({ name: request.name, site: request.site, key: request.key, owner: null })), elementLocalRangeIndex);
+  runSweep(catalog, requests.map((request) => ({ name: request.name, site: request.site, key: request.key, owner: null })));
 
 /** Internal, non-exported single-name oracle for focused tests only. The
  * production bulk queries below never call this compatibility path. */
 const resolveAtSite = (
   catalog: BindingCatalog,
   name: string,
-  site: BindingReferenceSite,
-  elementLocalRangeIndex: ElementLocalRangeIndex
+  site: BindingReferenceSite
 ): BindingResolution => {
   const sourceStatementIndices = [...catalog.scopeIndex.statementRankByIndex.keys()];
   const scheduledStatementIndex = sourceStatementAtOrBefore(sourceStatementIndices, site.statementIndex) ?? 0;
@@ -432,9 +378,9 @@ const resolveAtSite = (
     ? site
     : { ...site, statementIndex: scheduledStatementIndex };
   const key = "single";
-  const resolution = runSweep(catalog, [{ name, site: scheduledSite, key, owner: null }], elementLocalRangeIndex).get(key);
+  const resolution = runSweep(catalog, [{ name, site: scheduledSite, key, owner: null }]).get(key);
   if (!resolution) return { kind: "undefined", name, scopeId: site.scopeId, statementIndex: site.statementIndex };
-  return resolution.kind === "resolved" || resolution.kind === "resolvedLocal" ? resolution : { ...resolution, scopeId: site.scopeId, statementIndex: site.statementIndex };
+  return resolution.kind === "resolved" ? resolution : { ...resolution, scopeId: site.scopeId, statementIndex: site.statementIndex };
 };
 
 /**
@@ -453,14 +399,13 @@ export const resolveBindingReferenceForTests = (
   catalog: BindingCatalog,
   name: string,
   site: BindingReferenceSite,
-  fromBindingId?: BindingId,
-  elementLocalRangeIndex: ElementLocalRangeIndex = emptyElementLocalRangeIndex
+  fromBindingId?: BindingId
 ): BindingResolution => {
-  if (fromBindingId === undefined) return resolveAtSite(catalog, name, site, elementLocalRangeIndex);
+  if (fromBindingId === undefined) return resolveAtSite(catalog, name, site);
   const owner = validatedOwner(catalog, fromBindingId, site.statementIndex);
   const key = "single";
-  const resolution = runSweep(catalog, [{ name, site, key, owner }], elementLocalRangeIndex).get(key)!;
-  return resolution.kind === "resolved" || resolution.kind === "resolvedLocal" ? resolution : { ...resolution, scopeId: site.scopeId, statementIndex: site.statementIndex };
+  const resolution = runSweep(catalog, [{ name, site, key, owner }]).get(key)!;
+  return resolution.kind === "resolved" ? resolution : { ...resolution, scopeId: site.scopeId, statementIndex: site.statementIndex };
 };
 
 const visibleBindingsAtInternal = (
@@ -522,12 +467,7 @@ const visibleBindingsAtInternal = (
 };
 
 /**
- * True bulk query: one source/site traversal regardless of visible name
- * count. Deliberately never consults element-local variables (`vars: [...]`):
- * no production caller of this function (candidate/completion listing) ever
- * sets `site.elementLocal`, && element-local resolution lives outside
- * BindingCatalog entirely - see `resolveReferencesAtSites`'s
- * `elementLocalRangeIndex` parameter for the resolution path that does.
+ * True bulk query: one source/site traversal regardless of visible name count.
  */
 export const visibleBindingsAt = (catalog: BindingCatalog, site: BindingReferenceSite): readonly Binding[] =>
   visibleBindingsAtInternal(catalog, site);

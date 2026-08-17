@@ -42,7 +42,7 @@ pub struct EvaluationInput {
     pub(crate) condition_expressions: Option<Value>,
     /// Compiled text-template segments. This carries no source
     /// text or names for Rust to parse: typed holes already contain resolved
-    /// expression ASTs, while numeric holes retain their local numeric
+    /// expression ASTs, while numeric holes retain their untyped numeric
     /// runtime path.
     pub(crate) text_templates: Option<Value>,
     /// Validated text-property sources. Kept separate from common property

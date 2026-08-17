@@ -17,7 +17,7 @@ export type BuildDslBindingAdapterInput = {
 };
 export type DslBindingAdapterResult = {
   iterationBindings: readonly BindingSeed[];
-  /** Element-local numeric variables stay outside this catalog. */
+  /** Geometry element data stays in the container index, outside this catalog. */
   containerIndex: CadContainerIndex;
 };
 

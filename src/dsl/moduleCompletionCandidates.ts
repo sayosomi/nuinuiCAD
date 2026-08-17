@@ -15,7 +15,6 @@ import type {
   ModuleInstanceSemantic,
   ModuleScalarSourceTarget
 } from "./moduleSemanticTypes";
-import { sourceLocalVariableNamesBefore } from "./dslLocalVariableCompletionCandidates";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import { scanCallArgs } from "./dslArgScanner";
 import {
@@ -178,12 +177,6 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
     if (!type) continue;
     if (!expectedType) result.push({ label: `@${name}`, apply: `@${name}`, type: "constant" });
     else if (isScalarTypeAssignable(type, expectedType)) result.push({ label: `@${name}`, apply: `@${name}`, type: "constant" });
-  }
-  const localText = request?.liveStatementText ?? compiled.spans.sourceMap.statements.find((candidate) => candidate.range.from === compiled.statements[statementIndex]?.documentRange.from)?.logicalText;
-  if ((!expectedType || expectedType.kind === "number") && localText && request?.logicalCursorPosition !== undefined) {
-    for (const name of sourceLocalVariableNamesBefore(localText, request.logicalCursorPosition)) {
-      result.push({ label: `@${name}`, apply: `@${name}`, type: "constant" });
-    }
   }
   return result;
 };

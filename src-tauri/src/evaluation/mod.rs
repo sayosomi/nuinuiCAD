@@ -58,7 +58,6 @@ mod line_tangent_offset_point_tests;
 mod line_transform;
 #[cfg(test)]
 mod linear_mutation_integration_tests;
-mod local_variables;
 mod math;
 mod numeric_binding_runtime;
 mod numeric_expression;
@@ -117,7 +116,7 @@ use control_boolean_runtime::{
 };
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
-use for_group::for_group_template_descendant_ids;
+use for_group::{for_group_template_descendant_ids, iteration_local_variables};
 use for_group_generic_runtime::GenericForGroupRuntime;
 use for_group_mutation_runtime::ForGroupMutationRuntime;
 use groups::{effective_element_ids, group_state_by_element_id};
@@ -131,7 +130,6 @@ use line_evaluators::{
     evaluate_angle_length_line, evaluate_arc_line, evaluate_line, evaluate_three_point_arc_line,
 };
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
-use local_variables::evaluate_local_variables;
 use numeric_binding_runtime::{
     apply_numeric_bindings, validate_numeric_bindings_payload, ValidatedNumericBinding,
 };
@@ -773,9 +771,7 @@ fn evaluate_document_input_with_scalar_program(
             }
         }
 
-        let Some(local_variables) = evaluate_local_variables(index, &mut state) else {
-            continue;
-        };
+        let local_variables = iteration_local_variables(&[]);
 
         // Task 33 records Task 25's single Rust-side decision immediately
         // after evaluating this opener. The mutation cursor never receives a
