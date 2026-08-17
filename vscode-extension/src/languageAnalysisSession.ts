@@ -1,5 +1,6 @@
 import { AutomationDocument } from "../../src/document/automationDocument";
 import type { DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
+import type { DslDefinitionSemanticSnapshot } from "../../src/dsl/dslDefinitionQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import {
   compilerDiagnosticsForState,
@@ -16,6 +17,9 @@ export type NuiLanguageAnalysisSession = {
   completionSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslCompletionSemanticSnapshot | undefined;
+  definitionSemanticSnapshot: (
+    source: SourceSnapshot
+  ) => DslDefinitionSemanticSnapshot | undefined;
 };
 
 export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAnalysisSession => {
@@ -29,6 +33,29 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
       : state.doc.statementMap?.sourceRevision ?? state.revision;
   };
 
+  const semanticSnapshotFor = (
+    source: SourceSnapshot
+  ): DslCompletionSemanticSnapshot & DslDefinitionSemanticSnapshot | undefined => {
+    const state = document.getState();
+    const currentRawSource = document.getSource();
+    const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
+
+    if (
+      source.normalizedSource !== normalizedCurrentSource ||
+      source.sourceRevision !== currentSourceRevision() ||
+      state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource
+    ) return undefined;
+
+    return {
+      sourceRevision: source.sourceRevision,
+      sourceText: normalizedCurrentSource,
+      compiled: state.currentCompiled,
+      ...(state.currentCompiled.bindingAnalysis
+        ? { bindingAnalysis: state.currentCompiled.bindingAnalysis }
+        : {})
+    };
+  };
+
   return {
     getSource: () => document.getSource(),
     getSourceRevision: currentSourceRevision,
@@ -37,25 +64,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
       diagnostics = compilerDiagnosticsForState(document.getSource(), document.getState());
     },
     getDiagnostics: () => diagnostics,
-    completionSemanticSnapshot: (source) => {
-      const state = document.getState();
-      const currentRawSource = document.getSource();
-      const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
-
-      if (
-        source.normalizedSource !== normalizedCurrentSource ||
-        source.sourceRevision !== currentSourceRevision() ||
-        state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource
-      ) return undefined;
-
-      return {
-        sourceRevision: source.sourceRevision,
-        sourceText: normalizedCurrentSource,
-        compiled: state.currentCompiled,
-        ...(state.currentCompiled.bindingAnalysis
-          ? { bindingAnalysis: state.currentCompiled.bindingAnalysis }
-          : {})
-      };
-    }
+    completionSemanticSnapshot: semanticSnapshotFor,
+    definitionSemanticSnapshot: semanticSnapshotFor
   };
 };
