@@ -6,6 +6,7 @@ import {
 } from "./canonicalDocument";
 
 export type AutomationDocumentState = CanonicalDocumentValue & {
+  currentCompiled: TextCompileResult["currentCompiled"];
   revision: number;
   compiledRevision: number;
   status: TextCompileResult["status"];

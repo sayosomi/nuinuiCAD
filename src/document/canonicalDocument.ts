@@ -43,6 +43,8 @@ export type CanonicalDocumentValue = {
 };
 
 export type TextCompileResult = CanonicalDocumentValue & {
+  /** The compile attempt for sourceText, including partial fatal results. */
+  currentCompiled: CompiledDslDocument;
   status: "valid" | "warning" | "fatal";
 };
 
@@ -105,6 +107,7 @@ export const compileCanonicalText = (
       sourceText,
       doc: current.doc,
       docText: current.docText,
+      currentCompiled: compiled,
       diagnostics: compiled.diagnostics,
       bindingIssueDiagnostics: compiled.bindingIssueDiagnostics ?? [],
       typedDependencyGraph: compiled.typedDependencyGraph,
@@ -116,6 +119,7 @@ export const compileCanonicalText = (
     sourceText,
     doc: compiled,
     docText: sourceText,
+    currentCompiled: compiled,
     diagnostics: compiled.diagnostics,
     bindingIssueDiagnostics: compiled.bindingIssueDiagnostics ?? [],
     typedDependencyGraph: compiled.typedDependencyGraph,

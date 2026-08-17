@@ -347,6 +347,8 @@ Tauri / VS Code capture orchestration、result assembly を owner とする。
 Primary:
 
 - `vscode-extension/src/extension.ts`
+- `vscode-extension/src/languageAnalysisSession.ts`
+- `vscode-extension/src/completionProvider.ts`
 - `vscode-extension/src/rustEvaluationProcessOwner.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
@@ -382,13 +384,28 @@ evaluator remain reused from the performance PoC path.
 
 `src/vscode/` owns the local Webview / Extension Host message bridge, VS Code
 Canvas adapter, app, and benchmark result handoff. `vscode-extension/` owns the
-desktop-local extension host, session registry, persistent Rust stdio relay,
-TextDocument edit bridge, and the extension-wide compiler diagnostics adapter.
-Compiler diagnostics keep one analysis session per supported document URI,
-reuse the production `AutomationDocument` compiler boundary for current
-`TextDocument` source, and publish the resulting source diagnostics through one
-VS Code `DiagnosticCollection`; the adapter does not perform parsing, binding
-analysis, or runtime evaluation.
+desktop-local extension host, Canvas session registry, persistent Rust stdio
+relay, TextDocument edit bridge, and URI-scoped language analysis sessions.
+
+The extension keeps one `NuiLanguageAnalysisSession` and one production
+`AutomationDocument` per supported document URI. Diagnostics and native
+completion share that session:
+
+```text
+VS Code TextDocument
+→ URI-scoped language analysis session / AutomationDocument
+├→ compiler diagnostics → DiagnosticCollection
+└→ queryDslCompletion → CompletionItemProvider
+```
+
+`languageAnalysisSession.ts` owns current raw source, source replacement,
+current compiler diagnostics, source revision, and fail-closed semantic
+snapshot access. `compilerDiagnostics.ts` remains the diagnostic DTO and range
+conversion adapter. `completionProvider.ts` only normalizes VS Code positions,
+projects `queryDslCompletion` candidates to `CompletionItem`s, and supplies
+host insertion behavior; completion semantics, filtering, ranking, and
+truncation remain owned by the production query. Neither diagnostics nor
+completion performs runtime evaluation or starts the Rust process.
 
 `src-tauri/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。

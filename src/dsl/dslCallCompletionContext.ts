@@ -150,6 +150,7 @@ const argumentContextAt = (
   const previousTokenCharacter = beforePrefix.at(-1) ?? "";
   const isArgumentDraft =
     !previousTokenCharacter ||
+    previousTokenCharacter === "," ||
     (!"+-*/=:([,".includes(previousTokenCharacter) && !/\s/.test(previousTokenCharacter));
   // An empty value's trimmed valueSpan always collapses toward the far edge
   // of its raw gap (see trimSpan in dslArgScanner.ts), which can land past

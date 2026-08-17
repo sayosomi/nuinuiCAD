@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AutomationDocument } from "../../src/document/automationDocument";
 
 type TestDocument = {
   fileName: string;
@@ -56,9 +57,11 @@ const mocks = vi.hoisted(() => ({
   rustProcesses: [] as TestRustProcess[],
   diagnosticCollections: [] as TestDiagnosticCollection[],
   contexts: [] as Array<{ subscriptions: Array<{ dispose: () => void }> }>,
+  completionRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
   showErrorMessage: vi.fn(),
   createWebviewPanel: vi.fn(),
   createDiagnosticCollection: vi.fn(),
+  registerCompletionItemProvider: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
   onDidOpenTextDocument: vi.fn(),
@@ -84,6 +87,16 @@ vi.mock("vscode", () => {
       public readonly severity: number
     ) {}
   }
+  class CompletionItem {
+    detail?: string;
+    range?: unknown;
+    insertText?: unknown;
+
+    constructor(public readonly label: string, public readonly kind: number) {}
+  }
+  class SnippetString {
+    constructor(public readonly value: string) {}
+  }
   return {
     window: {
       get activeTextEditor() {
@@ -107,14 +120,27 @@ vi.mock("vscode", () => {
     },
     commands: { registerCommand: mocks.registerCommand },
     languages: {
-      createDiagnosticCollection: mocks.createDiagnosticCollection
+      createDiagnosticCollection: mocks.createDiagnosticCollection,
+      registerCompletionItemProvider: mocks.registerCompletionItemProvider
     },
     Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
     ViewColumn: { Beside: 2 },
     DiagnosticSeverity: { Error: 0, Warning: 1 },
+    CompletionItemKind: {
+      Keyword: 1,
+      Function: 2,
+      Property: 3,
+      Variable: 4,
+      Reference: 5,
+      Module: 6,
+      Value: 7,
+      Operator: 8
+    },
     Position,
     Range,
-    Diagnostic
+    Diagnostic,
+    CompletionItem,
+    SnippetString
   };
 // @ts-expect-error Vitest's runtime supports the virtual-module options used here.
 }, { virtual: true });
@@ -235,6 +261,11 @@ const setup = (
     mocks.diagnosticCollections.push(collection);
     return collection;
   });
+  mocks.registerCompletionItemProvider.mockImplementation((selector: unknown, provider: unknown, ...triggerCharacters: string[]) => {
+    const registration = disposable();
+    mocks.completionRegistrations.push({ selector, provider, triggerCharacters, disposable: registration });
+    return registration;
+  });
   mocks.onDidOpenTextDocument.mockImplementation((listener: (document: TestDocument) => void) => {
     mocks.documentOpenListeners.push(listener);
     return disposable();
@@ -285,9 +316,11 @@ afterEach(() => {
   mocks.rustProcesses.length = 0;
   mocks.diagnosticCollections.length = 0;
   mocks.contexts.length = 0;
+  mocks.completionRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.createWebviewPanel.mockReset();
   mocks.createDiagnosticCollection.mockReset();
+  mocks.registerCompletionItemProvider.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
   mocks.onDidOpenTextDocument.mockReset();
@@ -387,7 +420,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.commandHandler?.();
     const panelB = mocks.panels[1]!;
 
-    panelA.dispose();
+    (panelA.dispose as unknown as () => void)();
 
     expect(panelB.title).toBe("front.nui — nuinuiCAD");
   });
@@ -405,7 +438,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.commandHandler?.();
     const panelB = mocks.panels[1]!;
 
-    panelA.dispose();
+    (panelA.dispose as unknown as () => void)();
     expect(panelA.dispose).toHaveBeenCalledTimes(1);
     expect(panelB.dispose).not.toHaveBeenCalled();
 
@@ -437,7 +470,7 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.rustProcesses).toHaveLength(1);
     const sharedProcess = mocks.rustProcesses[0]!;
 
-    panelA.dispose();
+    (panelA.dispose as unknown as () => void)();
     expect(sharedProcess.dispose).not.toHaveBeenCalled();
 
     await messageHandlerFor(panelB)({ type: "rustEvaluationRequest", id: 2, input: { request: "second" } });
@@ -524,7 +557,7 @@ describe("VS Code production document lifecycle", () => {
     const editor = mocks.activeTextEditor!;
     const panelA = openPanelFor(editor);
 
-    panelA.dispose();
+    (panelA.dispose as unknown as () => void)();
     editor.document.version = 6;
     editor.document.setSourceText("nui 4\n# panel reopened\n");
     const panelB = openPanelFor(editor);
@@ -759,5 +792,51 @@ describe("VS Code compiler diagnostics lifecycle", () => {
 
     expect(collection.set).toHaveBeenCalledTimes(2);
     expect(collection.set).toHaveBeenLastCalledWith(reopened.uri, expect.any(Array));
+  });
+});
+
+describe("VS Code native completion lifecycle", () => {
+  it("registers the provider with the requested selector, triggers, and lifecycle disposable", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.completionRegistrations[0]!;
+
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.triggerCharacters).toEqual(["@", ".", ":", "=", "(", ",", "[", "{"]);
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+
+  it("shares the URI-scoped analysis session and does not start Rust for completion", () => {
+    const document = documentFor(
+      "/tmp/completion.nui",
+      "file:///tmp/completion.nui",
+      "nui 4\nconst value: number = ab"
+    );
+    const fromSource = vi.spyOn(AutomationDocument, "fromSource");
+    setup(false, null, [document]);
+    const registration = mocks.completionRegistrations[0]!;
+    const provider = registration.provider as {
+      provideCompletionItems: (document: TestDocument, position: { line: number; character: number }, token: unknown, context: unknown) => unknown;
+    };
+
+    const items = provider.provideCompletionItems(document, { line: 1, character: "const value: number = ab".length }, undefined, undefined) as Array<{ label: string }>;
+
+    expect(fromSource).toHaveBeenCalledTimes(1);
+    expect(items.map((item) => item.label)).toContain("abs");
+    expect(mocks.rustProcesses).toHaveLength(0);
+    fromSource.mockRestore();
+  });
+
+  it("works for an open document without creating Canvas", () => {
+    const document = documentFor("/tmp/no-canvas.nui", "file:///tmp/no-canvas.nui", "nui 4\npoint P = co");
+    setup(false, null, [document]);
+    const registration = mocks.completionRegistrations[0]!;
+    const provider = registration.provider as {
+      provideCompletionItems: (document: TestDocument, position: { line: number; character: number }, token: unknown, context: unknown) => unknown;
+    };
+
+    const items = provider.provideCompletionItems(document, { line: 1, character: "point P = co".length }, undefined, undefined) as Array<{ label: string }>;
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(items.map((item) => item.label)).toContain("coordinate");
   });
 });

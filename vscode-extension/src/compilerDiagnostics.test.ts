@@ -3,7 +3,6 @@ import { AutomationDocument } from "../../src/document/automationDocument";
 import type { DslDiagnostic } from "../../src/dsl/dslTypes";
 import {
   compilerDiagnosticsForState,
-  createCompilerDiagnosticsSession,
   toCompilerDiagnostic
 } from "./compilerDiagnostics";
 
@@ -18,9 +17,9 @@ const diagnostic = (overrides: Partial<DslDiagnostic> = {}): DslDiagnostic => ({
 describe("VS Code compiler diagnostics adapter", () => {
   it("uses current-source production compiler errors", () => {
     const source = "nui 4\npoint A = coordinate(x: 0, y: )\n";
-    const session = createCompilerDiagnosticsSession(source);
+    const document = AutomationDocument.fromSource(source);
 
-    expect(session.getDiagnostics()).toEqual([
+    expect(compilerDiagnosticsForState(document.getSource(), document.getState())).toEqual([
       expect.objectContaining({
         severity: "error",
         message: "引数「y」の値がありません。",
@@ -136,9 +135,4 @@ describe("VS Code compiler diagnostics adapter", () => {
     }))).toBeNull();
   });
 
-  it("recompiles the same session from unsaved source", () => {
-    const session = createCompilerDiagnosticsSession("nui 4\npoint A = coordinate(x: 0, y: )\n");
-    expect(session.getDiagnostics()).toHaveLength(1);
-    expect(session.replaceSource("nui 4\npoint A = coordinate(x: 0, y: 1)\n")).toEqual([]);
-  });
 });
