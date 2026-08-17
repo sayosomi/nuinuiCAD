@@ -1,4 +1,3 @@
-import type { Completion } from "@codemirror/autocomplete";
 import type { CompiledDslDocument } from "./dslDocument";
 import { physicalToLogicalOffset } from "./logicalStatementSourceMap";
 import { resolveModuleLexicalDeclaration, isModuleLookupVisibleWithinBody } from "./moduleLexicalResolution";
@@ -49,6 +48,16 @@ export type ModuleCompletionRequest = {
   expectedScalarType?: ScalarType | null;
   scopeId?: ScopeId;
   sourceOrderIndex?: number;
+};
+
+/** Source-semantic Module completion data. This intentionally has no
+ * CodeMirror/VS Code insertion action; adapters decide how a semantic
+ * candidate is presented and applied in their host. */
+export type ModuleCompletionCandidate = {
+  kind: "binding" | "builtin" | "geometry" | "literal" | "module" | "argumentName";
+  label: string;
+  detail?: string;
+  identity?: string;
 };
 
 const parameterGeometryKind = moduleRuntimeGeometryKindOf;
@@ -138,25 +147,25 @@ const bodyNames = (compiled: CompiledDslDocument, statementIndex: number, scopeI
   ])];
 };
 
-const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: DslModuleParameterType | ScalarType | null | undefined, request?: ModuleCompletionRequest): Completion[] => {
+const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: DslModuleParameterType | ScalarType | null | undefined, request?: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const expectedType = scalarTypeOf(expected);
-  const result: Completion[] = [];
+  const result: ModuleCompletionCandidate[] = [];
   if (!expectedType || expectedType.kind === "number") {
-    result.push({ label: "0", type: "constant" }, { label: "1", type: "constant" });
+    result.push({ kind: "literal", label: "0" }, { kind: "literal", label: "1" });
   }
   if (expectedType?.kind === "string") {
-    result.push({ label: '""', type: "text" });
+    result.push({ kind: "literal", label: '""' });
   } else if (expectedType && expectedType.kind !== "number") {
-    result.push(...scalarLiteralCandidates(expectedType).map((literal) => ({ label: literal.label, type: "enum" as const })));
+    result.push(...scalarLiteralCandidates(expectedType).map((literal) => ({ kind: "literal" as const, label: literal.label })));
   }
   if (expectedType) {
     result.push(...BUILTIN_FUNCTION_DEFINITIONS
       .filter((definition) => definition.signatures.some((signature) => isScalarTypeAssignable(signature.returnType, expectedType)))
       .map((definition) => ({
+        kind: "builtin" as const,
         label: definition.name,
-        apply: `${definition.name}(`,
         detail: formatBuiltinFunctionSignatures(definition),
-        type: "function" as const
+        identity: definition.name
       })));
   }
   for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
@@ -164,42 +173,45 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
     if (!resolved) continue;
     const { lookup } = resolved;
     if (lookup.kind === "iteration") {
-      if (!expectedType || expectedType.kind === "number") result.push({ label: `@${name}`, apply: `@${name}`, type: "constant" });
+      if (!expectedType || expectedType.kind === "number") result.push({ kind: "binding", label: name, identity: lookup.statementId });
       continue;
     }
     if (lookup.kind === "parameter") {
       const type = scalarTypeOf(lookup.parameter.value.type);
-      if (type && (!expectedType || isScalarTypeAssignable(type, expectedType))) result.push({ label: `@${name}`, apply: `@${name}`, type: "constant" });
+      if (type && (!expectedType || isScalarTypeAssignable(type, expectedType))) result.push({ kind: "binding", label: name, identity: `module-parameter:${name}` });
       continue;
     }
     if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration" || lookup.declaration.statement.kind !== "typedDeclaration") continue;
     const type = lookup.declaration.statement.declaredType;
     if (!type) continue;
-    if (!expectedType) result.push({ label: `@${name}`, apply: `@${name}`, type: "constant" });
-    else if (isScalarTypeAssignable(type, expectedType)) result.push({ label: `@${name}`, apply: `@${name}`, type: "constant" });
+    if (!expectedType) result.push({ kind: "binding", label: name, identity: lookup.declaration.statementId });
+    else if (isScalarTypeAssignable(type, expectedType)) result.push({ kind: "binding", label: name, identity: lookup.declaration.statementId });
   }
   return result;
 };
 
-const geometryCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: "point" | "line" | null, request?: ModuleCompletionRequest): Completion[] => {
+const geometryCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: "point" | "line" | null, request?: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   if (!expected) return [];
-  const result: Completion[] = [];
+  const result: ModuleCompletionCandidate[] = [];
   for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
     const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);
     if (!resolved) continue;
     const { lookup } = resolved;
     if (lookup.kind === "parameter") {
-      if (parameterGeometryKind(lookup.parameter.value.type) === expected) result.push({ label: name, type: "constant" });
+      if (parameterGeometryKind(lookup.parameter.value.type) === expected) result.push({ kind: "geometry", label: name, identity: `module-parameter:${name}` });
       continue;
     }
     if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry" || lookup.declaration.statement.kind !== "element") continue;
     const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
     const kind = interfaceType === "point" ? "point" : interfaceType ? "line" : null;
-    if (kind === expected) result.push({ label: name, type: "constant" });
+    if (kind === expected) result.push({ kind: "geometry", label: name, identity: lookup.declaration.statementId });
     // A line-like source is point-compatible only through its named endpoint;
     // iteration variables intentionally never enter this branch.
     if (expected === "point" && kind === "line") {
-      result.push({ label: `${name}.start`, type: "constant" }, { label: `${name}.end`, type: "constant" });
+      result.push(
+        { kind: "geometry", label: `${name}.start`, identity: `${lookup.declaration.statementId}:start` },
+        { kind: "geometry", label: `${name}.end`, identity: `${lookup.declaration.statementId}:end` }
+      );
     }
   }
   return result;
@@ -210,25 +222,25 @@ const geometryInterfaceCompletions = (
   statementIndex: number,
   expected: ModuleGeometryInterfaceType,
   request?: ModuleCompletionRequest
-): Completion[] => {
-  const result: Completion[] = [];
+): ModuleCompletionCandidate[] => {
+  const result: ModuleCompletionCandidate[] = [];
   for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
     const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);
     if (!resolved) continue;
     const { lookup } = resolved;
     if (lookup.kind === "parameter") {
       const actual = moduleGeometryInterfaceTypeOf(lookup.parameter.value.type);
-      if (isModuleGeometryInterfaceAssignable(actual, expected)) result.push({ label: name, type: "constant" });
+      if (isModuleGeometryInterfaceAssignable(actual, expected)) result.push({ kind: "geometry", label: name, identity: `module-parameter:${name}` });
       continue;
     }
     if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry" || lookup.declaration.statement.kind !== "element") continue;
     const actual = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
-    if (isModuleGeometryInterfaceAssignable(actual, expected)) result.push({ label: name, type: "constant" });
+    if (isModuleGeometryInterfaceAssignable(actual, expected)) result.push({ kind: "geometry", label: name, identity: lookup.declaration.statementId });
   }
   return result;
 };
 
-const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): Completion[] => {
+const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const namespace = compiled.sourceLexicalNamespace;
   const owner = currentModuleDefinition(compiled, statementIndex, request.scopeId);
   const input = lexicalInput(compiled, owner);
@@ -239,7 +251,7 @@ const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: 
       const lookup = resolveModuleLexicalDeclaration(input, statementIndex, declaration.name, { scopeId: request.scopeId, sourceOrderIndex: request.sourceOrderIndex });
       return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;
     })
-    .map((declaration) => ({ label: declaration.name, type: "class" as const }));
+    .map((declaration) => ({ kind: "module" as const, label: declaration.name, identity: declaration.statementId }));
 };
 
 const liveArguments = (request: ModuleCompletionRequest) => {
@@ -250,14 +262,14 @@ const liveArguments = (request: ModuleCompletionRequest) => {
   return scanCallArgs(source, { start: open + 1, end: source.length }).args;
 };
 
-const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): Completion[] => {
+const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const instance = currentInstance(compiled, statementIndex);
   const statement = compiled.statements[statementIndex];
   if (!instance?.callee || statement?.kind !== "moduleInstance") return [];
   const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
   if (!definition) return [];
   const used = new Set((liveArguments(request)?.map((argument) => argument.key) ?? statement.arguments.map((argument) => argument.label)).filter((label): label is string => Boolean(label)));
-  return definition.parameters.filter((parameter) => !used.has(parameter.name)).map((parameter) => ({ label: parameter.name, apply: `${parameter.name}: `, type: "property" as const }));
+  return definition.parameters.filter((parameter) => !used.has(parameter.name)).map((parameter) => ({ kind: "argumentName" as const, label: parameter.name }));
 };
 
 const moduleArgumentParameterType = (
@@ -300,7 +312,7 @@ const moduleScalarExpectedType = (
   return context?.kind === "operand" ? context.expectedType ?? rootType : rootType;
 };
 
-const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): Completion[] => {
+const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const parameterType = moduleArgumentParameterType(compiled, statementIndex, argumentIndex, request);
   if (parameterType?.kind === "point") return geometryCompletions(compiled, statementIndex, "point", request);
   const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
@@ -417,7 +429,7 @@ const stableQualifiedInstanceIdAt = (compiled: CompiledDslDocument, statementInd
   return null;
 };
 
-const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): Completion[] => {
+const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const analysis = compiled.moduleSemanticAnalysis;
   if (!analysis) return [];
   const context = qualifiedMemberContextAt(compiled, statementIndex, request);
@@ -443,14 +455,14 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
           moduleGeometryInterfaceTypeOfElement(compiled.statements[entry.exportedStatementIndex]),
           geometryInterfaceType
         ))
-        .map((entry) => ({ label: entry.name, type: "constant" as const }));
+        .map((entry) => ({ kind: "geometry" as const, label: entry.name, identity: entry.name }));
     }
     const expected = scalarTypeOf(parameterType);
     if (!expected) return [];
     return definition.exports
       .filter((entry): entry is Extract<typeof entry, { kind: "scalar" }> => entry.kind === "scalar")
       .filter((entry) => isScalarTypeAssignable(entry.declaredType, expected))
-      .map((entry) => ({ label: entry.name, type: "constant" as const }));
+      .map((entry) => ({ kind: "binding" as const, label: entry.name, identity: entry.name }));
   }
   const scalarContext = context?.memberKind === "scalar" || (!context && request.expectedScalarType !== null && request.expectedScalarType !== undefined);
   if (scalarContext) {
@@ -458,17 +470,17 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
     return definition.exports
       .filter((entry): entry is Extract<typeof entry, { kind: "scalar" }> => entry.kind === "scalar")
       .filter((entry) => !expected || isScalarTypeAssignable(entry.declaredType, expected))
-      .map((entry) => ({ label: entry.name, type: "constant" as const }));
+      .map((entry) => ({ kind: "binding" as const, label: entry.name, identity: entry.name }));
   }
   return definition.exports
     .filter((entry) => entry.kind === "geometry")
-    .map((entry) => ({ label: entry.name, type: "constant" as const }));
+    .map((entry) => ({ kind: "geometry" as const, label: entry.name, identity: entry.name }));
 };
 
 /** Module candidates are source-semantic. Last-good identities are accepted
  * for dirty live positions only when the caller supplied a mapped statement;
  * names in the live buffer are never used to re-resolve identities. */
-export const moduleCompletionCandidates = (request: ModuleCompletionRequest): Completion[] => {
+export const moduleCompletionCandidates = (request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const statementIndex = stableStatementIndex(request);
   if (statementIndex < 0 || !request.compiled.sourceLexicalNamespace) return [];
   if (request.kind === "callee") return moduleCalleeCompletions(request.compiled, statementIndex, request);
