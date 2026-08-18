@@ -1,4 +1,4 @@
-import { AutomationDocument } from "../../src/document/automationDocument";
+import { AutomationDocument, type AutomationDocumentState } from "../../src/document/automationDocument";
 import type { DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
 import type { DslDefinitionSemanticSnapshot } from "../../src/dsl/dslDefinitionQuery";
 import type { DslRenameSemanticSnapshot } from "../../src/dsl/dslRenameQuery";
@@ -24,6 +24,15 @@ export type NuiLanguageAnalysisSession = {
   renameSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslRenameSemanticSnapshot | undefined;
+  choiceQuickFixSemanticSnapshot: (
+    source: SourceSnapshot
+  ) => NuiChoiceQuickFixSemanticSnapshot | undefined;
+};
+
+export type NuiChoiceQuickFixSemanticSnapshot = {
+  sourceRevision: number;
+  sourceText: string;
+  currentCompiled: AutomationDocumentState["currentCompiled"];
 };
 
 export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAnalysisSession => {
@@ -60,6 +69,26 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     };
   };
 
+  const choiceQuickFixSemanticSnapshot = (
+    source: SourceSnapshot
+  ): NuiChoiceQuickFixSemanticSnapshot | undefined => {
+    const state = document.getState();
+    const currentRawSource = document.getSource();
+    const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
+
+    if (
+      source.normalizedSource !== normalizedCurrentSource ||
+      source.sourceRevision !== currentSourceRevision() ||
+      state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource
+    ) return undefined;
+
+    return {
+      sourceRevision: source.sourceRevision,
+      sourceText: normalizedCurrentSource,
+      currentCompiled: state.currentCompiled
+    };
+  };
+
   return {
     getSource: () => document.getSource(),
     getSourceRevision: currentSourceRevision,
@@ -70,6 +99,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     getDiagnostics: () => diagnostics,
     completionSemanticSnapshot: semanticSnapshotFor,
     definitionSemanticSnapshot: semanticSnapshotFor,
-    renameSemanticSnapshot: semanticSnapshotFor
+    renameSemanticSnapshot: semanticSnapshotFor,
+    choiceQuickFixSemanticSnapshot
   };
 };

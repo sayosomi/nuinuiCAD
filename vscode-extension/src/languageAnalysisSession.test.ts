@@ -150,4 +150,53 @@ describe("VS Code document-scoped language analysis session", () => {
     expect(session.definitionSemanticSnapshot(staleRevision)).toBeUndefined();
     expect(session.renameSemanticSnapshot(staleRevision)).toBeUndefined();
   });
+
+  it("exposes only the current source choice Quick Fix semantic snapshot", () => {
+    const session = createLanguageAnalysisSession(validSource);
+    const current = session.choiceQuickFixSemanticSnapshot(sourceSnapshotFor(validSource, 1));
+
+    expect(current).toMatchObject({
+      sourceRevision: 1,
+      sourceText: validSource,
+      currentCompiled: expect.objectContaining({
+        spans: expect.objectContaining({
+          sourceMap: expect.objectContaining({ source: validSource })
+        })
+      })
+    });
+    expect(session.choiceQuickFixSemanticSnapshot(sourceSnapshotFor(
+      "nui 4\npoint Other = coordinate(x: 0, y: 1)\n",
+      1
+    ))).toBeUndefined();
+    expect(session.choiceQuickFixSemanticSnapshot(sourceSnapshotFor(validSource, 2))).toBeUndefined();
+  });
+
+  it("invalidates the old choice Quick Fix snapshot after replaceSource", () => {
+    const session = createLanguageAnalysisSession(validSource);
+    const oldSnapshot = sourceSnapshotFor(validSource, 1);
+    const nextSource = "nui 4\npoint B = coordinate(x: 0, y: 1)\n";
+
+    session.replaceSource(nextSource);
+
+    expect(session.choiceQuickFixSemanticSnapshot(oldSnapshot)).toBeUndefined();
+    expect(session.choiceQuickFixSemanticSnapshot(sourceSnapshotFor(nextSource, 2))).toBeDefined();
+  });
+
+  it("does not fall back to last-good compiled data for fatal choice Quick Fix source", () => {
+    const session = createLanguageAnalysisSession("nui 4\nconst old: number = 1\n");
+    session.replaceSource(fatalSource);
+
+    const snapshot = session.choiceQuickFixSemanticSnapshot(sourceSnapshotFor(fatalSource, 2));
+    expect(snapshot).toMatchObject({
+      sourceText: fatalSource,
+      currentCompiled: expect.objectContaining({
+        spans: expect.objectContaining({
+          sourceMap: expect.objectContaining({ source: fatalSource })
+        })
+      })
+    });
+    expect(snapshot?.currentCompiled.sourceLexicalNamespace?.allDeclarations ?? []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "old" })])
+    );
+  });
 });

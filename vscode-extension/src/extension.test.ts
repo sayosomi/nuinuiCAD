@@ -55,7 +55,7 @@ const mocks = vi.hoisted(() => ({
   activeTextEditor: null as TestEditor | null,
   visibleTextEditors: [] as TestEditor[],
   textDocuments: [] as TestDocument[],
-  commandHandler: null as (() => void) | null,
+  commandHandlers: new Map<string, (...args: unknown[]) => unknown>(),
   activeEditorListeners: [] as Array<() => void>,
   documentOpenListeners: [] as Array<(document: TestDocument) => void>,
   documentChangeListeners: [] as Array<(event: { document: TestDocument }) => void>,
@@ -67,12 +67,14 @@ const mocks = vi.hoisted(() => ({
   completionRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
   definitionRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   renameRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
+  codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
   showErrorMessage: vi.fn(),
   createWebviewPanel: vi.fn(),
   createDiagnosticCollection: vi.fn(),
   registerCompletionItemProvider: vi.fn(),
   registerDefinitionProvider: vi.fn(),
   registerRenameProvider: vi.fn(),
+  registerCodeActionsProvider: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
   onDidOpenTextDocument: vi.fn(),
@@ -134,7 +136,8 @@ vi.mock("vscode", () => {
       createDiagnosticCollection: mocks.createDiagnosticCollection,
       registerCompletionItemProvider: mocks.registerCompletionItemProvider,
       registerDefinitionProvider: mocks.registerDefinitionProvider,
-      registerRenameProvider: mocks.registerRenameProvider
+      registerRenameProvider: mocks.registerRenameProvider,
+      registerCodeActionsProvider: mocks.registerCodeActionsProvider
     },
     Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
     ViewColumn: { Beside: 2 },
@@ -149,6 +152,7 @@ vi.mock("vscode", () => {
       Value: 7,
       Operator: 8
     },
+    CodeActionKind: { QuickFix: "quickfix" },
     Position,
     Range,
     Diagnostic,
@@ -278,6 +282,11 @@ const panelFor = (): TestPanel => {
 const messageHandlerFor = (panel: TestPanel) =>
   (panel as TestPanel & { messageHandler: (message: unknown) => Promise<void> }).messageHandler;
 
+const commandHandlerFor = (command: string): (() => void) | undefined => {
+  const handler = mocks.commandHandlers.get(command);
+  return handler as (() => void) | undefined;
+};
+
 const setup = (
   benchmark = false,
   activeEditor: TestEditor | null = editorFor(),
@@ -290,8 +299,8 @@ const setup = (
   mocks.textDocuments = openDocuments ?? (activeEditor ? [activeEditor.document] : []);
   const context = contextFor();
   mocks.contexts.push(context);
-  mocks.registerCommand.mockImplementation((_name: string, handler: () => void) => {
-    mocks.commandHandler = handler;
+  mocks.registerCommand.mockImplementation((name: string, handler: (...args: unknown[]) => unknown) => {
+    mocks.commandHandlers.set(name, handler);
     return disposable();
   });
   mocks.createWebviewPanel.mockImplementation(() => panelFor());
@@ -323,6 +332,20 @@ const setup = (
   mocks.registerRenameProvider.mockImplementation((selector: unknown, provider: unknown) => {
     const registration = disposable();
     mocks.renameRegistrations.push({ selector, provider, disposable: registration });
+    return registration;
+  });
+  mocks.registerCodeActionsProvider.mockImplementation((
+    selector: unknown,
+    provider: unknown,
+    options: { providedCodeActionKinds: unknown[] }
+  ) => {
+    const registration = disposable();
+    mocks.codeActionRegistrations.push({
+      selector,
+      provider,
+      providedCodeActionKinds: options.providedCodeActionKinds,
+      disposable: registration
+    });
     return registration;
   });
   mocks.onDidOpenTextDocument.mockImplementation((listener: (document: TestDocument) => void) => {
@@ -357,7 +380,7 @@ const openPanelFor = (editor = mocks.activeTextEditor!): TestPanel => {
   mocks.activeTextEditor = editor;
   mocks.visibleTextEditors = [editor];
   mocks.textDocuments = [editor.document];
-  mocks.commandHandler?.();
+  commandHandlerFor("nuinuiCAD.openCanvas")?.();
   return mocks.panels.at(-1)!;
 };
 
@@ -366,7 +389,7 @@ afterEach(() => {
   mocks.activeTextEditor = null;
   mocks.visibleTextEditors.length = 0;
   mocks.textDocuments.length = 0;
-  mocks.commandHandler = null;
+  mocks.commandHandlers.clear();
   mocks.activeEditorListeners.length = 0;
   mocks.documentOpenListeners.length = 0;
   mocks.documentChangeListeners.length = 0;
@@ -378,12 +401,14 @@ afterEach(() => {
   mocks.completionRegistrations.length = 0;
   mocks.definitionRegistrations.length = 0;
   mocks.renameRegistrations.length = 0;
+  mocks.codeActionRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.createWebviewPanel.mockReset();
   mocks.createDiagnosticCollection.mockReset();
   mocks.registerCompletionItemProvider.mockReset();
   mocks.registerDefinitionProvider.mockReset();
   mocks.registerRenameProvider.mockReset();
+  mocks.registerCodeActionsProvider.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
   mocks.onDidOpenTextDocument.mockReset();
@@ -398,7 +423,7 @@ describe("VS Code production document lifecycle", () => {
 
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.openCanvas", expect.any(Function));
-    mocks.commandHandler?.();
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
   });
 
@@ -414,7 +439,7 @@ describe("VS Code production document lifecycle", () => {
   it("reuses and reveals the existing panel when the same document command runs twice", () => {
     setup();
     const panel = openPanelFor();
-    mocks.commandHandler?.();
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
 
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
     expect(panel.reveal).toHaveBeenCalledWith(2);
@@ -430,7 +455,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorB];
     mocks.textDocuments = [documentA, documentB];
-    mocks.commandHandler?.();
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
     expect(panelA.title).toBe("a.nui — nuinuiCAD");
@@ -458,7 +483,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorA, editorB];
     mocks.textDocuments = [documentA, documentB];
-    mocks.commandHandler?.();
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
     expect(panelA.title).toBe("patterns/front.nui — nuinuiCAD");
@@ -480,7 +505,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorA, editorB];
     mocks.textDocuments = [documentA, documentB];
-    mocks.commandHandler?.();
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
     (panelA.dispose as unknown as () => void)();
@@ -498,7 +523,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorA, editorB];
     mocks.textDocuments = [documentA, documentB];
-    mocks.commandHandler?.();
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
     (panelA.dispose as unknown as () => void)();
@@ -526,7 +551,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorA, editorB];
     mocks.textDocuments = [documentA, documentB];
-    mocks.commandHandler?.();
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
     await messageHandlerFor(panelA)({ type: "rustEvaluationRequest", id: 1, input: { request: "first" } });
@@ -592,7 +617,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorB];
     mocks.textDocuments = [documentA, documentB];
-    mocks.commandHandler?.();
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
     emitDocumentClose(documentA);
@@ -604,7 +629,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorA;
     mocks.visibleTextEditors = [editorA];
     mocks.textDocuments = [documentA, documentB];
-    mocks.commandHandler?.();
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const reopened = mocks.panels[2]!;
     await messageHandlerFor(reopened)({ type: "webviewReady" });
     expect(reopened).not.toBe(panelA);
@@ -984,5 +1009,22 @@ describe("VS Code native rename lifecycle", () => {
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
     expect(mocks.rustProcesses).toHaveLength(0);
     fromSource.mockRestore();
+  });
+});
+
+describe("VS Code native choice Quick Fix lifecycle", () => {
+  it("registers only QuickFix CodeActions and the internal apply command", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.codeActionRegistrations[0]!;
+
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.providedCodeActionKinds).toEqual(["quickfix"]);
+    expect(context.subscriptions).toContain(registration.disposable);
+    expect(mocks.registerCommand).toHaveBeenCalledWith(
+      "nuinuiCAD.applyChoiceQuickFix",
+      expect.any(Function)
+    );
+    expect(commandHandlerFor("nuinuiCAD.applyChoiceQuickFix")).toEqual(expect.any(Function));
+    expect(commandHandlerFor("nuinuiCAD.openCanvas")).toEqual(expect.any(Function));
   });
 });
