@@ -55,7 +55,7 @@ const multilineOmittedLiteralModuleSource = [
   "nui 4",
   "module M() {",
   "  point P = coordinate(",
-  "    # keep this source comment",
+  "    // keep this source comment",
   "  )",
   "}",
   "instance First = M()",
@@ -191,7 +191,7 @@ describe("module source-owned model mutation", () => {
     useCadDocumentStore.getState().updateElement(firstPoint.id, { x: 7 });
 
     const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("# keep this source comment");
+    expect(state.sourceText).toContain("// keep this source comment");
     expect(state.sourceText).toContain("x: 7");
     expect(state.sourceText).toContain("instance First = M()");
     expect(state.sourceText).toContain("instance Second = M()");

@@ -1,4 +1,4 @@
-import { splitDslComment } from "./dslTokens";
+import { scanDslSource, type DslLexedLine } from "./dslTokens";
 
 export type SourceRevision = number;
 
@@ -34,6 +34,8 @@ export type LogicalStatement = {
 export type LogicalStatementSourceMap = {
   sourceRevision: SourceRevision;
   source: string;
+  lexicalLines: readonly DslLexedLine[];
+  unterminatedBlockComment: { line: number; column: number } | null;
   statements: readonly LogicalStatement[];
   invalidContinuationLines: readonly number[];
 };
@@ -126,19 +128,21 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
   }
   const source = snapshot.normalizedSource;
   const lines = source.split("\n");
+  const lexical = scanDslSource(source);
+  const lexicalLines = lexical.lines;
   const starts = lineStarts(source);
   const statements: LogicalStatement[] = [];
   const invalidContinuationLines: number[] = [];
 
   for (let index = 0; index < lines.length; index += 1) {
     const firstLine = index;
-    const first = splitDslComment(lines[index]);
-    const firstStructural = structuralKind(first.code);
+    const first = lexicalLines[index]!;
+    const firstStructural = structuralKind(first.codeText);
     if (firstStructural) {
       statements.push({
-        logicalText: first.code,
+        logicalText: first.codeText,
         range: { from: starts[index], to: starts[index] + lines[index].length, startLine: index + 1, endLine: index + 1, sourceRevision: snapshot.sourceRevision },
-        segments: [{ from: starts[index], to: starts[index] + first.code.length }],
+        segments: first.codeSegments.map((segment) => ({ from: starts[index] + segment.start, to: starts[index] + segment.end })),
         continuationLines: [],
         structural: firstStructural
       });
@@ -151,30 +155,36 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
     let cursor = index;
     let depth = 0;
     while (true) {
-      const line = lines[cursor];
-      const { code } = splitDslComment(line);
+      const line = lexicalLines[cursor]!;
       // A full-line comment inside an otherwise-open call contributes no
       // code (and no depth change) but still belongs to the statement's
       // physical line range. A truly blank line is never absorbed here: it
       // is caught by the blank/structural lookahead below instead, which
       // reports an unclosed call rather than silently swallowing the line.
-      const isCommentOnlyLine = code.trim() === "" && line.trim() !== "";
-      if (!isCommentOnlyLine && code.trim()) {
-        const leading = code.length - code.trimStart().length;
-        const trailing = code.length - code.trimEnd().length;
-        // Preserve the first physical line verbatim so existing line-relative
-        // parser spans remain valid for ordinary one-line statements. Only
-        // continuation fragments lose their leading indentation.
-        fragments.push(cursor === firstLine ? code.slice(leading, code.length - trailing) : code.trim());
-        segments.push({ from: starts[cursor] + leading, to: starts[cursor] + code.length - trailing });
+      const isCommentOnlyLine = line.codeText.trim() === "" && line.text.trim() !== "";
+      if (!isCommentOnlyLine && line.codeText.trim()) {
+        for (const codeSegment of line.codeSegments) {
+          const segmentText = codeSegment.text;
+          const leading = segmentText.length - segmentText.trimStart().length;
+          const trailing = segmentText.length - segmentText.trimEnd().length;
+          if (leading >= segmentText.length - trailing) continue;
+          // Preserve ordinary single-fragment lines verbatim so existing
+          // line-relative parser spans remain stable. Comment-separated
+          // fragments use the same normalized separator as continuations.
+          fragments.push(segmentText.slice(leading, segmentText.length - trailing));
+          segments.push({
+            from: starts[cursor] + codeSegment.start + leading,
+            to: starts[cursor] + codeSegment.end - trailing
+          });
+        }
       }
-      depth += netDepthDelta(code);
+      depth += netDepthDelta(line.codeText);
       const continues = depth > 0;
       if (!continues) break;
       const next = cursor + 1;
       const nextLine = next < lines.length ? lines[next] : null;
       const nextIsBlank = nextLine === null || nextLine.trim() === "";
-      const nextCode = nextLine !== null ? splitDslComment(nextLine).code : "";
+      const nextCode = nextLine !== null ? lexicalLines[next]!.codeText : "";
       const nextIsStructural = nextLine !== null && structuralKind(nextCode) !== null;
       if (nextIsBlank || nextIsStructural) {
         // Containment boundary: a blank line, a structural line, || EOF
@@ -195,7 +205,14 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
       structural: null
     });
   }
-  return { sourceRevision: snapshot.sourceRevision, source, statements, invalidContinuationLines };
+  return {
+    sourceRevision: snapshot.sourceRevision,
+    source,
+    lexicalLines,
+    unterminatedBlockComment: lexical.unterminatedBlockComment,
+    statements,
+    invalidContinuationLines
+  };
 };
 
 export const assertSourceMapRevision = <T>(

@@ -3,6 +3,7 @@ import type {
   CadElementType,
   DocumentPalette,
   DrawingModifierDefinition,
+  DrawingModifierStroke,
   DrawingModifierState,
   ElementId,
   PrintLayout,
@@ -186,6 +187,7 @@ export type DslStatement =
   | (DslStatementBase & {
       kind: "modifierDefinition";
       state: DrawingModifierState | null;
+      stroke: DrawingModifierStroke | null;
       properties: readonly DslModifierProperty[];
     })
   | (DslStatementBase & {

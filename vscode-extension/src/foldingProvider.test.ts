@@ -92,7 +92,7 @@ describe("VS Code structural folding provider", () => {
   });
 
   it("normalizes CRLF and returns comment folds with Comment kind", () => {
-    const source = "# one\r\n# two\r\npoint P = coordinate(x: 0, y: 0)\r\n";
+    const source = "// one\r\n// two\r\npoint P = coordinate(x: 0, y: 0)\r\n";
     const session = sessionFor(source);
     const provider = createNuiFoldingProvider(() => session);
 

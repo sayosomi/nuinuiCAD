@@ -224,7 +224,7 @@ describe("cadDocumentStore file state", () => {
 
     const inner = elements.find((element) => element.name === "Inner")!;
     useCadUiStore.getState().setGroupFold(inner.id, { expanded: true });
-    useCadDocumentStore.getState().commitText(`${source}\n# note`, "test");
+    useCadDocumentStore.getState().commitText(`${source}\n// note`, "test");
     useCadDocumentStore.getState().undo();
     useCadDocumentStore.getState().redo();
 

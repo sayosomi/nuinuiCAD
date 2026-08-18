@@ -63,4 +63,16 @@ describe("logicalStatementSourceMap", () => {
     expect(parsed.statements[0]).toMatchObject({ sourceRevision: 31, documentRange: { startLine: 1, endLine: 4, sourceRevision: 31 } });
     expect(parsed.statements[0].physicalSpan.sourceRevision).toBe(31);
   });
+
+  it("keeps comment-delimited code spans physical and excludes comment text", () => {
+    const source = "point A = coordinate(x: 0, /* ignored { } */ y: 0) // trailing";
+    const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 41 });
+    const statement = parsed.statements[0]!;
+    expect(parsed.diagnostics).toEqual([]);
+    expect(statement.physicalSpan.segments).toEqual([
+      { from: 0, to: source.indexOf(" /*") },
+      { from: source.indexOf(" */") + 4, to: source.indexOf(" //") }
+    ]);
+    expect(statement.physicalSpan.segments.every((segment) => !source.slice(segment.from, segment.to).includes("ignored"))).toBe(true);
+  });
 });

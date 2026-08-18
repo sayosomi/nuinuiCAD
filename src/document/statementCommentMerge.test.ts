@@ -15,7 +15,7 @@ describe("mergeStatementComments: call -> call", () => {
   it("引数のEOLコメントを維持する", () => {
     const oldLines = [
       "point P = offset(",
-      "  from: A  # start",
+      "  from: A  // start",
       "  dx: 0",
       ")",
     ];
@@ -33,7 +33,7 @@ describe("mergeStatementComments: call -> call", () => {
     const oldLines = [
       "point P = offset(",
       "  from: A",
-      "  # note about dx",
+      "  // note about dx",
       "  dx: 0",
       ")",
     ];
@@ -49,7 +49,7 @@ describe("mergeStatementComments: call -> call", () => {
 
   it("ヘッダ行のEOLコメントを維持する", () => {
     const oldLines = [
-      "point P = offset(  # header note",
+      "point P = offset(  // header note",
       "  from: A",
       ")",
     ];
@@ -67,7 +67,7 @@ describe("mergeStatementComments: call -> call", () => {
     const oldLines = [
       "point P = offset(",
       "  from: A",
-      ")  # done",
+      ")  // done",
     ];
     const next = callStatement("point P = offset(", [["from", "from: A"]]);
     const result = mergeStatementComments({
@@ -83,7 +83,7 @@ describe("mergeStatementComments: call -> call", () => {
     const oldLines = [
       "point P = offset(",
       "  from: A",
-      "  # trailing note",
+      "  // trailing note",
       ")",
     ];
     const next = callStatement("point P = offset(", [["from", "from: A"]]);
@@ -100,7 +100,7 @@ describe("mergeStatementComments: call -> call", () => {
     const oldLines = [
       "point P = offset(",
       "  from: A",
-      "  # deprecated",
+      "  // deprecated",
       "  dz: 1",
       "  dy: 2",
       ")",
@@ -116,7 +116,7 @@ describe("mergeStatementComments: call -> call", () => {
       "point P = offset(",
       "  from: A",
       "  dy: 2",
-      "  # deprecated",
+      "  // deprecated",
       ")",
     ]);
   });
@@ -125,7 +125,7 @@ describe("mergeStatementComments: call -> call", () => {
     const oldLines = [
       "point P = offset(",
       "  from: A",
-      "  dz: 1  # old eol",
+      "  dz: 1  // old eol",
       "  dy: 2",
       ")",
     ];
@@ -140,7 +140,7 @@ describe("mergeStatementComments: call -> call", () => {
       "point P = offset(",
       "  from: A",
       "  dy: 2",
-      "  # old eol",
+      "  // old eol",
       ")",
     ]);
   });
@@ -148,8 +148,8 @@ describe("mergeStatementComments: call -> call", () => {
   it("複数の削除キーの相対順序を保つ", () => {
     const oldLines = [
       "point P = offset(",
-      "  a: 1  # a-eol",
-      "  b: 2  # b-eol",
+      "  a: 1  // a-eol",
+      "  b: 2  // b-eol",
       "  from: A",
       ")",
     ];
@@ -163,8 +163,8 @@ describe("mergeStatementComments: call -> call", () => {
     expect(result).toEqual([
       "point P = offset(",
       "  from: A",
-      "  # a-eol",
-      "  # b-eol",
+      "  // a-eol",
+      "  // b-eol",
       ")",
     ]);
   });
@@ -172,8 +172,8 @@ describe("mergeStatementComments: call -> call", () => {
   it("引数の並び替えを跨いでキーごとに再付着する", () => {
     const oldLines = [
       "point P = offset(",
-      "  # about dx",
-      "  dx: 0  # dx-eol",
+      "  // about dx",
+      "  dx: 0  // dx-eol",
       "  dy: 1",
       ")",
     ];
@@ -188,8 +188,8 @@ describe("mergeStatementComments: call -> call", () => {
     expect(result).toEqual([
       "point P = offset(",
       "  dy: 1",
-      "  # about dx",
-      "  dx: 0  # dx-eol",
+      "  // about dx",
+      "  dx: 0  // dx-eol",
       ")",
     ]);
   });
@@ -197,7 +197,7 @@ describe("mergeStatementComments: call -> call", () => {
   it("旧に存在しない新規キーにはコメントが付かない", () => {
     const oldLines = [
       "point P = offset(",
-      "  from: A  # keep",
+      "  from: A  // keep",
       ")",
     ];
     const next = callStatement("point P = offset(", [["from", "from: A"], ["dx", "dx: 5"]]);
@@ -209,7 +209,7 @@ describe("mergeStatementComments: call -> call", () => {
     });
     expect(result).toEqual([
       "point P = offset(",
-      "  from: A  # keep",
+      "  from: A  // keep",
       "  dx: 5",
       ")",
     ]);
@@ -218,8 +218,8 @@ describe("mergeStatementComments: call -> call", () => {
   it("旧===新(無変更)なら完全に冪等", () => {
     const oldLines = [
       "point P = offset(",
-      "  from: A  # a",
-      "  # b",
+      "  from: A  // a",
+      "  // b",
       "  dx: 0",
       ")",
     ];
@@ -255,7 +255,7 @@ describe("mergeStatementComments: call -> call", () => {
   it("引用文字列内の`#`をコメントとして誤認しない", () => {
     const oldLines = [
       "text T = label(",
-      "  text: \"a # not a comment\"  # real comment",
+      "  text: \"a # not a comment\"  // real comment",
       ")",
     ];
     const next = callStatement("text T = label(", [["text", "text: \"a # not a comment\""]]);
@@ -268,10 +268,41 @@ describe("mergeStatementComments: call -> call", () => {
     expect(result).toEqual(oldLines);
   });
 
+  it("preserves inline block comments during statement mutation", () => {
+    const oldLines = [
+      "point P = offset(",
+      "  from: A /* keep this note */",
+      ")"
+    ];
+    const next = callStatement("point P = offset(", [["from", "from: A"]]);
+    expect(mergeStatementComments({
+      oldLines,
+      oldArgLineByKey: argLineMap([["from", 1]]),
+      next,
+      indent: ""
+    })).toEqual(oldLines);
+  });
+
+  it("preserves multiline block comments during statement mutation", () => {
+    const oldLines = [
+      "point P = offset(",
+      "  from: A /* keep this",
+      "  block note */",
+      ")"
+    ];
+    const next = callStatement("point P = offset(", [["from", "from: A"]]);
+    expect(mergeStatementComments({
+      oldLines,
+      oldArgLineByKey: argLineMap([["from", 1]]),
+      next,
+      indent: ""
+    })).toEqual(oldLines);
+  });
+
   it("depth>0でインデントを正しく適用する", () => {
     const oldLines = [
       "    point P = offset(",
-      "      from: A  # keep",
+      "      from: A  // keep",
       "    )",
     ];
     const next = callStatement("point P = offset(", [["from", "from: A"]]);
@@ -287,7 +318,7 @@ describe("mergeStatementComments: call -> call", () => {
 
 describe("mergeStatementComments: 旧が1行statement -> 新が縦型", () => {
   it("唯一のEOLコメントを新ヘッダ行にのみ付与する", () => {
-    const oldLines = ["point P = offset(from: A, dx: 0)  # only comment"];
+    const oldLines = ["point P = offset(from: A, dx: 0)  // only comment"];
     const next = callStatement("point P = offset(", [["from", "from: A"], ["dx", "dx: 0"]]);
     const result = mergeStatementComments({
       oldLines,
@@ -296,7 +327,7 @@ describe("mergeStatementComments: 旧が1行statement -> 新が縦型", () => {
       indent: "",
     });
     expect(result).toEqual([
-      "point P = offset(  # only comment",
+      "point P = offset(  // only comment",
       "  from: A",
       "  dx: 0",
       ")",
@@ -324,7 +355,7 @@ describe("mergeStatementComments: 縦型 -> 短形式(next.close === null)", () 
   it("旧の全行コメントを先頭行群として持ち上げる", () => {
     const oldLines = [
       "const x: number = expression(",
-      "  # about value",
+      "  // about value",
       "  value: 5",
       ")",
     ];
@@ -336,16 +367,16 @@ describe("mergeStatementComments: 縦型 -> 短形式(next.close === null)", () 
       indent: "",
     });
     expect(result).toEqual([
-      "# about value",
+      "// about value",
       "const x: number = 5",
     ]);
   });
 
   it("旧の全EOLコメントを1本のEOLへ連結する(文書順)", () => {
     const oldLines = [
-      "const x: number = expression(  # h",
-      "  value: 5  # v",
-      ")  # c",
+      "const x: number = expression(  // h",
+      "  value: 5  // v",
+      ")  // c",
     ];
     const next: SerializedStatement = { header: "const x: number = 5", args: [], close: null };
     const result = mergeStatementComments({
@@ -354,11 +385,11 @@ describe("mergeStatementComments: 縦型 -> 短形式(next.close === null)", () 
       next,
       indent: "",
     });
-    expect(result).toEqual(["const x: number = 5  # h  # v  # c"]);
+    expect(result).toEqual(["const x: number = 5  // h  // v  // c"]);
   });
 
   it("旧が既に1行だった場合も二重カウントしない", () => {
-    const oldLines = ["const x: number = 5  # only"];
+    const oldLines = ["const x: number = 5  // only"];
     const next: SerializedStatement = { header: "const x: number = 6", args: [], close: null };
     const result = mergeStatementComments({
       oldLines,
@@ -366,13 +397,13 @@ describe("mergeStatementComments: 縦型 -> 短形式(next.close === null)", () 
       next,
       indent: "",
     });
-    expect(result).toEqual(["const x: number = 6  # only"]);
+    expect(result).toEqual(["const x: number = 6  // only"]);
   });
 
   it("depth>0でインデントを正しく適用する", () => {
     const oldLines = [
       "  const x: number = expression(",
-      "    value: 5  # v",
+      "    value: 5  // v",
       "  )",
     ];
     const next: SerializedStatement = { header: "const x: number = 6", args: [], close: null };
@@ -382,7 +413,7 @@ describe("mergeStatementComments: 縦型 -> 短形式(next.close === null)", () 
       next,
       indent: "  ",
     });
-    expect(result).toEqual(["  const x: number = 6  # v"]);
+    expect(result).toEqual(["  const x: number = 6  // v"]);
   });
 });
 
@@ -403,11 +434,11 @@ describe("mergeStatementComments: 冪等性プロパティ", () => {
           const oldLines: string[] = ["point P = offset("];
           const oldArgLineByKey = new Map<string, number>();
           for (const row of rows) {
-            if (row.hasLeadingComment) oldLines.push(`  # note-${row.key}`);
+            if (row.hasLeadingComment) oldLines.push(`  // note-${row.key}`);
             oldArgLineByKey.set(row.key, oldLines.length);
-            oldLines.push(`  ${row.key}: 0${row.hasEol ? `  # eol-${row.key}` : ""}`);
+            oldLines.push(`  ${row.key}: 0${row.hasEol ? `  // eol-${row.key}` : ""}`);
           }
-          oldLines.push(closeHasEol ? ")  # close-eol" : ")");
+          oldLines.push(closeHasEol ? ")  // close-eol" : ")");
 
           const next = callStatement(
             "point P = offset(",

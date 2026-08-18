@@ -159,7 +159,7 @@ describe("statementRangeIndex", () => {
     const doc = Text.of(source.split("\n"));
     const unnamedId = result.document!.elements.find((element) => element.name === "")!.id;
     const original = createStatementRangeIndex(doc, result.statementMap!);
-    const changes = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
+    const changes = ChangeSet.of({ from: 0, insert: "// dirty\n" }, doc.length);
     const mapped = mapStatementRangeIndex(original, changes);
 
     const unnamed = mapped.get(unnamedId)!;
@@ -228,7 +228,7 @@ describe("module definition fold range mapping", () => {
     const insertion = source.indexOf("  point P");
     const mapped = mapModuleSemanticRangeIndex(
       index,
-      ChangeSet.of({ from: insertion, insert: "  # interior\n" }, source.length)
+      ChangeSet.of({ from: insertion, insert: "  // interior\n" }, source.length)
     ).moduleDefinitionFoldRanges!.get(definition.statementId)!;
 
     expect(mapped.gutterLineFrom).toBe(original.gutterLineFrom);
@@ -253,7 +253,7 @@ describe("module definition fold range mapping", () => {
     const insertion = multilineSource.indexOf("  b: number");
     const mapped = mapModuleSemanticRangeIndex(
       index,
-      ChangeSet.of({ from: insertion, insert: "  # parameter interior\n" }, multilineSource.length)
+      ChangeSet.of({ from: insertion, insert: "  // parameter interior\n" }, multilineSource.length)
     );
 
     expect(mapped.moduleDefinitionParameterFoldRanges!.get(definition.statementId)!.foldTo)
@@ -288,7 +288,7 @@ describe("printLayoutRangeIndex", () => {
     const doc = Text.of(printLayoutSource.split("\n"));
     const printLayoutId = result.document!.printLayouts[0].id;
     const original = createPrintLayoutRangeIndex(doc, result.statementMap!);
-    const changes = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
+    const changes = ChangeSet.of({ from: 0, insert: "// dirty\n" }, doc.length);
     const mapped = mapPrintLayoutRangeIndex(original, changes);
 
     const range = mapped.get(printLayoutId)!;
@@ -344,7 +344,7 @@ describe("typedDeclarationRangeIndex", () => {
     const doc = Text.of(source.split("\n"));
     const original = createTypedDeclarationRangeIndex(doc, result.statementMap!);
     const bindingId = bindingIdForStableStatementId("stable-1");
-    const changes = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
+    const changes = ChangeSet.of({ from: 0, insert: "// dirty\n" }, doc.length);
     const mapped = mapTypedDeclarationRangeIndex(original, changes);
 
     const range = mapped.get(bindingId)!;
@@ -527,9 +527,9 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
     const bindingId = bindingIdForStableStatementId("stable-1");
     const before = original.get(bindingId)!;
 
-    const insertAbove = ChangeSet.of({ from: 0, insert: "# a dirty comment line\n" }, doc.length);
+    const insertAbove = ChangeSet.of({ from: 0, insert: "// a dirty comment line\n" }, doc.length);
     const mapped = mapTypedDeclarationFieldRangeIndex(original, insertAbove);
-    const shift = "# a dirty comment line\n".length;
+    const shift = "// a dirty comment line\n".length;
 
     const after = mapped.get(bindingId)!;
     expect(after).toBeDefined();
@@ -644,8 +644,8 @@ describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () =>
     const doc = Text.of(source.split("\n"));
     const original = createSetStatementFieldRangeIndex(doc, result.statementMap!, result.statements);
     const before = original.get("stable-2")!;
-    const insertAbove = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
-    const shift = "# dirty\n".length;
+    const insertAbove = ChangeSet.of({ from: 0, insert: "// dirty\n" }, doc.length);
+    const shift = "// dirty\n".length;
 
     const after = mapSetStatementFieldRangeIndex(original, insertAbove).get("stable-2")!;
     expect(after).toBeDefined();
@@ -739,8 +739,8 @@ describe("templateHoleRangeIndex (Task 43)", () => {
     const original = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
     const before = original.get(occurrenceKey)!.holes[0]!;
 
-    const insertAbove = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
-    const shift = "# dirty\n".length;
+    const insertAbove = ChangeSet.of({ from: 0, insert: "// dirty\n" }, doc.length);
+    const shift = "// dirty\n".length;
     const after = mapTemplateHoleRangeIndex(original, insertAbove).get(occurrenceKey)!.holes[0]!;
 
     expect(after.outer).toEqual({ from: before.outer.from + shift, to: before.outer.to + shift });
@@ -811,8 +811,8 @@ describe("propertyBindingRangeIndex (Task 43)", () => {
     const occurrenceKey = [...result.propertyBindings!.keys()][0]!;
     const original = createPropertyBindingRangeIndex(doc, result.statementMap!, result.statements, result.propertyBindings);
     const before = original.get(occurrenceKey)!;
-    const insertAbove = ChangeSet.of({ from: 0, insert: "# dirty\n" }, doc.length);
-    const shift = "# dirty\n".length;
+    const insertAbove = ChangeSet.of({ from: 0, insert: "// dirty\n" }, doc.length);
+    const shift = "// dirty\n".length;
 
     const after = mapPropertyBindingRangeIndex(original, insertAbove).get(occurrenceKey)!;
     expect(after.span).toEqual({ from: before.span.from + shift, to: before.span.to + shift });

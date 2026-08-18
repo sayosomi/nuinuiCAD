@@ -3,7 +3,7 @@ import {
   type LogicalStatementSourceMap,
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
-import { splitDslComment } from "./dslTokens";
+import type { DslLexedLine } from "./dslTokens";
 
 export type DslFoldingRangeKind = "syntax" | "comment";
 
@@ -84,7 +84,7 @@ const braceRangesFor = (
 };
 
 const delimiterRangesForStatement = (
-  sourceLines: readonly string[],
+  lexicalLines: readonly DslLexedLine[],
   statement: {
     range: { startLine: number; endLine: number };
     structural: "open" | "close" | "else" | null;
@@ -96,7 +96,7 @@ const delimiterRangesForStatement = (
   const ranges: DslFoldingRange[] = [];
 
   for (let line = statement.range.startLine; line <= statement.range.endLine; line += 1) {
-    const code = splitDslComment(sourceLines[line - 1] ?? "").code;
+    const code = lexicalLines[line - 1]?.codeText ?? "";
     let quote: string | null = null;
     for (let index = 0; index < code.length; index += 1) {
       const char = code[index]!;
@@ -122,19 +122,35 @@ const delimiterRangesForStatement = (
   return stack.length === 0 ? ranges : [];
 };
 
-const commentRangesFor = (source: string): DslFoldingRange[] => {
-  const lines = source.split("\n");
+const commentRangesFor = (lexicalLines: readonly DslLexedLine[]): DslFoldingRange[] => {
   const ranges: DslFoldingRange[] = [];
   let lineIndex = 0;
-  while (lineIndex < lines.length) {
-    if (!lines[lineIndex]!.trimStart().startsWith("#")) {
+  while (lineIndex < lexicalLines.length) {
+    const line = lexicalLines[lineIndex]!;
+    const isFullLineLineComment = line.codeText.trim() === "" && line.comments.some((comment) => comment.kind === "line");
+    if (!isFullLineLineComment) {
       lineIndex += 1;
       continue;
     }
     const start = lineIndex;
-    while (lineIndex < lines.length && lines[lineIndex]!.trimStart().startsWith("#")) lineIndex += 1;
+    while (
+      lineIndex < lexicalLines.length &&
+      lexicalLines[lineIndex]!.codeText.trim() === "" &&
+      lexicalLines[lineIndex]!.comments.some((comment) => comment.kind === "line")
+    ) lineIndex += 1;
     if (lineIndex - start >= 2) {
       ranges.push({ kind: "comment", startLine: start + 1, endLine: lineIndex });
+    }
+  }
+
+  let blockStart: number | null = null;
+  for (const [index, line] of lexicalLines.entries()) {
+    const hasBlock = line.comments.some((comment) => comment.kind === "block");
+    if (!hasBlock) continue;
+    if (!line.startsInBlockComment) blockStart = index;
+    if (!line.endsInBlockComment && blockStart !== null && blockStart < index) {
+      ranges.push({ kind: "comment", startLine: blockStart + 1, endLine: index + 1 });
+      blockStart = null;
     }
   }
   return ranges;
@@ -154,17 +170,16 @@ export const queryDslFolding = ({
 }: DslFoldingQueryInput): DslFoldingRange[] => {
   if (sourceMap.source !== source.normalizedSource || sourceMap.sourceRevision !== source.sourceRevision) return [];
 
-  const sourceLines = source.normalizedSource.split("\n");
   const invalidContinuationLines = new Set(sourceMap.invalidContinuationLines);
   const delimiterRanges = sourceMap.statements.flatMap((statement) =>
     invalidContinuationLines.has(statement.range.endLine)
       ? []
-      : delimiterRangesForStatement(sourceLines, statement)
+      : delimiterRangesForStatement(sourceMap.lexicalLines, statement)
   );
 
   return sortRanges([
     ...braceRangesFor(statements),
     ...delimiterRanges,
-    ...commentRangesFor(source.normalizedSource)
+    ...commentRangesFor(sourceMap.lexicalLines)
   ]);
 };

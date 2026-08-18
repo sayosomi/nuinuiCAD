@@ -53,7 +53,7 @@ export const dslExportAnnotationComment = (annotation: DslExportLineAnnotation) 
   const warning = annotation.warnings.length > 0
     ? ` warning=${annotation.warnings.join(",")}`
     : "";
-  return `# @dsl-export: ${annotation.origin}${warning} ${originLabel(annotation.origin)}`;
+  return `// @dsl-export: ${annotation.origin}${warning} ${originLabel(annotation.origin)}`;
 };
 
 export const createDslExportSelection = ({

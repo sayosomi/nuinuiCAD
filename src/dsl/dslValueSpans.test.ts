@@ -100,7 +100,7 @@ describe("dslLineValueSpans", () => {
 
   it("returns no spans for a blank line, comment-only line, or block line", () => {
     expect(dslLineValueSpans("")).toEqual([]);
-    expect(dslLineValueSpans("   # just a comment")).toEqual([]);
+    expect(dslLineValueSpans("   // just a comment")).toEqual([]);
     expect(dslLineValueSpans("}")).toEqual([]);
     expect(dslLineValueSpans("group G {")).toEqual([]);
   });
@@ -160,7 +160,7 @@ describe("dslLineValueSpans", () => {
   });
 
   it("does not select comment text following a value", () => {
-    const source = "point A = coordinate(x: 0, y: 10) # trailing comment";
+    const source = "point A = coordinate(x: 0, y: 10) // trailing comment";
     const spans = dslLineValueSpans(source);
     expect(spans.map((span) => textOf(source, span))).toEqual(["0", "10"]);
   });

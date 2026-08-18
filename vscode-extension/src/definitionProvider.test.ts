@@ -107,7 +107,7 @@ describe("VS Code native nui definition provider", () => {
   it("keeps UTF-16 ranges exact for CRLF, Japanese identifiers, and an earlier surrogate pair", () => {
     const normalized = [
       "nui 4",
-      "# 😀",
+      "// 😀",
       "point 前身頃 = coordinate(x: 0, y: 0)",
       "point 使用 = offset(from: @前身頃, dx: 1, dy: 0)"
     ].join("\n");

@@ -8,7 +8,7 @@ import {
   dslLinePrintLayoutValueSpans,
   type DslLabeledValueSpan
 } from "./dslValueSpans";
-import { isBareDslIdentifierChar, splitDslComment, splitDslTerms } from "./dslTokens";
+import { isBareDslIdentifierChar, scanDslSource, splitDslTerms } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
 import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
 import { coordinateComponent, recordField, recordSpans, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
@@ -346,9 +346,19 @@ const dslQualifiedGeometryKindAt = (
  *
  * Property references use the final `@Element.property` spelling.
  */
-export const dslCompletionContextAt = (lineText: string, pos: number): DslCompletionContext => {
-  const { code, comment } = splitDslComment(lineText);
-  if (comment && pos >= code.length) return null;
+export const dslCompletionContextAt = (
+  lineText: string,
+  pos: number,
+  startsInBlockComment = false
+): DslCompletionContext => {
+  const lexedLine = scanDslSource(lineText, { startsInBlockComment }).lines[0]!;
+  if (lexedLine.comments.some((comment) => (
+    pos >= comment.start && (
+      pos < comment.end ||
+      (pos === comment.end && lineText.slice(comment.end).trim().length === 0)
+    )
+  ))) return null;
+  const code = lexedLine.code;
   const head = lineHeadContext(code, pos);
   if (head) return head;
 

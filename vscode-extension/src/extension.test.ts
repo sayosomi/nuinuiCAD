@@ -550,12 +550,12 @@ describe("VS Code production document lifecycle", () => {
     expect(panelB.dispose).not.toHaveBeenCalled();
 
     documentB.version = 2;
-    documentB.setSourceText("nui 4\n# panel B change\n");
+    documentB.setSourceText("nui 4\n// panel B change\n");
     for (const listener of mocks.documentChangeListeners) listener({ document: documentB });
 
     expect(panelB.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "commitText",
-      sourceText: "nui 4\n# panel B change\n",
+      sourceText: "nui 4\n// panel B change\n",
       documentVersion: 2
     }));
   });
@@ -603,7 +603,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = mocks.panels[0]!;
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\n# webview change\n",
+      sourceText: "nui 4\n// webview change\n",
       expectedDocumentVersion: 1,
       mutationKind: "reset"
     });
@@ -621,7 +621,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument", documentVersion: 1 }));
 
     document.version = 2;
-    document.setSourceText("nui 4\n# changed\n");
+    document.setSourceText("nui 4\n// changed\n");
     emitDocumentChange(document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
   });
@@ -644,7 +644,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panelB.dispose).not.toHaveBeenCalled();
 
     documentA.version = 4;
-    documentA.setSourceText("nui 4\n# reopened\n");
+    documentA.setSourceText("nui 4\n// reopened\n");
     mocks.activeTextEditor = editorA;
     mocks.visibleTextEditors = [editorA];
     mocks.textDocuments = [documentA, documentB];
@@ -654,7 +654,7 @@ describe("VS Code production document lifecycle", () => {
     expect(reopened).not.toBe(panelA);
     expect(reopened.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
-      sourceText: "nui 4\n# reopened\n",
+      sourceText: "nui 4\n// reopened\n",
       documentVersion: 4
     });
   });
@@ -666,7 +666,7 @@ describe("VS Code production document lifecycle", () => {
 
     (panelA.dispose as unknown as () => void)();
     editor.document.version = 6;
-    editor.document.setSourceText("nui 4\n# panel reopened\n");
+    editor.document.setSourceText("nui 4\n// panel reopened\n");
     const panelB = openPanelFor(editor);
     await messageHandlerFor(panelB)({ type: "webviewReady" });
 
@@ -674,7 +674,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panelB).not.toBe(panelA);
     expect(panelB.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
-      sourceText: "nui 4\n# panel reopened\n",
+      sourceText: "nui 4\n// panel reopened\n",
       documentVersion: 6
     });
   });
@@ -684,10 +684,10 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor();
     const document = mocks.activeTextEditor!.document;
     document.version = 2;
-    document.setSourceText("nui 4\n# authoritative\n");
+    document.setSourceText("nui 4\n// authoritative\n");
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\n# stale\n",
+      sourceText: "nui 4\n// stale\n",
       expectedDocumentVersion: 1,
       mutationKind: "reset"
     });
@@ -695,7 +695,7 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
     expect(panel.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
-      sourceText: "nui 4\n# authoritative\n",
+      sourceText: "nui 4\n// authoritative\n",
       documentVersion: 2
     });
   });
@@ -744,7 +744,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\n# reset\n",
+      sourceText: "nui 4\n// reset\n",
       expectedDocumentVersion: 1,
       mutationKind: "reset"
     });
@@ -759,7 +759,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\n# reset\n",
+      sourceText: "nui 4\n// reset\n",
       expectedDocumentVersion: 1,
       mutationKind: "reset"
     });
@@ -773,14 +773,14 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\n# committed\n",
+      sourceText: "nui 4\n// committed\n",
       expectedDocumentVersion: 1,
       mutationKind: "reset"
     });
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
 
     editor.document.version = 2;
-    editor.document.setSourceText("nui 4\n# committed\n");
+    editor.document.setSourceText("nui 4\n// committed\n");
     emitDocumentChange(editor.document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
   });
@@ -965,7 +965,7 @@ describe("VS Code native structural folding lifecycle", () => {
       "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n");
-    const sourceB = "# one\n# two\n";
+    const sourceB = "// one\n// two\n";
     const documentA = documentFor("/tmp/folding-a.nui", "file:///tmp/folding-a.nui", sourceA);
     const documentB = documentFor("/tmp/folding-b.nui", "file:///tmp/folding-b.nui", sourceB);
     const fromSource = vi.spyOn(AutomationDocument, "fromSource");
@@ -985,7 +985,7 @@ describe("VS Code native structural folding lifecycle", () => {
     const reopened = documentFor(
       "/tmp/folding-a.nui",
       "file:///tmp/folding-a.nui",
-      "# reopened\n# document\n"
+      "// reopened\n// document\n"
     );
     mocks.textDocuments = [documentB, reopened];
     emitDocumentOpen(reopened);

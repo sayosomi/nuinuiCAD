@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 40)
 point C = coordinate(x: 60, y: 0)

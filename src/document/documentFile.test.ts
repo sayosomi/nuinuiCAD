@@ -95,7 +95,7 @@ describe("document file lifecycle", () => {
   });
 
   it("opens .nui text verbatim and resets file history", async () => {
-    const content = "\uFEFFnui 4\r\n# keep this\r\npoint A = coordinate(x: 0, y: 0)\r\n";
+    const content = "\uFEFFnui 4\r\n// keep this\r\npoint A = coordinate(x: 0, y: 0)\r\n";
     dialogMock.open.mockResolvedValue("/tmp/loaded.nui");
     tauriCoreMock.invoke.mockResolvedValue(content);
     useCadDocumentStore.getState().commitDocumentChange({ evaluationLimitIndex: 1 });
@@ -114,7 +114,7 @@ describe("document file lifecycle", () => {
   it("opens, saves, and reopens typed nui 4 source without invoking a serializer", async () => {
     const content = [
       "nui 4",
-      "# preserve layout and escapes",
+      "// preserve layout and escapes",
       "const   note : string = 'front \\{'",
       "let enabled: boolean = true",
       "set enabled = false",
@@ -275,12 +275,12 @@ describe("document file lifecycle", () => {
   });
 
   it("saves sourceText byte-for-byte and clears dirty only after write succeeds", async () => {
-    const content = "nui 4\r\n# keep\r\npoint A = coordinate(x: 0, y: 0)\r\n";
+    const content = "nui 4\r\n// keep\r\npoint A = coordinate(x: 0, y: 0)\r\n";
     useCadDocumentStore.getState().replaceTextDocument(content, {
       currentFilePath: "/tmp/current.nui",
       dirtySinceSave: false
     });
-    useCadDocumentStore.getState().commitText(`${content}# changed\r\n`, "test");
+    useCadDocumentStore.getState().commitText(`${content}// changed\r\n`, "test");
     tauriCoreMock.invoke.mockResolvedValue(undefined);
 
     await saveDocument();

@@ -116,18 +116,18 @@ const commitPrintLayoutModelEdit = (
 const BASE_SOURCE = [
   "nui 4",
   "",
-  "# パレット注釈",
+  "// パレット注釈",
   'color main ("#112233", name: "本体", default: true)',
   "",
   'role seam (name: "縫い代")',
   "view 通常 (default: true, seam: false)",
   "activeView 通常",
   "",
-  "# 本体",
+  "// 本体",
   "group G {",
-  "  point A = coordinate(x: 0, y: 0)  # Aの注釈",
+  "  point A = coordinate(x: 0, y: 0)  // Aの注釈",
   "  point B = coordinate(x: 1, y: 1)",
-  "  # グループ末尾コメント",
+  "  // グループ末尾コメント",
   "}",
   "point C = coordinate(x: 2, y: 2)"
 ].join("\n");
@@ -183,6 +183,78 @@ describe("applyLineSplices", () => {
 });
 
 describe("textPatch 要素の更新", () => {
+  it("preserves a block-comment close before statement code during a model edit", () => {
+    const source = [
+      "nui 4",
+      "/* keep this note",
+      "*/ point P = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "P" ? ({ ...element, x: 5 } as CadElement) : element
+      )
+    }));
+
+    expect(patched).toContain("/* keep this note\n*/ point P = coordinate(");
+    expect(patched.indexOf("*/")).toBeLessThan(patched.indexOf("point P"));
+    expect(patched).toContain("x: 5,");
+  });
+
+  it("preserves a block-comment close before an argument during a model edit", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(",
+      "  sources: [@AB],",
+      "  /* keep argument note",
+      "  */ distance: 1,",
+      "  side: right,",
+      "  closed: false,",
+      "  suppressTrimWarnings: false",
+      ")"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "Off" ? ({ ...element, closed: true } as CadElement) : element
+      )
+    }));
+
+    expect(patched).toContain("/* keep argument note\n  */ distance: 1,");
+    expect(patched).toContain("closed: true,");
+    expect(patched.match(/\/\* keep argument note/g)).toHaveLength(1);
+  });
+
+  it("preserves a block-comment close before the call close during a model edit", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(",
+      "  sources: [@AB],",
+      "  distance: 1,",
+      "  side: right,",
+      "  closed: false,",
+      "  suppressTrimWarnings: false",
+      "  /* keep close note",
+      "*/ )"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "Off" ? ({ ...element, closed: true } as CadElement) : element
+      )
+    }));
+
+    expect(patched).toContain("/* keep close note\n*/ )");
+    expect(patched).toContain("closed: true,");
+    expect(patched.match(/\/\* keep close note/g)).toHaveLength(1);
+  });
+
   it("モデルの別フィールドを編集してもsource-authored typed property expressionを保持する", () => {
     const source = [
       "nui 4",
@@ -265,9 +337,9 @@ describe("textPatch 要素の更新", () => {
     }));
     expectLinesUntouched(splices, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16]);
     expect(patched).toContain("state: disabled");
-    expect(patched).toContain("point A = coordinate(x: 0, y: 0)  # Aの注釈");
-    expect(patched).toContain("# グループ末尾コメント");
-    expect(patched).toContain("# 本体");
+    expect(patched).toContain("point A = coordinate(x: 0, y: 0)  // Aの注釈");
+    expect(patched).toContain("// グループ末尾コメント");
+    expect(patched).toContain("// 本体");
   });
 
   it("更新行の行末コメントは書き換え後も保存される", () => {
@@ -279,7 +351,7 @@ describe("textPatch 要素の更新", () => {
     }));
     // 旧statementが単一物理行だった場合、行末コメントはヘッダ行に付く
     // (mergeFromSingleLineOld)。
-    expect(patched).toContain("point A = coordinate(  # Aの注釈");
+    expect(patched).toContain("point A = coordinate(  // Aの注釈");
     expect(patched).toContain("state: disabled");
   });
 
@@ -314,7 +386,7 @@ describe("textPatch 要素の挿入", () => {
     expect(lines[zIndex + 2]).toBe("    y: 9,");
     expect(lines[zIndex + 3]).toBe("  )");
     expect(lines[zIndex + 4]).toBe("}");
-    expect(lines[zIndex - 1]).toBe("  # グループ末尾コメント");
+    expect(lines[zIndex - 1]).toBe("  // グループ末尾コメント");
   });
 
   it("トップレベル末尾への挿入", () => {
@@ -395,7 +467,7 @@ describe("textPatch 要素の削除", () => {
     }));
     expect(splices).toHaveLength(1);
     expect(patched).not.toContain("point C");
-    expect(patched).toContain("# グループ末尾コメント");
+    expect(patched).toContain("// グループ末尾コメント");
   });
 
   it("サブツリーごとの削除はブロック全範囲(内側コメント含む)を除去する", () => {
@@ -413,9 +485,9 @@ describe("textPatch 要素の削除", () => {
       };
     });
     expect(patched).not.toContain("group G");
-    expect(patched).not.toContain("# Aの注釈");
-    expect(patched).not.toContain("# グループ末尾コメント");
-    expect(patched).toContain("# 本体");
+    expect(patched).not.toContain("// Aの注釈");
+    expect(patched).not.toContain("// グループ末尾コメント");
+    expect(patched).toContain("// 本体");
     expect(patched).toContain("point C = coordinate(x: 2, y: 2)");
   });
 
@@ -438,9 +510,9 @@ describe("textPatch 要素の削除", () => {
     const lines = patched.split("\n");
     // ungroupで depth が変わるため、v2では構造変更として全行再生成される
     // (statementの内容自体は変わらなくても縦型callへ展開される)。
-    expect(lines).toContain("point A = coordinate(  # Aの注釈");
+    expect(lines).toContain("point A = coordinate(  // Aの注釈");
     expect(lines).toContain("point B = coordinate(");
-    expect(lines).toContain("  # グループ末尾コメント");
+    expect(lines).toContain("  // グループ末尾コメント");
     expect(lines).not.toContain("}");
   });
 
@@ -541,7 +613,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     "point A = coordinate(",
     "  x: 0,",
     "  y: 0,",
-    "  color: main  # 継続コメント",
+    "  color: main  // 継続コメント",
     ")",
     "point B = coordinate(x: 1, y: 1)"
   ].join("\n");
@@ -554,8 +626,8 @@ describe("textPatch 複数行statement(括弧継続)", () => {
       )
     }));
     const lines = patched.split("\n");
-    expect(lines).toContain("  color: accent,  # 継続コメント");
-    expect(lines).not.toContain("  color: main  # 継続コメント");
+    expect(lines).toContain("  color: accent,  // 継続コメント");
+    expect(lines).not.toContain("  color: main  // 継続コメント");
     expect(patched).toContain("point B = coordinate(x: 1, y: 1)");
   });
 
@@ -622,7 +694,7 @@ describe("textPatch リネーム伝播", () => {
   it("参照元のリネームで参照行が書き換わり、無関係行は不変", () => {
     const source = [
       "nui 4",
-      "# 注釈",
+      "// 注釈",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 2)",
       "point C = coordinate(x: 5, y: 5)"
@@ -671,6 +743,61 @@ describe("textPatch リネーム伝播", () => {
 });
 
 describe("textPatch 非要素セクション", () => {
+  it("palette line rewrites keep a full-source block-comment close before color code", () => {
+    const source = [
+      "nui 4",
+      "/* keep palette note",
+      '*/ color main ("#112233", name: "本体", default: true)',
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      palette: {
+        ...document.palette,
+        colors: document.palette.colors.map((color) => ({ ...color, hex: "#000000" }))
+      }
+    }));
+
+    expect(patched).toContain('/* keep palette note\n*/ color main ("#000000"');
+  });
+
+  it("visibility line rewrites keep a full-source block-comment close before activeView code", () => {
+    const source = [
+      "nui 4",
+      'role seam (name: "縫い代")',
+      "view 通常 (default: true, seam: false)",
+      "view 印刷 (default: true, seam: true)",
+      "/* keep active-view note",
+      "*/ activeView 通常",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      activeVisibilityProfileId: document.visibilityProfiles.find((profile) => profile.name === "印刷")!.id
+    }));
+
+    expect(patched).toContain("/* keep active-view note\n*/ activeView 印刷");
+  });
+
+  it("activePrintLayout line rewrites keep a full-source block-comment close before code", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "}",
+      "printLayout 二枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "}",
+      "/* keep active-print note",
+      "*/ activePrintLayout 一枚目"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      activePrintLayoutId: "二枚目"
+    }));
+
+    expect(patched).toContain("/* keep active-print note\n*/ activePrintLayout 二枚目");
+  });
+
   it("色の追加・編集・default移動・削除", () => {
     const source = [
       "nui 4",
@@ -704,7 +831,7 @@ describe("textPatch 非要素セクション", () => {
       "nui 4",
       'role seam (name: "縫い代")',
       "view 通常 (default: true, seam: false)",
-      "# ビュー間コメント",
+      "// ビュー間コメント",
       "view 印刷 (default: true, seam: true)",
       "activeView 通常",
       "point A = coordinate(x: 0, y: 0)"
@@ -718,7 +845,7 @@ describe("textPatch 非要素セクション", () => {
       }))
     }));
     expect(patched).toContain('role guide (name: "ガイド")');
-    expect(patched).toContain("# ビュー間コメント");
+    expect(patched).toContain("// ビュー間コメント");
     expect(patched).toContain("view 通常 (default: true, seam: false, guide: true)");
     expect(patched).toContain("view 印刷 (default: true, seam: true, guide: true)");
   });

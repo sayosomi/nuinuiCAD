@@ -65,8 +65,8 @@ describe("cadDocumentStore editor mutation boundary", () => {
       status: "rejected",
       reason: "composition"
     });
-    useCadDocumentStore.getState().commitText("nui 1\n# blocked", "test");
-    useCadDocumentStore.getState().replaceTextDocument("nui 1\n# blocked reset", {
+    useCadDocumentStore.getState().commitText("nui 1\n// blocked", "test");
+    useCadDocumentStore.getState().replaceTextDocument("nui 1\n// blocked reset", {
       currentFilePath: null,
       dirtySinceSave: false
     });

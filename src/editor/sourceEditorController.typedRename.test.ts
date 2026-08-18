@@ -193,7 +193,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
 
     const offset = source.indexOf("let base") + "let ".length;
     internals.view.dispatch({
-      changes: { from: 0, to: 0, insert: "# " },
+      changes: { from: 0, to: 0, insert: "// " },
       annotations: Transaction.addToHistory.of(false)
     });
     internals.view.dispatch({ selection: { anchor: offset + 2 }, annotations: Transaction.addToHistory.of(false) });

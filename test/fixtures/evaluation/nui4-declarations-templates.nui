@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 const length: number = 12.3456
 const label: string = "前身頃"
 const printed: boolean = true

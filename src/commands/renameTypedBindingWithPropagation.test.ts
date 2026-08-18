@@ -33,14 +33,14 @@ describe("renameTypedBindingWithPropagation", () => {
   it("patches declaration, initializer, set-rhs, and set-target occurrences, leaving comments/blank lines/unrelated statements untouched, tagged model-patch, in one Undo step", () => {
     const source = [
       "nui 4",
-      "# keep this comment",
+      "// keep this comment",
       "let base: number = 1",
       "let derived: number = @base",
       "",
       "let mirror: number = 0",
       "set mirror = @base + 1",
       "set base = 2",
-      "# leave this alone"
+      "// leave this alone"
     ].join("\n");
     seed(source);
     const before = useCadDocumentStore.getState().sourceText;
@@ -50,8 +50,8 @@ describe("renameTypedBindingWithPropagation", () => {
 
     const state = useCadDocumentStore.getState();
     expect(changedLines(before, state.sourceText)).toEqual([3, 4, 7, 8]);
-    expect(state.sourceText).toContain("# keep this comment");
-    expect(state.sourceText).toContain("# leave this alone");
+    expect(state.sourceText).toContain("// keep this comment");
+    expect(state.sourceText).toContain("// leave this alone");
     expect(state.sourceText).toContain("let renamed: number = 1");
     expect(state.sourceText).toContain("let derived: number = @renamed");
     expect(state.sourceText).toContain("set mirror = @renamed + 1");

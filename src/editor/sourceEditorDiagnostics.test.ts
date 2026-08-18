@@ -49,7 +49,7 @@ describe("mapPositionedDiagnostics", () => {
   it("shifts a diagnostic's range through an unrelated earlier edit", () => {
     const doc = Text.of(["nui 1", "point A = (0, 0)", "point = (1, 1)"]);
     const positioned = toStaleDiagnostics(doc, [{ severity: "error", line: 3, column: 1, message: "x" }]);
-    const changes = ChangeSet.of({ from: 0, insert: "# note\n" }, doc.length);
+    const changes = ChangeSet.of({ from: 0, insert: "// note\n" }, doc.length);
     const mapped = mapPositionedDiagnostics(positioned, changes);
     expect(mapped).toHaveLength(1);
     expect(mapped[0].from).toBeGreaterThan(positioned[0].from);

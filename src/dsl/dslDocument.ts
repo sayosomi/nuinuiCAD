@@ -307,11 +307,18 @@ export const serializePaletteLines = (
 
 export const serializeDrawingModifierLines = (
   modifiers: readonly DrawingModifierDefinition[]
-): string[] => modifiers.flatMap((modifier) => [
-  `modifier ${formatDslName(modifier.name)} {`,
-  `${DSL_INDENT}state: ${modifier.state},`,
-  "}"
-]);
+): string[] => modifiers.flatMap((modifier) => {
+  const lines = [`modifier ${formatDslName(modifier.name)} {`];
+  if (modifier.state) lines.push(`${DSL_INDENT}state: ${modifier.state},`);
+  if (modifier.stroke) {
+    const color = modifier.stroke.color.kind === "themeRole"
+      ? modifier.stroke.color.role
+      : modifier.stroke.color.hex.toLowerCase();
+    lines.push(`${DSL_INDENT}stroke: ${modifier.stroke.widthPx}px ${modifier.stroke.style} ${color},`);
+  }
+  lines.push("}");
+  return lines;
+});
 
 // ==== 印刷レイアウト ====
 
@@ -664,7 +671,7 @@ export const serializeDocumentToDsl = (
 ): string => {
   const refs = options.preserveElementOrder ? flatRefs() : documentDslRefs(data.elements);
   const sections: string[][] = [
-    [`nui ${majorVersion}`, ...(options.headerComment ? [`# ${options.headerComment}`] : [])],
+    [`nui ${majorVersion}`, ...(options.headerComment ? [`// ${options.headerComment}`] : [])],
     serializePaletteLines(data.palette),
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
     serializeDrawingModifierLines(data.modifiers ?? []),

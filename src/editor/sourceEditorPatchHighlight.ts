@@ -1,7 +1,7 @@
 import { RangeSetBuilder, StateEffect, StateField, Transaction, type ChangeSet, type EditorState, type Extension, type Text } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
 import { diffTexts } from "../document/statementReconciler";
-import { highlightDslLine } from "../dsl/dslHighlight";
+import { highlightDslSource } from "../dsl/dslHighlight";
 
 export type PatchHighlightPayload = {
   /** insert.length > 0 splices, in new-document coordinates. */
@@ -108,31 +108,23 @@ export const sourceEditorPatchHighlightExtension: Extension = [patchHighlightFie
  * `{kind, text}`-only `DslHighlightToken` type, && must not be inferred by
  * summing token lengths).
  */
-const lineTokensWithOffsets = (line: string): { text: string; from: number; to: number }[] => {
-  const result: { text: string; from: number; to: number }[] = [];
-  let cursor = 0;
-  for (const token of highlightDslLine(line)) {
-    if (!token.text) continue;
-    const from = line.indexOf(token.text, cursor);
-    if (from === -1) break; // tokenizer contract violated — stop rather than mis-position later tokens
-    const to = from + token.text.length;
-    result.push({ text: token.text, from, to });
-    cursor = to;
-  }
-  return result;
-};
-
 /** Tokenizes possibly multi-line text into {text, from, to} with offsets
- * relative to the start of `text`. Lines are tokenized independently (via
- * lineTokensWithOffsets) && stitched with an explicit "\n" token so
- * multi-line spans diff correctly. */
+ * relative to the start of `text`, using the source-level lexer so multiline
+ * block-comment state is shared across physical lines. */
 const tokensWithOffsets = (text: string): { text: string; from: number; to: number }[] => {
   const lines = text.split("\n");
+  const highlighted = highlightDslSource(text);
   const result: { text: string; from: number; to: number }[] = [];
   let lineStart = 0;
   lines.forEach((line, index) => {
-    for (const token of lineTokensWithOffsets(line)) {
-      result.push({ text: token.text, from: lineStart + token.from, to: lineStart + token.to });
+    let cursor = 0;
+    for (const token of highlighted[index]?.tokens ?? []) {
+      if (!token.text) continue;
+      const from = line.indexOf(token.text, cursor);
+      if (from === -1) break; // tokenizer contract violated — stop rather than mis-position later tokens
+      const to = from + token.text.length;
+      result.push({ text: token.text, from: lineStart + from, to: lineStart + to });
+      cursor = to;
     }
     lineStart += line.length;
     if (index < lines.length - 1) {

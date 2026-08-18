@@ -71,8 +71,12 @@ const warning = (line: number, message: string): DslDiagnostic => ({
 
 const modifierDefinitionsFromStatements = (statements: readonly DslStatement[]): DrawingModifierDefinition[] =>
   statements.flatMap((statement) =>
-    statement.kind === "modifierDefinition" && !statement.enclosing && statement.state
-      ? [{ name: statement.name, state: statement.state }]
+    statement.kind === "modifierDefinition" && !statement.enclosing && (statement.state || statement.stroke)
+      ? [{
+          name: statement.name,
+          ...(statement.state ? { state: statement.state } : {}),
+          ...(statement.stroke ? { stroke: statement.stroke } : {})
+        }]
       : []
   );
 

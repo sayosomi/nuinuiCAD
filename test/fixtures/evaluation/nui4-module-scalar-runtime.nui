@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 let caller: number = 1
 set caller = 10
 module M(value: number, side: choice(right, left), label: string) {

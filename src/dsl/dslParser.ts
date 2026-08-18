@@ -7,7 +7,12 @@ import type {
   DslModifierProperty,
   ParseDslResult
 } from "./dslTypes";
-import type { DrawingModifierState } from "../types/geometry";
+import type {
+  DrawingModifierState,
+  DrawingModifierStroke,
+  DrawingModifierStrokeStyle,
+  DrawingModifierThemeRole
+} from "../types/geometry";
 import { isBareDslIdentifierChar, unquoteDslString } from "./dslTokens";
 import {
   createLogicalStatementSourceMap,
@@ -308,7 +313,10 @@ const setStatementToDslStatement = (
   expression: set.expression
 });
 
-type ParsedModifierDefinition = StatementCommonFields & { state: DrawingModifierState | null };
+type ParsedModifierDefinition = StatementCommonFields & {
+  state: DrawingModifierState | null;
+  stroke: DrawingModifierStroke | null;
+};
 
 type ParsedModifierProperty = {
   property: DslModifierProperty;
@@ -321,6 +329,16 @@ type ParsedModifierProperty = {
 };
 
 const modifierStateValues = new Set<DrawingModifierState>(["visible", "hidden", "disabled"]);
+const modifierStrokeStyles = new Set<DrawingModifierStrokeStyle>(["solid", "dashed", "dotted"]);
+const modifierThemeRoles = new Set<DrawingModifierThemeRole>([
+  "foreground",
+  "muted",
+  "accent",
+  "info",
+  "warning",
+  "error"
+]);
+const modifierFixedColorPattern = /^#[0-9a-fA-F]{6}$/;
 
 const parseModifierDefinition = (
   logicalText: string,
@@ -363,7 +381,8 @@ const parseModifierDefinition = (
     opensBlock,
     payloadSpans: nameSpan.start === nameSpan.end ? {} : { name: nameSpan },
     attrs: [],
-    state: null
+    state: null,
+    stroke: null
   };
 };
 
@@ -433,6 +452,51 @@ const parseModifierProperty = (
   };
 };
 
+const parseModifierStroke = (
+  value: string,
+  diagnostics: DslDiagnostic[],
+  line: number
+): DrawingModifierStroke | null => {
+  const parts = value.trim().match(/^(\S+)\s+(\S+)\s+(\S+)$/);
+  if (!parts) {
+    diagnostics.push(diagnostic(line, "modifier の stroke は `<width>px <style> <color>` の形式で指定してください。"));
+    return null;
+  }
+  const [, widthToken, styleToken, colorToken] = parts;
+  const widthMatch = widthToken!.match(/^(\d+(?:\.\d*)?|\.\d+)px$/);
+  const width = widthMatch ? Number(widthMatch[1]) : NaN;
+  if (!widthMatch || !Number.isFinite(width) || width <= 0) {
+    diagnostics.push(diagnostic(line, "modifier の stroke 幅は正の有限な10進数で指定してください(例: 1.5px)。"));
+    return null;
+  }
+  if (!modifierStrokeStyles.has(styleToken as DrawingModifierStrokeStyle)) {
+    diagnostics.push(diagnostic(line, "modifier の stroke style は solid / dashed / dotted のいずれかで指定してください。"));
+    return null;
+  }
+
+  const color = colorToken!;
+  if (modifierThemeRoles.has(color as DrawingModifierThemeRole)) {
+    return {
+      widthPx: width,
+      style: styleToken as DrawingModifierStrokeStyle,
+      color: { kind: "themeRole", role: color as DrawingModifierThemeRole }
+    };
+  }
+  if (color.startsWith("#")) {
+    if (!modifierFixedColorPattern.test(color)) {
+      diagnostics.push(diagnostic(line, "modifier の stroke 固定色は #RRGGBB の形式で指定してください。"));
+      return null;
+    }
+    return {
+      widthPx: width,
+      style: styleToken as DrawingModifierStrokeStyle,
+      color: { kind: "fixed", hex: color.toLowerCase() }
+    };
+  }
+  diagnostics.push(diagnostic(line, "modifier の stroke 色は foreground / muted / accent / info / warning / error または #RRGGBB で指定してください。"));
+  return null;
+};
+
 const modifierDefinitionToDslStatement = (
   parsed: ParsedModifierDefinition,
   line: number,
@@ -441,6 +505,7 @@ const modifierDefinitionToDslStatement = (
   ...baseFrom(parsed, line, endLine),
   kind: "modifierDefinition",
   state: parsed.state,
+  stroke: parsed.stroke,
   properties: []
 });
 
@@ -659,7 +724,7 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
     } else if (modifierAncestor && statement.kind === "modifierDefinition") {
       diagnostics.push(diagnostic(statement.line, "modifier 定義を別のブロック内にネストできません。"));
     } else if (modifierAncestor && statement.kind !== "modifierProperty") {
-      diagnostics.push(diagnostic(statement.line, "modifier ブロック内には state プロパティだけを書けます。"));
+      diagnostics.push(diagnostic(statement.line, "modifier ブロック内には state / stroke プロパティだけを書けます。"));
     }
     if (
       top?.kind === "printLayout" &&
@@ -711,16 +776,26 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
       )
       .map((statement) => statement.property);
     definition.properties = properties;
-    const stateProperties = properties.filter((property) => property.key === "state");
-    if (properties.some((property) => property.key !== "state")) {
-      for (const property of properties.filter((item) => item.key !== "state")) {
+    const propertiesByKey = new Map<string, DslModifierProperty[]>();
+    for (const property of properties) {
+      const sameKey = propertiesByKey.get(property.key) ?? [];
+      sameKey.push(property);
+      propertiesByKey.set(property.key, sameKey);
+    }
+    for (const [key, sameKey] of propertiesByKey) {
+      if (sameKey.length > 1) {
+        diagnostics.push(diagnostic(definition.line, `modifier の ${key} プロパティは1つだけ指定できます。`));
+      }
+    }
+    if (properties.some((property) => property.key !== "state" && property.key !== "stroke")) {
+      for (const property of properties.filter((item) => item.key !== "state" && item.key !== "stroke")) {
         diagnostics.push(diagnostic(definition.line, `modifier に未知のプロパティ「${property.key}」があります。`));
       }
     }
-    if (stateProperties.length === 0) {
-      diagnostics.push(diagnostic(definition.line, "modifier には state プロパティが1つ必要です。"));
-    } else if (stateProperties.length > 1) {
-      diagnostics.push(diagnostic(definition.line, "modifier の state プロパティは1つだけ指定できます。"));
+    const stateProperties = propertiesByKey.get("state") ?? [];
+    const strokeProperties = propertiesByKey.get("stroke") ?? [];
+    if (stateProperties.length === 0 && strokeProperties.length === 0) {
+      diagnostics.push(diagnostic(definition.line, "modifier には state または stroke プロパティが1つ以上必要です。"));
     }
     const state = stateProperties[0]?.value;
     if (state !== undefined && !modifierStateValues.has(state as DrawingModifierState)) {
@@ -729,6 +804,9 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
     } else {
       definition.state = state as DrawingModifierState | undefined ?? null;
     }
+    definition.stroke = strokeProperties[0]
+      ? parseModifierStroke(strokeProperties[0].value, diagnostics, definition.line)
+      : null;
   }
 };
 
@@ -822,6 +900,15 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   const statements: DslStatement[] = [];
   const diagnostics: DslDiagnostic[] = [];
   const sourceMap = createLogicalStatementSourceMap(snapshot);
+  if (sourceMap.unterminatedBlockComment) {
+    diagnostics.push({
+      ...diagnostic(
+        sourceMap.unterminatedBlockComment.line,
+        "ブロックコメントが閉じられていません。「*/」で閉じてください。"
+      ),
+      column: sourceMap.unterminatedBlockComment.column
+    });
+  }
   // Built once per parse, from the same loop that already visits every
   // LogicalStatement - never re-scanned per diagnostic. This is the only
   // lookup a later exact-span diagnostic projection needs: statement's own

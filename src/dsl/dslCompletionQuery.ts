@@ -599,7 +599,10 @@ const queryCandidates = (
 export const queryDslCompletion = ({ source, position, semantic }: DslCompletionQueryInput): DslCompletionQueryResult | null => {
   if (source.normalizedSource.includes("\r") || position < 0 || position > source.normalizedSource.length) return null;
   const input = logicalInputAt(source, position);
-  const context = dslCompletionContextAt(input.lineText, input.localPosition);
+  const startsInBlockComment = input.statement
+    ? false
+    : input.map.lexicalLines[input.lineNumber - 1]?.startsInBlockComment ?? false;
+  const context = dslCompletionContextAt(input.lineText, input.localPosition, startsInBlockComment);
   if (!context) return null;
   const compiled = semantic?.compiled;
   const exact = semanticIsExact(source, semantic);

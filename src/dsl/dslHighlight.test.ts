@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { highlightDslLine, highlightDslSource } from "./dslHighlight";
+import { highlightDslLine, highlightDslLineWithState, highlightDslSource } from "./dslHighlight";
 
 const tokenKinds = (line: string) => highlightDslLine(line).map((token) => token.kind);
 
 describe("DSL highlighting", () => {
   it("classifies common DSL tokens", () => {
-    const tokens = highlightDslLine("line seam = offset(distance: 10) # seam allowance");
+    const tokens = highlightDslLine("line seam = offset(distance: 10) // seam allowance");
 
     expect(tokens).toEqual(
       expect.arrayContaining([
@@ -13,7 +13,7 @@ describe("DSL highlighting", () => {
         { kind: "elementType", text: "offset" },
         { kind: "attributeKey", text: "distance" },
         { kind: "number", text: "10" },
-        { kind: "comment", text: "# seam allowance" }
+        { kind: "comment", text: "// seam allowance" }
       ])
     );
   });
@@ -27,6 +27,28 @@ describe("DSL highlighting", () => {
   it("does not throw for incomplete strings or malformed input", () => {
     expect(() => highlightDslSource("text label = \"unterminated\npoint A = (0,")).not.toThrow();
     expect(highlightDslSource("text label = \"unterminated")).toHaveLength(1);
+  });
+
+  it("highlights line and block comments without coloring their delimiters as syntax", () => {
+    expect(highlightDslLine("point A = coordinate(x: 0, y: 0) // { }")).toEqual(
+      expect.arrayContaining([{ kind: "comment", text: "// { }" }])
+    );
+    expect(highlightDslSource("/* block { */\npoint A = coordinate(x: 0, y: 0)")).toEqual(
+      expect.arrayContaining([
+        { lineNumber: 1, tokens: [{ kind: "comment", text: "/* block { */" }] }
+      ])
+    );
+  });
+
+  it("carries multiline block-comment state for line-oriented editor tokenization", () => {
+    const first = highlightDslLineWithState("point A = coordinate(x: 0, /* note", false);
+    const second = highlightDslLineWithState("still a note */ y: 0)", first.endsInBlockComment);
+    expect(first.tokens).toEqual(expect.arrayContaining([{ kind: "comment", text: "/* note" }]));
+    expect(second.tokens).toEqual(expect.arrayContaining([
+      { kind: "comment", text: "still a note */" },
+      { kind: "attributeKey", text: "y" },
+      { kind: "number", text: "0" }
+    ]));
   });
 
   it("classifies block braces and new document keywords", () => {

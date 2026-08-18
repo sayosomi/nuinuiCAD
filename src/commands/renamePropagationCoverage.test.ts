@@ -139,7 +139,7 @@ describe("rename propagation reference-form coverage", () => {
     // note in renameElementWithPropagation.test.ts).
     const source = [
       "nui 4",
-      "# unchanged comment",
+      "// unchanged comment",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -151,7 +151,7 @@ describe("rename propagation reference-form coverage", () => {
       "line L = segment(",
       "  start: @A,",
       "  end: @B,",
-      ") # target comment",
+      ") // target comment",
       "",
       "point StartUser = offset(",
       "  from: @L.start,",
@@ -173,7 +173,7 @@ describe("rename propagation reference-form coverage", () => {
       "  dx: @L.length,",
       "  dy: 0,",
       ")",
-      "# untouched tail"
+      "// untouched tail"
     ].join("\n");
     const after = expectSuccessfulRename({
       source,
@@ -182,8 +182,8 @@ describe("rename propagation reference-form coverage", () => {
       changedLineNumbers: [11, 17, 22, 27, 33]
     });
 
-    expect(after).toContain("# unchanged comment");
-    expect(after).toContain("# untouched tail");
+    expect(after).toContain("// unchanged comment");
+    expect(after).toContain("// untouched tail");
     expect(after).toContain("@Seam.length");
   });
 

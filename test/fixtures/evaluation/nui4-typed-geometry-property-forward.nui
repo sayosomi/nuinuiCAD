@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 const x: number = @Later.length
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)

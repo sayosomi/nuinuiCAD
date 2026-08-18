@@ -102,7 +102,7 @@ describe("host-neutral DSL rename query", () => {
   it("projects an element rename without changing comments or unrelated text", () => {
     const source = [
       "nui 4",
-      "# Base in a comment",
+      "// Base in a comment",
       "point Base = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -124,7 +124,7 @@ describe("host-neutral DSL rename query", () => {
   it("projects element-side geometry properties from numeric expressions", () => {
     const source = [
       "nui 4",
-      "# A in a comment",
+      "// A in a comment",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -148,7 +148,7 @@ describe("host-neutral DSL rename query", () => {
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => edit.expectedText)).toEqual(["A", "A"]);
     expect(plan?.edits.every((edit) => edit.newText === "Renamed")).toBe(true);
-    expect(plan?.edits.every((edit) => edit.from > source.indexOf("# A"))).toBe(true);
+    expect(plan?.edits.every((edit) => edit.from > source.indexOf("// A"))).toBe(true);
     expect(source.slice(plan!.edits[0].from, plan!.edits[0].to)).toBe("A");
     expect(source).toContain('text: "A"');
   });
@@ -283,7 +283,7 @@ describe("host-neutral DSL rename query", () => {
   it("uses UTF-16 offsets when a surrogate pair precedes a Japanese identifier", () => {
     const source = [
       "nui 4",
-      "# 😀",
+      "// 😀",
       "point 前身頃 = coordinate(x: 0, y: 0)"
     ].join("\n");
     const offset = source.indexOf("前身頃");

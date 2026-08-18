@@ -30,7 +30,7 @@ describe("numericTypeOptionCompletionContextAt", () => {
   });
 
   it("does not complete inside a trailing comment", () => {
-    const source = "let width: number( # settings";
+    const source = "let width: number( // settings";
     expect(dslCompletionContextAt(source, source.length)).toBeNull();
   });
 });

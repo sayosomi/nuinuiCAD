@@ -1,9 +1,11 @@
+import { scanDslSource } from "../dsl/dslTokens";
+
 const versionFromRawSource = (source: string): number | null => {
-  const lines = source.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const lines = scanDslSource(source.replace(/^\uFEFF/, "")).lines;
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const match = /^nui\s+(\d+)\s*(?:#.*)?$/.exec(trimmed);
+    const trimmed = line.code.trim();
+    if (!trimmed) continue;
+    const match = /^nui\s+(\d+)\s*$/.exec(trimmed);
     return match ? Number(match[1]) : null;
   }
   return null;
