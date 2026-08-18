@@ -86,7 +86,7 @@ jobs:
 
           if [[ "$BASE_VALID" == "true" ]]; then
             git diff --check "$BASE_SHA" "$GITHUB_SHA"
-            git diff --name-only -z "$BASE_SHA" "$GITHUB_SHA" |
+            git diff --no-renames --name-only -z "$BASE_SHA" "$GITHUB_SHA" |
               node scripts/ci/classifyChanges.mjs >> "$GITHUB_OUTPUT"
           else
             node scripts/ci/classifyChanges.mjs --full </dev/null >> "$GITHUB_OUTPUT"
@@ -119,15 +119,15 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Full Node tests
-        if: ${{ needs.classification.outputs.full_node == 'true' }}
-        run: npm test
-
       - name: Changed Node tests
         if: ${{ needs.classification.outputs.full_node != 'true' }}
         env:
           BASE_SHA: ${{ needs.classification.outputs.base_sha }}
         run: npm test -- --changed "$BASE_SHA" --passWithNoTests
+
+      - name: Filesystem-backed binding resolution invariant
+        if: ${{ needs.classification.outputs.full_node != 'true' }}
+        run: npm test -- test/bindingResolutionPublicSurface.test.ts
 
       - name: Build VS Code extension
         if: ${{ needs.classification.outputs.vscode == 'true' }}
@@ -136,7 +136,7 @@ jobs:
   rust_parity:
     name: Rust + parity
     needs: classification
-    if: ${{ needs.classification.result == 'success' && (needs.classification.outputs.rust == 'true' || needs.classification.outputs.parity == 'true') }}
+    if: ${{ needs.classification.result == 'success' && (needs.classification.outputs.rust == 'true' || needs.classification.outputs.parity == 'true' || needs.classification.outputs.full_node == 'true') }}
     runs-on: ubuntu-24.04
 
     steps:
@@ -175,15 +175,19 @@ jobs:
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
       - name: Setup Node
-        if: ${{ needs.classification.outputs.parity == 'true' }}
+        if: ${{ needs.classification.outputs.parity == 'true' || needs.classification.outputs.full_node == 'true' }}
         uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
 
       - name: Install Node dependencies
-        if: ${{ needs.classification.outputs.parity == 'true' }}
+        if: ${{ needs.classification.outputs.parity == 'true' || needs.classification.outputs.full_node == 'true' }}
         run: npm ci
+
+      - name: Full Node tests
+        if: ${{ needs.classification.outputs.full_node == 'true' }}
+        run: npm test
 
       - name: TypeScript/Rust parity
         if: ${{ needs.classification.outputs.parity == 'true' }}
@@ -202,6 +206,13 @@ jobs:
       - name: Check required CI results
         env:
           CLASSIFICATION_RESULT: ${{ needs.classification.result }}
+          CLASSIFICATION_NODE: ${{ needs.classification.outputs.node }}
+          CLASSIFICATION_FULL_NODE: ${{ needs.classification.outputs.full_node }}
+          CLASSIFICATION_VSCODE: ${{ needs.classification.outputs.vscode }}
+          CLASSIFICATION_RUST: ${{ needs.classification.outputs.rust }}
+          CLASSIFICATION_PARITY: ${{ needs.classification.outputs.parity }}
+          CLASSIFICATION_WORKFLOW: ${{ needs.classification.outputs.workflow }}
+          CLASSIFICATION_UNKNOWN: ${{ needs.classification.outputs.unknown }}
           NODE_RESULT: ${{ needs.node.result }}
           RUST_PARITY_RESULT: ${{ needs.rust_parity.result }}
         run: |
@@ -212,12 +223,39 @@ jobs:
             exit 1
           fi
 
-          if [[ "$NODE_RESULT" != "success" && "$NODE_RESULT" != "skipped" ]]; then
-            echo "Node job did not succeed: $NODE_RESULT"
+          for classifier_output in \
+            "$CLASSIFICATION_NODE" \
+            "$CLASSIFICATION_FULL_NODE" \
+            "$CLASSIFICATION_VSCODE" \
+            "$CLASSIFICATION_RUST" \
+            "$CLASSIFICATION_PARITY" \
+            "$CLASSIFICATION_WORKFLOW" \
+            "$CLASSIFICATION_UNKNOWN"; do
+            if [[ "$classifier_output" != "true" && "$classifier_output" != "false" ]]; then
+              echo "Malformed classifier output: '$classifier_output'"
+              exit 1
+            fi
+          done
+
+          if [[ "$CLASSIFICATION_NODE" == "true" ]]; then
+            if [[ "$NODE_RESULT" != "success" ]]; then
+              echo "Required Node job did not succeed: $NODE_RESULT"
+              exit 1
+            fi
+          elif [[ "$NODE_RESULT" != "success" && "$NODE_RESULT" != "skipped" ]]; then
+            echo "Optional Node job did not succeed: $NODE_RESULT"
             exit 1
           fi
 
-          if [[ "$RUST_PARITY_RESULT" != "success" && "$RUST_PARITY_RESULT" != "skipped" ]]; then
-            echo "Rust/parity job did not succeed: $RUST_PARITY_RESULT"
+          if [[ "$CLASSIFICATION_RUST" == "true" ||
+                "$CLASSIFICATION_PARITY" == "true" ||
+                "$CLASSIFICATION_FULL_NODE" == "true" ]]; then
+            if [[ "$RUST_PARITY_RESULT" != "success" ]]; then
+              echo "Required Rust/parity job did not succeed: $RUST_PARITY_RESULT"
+              exit 1
+            fi
+          elif [[ "$RUST_PARITY_RESULT" != "success" &&
+                  "$RUST_PARITY_RESULT" != "skipped" ]]; then
+            echo "Optional Rust/parity job did not succeed: $RUST_PARITY_RESULT"
             exit 1
           fi

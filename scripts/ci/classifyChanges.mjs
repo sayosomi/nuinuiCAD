@@ -34,8 +34,16 @@ const FULL_NODE_FILES = new Set([
   "package.json",
   "package-lock.json",
   "vite.config.ts",
-  "eslint.config.js"
+  "eslint.config.js",
+  "tsconfig.app.json",
+  "tsconfig.json",
+  "tsconfig.node.json",
+  "vscode-extension/package.json",
+  "vscode-extension/tsconfig.json",
+  "vscode-extension/language-configuration.json"
 ]);
+
+const TEST_BACKED_DOCUMENTATION_PREFIX = "docs/module/manual-fixtures/";
 
 const fullCheckFlags = () => ({
   node: true,
@@ -62,14 +70,13 @@ const isTestOnlyPath = (path) =>
   /(?:^|\/)[^/]+\.(?:test|spec)(?:\.[^/]+)+$/.test(path);
 
 const isDocumentationPath = (path) =>
-  path.startsWith("docs/") ||
+  (path.startsWith("docs/") && path.endsWith(".md")) ||
   path.startsWith(".claude/") ||
   path.endsWith(".md") ||
   POLICY_FILES.has(path) ||
   [...POLICY_FILES].some((file) => path.endsWith(`/${file}`));
 
 const isParityTestPath = (path) =>
-  /^test\/evaluationParity[^/]*$/.test(path) ||
   path.startsWith("test/fixtures/evaluation/");
 
 const isParitySourcePath = (path) =>
@@ -78,15 +85,11 @@ const isParitySourcePath = (path) =>
 
 const isFullNodePath = (path) =>
   FULL_NODE_FILES.has(path) ||
-  /(?:^|\/)tsconfig[^/]*\.json$/.test(path) ||
-  path === "vscode-extension/package.json" ||
-  path === "vscode-extension/tsconfig.json";
+  path.startsWith("vscode-extension/syntaxes/");
 
 const isRootNodeInput = (path) =>
   path === "index.html" ||
-  path.startsWith("public/") ||
-  (!path.includes("/") &&
-    /\.(?:css|html|js|json|mjs|cjs|ts|tsx)$/.test(path));
+  path.startsWith("public/");
 
 const isRustPath = (path) => path.startsWith("src-tauri/");
 
@@ -94,7 +97,32 @@ const isRustParityPath = (path) =>
   path.startsWith("src-tauri/src/evaluation/") ||
   path === "src-tauri/examples/evaluate_fixture.rs";
 
+const isSharedRustFixturePath = (path) =>
+  path === "test/fixtures/typed-expressions.json" ||
+  path.startsWith("test/fixtures/scalars/");
+
+const isKnownFixturePath = (path) => path.startsWith("test/fixtures/");
+
+const isRustIntegrationTestPath = (path) =>
+  /^test\/[^/]+Rust\.integration\.test\.ts$/.test(path);
+
+const isEvaluationParitySupportPath = (path) =>
+  path === "test/evaluationParitySupport.ts";
+
+const isTestBackedDocumentationPath = (path) =>
+  path === "docs/command-id-map.md" ||
+  path.startsWith(TEST_BACKED_DOCUMENTATION_PREFIX);
+
+const isStatePath = (path) => path.startsWith("src/state/");
+
 const classifyPath = (path) => {
+  if (isTestBackedDocumentationPath(path)) {
+    const flags = emptyFlags();
+    flags.node = true;
+    flags.full_node = true;
+    return flags;
+  }
+
   if (isDocumentationPath(path)) {
     return emptyFlags();
   }
@@ -112,9 +140,50 @@ const classifyPath = (path) => {
     return flags;
   }
 
+  if (isSharedRustFixturePath(path)) {
+    const flags = emptyFlags();
+    flags.node = true;
+    flags.rust = true;
+    return flags;
+  }
+
+  if (isRustIntegrationTestPath(path)) {
+    const flags = emptyFlags();
+    flags.node = true;
+    flags.full_node = true;
+    return flags;
+  }
+
+  if (path === "test/evaluationParity.test.ts") {
+    const flags = emptyFlags();
+    flags.node = true;
+    flags.parity = true;
+    return flags;
+  }
+
+  if (isEvaluationParitySupportPath(path)) {
+    const flags = emptyFlags();
+    flags.node = true;
+    flags.full_node = true;
+    flags.parity = true;
+    return flags;
+  }
+
   if (isParityTestPath(path)) {
     const flags = emptyFlags();
     flags.parity = true;
+    return flags;
+  }
+
+  if (isKnownFixturePath(path)) {
+    return null;
+  }
+
+  if (isStatePath(path)) {
+    const flags = emptyFlags();
+    flags.node = true;
+    flags.full_node = true;
+    flags.vscode = true;
     return flags;
   }
 
