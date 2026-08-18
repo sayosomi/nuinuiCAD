@@ -3,6 +3,7 @@ import { evaluateElements } from "./evaluate";
 import { makeNumericExpression, normalizeNumericExpressionInput } from "./numericExpressions";
 import { forGroupGeneratedElementId } from "./forGroupExpansion";
 import { compileDslDocument } from "../dsl/dslDocument";
+import { parseDsl } from "../dsl/dslParser";
 import { cubicDerivativeAt, cubicPointAt } from "./bezierMath";
 import type { CadElement } from "../types/geometry";
 
@@ -98,6 +99,73 @@ describe("evaluateElements", () => {
     expect(result.effectiveEnabledElementIds).not.toContain("disabled");
     expect(result.computedGeometry.has("shown")).toBe(true);
     expect(result.effectiveVisibleElementIds).toContain("shown");
+  });
+
+  it("resolves atomic strokes outer-to-inner-to-element while merging state independently", () => {
+    const outerStroke = {
+      widthPx: 1,
+      style: "solid" as const,
+      color: { kind: "fixed" as const, hex: "#111111" }
+    };
+    const innerStroke = {
+      widthPx: 2,
+      style: "dashed" as const,
+      color: { kind: "fixed" as const, hex: "#222222" }
+    };
+    const elementStroke = {
+      widthPx: 3,
+      style: "dotted" as const,
+      color: { kind: "fixed" as const, hex: "#333333" }
+    };
+    const result = evaluateElements([
+      { id: "outer", name: "Outer", type: "group", activity: "visible", modifierNames: ["outer"] },
+      { id: "inner", name: "Inner", type: "group", activity: "visible", parentGroupId: "outer", modifierNames: ["inner"] },
+      { id: "point", name: "Point", type: "freePoint", activity: "visible", parentGroupId: "inner", modifierNames: ["element", "stateOnly", "elementLater"], x: 0, y: 0 }
+    ], {
+      drawingModifiers: [
+        { name: "outer", stroke: outerStroke },
+        { name: "inner", stroke: innerStroke },
+        { name: "element", stroke: { widthPx: 4, style: "solid", color: { kind: "fixed", hex: "#444444" } } },
+        { name: "stateOnly", state: "hidden" },
+        { name: "elementLater", stroke: elementStroke }
+      ]
+    });
+
+    expect(result.effectiveDrawingModifierStrokes?.get("point")).toEqual(elementStroke);
+    expect(result.effectiveDrawingModifierStrokes?.get("outer")).toEqual(outerStroke);
+    expect(result.effectiveDrawingModifierStrokes?.get("inner")).toEqual(innerStroke);
+    expect(result.effectiveVisibleElementIds).not.toContain("point");
+    expect(result.computedGeometry.get("point")).toMatchObject({ kind: "point" });
+  });
+
+  it("uses the normal modifier resolver for module-materialized elements", () => {
+    const source = [
+      "nui 4",
+      "modifier Guide {",
+      "  stroke: 1.5px dashed #abcdef,",
+      "}",
+      "module M() {",
+      "  point Internal [Guide] = coordinate(x: 1, y: 2)",
+      "}",
+      "instance Use = M()"
+    ].join("\n");
+    const parsed = parseDsl(source);
+    const compiled = compileDslDocument(source, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `stroke-module:${index}`]))
+    });
+    expect(compiled.document).not.toBeNull();
+    const materializedPoint = compiled.document!.elements.find((element) => element.name === "Internal");
+    expect(materializedPoint).toBeDefined();
+    const result = evaluateElements(compiled.document!.elements, {
+      drawingModifiers: compiled.document!.modifiers
+    });
+
+    expect(result.effectiveDrawingModifierStrokes?.get(materializedPoint!.id)).toEqual({
+      widthPx: 1.5,
+      style: "dashed",
+      color: { kind: "fixed", hex: "#abcdef" }
+    });
   });
 
   it("evaluates points and lines in valid top-to-bottom order", () => {
@@ -564,6 +632,42 @@ describe("evaluateElements", () => {
       expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:1" }),
       expect.objectContaining({ forGroupId: "loop", templateElementId: "p", generatedElementId: "p@loop:2" })
     ]);
+    expect(result.effectiveDrawingModifierStrokes?.get("p@loop:0")).toEqual(undefined);
+  });
+
+  it("propagates a template stroke to generated rows through templateElementId", () => {
+    const stroke = {
+      widthPx: 1.25,
+      style: "dashed" as const,
+      color: { kind: "themeRole" as const, role: "accent" as const }
+    };
+    const result = evaluateElements([
+      {
+        id: "loop",
+        name: "Loop",
+        type: "forGroup",
+        activity: "visible",
+        variableName: "i",
+        start: 0,
+        count: 2,
+        step: 1,
+        showGenerated: true,
+        modifierNames: ["Guide"]
+      },
+      {
+        id: "p",
+        name: "P",
+        type: "freePoint",
+        activity: "visible",
+        parentGroupId: "loop",
+        x: 0,
+        y: 0
+      }
+    ], { drawingModifiers: [{ name: "Guide", stroke }] });
+
+    expect(result.forGroupGeneratedRows).toHaveLength(2);
+    expect(result.effectiveDrawingModifierStrokes?.get("p@loop:0")).toEqual(stroke);
+    expect(result.effectiveDrawingModifierStrokes?.get("p@loop:1")).toEqual(stroke);
   });
 
   it("remaps references between generated for group template elements", () => {

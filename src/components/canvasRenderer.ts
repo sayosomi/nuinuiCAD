@@ -5,6 +5,8 @@ import type {
   ComputedLine,
   ComputedOffsetLine,
   ComputedPoint,
+  DrawingModifierStroke,
+  DrawingModifierThemeRole,
   ElementId
 } from "../types/geometry";
 import type { CanvasOverlayImage } from "./DrawingCanvasTypes";
@@ -27,6 +29,7 @@ const drawGrid = (
   size: ViewportSize,
   viewport: CanvasViewport
 ) => {
+  ctx.setLineDash([]);
   ctx.clearRect(0, 0, size.width, size.height);
   ctx.fillStyle = "#fbfbfa";
   ctx.fillRect(0, 0, size.width, size.height);
@@ -88,6 +91,7 @@ type RenderCanvasGeometryArgs = {
   selectedElementIdSet: Set<ElementId>;
   selectedElementId: ElementId | null;
   elementColors?: Map<ElementId, string>;
+  effectiveDrawingModifierStrokes?: ReadonlyMap<ElementId, DrawingModifierStroke>;
   showCanvasPoints: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
@@ -115,20 +119,35 @@ const strokeStyleForGeometry = ({
 const DEFAULT_GEOMETRY_LINE_WIDTH = 1;
 const EMPHASIZED_GEOMETRY_LINE_WIDTH = 1.2;
 
+const LEGACY_GEOMETRY_FOREGROUND = "#31322f";
+
+const themeRoleColor = (role: DrawingModifierThemeRole) => {
+  void role;
+  return LEGACY_GEOMETRY_FOREGROUND;
+};
+
+const drawingModifierColor = (stroke: DrawingModifierStroke) =>
+  stroke.color.kind === "fixed" ? stroke.color.hex : themeRoleColor(stroke.color.role);
+
+const drawingModifierDash = (style: DrawingModifierStroke["style"]) =>
+  style === "solid" ? [] : style === "dashed" ? [6, 4] : [1, 3];
+
 const lineWidthForGeometry = ({
   isSelected,
   isPrimarySelected,
   isPointPickActive,
   isNumericReferencePickActive,
-  isLinePickActive
+  isLinePickActive,
+  modifierWidth
 }: {
   isSelected: boolean;
   isPrimarySelected: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
-}) =>
-  isPointPickActive
+  modifierWidth?: number;
+}) => {
+  const legacyWidth = isPointPickActive
     ? DEFAULT_GEOMETRY_LINE_WIDTH
     : isNumericReferencePickActive || isLinePickActive
       ? EMPHASIZED_GEOMETRY_LINE_WIDTH
@@ -137,6 +156,56 @@ const lineWidthForGeometry = ({
         : isSelected
           ? EMPHASIZED_GEOMETRY_LINE_WIDTH
           : DEFAULT_GEOMETRY_LINE_WIDTH;
+  const hasInteractionEmphasis = isPointPickActive || isNumericReferencePickActive ||
+    isLinePickActive || isPrimarySelected || isSelected;
+  return modifierWidth === undefined
+    ? legacyWidth
+    : hasInteractionEmphasis
+      ? Math.max(modifierWidth, legacyWidth)
+      : modifierWidth;
+};
+
+const applyGeometryStroke = ({
+  ctx,
+  elementId,
+  effectiveDrawingModifierStrokes,
+  defaultColor,
+  isSelected,
+  isPrimarySelected,
+  isPointPickActive,
+  isNumericReferencePickActive,
+  isLinePickActive
+}: {
+  ctx: CanvasRenderingContext2D;
+  elementId: ElementId;
+  effectiveDrawingModifierStrokes?: ReadonlyMap<ElementId, DrawingModifierStroke>;
+  defaultColor: string;
+  isSelected: boolean;
+  isPrimarySelected: boolean;
+  isPointPickActive: boolean;
+  isNumericReferencePickActive: boolean;
+  isLinePickActive: boolean;
+}) => {
+  const modifierStroke = effectiveDrawingModifierStrokes?.get(elementId);
+  const documentColor = modifierStroke ? drawingModifierColor(modifierStroke) : defaultColor;
+  ctx.strokeStyle = strokeStyleForGeometry({
+    isPointPickActive,
+    isNumericReferencePickActive,
+    isLinePickActive,
+    defaultColor: documentColor
+  });
+  ctx.lineWidth = lineWidthForGeometry({
+    isSelected,
+    isPrimarySelected,
+    isPointPickActive,
+    isNumericReferencePickActive,
+    isLinePickActive,
+    modifierWidth: modifierStroke?.widthPx
+  });
+  // Every geometry establishes its own dash state. Interaction emphasis may
+  // change color/width, but never replaces the document's explicit dash style.
+  ctx.setLineDash(modifierStroke ? drawingModifierDash(modifierStroke.style) : []);
+};
 
 export const renderCanvasGeometry = ({
   ctx,
@@ -152,6 +221,7 @@ export const renderCanvasGeometry = ({
   selectedElementIdSet,
   selectedElementId,
   elementColors = new Map(),
+  effectiveDrawingModifierStrokes,
   showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
@@ -211,13 +281,11 @@ export const renderCanvasGeometry = ({
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
-    ctx.strokeStyle = strokeStyleForGeometry({
-      isPointPickActive,
-      isNumericReferencePickActive,
-      isLinePickActive,
-      defaultColor: elementColors.get(line.elementId) ?? "#31322f"
-    });
-    ctx.lineWidth = lineWidthForGeometry({
+    applyGeometryStroke({
+      ctx,
+      elementId: line.elementId,
+      effectiveDrawingModifierStrokes,
+      defaultColor: elementColors.get(line.elementId) ?? LEGACY_GEOMETRY_FOREGROUND,
       isSelected,
       isPrimarySelected,
       isPointPickActive,
@@ -242,13 +310,11 @@ export const renderCanvasGeometry = ({
       -(((arc.startAngleDeg + arc.sweepAngleDeg) * Math.PI) / 180),
       true
     );
-    ctx.strokeStyle = strokeStyleForGeometry({
-      isPointPickActive,
-      isNumericReferencePickActive,
-      isLinePickActive,
-      defaultColor: elementColors.get(arc.elementId) ?? "#31322f"
-    });
-    ctx.lineWidth = lineWidthForGeometry({
+    applyGeometryStroke({
+      ctx,
+      elementId: arc.elementId,
+      effectiveDrawingModifierStrokes,
+      defaultColor: elementColors.get(arc.elementId) ?? LEGACY_GEOMETRY_FOREGROUND,
       isSelected,
       isPrimarySelected,
       isPointPickActive,
@@ -271,13 +337,11 @@ export const renderCanvasGeometry = ({
       if (index === 0) ctx.moveTo(start.x, start.y);
       ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y);
     });
-    ctx.strokeStyle = strokeStyleForGeometry({
-      isPointPickActive,
-      isNumericReferencePickActive,
-      isLinePickActive,
-      defaultColor: elementColors.get(curve.elementId) ?? "#31322f"
-    });
-    ctx.lineWidth = lineWidthForGeometry({
+    applyGeometryStroke({
+      ctx,
+      elementId: curve.elementId,
+      effectiveDrawingModifierStrokes,
+      defaultColor: elementColors.get(curve.elementId) ?? LEGACY_GEOMETRY_FOREGROUND,
       isSelected,
       isPrimarySelected,
       isPointPickActive,
@@ -317,13 +381,11 @@ export const renderCanvasGeometry = ({
         segment.sweepAngleDeg >= 0
       );
     });
-    ctx.strokeStyle = strokeStyleForGeometry({
-      isPointPickActive,
-      isNumericReferencePickActive,
-      isLinePickActive,
-      defaultColor: elementColors.get(line.elementId) ?? "#475569"
-    });
-    ctx.lineWidth = lineWidthForGeometry({
+    applyGeometryStroke({
+      ctx,
+      elementId: line.elementId,
+      effectiveDrawingModifierStrokes,
+      defaultColor: elementColors.get(line.elementId) ?? "#475569",
       isSelected,
       isPrimarySelected,
       isPointPickActive,
@@ -339,7 +401,8 @@ export const renderCanvasGeometry = ({
     const isPrimarySelected = point.elementId === selectedElementId;
     if (!showCanvasPoints && !isSelected && !isPointPickActive) continue;
     const screen = worldToScreen(point, size, viewport);
-    const pointColor = elementColors.get(point.elementId) ?? "#31322f";
+    const pointStroke = effectiveDrawingModifierStrokes?.get(point.elementId);
+    const pointColor = pointStroke ? drawingModifierColor(pointStroke) : elementColors.get(point.elementId) ?? LEGACY_GEOMETRY_FOREGROUND;
     ctx.beginPath();
     ctx.arc(
       screen.x,
@@ -372,13 +435,18 @@ export const renderCanvasGeometry = ({
         : isSelected
           ? pointColor
           : pointColor;
-    ctx.lineWidth = isPointPickActive
+    const legacyPointWidth = isPointPickActive
       ? 2.5
       : isNumericReferencePickActive || isLinePickActive
         ? 1.25
         : isSelected
           ? 1.25
         : 2;
+    const pointInteraction = isPointPickActive || isNumericReferencePickActive || isLinePickActive || isSelected || isPrimarySelected;
+    ctx.lineWidth = pointStroke && pointInteraction
+      ? Math.max(pointStroke.widthPx, legacyPointWidth)
+      : pointStroke?.widthPx ?? legacyPointWidth;
+    ctx.setLineDash(pointStroke ? drawingModifierDash(pointStroke.style) : []);
     ctx.fill();
     ctx.stroke();
   }

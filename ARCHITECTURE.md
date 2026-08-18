@@ -233,6 +233,13 @@ Rust request preparation / transport contractであり、既存の
 担当する。`buildRustEvaluationInput` は引き続きsole JSON-shaped Rust projection
 ownerである。将来のheadless hostはこのtransport実装だけを差し替えられる。
 
+`EvaluationResult.effectiveDrawingModifierStrokes` is the resolved, element-id keyed
+stroke presentation data crossing the evaluation boundary. The TS reference and
+Rust production evaluators resolve the same ordered modifier cascade; JSON payloads
+use `{ elementId, stroke }` entries and retain semantic theme-role colors. For
+`forGroup` runtime geometry, generated entries are propagated from the evaluator's
+structured `forGroupGeneratedRows.templateElementId` relation.
+
 ### Rust evaluation
 
 Primary:
@@ -282,6 +289,9 @@ DrawingCanvasを使い、Webviewからのcanonical source commitだけをExtensi
 Current invariants:
 
 - DrawingCanvasのinteraction logicはhost-neutral boundary越しに既存command/document ownerを使う。
+- `DrawingCanvas` passes resolved modifier strokes directly to the shared
+  `canvasRenderer`; the renderer is the presentation boundary for semantic theme
+  roles and does not receive modifier definitions or names.
 - Drag previewはephemeralで、pointerupだけがcanonical document commitを行う。
 - Runtime `CadElement[]` identityはadapterでcloneしない。
 - Performance instrumentationはproduction DrawingCanvas/evaluation/render pathを引き続き測る。

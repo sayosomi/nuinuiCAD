@@ -1,4 +1,9 @@
-import type { CadElementType, DrawingModifierDefinition, ElementId } from "../types/geometry";
+import type {
+  CadElementType,
+  DrawingModifierDefinition,
+  DrawingModifierStroke,
+  ElementId
+} from "../types/geometry";
 import { isContainerElementType } from "./containers";
 
 export type ElementActivity = "visible" | "hidden" | "disabled";
@@ -22,6 +27,57 @@ export type EffectiveElementActivity = {
 export const activityAllowsEvaluation = (activity: ElementActivity) => activity !== "disabled";
 
 export const activityAllowsDrawing = (activity: ElementActivity) => activity === "visible";
+
+const modifierOwnersFor = <T extends ActivityElement>(
+  element: T,
+  byId: ReadonlyMap<ElementId, T>
+): T[] => {
+  const owners: T[] = [element];
+  const visited = new Set<ElementId>([element.id]);
+  let parent = element.parentGroupId ? byId.get(element.parentGroupId) : undefined;
+  while (parent && isContainerElementType(parent.type) && visited.add(parent.id)) {
+    owners.push(parent);
+    parent = parent.parentGroupId ? byId.get(parent.parentGroupId) : undefined;
+  }
+  owners.reverse();
+  return owners;
+};
+
+const copyDrawingModifierStroke = (stroke: DrawingModifierStroke): DrawingModifierStroke => ({
+  ...stroke,
+  color: { ...stroke.color }
+});
+
+/**
+ * Resolves only the explicit stroke property of drawing modifiers. State and
+ * stroke are intentionally independent properties: a state-only modifier does
+ * not clear a stroke inherited from an outer owner, and a stroke-only modifier
+ * does not affect activity.
+ */
+export const effectiveDrawingModifierStrokeById = <T extends ActivityElement>(
+  elements: readonly T[],
+  drawingModifiers: readonly DrawingModifierDefinition[] = []
+): ReadonlyMap<ElementId, DrawingModifierStroke> => {
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const strokeByName = new Map(
+    drawingModifiers.flatMap((modifier) => modifier.stroke
+      ? [[modifier.name, modifier.stroke] as const]
+      : [])
+  );
+  const effectiveStrokes = new Map<ElementId, DrawingModifierStroke>();
+
+  for (const element of elements) {
+    let winningStroke: DrawingModifierStroke | undefined;
+    for (const owner of modifierOwnersFor(element, byId)) {
+      for (const modifierName of owner.modifierNames ?? []) {
+        const stroke = strokeByName.get(modifierName);
+        if (stroke) winningStroke = stroke;
+      }
+    }
+    if (winningStroke) effectiveStrokes.set(element.id, copyDrawingModifierStroke(winningStroke));
+  }
+  return effectiveStrokes;
+};
 
 /**
  * Types whose evaluator never assigns computedGeometry under their own
@@ -94,17 +150,8 @@ export const effectiveElementActivityById = <T extends ActivityElement>(
   };
 
   const modifierActivityFor = (element: T): { activity: ElementActivity; ownerId: ElementId } | undefined => {
-    const owners: T[] = [element];
-    const visited = new Set<ElementId>([element.id]);
-    let parent = element.parentGroupId ? byId.get(element.parentGroupId) : undefined;
-    while (parent && isContainerElementType(parent.type) && visited.add(parent.id)) {
-      owners.push(parent);
-      parent = parent.parentGroupId ? byId.get(parent.parentGroupId) : undefined;
-    }
-    owners.reverse();
-
     let winning: { activity: ElementActivity; ownerId: ElementId } | undefined;
-    for (const owner of owners) {
+    for (const owner of modifierOwnersFor(element, byId)) {
       for (const modifierName of owner.modifierNames ?? []) {
         const activity = modifierStateByName.get(modifierName);
         if (activity !== undefined) winning = { activity, ownerId: owner.id };

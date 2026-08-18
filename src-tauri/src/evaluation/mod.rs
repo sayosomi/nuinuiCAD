@@ -108,7 +108,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
-use activity::effective_activity_by_element_id;
+use activity::{effective_activity_by_element_id, effective_drawing_modifier_stroke_by_element_id};
 use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
 use control_boolean_runtime::{
@@ -153,7 +153,10 @@ use scalars::{
 };
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::{evaluate_text, TextTemplateContext};
-use types::{element_id, element_name, element_type, ElementId, EvaluationState};
+use types::{
+    element_id, element_name, element_type, EffectiveDrawingModifierStroke, ElementId,
+    EvaluationState,
+};
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 
 /// Decodes+validates `input.property_bindings` against the already-decoded
@@ -673,6 +676,10 @@ fn evaluate_document_input_with_scalar_program(
     let mut effective_enabled_order = Vec::<ElementId>::new();
     let template_descendant_ids = for_group_template_descendant_ids(&state.elements);
     let original_elements = state.elements.clone();
+    let source_effective_drawing_modifier_strokes = effective_drawing_modifier_stroke_by_element_id(
+        &original_elements,
+        Some(&state.drawing_modifiers),
+    );
     let mut for_group_generated_rows = Vec::new();
     let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
 
@@ -1027,6 +1034,32 @@ fn evaluate_document_input_with_scalar_program(
             )
         };
 
+    let mut effective_drawing_modifier_strokes = original_elements
+        .iter()
+        .filter_map(|element| {
+            let id = element_id(element)?;
+            let stroke = source_effective_drawing_modifier_strokes.get(&id)?.clone();
+            Some(EffectiveDrawingModifierStroke {
+                element_id: id,
+                stroke,
+            })
+        })
+        .collect::<Vec<_>>();
+    // Generated ids are runtime identities. Their modifier semantics belong
+    // to the source template, so use the structured evaluator relationship
+    // instead of inferring a template from the generated id string.
+    for row in &for_group_generated_rows {
+        if let Some(stroke) = source_effective_drawing_modifier_strokes
+            .get(&row.template_element_id)
+            .cloned()
+        {
+            effective_drawing_modifier_strokes.push(EffectiveDrawingModifierStroke {
+                element_id: row.generated_element_id.clone(),
+                stroke,
+            });
+        }
+    }
+
     EvaluationPayload {
         computed_geometry: state
             .computed_geometry_order
@@ -1039,6 +1072,7 @@ fn evaluate_document_input_with_scalar_program(
         evaluation_limit_index,
         effective_visible_element_ids: effective_visible_element_ids.into_iter().collect(),
         effective_enabled_element_ids: effective_enabled_order,
+        effective_drawing_modifier_strokes,
         condition_inactive_element_ids: state
             .elements
             .iter()

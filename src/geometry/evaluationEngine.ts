@@ -73,7 +73,8 @@ export const emptyEvaluationResult = (
     evaluatedElementIds: new Set(),
     evaluationLimitIndex,
     effectiveVisibleElementIds: new Set(),
-    effectiveEnabledElementIds: new Set()
+    effectiveEnabledElementIds: new Set(),
+    effectiveDrawingModifierStrokes: new Map()
   };
 };
 
