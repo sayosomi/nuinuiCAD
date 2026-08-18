@@ -17,7 +17,8 @@ import {
   activityAllowsEvaluation,
   activityAllowsDrawing,
   effectiveElementActivity,
-  effectiveElementActivityById
+  effectiveElementActivityById,
+  effectiveDrawingModifierStrokeById
 } from "../model/elementActivity";
 import { numericError } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
@@ -175,6 +176,9 @@ export const evaluateElements = (
   const runtimeElementsById = new Map(elementsById);
   const runtimeElements = [...evaluatedElements];
   const activities = effectiveElementActivityById(elements, options.drawingModifiers);
+  const effectiveDrawingModifierStrokes = new Map(
+    effectiveDrawingModifierStrokeById(elements, options.drawingModifiers)
+  );
   const effectiveVisibleIds = new Set(elements
     .filter((element) => evaluatedElementIds.has(element.id) &&
       activityAllowsDrawing(effectiveElementActivity(element, activities).activity))
@@ -673,6 +677,14 @@ export const evaluateElements = (
     : undefined;
   const computedScalarBindings = linearFinal?.resultsByBindingId ?? declarationResolver?.finalize().resultsByBindingId;
 
+  // Generated ids are runtime identities. Their modifier semantics belong to
+  // the source template, so use the evaluator-owned structured relationship
+  // instead of inferring a template from the generated id string.
+  for (const row of forGroupGeneratedRows) {
+    const stroke = effectiveDrawingModifierStrokes.get(row.templateElementId);
+    if (stroke) effectiveDrawingModifierStrokes.set(row.generatedElementId, { ...stroke, color: { ...stroke.color } });
+  }
+
   return {
     computedGeometry,
     errors,
@@ -681,6 +693,7 @@ export const evaluateElements = (
     evaluationLimitIndex,
     effectiveVisibleElementIds: effectiveVisibleIds,
     effectiveEnabledElementIds: effectiveEnabledIds,
+    effectiveDrawingModifierStrokes,
     conditionInactiveElementIds,
     forGroupGeneratedRows,
     forGroupEffectiveShowGeneratedIds,

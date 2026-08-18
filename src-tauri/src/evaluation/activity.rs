@@ -70,6 +70,86 @@ fn drawing_modifier_states(drawing_modifiers: Option<&Value>) -> HashMap<String,
         .collect()
 }
 
+fn drawing_modifier_strokes(drawing_modifiers: Option<&Value>) -> HashMap<String, Value> {
+    let Some(modifiers) = drawing_modifiers.and_then(Value::as_array) else {
+        return HashMap::new();
+    };
+    modifiers
+        .iter()
+        .filter_map(|modifier| {
+            let name = modifier.get("name")?.as_str()?.to_owned();
+            let stroke = modifier.get("stroke")?.clone();
+            Some((name, stroke))
+        })
+        .collect()
+}
+
+fn modifier_owner_indices(
+    index: usize,
+    elements: &[Value],
+    by_id: &HashMap<ElementId, usize>,
+) -> Vec<usize> {
+    let Some(element_id) = element_id(&elements[index]) else {
+        return vec![index];
+    };
+    let mut owners = vec![index];
+    let mut visited = HashSet::from([element_id]);
+    let mut parent_id = parent_group_id(&elements[index]);
+
+    while let Some(current_parent_id) = parent_id {
+        if !visited.insert(current_parent_id.clone()) {
+            break;
+        }
+        let Some(parent_index) = by_id.get(&current_parent_id).copied() else {
+            break;
+        };
+        if !is_activity_container(&elements[parent_index]) {
+            break;
+        }
+        owners.push(parent_index);
+        parent_id = parent_group_id(&elements[parent_index]);
+    }
+    owners.reverse();
+    owners
+}
+
+pub(crate) fn effective_drawing_modifier_stroke_by_element_id(
+    elements: &[Value],
+    drawing_modifiers: Option<&Value>,
+) -> HashMap<ElementId, Value> {
+    let by_id = elements
+        .iter()
+        .enumerate()
+        .filter_map(|(index, element)| element_id(element).map(|id| (id, index)))
+        .collect::<HashMap<_, _>>();
+    let modifier_strokes = drawing_modifier_strokes(drawing_modifiers);
+    let mut effective = HashMap::new();
+
+    for (index, element) in elements.iter().enumerate() {
+        let Some(id) = element_id(element) else {
+            continue;
+        };
+        let mut winning_stroke = None;
+        for owner_index in modifier_owner_indices(index, elements, &by_id) {
+            let Some(modifier_names) = elements[owner_index]
+                .get("modifierNames")
+                .and_then(Value::as_array)
+            else {
+                continue;
+            };
+            for modifier_name in modifier_names.iter().filter_map(Value::as_str) {
+                if let Some(stroke) = modifier_strokes.get(modifier_name) {
+                    winning_stroke = Some(stroke.clone());
+                }
+            }
+        }
+        if let Some(stroke) = winning_stroke {
+            effective.insert(id, stroke);
+        }
+    }
+    effective
+}
+
 pub(crate) fn effective_activity_by_element_id(
     elements: &[Value],
     drawing_modifiers: Option<&Value>,
@@ -179,29 +259,8 @@ fn modifier_activity_for(
     by_id: &HashMap<ElementId, usize>,
     modifier_states: &HashMap<String, ElementActivity>,
 ) -> Option<(ElementActivity, ElementId)> {
-    let element = &elements[index];
-    let element_id = element_id(element)?;
-    let mut owners = vec![index];
-    let mut visited = HashSet::from([element_id.clone()]);
-    let mut parent_id = parent_group_id(element);
-
-    while let Some(current_parent_id) = parent_id {
-        if !visited.insert(current_parent_id.clone()) {
-            break;
-        }
-        let Some(parent_index) = by_id.get(&current_parent_id).copied() else {
-            break;
-        };
-        if !is_activity_container(&elements[parent_index]) {
-            break;
-        }
-        owners.push(parent_index);
-        parent_id = parent_group_id(&elements[parent_index]);
-    }
-    owners.reverse();
-
     let mut winning = None;
-    for owner_index in owners {
+    for owner_index in modifier_owner_indices(index, elements, by_id) {
         let owner = &elements[owner_index];
         let owner_id = super::types::element_id(owner)?;
         let Some(modifier_names) = owner.get("modifierNames").and_then(Value::as_array) else {

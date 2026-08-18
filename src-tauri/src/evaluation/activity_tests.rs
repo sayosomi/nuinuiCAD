@@ -2,7 +2,8 @@ use serde_json::json;
 
 use super::activity::{
     activity_allows_drawing, activity_allows_evaluation, activity_from_element,
-    effective_activity_by_element_id, ElementActivity,
+    effective_activity_by_element_id, effective_drawing_modifier_stroke_by_element_id,
+    ElementActivity,
 };
 use super::evaluate_document_input;
 use super::groups::group_state_by_element_id;
@@ -129,6 +130,80 @@ fn drawing_modifiers_resolve_outer_to_inner_to_element_with_last_wins() {
     assert_eq!(
         disabled["child"].disabled_by_element_id.as_deref(),
         Some("outer")
+    );
+}
+
+#[test]
+fn drawing_modifier_strokes_resolve_atomically_and_independently_from_state() {
+    let modifiers = json!([
+        { "name": "Outer", "stroke": { "widthPx": 1.0, "style": "solid", "color": { "kind": "fixed", "hex": "#111111" } } },
+        { "name": "Inner", "stroke": { "widthPx": 2.0, "style": "dashed", "color": { "kind": "fixed", "hex": "#222222" } } },
+        { "name": "StateOnly", "state": "hidden" },
+        { "name": "Later", "stroke": { "widthPx": 3.0, "style": "dotted", "color": { "kind": "themeRole", "role": "accent" } } }
+    ]);
+    let elements = vec![
+        json!({ "id": "outer", "type": "group", "activity": "visible", "modifierNames": ["Outer"] }),
+        json!({ "id": "inner", "type": "group", "parentGroupId": "outer", "activity": "visible", "modifierNames": ["Inner"] }),
+        json!({ "id": "child", "type": "freePoint", "parentGroupId": "inner", "activity": "visible", "modifierNames": ["StateOnly", "Later"], "x": 0, "y": 0 }),
+    ];
+
+    let strokes = effective_drawing_modifier_stroke_by_element_id(&elements, Some(&modifiers));
+    assert_eq!(
+        strokes["child"],
+        json!({ "widthPx": 3.0, "style": "dotted", "color": { "kind": "themeRole", "role": "accent" } })
+    );
+    assert_eq!(
+        strokes["outer"]["color"],
+        json!({ "kind": "fixed", "hex": "#111111" })
+    );
+    assert_eq!(
+        strokes["inner"]["color"],
+        json!({ "kind": "fixed", "hex": "#222222" })
+    );
+    assert_eq!(
+        effective_activity_by_element_id(&elements, Some(&modifiers))["child"].activity,
+        ElementActivity::Hidden
+    );
+}
+
+#[test]
+fn generated_rows_receive_the_template_stroke_without_id_parsing() {
+    let result = evaluate_document_input(super::types::EvaluationInput {
+        elements: vec![
+            json!({
+                "id": "loop", "name": "Loop", "type": "forGroup", "activity": "visible",
+                "modifierNames": ["Guide"], "variableName": "i", "start": 0, "count": 2,
+                "step": 1, "showGenerated": true
+            }),
+            json!({
+                "id": "point", "name": "Point", "type": "freePoint", "activity": "visible",
+                "parentGroupId": "loop", "x": 0, "y": 0
+            }),
+        ],
+        evaluation_limit_index: None,
+        drawing_modifiers: Some(json!([
+            { "name": "Guide", "stroke": { "widthPx": 1.25, "style": "dashed", "color": { "kind": "themeRole", "role": "info" } } }
+        ])),
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+    });
+
+    assert_eq!(result.for_group_generated_rows.len(), 2);
+    assert_eq!(
+        result
+            .effective_drawing_modifier_strokes
+            .iter()
+            .find(|entry| entry.element_id == "point@loop:0")
+            .map(|entry| &entry.stroke),
+        Some(
+            &json!({ "widthPx": 1.25, "style": "dashed", "color": { "kind": "themeRole", "role": "info" } })
+        )
     );
 }
 

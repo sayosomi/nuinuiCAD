@@ -1,6 +1,7 @@
 import type {
   ComputedGeometry,
   DependencyError,
+  DrawingModifierStroke,
   ElementId,
   EvaluationResult,
   EvaluationWarning,
@@ -90,6 +91,7 @@ export type EvaluationPayload = {
   evaluationLimitIndex: number;
   effectiveVisibleElementIds: ElementId[];
   effectiveEnabledElementIds: ElementId[];
+  effectiveDrawingModifierStrokes?: Array<{ elementId: ElementId; stroke: DrawingModifierStroke }>;
   conditionInactiveElementIds?: ElementId[];
   forGroupGeneratedRows?: ForGroupGeneratedRow[];
   /** Task 25: `forGroup` ids whose generated-result presentation is enabled. */
@@ -107,6 +109,9 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
   evaluationLimitIndex: result.evaluationLimitIndex ?? result.evaluatedElementIds?.size ?? 0,
   effectiveVisibleElementIds: Array.from(result.effectiveVisibleElementIds ?? []),
   effectiveEnabledElementIds: Array.from(result.effectiveEnabledElementIds ?? []),
+  effectiveDrawingModifierStrokes: result.effectiveDrawingModifierStrokes?.size
+    ? Array.from(result.effectiveDrawingModifierStrokes, ([elementId, stroke]) => ({ elementId, stroke }))
+    : undefined,
   conditionInactiveElementIds: Array.from(result.conditionInactiveElementIds ?? []),
   forGroupGeneratedRows: result.forGroupGeneratedRows?.length
     ? result.forGroupGeneratedRows
@@ -128,6 +133,9 @@ export const evaluationPayloadToResult = (payload: EvaluationPayload): Evaluatio
   evaluationLimitIndex: payload.evaluationLimitIndex,
   effectiveVisibleElementIds: new Set(payload.effectiveVisibleElementIds),
   effectiveEnabledElementIds: new Set(payload.effectiveEnabledElementIds),
+  effectiveDrawingModifierStrokes: new Map(
+    (payload.effectiveDrawingModifierStrokes ?? []).map(({ elementId, stroke }) => [elementId, stroke])
+  ),
   conditionInactiveElementIds: new Set(payload.conditionInactiveElementIds ?? []),
   forGroupGeneratedRows: payload.forGroupGeneratedRows ?? [],
   forGroupEffectiveShowGeneratedIds: new Set(payload.forGroupEffectiveShowGeneratedIds ?? []),

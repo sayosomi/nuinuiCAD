@@ -1,12 +1,17 @@
 nui 4
 modifier Hide {
   state: hidden,
+  stroke: 1px dashed #aa0000,
 }
 modifier Disable {
   state: disabled,
+  stroke: 2px solid #0000aa,
 }
 modifier Show {
   state: visible,
+}
+modifier Guide {
+  stroke: 1.5px dotted accent,
 }
 module M() {
   group Inner [Disable] {
@@ -16,4 +21,4 @@ module M() {
 group Outer [Hide] {
   instance Use = M()
 }
-point Visible = coordinate(x: 3, y: 4)
+point Visible [Show, Guide] = coordinate(x: 3, y: 4)

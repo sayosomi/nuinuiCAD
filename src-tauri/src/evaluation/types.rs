@@ -103,6 +103,13 @@ pub(crate) struct ForGroupGeneratedRow {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct EffectiveDrawingModifierStroke {
+    pub(crate) element_id: ElementId,
+    pub(crate) stroke: Value,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EvaluationPayload {
     pub(crate) computed_geometry: Vec<Value>,
     pub(crate) errors: Vec<DependencyError>,
@@ -111,6 +118,8 @@ pub struct EvaluationPayload {
     pub(crate) evaluation_limit_index: usize,
     pub(crate) effective_visible_element_ids: Vec<ElementId>,
     pub(crate) effective_enabled_element_ids: Vec<ElementId>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) effective_drawing_modifier_strokes: Vec<EffectiveDrawingModifierStroke>,
     pub(crate) condition_inactive_element_ids: Vec<ElementId>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) for_group_generated_rows: Vec<ForGroupGeneratedRow>,

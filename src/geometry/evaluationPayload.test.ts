@@ -24,6 +24,32 @@ describe("evaluation payload conversion", () => {
     expect(roundTrip.evaluatedElementIds).toEqual(evaluation.evaluatedElementIds);
     expect(roundTrip.effectiveVisibleElementIds).toEqual(evaluation.effectiveVisibleElementIds);
     expect(roundTrip.effectiveEnabledElementIds).toEqual(evaluation.effectiveEnabledElementIds);
+    expect(roundTrip.effectiveDrawingModifierStrokes).toEqual(evaluation.effectiveDrawingModifierStrokes);
+  });
+
+  it("omits an empty effective stroke map from the JSON payload", () => {
+    const payload = evaluationResultToPayload(evaluateElements(sampleElements, { evaluationLimitIndex: 3 }));
+    expect(payload.effectiveDrawingModifierStrokes).toBeUndefined();
+  });
+
+  it("round-trips semantic fixed and theme-role stroke colors", () => {
+    const evaluation = evaluateElements([
+      { id: "fixed", name: "Fixed", type: "freePoint", activity: "visible", modifierNames: ["Fixed"], x: 0, y: 0 },
+      { id: "role", name: "Role", type: "freePoint", activity: "visible", modifierNames: ["Role"], x: 1, y: 0 }
+    ], {
+      drawingModifiers: [
+        { name: "Fixed", stroke: { widthPx: 2, style: "solid", color: { kind: "fixed", hex: "#123456" } } },
+        { name: "Role", stroke: { widthPx: 3, style: "dotted", color: { kind: "themeRole", role: "warning" } } }
+      ]
+    });
+    const payload = evaluationResultToPayload(evaluation);
+    expect(payload.effectiveDrawingModifierStrokes).toEqual([
+      { elementId: "fixed", stroke: { widthPx: 2, style: "solid", color: { kind: "fixed", hex: "#123456" } } },
+      { elementId: "role", stroke: { widthPx: 3, style: "dotted", color: { kind: "themeRole", role: "warning" } } }
+    ]);
+    expect(evaluationPayloadToResult(payload).effectiveDrawingModifierStrokes).toEqual(
+      evaluation.effectiveDrawingModifierStrokes
+    );
   });
 
   it("is absent from the payload when there is no scalarProgram", () => {
