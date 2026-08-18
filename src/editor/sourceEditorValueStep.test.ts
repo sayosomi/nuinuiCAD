@@ -218,14 +218,14 @@ describe("SourceEditor editor-native value step commands", () => {
 
   it("does not pre-flush a dirty burst before the command-owned commit", () => {
     const { controller, parent, view } = openEditor();
-    view.dispatch({ changes: { from: view.state.doc.length, insert: "\n# pending" } });
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "\n// pending" } });
     selectToken(view, "12");
     const pastBefore = useCadDocumentStore.getState().past.length;
 
     expect(dispatchCommand("stepSourceValueForward")).toBe(true);
 
     expect(useCadDocumentStore.getState().sourceText).toContain("x: 13");
-    expect(useCadDocumentStore.getState().sourceText).toContain("# pending");
+    expect(useCadDocumentStore.getState().sourceText).toContain("// pending");
     expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
     useCadDocumentStore.getState().undo();
     expect(useCadDocumentStore.getState().sourceText).toBe(source);
@@ -235,7 +235,7 @@ describe("SourceEditor editor-native value step commands", () => {
 
   it("commits a dirty burst and held step together at a central flush boundary", () => {
     const { controller, parent, view } = openEditor();
-    view.dispatch({ changes: { from: view.state.doc.length, insert: "\n# pending" } });
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "\n// pending" } });
     selectToken(view, "12");
     const pastBefore = useCadDocumentStore.getState().past.length;
 
@@ -244,7 +244,7 @@ describe("SourceEditor editor-native value step commands", () => {
     fireEvent.blur(view.contentDOM);
 
     expect(useCadDocumentStore.getState().sourceText).toContain("x: 14");
-    expect(useCadDocumentStore.getState().sourceText).toContain("# pending");
+    expect(useCadDocumentStore.getState().sourceText).toContain("// pending");
     expect(useCadDocumentStore.getState().previewElements).toBeNull();
     expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
     useCadDocumentStore.getState().undo();

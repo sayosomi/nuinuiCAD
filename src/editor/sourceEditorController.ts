@@ -123,7 +123,7 @@ import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler
 import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
 import { resolveTypedValueStep, typedNumericStepOptions, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
-import { splitDslComment, splitDslTerms } from "../dsl/dslTokens";
+import { scanDslSource, splitDslTerms } from "../dsl/dslTokens";
 import type { ScalarType } from "../scalars/types";
 import {
   sameValueStepGesture,
@@ -1473,7 +1473,9 @@ export class SourceEditorController implements SourceEditorHandle {
     const pos = selection.main.head;
     const line = view.state.doc.lineAt(pos);
     const local = pos - line.from;
-    const { code } = splitDslComment(line.text);
+    const lexedLine = scanDslSource(view.state.doc.toString()).lines[line.number - 1]!;
+    if (lexedLine.comments.some((comment) => local >= comment.start && local < comment.end)) return false;
+    const code = lexedLine.code;
     if (local > code.length) return false;
     let from = local;
     let to = local;

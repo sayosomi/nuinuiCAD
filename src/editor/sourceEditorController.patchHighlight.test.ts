@@ -108,7 +108,7 @@ describe("SourceEditorController patch-change highlight", () => {
     // keystroke does: CM6's own DOM input pipeline tags it with
     // Transaction.userEvent automatically, which is what actually clears it.
     internals.view.dispatch({
-      changes: { from: internals.view.state.doc.length, insert: "\n# typed" },
+      changes: { from: internals.view.state.doc.length, insert: "\n// typed" },
       annotations: Transaction.userEvent.of("input.type")
     });
     expect(highlight(internals)).toBeNull();

@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 point B = coordinate(x: 10, y: 0)
 
 for i in range(from: 0, count: 2, step: 1) {

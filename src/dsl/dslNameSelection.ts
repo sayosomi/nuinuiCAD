@@ -1,3 +1,5 @@
+import { scanDslSource } from "./dslTokens";
+
 export type DslNameSelectionDirection = "currentOrNext" | "previous";
 
 export type DslNameSelection = {
@@ -27,21 +29,9 @@ type TokenRange = {
   end: number;
 };
 
-const codeEndIndex = (line: string) => {
-  let quote: string | null = null;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if ((char === "\"" || char === "'") && line[index - 1] !== "\\") {
-      quote = quote === char ? null : quote ?? char;
-    }
-    if (char === "#" && !quote) return index;
-  }
-  return line.length;
-};
-
 const tokenRanges = (line: string) => {
   const ranges: TokenRange[] = [];
-  const end = codeEndIndex(line);
+  const end = line.length;
   let start: number | null = null;
   let quote: string | null = null;
   let depth = 0;
@@ -77,9 +67,10 @@ const selectionInsideQuotes = (token: TokenRange): DslNameSelection => {
 
 export const dslNameSelections = (source: string): DslNameSelection[] => {
   const selections: DslNameSelection[] = [];
+  const lexicalLines = scanDslSource(source).lines;
   let offset = 0;
-  for (const line of source.split(/\r?\n/)) {
-    const tokens = tokenRanges(line);
+  for (const line of lexicalLines) {
+    const tokens = tokenRanges(line.code);
     const keyword = tokens[0]?.text;
     const name = tokens[1];
     if (keyword && name && nameBearingKeywords.has(keyword)) {
@@ -89,7 +80,7 @@ export const dslNameSelections = (source: string): DslNameSelection[] => {
         end: offset + selection.end
       });
     }
-    offset += line.length + 1;
+    offset += line.text.length + 1;
   }
   return selections;
 };

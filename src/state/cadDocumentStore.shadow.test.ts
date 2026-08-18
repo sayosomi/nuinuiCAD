@@ -190,7 +190,7 @@ describe("cadDocumentStore 影テキスト: コメント・空行の保存", () 
 
     // 正準テキストへコメント・空行を注入する。commitTextがIDを照合する。
     const aLine = state.sourceText.split("\n").find((line) => line.includes("point A"))!;
-    const noisyALine = ["", "# 注釈行", aLine].join("\n");
+    const noisyALine = ["", "// 注釈行", aLine].join("\n");
     const withNoise = state.sourceText.replace(aLine, noisyALine);
     useCadDocumentStore.getState().commitText(withNoise, "test");
 

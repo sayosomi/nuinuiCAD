@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 
 point 外の点 = coordinate(x: 0, y: 0)
 

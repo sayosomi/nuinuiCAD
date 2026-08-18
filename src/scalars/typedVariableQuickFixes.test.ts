@@ -109,14 +109,14 @@ describe("typedVariableQuickFixes", () => {
     });
 
     it("inserts before the next statement, not on the declaration's own line, when there is a trailing same-line comment", () => {
-      const source = ["nui 4", "let x: number = \"hello\"  # note", "let y: number = 1"].join("\n");
+      const source = ["nui 4", "let x: number = \"hello\"  // note", "let y: number = 1"].join("\n");
       const { descriptors } = fixesFor(source, "scalar-type-mismatch");
       expect(descriptors).toHaveLength(1);
       const action = descriptors[0].action;
       if (action.kind !== "splice") throw new Error("expected a splice action");
       const applied = applySplice(source, action);
       expect(applied).toBe(
-        ["nui 4", "let x: number = \"hello\"  # note", "set x = ", "let y: number = 1"].join("\n")
+        ["nui 4", "let x: number = \"hello\"  // note", "set x = ", "let y: number = 1"].join("\n")
       );
     });
 

@@ -109,7 +109,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     controller.setEvaluation({ evaluation: nextEvaluation, compiledDocumentRevision: currentRevision + 1, evaluationRequestRevision: 2 });
     expect(internals.appliedEvaluation).toBeNull();
 
-    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# edit" } });
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n// edit" } });
     vi.advanceTimersByTime(300);
     expect(useCadDocumentStore.getState().sourceRevision).toBe(currentRevision + 1);
     expect(internals.appliedEvaluation?.evaluation).toBe(nextEvaluation);
@@ -126,7 +126,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     controller.setEvaluation({ evaluation: emptyEvaluation, compiledDocumentRevision: currentRevision, evaluationRequestRevision: 1 });
     expect(internals.appliedEvaluation?.evaluation).toBe(emptyEvaluation);
 
-    useCadDocumentStore.getState().replaceTextDocument("nui 1\n# reset", {
+    useCadDocumentStore.getState().replaceTextDocument("nui 1\n// reset", {
       currentFilePath: null,
       dirtySinceSave: false
     });
@@ -177,7 +177,7 @@ describe("SourceEditorController evaluation revision gating", () => {
     controller.setEvaluation({ evaluation: futureThree, compiledDocumentRevision: revision + 3, evaluationRequestRevision: 3 });
     expect([...internals.pendingEvaluations.keys()]).toEqual([revision + 2, revision + 3]);
 
-    useCadDocumentStore.getState().commitText(`${useCadDocumentStore.getState().sourceText}\n# next`, "editor");
+    useCadDocumentStore.getState().commitText(`${useCadDocumentStore.getState().sourceText}\n// next`, "editor");
     controller.setEvaluation({ evaluation: emptyEvaluation, compiledDocumentRevision: revision, evaluationRequestRevision: 0 });
     expect([...internals.pendingEvaluations.keys()]).toEqual([revision + 2, revision + 3]);
     expect(internals.appliedEvaluation).toBeNull();
@@ -311,7 +311,7 @@ describe("SourceEditorController stop mapping", () => {
     const internals = controller as unknown as ControllerInternals;
     const originalFrom = internals.atStopRange!.from;
 
-    internals.view.dispatch({ changes: { from: 0, insert: "# note\n" } });
+    internals.view.dispatch({ changes: { from: 0, insert: "// note\n" } });
     expect(internals.atStopRange).not.toBeNull();
     expect(internals.atStopRange!.from).toBeGreaterThan(originalFrom);
 
@@ -483,10 +483,10 @@ describe("SourceEditorController flushed pick safety", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
-    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# pending" } });
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n// pending" } });
 
     expect(controller.applyPickCandidate("removed-element")).toBe(false);
-    expect(useCadDocumentStore.getState().sourceText).toContain("# pending");
+    expect(useCadDocumentStore.getState().sourceText).toContain("// pending");
     expect(dispatchCommand).not.toHaveBeenCalled();
     controller.destroy();
   });
@@ -497,10 +497,10 @@ describe("SourceEditorController flushed pick safety", () => {
     const internals = controller as unknown as ControllerInternals;
     useCadUiStore.getState().setActivePointPickTarget({ elementId: "missing", parameterKey: "startPoint" as never });
     useCadUiStore.getState().setActivePickCursor({ elementId: "removed-element", optionIndex: 0 });
-    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# pending" } });
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n// pending" } });
 
     expect(internals.runPickApply()).toBe(false);
-    expect(useCadDocumentStore.getState().sourceText).toContain("# pending");
+    expect(useCadDocumentStore.getState().sourceText).toContain("// pending");
     expect(dispatchCommand).not.toHaveBeenCalled();
     controller.destroy();
   });
@@ -526,12 +526,12 @@ describe("SourceEditorController Mod-S save", () => {
     const internals = controller as unknown as ControllerInternals;
     const baseline = useCadDocumentStore.getState().sourceText;
 
-    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# pending" } });
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n// pending" } });
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
 
     const runSave = (controller as unknown as { runSave: () => boolean }).runSave.bind(controller);
     expect(runSave()).toBe(true);
-    expect(useCadDocumentStore.getState().sourceText).toBe(`${baseline}\n# pending`);
+    expect(useCadDocumentStore.getState().sourceText).toBe(`${baseline}\n// pending`);
     expect(dispatchCommand).toHaveBeenCalledWith("saveDocument");
 
     controller.destroy();

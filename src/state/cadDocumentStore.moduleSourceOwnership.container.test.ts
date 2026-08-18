@@ -16,7 +16,7 @@ const groupModuleSource = [
 const forModuleSource = [
   "nui 4",
   "module M() {",
-  "  # keep this for source comment",
+  "  // keep this for source comment",
   "  for i in range(from: 0, count: 2) {",
   "    point P = coordinate(x: i, y: 0)",
   "  }",
@@ -92,7 +92,7 @@ describe("module source-owned container argument insertion", () => {
     useCadDocumentStore.getState().updateElement(loop.id, { step: 2 } as Partial<CadElement>);
 
     const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("# keep this for source comment");
+    expect(state.sourceText).toContain("// keep this for source comment");
     expect(state.sourceText).toContain("for i in range(from: 0, count: 2, step: 2) {");
     expect(state.sourceText).toContain("point P = coordinate(x: i, y: 0)");
     expect(state.sourceText).toContain("instance First = M()");

@@ -387,7 +387,7 @@ describe("command-line session commands", () => {
   it("promotes directly picked unnamed sources and inserts the new element in one undo entry", () => {
     const source = [
       "nui 4",
-      "# このコメントは変えない",
+      "// このコメントは変えない",
       "point = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "point = coordinate(x: 20, y: 0)"
@@ -411,7 +411,7 @@ describe("command-line session commands", () => {
     expect(promoted.name).toBe("点");
     expect(document.elements.find((element) => element.id === unnamed[1].id)?.name).toBe("");
     expect(inserted.startPoint).toEqual(referenceAnchor(promoted.id));
-    expect(document.sourceText).toContain("# このコメントは変えない");
+    expect(document.sourceText).toContain("// このコメントは変えない");
     expect(document.sourceText).toContain("point 点 = coordinate(\n  x: 0,\n  y: 0,\n)");
     expect(document.sourceText).toContain("line = segment(\n  start: @点,\n  end: @B,\n)");
     expect(document.sourceText).not.toContain(promoted.id);
@@ -510,7 +510,7 @@ describe("command-line session commands", () => {
     useCadDocumentStore.getState().commitText([
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
-      "# insert here",
+      "// insert here",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
     const revision = useCadDocumentStore.getState().sourceRevision;
@@ -525,7 +525,7 @@ describe("command-line session commands", () => {
 
     const document = useCadDocumentStore.getState();
     expect(document.elements.map((element) => element.name)).toEqual(["A", "", "B"]);
-    expect(document.sourceText.indexOf("x: 1")).toBeLessThan(document.sourceText.indexOf("# insert here"));
+    expect(document.sourceText.indexOf("x: 1")).toBeLessThan(document.sourceText.indexOf("// insert here"));
     expect(useCadUiStore.getState().selectedElementId).toBe(document.elements[1]!.id);
   });
 
@@ -554,7 +554,7 @@ describe("command-line session commands", () => {
       "nui 4",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
-      "  # insert here",
+      "  // insert here",
       "}",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
@@ -571,7 +571,7 @@ describe("command-line session commands", () => {
     const document = useCadDocumentStore.getState();
     expect(document.elements.map((element) => element.name)).toEqual(["G", "A", "", "B"]);
     expect(document.elements[2]?.parentGroupId).toBe(document.elements[0]?.id);
-    expect(document.sourceText.indexOf("x: 1")).toBeLessThan(document.sourceText.indexOf("# insert here"));
+    expect(document.sourceText.indexOf("x: 1")).toBeLessThan(document.sourceText.indexOf("// insert here"));
   });
 
   it("cancels immediately when an external revision makes the session stale", () => {

@@ -1,7 +1,7 @@
 nui 4
 
-# nui4実用途の凸ノッチ。Bezierの縫い線をpath parameterへ渡し、
-# Module内で接線方向・交点・延長を使って2つの独立したノッチを作る。
+// nui4実用途の凸ノッチ。Bezierの縫い線をpath parameterへ渡し、
+// Module内で接線方向・交点・延長を使って2つの独立したノッチを作る。
 const 凸ノッチ高さ: number = 9
 const 縫い代幅: number = 5
 

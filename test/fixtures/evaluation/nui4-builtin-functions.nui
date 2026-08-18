@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 builtin-function parity fixture.
+// Active nui4 builtin-function parity fixture.
 const absValue: number = abs(-5)
 const minValue: number = min(10, 20)
 const maxValue: number = max(10, 20)

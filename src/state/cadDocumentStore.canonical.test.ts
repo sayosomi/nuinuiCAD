@@ -135,7 +135,7 @@ describe("cadDocumentStore canonical text", () => {
     seedText([
       "nui 4",
       "",
-      "# keep this comment",
+      "// keep this comment",
       "point A = coordinate(x: 0, y: 0, color: missing-color)",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"));
@@ -143,7 +143,7 @@ describe("cadDocumentStore canonical text", () => {
       element.name === "B" ? ({ ...element, activity: "disabled" } as CadElement) : element
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
-    expect(useCadDocumentStore.getState().sourceText).toContain("# keep this comment");
+    expect(useCadDocumentStore.getState().sourceText).toContain("// keep this comment");
     expect(useCadDocumentStore.getState().sourceText).toContain("color: missing-color");
     expect(useCadDocumentStore.getState().elements.find((element) => element.name === "A")?.colorId)
       .toBe("missing-color");

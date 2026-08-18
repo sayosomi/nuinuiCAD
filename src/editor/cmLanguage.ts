@@ -1,10 +1,10 @@
 import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import type { StringStream } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
-import { highlightDslLine } from "../dsl/dslHighlight";
+import { highlightDslLineWithState } from "../dsl/dslHighlight";
 import type { DslHighlightToken } from "../dsl/dslTypes";
 
-type StreamState = { tokens: DslHighlightToken[]; tokenIndex: number };
+type StreamState = { tokens: DslHighlightToken[]; tokenIndex: number; inBlockComment: boolean };
 
 const tokenName = {
   attributeKey: "dslAttribute",
@@ -18,8 +18,10 @@ const tokenName = {
 } as const;
 
 const resetLine = (state: StreamState, line: string) => {
-  state.tokens = highlightDslLine(line).filter((token) => token.text.length > 0);
+  const highlighted = highlightDslLineWithState(line, state.inBlockComment);
+  state.tokens = highlighted.tokens.filter((token) => token.text.length > 0);
   state.tokenIndex = 0;
+  state.inBlockComment = highlighted.endsInBlockComment;
 };
 
 const token = (stream: StringStream, state: StreamState) => {
@@ -32,7 +34,7 @@ const token = (stream: StringStream, state: StreamState) => {
 };
 
 export const dslCmLanguage = StreamLanguage.define<StreamState>({
-  startState: () => ({ tokens: [], tokenIndex: 0 }),
+  startState: () => ({ tokens: [], tokenIndex: 0, inBlockComment: false }),
   token,
   blankLine: (state) => resetLine(state, ""),
   tokenTable: {

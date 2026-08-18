@@ -323,7 +323,7 @@ describe("renameAnalysis contract", () => {
       "}",
       ...printLayoutHeaderLines,
       "  place @Parent(x: 0, y: 0, angle: 0, mirrorX: false)",
-      "  # source-only comment prevents a line-for-line plan proof",
+      "  // source-only comment prevents a line-for-line plan proof",
       "  place @child(x: 20, y: 0, angle: 0, mirrorX: false)",
       "}"
     ].join("\n");

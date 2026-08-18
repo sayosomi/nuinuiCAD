@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quoteDslString, splitDslTerms, unquoteDslString } from "./dslTokens";
+import { quoteDslString, scanDslSource, splitDslTerms, unquoteDslString } from "./dslTokens";
 
 describe("DSL string escaping", () => {
   it("round-trips newlines and other escaped control characters", () => {
@@ -91,5 +91,33 @@ describe("splitDslTerms", () => {
       { text: "=", start: 11, end: 12 },
       { text: "5", start: 14, end: 15 }
     ]);
+  });
+});
+
+describe("nui comment lexical foundation", () => {
+  it("recognizes line and non-nesting block comments while leaving hashes in code", () => {
+    const source = [
+      "point A = coordinate(x: 0, y: 0) // trailing",
+      "/* block { [ (",
+      "   still block */ point B = coordinate(x: 1, y: 1)",
+      "stroke: 1px dotted #ff3355,"
+    ].join("\n");
+    const scanned = scanDslSource(source);
+    expect(scanned.unterminatedBlockComment).toBeNull();
+    expect(scanned.lines[0]?.codeText).toBe("point A = coordinate(x: 0, y: 0) ");
+    expect(scanned.lines[1]?.codeText).toBe("");
+    expect(scanned.lines[2]?.codeText).toContain("point B = coordinate(x: 1, y: 1)");
+    expect(scanned.lines[3]?.codeText).toContain("#ff3355");
+  });
+
+  it("does not recognize comment markers inside quoted strings", () => {
+    const scanned = scanDslSource('text T = label(text: "// /* # */", anchor: none)');
+    expect(scanned.lines[0]?.comments).toEqual([]);
+    expect(scanned.lines[0]?.codeText).toContain("// /* # */");
+  });
+
+  it("reports an unterminated block comment at its opening position", () => {
+    expect(scanDslSource("point A = coordinate(x: 0, y: 0)\n  /* not closed").unterminatedBlockComment)
+      .toEqual({ line: 2, column: 3 });
   });
 });

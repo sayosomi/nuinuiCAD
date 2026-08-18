@@ -340,8 +340,8 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("コメントのみの行内編集はID変化0", () => {
-    const oldSource = ["nui 4", "point A = coordinate(x: 0, y: 0) # 旧コメント", "point B = coordinate(x: 1, y: 1)"].join("\n");
-    const newSource = ["nui 4", "point A = coordinate(x: 0, y: 0) # 新コメント", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const oldSource = ["nui 4", "point A = coordinate(x: 0, y: 0) // 旧コメント", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const newSource = ["nui 4", "point A = coordinate(x: 0, y: 0) // 新コメント", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
     expect(result.createdIds.size).toBe(0);

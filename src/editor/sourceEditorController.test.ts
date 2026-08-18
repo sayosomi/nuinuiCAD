@@ -207,7 +207,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   it("uses the mapped statement end when an uncommitted deletion makes closeBraceLine stale", () => {
     useCadDocumentStore.getState().commitText([
       "nui 4",
-      "# 上方の未commit行",
+      "// 上方の未commit行",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
@@ -458,15 +458,15 @@ describe("SourceEditorController commit and history boundaries", () => {
       changes: { from: internals.view.state.doc.length, insert: text }
     });
 
-    append("\n# burst A");
+    append("\n// burst A");
     expect(undoDepth(internals.view.state as never)).toBeGreaterThan(0);
     internals.runUndo();
     expect(undoDepth(internals.view.state as never)).toBe(0);
     expect(redoDepth(internals.view.state as never)).toBe(0);
 
-    append("\n# burst B");
+    append("\n// burst B");
     vi.advanceTimersByTime(300);
-    expect(useCadDocumentStore.getState().sourceText).toContain("# burst B");
+    expect(useCadDocumentStore.getState().sourceText).toContain("// burst B");
     expect(undoDepth(internals.view.state as never)).toBe(0);
     expect(redoDepth(internals.view.state as never)).toBe(0);
 
@@ -477,7 +477,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(undoDepth(internals.view.state as never)).toBe(0);
     expect(redoDepth(internals.view.state as never)).toBe(0);
 
-    useCadDocumentStore.getState().replaceTextDocument("nui 1\n# reset", {
+    useCadDocumentStore.getState().replaceTextDocument("nui 1\n// reset", {
       currentFilePath: null,
       dirtySinceSave: false
     });
@@ -495,13 +495,13 @@ describe("SourceEditorController commit and history boundaries", () => {
     });
     const baseline = useCadDocumentStore.getState().sourceText;
 
-    append("\n# burst A");
+    append("\n// burst A");
     vi.advanceTimersByTime(300);
     const afterA = useCadDocumentStore.getState().sourceText;
-    expect(afterA).toBe(`${baseline}\n# burst A`);
+    expect(afterA).toBe(`${baseline}\n// burst A`);
 
-    append("\n# burst B");
-    expect(internals.view.state.doc.toString()).toBe(`${afterA}\n# burst B`);
+    append("\n// burst B");
+    expect(internals.view.state.doc.toString()).toBe(`${afterA}\n// burst B`);
     expect(useCadDocumentStore.getState().sourceText).toBe(afterA);
 
     internals.runUndo();
@@ -528,19 +528,19 @@ describe("SourceEditorController commit and history boundaries", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const baseline = useCadDocumentStore.getState().sourceText;
-    useCadDocumentStore.getState().commitText(`${baseline}\n# document history`, "test");
+    useCadDocumentStore.getState().commitText(`${baseline}\n// document history`, "test");
     const committed = useCadDocumentStore.getState().sourceText;
     const revision = useCadDocumentStore.getState().sourceRevision;
     const pastLength = useCadDocumentStore.getState().past.length;
 
     internals.view.dispatch({
-      changes: { from: internals.view.state.doc.length, insert: "\n# uncommitted" },
+      changes: { from: internals.view.state.doc.length, insert: "\n// uncommitted" },
       annotations: Transaction.addToHistory.of(false)
     });
     expect(undoDepth(internals.view.state as never)).toBe(0);
 
     expect(internals.runUndo()).toBe(true);
-    expect(internals.view.state.doc.toString()).toBe(`${committed}\n# uncommitted`);
+    expect(internals.view.state.doc.toString()).toBe(`${committed}\n// uncommitted`);
     expect(useCadDocumentStore.getState().sourceText).toBe(committed);
     expect(useCadDocumentStore.getState().sourceRevision).toBe(revision);
     expect(useCadDocumentStore.getState().past).toHaveLength(pastLength);
@@ -553,11 +553,11 @@ describe("SourceEditorController commit and history boundaries", () => {
     const internals = controller as unknown as ControllerInternals;
     const baseline = internals.view.state.doc.toString();
     expect(startCommandLineCreation("freePoint")).toBe(true);
-    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n# pending" } });
+    internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "\n// pending" } });
 
     expect(internals.runUndo()).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
-    expect(internals.view.state.doc.toString()).toBe(`${baseline}\n# pending`);
+    expect(internals.view.state.doc.toString()).toBe(`${baseline}\n// pending`);
 
     expect(internals.runUndo()).toBe(true);
     expect(internals.view.state.doc.toString()).toBe(baseline);
@@ -579,10 +579,10 @@ describe("SourceEditorController commit and history boundaries", () => {
 
     for (const cycle of [1, 2, 3]) {
       // typing burst → commit
-      append(`\n# cycle ${cycle}`);
+      append(`\n// cycle ${cycle}`);
       vi.advanceTimersByTime(300);
       const committed = useCadDocumentStore.getState().sourceText;
-      expect(committed).toContain(`# cycle ${cycle}`);
+      expect(committed).toContain(`// cycle ${cycle}`);
       cmDepthIsZero();
 
       // Canvas-equivalent model patch on the clean editor
@@ -607,7 +607,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
       // a fresh dirty burst: CM undo restores exactly the last committed text,
       // never anything from before the commit boundary
-      append("\n# transient");
+      append("\n// transient");
       expect(internals.runUndo()).toBe(true);
       expect(internals.view.state.doc.toString()).toBe(afterPatch);
       expect(useCadDocumentStore.getState().sourceText).toBe(afterPatch);
@@ -624,7 +624,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     const baseline = useCadDocumentStore.getState().sourceText;
 
     internals.view.dispatch({
-      changes: { from: internals.view.state.doc.length, insert: "\n# a" }
+      changes: { from: internals.view.state.doc.length, insert: "\n// a" }
     });
     fireEvent.compositionStart(content);
     vi.advanceTimersByTime(300);
@@ -632,7 +632,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
     fireEvent.compositionEnd(content);
     vi.advanceTimersByTime(300);
-    expect(useCadDocumentStore.getState().sourceText).toBe(`${baseline}\n# a`);
+    expect(useCadDocumentStore.getState().sourceText).toBe(`${baseline}\n// a`);
     controller.destroy();
   });
 
@@ -644,13 +644,13 @@ describe("SourceEditorController commit and history boundaries", () => {
     const baseline = useCadDocumentStore.getState().sourceText;
 
     internals.view.dispatch({
-      changes: { from: internals.view.state.doc.length, insert: "\n# a" }
+      changes: { from: internals.view.state.doc.length, insert: "\n// a" }
     });
     fireEvent.compositionStart(content);
 
     expect(internals.runUndo()).toBe(true);
     expect(internals.runRedo()).toBe(true);
-    expect(internals.view.state.doc.toString()).toBe(`${baseline}\n# a`);
+    expect(internals.view.state.doc.toString()).toBe(`${baseline}\n// a`);
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
 
     fireEvent.compositionEnd(content);
@@ -665,14 +665,14 @@ describe("SourceEditorController commit and history boundaries", () => {
     const baseline = useCadDocumentStore.getState().sourceText;
 
     internals.view.dispatch({
-      changes: { from: internals.view.state.doc.length, insert: "\n# a" }
+      changes: { from: internals.view.state.doc.length, insert: "\n// a" }
     });
     fireEvent.compositionStart(content);
     fireEvent.blur(content);
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
 
     fireEvent.compositionEnd(content);
-    expect(useCadDocumentStore.getState().sourceText).toBe(`${baseline}\n# a`);
+    expect(useCadDocumentStore.getState().sourceText).toBe(`${baseline}\n// a`);
     controller.destroy();
   });
 
@@ -719,12 +719,12 @@ describe("SourceEditorController commit and history boundaries", () => {
     const baseline = useCadDocumentStore.getState().sourceText;
 
     internals.view.dispatch({
-      changes: { from: internals.view.state.doc.length, insert: "\n# pending" }
+      changes: { from: internals.view.state.doc.length, insert: "\n// pending" }
     });
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
 
     controller.destroy();
-    expect(useCadDocumentStore.getState().sourceText).toBe(`${baseline}\n# pending`);
+    expect(useCadDocumentStore.getState().sourceText).toBe(`${baseline}\n// pending`);
   });
 
   it("does not throw when destroyed mid-composition, and logs instead of silently committing", () => {
@@ -735,7 +735,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     const baseline = useCadDocumentStore.getState().sourceText;
 
     internals.view.dispatch({
-      changes: { from: internals.view.state.doc.length, insert: "\n# ime" }
+      changes: { from: internals.view.state.doc.length, insert: "\n// ime" }
     });
     fireEvent.compositionStart(content);
 
@@ -797,8 +797,8 @@ describe("SourceEditorController commit and history boundaries", () => {
     expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(2).from);
     expect(parent.querySelectorAll(".cm-secondary-selection")).toHaveLength(1);
 
-    internals.view.dispatch({ changes: { from: internals.view.state.selection.main.head, insert: "# " } });
-    expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("# point A");
+    internals.view.dispatch({ changes: { from: internals.view.state.selection.main.head, insert: "// " } });
+    expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("// point A");
     expect((internals.view.state.doc as unknown as { toString: () => string }).toString()).toContain("point B = coordinate(x: 1, y: 1)");
     controller.destroy();
   });
@@ -813,8 +813,9 @@ describe("SourceEditorController commit and history boundaries", () => {
     const internals = controller as unknown as ControllerInternals;
     const unnamed = useCadDocumentStore.getState().elements.find((element) => element.name === "")!;
 
-    internals.view.dispatch({ changes: { from: 0, insert: "# dirty\n" } });
-    internals.view.dispatch({ changes: { from: 8, to: 9, insert: "x" } });
+    internals.view.dispatch({ changes: { from: 0, insert: "// dirty\n" } });
+    const dirtyLineLength = "// dirty\n".length;
+    internals.view.dispatch({ changes: { from: dirtyLineLength, to: dirtyLineLength + 1, insert: "x" } });
     vi.advanceTimersByTime(300);
     expect(useCadDocumentStore.getState().docText).not.toBe(useCadDocumentStore.getState().sourceText);
 
@@ -871,7 +872,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     // 「group G」ヘッダ行そのもの、さらに先頭に1行挿入した分+1。
     const openBraceLineAfterDirtyInsert = source.split("\n").findIndex((line) => line.includes("group G")) + 2;
 
-    internals.view.dispatch({ changes: { from: 0, insert: "# dirty\n" } });
+    internals.view.dispatch({ changes: { from: 0, insert: "// dirty\n" } });
     const handled = internals.handleFoldGutterClick(internals.view.state.doc.line(openBraceLineAfterDirtyInsert).from, new MouseEvent("mousedown"));
 
     expect(handled).toBe(true);
@@ -1771,7 +1772,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
     // bind bare Tab — only Mod-]/Mod-[ and the separate, unused indentWithTab preset
     // do), so "falls through" here is observed as our handler declining without
     // producing any side effect, leaving Tab as an ordinary, currently-unclaimed key.
-    useCadDocumentStore.getState().commitText("nui 1\n# just a comment", "test");
+    useCadDocumentStore.getState().commitText("nui 1\n// just a comment", "test");
     const { controller, content } = buildController();
     const internals = controller as unknown as ControllerInternals;
     const commentLine = internals.view.state.doc.line(2);

@@ -340,7 +340,7 @@ describe("queryDslDefinition", () => {
   it("returns null on declaration identifiers, comments, literals, and punctuation", () => {
     const source = [
       "nui 4",
-      "# @A in a comment",
+      "// @A in a comment",
       "point A = coordinate(x: 0, y: 0)",
       "text Label = label(text: \"@A\", anchor: (0, 0))",
       "point B = offset(from: @A, dx: 1, dy: 0)"

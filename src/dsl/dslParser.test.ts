@@ -167,8 +167,8 @@ describe("DSL parser blocks", () => {
     const parsed = parseDsl([
       "group A {",
       "",
-      "  # コメント",
-      "  point P = coordinate(x: 0, y: 0) # 行末コメント",
+      "  // コメント",
+      "  point P = coordinate(x: 0, y: 0) // 行末コメント",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
@@ -448,8 +448,28 @@ describe("DSL typed declarations", () => {
   });
 
   it("tolerates a trailing comment on the same line", () => {
-    const statement = single("const x: number = 1 # ゆとり分");
+    const statement = single("const x: number = 1 // ゆとり分");
     expect(statement).toMatchObject({ kind: "typedDeclaration", initializer: "1" });
+  });
+
+  it("supports line and block comments without allowing comment delimiters to alter blocks", () => {
+    const parsed = parseDsl([
+      "nui 4 // header",
+      "group A {",
+      "  /* } { ( [ ] ) // ignored */",
+      "  point P = coordinate(x: 0, y: 0) /* inline ) ] */ // trailing",
+      "}"
+    ].join("\n"));
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statements.map((statement) => statement.kind)).toEqual(["version", "group", "element", "blockEnd"]);
+  });
+
+  it("fails closed for an unterminated block comment and does not treat old hash comments as comments", () => {
+    const unterminated = parseDsl("nui 4\n/* not closed");
+    expect(unterminated.diagnostics.some((item) => item.message.includes("ブロックコメントが閉じられていません"))).toBe(true);
+    const oldComment = parseDsl("# old comment\nnui 4");
+    expect(oldComment.diagnostics.length).toBeGreaterThan(0);
+    expect(oldComment.statements.some((statement) => statement.kind === "version")).toBe(true);
   });
 
 });
@@ -504,7 +524,7 @@ describe("DSL set statements", () => {
   });
 
   it("tolerates a trailing comment on the same line", () => {
-    const statement = single("set x = 1 # 上書き");
+    const statement = single("set x = 1 // 上書き");
     expect(statement).toMatchObject({ kind: "set", expression: "1" });
   });
 });

@@ -683,7 +683,7 @@ describe("dslDocument version handling", () => {
   });
 
   it("accepts a valid nui 4 header with a leading comment", () => {
-    const parsed = parseDslDocument(["# comment before header is not allowed to precede nui", "nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    const parsed = parseDslDocument(["// comment before header is not allowed to precede nui", "nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
     // comments do not produce statements, so nui 4 is still the first statement
     expect(parsed.document).not.toBeNull();
   });

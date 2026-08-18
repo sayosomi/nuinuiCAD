@@ -72,11 +72,19 @@ describe("rustEvaluationRunner", () => {
 
   it("preserves compiled drawing modifier definitions in the Rust input", () => {
     const options = {
-      drawingModifiers: [{ name: "Hide", state: "hidden" as const }]
+      drawingModifiers: [{
+        name: "Guide",
+        state: "visible" as const,
+        stroke: {
+          widthPx: 1.25,
+          style: "dashed" as const,
+          color: { kind: "themeRole" as const, role: "accent" as const }
+        }
+      }]
     };
     const prepared = prepareRustEvaluation([{
       ...point,
-      modifierNames: ["Hide"]
+      modifierNames: ["Guide"]
     }], options);
 
     expect(prepared.input.drawingModifiers).toEqual(options.drawingModifiers);

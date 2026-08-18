@@ -177,7 +177,7 @@ describe("VS Code native nui rename provider", () => {
       "  x: 0,",
       "  y: 0,",
       ")",
-      "# Base remains unrelated text",
+      "// Base remains unrelated text",
       "point Use = offset(",
       "  from: @Base,",
       "  dx: 1,",
@@ -199,7 +199,7 @@ describe("VS Code native nui rename provider", () => {
       document.offsetAt(entry.range.start),
       document.offsetAt(entry.range.end)
     ))).toEqual(["Base", "Base"]);
-    expect(source).toContain("# Base remains unrelated text");
+    expect(source).toContain("// Base remains unrelated text");
     expect(source).toContain("BaseCopy");
   });
 
@@ -226,7 +226,7 @@ describe("VS Code native nui rename provider", () => {
   it("keeps UTF-16 ranges exact for CRLF, Japanese identifiers, and an earlier surrogate pair", () => {
     const normalized = [
       "nui 4",
-      "# 😀",
+      "// 😀",
       "point 前身頃 = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -397,7 +397,7 @@ describe("VS Code native nui rename provider", () => {
       reads += 1;
       if (reads === 2) {
         staleDocument.version = 2;
-        staleDocument.setSourceText(`${source}\n# changed during rename`);
+        staleDocument.setSourceText(`${source}\n// changed during rename`);
       }
     };
     expect(() => editsAt(

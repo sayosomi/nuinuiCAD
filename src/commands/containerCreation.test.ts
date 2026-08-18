@@ -73,7 +73,7 @@ describe("container creation from the Source Editor", () => {
       "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
-      "  # insert here",
+      "  // insert here",
       "  point B = coordinate(x: 10, y: 0)",
       "}"
     ].join("\n"), "test");
@@ -93,6 +93,6 @@ describe("container creation from the Source Editor", () => {
     const inserted = next.elements.find((element) => element.type === "group")!;
     expect(inserted.parentGroupId).toBe(conditional.id);
     expect(inserted.conditionalBranch).toBe("else");
-    expect(next.sourceText.indexOf("  group ")).toBeLessThan(next.sourceText.indexOf("  # insert here"));
+    expect(next.sourceText.indexOf("  group ")).toBeLessThan(next.sourceText.indexOf("  // insert here"));
   });
 });

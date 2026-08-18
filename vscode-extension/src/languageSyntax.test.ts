@@ -162,7 +162,7 @@ describe("nui VS Code language foundation", () => {
     ) as Record<string, unknown>;
 
     expect(configuration).toMatchObject({
-      comments: { lineComment: "#" },
+      comments: { lineComment: "//", blockComment: ["/*", "*/"] },
       brackets: [
         ["{", "}"],
         ["[", "]"],
@@ -195,12 +195,14 @@ describe("nui VS Code language foundation", () => {
     expect(configuration).not.toHaveProperty("wordPattern");
     expect(configuration).not.toHaveProperty("indentationRules");
     expect(configuration).not.toHaveProperty("onEnterRules");
-    expect(configuration).not.toHaveProperty("comments.blockComment");
   });
 
   it("tokenizes the supported syntax with real TextMate and Oniguruma", async () => {
     const interpolationLine = '"縫い代 ' + "$" + '{@seam / 2} mm"';
-    await expectScope("# comment", "# comment", "comment.line.number-sign.nui");
+    await expectScope("// comment", "// comment", "comment.line.double-slash.nui");
+    await expectScope("/* block comment */", "block comment", "comment.block.nui");
+    await expectScope("stroke: 1px solid #ff3355", "#ff3355", "constant.other.color.nui");
+    await expectNotScope("# old comment", "# old comment", "comment.line.double-slash.nui");
     await expectScope("'single'", "single", "string.quoted.single.nui");
     await expectScope('"double"', "double", "string.quoted.double.nui");
     await expectScope('"escape \\n"', "\\n", "constant.character.escape.nui");
@@ -428,7 +430,7 @@ describe("nui VS Code language foundation", () => {
     await expectNotScope(
       '"# not a comment"',
       "# not a comment",
-      "comment.line.number-sign.nui"
+      "comment.line.double-slash.nui"
     );
     await expectScope(
       "@写し::縫い線.end",

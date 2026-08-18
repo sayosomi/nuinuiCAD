@@ -165,6 +165,6 @@ describe("DSL dependency closure export", () => {
     expect(dslExportAnnotationComment({
       origin: "dependency",
       warnings: ["too-late"]
-    })).toBe("# @dsl-export: dependency warning=too-late 選択要素の評価に必要");
+    })).toBe("// @dsl-export: dependency warning=too-late 選択要素の評価に必要");
   });
 });

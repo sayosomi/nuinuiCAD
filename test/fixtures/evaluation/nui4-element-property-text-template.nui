@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 const label: string = "案内"
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 40)

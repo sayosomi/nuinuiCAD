@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 const side: choice(right, left) = left
 const enabled: boolean = true
 const mirrored: boolean = true

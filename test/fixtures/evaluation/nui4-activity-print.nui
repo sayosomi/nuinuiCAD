@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 let printVisible: boolean = true
 let printHidden: boolean = false
 group Visible (printEnabled: @printVisible) {

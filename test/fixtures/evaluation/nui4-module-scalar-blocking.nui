@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 point Base = coordinate(x: 10, y: 0)
 module M() {
   line A = segment(start: (0, 0), end: (10, 0))

@@ -1,6 +1,6 @@
 nui 4
 
-# P7 golden: comments and canonical multiline calls are intentional.
+// P7 golden: comments and canonical multiline calls are intentional.
 color pattern-black ("#31322f", name: "基本線", default: true)
 color cut-red ("#b42318", name: "裁断線")
 

@@ -256,9 +256,9 @@ describe("SourceEditorController Task 43: text template hole click precision", (
     const internals = controller as unknown as ControllerInternals;
     const initialText = internals.view.state.doc.toString();
     const insertPos = initialText.indexOf("nui 4") + "nui 4".length;
-    internals.view.dispatch({ changes: { from: insertPos, insert: "\n# a dirty comment line" } });
+    internals.view.dispatch({ changes: { from: insertPos, insert: "\n// a dirty comment line" } });
     const text = internals.view.state.doc.toString();
-    expect(text).toContain("# a dirty comment line");
+    expect(text).toContain("// a dirty comment line");
 
     expect(clickAt(internals, text.indexOf("@label") + 1)).toBe(true);
     expect(selectedText(internals)).toBe("@label");

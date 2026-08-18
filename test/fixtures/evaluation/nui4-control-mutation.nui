@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 evaluation fixture.
+// Active nui4 evaluation fixture.
 let flag: boolean = true
 let total: number = 0
 let show: boolean = false

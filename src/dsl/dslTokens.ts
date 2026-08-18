@@ -150,23 +150,159 @@ export const splitDslRecords = (value: string) => {
   return parts;
 };
 
-// 行をコード部と行末コメント部に分割する(引用符内の `#` はコメント扱いしない)。
-// comment は `#` 以降と直前の空白を含む生文字列。コメントが無ければ ""。
-// 常に code + comment === line が成り立つ(コード部の文字オフセットは不変)。
-export const splitDslComment = (line: string): { code: string; comment: string } => {
-  let quote: string | null = null;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if ((char === "\"" || char === "'") && line[index - 1] !== "\\") {
-      quote = quote === char ? null : quote ?? char;
+export type DslCommentKind = "line" | "block";
+
+export type DslCommentSegment = {
+  kind: DslCommentKind;
+  start: number;
+  end: number;
+  text: string;
+};
+
+export type DslCodeSegment = {
+  start: number;
+  end: number;
+  text: string;
+};
+
+export type DslLexedLine = {
+  text: string;
+  /** Source-length-preserving code view; comment characters are spaces. */
+  code: string;
+  /** Visible code fragments joined for parsing and delimiter accounting. */
+  codeText: string;
+  codeSegments: readonly DslCodeSegment[];
+  comments: readonly DslCommentSegment[];
+  startsInBlockComment: boolean;
+  endsInBlockComment: boolean;
+};
+
+export type DslLexedSource = {
+  lines: readonly DslLexedLine[];
+  unterminatedBlockComment: { line: number; column: number } | null;
+};
+
+export type DslScanOptions = {
+  startsInBlockComment?: boolean;
+};
+
+const escapedAt = (source: string, index: number) => {
+  let backslashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && source[cursor] === "\\"; cursor -= 1) backslashes += 1;
+  return backslashes % 2 === 1;
+};
+
+/**
+ * The single host-neutral comment lexer for nui source consumers. It removes
+ * comments from the returned code while retaining exact physical line-local
+ * code/comment ranges for source maps, highlighting, folding, and mutation.
+ * `#` is ordinary source text; in particular `#RRGGBB` is never a comment.
+ */
+export const scanDslSource = (source: string, options: DslScanOptions = {}): DslLexedSource => {
+  const lines = source.split("\n");
+  const lexedLines: DslLexedLine[] = [];
+  let inBlockComment = options.startsInBlockComment ?? false;
+  let blockCommentStart: { line: number; column: number } | null = null;
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const text = lines[lineIndex]!;
+    const codeSegments: DslCodeSegment[] = [];
+    const comments: DslCommentSegment[] = [];
+    const startsInBlockComment = inBlockComment;
+    let codeStart = 0;
+    let index = 0;
+    let quote: string | null = null;
+
+    const pushCode = (end: number) => {
+      if (end <= codeStart) return;
+      codeSegments.push({ start: codeStart, end, text: text.slice(codeStart, end) });
+    };
+
+    while (index < text.length) {
+      if (inBlockComment) {
+        const close = text.indexOf("*/", index);
+        const end = close >= 0 ? close + 2 : text.length;
+        comments.push({ kind: "block", start: index, end, text: text.slice(index, end) });
+        index = end;
+        codeStart = index;
+        if (close < 0) break;
+        inBlockComment = false;
+        blockCommentStart = null;
+        continue;
+      }
+
+      const char = text[index]!;
+      if (quote) {
+        if (char === quote && !escapedAt(text, index)) quote = null;
+        index += 1;
+        continue;
+      }
+      if ((char === "\"" || char === "'") && !escapedAt(text, index)) {
+        quote = char;
+        index += 1;
+        continue;
+      }
+      if (text.startsWith("//", index)) {
+        pushCode(index);
+        comments.push({ kind: "line", start: index, end: text.length, text: text.slice(index) });
+        codeStart = text.length;
+        index = text.length;
+        continue;
+      }
+      if (text.startsWith("/*", index)) {
+        pushCode(index);
+        inBlockComment = true;
+        blockCommentStart = { line: lineIndex + 1, column: index + 1 };
+        const close = text.indexOf("*/", index + 2);
+        if (close >= 0) {
+          const end = close + 2;
+          comments.push({ kind: "block", start: index, end, text: text.slice(index, end) });
+          inBlockComment = false;
+          blockCommentStart = null;
+          index = end;
+          codeStart = index;
+        } else {
+          comments.push({ kind: "block", start: index, end: text.length, text: text.slice(index) });
+          index = text.length;
+          codeStart = index;
+        }
+        continue;
+      }
+      index += 1;
     }
-    if (char === "#" && !quote) {
-      let codeEnd = index;
-      while (codeEnd > 0 && /\s/.test(line[codeEnd - 1])) codeEnd -= 1;
-      return { code: line.slice(0, codeEnd), comment: line.slice(codeEnd) };
+    if (!inBlockComment) pushCode(text.length);
+    const codeText = codeSegments.map((segment) => segment.text).join(" ");
+    const codeCharacters = text.split("");
+    for (const comment of comments) {
+      for (let offset = comment.start; offset < comment.end; offset += 1) codeCharacters[offset] = " ";
     }
+    lexedLines.push({
+      text,
+      code: codeCharacters.join(""),
+      codeText,
+      codeSegments,
+      comments,
+      startsInBlockComment,
+      endsInBlockComment: inBlockComment
+    });
   }
-  return { code: line, comment: "" };
+
+  return {
+    lines: lexedLines,
+    unterminatedBlockComment: blockCommentStart
+  };
+};
+
+/** Line-local convenience view backed by the shared source lexer. */
+export const splitDslComment = (line: string): { code: string; comment: string } => {
+  const lexed = scanDslSource(line).lines[0]!;
+  if (lexed.comments.length === 0) return { code: lexed.code, comment: "" };
+  const comment = lexed.comments.map((segment) => {
+    let start = segment.start;
+    while (start > 0 && /\s/.test(line[start - 1]!)) start -= 1;
+    return line.slice(start, segment.end);
+  }).join("");
+  return { code: lexed.code, comment };
 };
 
 export const lastIndexOfDslOutsideQuotes = (value: string, needle: string) => {

@@ -299,7 +299,7 @@ describe("VS Code choice Quick Fix provider", () => {
   it("projects CRLF and UTF-16 ranges and only edits the payload URI", async () => {
     const normalized = [
       "nui 4",
-      "# 😀 前置",
+      "// 😀 前置",
       "const 前身頃: choice(left, right) = center"
     ].join("\n");
     const source = normalized.replace(/\n/g, "\r\n");

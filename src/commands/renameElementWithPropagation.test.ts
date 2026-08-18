@@ -38,7 +38,7 @@ describe("renameElementWithPropagation", () => {
     // insert/remove lines to reach canonical shape on any text change.
     const source = [
       "nui 4",
-      "# keep this comment",
+      "// keep this comment",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -50,23 +50,23 @@ describe("renameElementWithPropagation", () => {
       "line L = segment(",
       "  start: @A,",
       "  end: @B,",
-      ") # target comment",
+      ") // target comment",
       "",
       "point Derived = offset(",
       "  from: @L.start,",
       "  dx: 1,",
       "  dy: 0,",
-      ") # derived comment",
+      ") // derived comment",
       "point LengthUser = offset(",
       "  from: @A,",
       "  dx: @L.length,",
       "  dy: 0,",
-      ") # expression comment",
+      ") // expression comment",
       "extend(",
       "  end: @L.end,",
       "  to: @A,",
       ")",
-      "# leave this alone"
+      "// leave this alone"
     ].join("\n");
     seed(source);
     const before = useCadDocumentStore.getState().sourceText;
@@ -75,9 +75,9 @@ describe("renameElementWithPropagation", () => {
 
     const after = useCadDocumentStore.getState().sourceText;
     expect(changedLines(before, after)).toEqual([11, 17, 23, 27]);
-    expect(after).toContain("# keep this comment\n");
+    expect(after).toContain("// keep this comment\n");
     expect(after).toContain("\n\npoint Derived");
-    expect(after).toContain("# leave this alone");
+    expect(after).toContain("// leave this alone");
     expect(useCadDocumentStore.getState().sourceUpdate).toMatchObject({
       revision: useCadDocumentStore.getState().sourceRevision,
       kind: "model-patch"
@@ -91,7 +91,7 @@ describe("renameElementWithPropagation", () => {
     // same in-place-patch reason as the test above.
     const source = [
       "nui 4",
-      "# unchanged before group",
+      "// unchanged before group",
       "group G {",
       "}",
       "",
@@ -108,7 +108,7 @@ describe("renameElementWithPropagation", () => {
       ") {",
       "  place @G(x: 0, y: 0, angle: 0, mirrorX: false)",
       "}",
-      "# unchanged after layout"
+      "// unchanged after layout"
     ].join("\n");
     seed(source);
     const before = useCadDocumentStore.getState().sourceText;
@@ -123,8 +123,8 @@ describe("renameElementWithPropagation", () => {
       kind: "model-patch",
       splices: expect.arrayContaining([expect.objectContaining({ startLine: 6, endLine: 18 })])
     });
-    expect(after).toContain("# unchanged before group");
-    expect(after).toContain("# unchanged after layout");
+    expect(after).toContain("// unchanged before group");
+    expect(after).toContain("// unchanged after layout");
   });
 
   it("treats an already canonical same-name rename as a successful no-op", () => {
@@ -148,7 +148,7 @@ describe("renameElementWithPropagation", () => {
   });
 
   it("preserves a noncanonical same-name line without a bridge commit or dev assertion", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0) # hand-written spacing";
+    const source = "nui 4\npoint A = coordinate(x: 0, y: 0) // hand-written spacing";
     seed(source);
     const id = elementId("A");
     const before = useCadDocumentStore.getState();

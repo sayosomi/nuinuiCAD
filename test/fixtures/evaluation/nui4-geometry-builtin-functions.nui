@@ -1,5 +1,5 @@
 nui 4
-# Active nui4 geometry-builtin parity fixture.
+// Active nui4 geometry-builtin parity fixture.
 point Origin = coordinate(x: 0, y: 0)
 point DistanceFive = coordinate(x: 3, y: 4)
 point DistanceNegative = coordinate(x: -2, y: -3)

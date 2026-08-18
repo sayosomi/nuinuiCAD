@@ -11,6 +11,7 @@ import {
 import { Prec, type Extension, type Text } from "@codemirror/state";
 import { keymap, type Command, type EditorView } from "@codemirror/view";
 import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, type DslCompletionContext } from "../dsl/dslCompletionContext";
+import { scanDslSource } from "../dsl/dslTokens";
 import { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "../dsl/dslDeclarationParser";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
@@ -66,6 +67,7 @@ export type DslAutocompleteDocumentInput = {
   lineText: string;
   localPos: number;
   doc: Text;
+  startsInBlockComment?: boolean;
 };
 
 export type DslAutocompleteOptions = {
@@ -156,7 +158,8 @@ const defaultDocumentInput = (context: CompletionContext): { input: DslAutocompl
     cursorLineNumber: line.number,
     lineText: line.text,
     localPos: context.pos - line.from,
-    doc: context.state.doc
+    doc: context.state.doc,
+    startsInBlockComment: scanDslSource(source).lines[line.number - 1]?.startsInBlockComment ?? false
   };
   const map = createLogicalStatementSourceMap({ normalizedSource: source, sourceRevision: 0 });
   const statement = map.statements.find((candidate) => context.pos >= candidate.range.from && context.pos <= candidate.range.to);
@@ -698,9 +701,22 @@ const referenceMarkerToken = (input: DslAutocompleteDocumentInput, completionCon
   return typedReferenceToken(input, completionContext);
 };
 
-const completionDocumentInput = (options: DslAutocompleteOptions, context: CompletionContext) => options.documentInput
-  ? { input: options.documentInput(context), projection: null }
-  : defaultDocumentInput(context);
+const completionDocumentInput = (options: DslAutocompleteOptions, context: CompletionContext) => {
+  if (!options.documentInput) return defaultDocumentInput(context);
+  const input = options.documentInput(context);
+  if (!input) return { input: null, projection: null };
+  return {
+    input: {
+      ...input,
+      startsInBlockComment: input.startsInBlockComment ??
+        (scanDslSource(input.source).lines[input.cursorLineNumber - 1]?.startsInBlockComment ?? false)
+    },
+    projection: null
+  };
+};
+
+const completionContextForInput = (input: DslAutocompleteDocumentInput) =>
+  dslCompletionContextAt(input.lineText, input.localPos, input.startsInBlockComment);
 
 const semanticSnapshotForQuery = (
   options: DslAutocompleteOptions
@@ -731,7 +747,7 @@ const isTypedReferenceRetryContext = (options: DslAutocompleteOptions, view: Par
   const context = new CompletionContext(view.state, view.state.selection.main.head, false, view);
   const { input } = completionDocumentInput(options, context);
   if (!input) return false;
-  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
+  const completionContext = completionContextForInput(input);
   if (!completionContext || (
     completionContext.kind !== "typedInitializer" &&
     completionContext.kind !== "conditionExpression" &&
@@ -760,7 +776,7 @@ export const isElementParameterRetryContext = (options: DslAutocompleteOptions, 
   const context = new CompletionContext(view.state, view.state.selection.main.head, false, view);
   const { input } = completionDocumentInput(options, context);
   if (!input) return false;
-  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
+  const completionContext = completionContextForInput(input);
   if (!completionContext) return false;
   const elementToken = completionContext.kind === "elementParameter"
     ? completionContext.elementToken
@@ -814,7 +830,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   if (options.isComposing() || context.view?.compositionStarted) return null;
   const { input, projection } = completionDocumentInput(options, context);
   if (!input) return null;
-  const completionContext = dslCompletionContextAt(input.lineText, input.localPos);
+  const completionContext = completionContextForInput(input);
   if (!completionContext) return null;
   const referenceToken = referenceMarkerToken(input, completionContext);
   // Ordinary typing at an empty typed expression (or, since Task 51, an

@@ -46,7 +46,7 @@ describe("AutomationDocument", () => {
 
     document.replaceSource(fatalSource);
     const firstFatal = document.getState();
-    document.replaceSource(`${fatalSource}\n# still broken`);
+    document.replaceSource(`${fatalSource}\n// still broken`);
     const secondFatal = document.getState();
 
     expect(firstFatal.revision).toBe(1);
@@ -56,7 +56,7 @@ describe("AutomationDocument", () => {
     expect(secondFatal.compiledRevision).toBe(0);
     expect(secondFatal.doc).toBe(firstFatal.doc);
     expect(firstFatal.currentCompiled.spans.sourceMap.source).toBe(fatalSource);
-    expect(secondFatal.currentCompiled.spans.sourceMap.source).toBe(`${fatalSource}\n# still broken`);
+    expect(secondFatal.currentCompiled.spans.sourceMap.source).toBe(`${fatalSource}\n// still broken`);
 
     document.replaceSource(recovered);
     const recoveredState = document.getState();

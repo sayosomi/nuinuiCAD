@@ -121,7 +121,7 @@ describe("imageCreationCommands", () => {
     useCadStore.getState().commitText([
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
-      "# insert image here",
+      "// insert image here",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
     const document = useCadStore.getState();
@@ -152,7 +152,7 @@ describe("imageCreationCommands", () => {
       sourceInsertion: pending.sourceInsertion
     })).toBe(true);
     const next = useCadStore.getState();
-    expect(next.sourceText.indexOf("image underlay.png")).toBeLessThan(next.sourceText.indexOf("# insert image here"));
+    expect(next.sourceText.indexOf("image underlay.png")).toBeLessThan(next.sourceText.indexOf("// insert image here"));
     expect(next.elements.map((element) => element.type)).toEqual(["freePoint", "image", "freePoint"]);
   });
 
@@ -170,7 +170,7 @@ describe("imageCreationCommands", () => {
       })
     });
     const pending = useCadStore.getState().pendingImageImport!;
-    useCadStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\n# changed", "test");
+    useCadStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\n// changed", "test");
 
     expect(commitPendingImageImport({
       sourcePath: pending.sourcePath,

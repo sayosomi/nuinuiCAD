@@ -33,7 +33,7 @@ describe("command-line source insertion", () => {
       "nui 4",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
-      "  # keep this comment with the following insertion",
+      "  // keep this comment with the following insertion",
       "}",
       "point B = coordinate(x: 1, y: 1)"
     ]);
@@ -54,7 +54,7 @@ describe("command-line source insertion", () => {
     const result = compiled([
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
-      "# create before the stop",
+      "// create before the stop",
       "stop",
       "point B = coordinate(x: 1, y: 1)"
     ]);

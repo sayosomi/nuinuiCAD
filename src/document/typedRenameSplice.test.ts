@@ -64,10 +64,10 @@ describe("buildTypedRenameSplices", () => {
   it("leaves comments, blank lines, and unrelated statements byte-identical", () => {
     const source = [
       "nui 4",
-      "# a leading comment",
+      "// a leading comment",
       "const base: number = 1",
       "",
-      "const untouched: number = 99 # trailing comment",
+      "const untouched: number = 99 // trailing comment",
       "",
       "let derived: number = @base"
     ].join("\n");

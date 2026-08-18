@@ -8,7 +8,10 @@ describe("dslCompletionContextAt", () => {
     const context = dslCompletionContextAt("  poi", 5);
     expect(context).toMatchObject({ kind: "keyword", from: 2, to: 5 });
     expect(context?.kind === "keyword" && context.options).toContain("point");
-    expect(dslCompletionContextAt("# point", 7)).toBeNull();
+    expect(dslCompletionContextAt("// point", 7)).toBeNull();
+    expect(dslCompletionContextAt("/* point */", 5)).toBeNull();
+    expect(dslCompletionContextAt("still */ poi", 5, true)).toBeNull();
+    expect(dslCompletionContextAt("still */ poi", 12, true)).toMatchObject({ kind: "keyword" });
     const line = "point P = coordinate(x: 0, y: 0)";
     expect(dslCompletionContextAt(line, at(line, "="))).toBeNull();
   });

@@ -23,8 +23,21 @@
     "comments": {
       "patterns": [
         {
-          "name": "comment.line.number-sign.nui",
-          "match": "#.*$"
+          "name": "comment.line.double-slash.nui",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.nui",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "fixed-colors": {
+      "patterns": [
+        {
+          "name": "constant.other.color.nui",
+          "match": "#[0-9a-fA-F]{6}(?![\\p{L}\\p{N}_-])"
         }
       ]
     },
@@ -210,6 +223,9 @@
       "patterns": [
         {
           "include": "#comments"
+        },
+        {
+          "include": "#fixed-colors"
         },
         {
           "include": "#strings"

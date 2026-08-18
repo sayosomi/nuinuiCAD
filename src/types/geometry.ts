@@ -7,9 +7,30 @@ export type ElementId = string;
 
 export type DrawingModifierState = "visible" | "hidden" | "disabled";
 
+export type DrawingModifierStrokeStyle = "solid" | "dashed" | "dotted";
+
+export type DrawingModifierThemeRole =
+  | "foreground"
+  | "muted"
+  | "accent"
+  | "info"
+  | "warning"
+  | "error";
+
+export type DrawingModifierStrokeColor =
+  | { kind: "themeRole"; role: DrawingModifierThemeRole }
+  | { kind: "fixed"; hex: string };
+
+export type DrawingModifierStroke = {
+  widthPx: number;
+  style: DrawingModifierStrokeStyle;
+  color: DrawingModifierStrokeColor;
+};
+
 export type DrawingModifierDefinition = {
   name: string;
-  state: DrawingModifierState;
+  state?: DrawingModifierState;
+  stroke?: DrawingModifierStroke;
 };
 
 export type CadElementBase = {

@@ -135,7 +135,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
       params.noiseEvery > 0 &&
       index % params.noiseEvery === 0
     ) {
-      const marker = `# noise-${(noiseCounter += 1)}`;
+      const marker = `// noise-${(noiseCounter += 1)}`;
       noiseLines.push(marker);
       withNoise.push(marker);
       if (noiseCounter % 2 === 0) withNoise.push("");

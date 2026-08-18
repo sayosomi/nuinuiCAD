@@ -1,4 +1,4 @@
-import { DSL_INDENT, splitDslComment } from "../dsl/dslTokens";
+import { DSL_INDENT, scanDslSource } from "../dsl/dslTokens";
 import type { SerializedStatement } from "../dsl/dslSerializeElement";
 
 type LineComment = { code: string; comment: string };
@@ -150,7 +150,15 @@ export const mergeStatementComments = (input: {
   indent: string;
 }): string[] => {
   const { oldLines, oldArgLineByKey, next, indent } = input;
-  const comments = oldLines.map(splitDslComment);
+  const lexical = scanDslSource(oldLines.join("\n"));
+  const comments = lexical.lines.map((line) => ({
+    code: line.code,
+    comment: line.comments.map((segment) => {
+      let start = segment.start;
+      while (start > 0 && /\s/.test(line.text[start - 1]!)) start -= 1;
+      return line.text.slice(start, segment.end);
+    }).join("")
+  }));
 
   if (next.close === null) return mergeToSingleLine(oldLines, comments, next, indent);
   if (oldLines.length <= 1) return mergeFromSingleLineOld(comments, next, indent);

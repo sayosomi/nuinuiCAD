@@ -63,7 +63,7 @@ describe("SourceEditorController module semantic target priority", () => {
     })).toBe(true);
     expect(useCadUiStore.getState().renameModuleSemanticPromptTarget).toEqual(target);
     useCadUiStore.getState().setRenameModuleSemanticPromptTarget(null);
-    internals.view.dispatch({ changes: { from: 0, to: 0, insert: "# " }, annotations: Transaction.addToHistory.of(false) });
+    internals.view.dispatch({ changes: { from: 0, to: 0, insert: "// " }, annotations: Transaction.addToHistory.of(false) });
     expect(controller.currentCursorModuleSemanticTarget()).toBeNull();
     expect(dispatchCommand("renameSelectedElement", {
       currentCursorModuleSemanticResolution: controller.currentCursorModuleSemanticResolution,

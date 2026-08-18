@@ -113,8 +113,8 @@ describe("DSL structural folding query", () => {
 
   it("ignores quoted and trailing-comment delimiters", () => {
     expect(syntaxFoldsFor([
-      "foo(\"( [ ) ]\", # ) ]",
-      "  value # ( [",
+      "foo(\"( [ ) ]\", // ) ]",
+      "  value // ( [",
       ")"
     ].join("\n"))).toEqual([
       { kind: "syntax", startLine: 1, endLine: 3 }
@@ -124,7 +124,7 @@ describe("DSL structural folding query", () => {
   it("ignores delimiters in full-line comments within a logical statement", () => {
     expect(syntaxFoldsFor([
       "foo(",
-      "  # ) ]",
+      "  // ) ]",
       "  value",
       ")"
     ].join("\n"))).toEqual([
@@ -134,9 +134,9 @@ describe("DSL structural folding query", () => {
 
   it("folds two or more consecutive full-line comments as one comment range", () => {
     expect(foldsFor([
-      "# 前身頃",
-      "  # 縫い代込み",
-      "# 更新済み",
+      "// 前身頃",
+      "  // 縫い代込み",
+      "// 更新済み",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n"))).toEqual([
       { kind: "comment", startLine: 1, endLine: 3 }
@@ -145,8 +145,8 @@ describe("DSL structural folding query", () => {
 
   it("does not fold a single or trailing comment", () => {
     expect(foldsFor([
-      "# single",
-      "point A = coordinate(x: 0, y: 0) # trailing"
+      "// single",
+      "point A = coordinate(x: 0, y: 0) // trailing"
     ].join("\n"))).toEqual([]);
   });
 
@@ -196,6 +196,16 @@ describe("DSL structural folding query", () => {
     ].join("\n"))).toEqual([
       { kind: "syntax", startLine: 1, endLine: 3 },
       { kind: "syntax", startLine: 9, endLine: 11 }
+    ]);
+  });
+
+  it("folds multiline block comments and ignores their delimiters", () => {
+    expect(foldsFor([
+      "/* comment { [ (",
+      "   still comment } ] ) */",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n"))).toEqual([
+      { kind: "comment", startLine: 1, endLine: 2 }
     ]);
   });
 

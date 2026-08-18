@@ -1,6 +1,7 @@
 import { constructionCandidatesFor, isGeometryDeclarationCategory } from "./dslConstructions";
 import { dslStatementKeywords } from "./dslParser";
 import type { DslHighlightLine, DslHighlightToken, DslTokenKind } from "./dslTypes";
+import { scanDslSource, type DslLexedLine } from "./dslTokens";
 
 // v2: category/construction キーワードは registry(dslParser.ts の
 // dslStatementKeywords、dslConstructions.ts の constructionCandidatesFor)を
@@ -17,18 +18,6 @@ const stopKeywords = new Set(["stop"]);
 // limitation is unchanged either way - not fixed, not worsened).
 const tokenPattern =
   /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=:\s)|-?\d+(?:\.\d+)?|==|!=|>=|<=|[-={}()[\],;*/^%+]|@?[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
-
-const commentIndex = (line: string) => {
-  let quote: string | null = null;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if ((char === "\"" || char === "'") && line[index - 1] !== "\\") {
-      quote = quote === char ? null : quote ?? char;
-    }
-    if (char === "#" && !quote) return index;
-  }
-  return -1;
-};
 
 const classify = (text: string): DslTokenKind => {
   if (text.startsWith("\"") || text.startsWith("'")) return "string";
@@ -71,10 +60,8 @@ const pushText = (tokens: DslHighlightToken[], kind: DslTokenKind, text: string)
   tokens.push({ kind, text });
 };
 
-export const highlightDslLine = (line: string): DslHighlightToken[] => {
+const highlightDslCode = (code: string): DslHighlightToken[] => {
   const tokens: DslHighlightToken[] = [];
-  const index = commentIndex(line);
-  const code = index >= 0 ? line.slice(0, index) : line;
   const head = headKeywordSpan(code);
   const construction = constructionSpan(code, head);
   let cursor = 0;
@@ -97,12 +84,43 @@ export const highlightDslLine = (line: string): DslHighlightToken[] => {
     cursor = start + text.length;
   }
   pushText(tokens, "plain", code.slice(cursor));
-  if (index >= 0) pushText(tokens, "comment", line.slice(index));
   return tokens.length > 0 ? tokens : [{ kind: "plain", text: "" }];
 };
 
-export const highlightDslSource = (source: string): DslHighlightLine[] =>
-  source.split(/\r?\n/).map((line, index) => ({
+const highlightDslLexedLine = (line: DslLexedLine): DslHighlightToken[] => {
+  const tokens: DslHighlightToken[] = [];
+  const events = [
+    ...line.codeSegments.map((segment) => ({ start: segment.start, kind: "code" as const, segment })),
+    ...line.comments.map((comment) => ({ start: comment.start, kind: "comment" as const, comment }))
+  ].sort((left, right) => left.start - right.start);
+  for (const event of events) {
+    if (event.kind === "code") {
+      for (const token of highlightDslCode(event.segment.text)) pushText(tokens, token.kind, token.text);
+    } else {
+      pushText(tokens, "comment", event.comment.text);
+    }
+  }
+  return tokens.length > 0 ? tokens : [{ kind: "plain", text: "" }];
+};
+
+export const highlightDslLineWithState = (
+  line: string,
+  startsInBlockComment = false
+): { tokens: DslHighlightToken[]; endsInBlockComment: boolean } => {
+  const lexedLine = scanDslSource(line, { startsInBlockComment }).lines[0]!;
+  return {
+    tokens: highlightDslLexedLine(lexedLine),
+    endsInBlockComment: lexedLine.endsInBlockComment
+  };
+};
+
+export const highlightDslLine = (line: string): DslHighlightToken[] =>
+  highlightDslLineWithState(line).tokens;
+
+export const highlightDslSource = (source: string): DslHighlightLine[] => {
+  const lexed = scanDslSource(source);
+  return lexed.lines.map((line, index) => ({
     lineNumber: index + 1,
-    tokens: highlightDslLine(line)
+    tokens: highlightDslLexedLine(line)
   }));
+};
