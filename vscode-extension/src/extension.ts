@@ -31,6 +31,10 @@ import {
   nuiChoiceQuickFixSelector,
   NUI_CHOICE_QUICK_FIX_APPLY_COMMAND
 } from "./choiceQuickFixProvider";
+import {
+  createNuiFoldingProvider,
+  nuiFoldingSelector
+} from "./foldingProvider";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -261,6 +265,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     createNuiChoiceQuickFixProvider(languageAnalysisSessionFor),
     { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
   );
+  const foldingProvider = vscode.languages.registerFoldingRangeProvider(
+    nuiFoldingSelector,
+    createNuiFoldingProvider(languageAnalysisSessionFor)
+  );
   context.subscriptions.push(
     compilerDiagnosticCollection,
     compilerDiagnosticOpenListener,
@@ -270,7 +278,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     completionProvider,
     definitionProvider,
     renameProvider,
-    choiceQuickFixProvider
+    choiceQuickFixProvider,
+    foldingProvider
   );
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 

@@ -1,6 +1,7 @@
 import { AutomationDocument, type AutomationDocumentState } from "../../src/document/automationDocument";
 import type { DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
 import type { DslDefinitionSemanticSnapshot } from "../../src/dsl/dslDefinitionQuery";
+import type { DslFoldingQueryInput } from "../../src/dsl/dslFoldingQuery";
 import type { DslRenameSemanticSnapshot } from "../../src/dsl/dslRenameQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import {
@@ -24,9 +25,19 @@ export type NuiLanguageAnalysisSession = {
   renameSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslRenameSemanticSnapshot | undefined;
+  foldingSyntaxSnapshot: (
+    source: SourceSnapshot
+  ) => NuiFoldingSyntaxSnapshot | undefined;
   choiceQuickFixSemanticSnapshot: (
     source: SourceSnapshot
   ) => NuiChoiceQuickFixSemanticSnapshot | undefined;
+};
+
+export type NuiFoldingSyntaxSnapshot = {
+  sourceRevision: number;
+  sourceText: string;
+  statements: DslFoldingQueryInput["statements"];
+  sourceMap: DslFoldingQueryInput["sourceMap"];
 };
 
 export type NuiChoiceQuickFixSemanticSnapshot = {
@@ -89,6 +100,27 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     };
   };
 
+  const foldingSyntaxSnapshot = (
+    source: SourceSnapshot
+  ): NuiFoldingSyntaxSnapshot | undefined => {
+    const state = document.getState();
+    const currentRawSource = document.getSource();
+    const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
+
+    if (
+      source.normalizedSource !== normalizedCurrentSource ||
+      source.sourceRevision !== currentSourceRevision() ||
+      state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource
+    ) return undefined;
+
+    return {
+      sourceRevision: source.sourceRevision,
+      sourceText: normalizedCurrentSource,
+      statements: state.currentCompiled.statements,
+      sourceMap: state.currentCompiled.spans.sourceMap
+    };
+  };
+
   return {
     getSource: () => document.getSource(),
     getSourceRevision: currentSourceRevision,
@@ -100,6 +132,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     completionSemanticSnapshot: semanticSnapshotFor,
     definitionSemanticSnapshot: semanticSnapshotFor,
     renameSemanticSnapshot: semanticSnapshotFor,
+    foldingSyntaxSnapshot,
     choiceQuickFixSemanticSnapshot
   };
 };

@@ -68,6 +68,7 @@ const mocks = vi.hoisted(() => ({
   definitionRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   renameRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
+  foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   showErrorMessage: vi.fn(),
   createWebviewPanel: vi.fn(),
   createDiagnosticCollection: vi.fn(),
@@ -75,6 +76,7 @@ const mocks = vi.hoisted(() => ({
   registerDefinitionProvider: vi.fn(),
   registerRenameProvider: vi.fn(),
   registerCodeActionsProvider: vi.fn(),
+  registerFoldingRangeProvider: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
   onDidOpenTextDocument: vi.fn(),
@@ -110,6 +112,13 @@ vi.mock("vscode", () => {
   class SnippetString {
     constructor(public readonly value: string) {}
   }
+  class FoldingRange {
+    constructor(
+      public readonly start: number,
+      public readonly end: number,
+      public readonly kind?: unknown
+    ) {}
+  }
   return {
     window: {
       get activeTextEditor() {
@@ -137,7 +146,8 @@ vi.mock("vscode", () => {
       registerCompletionItemProvider: mocks.registerCompletionItemProvider,
       registerDefinitionProvider: mocks.registerDefinitionProvider,
       registerRenameProvider: mocks.registerRenameProvider,
-      registerCodeActionsProvider: mocks.registerCodeActionsProvider
+      registerCodeActionsProvider: mocks.registerCodeActionsProvider,
+      registerFoldingRangeProvider: mocks.registerFoldingRangeProvider
     },
     Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
     ViewColumn: { Beside: 2 },
@@ -153,11 +163,13 @@ vi.mock("vscode", () => {
       Operator: 8
     },
     CodeActionKind: { QuickFix: "quickfix" },
+    FoldingRangeKind: { Comment: "comment" },
     Position,
     Range,
     Diagnostic,
     CompletionItem,
-    SnippetString
+    SnippetString,
+    FoldingRange
   };
 // @ts-expect-error Vitest's runtime supports the virtual-module options used here.
 }, { virtual: true });
@@ -348,6 +360,11 @@ const setup = (
     });
     return registration;
   });
+  mocks.registerFoldingRangeProvider.mockImplementation((selector: unknown, provider: unknown) => {
+    const registration = disposable();
+    mocks.foldingRegistrations.push({ selector, provider, disposable: registration });
+    return registration;
+  });
   mocks.onDidOpenTextDocument.mockImplementation((listener: (document: TestDocument) => void) => {
     mocks.documentOpenListeners.push(listener);
     return disposable();
@@ -402,6 +419,7 @@ afterEach(() => {
   mocks.definitionRegistrations.length = 0;
   mocks.renameRegistrations.length = 0;
   mocks.codeActionRegistrations.length = 0;
+  mocks.foldingRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.createWebviewPanel.mockReset();
   mocks.createDiagnosticCollection.mockReset();
@@ -409,6 +427,7 @@ afterEach(() => {
   mocks.registerDefinitionProvider.mockReset();
   mocks.registerRenameProvider.mockReset();
   mocks.registerCodeActionsProvider.mockReset();
+  mocks.registerFoldingRangeProvider.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
   mocks.onDidOpenTextDocument.mockReset();
@@ -926,6 +945,58 @@ describe("VS Code native completion lifecycle", () => {
 
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
     expect(items.map((item) => item.label)).toContain("coordinate");
+  });
+});
+
+describe("VS Code native structural folding lifecycle", () => {
+  it("registers one nui/file folding provider in the extension lifecycle", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.foldingRegistrations[0]!;
+
+    expect(mocks.foldingRegistrations).toHaveLength(1);
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.provider).toEqual(expect.objectContaining({ provideFoldingRanges: expect.any(Function) }));
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+
+  it("reuses URI-scoped sessions while isolating documents across close and reopen", () => {
+    const sourceA = [
+      "group A {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n");
+    const sourceB = "# one\n# two\n";
+    const documentA = documentFor("/tmp/folding-a.nui", "file:///tmp/folding-a.nui", sourceA);
+    const documentB = documentFor("/tmp/folding-b.nui", "file:///tmp/folding-b.nui", sourceB);
+    const fromSource = vi.spyOn(AutomationDocument, "fromSource");
+    setup(false, null, [documentA, documentB]);
+    const provider = mocks.foldingRegistrations[0]!.provider as {
+      provideFoldingRanges: (document: TestDocument) => Array<{ start: number; end: number; kind?: unknown }>;
+    };
+
+    expect(provider.provideFoldingRanges(documentA)).toEqual([
+      expect.objectContaining({ start: 0, end: 2 })
+    ]);
+    expect(provider.provideFoldingRanges(documentB)).toEqual([
+      expect.objectContaining({ start: 0, end: 1, kind: "comment" })
+    ]);
+
+    emitDocumentClose(documentA);
+    const reopened = documentFor(
+      "/tmp/folding-a.nui",
+      "file:///tmp/folding-a.nui",
+      "# reopened\n# document\n"
+    );
+    mocks.textDocuments = [documentB, reopened];
+    emitDocumentOpen(reopened);
+    expect(provider.provideFoldingRanges(reopened)).toEqual([
+      expect.objectContaining({ start: 0, end: 1, kind: "comment" })
+    ]);
+    expect(provider.provideFoldingRanges(documentB)).toEqual([
+      expect.objectContaining({ start: 0, end: 1, kind: "comment" })
+    ]);
+    expect(fromSource).toHaveBeenCalledTimes(3);
+    fromSource.mockRestore();
   });
 });
 
