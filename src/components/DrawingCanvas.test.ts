@@ -10,6 +10,7 @@ import { evaluateElements } from "../geometry/evaluate";
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
+import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadDocumentStore, useCadStore } from "../state/useCadStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -200,6 +201,7 @@ const createFakeCanvasHostAdapter = (
     canonicalElements: elements,
     evaluationLimitIndex: undefined,
     compiledDocumentRevision: 0,
+    canvasTheme: LEGACY_CANVAS_THEME,
     palette: defaultDocumentPalette(),
     visibilityProfiles: [],
     activeVisibilityProfileId: null,
@@ -453,7 +455,7 @@ describe("DrawingCanvas rendering", () => {
     expect(useCadStore.getState().showCanvasElementNames).toBe(false);
   });
 
-  it("uses resolved element colors for selected line overlays", () => {
+  it("uses the semantic Canvas selection color for selected line overlays", () => {
     useCadStore.setState({
       elements: sampleElements.map((element): CadElement =>
         element.id === "line-ab" ? { ...element, colorId: "cut-red" } : element
@@ -465,10 +467,13 @@ describe("DrawingCanvas rendering", () => {
     const { container } = renderDrawingCanvas();
     const selectedLine = container.querySelector(".overlay-selected-line");
 
-    expect(selectedLine).toHaveStyle({ stroke: "rgb(180 35 24 / 0.3)" });
+    expect(selectedLine).toHaveClass("overlay-selected-line");
+    expect(container.querySelector(".drawing-overlay")?.getAttribute("style")).toContain(
+      "--canvas-selection: rgb(15 118 110 / 80%)"
+    );
   });
 
-  it("uses resolved element colors for selected point overlays", () => {
+  it("uses the semantic Canvas selection color for selected point overlays", () => {
     useCadStore.setState({
       elements: sampleElements.map((element): CadElement =>
         element.id === "point-a" ? { ...element, colorId: "guide-blue" } : element
@@ -482,14 +487,9 @@ describe("DrawingCanvas rendering", () => {
     const selectedPointGlow = container.querySelector(".overlay-selected-point-glow");
 
     expect(selectedPoint).toHaveAttribute("r", "3.5");
-    expect(selectedPoint).toHaveStyle({
-      fill: "rgba(0, 0, 0, 0)",
-      stroke: "rgb(37 99 235 / 0.8)"
-    });
+    expect(selectedPoint).toHaveClass("overlay-selected-point");
     expect(selectedPointGlow).toHaveAttribute("r", "9");
-    expect(selectedPointGlow).toHaveStyle({
-      stroke: "rgb(37 99 235 / 0.34)"
-    });
+    expect(selectedPointGlow).toHaveClass("overlay-selected-point-glow");
   });
 
   it("hides unselected overlay points while keeping the selected point visible", () => {

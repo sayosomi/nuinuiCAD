@@ -3729,7 +3729,7 @@ textarea {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: #fbfbfa;
+  background: var(--canvas-background);
   cursor: crosshair;
   touch-action: none;
 }
@@ -3871,9 +3871,9 @@ textarea {
 }
 
 .drawing-overlay text {
-  fill: #53564f;
+  fill: var(--canvas-muted);
   paint-order: stroke;
-  stroke: #fbfbfa;
+  stroke: var(--canvas-background);
   stroke-width: 3px;
 }
 
@@ -3882,74 +3882,74 @@ textarea {
 }
 
 .drawing-overlay .overlay-selected-line {
-  stroke: rgb(15 118 110 / 30%);
+  stroke: color-mix(in srgb, var(--canvas-selection) 30%, transparent);
 }
 
 .drawing-overlay [data-numeric-reference-candidate="true"] {
-  stroke: rgb(15 118 110 / 34%);
+  stroke: color-mix(in srgb, var(--canvas-pick-candidate) 34%, transparent);
   stroke-width: 13;
 }
 
 .drawing-overlay [data-line-pick-candidate="true"] {
-  stroke: rgb(15 118 110 / 34%);
+  stroke: color-mix(in srgb, var(--canvas-pick-candidate) 34%, transparent);
   stroke-width: 13;
 }
 
 .drawing-overlay .overlay-draft-line-pick {
-  stroke: #0f766e;
+  stroke: var(--canvas-pick-candidate);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 8;
-  filter: drop-shadow(0 0 3px rgb(15 118 110 / 62%));
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--canvas-pick-candidate) 62%, transparent));
 }
 
 .drawing-overlay .overlay-draft-line-pick-marker circle {
-  fill: #0f766e;
-  stroke: #ffffff;
+  fill: var(--canvas-pick-candidate);
+  stroke: var(--canvas-background);
   stroke-width: 2;
 }
 
 .drawing-overlay .overlay-draft-line-pick-marker path {
   fill: none;
-  stroke: #ffffff;
+  stroke: var(--canvas-background);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
 }
 
 .drawing-overlay .overlay-bezier-handle-line {
-  stroke: rgb(83 86 79 / 42%);
+  stroke: var(--canvas-bezier-handle-line);
   stroke-width: 1.25;
   stroke-dasharray: 4 4;
 }
 
 .drawing-overlay .overlay-bezier-handle-point {
-  fill: #fbfbfa;
-  stroke: rgb(15 118 110 / 70%);
+  fill: var(--canvas-background);
+  stroke: var(--canvas-bezier-handle-point);
   stroke-width: 1.8;
 }
 
 .drawing-overlay .overlay-selected-point {
   fill: transparent;
-  stroke: rgb(15 118 110 / 80%);
+  stroke: var(--canvas-selection);
   stroke-width: 1.25;
 }
 
 .drawing-overlay .overlay-selected-point-glow {
   fill: transparent;
-  stroke: rgb(15 118 110 / 34%);
+  stroke: color-mix(in srgb, var(--canvas-selection) 34%, transparent);
   stroke-width: 2.5;
 }
 
 .drawing-overlay .overlay-point-pick-candidate {
-  fill: rgb(15 118 110 / 10%);
-  stroke: rgb(15 118 110 / 42%);
+  fill: color-mix(in srgb, var(--canvas-pick-candidate) 10%, transparent);
+  stroke: color-mix(in srgb, var(--canvas-pick-candidate) 42%, transparent);
   stroke-width: 2.25;
 }
 
 .drawing-overlay .overlay-derived-point-pick-candidate {
-  fill: rgb(255 255 255 / 78%);
-  stroke: rgb(15 118 110 / 72%);
+  fill: color-mix(in srgb, var(--canvas-background) 78%, transparent);
+  stroke: color-mix(in srgb, var(--canvas-pick-candidate) 72%, transparent);
   stroke-width: 2.25;
 }
 
@@ -4216,10 +4216,10 @@ textarea {
   position: absolute;
   top: 12px;
   right: 12px;
-  border: 1px solid #efb08f;
+  border: 1px solid color-mix(in srgb, var(--canvas-warning) 55%, var(--canvas-background));
   border-radius: 6px;
-  background: #fff7f2;
-  color: #73320d;
+  background: color-mix(in srgb, var(--canvas-warning) 10%, var(--canvas-background));
+  color: var(--canvas-warning);
   padding: 8px 10px;
   font-size: 13px;
 }

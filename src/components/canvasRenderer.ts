@@ -6,9 +6,13 @@ import type {
   ComputedOffsetLine,
   ComputedPoint,
   DrawingModifierStroke,
-  DrawingModifierThemeRole,
   ElementId
 } from "../types/geometry";
+import {
+  canvasThemeColorForRole,
+  LEGACY_CANVAS_THEME,
+  type CanvasTheme
+} from "./canvasTheme";
 import type { CanvasOverlayImage } from "./DrawingCanvasTypes";
 import { imageAssetForSource } from "./imageAssetCache";
 import type { ViewportSize } from "./canvasViewport";
@@ -27,11 +31,12 @@ const AXIS_GRID_LINE_DASH = [6, 4];
 const drawGrid = (
   ctx: CanvasRenderingContext2D,
   size: ViewportSize,
-  viewport: CanvasViewport
+  viewport: CanvasViewport,
+  canvasTheme: CanvasTheme
 ) => {
   ctx.setLineDash([]);
   ctx.clearRect(0, 0, size.width, size.height);
-  ctx.fillStyle = "#fbfbfa";
+  ctx.fillStyle = canvasTheme.background;
   ctx.fillRect(0, 0, size.width, size.height);
 
   if (!GRID_ENABLED) return;
@@ -55,7 +60,7 @@ const drawGrid = (
     ctx.beginPath();
     ctx.moveTo(screenX, 0);
     ctx.lineTo(screenX, size.height);
-    ctx.strokeStyle = isAxis ? "#c4c9bf" : isMajor ? "#d6d8d2" : "#eceee8";
+    ctx.strokeStyle = isAxis ? canvasTheme.axis : isMajor ? canvasTheme.majorGrid : canvasTheme.minorGrid;
     ctx.lineWidth = isAxis ? 1 : isMajor ? 1 : 0.5;
     if (isAxis) ctx.setLineDash(AXIS_GRID_LINE_DASH);
     ctx.stroke();
@@ -69,7 +74,7 @@ const drawGrid = (
     ctx.beginPath();
     ctx.moveTo(0, screenY);
     ctx.lineTo(size.width, screenY);
-    ctx.strokeStyle = isAxis ? "#c4c9bf" : isMajor ? "#d6d8d2" : "#eceee8";
+    ctx.strokeStyle = isAxis ? canvasTheme.axis : isMajor ? canvasTheme.majorGrid : canvasTheme.minorGrid;
     ctx.lineWidth = isAxis ? 1 : isMajor ? 1 : 0.5;
     if (isAxis) ctx.setLineDash(AXIS_GRID_LINE_DASH);
     ctx.stroke();
@@ -90,8 +95,8 @@ type RenderCanvasGeometryArgs = {
   visibleElementIds: Set<ElementId>;
   selectedElementIdSet: Set<ElementId>;
   selectedElementId: ElementId | null;
-  elementColors?: Map<ElementId, string>;
   effectiveDrawingModifierStrokes?: ReadonlyMap<ElementId, DrawingModifierStroke>;
+  canvasTheme?: CanvasTheme;
   showCanvasPoints: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
@@ -103,31 +108,28 @@ const strokeStyleForGeometry = ({
   isPointPickActive,
   isNumericReferencePickActive,
   isLinePickActive,
-  defaultColor
+  defaultColor,
+  canvasTheme
 }: {
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
   defaultColor: string;
+  canvasTheme: CanvasTheme;
 }) =>
   isPointPickActive
-    ? "#c5cac0"
+    ? canvasTheme.pickCandidate
     : isNumericReferencePickActive || isLinePickActive
-      ? "#0f766e"
+      ? canvasTheme.pickCandidate
       : defaultColor;
 
 const DEFAULT_GEOMETRY_LINE_WIDTH = 1;
 const EMPHASIZED_GEOMETRY_LINE_WIDTH = 1.2;
 
-const LEGACY_GEOMETRY_FOREGROUND = "#31322f";
-
-const themeRoleColor = (role: DrawingModifierThemeRole) => {
-  void role;
-  return LEGACY_GEOMETRY_FOREGROUND;
-};
-
-const drawingModifierColor = (stroke: DrawingModifierStroke) =>
-  stroke.color.kind === "fixed" ? stroke.color.hex : themeRoleColor(stroke.color.role);
+const drawingModifierColor = (stroke: DrawingModifierStroke, canvasTheme: CanvasTheme) =>
+  stroke.color.kind === "fixed"
+    ? stroke.color.hex
+    : canvasThemeColorForRole(canvasTheme, stroke.color.role);
 
 const drawingModifierDash = (style: DrawingModifierStroke["style"]) =>
   style === "solid" ? [] : style === "dashed" ? [6, 4] : [1, 3];
@@ -174,7 +176,8 @@ const applyGeometryStroke = ({
   isPrimarySelected,
   isPointPickActive,
   isNumericReferencePickActive,
-  isLinePickActive
+  isLinePickActive,
+  canvasTheme
 }: {
   ctx: CanvasRenderingContext2D;
   elementId: ElementId;
@@ -185,14 +188,18 @@ const applyGeometryStroke = ({
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
+  canvasTheme: CanvasTheme;
 }) => {
   const modifierStroke = effectiveDrawingModifierStrokes?.get(elementId);
-  const documentColor = modifierStroke ? drawingModifierColor(modifierStroke) : defaultColor;
+  const documentColor = modifierStroke
+    ? drawingModifierColor(modifierStroke, canvasTheme)
+    : defaultColor;
   ctx.strokeStyle = strokeStyleForGeometry({
     isPointPickActive,
     isNumericReferencePickActive,
     isLinePickActive,
-    defaultColor: documentColor
+    defaultColor: documentColor,
+    canvasTheme
   });
   ctx.lineWidth = lineWidthForGeometry({
     isSelected,
@@ -220,15 +227,15 @@ export const renderCanvasGeometry = ({
   visibleElementIds,
   selectedElementIdSet,
   selectedElementId,
-  elementColors = new Map(),
   effectiveDrawingModifierStrokes,
+  canvasTheme = LEGACY_CANVAS_THEME,
   showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
   isLinePickActive,
   onImageAssetSettled
 }: RenderCanvasGeometryArgs) => {
-  drawGrid(ctx, size, viewport);
+  drawGrid(ctx, size, viewport, canvasTheme);
 
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -249,8 +256,8 @@ export const renderCanvasGeometry = ({
     if (asset.status === "loaded") {
       ctx.drawImage(asset.image, 0, 0, width, height);
     } else {
-      ctx.fillStyle = asset.status === "error" ? "rgba(254, 226, 226, 0.8)" : "rgba(241, 245, 249, 0.8)";
-      ctx.strokeStyle = asset.status === "error" ? "#b91c1c" : "#94a3b8";
+      ctx.fillStyle = canvasTheme.background;
+      ctx.strokeStyle = asset.status === "error" ? canvasTheme.error : canvasTheme.muted;
       ctx.lineWidth = 1;
       ctx.fillRect(0, 0, width, height);
       ctx.strokeRect(0, 0, width, height);
@@ -264,7 +271,7 @@ export const renderCanvasGeometry = ({
         else ctx.lineTo(corner.x, corner.y);
       });
       ctx.closePath();
-      ctx.strokeStyle = elementColors.get(item.image.elementId) ?? "#0f766e";
+      ctx.strokeStyle = canvasTheme.selection;
       ctx.lineWidth = isPrimarySelected ? 1.5 : 1;
       ctx.setLineDash([6, 4]);
       ctx.stroke();
@@ -285,12 +292,13 @@ export const renderCanvasGeometry = ({
       ctx,
       elementId: line.elementId,
       effectiveDrawingModifierStrokes,
-      defaultColor: elementColors.get(line.elementId) ?? LEGACY_GEOMETRY_FOREGROUND,
+      defaultColor: canvasTheme.foreground,
       isSelected,
       isPrimarySelected,
       isPointPickActive,
       isNumericReferencePickActive,
-      isLinePickActive
+      isLinePickActive,
+      canvasTheme
     });
     ctx.stroke();
   }
@@ -314,12 +322,13 @@ export const renderCanvasGeometry = ({
       ctx,
       elementId: arc.elementId,
       effectiveDrawingModifierStrokes,
-      defaultColor: elementColors.get(arc.elementId) ?? LEGACY_GEOMETRY_FOREGROUND,
+      defaultColor: canvasTheme.foreground,
       isSelected,
       isPrimarySelected,
       isPointPickActive,
       isNumericReferencePickActive,
-      isLinePickActive
+      isLinePickActive,
+      canvasTheme
     });
     ctx.stroke();
   }
@@ -341,12 +350,13 @@ export const renderCanvasGeometry = ({
       ctx,
       elementId: curve.elementId,
       effectiveDrawingModifierStrokes,
-      defaultColor: elementColors.get(curve.elementId) ?? LEGACY_GEOMETRY_FOREGROUND,
+      defaultColor: canvasTheme.foreground,
       isSelected,
       isPrimarySelected,
       isPointPickActive,
       isNumericReferencePickActive,
-      isLinePickActive
+      isLinePickActive,
+      canvasTheme
     });
     ctx.stroke();
   }
@@ -385,12 +395,13 @@ export const renderCanvasGeometry = ({
       ctx,
       elementId: line.elementId,
       effectiveDrawingModifierStrokes,
-      defaultColor: elementColors.get(line.elementId) ?? "#475569",
+      defaultColor: canvasTheme.foreground,
       isSelected,
       isPrimarySelected,
       isPointPickActive,
       isNumericReferencePickActive,
-      isLinePickActive
+      isLinePickActive,
+      canvasTheme
     });
     ctx.stroke();
   }
@@ -402,7 +413,9 @@ export const renderCanvasGeometry = ({
     if (!showCanvasPoints && !isSelected && !isPointPickActive) continue;
     const screen = worldToScreen(point, size, viewport);
     const pointStroke = effectiveDrawingModifierStrokes?.get(point.elementId);
-    const pointColor = pointStroke ? drawingModifierColor(pointStroke) : elementColors.get(point.elementId) ?? LEGACY_GEOMETRY_FOREGROUND;
+    const pointColor = pointStroke
+      ? drawingModifierColor(pointStroke, canvasTheme)
+      : canvasTheme.foreground;
     ctx.beginPath();
     ctx.arc(
       screen.x,
@@ -422,19 +435,17 @@ export const renderCanvasGeometry = ({
       Math.PI * 2
     );
     ctx.fillStyle = isPointPickActive
-      ? "#e7f4ef"
+      ? canvasTheme.background
       : isNumericReferencePickActive || isLinePickActive
-        ? "#f6f7f3"
+        ? canvasTheme.background
         : isSelected
           ? "transparent"
-          : "#ffffff";
+          : canvasTheme.background;
     ctx.strokeStyle = isPointPickActive
-      ? "#0f766e"
+      ? canvasTheme.pickCandidate
       : isNumericReferencePickActive || isLinePickActive
-        ? "#b7bbb0"
-        : isSelected
-          ? pointColor
-          : pointColor;
+        ? canvasTheme.pickCandidate
+        : pointColor;
     const legacyPointWidth = isPointPickActive
       ? 2.5
       : isNumericReferencePickActive || isLinePickActive

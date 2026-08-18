@@ -288,6 +288,13 @@ export const activate = (context: vscode.ExtensionContext): void => {
     postAuthoritativeDocument(session.panel, session.document);
   };
 
+  const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
+    for (const session of sessions.values()) {
+      void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
+    }
+  });
+  context.subscriptions.push(activeColorThemeListener);
+
   const applyCanvasCommit = async (
     session: DocumentSession,
     message: Extract<VscodeToExtensionMessage, { type: "canvasCommit" }>

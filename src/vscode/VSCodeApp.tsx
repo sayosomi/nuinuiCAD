@@ -11,6 +11,8 @@ import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
 import { VSCodeBenchmarkCaptureRunner } from "./VSCodeBenchmarkCaptureRunner";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { isStaleHostDocumentVersion } from "./hostDocumentVersion";
+import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
+import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -23,6 +25,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const evaluationDocument = useCadDocumentStore(effectiveCompiledDocument);
   const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
+  const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
@@ -38,10 +41,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   );
 
   useEffect(() => {
+    const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
+    refreshCanvasTheme();
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
-      if (message.type === "replaceTextDocument") {
+      if (message.type === "canvasThemeChanged") {
+        refreshCanvasTheme();
+      } else if (message.type === "replaceTextDocument") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         latestHostDocumentVersionRef.current = message.documentVersion;
         useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
@@ -79,6 +86,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         evaluation={evaluationState.evaluation}
         evaluationState={evaluationState}
         canvasFocusRef={canvasFocusRef}
+        canvasTheme={canvasTheme}
         postCanonicalSourceText={(sourceText) => {
           if (benchmarkConfig) return;
           const expectedDocumentVersion = latestHostDocumentVersionRef.current;

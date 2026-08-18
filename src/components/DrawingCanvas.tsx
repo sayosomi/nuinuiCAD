@@ -38,6 +38,7 @@ import {
 import { renderCanvasGeometry } from "./canvasRenderer";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
+import { canvasThemeCssVariables } from "./canvasTheme";
 import type {
   LinePickCandidate,
   LinePickCandidateMenu,
@@ -147,6 +148,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canonicalElements: documentElements,
     evaluationLimitIndex,
     compiledDocumentRevision,
+    canvasTheme,
     palette,
     visibilityProfiles,
     activeVisibilityProfileId,
@@ -344,8 +346,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           visibleElementIds,
           selectedElementIdSet,
           selectedElementId,
-          elementColors,
           effectiveDrawingModifierStrokes: evaluation.effectiveDrawingModifierStrokes,
+          canvasTheme,
           showCanvasPoints,
           isPointPickActive: Boolean(activePointPickTarget),
           isNumericReferencePickActive: Boolean(activeNumericReferencePickTarget),
@@ -365,6 +367,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     arcs,
     canvasViewport,
     compiledDocumentRevision,
+    canvasTheme,
     curves,
     elementColors,
     evaluation.effectiveDrawingModifierStrokes,
@@ -1109,6 +1112,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           activeNumericReferencePickTarget ? "is-numeric-reference-picking" : "",
           activeLinePickTarget ? "is-line-picking" : ""
         ].filter(Boolean).join(" ")}
+        style={canvasThemeCssVariables(canvasTheme)}
         ref={canvasFocusRef}
         tabIndex={-1}
         data-canvas-viewport="true"
@@ -1157,6 +1161,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           draftLinePickElementIds={draftLinePickElementIds}
           pickCandidateLineIds={pickCandidateLineIds}
           selectedElementId={selectedElementId}
+          canvasTheme={canvasTheme}
           elementColors={elementColors}
           showCanvasElementNames={showCanvasElementNames}
           showCanvasPoints={showCanvasPoints}

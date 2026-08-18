@@ -7,6 +7,7 @@ import type {
   ComputedPoint,
   DrawingModifierStroke
 } from "../types/geometry";
+import { LEGACY_CANVAS_THEME, type CanvasTheme } from "./canvasTheme";
 import { renderCanvasGeometry } from "./canvasRenderer";
 
 const point = (elementId: string, x: number, y: number): ComputedPoint => ({
@@ -79,7 +80,8 @@ const renderWithStroke = ({
   zoom = 1,
   selectedElementIds = [],
   selectedElementId = null,
-  isLinePickActive = false
+  isLinePickActive = false,
+  canvasTheme = LEGACY_CANVAS_THEME
 }: {
   stroke: DrawingModifierStroke;
   lines?: ComputedLine[];
@@ -91,6 +93,7 @@ const renderWithStroke = ({
   selectedElementIds?: string[];
   selectedElementId?: string | null;
   isLinePickActive?: boolean;
+  canvasTheme?: CanvasTheme;
 }) => {
   const { ctx, snapshots } = strokeContext();
   const geometryIds = [...lines, ...arcs, ...curves, ...offsetLines, ...points].map((item) => item.elementId);
@@ -107,6 +110,7 @@ const renderWithStroke = ({
     selectedElementIdSet: new Set(selectedElementIds),
     selectedElementId,
     effectiveDrawingModifierStrokes: new Map(geometryIds.map((id) => [id, stroke])),
+    canvasTheme,
     showCanvasPoints: true,
     isPointPickActive: false,
     isNumericReferencePickActive: false,
@@ -118,11 +122,13 @@ const renderWithStroke = ({
 const renderLineAndReturnLastStrokeWidth = ({
   zoom,
   selectedElementIds = [],
-  selectedElementId = null
+  selectedElementId = null,
+  canvasTheme = LEGACY_CANVAS_THEME
 }: {
   zoom: number;
   selectedElementIds?: string[];
   selectedElementId?: string | null;
+  canvasTheme?: CanvasTheme;
 }) => {
   let currentLineWidth = 0;
   const strokeLineWidths: number[] = [];
@@ -161,6 +167,7 @@ const renderLineAndReturnLastStrokeWidth = ({
     visibleElementIds: new Set([elementId]),
     selectedElementIdSet: new Set(selectedElementIds),
     selectedElementId,
+    canvasTheme,
     showCanvasPoints: true,
     isPointPickActive: false,
     isNumericReferencePickActive: false,
@@ -171,15 +178,15 @@ const renderLineAndReturnLastStrokeWidth = ({
 };
 
 const renderLineAndReturnLastStrokeStyle = ({
-  elementColors = new Map(),
   selectedElementIds = [],
   selectedElementId = null,
-  isLinePickActive = false
+  isLinePickActive = false,
+  canvasTheme = LEGACY_CANVAS_THEME
 }: {
-  elementColors?: Map<string, string>;
   selectedElementIds?: string[];
   selectedElementId?: string | null;
   isLinePickActive?: boolean;
+  canvasTheme?: CanvasTheme;
 }) => {
   let currentStrokeStyle = "";
   const strokeStyles: string[] = [];
@@ -218,7 +225,7 @@ const renderLineAndReturnLastStrokeStyle = ({
     visibleElementIds: new Set([elementId]),
     selectedElementIdSet: new Set(selectedElementIds),
     selectedElementId,
-    elementColors,
+    canvasTheme,
     showCanvasPoints: true,
     isPointPickActive: false,
     isNumericReferencePickActive: false,
@@ -229,12 +236,10 @@ const renderLineAndReturnLastStrokeStyle = ({
 };
 
 const renderPointAndReturnLastPaintStyles = ({
-  elementColors = new Map(),
   selectedElementIds = [],
   selectedElementId = null,
   isLinePickActive = false
 }: {
-  elementColors?: Map<string, string>;
   selectedElementIds?: string[];
   selectedElementId?: string | null;
   isLinePickActive?: boolean;
@@ -284,7 +289,6 @@ const renderPointAndReturnLastPaintStyles = ({
     visibleElementIds: new Set([elementId]),
     selectedElementIdSet: new Set(selectedElementIds),
     selectedElementId,
-    elementColors,
     showCanvasPoints: true,
     isPointPickActive: false,
     isNumericReferencePickActive: false,
@@ -312,7 +316,77 @@ describe("renderCanvasGeometry", () => {
     });
 
     expect(fixed).toEqual({ lineWidth: 2.5, strokeStyle: "#123456", lineDash: [6, 4] });
-    expect(role).toEqual({ lineWidth: 1.5, strokeStyle: "#31322f", lineDash: [] });
+    expect(role).toEqual({ lineWidth: 1.5, strokeStyle: "#73320d", lineDash: [] });
+  });
+
+  it("resolves semantic modifier roles from CanvasTheme while preserving fixed colors", () => {
+    const start = point("start", 0, 0);
+    const end = point("end", 100, 0);
+    const theme = { ...LEGACY_CANVAS_THEME, warning: "#custom-warning", foreground: "#custom-foreground" };
+
+    expect(renderWithStroke({
+      stroke: { widthPx: 1, style: "solid", color: { kind: "themeRole", role: "warning" } },
+      lines: [line("line", start, end)],
+      canvasTheme: theme
+    })).toMatchObject({ strokeStyle: "#custom-warning" });
+    expect(renderWithStroke({
+      stroke: { widthPx: 1, style: "solid", color: { kind: "fixed", hex: "#123456" } },
+      lines: [line("line", start, end)],
+      canvasTheme: theme
+    })).toMatchObject({ strokeStyle: "#123456" });
+    expect(renderLineAndReturnLastStrokeStyle({ canvasTheme: theme })).toBe("#custom-foreground");
+  });
+
+  it("uses CanvasTheme values for the background, grid, and axis", () => {
+    let currentFillStyle = "";
+    let currentStrokeStyle = "";
+    const fillStyles: string[] = [];
+    const strokeStyles: string[] = [];
+    const theme = {
+      ...LEGACY_CANVAS_THEME,
+      background: "#background",
+      minorGrid: "#minor",
+      majorGrid: "#major",
+      axis: "#axis"
+    };
+    const ctx = {
+      beginPath: vi.fn(),
+      clearRect: vi.fn(),
+      fillRect: vi.fn(() => fillStyles.push(currentFillStyle)),
+      lineTo: vi.fn(),
+      moveTo: vi.fn(),
+      setLineDash: vi.fn(),
+      stroke: vi.fn(() => strokeStyles.push(currentStrokeStyle)),
+      set fillStyle(value: string) { currentFillStyle = value; },
+      set lineCap(_value: CanvasLineCap) {},
+      set lineJoin(_value: CanvasLineJoin) {},
+      set lineWidth(_value: number) {},
+      set strokeStyle(value: string) { currentStrokeStyle = value; }
+    } as unknown as CanvasRenderingContext2D;
+
+    renderCanvasGeometry({
+      ctx,
+      size: { width: 500, height: 400 },
+      viewport: { panX: 0, panY: 0, zoom: 1 },
+      lines: [],
+      arcs: [],
+      curves: [],
+      offsetLines: [],
+      points: [],
+      visibleElementIds: new Set(),
+      selectedElementIdSet: new Set(),
+      selectedElementId: null,
+      canvasTheme: theme,
+      showCanvasPoints: true,
+      isPointPickActive: false,
+      isNumericReferencePickActive: false,
+      isLinePickActive: false
+    });
+
+    expect(fillStyles).toEqual(["#background"]);
+    expect(strokeStyles).toContain("#minor");
+    expect(strokeStyles).toContain("#major");
+    expect(strokeStyles).toContain("#axis");
   });
 
   it("uses solid, dashed, and dotted document dash styles without zoom scaling", () => {
@@ -510,59 +584,51 @@ describe("renderCanvasGeometry", () => {
     expect(zoomedWidth).toBe(normalWidth);
   });
 
-  it("uses resolved element colors for normal geometry", () => {
-    expect(
-      renderLineAndReturnLastStrokeStyle({
-        elementColors: new Map([["line", "#aa0000"]])
-      })
-    ).toBe("#aa0000");
+  it("defaults built-in geometry to the semantic Canvas foreground", () => {
+    expect(renderLineAndReturnLastStrokeStyle({})).toBe("#31322f");
   });
 
-  it("uses resolved element colors for selected geometry", () => {
+  it("keeps selected built-in geometry on the semantic Canvas foreground", () => {
     expect(
       renderLineAndReturnLastStrokeStyle({
-        elementColors: new Map([["line", "#aa0000"]]),
         selectedElementIds: ["line"],
         selectedElementId: "line"
       })
-    ).toBe("#aa0000");
+    ).toBe("#31322f");
   });
 
-  it("keeps pick emphasis above resolved element colors", () => {
+  it("uses the semantic pick candidate color for line picking", () => {
     expect(
       renderLineAndReturnLastStrokeStyle({
-        elementColors: new Map([["line", "#aa0000"]]),
         isLinePickActive: true
       })
     ).toBe("#0f766e");
   });
 
-  it("uses resolved element colors for selected point markers", () => {
+  it("uses the semantic Canvas foreground for selected point markers", () => {
     expect(
       renderPointAndReturnLastPaintStyles({
-        elementColors: new Map([["point", "#aa0000"]]),
         selectedElementIds: ["point"],
         selectedElementId: "point"
       })
     ).toEqual({
       fillStyle: "transparent",
       radius: 3.5,
-      strokeStyle: "#aa0000"
+      strokeStyle: "#31322f"
     });
   });
 
-  it("keeps point pick emphasis above resolved element colors", () => {
+  it("uses the semantic pick candidate color for point picking", () => {
     expect(
       renderPointAndReturnLastPaintStyles({
-        elementColors: new Map([["point", "#aa0000"]]),
         selectedElementIds: ["point"],
         selectedElementId: "point",
         isLinePickActive: true
       })
     ).toEqual({
-      fillStyle: "#f6f7f3",
+      fillStyle: "#fbfbfa",
       radius: 3.5,
-      strokeStyle: "#b7bbb0"
+      strokeStyle: "#0f766e"
     });
   });
 
