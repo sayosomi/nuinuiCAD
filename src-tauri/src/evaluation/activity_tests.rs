@@ -90,3 +90,51 @@ fn module_instance_is_preserved_as_the_disabled_activity_source() {
         Some("module")
     );
 }
+
+#[test]
+fn directly_disabled_dependency_reports_evaluation_off() {
+    let result = evaluate_document_input(super::types::EvaluationInput {
+        elements: vec![
+            json!({
+                "id": "source", "name": "無効点", "type": "freePoint",
+                "activity": "disabled", "x": 0, "y": 0
+            }),
+            json!({
+                "id": "consumer", "name": "参照線", "type": "line",
+                "activity": "visible",
+                "startPoint": { "mode": "reference", "pointId": "source" },
+                "endPoint": { "mode": "coordinate", "x": 10, "y": 0 }
+            }),
+        ],
+        evaluation_limit_index: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+    });
+
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("source")));
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("consumer")));
+    let error = result
+        .errors
+        .iter()
+        .find(|error| error.element_id == "consumer")
+        .expect("expected directly disabled dependency error");
+    assert_eq!(error.missing_dependency_id, "source");
+    assert_eq!(error.missing_dependency_name.as_deref(), Some("無効点"));
+    assert_eq!(
+        error.message,
+        "参照線 は 無効点 を参照していますが、無効点 は評価OFFです。無効点 を評価ONにするか、参照先を変更してください。"
+    );
+    assert!(!error.message.contains("後にあるか、存在しません"));
+}

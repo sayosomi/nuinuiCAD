@@ -345,6 +345,31 @@ describe("evaluateElements", () => {
     expect(result.errors[0].message).toContain("評価OFF");
   });
 
+  it("reports directly disabled dependencies as evaluation-off", () => {
+    const result = evaluateElements([
+      { id: "source", name: "無効点", type: "freePoint", activity: "disabled", x: 0, y: 0 },
+      {
+        id: "consumer",
+        name: "参照線",
+        type: "line",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "source" },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      }
+    ]);
+
+    expect(result.computedGeometry.has("source")).toBe(false);
+    expect(result.computedGeometry.has("consumer")).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "consumer",
+      missingDependencyId: "source",
+      missingDependencyName: "無効点",
+      message: "参照線 は 無効点 を参照していますが、無効点 は評価OFFです。無効点 を評価ONにするか、参照先を変更してください。"
+    });
+    expect(result.errors[0].message).not.toContain("後にあるか、存在しません");
+  });
+
   it("keeps hidden dependencies evaluable and excludes disabled dependencies", () => {
     const result = evaluateElements([
       { id: "hidden", name: "hidden", type: "freePoint", activity: "hidden", x: 0, y: 0 },
@@ -359,7 +384,12 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.has("disabled")).toBe(false);
     expect(result.computedGeometry.has("disabled-child")).toBe(false);
     expect(result.effectiveEnabledElementIds?.has("disabled")).toBe(false);
-    expect(result.errors.some((error) => error.elementId === "disabled-child")).toBe(true);
+    const disabledError = result.errors.find((error) => error.elementId === "disabled-child");
+    expect(disabledError).toMatchObject({
+      missingDependencyId: "disabled",
+      missingDependencyName: "disabled",
+      message: "disabled child は disabled を参照していますが、disabled は評価OFFです。disabled を評価ONにするか、参照先を変更してください。"
+    });
   });
 
   it("evaluates only the then branch of a conditional group when condition is non-zero", () => {

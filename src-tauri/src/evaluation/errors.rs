@@ -21,8 +21,16 @@ pub(crate) fn dependency_error(
     let disabled_group_name = disabled_group_id
         .as_deref()
         .and_then(|id| find_element_name(state, id));
+    let dependency_directly_disabled = state
+        .elements_by_id
+        .get(missing_dependency_id)
+        .and_then(|index| state.elements.get(*index))
+        .and_then(|dependency| dependency.get("activity"))
+        .and_then(Value::as_str)
+        == Some("disabled");
     let element_name = element_display_name(element);
     let dependency_evaluation_failed = disabled_group_name.is_none()
+        && !dependency_directly_disabled
         && state.elements_by_id.contains_key(missing_dependency_id)
         && state
             .errors
@@ -37,6 +45,10 @@ pub(crate) fn dependency_error(
         message: if let Some(group_name) = disabled_group_name {
             format!(
                 "{element_name} は {dependency_label} を参照していますが、{dependency_label} はグループ {group_name} により評価OFFです。{group_name} を評価ONにするか、参照先を変更してください。"
+            )
+        } else if dependency_directly_disabled {
+            format!(
+                "{element_name} は {dependency_label} を参照していますが、{dependency_label} は評価OFFです。{dependency_label} を評価ONにするか、参照先を変更してください。"
             )
         } else if dependency_evaluation_failed {
             format!(
