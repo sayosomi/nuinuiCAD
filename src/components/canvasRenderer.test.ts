@@ -431,6 +431,64 @@ describe("renderCanvasGeometry", () => {
     expect(strokeLineDashes.at(-1)).toEqual([]);
   });
 
+  it("resets the grid dash when reusing a context after dashed geometry", () => {
+    let currentLineDash: number[] = [];
+    const strokeLineDashes: number[][] = [];
+    const ctx = {
+      arc: vi.fn(),
+      beginPath: vi.fn(),
+      clearRect: vi.fn(),
+      fillRect: vi.fn(),
+      lineTo: vi.fn(),
+      moveTo: vi.fn(),
+      setLineDash: vi.fn((dash: number[]) => {
+        currentLineDash = [...dash];
+      }),
+      stroke: vi.fn(() => {
+        strokeLineDashes.push([...currentLineDash]);
+      }),
+      set fillStyle(_value: string) {},
+      set lineCap(_value: CanvasLineCap) {},
+      set lineJoin(_value: CanvasLineJoin) {},
+      set lineWidth(_value: number) {},
+      set strokeStyle(_value: string) {}
+    } as unknown as CanvasRenderingContext2D;
+    const start = point("start", 0, 0);
+    const end = point("end", 100, 0);
+    const elementId = "line";
+    const renderArgs = {
+      ctx,
+      size: { width: 500, height: 400 },
+      viewport: { panX: 1_000, panY: -1_000, zoom: 1 },
+      lines: [line(elementId, start, end)],
+      arcs: [],
+      curves: [],
+      offsetLines: [],
+      points: [],
+      visibleElementIds: new Set([elementId]),
+      selectedElementIdSet: new Set<string>(),
+      selectedElementId: null,
+      effectiveDrawingModifierStrokes: new Map([
+        [elementId, { widthPx: 2, style: "dashed" as const, color: { kind: "fixed" as const, hex: "#123456" } }]
+      ]),
+      showCanvasPoints: true,
+      isPointPickActive: false,
+      isNumericReferencePickActive: false,
+      isLinePickActive: false
+    };
+
+    renderCanvasGeometry(renderArgs);
+    const secondRenderStart = strokeLineDashes.length;
+    renderCanvasGeometry({ ...renderArgs, lines: [], effectiveDrawingModifierStrokes: new Map() });
+    const secondRenderGridStrokes = strokeLineDashes.slice(secondRenderStart);
+
+    expect(strokeLineDashes.slice(0, secondRenderStart)).toContainEqual([6, 4]);
+    expect(secondRenderGridStrokes.length).toBeGreaterThan(0);
+    expect(secondRenderGridStrokes).toEqual(
+      secondRenderGridStrokes.map(() => [])
+    );
+  });
+
   it("draws normal geometry with a thin screen-space line width", () => {
     expect(renderLineAndReturnLastStrokeWidth({ zoom: 1 })).toBe(1);
   });

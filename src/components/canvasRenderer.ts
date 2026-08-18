@@ -29,6 +29,7 @@ const drawGrid = (
   size: ViewportSize,
   viewport: CanvasViewport
 ) => {
+  ctx.setLineDash([]);
   ctx.clearRect(0, 0, size.width, size.height);
   ctx.fillStyle = "#fbfbfa";
   ctx.fillRect(0, 0, size.width, size.height);
