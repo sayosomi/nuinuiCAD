@@ -21,6 +21,10 @@ import {
   createNuiDefinitionProvider,
   nuiDefinitionSelector
 } from "./definitionProvider";
+import {
+  createNuiRenameProvider,
+  nuiRenameSelector
+} from "./renameProvider";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -242,6 +246,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     nuiDefinitionSelector,
     createNuiDefinitionProvider(languageAnalysisSessionFor)
   );
+  const renameProvider = vscode.languages.registerRenameProvider(
+    nuiRenameSelector,
+    createNuiRenameProvider(languageAnalysisSessionFor)
+  );
   context.subscriptions.push(
     compilerDiagnosticCollection,
     compilerDiagnosticOpenListener,
@@ -249,7 +257,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     compilerDiagnosticCloseListener,
     disposeCompilerDiagnosticSessions,
     completionProvider,
-    definitionProvider
+    definitionProvider,
+    renameProvider
   );
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 

@@ -398,7 +398,7 @@ VS Code TextDocument
 ├→ compiler diagnostics → DiagnosticCollection
 ├→ queryDslCompletion → CompletionItemProvider
 ├→ queryDslDefinition → DefinitionProvider
-└→ queryDslRenameTarget / planDslRenameEdits → host-neutral rename edit plan
+└→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
 ```
 
 `languageAnalysisSession.ts` owns current raw source, source replacement,
