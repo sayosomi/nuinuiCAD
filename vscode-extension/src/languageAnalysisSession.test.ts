@@ -74,6 +74,48 @@ describe("VS Code document-scoped language analysis session", () => {
     });
   });
 
+  it("returns a folding snapshot for the exact current source and revision", () => {
+    const session = createLanguageAnalysisSession(validSource);
+    const snapshot = session.foldingSyntaxSnapshot(sourceSnapshotFor(validSource, 1));
+
+    expect(snapshot).toMatchObject({
+      sourceRevision: 1,
+      sourceText: validSource,
+      statements: expect.any(Array),
+      sourceMap: expect.objectContaining({
+        source: validSource,
+        sourceRevision: 1
+      })
+    });
+  });
+
+  it("fails closed for stale folding source or revision", () => {
+    const session = createLanguageAnalysisSession(validSource);
+
+    expect(session.foldingSyntaxSnapshot(sourceSnapshotFor(
+      "nui 4\npoint Other = coordinate(x: 0, y: 1)\n",
+      1
+    ))).toBeUndefined();
+    expect(session.foldingSyntaxSnapshot(sourceSnapshotFor(validSource, 2))).toBeUndefined();
+  });
+
+  it("returns current parse-only folding data for fatal source without last-good fallback", () => {
+    const session = createLanguageAnalysisSession("nui 4\nconst old: number = 1\n");
+    const currentSource = "nui 4\npoint A = coordinate(";
+    session.replaceSource(currentSource);
+
+    const snapshot = session.foldingSyntaxSnapshot(sourceSnapshotFor(currentSource, 2));
+
+    expect(snapshot).toMatchObject({
+      sourceRevision: 2,
+      sourceText: currentSource,
+      sourceMap: expect.objectContaining({ source: currentSource })
+    });
+    expect(snapshot?.statements ?? []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "old" })])
+    );
+  });
+
   it("uses exact current partial semantics for fatal source without leaking last-good data", () => {
     const session = createLanguageAnalysisSession("nui 4\nconst old: number = 1\nconst value: number = @old");
     expect(session.completionSemanticSnapshot(sourceSnapshotFor(
