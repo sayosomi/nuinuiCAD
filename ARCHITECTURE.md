@@ -275,6 +275,7 @@ Primary:
 - `src/components/DrawingCanvas.tsx`
 - `src/components/canvasRenderer.ts`
 - `src/components/CanvasOverlay.tsx`
+- `src/components/canvasTheme.ts`
 - `src/components/useCanvasOverlayData.ts`
 - `src/components/DrawingCanvasHitTest.ts`
 
@@ -291,7 +292,13 @@ Current invariants:
 - DrawingCanvasのinteraction logicはhost-neutral boundary越しに既存command/document ownerを使う。
 - `DrawingCanvas` passes resolved modifier strokes directly to the shared
   `canvasRenderer`; the renderer is the presentation boundary for semantic theme
-  roles and does not receive modifier definitions or names.
+  roles and does not receive modifier definitions or names. Tauri supplies
+  `LEGACY_CANVAS_THEME`; VS Code resolves the active Webview CSS variables and
+  passes the host-neutral `CanvasTheme` through the same adapter.
+- The VS Code Extension Host listens for active color-theme changes and sends a
+  theme invalidation to each open Canvas session. The Webview re-reads computed
+  theme variables and redraws the shared Canvas2D/SVG presentation without
+  reopening the Canvas.
 - Drag previewはephemeralで、pointerupだけがcanonical document commitを行う。
 - Runtime `CadElement[]` identityはadapterでcloneしない。
 - Performance instrumentationはproduction DrawingCanvas/evaluation/render pathを引き続き測る。

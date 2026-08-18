@@ -18,6 +18,7 @@ import type {
 } from "../types/geometry";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { ViewportSize } from "./canvasViewport";
+import type { CanvasTheme } from "./canvasTheme";
 
 export type CanvasCommitMode = "preview" | "commit";
 export type CanvasSelectionMode = "replace" | "toggle" | "range";
@@ -61,6 +62,7 @@ export type CanvasHostAdapter = {
   canonicalElements: CadElement[];
   evaluationLimitIndex: number | undefined;
   compiledDocumentRevision: number;
+  canvasTheme: CanvasTheme;
   palette: DocumentPalette;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;

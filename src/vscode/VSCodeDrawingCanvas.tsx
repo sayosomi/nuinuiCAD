@@ -13,12 +13,14 @@ import type {
   CanvasBezierHandleDragAction
 } from "../components/canvasHostAdapter";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
+import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
 
 type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   postCanonicalSourceText: (sourceText: string) => void;
+  canvasTheme?: CanvasTheme;
 };
 
 const mutationWasApplied = (value: unknown): boolean =>
@@ -29,7 +31,8 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     evaluation,
     evaluationState,
     canvasFocusRef,
-    postCanonicalSourceText
+    postCanonicalSourceText,
+    canvasTheme = LEGACY_CANVAS_THEME
   }, ref) {
     const elements = useCadDocumentStore(effectiveElements);
     const canonicalElements = useCadDocumentStore((state) => state.elements);
@@ -103,6 +106,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       canonicalElements,
       evaluationLimitIndex,
       compiledDocumentRevision,
+      canvasTheme,
       palette,
       visibilityProfiles,
       activeVisibilityProfileId,
@@ -159,6 +163,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       commandLineSession,
       commitGeometryCommand,
       compiledDocumentRevision,
+      canvasTheme,
       dragPreviewScheduler,
       elements,
       evaluationLimitIndex,

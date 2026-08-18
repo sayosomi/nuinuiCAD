@@ -39,6 +39,7 @@ export type VscodeBenchmarkConfig = {
 export type ExtensionToVscodeMessage =
   | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
   | { type: "commitText"; sourceText: string; documentVersion: number }
+  | { type: "canvasThemeChanged" }
   | { type: "rustEvaluationResponse"; id: number; payload: unknown }
   | { type: "rustEvaluationError"; id: number; error: string }
   | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig };

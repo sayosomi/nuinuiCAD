@@ -12,6 +12,7 @@ import { CommandRibbonOverlay } from "./CommandRibbonOverlay";
 import { DrawingCanvas } from "./DrawingCanvas";
 import type { DrawingCanvasHandle } from "./DrawingCanvas";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
+import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 
 type TauriDrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -62,6 +63,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       canonicalElements,
       evaluationLimitIndex,
       compiledDocumentRevision,
+      canvasTheme: LEGACY_CANVAS_THEME,
       palette,
       visibilityProfiles,
       activeVisibilityProfileId,

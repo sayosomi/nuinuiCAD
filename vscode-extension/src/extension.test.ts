@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
   commandHandlers: new Map<string, (...args: unknown[]) => unknown>(),
   activeEditorListeners: [] as Array<() => void>,
+  activeColorThemeListeners: [] as Array<() => void>,
   documentOpenListeners: [] as Array<(document: TestDocument) => void>,
   documentChangeListeners: [] as Array<(event: { document: TestDocument }) => void>,
   documentCloseListeners: [] as Array<(document: TestDocument) => void>,
@@ -79,6 +80,7 @@ const mocks = vi.hoisted(() => ({
   registerFoldingRangeProvider: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
+  onDidChangeActiveColorTheme: vi.fn(),
   onDidOpenTextDocument: vi.fn(),
   onDidChangeTextDocument: vi.fn(),
   onDidCloseTextDocument: vi.fn(),
@@ -129,6 +131,7 @@ vi.mock("vscode", () => {
       },
       createWebviewPanel: mocks.createWebviewPanel,
       onDidChangeActiveTextEditor: mocks.onDidChangeActiveTextEditor,
+      onDidChangeActiveColorTheme: mocks.onDidChangeActiveColorTheme,
       showErrorMessage: mocks.showErrorMessage
     },
     workspace: {
@@ -320,6 +323,10 @@ const setup = (
     mocks.activeEditorListeners.push(listener);
     return disposable();
   });
+  mocks.onDidChangeActiveColorTheme.mockImplementation((listener: () => void) => {
+    mocks.activeColorThemeListeners.push(listener);
+    return disposable();
+  });
   mocks.createDiagnosticCollection.mockImplementation((name: string) => {
     const collection: TestDiagnosticCollection = {
       name,
@@ -408,6 +415,7 @@ afterEach(() => {
   mocks.textDocuments.length = 0;
   mocks.commandHandlers.clear();
   mocks.activeEditorListeners.length = 0;
+  mocks.activeColorThemeListeners.length = 0;
   mocks.documentOpenListeners.length = 0;
   mocks.documentChangeListeners.length = 0;
   mocks.documentCloseListeners.length = 0;
@@ -430,6 +438,7 @@ afterEach(() => {
   mocks.registerFoldingRangeProvider.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
+  mocks.onDidChangeActiveColorTheme.mockReset();
   mocks.onDidOpenTextDocument.mockReset();
   mocks.onDidChangeTextDocument.mockReset();
   mocks.onDidCloseTextDocument.mockReset();
@@ -487,6 +496,28 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.panels).toHaveLength(2);
     expect(panelA.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
     expect(panelB.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
+  });
+
+  it("invalidates every open Canvas session when the active VS Code theme changes", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorB];
+    mocks.textDocuments = [documentA, documentB];
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels[1]!;
+
+    expect(mocks.activeColorThemeListeners).toHaveLength(1);
+    mocks.activeColorThemeListeners[0]!();
+
+    expect(panelA.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
+    expect(panelA.webview.postMessage).toHaveBeenCalledTimes(1);
+    expect(panelB.webview.postMessage).toHaveBeenCalledTimes(1);
   });
 
   it("adds directory context to all sessions when basenames collide", () => {

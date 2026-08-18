@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { CanvasOverlayText } from "./DrawingCanvasTypes";
 import { CanvasOverlay } from "./CanvasOverlay";
+import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 
 const overlayText = (
   elementId: string,
@@ -35,6 +36,7 @@ const renderOverlay = (overlayTexts: CanvasOverlayText[]) => render(
     draftLinePickElementIds={new Set()}
     pickCandidateLineIds={new Set()}
     selectedElementId={null}
+    canvasTheme={LEGACY_CANVAS_THEME}
     elementColors={new Map()}
     showCanvasElementNames={false}
     showCanvasPoints={false}
@@ -81,6 +83,7 @@ describe("CanvasOverlay text rendering", () => {
         draftLinePickElementIds={new Set()}
         pickCandidateLineIds={new Set()}
         selectedElementId={null}
+        canvasTheme={LEGACY_CANVAS_THEME}
         elementColors={new Map()}
         showCanvasElementNames={false}
         showCanvasPoints={false}
@@ -91,5 +94,45 @@ describe("CanvasOverlay text rendering", () => {
     );
 
     expect(textNode()).toHaveStyle({ fontSize: "6px" });
+  });
+
+  it("scopes selection, pick, and Bezier presentation colors from CanvasTheme", () => {
+    const theme = {
+      ...LEGACY_CANVAS_THEME,
+      selection: "#selection",
+      pickCandidate: "#pick",
+      bezierHandleLine: "#handle-line",
+      bezierHandlePoint: "#handle-point"
+    };
+    const { container } = render(
+      <CanvasOverlay
+        viewportSize={{ width: 500, height: 400 }}
+        overlayLines={[]}
+        overlayArcs={[]}
+        overlayCurves={[]}
+        overlayOffsetLines={[]}
+        overlayPoints={[]}
+        overlayTexts={[]}
+        selectedBezierHandles={[]}
+        overlayPointPickCandidates={[]}
+        selectedElementIdSet={new Set()}
+        draftLinePickElementIds={new Set()}
+        pickCandidateLineIds={new Set()}
+        selectedElementId={null}
+        canvasTheme={theme}
+        elementColors={new Map()}
+        showCanvasElementNames={false}
+        showCanvasPoints={false}
+        isPointPickActive={false}
+        isNumericReferencePickActive={false}
+        isLinePickActive={false}
+      />
+    );
+    const style = container.querySelector(".drawing-overlay")?.getAttribute("style") ?? "";
+
+    expect(style).toContain("--canvas-selection: #selection");
+    expect(style).toContain("--canvas-pick-candidate: #pick");
+    expect(style).toContain("--canvas-bezier-handle-line: #handle-line");
+    expect(style).toContain("--canvas-bezier-handle-point: #handle-point");
   });
 });
