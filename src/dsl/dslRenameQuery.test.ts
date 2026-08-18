@@ -280,4 +280,18 @@ describe("host-neutral DSL rename query", () => {
     const widthPlan = planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "renamedWidth");
     expect(widthPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["width", "width"]);
   });
+
+  it("preserves ordinary same-scope collisions in a document with materialized Module elements", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 1, y: 0)",
+      "module Measure(input: point) {",
+      "  point P = offset(from: @input, dx: 10, dy: 0)",
+      "}",
+      "instance Call = Measure(input: @A)"
+    ].join("\n");
+
+    expect(planDslRenameEdits(snapshot(source), at(source, "A ="), "B")).toBeNull();
+  });
 });

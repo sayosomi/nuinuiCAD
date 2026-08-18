@@ -5,7 +5,12 @@ import { parseDsl } from "../dsl/dslParser";
 import { dslFlatTextForElements, dslTextForElements, emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { reconcileStatements } from "./statementReconciler";
 import { applyLineSplices, buildTextPatch } from "./textPatch";
-import { analyzeRename, validateRenameReferenceStability } from "./renameAnalysis";
+import {
+  analyzeRename,
+  validateElementRenameRequest,
+  validateRenameReferenceStability
+} from "./renameAnalysis";
+import { collectRenameReferenceCatalog } from "./renameReferenceCatalog";
 
 const complete = (source: string) => {
   const compiled = compileDslDocument(source);
@@ -41,6 +46,16 @@ const compileWithInheritedIds = (before: ReturnType<typeof complete>, source: st
   expect(after.statementMap).not.toBeNull();
   return after as ReturnType<typeof complete>;
 };
+
+const withMissingElementStatement = (compiled: ReturnType<typeof complete>, elementId: string) => ({
+  ...compiled,
+  statementMap: {
+    ...compiled.statementMap,
+    byElementId: new Map(
+      [...compiled.statementMap.byElementId].filter(([id]) => id !== elementId)
+    )
+  }
+});
 
 // 手段: シャドーイング・限定参照・ダングリング参照が密集した文書を生成するだけの
 // ヘルパ。参照密度をfast-checkで振るプロパティテスト用の入力生成であり、
@@ -215,6 +230,42 @@ describe("renameAnalysis", () => {
     const target = compiled.document.elements.find((element) => element.name === "A")!;
     expect(analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "B" }))
       .toMatchObject({ verdict: "rejected", reason: "same-scope-conflict" });
+  });
+
+  it("fails closed when a mixed Module document has unresolved source ownership", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 1, y: 0)",
+      "module Measure(input: point) {",
+      "  point P = offset(from: @input, dx: 10, dy: 0)",
+      "}",
+      "instance Call = Measure(input: @A)"
+    ].join("\n");
+    const compiled = complete(source);
+    const target = compiled.document.elements.find((element) => element.name === "A")!;
+    const unresolved = compiled.document.elements.find((element) => element.name === "B")!;
+    const broken = withMissingElementStatement(compiled, unresolved.id);
+
+    expect(collectRenameReferenceCatalog(broken)).toMatchObject({ complete: false });
+    expect(validateElementRenameRequest({
+      compiled: broken,
+      targetElementId: target.id,
+      newName: "B"
+    })).toMatchObject({
+      ok: false,
+      rejection: { reason: "analysis-incomplete" }
+    });
+
+    const targetOwnershipBroken = withMissingElementStatement(compiled, target.id);
+    expect(validateElementRenameRequest({
+      compiled: targetOwnershipBroken,
+      targetElementId: target.id,
+      newName: "Renamed"
+    })).toMatchObject({
+      ok: false,
+      rejection: { reason: "analysis-incomplete" }
+    });
   });
 
   it("rejects capture of an existing dangling token", () => {

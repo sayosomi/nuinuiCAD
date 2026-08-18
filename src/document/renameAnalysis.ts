@@ -135,7 +135,13 @@ export const validateElementRenameRequest = ({
   }
   const ownershipDocument = { ...compiled, statementMap: compiled.statementMap };
   const owner = sourceOwnerForRuntimeElementId(ownershipDocument, targetElementId);
-  if (!owner || owner.kind !== "ordinary") {
+  if (!owner) {
+    return {
+      ok: false,
+      rejection: { verdict: "rejected", reason: "analysis-incomplete", detail: { message: "対象要素の source ownership を解決できません。" } }
+    };
+  }
+  if (owner.kind !== "ordinary") {
     return {
       ok: false,
       rejection: { verdict: "rejected", reason: "target-not-found", detail: { targetElementId } }
@@ -147,9 +153,17 @@ export const validateElementRenameRequest = ({
   if (nameError) {
     return { ok: false, rejection: { verdict: "rejected", reason: "invalid-name", detail: { input: requestedName, message: nameError } } };
   }
-  const sourceElements = compiled.document!.elements.filter((element) =>
-    sourceOwnerForRuntimeElementId(ownershipDocument, element.id)?.kind === "ordinary"
-  );
+  const sourceElements: CadElement[] = [];
+  for (const element of compiled.document!.elements) {
+    const elementOwner = sourceOwnerForRuntimeElementId(ownershipDocument, element.id);
+    if (!elementOwner) {
+      return {
+        ok: false,
+        rejection: { verdict: "rejected", reason: "analysis-incomplete", detail: { message: "要素の source ownership を完全に解決できません。" } }
+      };
+    }
+    if (elementOwner.kind === "ordinary") sourceElements.push(element);
+  }
   const uniqueName = makeUniqueElementName({
     elements: sourceElements,
     elementId: target.id,

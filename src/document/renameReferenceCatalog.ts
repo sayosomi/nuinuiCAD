@@ -168,7 +168,10 @@ export const collectRenameReferenceCatalog = (compiled: CompiledDslDocument): Re
   const slots: RenameReferenceSlot[] = [];
   for (const element of document.elements) {
     const owner = sourceOwnerForRuntimeElementId(ownershipDocument, element.id);
-    if (!owner || owner.kind !== "ordinary") continue;
+    if (!owner) {
+      return { complete: false, message: "要素の source ownership を完全に解決できません。" };
+    }
+    if (owner.kind !== "ordinary") continue;
     const info = statementMap.byElementId.get(element.id);
     if (!info) return { complete: false, message: `要素 ${element.id} の文位置を特定できません。` };
     const statement = compiled.statements[info.statementIndex];
