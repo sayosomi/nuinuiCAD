@@ -60,8 +60,9 @@ Task-specific plans, implementation notes, migration plans, and task checklists
 are working documents, not permanent current documentation by default.
 
 For a multi-Task line of work, perform a Documentation cleanup check during the
-final Task before preparing the final PR. For single-Task work, perform the same
-check before the Task is considered complete.
+final Task before the line of work is considered complete or its final PR/merge,
+as applicable. For single-Task work, perform the same check before the Task is
+considered complete.
 
 Review the documentation created, completed, or superseded by that work.
 Delete completed plan/task documents that no longer describe current behavior
@@ -119,12 +120,13 @@ For now, document order can continue to serve as both evaluation order and
 display order unless a change explicitly introduces separate visual layering.
 
 The Rust evaluation core is the production source of truth for CAD document
-evaluation in the Tauri desktop app. Keep production Tauri evaluation
-Rust-first through the evaluation engine adapter, and keep the TypeScript
-evaluator as the browser/test reference and compatibility fallback.
+evaluation. Production hosts that evaluate documents must reuse the same Rust
+evaluator through their host-specific adapter or transport. Keep the TypeScript
+evaluator as the reference/parity/test path and compatibility fallback, not a
+second production semantics owner.
 
-For Tauri development, shadow evaluation may compare Rust output against the
-TypeScript reference. Treat mismatches as implementation bugs unless a
+Where supported, development shadow evaluation may compare Rust output against
+the TypeScript reference. Treat mismatches as implementation bugs unless a
 deliberate Rust-first behavior change is being made and covered by updated
 tests. Do not make a user-facing element type or dependency form production
 ready until its Rust behavior, geometry output, errors, warnings, and
@@ -132,9 +134,9 @@ per-activity-state evaluation/draw behavior are covered by focused fixtures.
 
 Keep the Tauri command boundary stable. The public Rust command for document
 evaluation should remain `evaluate_document(input)` unless a deliberate
-architecture change is requested. IPC payloads must use JSON-friendly arrays and
-objects, not JavaScript `Map` or `Set`; convert to `Map` / `Set` only on the
-TypeScript side when needed.
+architecture change is requested. Host transport payloads must use JSON-friendly
+arrays and objects, not JavaScript `Map` or `Set`; convert to `Map` / `Set` only
+on the TypeScript side when needed.
 
 ## Commands, keyboard, and parameters
 
@@ -180,23 +182,30 @@ come from command and shortcut metadata in the application.
 
 ## Architecture and code organization
 
-Use Vite, React, TypeScript, SVG/Canvas rendering, Zustand where shared state
-is useful, and Tauri v2 for the desktop application shell.
+Use Vite, React, TypeScript, SVG/Canvas rendering, and Zustand where shared state
+is useful. Use Tauri v2 for the Tauri desktop host and VS Code extension APIs for
+the VS Code host.
 
-The Tauri desktop app is the only maintained product target. Web/browser
-deployment of the app is discontinued and must not be treated as a shipped
-target when making product or architecture decisions. The Vite/browser
-environment is kept only as a local dev and test harness (fast iteration, unit
-tests, the TypeScript reference evaluator) and must not gate or block
-Tauri-only behavior.
+The VS Code extension is an actively maintained production host alongside the
+existing Tauri desktop host. Web/browser deployment of the app is discontinued
+and must not be treated as a shipped target when making product or architecture
+decisions. The Vite/browser environment is kept only as a local dev and test
+harness (fast iteration, unit tests, the TypeScript reference evaluator) and
+must not gate or block host-specific production behavior.
 
-Tauri production should use Rust evaluation through the evaluation engine
-adapter by default. Tauri development may run shadow evaluation to keep Rust
-output checked against the TypeScript reference; the TypeScript evaluator
-remains the browser/test reference and compatibility fallback, not a product
-target in its own right.
+Tauri and VS Code must reuse the same production document, compiler, evaluation,
+and Canvas semantics through narrow host adapters. Host authority and lifecycle
+may differ where the platform requires it, but do not create a second parser,
+resolver, evaluator, renderer, or document semantics merely for one host.
 
-The macOS app is for local use only and is not distributed to other users.
+Production hosts should use Rust evaluation through the established evaluation
+boundary by default. Tauri and VS Code may use different host transports while
+reusing the same Rust evaluator. Development may run shadow/parity evaluation
+to keep Rust output checked against the TypeScript reference; the TypeScript
+evaluator remains the reference/parity/test path and compatibility fallback,
+not a product target in its own right.
+
+The Tauri macOS app is for local use only and is not distributed to other users.
 Do not add or require Apple notarization for normal builds; notarization
 warnings from `npm run desktop:build` are expected when Apple credentials are
 not configured.
@@ -214,25 +223,27 @@ compatibility without an explicit Task.
 The persisted document is one `.nui` DSL text file. `.nui` `sourceText` is
 canonical. Document-order deterministic evaluation, no automatic dependency
 sorting, Rust-first evaluation, and statement-level source editing are current
-rules. Keep document edits on the central `sourceEditSession`/`commitText`
-boundary. Canvas and command model edits must use statement-level text splices
-through the document bridge. Do not add a whole-file reserialization mutation
-path that can damage comments, blank lines, or user layout.
+rules. Keep document edits on the established canonical source-edit boundary.
+Canvas and command model edits must use statement-level text splices through the
+document bridge. Do not add a whole-file reserialization mutation path that can
+damage comments, blank lines, or user layout.
 
 Keep CodeMirror types and direct CodeMirror APIs inside `src/editor/` and
 `SourceEditorPane.tsx`. Other components communicate through source-editor
-handles and plain application types.
+handles and plain application types. VS Code native language providers should
+remain thin host adapters over host-neutral production language queries rather
+than introducing CodeMirror dependencies or parallel language semantics.
 
 Prefer Rust for deterministic, CPU-heavy, or platform-adjacent work:
 
 * CAD document evaluation and dependency checks
 * curve/path measurement, offset geometry, and other performance-sensitive math
 * large file, image asset, SVG/PDF, and tiled A4 export workflows
-* local filesystem and desktop integration behind explicit Tauri commands
+* local filesystem and desktop integration behind explicit host boundaries
 
-Keep React components and Zustand stores independent from Tauri-specific APIs.
+Keep React components and Zustand stores independent from host-specific APIs.
 Frontend code should call small adapters such as the evaluation engine rather
-than importing Tauri APIs directly throughout the UI.
+than importing Tauri or VS Code APIs directly throughout the UI.
 
 Keep geometry computation out of React rendering components. Prefer small pure
 functions for geometry, dependency, validation, ordering, and parameter access
@@ -349,54 +360,32 @@ than hiding the issue.
 ## Git / GitHub workflow
 
 * In plan mode, only plan Git/GitHub actions; execute them after approval.
-* The standard multi-Task feature flow is:
-
-  ```text
-  main
-    ↓
-  Task 1 branch
-    ↓ commit + push + blocking review
-  Task 2 branch
-    ↓ commit + push + blocking review
-  ...
-  final Task branch
-    ↓
-  one final PR
-    ↓
-  main
-  ```
-
-1. Task 1 starts from latest `main`.
-2. Later Tasks start from the previous Task's final blocking-review-approved
-   commit.
-3. Every Task has its own branch.
-4. Every Task that changes repository files commits its intended changes.
-5. Every Task pushes its commit(s) to `origin`.
-6. A local-only commit is not complete.
-7. Review is performed against pushed GitHub state.
-8. Blocking fixes remain on the same Task branch and are committed and pushed.
-9. Do not normally create PRs between chained Task branches.
-10. After all Tasks pass blocking review, create one final PR from the final Task
-    branch to `main`.
-11. Independent new work starts from updated `main` after the previous work is
-    merged.
-12. Worktrees are optional; use them when parallel work or multiple branches
-    need to remain checked out simultaneously.
-13. Do not create a PR unless the user explicitly requests it.
-14. Do not merge unless the user explicitly requests it.
-15. Push is mandatory unless the user explicitly says not to push.
-* Single-Task work is the same model shortened to:
-
-  ```text
-  latest main
-  → Task branch
-  → commit
-  → push
-  → blocking review
-  → optional fix commits + push
-  → PASS
-  ```
-
+* Before implementation or branch/base changes, run `git fetch origin --prune`
+  and compare the expected remote commit/branch with the actual remote state.
+  Do not assume a local `main`, branch, or worktree is current.
+* If the expected and actual remote state differ, do not continue from stale
+  local state and do not silently rebase, reset, merge, or redesign. Report the
+  mismatch as a blocking point unless the current Task explicitly defines how to
+  proceed.
+* Each Task that changes repository files uses its assigned branch, commits only
+  its intended changes, pushes those commits to `origin`, and is reviewed against
+  pushed GitHub state. A local-only commit is not complete.
+* Blocking fixes remain on the same Task branch unless the current Task plan says
+  otherwise; commit and push the fixes before re-review.
+* The next step after blocking-review PASS follows the current development-track
+  plan. Depending on that plan, either start the next Task from the reviewed
+  remote commit or create/merge a PR. Do not hard-code either one PR per Task or
+  one final PR for an entire multi-Task line of work.
+* Independent new work normally starts from latest remote `main`. Chained work
+  may start from the previous Task's blocking-review-approved pushed commit when
+  the current plan specifies that base.
+* Do not create a PR unless the user explicitly requests it.
+* Do not merge unless the user explicitly requests it.
+* Push is mandatory unless the user explicitly says not to push.
+* Worktrees are optional. Reuse an appropriate existing repository/worktree when
+  it is safe to do so. Create another worktree only when parallel work, unrelated
+  user changes, unfinished work, or different simultaneous bases require
+  isolation.
 * Do not switch the current worktree to `main` without instruction.
 * Do not delete unrelated worktrees or branches without instruction.
-* Do not delete or overwrite unrelated user changes.
+* Do not delete, overwrite, reset, or otherwise disturb unrelated user changes.
