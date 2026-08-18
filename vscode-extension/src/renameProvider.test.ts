@@ -286,7 +286,7 @@ describe("VS Code native nui rename provider", () => {
     expect(prepared).toMatchObject({ placeholder: "Current" });
   });
 
-  it("fails closed for fatal, invalid, colliding, and module-iteration renames", () => {
+  it("explains semantic rename rejections and fails closed for unavailable renames", () => {
     const valid = "nui 4\npoint A = coordinate(x: 0, y: 0)";
     const fatalDocument = documentFor("nui 4\npoint A = coordinate(x: 0, y: ");
     const fatalSession = createLanguageAnalysisSession(valid);
@@ -302,7 +302,7 @@ describe("VS Code native nui rename provider", () => {
     const collisionSource = [
       "nui 4",
       "const width: number = 10",
-      "const result: number = @width"
+      "const result: number = @width + 5"
     ].join("\n");
     const { document: collisionDocument, provider: collisionProvider } = providerFor(collisionSource);
     expect(() => editsAt(
@@ -310,13 +310,57 @@ describe("VS Code native nui rename provider", () => {
       collisionDocument,
       positionAtText(collisionDocument, collisionSource, "@width", 1),
       "result"
-    )).toThrow("Rename could not be applied.");
+    )).toThrow("「result」と同じ名前は使えません。");
     expect(() => editsAt(
       collisionProvider,
       collisionDocument,
       positionAtText(collisionDocument, collisionSource, "@width", 1),
       ""
-    )).toThrow("Rename could not be applied.");
+    )).toThrow("名前は空にできません。");
+
+    const captureSource = [
+      "nui 4",
+      "const outer: number = 1",
+      "group G {",
+      "  const inner: number = 2",
+      "  const use: number = @outer",
+      "}"
+    ].join("\n");
+    const { document: captureDocument, provider: captureProvider } = providerFor(captureSource);
+    expect(() => editsAt(
+      captureProvider,
+      captureDocument,
+      positionAtText(captureDocument, captureSource, "@outer", 1),
+      "inner"
+    )).toThrow("「outer」の参照先が変わるため、リネームできません。");
+
+    const moduleCollisionSource = [
+      "nui 4",
+      "module Measure(width: number, length: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "instance Call = Measure(width: 10, length: 20)"
+    ].join("\n");
+    const { document: moduleCollisionDocument, provider: moduleCollisionProvider } = providerFor(moduleCollisionSource);
+    expect(() => editsAt(
+      moduleCollisionProvider,
+      moduleCollisionDocument,
+      positionAtText(moduleCollisionDocument, moduleCollisionSource, "width: number"),
+      "length"
+    )).toThrow("「length」と同じ名前は使えません。");
+
+    const elementCollisionSource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 1, y: 0)"
+    ].join("\n");
+    const { document: elementCollisionDocument, provider: elementCollisionProvider } = providerFor(elementCollisionSource);
+    expect(() => editsAt(
+      elementCollisionProvider,
+      elementCollisionDocument,
+      positionAtText(elementCollisionDocument, elementCollisionSource, "A ="),
+      "B"
+    )).toThrow("3行目の「B」と同じ名前は使えません。");
 
     const iterationSource = [
       "nui 4",
@@ -359,10 +403,13 @@ describe("VS Code native nui rename provider", () => {
 
     const exactnessDocument = documentFor(source);
     const exactness = providerFor(source, exactnessDocument);
-    const planSpy = vi.spyOn(renameQuery, "planDslRenameEdits").mockReturnValue({
-      sourceRevision: 1,
-      target: { sourceRevision: 1, oldName: "Base", range: { from: 0, to: 4 } },
-      edits: [{ from: 0, to: 4, expectedText: "wrong", newText: "Renamed" }]
+    const planSpy = vi.spyOn(renameQuery, "planDslRenameEditsResult").mockReturnValue({
+      status: "ok",
+      plan: {
+        sourceRevision: 1,
+        target: { sourceRevision: 1, oldName: "Base", range: { from: 0, to: 4 } },
+        edits: [{ from: 0, to: 4, expectedText: "wrong", newText: "Renamed" }]
+      }
     });
     try {
       expect(() => editsAt(
@@ -426,7 +473,7 @@ describe("VS Code native nui rename provider", () => {
   it("does not expose unexpected core errors from provideRenameEdits", () => {
     const source = "nui 4\npoint Base = coordinate(x: 0, y: 0)";
     const { document, provider } = providerFor(source);
-    const planSpy = vi.spyOn(renameQuery, "planDslRenameEdits").mockImplementation(() => {
+    const planSpy = vi.spyOn(renameQuery, "planDslRenameEditsResult").mockImplementation(() => {
       throw new Error("bindingResolution: internal invariant");
     });
     try {

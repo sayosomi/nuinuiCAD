@@ -1,8 +1,10 @@
 import * as vscode from "vscode";
 import {
-  planDslRenameEdits,
+  planDslRenameEditsResult,
   queryDslRenameTarget,
   type DslRenameEditPlan,
+  type DslRenameEditPlanResult,
+  type DslRenameRejection,
   type DslRenameTarget
 } from "../../src/dsl/dslRenameQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
@@ -16,6 +18,27 @@ export const nuiRenameSelector: vscode.DocumentSelector = {
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 const prepareRenameFailureMessage = "Rename is not available at this position.";
 const provideRenameEditsFailureMessage = "Rename could not be applied.";
+
+export const renameRejectionMessage = (rejection: DslRenameRejection): string => {
+  switch (rejection.reason) {
+    case "invalid-name":
+      return rejection.message;
+    case "same-scope-collision":
+      return rejection.conflictingLine === undefined
+        ? `「${rejection.conflictingName}」と同じ名前は使えません。`
+        : `${rejection.conflictingLine}行目の「${rejection.conflictingName}」と同じ名前は使えません。`;
+    case "reference-resolution-change":
+      if (rejection.family === "typed") return `「${rejection.referencedName}」の参照先が変わるため、リネームできません。`;
+      if (rejection.family === "element") {
+        return rejection.line === undefined
+          ? "参照先が変わるため、リネームできません。"
+          : `${rejection.line}行目の参照先が変わるため、リネームできません。`;
+      }
+      return "リネーム後にModuleの参照解決が変わるため、変更を中止しました。";
+    case "unavailable":
+      return provideRenameEditsFailureMessage;
+  }
+};
 
 const normalizedOffsetFromRaw = (rawSource: string, rawOffset: number): number => {
   let removedCarriageReturns = 0;
@@ -130,13 +153,24 @@ export const createNuiRenameProvider = (
     const snapshot = captureRenameCall(document, sessionFor);
     if (!snapshot.semantic) throw new Error(provideRenameEditsFailureMessage);
 
+    let result: DslRenameEditPlanResult;
     try {
-      const plan = planDslRenameEdits(
+      result = planDslRenameEditsResult(
         { source: snapshot.source, semantic: snapshot.semantic },
         normalizedOffsetFromRaw(snapshot.rawSource, document.offsetAt(position)),
         newName
       );
-      if (!plan || !exactPlanForSource(plan, snapshot.source) || !isCurrentDocument(document, snapshot)) {
+    } catch {
+      throw new Error(provideRenameEditsFailureMessage);
+    }
+
+    if (result.status === "rejected") {
+      throw new Error(renameRejectionMessage(result.rejection));
+    }
+
+    const plan: DslRenameEditPlan = result.plan;
+    try {
+      if (!exactPlanForSource(plan, snapshot.source) || !isCurrentDocument(document, snapshot)) {
         throw new Error(provideRenameEditsFailureMessage);
       }
 

@@ -3,6 +3,7 @@ import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
 import { parseDslSnapshot } from "./dslParser";
 import {
   planDslRenameEdits,
+  planDslRenameEditsResult,
   queryDslRenameTarget,
   type DslRenameSnapshot
 } from "./dslRenameQuery";
@@ -36,6 +37,50 @@ describe("host-neutral DSL rename query", () => {
     const plan = planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "横幅");
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["width", "width"]);
     expect(plan?.edits.every((edit) => edit.newText === "横幅")).toBe(true);
+  });
+
+  it("returns a structured typed same-scope collision while preserving the null wrapper", () => {
+    const source = [
+      "nui 4",
+      "const width: number = 10",
+      "const result: number = @width + 5"
+    ].join("\n");
+    const result = planDslRenameEditsResult(snapshot(source), at(source, "@width") + 1, "result");
+
+    expect(result).toEqual({
+      status: "rejected",
+      rejection: { reason: "same-scope-collision", conflictingName: "result" }
+    });
+    expect(planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "result")).toBeNull();
+  });
+
+  it("returns a structured invalid-name rejection from the typed analyzer", () => {
+    const source = "nui 4\nconst width: number = 10";
+
+    expect(planDslRenameEditsResult(snapshot(source), at(source, "width"), "")).toEqual({
+      status: "rejected",
+      rejection: { reason: "invalid-name", message: "名前は空にできません。" }
+    });
+  });
+
+  it("returns a structured typed reference-resolution rejection for capture", () => {
+    const source = [
+      "nui 4",
+      "const outer: number = 1",
+      "group G {",
+      "  const inner: number = 2",
+      "  const use: number = @outer",
+      "}"
+    ].join("\n");
+
+    const result = planDslRenameEditsResult(snapshot(source), at(source, "@outer") + 1, "inner");
+
+    expect(result.status).toBe("rejected");
+    expect(result.status === "rejected" ? result.rejection : null).toEqual({
+      reason: "reference-resolution-change",
+      family: "typed",
+      referencedName: "outer"
+    });
   });
 
   it("keeps @ and qualified separators outside the target range", () => {
@@ -329,6 +374,48 @@ describe("host-neutral DSL rename query", () => {
       "instance Call = Measure(input: @A)"
     ].join("\n");
 
+    const result = planDslRenameEditsResult(snapshot(source), at(source, "A ="), "B");
+
+    expect(result).toEqual({
+      status: "rejected",
+      rejection: {
+        reason: "same-scope-collision",
+        conflictingName: "B",
+        conflictingLine: 3
+      }
+    });
     expect(planDslRenameEdits(snapshot(source), at(source, "A ="), "B")).toBeNull();
+  });
+
+  it("returns a structured collision for an ordinary element without Module materialization", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 1, y: 0)"
+    ].join("\n");
+
+    expect(planDslRenameEditsResult(snapshot(source), at(source, "A ="), "B")).toEqual({
+      status: "rejected",
+      rejection: {
+        reason: "same-scope-collision",
+        conflictingName: "B",
+        conflictingLine: 3
+      }
+    });
+  });
+
+  it("returns a structured Module parameter collision", () => {
+    const source = [
+      "nui 4",
+      "module Measure(width: number, length: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "instance Call = Measure(width: 10, length: 20)"
+    ].join("\n");
+
+    expect(planDslRenameEditsResult(snapshot(source), at(source, "width: number"), "length")).toEqual({
+      status: "rejected",
+      rejection: { reason: "same-scope-collision", conflictingName: "length" }
+    });
   });
 });
