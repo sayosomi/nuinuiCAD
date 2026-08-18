@@ -1,5 +1,5 @@
 import { exactPhysicalSpan } from "./dslDiagnosticSpan";
-import type { CompiledDslDocument } from "./dslDocument";
+import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
 import {
   createModuleSemanticRangeIndex,
   moduleSemanticTargetKey,
@@ -29,12 +29,17 @@ import {
   type TypedRenameSpliceEntry
 } from "../document/typedRenameSplice";
 import {
-  analyzeModuleSemanticRename
+  analyzeModuleSemanticRename,
+  moduleSemanticStableFingerprint
 } from "../document/moduleSemanticRenameAnalysis";
 import {
   analyzeRename,
-  projectElementRenameEdits
+  projectElementRenameEdits,
+  validateElementRenameRequest,
+  validateRenameReferenceStability
 } from "../document/renameAnalysis";
+import { sourceOwnerForRuntimeElementId } from "./sourceOwnership";
+import { formatDslName } from "./dslTokens";
 import type { ElementId } from "../types/geometry";
 
 export type DslRenameTarget = {
@@ -203,7 +208,14 @@ const addTypedCandidates = (compiled: CompiledDslDocument, candidates: RenameCan
     }
   };
   for (const statement of compiled.scalarProgram?.statements ?? []) {
-    addExpression(statement.sourceOrder, statement.declaration.initializer);
+    const statementIndex = analysis.catalog.bindingsById.get(statement.bindingId)?.statementIndex;
+    if (statementIndex !== undefined) {
+      addExpression(statementIndex, statement.declaration.initializer);
+      for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
+        const identity = elementIdentity(compiled, reference.elementId);
+        if (identity) addPhysicalCandidate(candidates, compiled, statementIndex, reference.elementNameSpan, identity);
+      }
+    }
   }
   for (const [occurrenceKey, source] of compiled.propertyBindings ?? []) {
     const statementIndex = Number(occurrenceKey.slice(0, occurrenceKey.indexOf(":")));
@@ -442,6 +454,80 @@ const editsAreSafe = (edits: readonly DslRenameEdit[]) => {
   return seen.size === ordered.length;
 };
 
+const mapsMatch = <Value>(before: ReadonlyMap<number, Value>, after: ReadonlyMap<number, Value>) =>
+  before.size === after.size && [...before].every(([index, value]) => after.get(index) === value);
+
+const projectModuleElementRenameEdits = (
+  sourceText: string,
+  compiled: CompiledDslDocument,
+  elementId: ElementId,
+  candidateRanges: readonly RenameCandidate[],
+  newName: string
+): readonly DslRenameEdit[] | null => {
+  if (!compiled.statementMap) return null;
+  const owner = sourceOwnerForRuntimeElementId({ ...compiled, statementMap: compiled.statementMap }, elementId);
+  if (!owner || owner.kind !== "ordinary") return null;
+  const validation = validateElementRenameRequest({ compiled, targetElementId: elementId, newName });
+  if (!validation.ok) return null;
+
+  const targetIdentifier = formatDslName(validation.target.name);
+  const replacementIdentifier = formatDslName(validation.newName);
+  if (targetIdentifier === replacementIdentifier) return [];
+
+  const ranges = new Map<string, { from: number; to: number }>();
+  for (const candidate of candidateRanges) {
+    if (candidate.identity.kind !== "element" || candidate.identity.elementId !== elementId) continue;
+    if (candidate.from < 0 || candidate.to <= candidate.from || candidate.to > sourceText.length) return null;
+    if (sourceText.slice(candidate.from, candidate.to) !== targetIdentifier) return null;
+    ranges.set(`${candidate.from}:${candidate.to}`, { from: candidate.from, to: candidate.to });
+  }
+  if (ranges.size === 0) return null;
+  const declarationStatement = compiled.statements[owner.sourceStatementIndex];
+  const declarationPhysical = declarationStatement?.nameSpan
+    ? physicalRange(compiled, owner.sourceStatementIndex, declarationStatement.nameSpan)
+    : null;
+  if (!declarationPhysical || !ranges.has(`${declarationPhysical.from}:${declarationPhysical.to}`)) return null;
+
+  const orderedRanges = [...ranges.values()].sort((left, right) => left.from - right.from || left.to - right.to);
+  for (let index = 1; index < orderedRanges.length; index += 1) {
+    if (orderedRanges[index].from < orderedRanges[index - 1].to) return null;
+  }
+  const candidateSource = orderedRanges.reduceRight(
+    (source, range) => `${source.slice(0, range.from)}${replacementIdentifier}${source.slice(range.to)}`,
+    sourceText
+  );
+  const beforeStatementMap = compiled.statementMap;
+  if (!beforeStatementMap || !compiled.sourceLexicalNamespace || !compiled.moduleSemanticAnalysis) return null;
+  const after = compileDslDocument(candidateSource, {
+    assignedElementIds: beforeStatementMap.elementIdByStatementIndex,
+    assignedStatementIds: beforeStatementMap.statementIdByStatementIndex
+  });
+  if (
+    after.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    !after.document ||
+    !after.statementMap ||
+    !after.sourceLexicalNamespace ||
+    !after.moduleSemanticAnalysis ||
+    !mapsMatch(beforeStatementMap.elementIdByStatementIndex, after.statementMap.elementIdByStatementIndex) ||
+    (beforeStatementMap.statementIdByStatementIndex !== undefined &&
+      (!after.statementMap.statementIdByStatementIndex ||
+        !mapsMatch(beforeStatementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex)))
+  ) return null;
+
+  const referenceStability = validateRenameReferenceStability({ before: compiled, after });
+  if (referenceStability.verdict !== "ok") return null;
+  const beforeFingerprint = moduleSemanticStableFingerprint(compiled);
+  const afterFingerprint = moduleSemanticStableFingerprint(after);
+  if (!beforeFingerprint || !afterFingerprint || beforeFingerprint !== afterFingerprint) return null;
+
+  return orderedRanges.map((range) => ({
+    from: range.from,
+    to: range.to,
+    expectedText: sourceText.slice(range.from, range.to),
+    newText: replacementIdentifier
+  }));
+};
+
 export const queryDslRenameTarget = (
   snapshot: DslRenameSnapshot,
   sourceOffset: number
@@ -482,21 +568,37 @@ export const planDslRenameEdits = (
     if (!projection.ok) return null;
     edits = projection.edits.map((edit) => ({ ...edit }));
   } else {
-    const analysis = analyzeRename({
-      sourceText: exact.source.normalizedSource,
-      compiled: exact.compiled,
-      targetElementId: identity.elementId,
-      newName
-    });
-    if (analysis.verdict !== "ok") return null;
-    const projection = projectElementRenameEdits({
-      sourceText: exact.source.normalizedSource,
-      compiled: exact.compiled,
-      targetElementId: identity.elementId,
-      analysis
-    });
-    if (!projection.ok) return null;
-    edits = projection.edits.map((edit) => ({ ...edit }));
+    const owner = sourceOwnerForRuntimeElementId({ ...exact.compiled, statementMap: exact.compiled.statementMap! }, identity.elementId);
+    if (!owner || owner.kind !== "ordinary") return null;
+    if (exact.compiled.moduleMaterialization) {
+      const projected = projectModuleElementRenameEdits(
+        exact.source.normalizedSource,
+        exact.compiled,
+        identity.elementId,
+        candidatesFor(exact.compiled).filter((candidate) =>
+          candidate.identity.kind === "element" && candidate.identity.elementId === identity.elementId
+        ),
+        newName
+      );
+      if (!projected) return null;
+      edits = projected;
+    } else {
+      const analysis = analyzeRename({
+        sourceText: exact.source.normalizedSource,
+        compiled: exact.compiled,
+        targetElementId: identity.elementId,
+        newName
+      });
+      if (analysis.verdict !== "ok") return null;
+      const projection = projectElementRenameEdits({
+        sourceText: exact.source.normalizedSource,
+        compiled: exact.compiled,
+        targetElementId: identity.elementId,
+        analysis
+      });
+      if (!projection.ok) return null;
+      edits = projection.edits.map((edit) => ({ ...edit }));
+    }
   }
 
   if (!editsAreSafe(edits)) return null;

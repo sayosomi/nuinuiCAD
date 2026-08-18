@@ -107,10 +107,15 @@ export const createNuiRenameProvider = (
     const snapshot = captureRenameCall(document, sessionFor);
     if (!snapshot.semantic) throw new Error(prepareRenameFailureMessage);
 
-    const target = queryDslRenameTarget({ source: snapshot.source, semantic: snapshot.semantic }, normalizedOffsetFromRaw(
-      snapshot.rawSource,
-      document.offsetAt(position)
-    ));
+    let target: DslRenameTarget | null;
+    try {
+      target = queryDslRenameTarget({ source: snapshot.source, semantic: snapshot.semantic }, normalizedOffsetFromRaw(
+        snapshot.rawSource,
+        document.offsetAt(position)
+      ));
+    } catch {
+      throw new Error(prepareRenameFailureMessage);
+    }
     if (!target || !isCurrentDocument(document, snapshot)) throw new Error(prepareRenameFailureMessage);
 
     return {
@@ -125,23 +130,27 @@ export const createNuiRenameProvider = (
     const snapshot = captureRenameCall(document, sessionFor);
     if (!snapshot.semantic) throw new Error(provideRenameEditsFailureMessage);
 
-    const plan = planDslRenameEdits(
-      { source: snapshot.source, semantic: snapshot.semantic },
-      normalizedOffsetFromRaw(snapshot.rawSource, document.offsetAt(position)),
-      newName
-    );
-    if (!plan || !exactPlanForSource(plan, snapshot.source) || !isCurrentDocument(document, snapshot)) {
+    try {
+      const plan = planDslRenameEdits(
+        { source: snapshot.source, semantic: snapshot.semantic },
+        normalizedOffsetFromRaw(snapshot.rawSource, document.offsetAt(position)),
+        newName
+      );
+      if (!plan || !exactPlanForSource(plan, snapshot.source) || !isCurrentDocument(document, snapshot)) {
+        throw new Error(provideRenameEditsFailureMessage);
+      }
+
+      const workspaceEdit = new vscode.WorkspaceEdit();
+      for (const edit of plan.edits) {
+        workspaceEdit.replace(
+          document.uri,
+          vscodeRangeFor(document, snapshot.rawSource, edit),
+          edit.newText
+        );
+      }
+      return workspaceEdit;
+    } catch {
       throw new Error(provideRenameEditsFailureMessage);
     }
-
-    const workspaceEdit = new vscode.WorkspaceEdit();
-    for (const edit of plan.edits) {
-      workspaceEdit.replace(
-        document.uri,
-        vscodeRangeFor(document, snapshot.rawSource, edit),
-        edit.newText
-      );
-    }
-    return workspaceEdit;
   }
 });

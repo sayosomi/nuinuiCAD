@@ -375,4 +375,69 @@ describe("VS Code native nui rename provider", () => {
       planSpy.mockRestore();
     }
   });
+
+  it("renames ordinary and typed source targets in a mixed Module document", () => {
+    const source = [
+      "nui 4",
+      "const width: number = 10",
+      "const result: number = @width + 5",
+      "point 前身頃 = coordinate(x: 0, y: 0)",
+      "point 使用点 = offset(from: @前身頃, dx: 10, dy: 0)",
+      "const 前身頃X: number = @前身頃.x",
+      "module Measure(input: point) {",
+      "  point P = offset(from: @input, dx: 10, dy: 0)",
+      "}",
+      "instance Call = Measure(input: @前身頃)"
+    ].join("\n");
+    const { document, provider } = providerFor(source);
+    const elementEdit = editsAt(provider, document, positionAtText(document, source, "@前身頃", 1), "後身頃");
+    const widthEdit = editsAt(provider, document, positionAtText(document, source, "@width", 1), "renamedWidth");
+
+    expect(elementEdit?.edits).toHaveLength(4);
+    expect(elementEdit?.edits.map((entry) => source.slice(
+      document.offsetAt(entry.range.start),
+      document.offsetAt(entry.range.end)
+    ))).toEqual(["前身頃", "前身頃", "前身頃", "前身頃"]);
+    expect(widthEdit?.edits).toHaveLength(2);
+    expect(widthEdit?.edits.map((entry) => source.slice(
+      document.offsetAt(entry.range.start),
+      document.offsetAt(entry.range.end)
+    ))).toEqual(["width", "width"]);
+  });
+
+  it("does not expose unexpected core errors from prepareRename", () => {
+    const source = "nui 4\npoint Base = coordinate(x: 0, y: 0)";
+    const { document, provider } = providerFor(source);
+    const querySpy = vi.spyOn(renameQuery, "queryDslRenameTarget").mockImplementation(() => {
+      throw new Error("bindingResolution: internal invariant");
+    });
+    try {
+      expect(() => prepareAt(provider, document, positionAtText(document, source, "Base"))).toThrow(
+        "Rename is not available at this position."
+      );
+      expect(() => prepareAt(provider, document, positionAtText(document, source, "Base"))).not.toThrow(
+        "bindingResolution: internal invariant"
+      );
+    } finally {
+      querySpy.mockRestore();
+    }
+  });
+
+  it("does not expose unexpected core errors from provideRenameEdits", () => {
+    const source = "nui 4\npoint Base = coordinate(x: 0, y: 0)";
+    const { document, provider } = providerFor(source);
+    const planSpy = vi.spyOn(renameQuery, "planDslRenameEdits").mockImplementation(() => {
+      throw new Error("bindingResolution: internal invariant");
+    });
+    try {
+      expect(() => editsAt(provider, document, positionAtText(document, source, "Base"), "Renamed")).toThrow(
+        "Rename could not be applied."
+      );
+      expect(() => editsAt(provider, document, positionAtText(document, source, "Base"), "Renamed")).not.toThrow(
+        "bindingResolution: internal invariant"
+      );
+    } finally {
+      planSpy.mockRestore();
+    }
+  });
 });

@@ -216,7 +216,7 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
   // identities are intentionally outside the document BindingCatalog &&
   // must not be replayed through the document-only Binding resolver; module
   // source occurrences are added by the CompiledDslDocument adapter below.
-  const initializerOccurrences = collectInitializerOccurrences(input.scalarProgram)
+  const initializerOccurrences = collectInitializerOccurrences(input.scalarProgram, input.catalog)
     .filter((occurrence) => input.catalog.bindingsById.has(occurrence.initializerOwner!.fromBindingId) && input.catalog.scopeIndex.scopes.has(occurrence.site.scopeId));
   const siteOccurrences = collectSiteBatchOccurrences({
     scopeIndex: input.catalog.scopeIndex,

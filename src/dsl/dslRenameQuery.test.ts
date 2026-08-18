@@ -245,4 +245,39 @@ describe("host-neutral DSL rename query", () => {
     const target = queryDslRenameTarget(snapshot(source), offset + 1);
     expect(target?.range).toEqual({ from: offset, to: offset + "前身頃".length });
   });
+
+  it("renames an ordinary source element in a document with materialized Module elements", () => {
+    const source = [
+      "nui 4",
+      "const width: number = 10",
+      "const result: number = @width + 5",
+      "point 前身頃 = coordinate(x: 0, y: 0)",
+      "point 使用点 = offset(from: @前身頃, dx: 10, dy: 0)",
+      "const 前身頃X: number = @前身頃.x",
+      "module Measure(input: point) {",
+      "  point P = offset(from: @input, dx: 10, dy: 0)",
+      "}",
+      "instance Call = Measure(input: @前身頃)"
+    ].join("\n");
+    const declarationOffset = at(source, "前身頃 =");
+    const referenceOffset = at(source, "@前身頃") + 1;
+
+    const declarationPlan = planDslRenameEdits(snapshot(source), declarationOffset, "後身頃");
+    const referencePlan = planDslRenameEdits(snapshot(source), referenceOffset, "後身頃");
+
+    expect(declarationPlan).not.toBeNull();
+    expect(referencePlan).not.toBeNull();
+    expect(declarationPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual([
+      "前身頃",
+      "前身頃",
+      "前身頃",
+      "前身頃"
+    ]);
+    expect(declarationPlan?.edits.map((edit) => edit.newText)).toEqual(["後身頃", "後身頃", "後身頃", "後身頃"]);
+    expect(referencePlan?.edits).toEqual(declarationPlan?.edits);
+    expect(declarationPlan?.edits.every((edit) => !source.slice(edit.from, edit.to).includes(".x"))).toBe(true);
+
+    const widthPlan = planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "renamedWidth");
+    expect(widthPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["width", "width"]);
+  });
 });
