@@ -70,6 +70,18 @@ describe("rustEvaluationRunner", () => {
     expect(prepared.input).not.toHaveProperty("bindingVersions");
   });
 
+  it("preserves compiled drawing modifier definitions in the Rust input", () => {
+    const options = {
+      drawingModifiers: [{ name: "Hide", state: "hidden" as const }]
+    };
+    const prepared = prepareRustEvaluation([{
+      ...point,
+      modifierNames: ["Hide"]
+    }], options);
+
+    expect(prepared.input.drawingModifiers).toEqual(options.drawingModifiers);
+  });
+
   it("passes the prepared input to transport and decodes the returned payload", async () => {
     const prepared = prepareRustEvaluation([point]);
     const transport = vi.fn(async (input) => {

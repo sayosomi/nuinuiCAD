@@ -113,6 +113,18 @@ describe("buildEvaluationOptions", () => {
     expect(options).not.toHaveProperty("scalarProgram");
   });
 
+  it("lowers compiled document-level drawing modifier definitions", () => {
+    const compiled = compile([
+      "nui 4",
+      "modifier Hide {",
+      "  state: hidden,",
+      "}",
+      "point P [Hide] = coordinate(x: 1, y: 2)"
+    ].join("\n"));
+
+    expect(optionsFor(compiled).drawingModifiers).toEqual([{ name: "Hide", state: "hidden" }]);
+  });
+
   it("builds source property, numeric, control, condition, and text runtime metadata", () => {
     const propertyCompiled = compile(standardPropertiesSource);
     const propertyOptions = optionsFor(propertyCompiled);

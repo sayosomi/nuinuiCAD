@@ -12,6 +12,7 @@ fn input(elements: Vec<Value>) -> EvaluationInput {
     EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,

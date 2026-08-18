@@ -557,6 +557,7 @@ mod tests {
                 element,
             ],
             elements_by_id: HashMap::from([(String::from("baseline"), 0), (String::from("p"), 1)]),
+            drawing_modifiers: serde_json::json!([]),
             group_states: HashMap::new(),
             computed_geometry: HashMap::from([
                 (
@@ -588,6 +589,7 @@ mod tests {
         EvaluationState {
             elements: vec![element],
             elements_by_id: HashMap::from([(String::from("p"), 0)]),
+            drawing_modifiers: serde_json::json!([]),
             group_states: HashMap::new(),
             computed_geometry: HashMap::new(),
             computed_geometry_order: Vec::new(),

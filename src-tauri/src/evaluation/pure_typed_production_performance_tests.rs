@@ -121,6 +121,7 @@ fn input(scalar_program: Option<Value>, binding_versions: Option<Value>) -> Eval
     EvaluationInput {
         elements: vec![],
         evaluation_limit_index: None,
+        drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program,
         binding_versions,

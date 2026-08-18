@@ -18,6 +18,7 @@ const evaluateCompiled = (compiled: ReturnType<typeof runtimeNames>) => {
   if (!compiled.document || !compiled.statementMap) throw new Error("expected compiled document");
   return evaluateElements(compiled.document.elements, {
     evaluationLimitIndex: compiled.document.evaluationLimitIndex,
+    drawingModifiers: compiled.document.modifiers ?? [],
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
     statementInfoByElementId: compiled.statementMap.byElementId,
@@ -186,5 +187,43 @@ describe("module materialization blocking regressions", () => {
     expect(result.effectiveVisibleElementIds).not.toContain(hiddenPoint.id);
     expect(result.effectiveEnabledElementIds).toContain(hiddenPoint.id);
     expect(result.effectiveEnabledElementIds).not.toContain(disabledPoint.id);
+  });
+
+  it("resolves document modifiers through materialized nested module groups", () => {
+    const compiled = runtimeNames([
+      "nui 4",
+      "modifier Hide {",
+      "  state: hidden,",
+      "}",
+      "modifier Disable {",
+      "  state: disabled,",
+      "}",
+      "modifier Show {",
+      "  state: visible,",
+      "}",
+      "module M() {",
+      "  group Inner [Disable] {",
+      "    point P = coordinate(x: 1, y: 2)",
+      "  }",
+      "}",
+      "group Outer [Hide] {",
+      "  instance Use = M()",
+      "}",
+      "point Visible = coordinate(x: 3, y: 4)"
+    ].join("\n"));
+    const elements = compiled.document!.elements;
+    const inner = elements.find((element) => element.name === "Inner")!;
+    const point = elements.find((element) => element.name === "P" && element.parentGroupId === inner.id)!;
+    const outer = elements.find((element) => element.name === "Outer")!;
+    const visible = elements.find((element) => element.name === "Visible")!;
+
+    expect(point.parentGroupId).toBe(inner.id);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.has(point.id)).toBe(false);
+    expect(result.effectiveVisibleElementIds).not.toContain(point.id);
+    expect(result.effectiveEnabledElementIds).not.toContain(point.id);
+    expect(result.effectiveVisibleElementIds).not.toContain(outer.id);
+    expect(result.computedGeometry.has(visible.id)).toBe(true);
   });
 });

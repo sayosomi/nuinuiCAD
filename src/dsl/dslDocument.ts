@@ -1342,7 +1342,8 @@ export const compileDslDocument = (
       includeStatement,
       elements: compiled.elements,
       sourceScopeIndex: sourceLexicalNamespace?.scopeIndex,
-      moduleGeometryRuntime: compiled.moduleGeometryRuntime
+      moduleGeometryRuntime: compiled.moduleGeometryRuntime,
+      drawingModifiers: compiled.modifiers
     });
     const hasModuleScalarBindings = moduleScalarCompilation.bindingAnalysis.catalog.bindings.some((binding) =>
       binding.resolutionMode === "preResolvedOnly"
@@ -1515,6 +1516,7 @@ export const compileDslDocument = (
   // current-source analysis record, not part of the last-good geometry model.
   const typedDependencyGraph = buildTypedDependencyGraph({
     elements: compiled.elements,
+    drawingModifiers: compiled.modifiers,
     elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
     bindingAnalysis: scalarAnalysis?.bindingAnalysis,
     bindingVersions,

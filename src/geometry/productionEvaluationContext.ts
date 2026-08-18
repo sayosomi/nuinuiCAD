@@ -121,6 +121,7 @@ export const buildEvaluationOptions = ({
 
   return {
     evaluationLimitIndex,
+    drawingModifiers: document.modifiers ?? [],
     ...(scalarProgram ? { scalarProgram } : {}),
     ...(bindingVersions ? {
       bindingVersions,

@@ -51,23 +51,75 @@ fn is_activity_container(element: &Value) -> bool {
     )
 }
 
+fn drawing_modifier_states(drawing_modifiers: Option<&Value>) -> HashMap<String, ElementActivity> {
+    let Some(modifiers) = drawing_modifiers.and_then(Value::as_array) else {
+        return HashMap::new();
+    };
+    modifiers
+        .iter()
+        .filter_map(|modifier| {
+            let name = modifier.get("name")?.as_str()?.to_owned();
+            let state = match modifier.get("state").and_then(Value::as_str) {
+                Some("hidden") => ElementActivity::Hidden,
+                Some("disabled") => ElementActivity::Disabled,
+                Some("visible") => ElementActivity::Visible,
+                _ => return None,
+            };
+            Some((name, state))
+        })
+        .collect()
+}
+
 pub(crate) fn effective_activity_by_element_id(
     elements: &[Value],
+    drawing_modifiers: Option<&Value>,
 ) -> HashMap<ElementId, EffectiveElementActivity> {
     let by_id = elements
         .iter()
         .enumerate()
         .filter_map(|(index, element)| element_id(element).map(|id| (id, index)))
         .collect::<HashMap<_, _>>();
+    let modifier_states = drawing_modifier_states(drawing_modifiers);
+    let mut direct_cache = HashMap::new();
     let mut cache = HashMap::new();
 
     for index in 0..elements.len() {
-        resolve_activity(index, elements, &by_id, &mut cache, &mut HashSet::new());
+        let direct_activity = resolve_direct_activity(
+            index,
+            elements,
+            &by_id,
+            &mut direct_cache,
+            &mut HashSet::new(),
+        );
+        let resolved = if direct_activity.activity != ElementActivity::Visible {
+            direct_activity
+        } else if let Some((activity, owner_id)) =
+            modifier_activity_for(index, elements, &by_id, &modifier_states)
+        {
+            match activity {
+                ElementActivity::Disabled => EffectiveElementActivity {
+                    activity,
+                    hidden_by_element_id: None,
+                    disabled_by_element_id: Some(owner_id),
+                },
+                ElementActivity::Hidden => EffectiveElementActivity {
+                    activity,
+                    hidden_by_element_id: Some(owner_id),
+                    disabled_by_element_id: None,
+                },
+                ElementActivity::Visible => EffectiveElementActivity::default(),
+            }
+        } else {
+            direct_activity
+        };
+        if let Some(id) = element_id(&elements[index]) {
+            cache.insert(id, resolved);
+        }
     }
     cache
 }
 
-fn resolve_activity(
+fn resolve_direct_activity(
     index: usize,
     elements: &[Value],
     by_id: &HashMap<ElementId, usize>,
@@ -88,7 +140,9 @@ fn resolve_activity(
     let parent_activity = parent_group_id(element)
         .and_then(|parent_id| by_id.get(&parent_id).copied())
         .filter(|parent_index| is_activity_container(&elements[*parent_index]))
-        .map(|parent_index| resolve_activity(parent_index, elements, by_id, cache, visiting));
+        .map(|parent_index| {
+            resolve_direct_activity(parent_index, elements, by_id, cache, visiting)
+        });
     let own_activity = activity_from_element(element);
     let resolved = match parent_activity {
         Some(parent) if parent.activity == ElementActivity::Disabled => EffectiveElementActivity {
@@ -117,4 +171,47 @@ fn resolve_activity(
     visiting.remove(&id);
     cache.insert(id, resolved.clone());
     resolved
+}
+
+fn modifier_activity_for(
+    index: usize,
+    elements: &[Value],
+    by_id: &HashMap<ElementId, usize>,
+    modifier_states: &HashMap<String, ElementActivity>,
+) -> Option<(ElementActivity, ElementId)> {
+    let element = &elements[index];
+    let element_id = element_id(element)?;
+    let mut owners = vec![index];
+    let mut visited = HashSet::from([element_id.clone()]);
+    let mut parent_id = parent_group_id(element);
+
+    while let Some(current_parent_id) = parent_id {
+        if !visited.insert(current_parent_id.clone()) {
+            break;
+        }
+        let Some(parent_index) = by_id.get(&current_parent_id).copied() else {
+            break;
+        };
+        if !is_activity_container(&elements[parent_index]) {
+            break;
+        }
+        owners.push(parent_index);
+        parent_id = parent_group_id(&elements[parent_index]);
+    }
+    owners.reverse();
+
+    let mut winning = None;
+    for owner_index in owners {
+        let owner = &elements[owner_index];
+        let owner_id = super::types::element_id(owner)?;
+        let Some(modifier_names) = owner.get("modifierNames").and_then(Value::as_array) else {
+            continue;
+        };
+        for modifier_name in modifier_names.iter().filter_map(Value::as_str) {
+            if let Some(activity) = modifier_states.get(modifier_name) {
+                winning = Some((*activity, owner_id.clone()));
+            }
+        }
+    }
+    winning
 }

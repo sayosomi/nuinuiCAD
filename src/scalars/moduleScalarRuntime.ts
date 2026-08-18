@@ -15,7 +15,7 @@ import type {
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
-import type { CadElement, ElementId } from "../types/geometry";
+import type { CadElement, DrawingModifierDefinition, ElementId } from "../types/geometry";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
 import { analyzeBindings } from "./bindingAnalysis";
@@ -439,7 +439,8 @@ export const compileModuleScalarRuntime = ({
   includeStatement,
   elements,
   sourceScopeIndex,
-  moduleGeometryRuntime
+  moduleGeometryRuntime,
+  drawingModifiers
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -454,6 +455,7 @@ export const compileModuleScalarRuntime = ({
   sourceScopeIndex?: LexicalScopeIndex;
   /** Task 7 stable geometry target lowering; no runtime name lookup. */
   moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
+  drawingModifiers?: readonly DrawingModifierDefinition[];
 }): ModuleScalarRuntimeCompilation => {
   const include = includeStatement ?? ((_statement, index) => isCompilableDslStatement(statements, index));
   const baseScopeIndex = documentBindingAnalysis?.catalog.scopeIndex ?? buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, include);
@@ -554,7 +556,7 @@ export const compileModuleScalarRuntime = ({
     if (instance.callerModuleDefinitionStatementId === null) registerInstance(instance, [], null);
   }
 
-  const effectiveActivities = effectiveElementActivityById(elements);
+  const effectiveActivities = effectiveElementActivityById(elements, drawingModifiers);
   const contextIsDisabled = (context: InstanceContext) => {
     const runtimeId = instanceElement(moduleMaterialization, context.path);
     return runtimeId !== undefined && effectiveActivities.get(runtimeId)?.activity === "disabled";

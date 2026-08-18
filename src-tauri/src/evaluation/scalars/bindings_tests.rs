@@ -57,6 +57,7 @@ fn empty_state() -> EvaluationState {
     EvaluationState {
         elements: Vec::new(),
         elements_by_id: HashMap::new(),
+        drawing_modifiers: serde_json::json!([]),
         group_states: HashMap::new(),
         computed_geometry: HashMap::new(),
         computed_geometry_order: Vec::new(),

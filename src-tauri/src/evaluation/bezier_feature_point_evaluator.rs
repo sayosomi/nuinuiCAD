@@ -352,6 +352,7 @@ mod tests {
             text_property_bindings: None,
             elements,
             evaluation_limit_index: None,
+            drawing_modifiers: None,
             scalar_expression_payload: None,
             scalar_program: None,
             binding_versions: None,
@@ -387,6 +388,7 @@ mod tests {
         let mut state = EvaluationState {
             elements: vec![element.clone()],
             elements_by_id,
+            drawing_modifiers: serde_json::json!([]),
             group_states: HashMap::new(),
             computed_geometry,
             computed_geometry_order: Vec::new(),
@@ -424,6 +426,7 @@ mod tests {
         let mut state = EvaluationState {
             elements: vec![element.clone()],
             elements_by_id,
+            drawing_modifiers: serde_json::json!([]),
             group_states: HashMap::new(),
             computed_geometry,
             computed_geometry_order: Vec::new(),

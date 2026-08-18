@@ -79,6 +79,27 @@ describe("evaluateElements", () => {
     expect(result.computedGeometry.get("child")).toMatchObject({ kind: "point", x: 10, y: 20 });
   });
 
+  it("applies modifier hidden/disabled state to evaluation and drawing eligibility", () => {
+    const result = evaluateElements([
+      { id: "hidden", name: "Hidden", type: "freePoint", activity: "visible", modifierNames: ["hide"], x: 0, y: 0 },
+      { id: "disabled", name: "Disabled", type: "freePoint", activity: "visible", modifierNames: ["disable"], x: 1, y: 0 },
+      { id: "shown", name: "Shown", type: "freePoint", activity: "visible", modifierNames: ["show"], x: 2, y: 0 }
+    ], {
+      drawingModifiers: [
+        { name: "hide", state: "hidden" },
+        { name: "disable", state: "disabled" },
+        { name: "show", state: "visible" }
+      ]
+    });
+
+    expect(result.computedGeometry.has("hidden")).toBe(true);
+    expect(result.effectiveVisibleElementIds).not.toContain("hidden");
+    expect(result.computedGeometry.has("disabled")).toBe(false);
+    expect(result.effectiveEnabledElementIds).not.toContain("disabled");
+    expect(result.computedGeometry.has("shown")).toBe(true);
+    expect(result.effectiveVisibleElementIds).toContain("shown");
+  });
+
   it("evaluates points and lines in valid top-to-bottom order", () => {
     const result = evaluateElements(validElements);
 
