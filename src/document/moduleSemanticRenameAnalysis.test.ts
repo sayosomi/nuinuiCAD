@@ -50,6 +50,26 @@ describe("module source-semantic rename analysis", () => {
     expect(analyzeModuleSemanticRename(`${source}\n`, compiled, { kind: "moduleDefinition", statementId: "statement:test:1" }, "Renamed").verdict).toBe("rejected");
   });
 
+  it("projects a module parameter collision to the conflicting declaration range", () => {
+    const parameterSource = [
+      "nui 4",
+      "module Measure(width: number, length: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(parameterSource);
+    const result = analyzeModuleSemanticRename(parameterSource, compiled, {
+      kind: "moduleParameter",
+      slot: { definitionStatementId: "statement:test:1", parameterIndex: 0 }
+    }, "length");
+
+    expect(result).toMatchObject({ verdict: "rejected", reason: "same-scope-collision", detail: "length" });
+    if (result.verdict === "rejected" && result.reason === "same-scope-collision") {
+      expect(result.conflictingRange).toBeDefined();
+      expect(parameterSource.slice(result.conflictingRange!.from, result.conflictingRange!.to)).toBe("length");
+    }
+  });
+
   it("renames exported scalar declarations and all instance members without crossing segments", () => {
     const scalarSource = [
       "nui 4",

@@ -18,6 +18,7 @@ export const nuiRenameSelector: vscode.DocumentSelector = {
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 const prepareRenameFailureMessage = "Rename is not available at this position.";
 const provideRenameEditsFailureMessage = "Rename could not be applied.";
+const invalidCurrentSourceRenameMessage = "現在のソースにエラーがあるため、リネームできません。エラーを修正してから再試行してください。";
 
 export const renameRejectionMessage = (rejection: DslRenameRejection): string => {
   switch (rejection.reason) {
@@ -25,8 +26,8 @@ export const renameRejectionMessage = (rejection: DslRenameRejection): string =>
       return rejection.message;
     case "same-scope-collision":
       return rejection.conflictingLine === undefined
-        ? `「${rejection.conflictingName}」と同じ名前は使えません。`
-        : `${rejection.conflictingLine}行目の「${rejection.conflictingName}」と同じ名前は使えません。`;
+        ? `「${rejection.conflictingName}」はこのスコープに既に存在します。`
+        : `「${rejection.conflictingName}」は${rejection.conflictingLine}行目に既に存在します。`;
     case "reference-resolution-change":
       if (rejection.family === "typed") return `「${rejection.referencedName}」の参照先が変わるため、リネームできません。`;
       if (rejection.family === "element") {
@@ -75,6 +76,7 @@ type RenameCallSnapshot = {
   rawSource: string;
   source: SourceSnapshot;
   semantic: ReturnType<NuiLanguageAnalysisSession["renameSemanticSnapshot"]>;
+  hasCurrentErrors: boolean;
 };
 
 const captureRenameCall = (
@@ -94,7 +96,8 @@ const captureRenameCall = (
     documentVersion,
     rawSource,
     source,
-    semantic: session.renameSemanticSnapshot(source)
+    semantic: session.renameSemanticSnapshot(source),
+    hasCurrentErrors: session.getDiagnostics().some((diagnostic) => diagnostic.severity === "error")
   };
 };
 
@@ -128,6 +131,7 @@ export const createNuiRenameProvider = (
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return undefined;
 
     const snapshot = captureRenameCall(document, sessionFor);
+    if (snapshot.hasCurrentErrors) throw new Error(invalidCurrentSourceRenameMessage);
     if (!snapshot.semantic) throw new Error(prepareRenameFailureMessage);
 
     let target: DslRenameTarget | null;
@@ -151,6 +155,7 @@ export const createNuiRenameProvider = (
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return undefined;
 
     const snapshot = captureRenameCall(document, sessionFor);
+    if (snapshot.hasCurrentErrors) throw new Error(invalidCurrentSourceRenameMessage);
     if (!snapshot.semantic) throw new Error(provideRenameEditsFailureMessage);
 
     let result: DslRenameEditPlanResult;

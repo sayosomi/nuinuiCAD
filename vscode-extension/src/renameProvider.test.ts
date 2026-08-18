@@ -23,7 +23,8 @@ import * as renameQuery from "../../src/dsl/dslRenameQuery";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   createNuiRenameProvider,
-  nuiRenameSelector
+  nuiRenameSelector,
+  renameRejectionMessage
 } from "./renameProvider";
 
 type TestDocument = {
@@ -293,10 +294,10 @@ describe("VS Code native nui rename provider", () => {
     fatalSession.replaceSource(fatalDocument.getText());
     const fatalProvider = createNuiRenameProvider(() => fatalSession);
     expect(() => prepareAt(fatalProvider, fatalDocument, new vscode.Position(1, 6))).toThrow(
-      "Rename is not available at this position."
+      "現在のソースにエラーがあるため、リネームできません。エラーを修正してから再試行してください。"
     );
     expect(() => editsAt(fatalProvider, fatalDocument, new vscode.Position(1, 6), "Renamed")).toThrow(
-      "Rename could not be applied."
+      "現在のソースにエラーがあるため、リネームできません。エラーを修正してから再試行してください。"
     );
 
     const collisionSource = [
@@ -310,7 +311,7 @@ describe("VS Code native nui rename provider", () => {
       collisionDocument,
       positionAtText(collisionDocument, collisionSource, "@width", 1),
       "result"
-    )).toThrow("「result」と同じ名前は使えません。");
+    )).toThrow("「result」は3行目に既に存在します。");
     expect(() => editsAt(
       collisionProvider,
       collisionDocument,
@@ -347,7 +348,7 @@ describe("VS Code native nui rename provider", () => {
       moduleCollisionDocument,
       positionAtText(moduleCollisionDocument, moduleCollisionSource, "width: number"),
       "length"
-    )).toThrow("「length」と同じ名前は使えません。");
+    )).toThrow("「length」は2行目に既に存在します。");
 
     const elementCollisionSource = [
       "nui 4",
@@ -360,7 +361,12 @@ describe("VS Code native nui rename provider", () => {
       elementCollisionDocument,
       positionAtText(elementCollisionDocument, elementCollisionSource, "A ="),
       "B"
-    )).toThrow("3行目の「B」と同じ名前は使えません。");
+    )).toThrow("「B」は3行目に既に存在します。");
+
+    expect(renameRejectionMessage({
+      reason: "same-scope-collision",
+      conflictingName: "result"
+    })).toBe("「result」はこのスコープに既に存在します。");
 
     const iterationSource = [
       "nui 4",

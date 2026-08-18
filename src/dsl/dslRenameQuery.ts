@@ -167,6 +167,15 @@ const physicalRange = (compiled: CompiledDslDocument, statementIndex: number, sp
   return physical?.segments.length === 1 ? physical.segments[0] : null;
 };
 
+const lineNumberAtOffset = (source: string, offset: number): number | undefined => {
+  if (!Number.isInteger(offset) || offset < 0 || offset > source.length) return undefined;
+  let line = 1;
+  for (let index = 0; index < offset; index += 1) {
+    if (source[index] === "\n") line += 1;
+  }
+  return line;
+};
+
 const statementIndexForId = (compiled: CompiledDslDocument, statementId: string) =>
   compiled.statementMap?.statementIndexByStatementId?.get(statementId);
 
@@ -502,12 +511,27 @@ const mapsMatch = <Value>(before: ReadonlyMap<number, Value>, after: ReadonlyMap
 
 const unavailableRenameRejection = (): DslRenameRejection => ({ reason: "unavailable" });
 
-const typedRenameRejection = (analysis: TypedRenameAnalysisRejected): DslRenameRejection => {
+const typedRenameRejection = (
+  analysis: TypedRenameAnalysisRejected,
+  compiled: CompiledDslDocument
+): DslRenameRejection => {
   switch (analysis.reason) {
     case "invalid-name":
       return { reason: "invalid-name", message: analysis.detail.message };
-    case "same-scope-collision":
-      return { reason: "same-scope-collision", conflictingName: analysis.detail.conflictingName };
+    case "same-scope-collision": {
+      const conflictingBinding = compiled.bindingAnalysis?.catalog.bindingsById.get(analysis.detail.conflictingBindingId);
+      const conflictingPhysical = conflictingBinding?.nameSpan
+        ? physicalRange(compiled, conflictingBinding.statementIndex, conflictingBinding.nameSpan)
+        : null;
+      const conflictingLine = conflictingPhysical
+        ? lineNumberAtOffset(compiled.spans.sourceMap.source, conflictingPhysical.from)
+        : undefined;
+      return {
+        reason: "same-scope-collision",
+        conflictingName: analysis.detail.conflictingName,
+        ...(conflictingLine === undefined ? {} : { conflictingLine })
+      };
+    }
     case "capture":
       return {
         reason: "reference-resolution-change",
@@ -521,7 +545,8 @@ const typedRenameRejection = (analysis: TypedRenameAnalysisRejected): DslRenameR
 
 const moduleRenameRejection = (
   analysis: ModuleRenameAnalysisRejected,
-  newName: string
+  newName: string,
+  compiled: CompiledDslDocument
 ): DslRenameRejection => {
   switch (analysis.reason) {
     case "invalid-name":
@@ -529,8 +554,16 @@ const moduleRenameRejection = (
         reason: "invalid-name",
         message: analysis.detail ?? "名前をDSL識別子として安全に表現できません。"
       };
-    case "same-scope-collision":
-      return { reason: "same-scope-collision", conflictingName: analysis.detail ?? newName };
+    case "same-scope-collision": {
+      const conflictingLine = analysis.conflictingRange
+        ? lineNumberAtOffset(compiled.spans.sourceMap.source, analysis.conflictingRange.from)
+        : undefined;
+      return {
+        reason: "same-scope-collision",
+        conflictingName: analysis.detail ?? newName,
+        ...(conflictingLine === undefined ? {} : { conflictingLine })
+      };
+    }
     case "capture":
       return { reason: "reference-resolution-change", family: "module" };
     case "target-not-found":
@@ -687,7 +720,7 @@ export const planDslRenameEditsResult = (
   if (identity.kind === "typed") {
     const analysis = analyzeTypedBindingRenameInDocument({ compiled: exact.compiled, targetBindingId: identity.bindingId, newName });
     if (analysis.verdict !== "ok") {
-      return { status: "rejected", rejection: typedRenameRejection(analysis) };
+      return { status: "rejected", rejection: typedRenameRejection(analysis, exact.compiled) };
     }
     if (!analysis.declarationSpan) return { status: "rejected", rejection: unavailableRenameRejection() };
     const target = exact.compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId);
@@ -702,7 +735,7 @@ export const planDslRenameEditsResult = (
   } else if (identity.kind === "module") {
     const analysis = analyzeModuleSemanticRename(exact.source.normalizedSource, exact.compiled, identity.target, newName);
     if (analysis.verdict !== "ok") {
-      return { status: "rejected", rejection: moduleRenameRejection(analysis, newName) };
+      return { status: "rejected", rejection: moduleRenameRejection(analysis, newName, exact.compiled) };
     }
     const projection = projectTypedRenameEdits(exact.source.normalizedSource, exact.compiled, analysis.entries);
     if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };

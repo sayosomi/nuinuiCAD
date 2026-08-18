@@ -49,7 +49,7 @@ describe("host-neutral DSL rename query", () => {
 
     expect(result).toEqual({
       status: "rejected",
-      rejection: { reason: "same-scope-collision", conflictingName: "result" }
+      rejection: { reason: "same-scope-collision", conflictingName: "result", conflictingLine: 3 }
     });
     expect(planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "result")).toBeNull();
   });
@@ -415,7 +415,7 @@ describe("host-neutral DSL rename query", () => {
 
     expect(planDslRenameEditsResult(snapshot(source), at(source, "width: number"), "length")).toEqual({
       status: "rejected",
-      rejection: { reason: "same-scope-collision", conflictingName: "length" }
+      rejection: { reason: "same-scope-collision", conflictingName: "length", conflictingLine: 2 }
     });
   });
 });

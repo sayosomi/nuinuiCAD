@@ -9,8 +9,14 @@ import {
 } from "../dsl/moduleSemanticEditor";
 import type { SourceSemanticRenameSpliceEntry } from "./typedRenameSplice";
 
+type ModuleRenameCollision = {
+  conflictingName: string;
+  conflictingRange?: { from: number; to: number };
+};
+
 export type ModuleRenameAnalysisRejected =
-  | { verdict: "rejected"; reason: "target-not-found" | "stale" | "span-mismatch" | "invalid-name" | "same-scope-collision" | "capture" | "overlap"; detail?: string };
+  | { verdict: "rejected"; reason: "same-scope-collision"; detail: string; conflictingRange?: { from: number; to: number } }
+  | { verdict: "rejected"; reason: "target-not-found" | "stale" | "span-mismatch" | "invalid-name" | "capture" | "overlap"; detail?: string };
 
 export type ModuleRenameAnalysis =
   | { verdict: "ok"; target: ModuleSemanticTarget; oldName: string; newName: string; entries: readonly SourceSemanticRenameSpliceEntry[] }
@@ -25,21 +31,52 @@ const statementIndexForOffset = (compiled: CompiledDslDocument, offset: number) 
   statement.physicalSpan.segments.some((segment) => offset >= segment.from && offset <= segment.to)
 );
 
-const sameScopeCollision = (compiled: CompiledDslDocument, target: ModuleSemanticTarget, newName: string): boolean => {
+const declarationNameRange = (declaration: { statement: CompiledDslDocument["statements"][number] }) => {
+  const physical = declaration.statement.namePhysicalSpan;
+  return physical?.segments.length === 1 ? physical.segments[0] : undefined;
+};
+
+const sameScopeCollision = (
+  compiled: CompiledDslDocument,
+  rangeIndex: ReturnType<typeof createModuleSemanticRangeIndex>,
+  target: ModuleSemanticTarget,
+  newName: string
+): ModuleRenameCollision | null => {
   const analysis = compiled.moduleSemanticAnalysis;
   const namespace = compiled.sourceLexicalNamespace;
-  if (!analysis || !namespace) return true;
-  if (target.kind === "documentBinding") return true;
+  const unavailable = (): ModuleRenameCollision => ({ conflictingName: newName });
+  if (!analysis || !namespace) return unavailable();
+  if (target.kind === "documentBinding") return unavailable();
   if (target.kind === "moduleParameter") {
     const definition = analysis.definitionsByStatementId.get(target.slot.definitionStatementId);
-    if (!definition) return true;
-    if (definition.parameters.some((parameter, index) => index !== target.slot.parameterIndex && parameter.name === newName)) return true;
-    return (namespace.declarationsByScopeAndName.get(definition.bodyScopeId)?.get(newName) ?? []).length > 0;
+    if (!definition) return unavailable();
+    const conflictingParameter = definition.parameters.find((parameter, index) =>
+      index !== target.slot.parameterIndex && parameter.name === newName
+    );
+    if (conflictingParameter) {
+      const conflictingRange = moduleSemanticDeclarationRange(rangeIndex, {
+        kind: "moduleParameter",
+        slot: {
+          definitionStatementId: definition.statementId,
+          parameterIndex: conflictingParameter.parameterIndex
+        }
+      });
+      return { conflictingName: conflictingParameter.name, ...(conflictingRange ? { conflictingRange } : {}) };
+    }
+    const conflictingDeclaration = (namespace.declarationsByScopeAndName.get(definition.bodyScopeId)?.get(newName) ?? [])[0];
+    if (conflictingDeclaration) {
+      const conflictingRange = declarationNameRange(conflictingDeclaration);
+      return { conflictingName: conflictingDeclaration.name, ...(conflictingRange ? { conflictingRange } : {}) };
+    }
+    return null;
   }
   const declaration = namespace.allDeclarations.find((candidate) => candidate.statementId === target.statementId);
-  if (!declaration) return true;
-  return (namespace.declarationsByScopeAndName.get(declaration.scopeId)?.get(newName) ?? [])
-    .some((candidate) => candidate.statementId !== target.statementId);
+  if (!declaration) return unavailable();
+  const conflictingDeclaration = (namespace.declarationsByScopeAndName.get(declaration.scopeId)?.get(newName) ?? [])
+    .find((candidate) => candidate.statementId !== target.statementId);
+  if (!conflictingDeclaration) return null;
+  const conflictingRange = declarationNameRange(conflictingDeclaration);
+  return { conflictingName: conflictingDeclaration.name, ...(conflictingRange ? { conflictingRange } : {}) };
 };
 
 /** Stable-resolution snapshot used by both module rename safety && its
@@ -132,7 +169,15 @@ export const analyzeModuleSemanticRename = (
   const oldName = sourceText.slice(declaration.from, declaration.to);
   if (!oldName || !validIdentifier(oldName)) return { verdict: "rejected", reason: "span-mismatch" };
   if (newName === oldName) return { verdict: "ok", target, oldName, newName, entries: [] };
-  if (sameScopeCollision(compiled, target, newName)) return { verdict: "rejected", reason: "same-scope-collision", detail: newName };
+  const collision = sameScopeCollision(compiled, index, target, newName);
+  if (collision) {
+    return {
+      verdict: "rejected",
+      reason: "same-scope-collision",
+      detail: collision.conflictingName,
+      ...(collision.conflictingRange ? { conflictingRange: collision.conflictingRange } : {})
+    };
+  }
   const targetKey = moduleSemanticTargetKey(target);
   const entries: SourceSemanticRenameSpliceEntry[] = [];
   const seen = new Set<string>();
