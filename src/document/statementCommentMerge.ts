@@ -181,11 +181,13 @@ const mergeCallToCall = (
   for (const [index, arg] of next.args.entries()) {
     const row = oldArgLineByKey.has(arg.key) ? byKey.get(arg.key) : undefined;
     for (const comment of row?.leadingComments ?? []) lines.push(`${argIndent}${comment.trim()}`);
-    lines.push(`${argIndent}${serializedArgumentText(next, index)}${row?.eol ?? ""}`);
+    const rowPrefix = row?.leadingPrefix ? `${row.leadingPrefix.trim()} ` : "";
+    lines.push(`${argIndent}${rowPrefix}${serializedArgumentText(next, index)}${row?.eol ?? ""}`);
   }
   lines.push(...deletedKeyOrphanLines(oldArgLineByKey, nextKeys, byKey, argIndent));
   for (const comment of close.leadingComments) lines.push(`${argIndent}${comment.trim()}`);
-  lines.push(`${indent}${next.close}${close.eol}`);
+  const closePrefix = close.leadingPrefix ? `${close.leadingPrefix.trim()} ` : "";
+  lines.push(`${indent}${closePrefix}${next.close}${close.eol}`);
   return lines;
 };
 

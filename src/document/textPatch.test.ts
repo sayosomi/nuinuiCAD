@@ -201,6 +201,60 @@ describe("textPatch 要素の更新", () => {
     expect(patched).toContain("x: 5,");
   });
 
+  it("preserves a block-comment close before an argument during a model edit", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(",
+      "  sources: [@AB],",
+      "  /* keep argument note",
+      "  */ distance: 1,",
+      "  side: right,",
+      "  closed: false,",
+      "  suppressTrimWarnings: false",
+      ")"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "Off" ? ({ ...element, closed: true } as CadElement) : element
+      )
+    }));
+
+    expect(patched).toContain("/* keep argument note\n  */ distance: 1,");
+    expect(patched).toContain("closed: true,");
+    expect(patched.match(/\/\* keep argument note/g)).toHaveLength(1);
+  });
+
+  it("preserves a block-comment close before the call close during a model edit", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(",
+      "  sources: [@AB],",
+      "  distance: 1,",
+      "  side: right,",
+      "  closed: false,",
+      "  suppressTrimWarnings: false",
+      "  /* keep close note",
+      "*/ )"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "Off" ? ({ ...element, closed: true } as CadElement) : element
+      )
+    }));
+
+    expect(patched).toContain("/* keep close note\n*/ )");
+    expect(patched).toContain("closed: true,");
+    expect(patched.match(/\/\* keep close note/g)).toHaveLength(1);
+  });
+
   it("モデルの別フィールドを編集してもsource-authored typed property expressionを保持する", () => {
     const source = [
       "nui 4",
