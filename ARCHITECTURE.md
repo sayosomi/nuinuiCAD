@@ -350,6 +350,7 @@ Primary:
 - `vscode-extension/src/languageAnalysisSession.ts`
 - `vscode-extension/src/completionProvider.ts`
 - `vscode-extension/src/definitionProvider.ts`
+- `vscode-extension/src/renameProvider.ts`
 - `vscode-extension/src/rustEvaluationProcessOwner.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`

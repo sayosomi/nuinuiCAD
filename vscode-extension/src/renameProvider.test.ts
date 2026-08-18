@@ -164,7 +164,9 @@ describe("VS Code native nui rename provider", () => {
       range: { start: document.positionAt(frontOffset), end: document.positionAt(frontOffset + "Front".length) }
     });
     expect(prepareAt(provider, document, document.positionAt(shoulderOffset))).toMatchObject({ placeholder: "Shoulder" });
-    expect(prepareAt(provider, document, document.positionAt(propertyOffset))).toBeUndefined();
+    expect(() => prepareAt(provider, document, document.positionAt(propertyOffset))).toThrow(
+      "Rename is not available at this position."
+    );
   });
 
   it("projects every Task 7 edit into one same-document WorkspaceEdit", () => {
@@ -290,8 +292,12 @@ describe("VS Code native nui rename provider", () => {
     const fatalSession = createLanguageAnalysisSession(valid);
     fatalSession.replaceSource(fatalDocument.getText());
     const fatalProvider = createNuiRenameProvider(() => fatalSession);
-    expect(prepareAt(fatalProvider, fatalDocument, new vscode.Position(1, 6))).toBeUndefined();
-    expect(editsAt(fatalProvider, fatalDocument, new vscode.Position(1, 6), "Renamed")).toBeUndefined();
+    expect(() => prepareAt(fatalProvider, fatalDocument, new vscode.Position(1, 6))).toThrow(
+      "Rename is not available at this position."
+    );
+    expect(() => editsAt(fatalProvider, fatalDocument, new vscode.Position(1, 6), "Renamed")).toThrow(
+      "Rename could not be applied."
+    );
 
     const collisionSource = [
       "nui 4",
@@ -299,18 +305,18 @@ describe("VS Code native nui rename provider", () => {
       "const result: number = @width"
     ].join("\n");
     const { document: collisionDocument, provider: collisionProvider } = providerFor(collisionSource);
-    expect(editsAt(
+    expect(() => editsAt(
       collisionProvider,
       collisionDocument,
       positionAtText(collisionDocument, collisionSource, "@width", 1),
       "result"
-    )).toBeUndefined();
-    expect(editsAt(
+    )).toThrow("Rename could not be applied.");
+    expect(() => editsAt(
       collisionProvider,
       collisionDocument,
       positionAtText(collisionDocument, collisionSource, "@width", 1),
       ""
-    )).toBeUndefined();
+    )).toThrow("Rename could not be applied.");
 
     const iterationSource = [
       "nui 4",
@@ -319,8 +325,17 @@ describe("VS Code native nui rename provider", () => {
       "}"
     ].join("\n");
     const { document: iterationDocument, provider: iterationProvider } = providerFor(iterationSource);
-    expect(prepareAt(iterationProvider, iterationDocument, positionAtText(iterationDocument, iterationSource, "i in"))).toBeUndefined();
-    expect(editsAt(iterationProvider, iterationDocument, positionAtText(iterationDocument, iterationSource, "i in"), "j")).toBeUndefined();
+    expect(() => prepareAt(
+      iterationProvider,
+      iterationDocument,
+      positionAtText(iterationDocument, iterationSource, "i in")
+    )).toThrow("Rename is not available at this position.");
+    expect(() => editsAt(
+      iterationProvider,
+      iterationDocument,
+      positionAtText(iterationDocument, iterationSource, "i in"),
+      "j"
+    )).toThrow("Rename could not be applied.");
   });
 
   it("rejects a stale document and a plan whose expected source text is not exact", () => {
@@ -335,7 +350,12 @@ describe("VS Code native nui rename provider", () => {
         staleDocument.setSourceText(`${source}\n# changed during rename`);
       }
     };
-    expect(editsAt(stale.provider, staleDocument, positionAtText(staleDocument, source, "@Base", 1), "Renamed")).toBeUndefined();
+    expect(() => editsAt(
+      stale.provider,
+      staleDocument,
+      positionAtText(staleDocument, source, "@Base", 1),
+      "Renamed"
+    )).toThrow("Rename could not be applied.");
 
     const exactnessDocument = documentFor(source);
     const exactness = providerFor(source, exactnessDocument);
@@ -345,12 +365,12 @@ describe("VS Code native nui rename provider", () => {
       edits: [{ from: 0, to: 4, expectedText: "wrong", newText: "Renamed" }]
     });
     try {
-      expect(editsAt(
+      expect(() => editsAt(
         exactness.provider,
         exactnessDocument,
         positionAtText(exactnessDocument, source, "@Base", 1),
         "Renamed"
-      )).toBeUndefined();
+      )).toThrow("Rename could not be applied.");
     } finally {
       planSpy.mockRestore();
     }

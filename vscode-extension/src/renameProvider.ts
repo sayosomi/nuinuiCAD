@@ -14,6 +14,8 @@ export const nuiRenameSelector: vscode.DocumentSelector = {
 };
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
+const prepareRenameFailureMessage = "Rename is not available at this position.";
+const provideRenameEditsFailureMessage = "Rename could not be applied.";
 
 const normalizedOffsetFromRaw = (rawSource: string, rawOffset: number): number => {
   let removedCarriageReturns = 0;
@@ -103,13 +105,13 @@ export const createNuiRenameProvider = (
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return undefined;
 
     const snapshot = captureRenameCall(document, sessionFor);
-    if (!snapshot.semantic) return undefined;
+    if (!snapshot.semantic) throw new Error(prepareRenameFailureMessage);
 
     const target = queryDslRenameTarget({ source: snapshot.source, semantic: snapshot.semantic }, normalizedOffsetFromRaw(
       snapshot.rawSource,
       document.offsetAt(position)
     ));
-    if (!target || !isCurrentDocument(document, snapshot)) return undefined;
+    if (!target || !isCurrentDocument(document, snapshot)) throw new Error(prepareRenameFailureMessage);
 
     return {
       range: currentTargetRangeFor(document, snapshot, target),
@@ -121,14 +123,16 @@ export const createNuiRenameProvider = (
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return undefined;
 
     const snapshot = captureRenameCall(document, sessionFor);
-    if (!snapshot.semantic) return undefined;
+    if (!snapshot.semantic) throw new Error(provideRenameEditsFailureMessage);
 
     const plan = planDslRenameEdits(
       { source: snapshot.source, semantic: snapshot.semantic },
       normalizedOffsetFromRaw(snapshot.rawSource, document.offsetAt(position)),
       newName
     );
-    if (!plan || !exactPlanForSource(plan, snapshot.source) || !isCurrentDocument(document, snapshot)) return undefined;
+    if (!plan || !exactPlanForSource(plan, snapshot.source) || !isCurrentDocument(document, snapshot)) {
+      throw new Error(provideRenameEditsFailureMessage);
+    }
 
     const workspaceEdit = new vscode.WorkspaceEdit();
     for (const edit of plan.edits) {
