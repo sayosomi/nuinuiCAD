@@ -183,6 +183,24 @@ describe("applyLineSplices", () => {
 });
 
 describe("textPatch 要素の更新", () => {
+  it("preserves a block-comment close before statement code during a model edit", () => {
+    const source = [
+      "nui 4",
+      "/* keep this note",
+      "*/ point P = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      elements: document.elements.map((element) =>
+        element.name === "P" ? ({ ...element, x: 5 } as CadElement) : element
+      )
+    }));
+
+    expect(patched).toContain("/* keep this note\n*/ point P = coordinate(");
+    expect(patched.indexOf("*/")).toBeLessThan(patched.indexOf("point P"));
+    expect(patched).toContain("x: 5,");
+  });
+
   it("モデルの別フィールドを編集してもsource-authored typed property expressionを保持する", () => {
     const source = [
       "nui 4",
@@ -671,6 +689,61 @@ describe("textPatch リネーム伝播", () => {
 });
 
 describe("textPatch 非要素セクション", () => {
+  it("palette line rewrites keep a full-source block-comment close before color code", () => {
+    const source = [
+      "nui 4",
+      "/* keep palette note",
+      '*/ color main ("#112233", name: "本体", default: true)',
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      palette: {
+        ...document.palette,
+        colors: document.palette.colors.map((color) => ({ ...color, hex: "#000000" }))
+      }
+    }));
+
+    expect(patched).toContain('/* keep palette note\n*/ color main ("#000000"');
+  });
+
+  it("visibility line rewrites keep a full-source block-comment close before activeView code", () => {
+    const source = [
+      "nui 4",
+      'role seam (name: "縫い代")',
+      "view 通常 (default: true, seam: false)",
+      "view 印刷 (default: true, seam: true)",
+      "/* keep active-view note",
+      "*/ activeView 通常",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      activeVisibilityProfileId: document.visibilityProfiles.find((profile) => profile.name === "印刷")!.id
+    }));
+
+    expect(patched).toContain("/* keep active-view note\n*/ activeView 印刷");
+  });
+
+  it("activePrintLayout line rewrites keep a full-source block-comment close before code", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "}",
+      "printLayout 二枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+      "}",
+      "/* keep active-print note",
+      "*/ activePrintLayout 一枚目"
+    ].join("\n");
+    const { patched } = applyChange(source, (document) => ({
+      ...document,
+      activePrintLayoutId: "二枚目"
+    }));
+
+    expect(patched).toContain("/* keep active-print note\n*/ activePrintLayout 二枚目");
+  });
+
   it("色の追加・編集・default移動・削除", () => {
     const source = [
       "nui 4",

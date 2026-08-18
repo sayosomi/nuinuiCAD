@@ -20,8 +20,8 @@ import {
 } from "../dsl/dslSerializer";
 import { serializeElementStatementBlock, serializeElementStatementLogical } from "../dsl/dslSerializeElement";
 import type { DslStatement } from "../dsl/dslTypes";
-import { DSL_INDENT, splitDslComment } from "../dsl/dslTokens";
-import { mergeStatementComments } from "./statementCommentMerge";
+import { DSL_INDENT } from "../dsl/dslTokens";
+import { mergeStatementComments, preserveDslLineComments } from "./statementCommentMerge";
 import type { CadElement, ElementId } from "../types/geometry";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
@@ -72,6 +72,14 @@ export type TextPatchInput = {
 
 /** A structural patch must never guess where a continuation/comment belongs. */
 export class UnappliedTextPatchError extends Error {}
+
+const sourceLexicalLineAt = (old: CompiledDslDocument, line: number) => {
+  const lexicalLine = old.spans.sourceMap.lexicalLines[line - 1];
+  if (!lexicalLine) {
+    throw new UnappliedTextPatchError(`旧ソースの字句行が見つかりません (${line}行目)。`);
+  }
+  return lexicalLine;
+};
 
 // blockEnd/blockElse/atStop の構造行は必ず単一物理行(layoutElementTreeの
 // 構築が保証)。statement行(要素文)は縦型callで複数物理行になり得るため、
@@ -519,7 +527,6 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
   for (const [layoutIndex, oldLineNumber] of matchedOldLineByLayout) {
     const layoutLine = layout[layoutIndex];
     const rawOldLine = old.sourceLines[oldLineNumber - 1] ?? "";
-    const comment = splitDslComment(rawOldLine).comment;
 
     if (layoutLine.role === "statement") {
       const elementId = layoutLine.elementId!;
@@ -554,7 +561,13 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
           next = { ...next, header: `${next.header} {` };
         }
         const oldArgLineByKey = oldArgLineByKeyFor(oldStatement, old.sourceLines, info.line);
-        const mergedLines = mergeStatementComments({ oldLines, oldArgLineByKey, next, indent });
+        const mergedLines = mergeStatementComments({
+          oldLines,
+          oldArgLineByKey,
+          next,
+          indent,
+          lexicalLines: old.spans.sourceMap.lexicalLines.slice(info.line - 1, endLine)
+        });
         const unchanged =
           mergedLines.length === oldLines.length && mergedLines.every((line, index) => line === oldLines[index]);
         if (!unchanged) {
@@ -585,7 +598,10 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
         ? statementMap.byKey.get("atStop")!
         : statementMap.byElementId.get(layoutLine.elementId!)!;
     if (info.indentDepth !== layoutLine.depth) {
-      const replacement = `${soleCanonicalLine(layoutLine, layoutLine.elementId)}${comment}`;
+      const replacement = preserveDslLineComments(
+        soleCanonicalLine(layoutLine, layoutLine.elementId),
+        sourceLexicalLineAt(old, oldLineNumber)
+      );
       if (replacement !== rawOldLine) setLineOp(ops, oldLineNumber, replacement);
     }
   }
@@ -690,7 +706,7 @@ const patchPalette = (input: TextPatchInput, ops: PatchOps) => {
       ? serializePaletteColorLine(oldColor, oldDocument.palette.defaultColorId)
       : undefined;
     if (previous === desired) continue;
-    const replacement = `${desired}${splitDslComment(rawOldLine).comment}`;
+    const replacement = preserveDslLineComments(desired, sourceLexicalLineAt(old, item.info.line));
     if (replacement !== rawOldLine) setLineOp(ops, item.info.line, replacement);
   }
 
@@ -788,7 +804,7 @@ const patchVisibility = (input: TextPatchInput, ops: PatchOps) => {
       return;
     }
     if (previous === desired) return;
-    const replacement = `${desired}${splitDslComment(rawOldLine).comment}`;
+    const replacement = preserveDslLineComments(desired, sourceLexicalLineAt(old, line));
     if (replacement !== rawOldLine) setLineOp(ops, line, replacement);
   };
 
@@ -1078,7 +1094,10 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
     if (newPlan.activePrintLayoutLine === null) {
       setLineOp(ops, activeInfo.line, null);
     } else if (oldPlan.activePrintLayoutLine !== newPlan.activePrintLayoutLine) {
-      const replacement = `${newPlan.activePrintLayoutLine}${splitDslComment(rawOldLine).comment}`;
+      const replacement = preserveDslLineComments(
+        newPlan.activePrintLayoutLine,
+        sourceLexicalLineAt(old, activeInfo.line)
+      );
       if (replacement !== rawOldLine) setLineOp(ops, activeInfo.line, replacement);
     }
   } else if (newPlan.activePrintLayoutLine !== null && oldPlan.activePrintLayoutLine !== newPlan.activePrintLayoutLine) {
