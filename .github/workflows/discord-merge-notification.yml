@@ -1,0 +1,48 @@
+name: Notify Discord on merged pull requests
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - closed
+
+permissions: {}
+
+jobs:
+  notify-discord:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Send merged pull request notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MERGE_WEBHOOK_URL }}
+          REPOSITORY_NAME: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          payload="$(jq -n \
+            --arg repository "$REPOSITORY_NAME" \
+            --arg number "$PR_NUMBER" \
+            --arg title "$PR_TITLE" \
+            --arg url "$PR_URL" \
+            '{content: ("✅ [" + $repository + "] PR #" + $number + " merged\n" + $title + "\n" + $url)}')"
+
+          http_status="$(curl \
+            --silent \
+            --show-error \
+            --output /dev/null \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "$DISCORD_WEBHOOK_URL")"
+
+          if [[ "$http_status" != 2?? ]]; then
+            echo "Discord webhook returned HTTP status $http_status" >&2
+            exit 1
+          fi
