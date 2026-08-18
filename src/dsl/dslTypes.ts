@@ -2,6 +2,8 @@ import type {
   CadElement,
   CadElementType,
   DocumentPalette,
+  DrawingModifierDefinition,
+  DrawingModifierState,
   ElementId,
   PrintLayout,
   VisibilityProfile,
@@ -134,6 +136,16 @@ export type DslModuleInstanceOption = {
   valuePhysicalSpan?: DslPhysicalSpan | null;
 };
 
+export type DslModifierProperty = {
+  key: string;
+  value: string;
+  keySpan: DslSpan;
+  valueSpan: DslSpan;
+  hasTrailingComma: boolean;
+  keyPhysicalSpan?: DslPhysicalSpan | null;
+  valuePhysicalSpan?: DslPhysicalSpan | null;
+};
+
 export type DslStatementBase = {
   line: number;
   /** Final physical source line belonging to this logical statement. */
@@ -152,6 +164,10 @@ export type DslStatementBase = {
   namePhysicalSpan?: DslPhysicalSpan | null;
   keywordPhysicalSpan?: DslPhysicalSpan | null;
   payloadPhysicalSpans?: Record<string, DslPhysicalSpan | null>;
+  /** Source-owned ordered drawing-modifier references on geometry declarations. */
+  modifierNames?: readonly string[];
+  modifierNameSpans?: readonly DslSpan[];
+  modifierNamePhysicalSpans?: readonly (DslPhysicalSpan | null)[];
   /** Structural lines are deliberately separate from the header source. */
   openBraceLine?: number;
 };
@@ -166,6 +182,15 @@ export type DslStatement =
   | (DslStatementBase & {
       kind: "moduleDefinition";
       parameters: readonly DslModuleParameter[];
+    })
+  | (DslStatementBase & {
+      kind: "modifierDefinition";
+      state: DrawingModifierState | null;
+      properties: readonly DslModifierProperty[];
+    })
+  | (DslStatementBase & {
+      kind: "modifierProperty";
+      property: DslModifierProperty;
     })
   | (DslStatementBase & {
       kind: "moduleInstance";
@@ -265,6 +290,7 @@ export type CompileDslContext = {
 
 export type CompileDslResult = {
   elements: CadElement[];
+  modifiers?: DrawingModifierDefinition[];
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
   visibilityRoles?: VisibilityRole[];

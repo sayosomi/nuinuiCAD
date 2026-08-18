@@ -4,9 +4,11 @@ import type {
   DslSpan,
   DslStatement,
   DslStatementBase,
+  DslModifierProperty,
   ParseDslResult
 } from "./dslTypes";
-import { unquoteDslString } from "./dslTokens";
+import type { DrawingModifierState } from "../types/geometry";
+import { isBareDslIdentifierChar, unquoteDslString } from "./dslTokens";
 import {
   createLogicalStatementSourceMap,
   physicalSpanForLogicalRange,
@@ -64,6 +66,7 @@ export const dslStatementKeywords = {
   image: "image",
   group: "group",
   module: "module",
+  modifier: "modifier",
   instance: "instance",
   export: "export"
 } as const;
@@ -126,6 +129,8 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "activePrintLayout",
   "place",
   "moduleDefinition",
+  "modifierDefinition",
+  "modifierProperty",
   "moduleInstance",
   "typedDeclaration",
   "set",
@@ -162,6 +167,8 @@ type StatementCommonFields = {
   opensBlock: boolean;
   payloadSpans: Record<string, DslSpan>;
   attrs: DslAttribute[];
+  modifierNames?: readonly string[];
+  modifierNameSpans?: readonly DslSpan[];
 };
 
 const baseFrom = (parsed: StatementCommonFields, line: number, endLine: number): DslStatementBase => ({
@@ -178,7 +185,9 @@ const baseFrom = (parsed: StatementCommonFields, line: number, endLine: number):
   // this temporary shape before exposing it to callers.
   sourceRevision: 0,
   documentRange: { from: 0, to: 0, startLine: line, endLine, sourceRevision: 0 },
-  physicalSpan: { segments: [], sourceRevision: 0 }
+  physicalSpan: { segments: [], sourceRevision: 0 },
+  ...(parsed.modifierNames ? { modifierNames: parsed.modifierNames } : {}),
+  ...(parsed.modifierNameSpans ? { modifierNameSpans: parsed.modifierNameSpans } : {})
 });
 
 // if/for のヘッダ位置引数(condition/variable)は registry 上 positional
@@ -299,6 +308,152 @@ const setStatementToDslStatement = (
   expression: set.expression
 });
 
+type ParsedModifierDefinition = StatementCommonFields & { state: DrawingModifierState | null };
+
+type ParsedModifierProperty = {
+  property: DslModifierProperty;
+  keywordSpan: DslSpan;
+  name: string;
+  nameSpan: DslSpan;
+  payloadSpans: Record<string, DslSpan>;
+  attrs: DslAttribute[];
+  opensBlock: false;
+};
+
+const modifierStateValues = new Set<DrawingModifierState>(["visible", "hidden", "disabled"]);
+
+const parseModifierDefinition = (
+  logicalText: string,
+  opensOnNextLine: boolean,
+  diagnostics: DslDiagnostic[],
+  line: number
+): ParsedModifierDefinition | null => {
+  const keyword = "modifier";
+  const keywordSpan = { start: 0, end: keyword.length };
+  const restStart = keyword.length;
+  const trimmedEnd = logicalText.trimEnd().length;
+  const inlineBrace = logicalText[trimmedEnd - 1] === "{";
+  const nameEnd = inlineBrace ? trimmedEnd - 1 : logicalText.length;
+  const nameSpan = (() => {
+    let start = restStart;
+    let end = nameEnd;
+    while (start < end && /\s/.test(logicalText[start]!)) start += 1;
+    while (end > start && /\s/.test(logicalText[end - 1]!)) end -= 1;
+    return { start, end };
+  })();
+  if (nameSpan.start === nameSpan.end) {
+    diagnostics.push(diagnostic(line, "modifier には名前が必要です。"));
+  } else {
+    const rawName = logicalText.slice(nameSpan.start, nameSpan.end);
+    const quoted = (rawName.startsWith("\"") && rawName.endsWith("\"")) ||
+      (rawName.startsWith("'") && rawName.endsWith("'"));
+    if (!quoted && [...rawName].some((character) => !isBareDslIdentifierChar(character))) {
+      diagnostics.push(diagnostic(line, "modifier の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。"));
+    }
+  }
+  if (inlineBrace && trimmedEnd < logicalText.length && logicalText.slice(trimmedEnd).trim()) {
+    diagnostics.push(diagnostic(line, "modifier ブロックの「{」の後に余分なトークンがあります。"));
+  }
+  const opensBlock = inlineBrace || opensOnNextLine;
+  if (!opensBlock) diagnostics.push(diagnostic(line, "modifier にはブロックが必要です。"));
+  return {
+    name: nameSpan.start === nameSpan.end ? "" : unquoteDslString(logicalText.slice(nameSpan.start, nameSpan.end)),
+    nameSpan: nameSpan.start === nameSpan.end ? null : nameSpan,
+    keywordSpan,
+    opensBlock,
+    payloadSpans: nameSpan.start === nameSpan.end ? {} : { name: nameSpan },
+    attrs: [],
+    state: null
+  };
+};
+
+const topLevelComma = (source: string, start: number, end: number) => {
+  let quote: string | null = null;
+  let depth = 0;
+  for (let index = start; index < end; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote && source[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if ((character === "\"" || character === "'") && source[index - 1] !== "\\") {
+      quote = character;
+    } else if (character === "(" || character === "[") {
+      depth += 1;
+    } else if (character === ")" || character === "]") {
+      depth -= 1;
+    } else if (character === "," && depth === 0) {
+      return index;
+    }
+  }
+  return -1;
+};
+
+const parseModifierProperty = (
+  logicalText: string,
+  diagnostics: DslDiagnostic[],
+  line: number
+): ParsedModifierProperty | null => {
+  const match = logicalText.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:/);
+  if (!match) return null;
+  const key = match[1]!;
+  const keyStart = 0;
+  const keyEnd = key.length;
+  const colon = logicalText.indexOf(":", keyEnd);
+  const codeEnd = logicalText.trimEnd().length;
+  const hasTrailingComma = logicalText[codeEnd - 1] === ",";
+  if (!hasTrailingComma) diagnostics.push(diagnostic(line, "modifier のプロパティには末尾の「,」が必要です。"));
+  const valueEndLimit = hasTrailingComma ? codeEnd - 1 : codeEnd;
+  let valueStart = colon + 1;
+  while (valueStart < valueEndLimit && /\s/.test(logicalText[valueStart]!)) valueStart += 1;
+  let valueEnd = valueEndLimit;
+  while (valueEnd > valueStart && /\s/.test(logicalText[valueEnd - 1]!)) valueEnd -= 1;
+  const extraComma = topLevelComma(logicalText, valueStart, valueEnd);
+  if (extraComma >= 0) {
+    diagnostics.push(diagnostic(line, "modifier ブロックでは1行に1つのプロパティだけ指定できます。"));
+    valueEnd = extraComma;
+    while (valueEnd > valueStart && /\s/.test(logicalText[valueEnd - 1]!)) valueEnd -= 1;
+  }
+  if (valueStart === valueEnd) diagnostics.push(diagnostic(line, `modifier プロパティ「${key}」の値がありません。`));
+  const property: DslModifierProperty = {
+    key,
+    value: logicalText.slice(valueStart, valueEnd),
+    keySpan: { start: keyStart, end: keyEnd },
+    valueSpan: { start: valueStart, end: valueEnd },
+    hasTrailingComma
+  };
+  return {
+    property,
+    keywordSpan: { start: keyStart, end: keyEnd },
+    name: key,
+    nameSpan: { start: keyStart, end: keyEnd },
+    payloadSpans: { value: property.valueSpan },
+    attrs: [],
+    opensBlock: false
+  };
+};
+
+const modifierDefinitionToDslStatement = (
+  parsed: ParsedModifierDefinition,
+  line: number,
+  endLine: number
+): DslStatement => ({
+  ...baseFrom(parsed, line, endLine),
+  kind: "modifierDefinition",
+  state: parsed.state,
+  properties: []
+});
+
+const modifierPropertyToDslStatement = (
+  parsed: ParsedModifierProperty,
+  line: number,
+  endLine: number
+): DslStatement => ({
+  ...baseFrom(parsed, line, endLine),
+  kind: "modifierProperty",
+  property: parsed.property
+});
+
 const structuralStatement = (logical: LogicalStatement, kind: "blockEnd" | "blockElse"): DslStatement => ({
   line: logical.range.startLine,
   endLine: logical.range.endLine,
@@ -401,6 +556,14 @@ const parseLine = (
   if (keyword === dslStatementKeywords.instance) {
     return fromModule(parseDslModuleStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
   }
+  if (keyword === dslStatementKeywords.modifier) {
+    const modifierDiagnostics: DslDiagnostic[] = [];
+    const parsed = parseModifierDefinition(logicalText, opensOnNextLine, modifierDiagnostics, line)!;
+    return {
+      statement: modifierDefinitionToDslStatement(parsed, line, endLine),
+      diagnostics: modifierDiagnostics
+    };
+  }
   if (keyword === dslStatementKeywords.export) {
     const parsed = parseDslExportStatement(logicalText, { opensBlock: opensOnNextLine });
     if (parsed.kind === "geometry" && parsed.call) {
@@ -413,6 +576,18 @@ const parseLine = (
       diagnostics: parsed.diagnostics.map((item) =>
         diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
       )
+    };
+  }
+  const propertyCandidate =
+    !declarationKeywords.has(keyword) &&
+    !setKeywords.has(keyword) &&
+    /^[A-Za-z_][A-Za-z0-9_]*\s*:/.test(logicalText);
+  if (propertyCandidate) {
+    const propertyDiagnostics: DslDiagnostic[] = [];
+    const parsed = parseModifierProperty(logicalText, propertyDiagnostics, line)!;
+    return {
+      statement: modifierPropertyToDslStatement(parsed, line, endLine),
+      diagnostics: propertyDiagnostics
     };
   }
   if (callCategoryKeywords.has(keyword) || mutationKeywords.has(keyword)) {
@@ -434,13 +609,14 @@ const parseLine = (
 
 type BlockFrame = {
   statementIndex: number;
-  kind: "group" | "conditionalGroup" | "forGroup" | "printLayout" | "moduleDefinition";
+  kind: "group" | "conditionalGroup" | "forGroup" | "printLayout" | "moduleDefinition" | "modifier";
   branch: "then" | "else";
   line: number;
 };
 
 export const blockFrameKind = (statement: DslStatement): BlockFrame["kind"] | null => {
   if (statement.kind === "moduleDefinition") return "moduleDefinition";
+  if (statement.kind === "modifierDefinition") return "modifier";
   if (statement.kind === "group") return "group";
   if (statement.kind === "printLayout") return "printLayout";
   if (statement.kind === "element") {
@@ -477,6 +653,14 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
       return;
     }
     const top = stack.at(-1);
+    const modifierAncestor = stack.some((frame) => frame.kind === "modifier");
+    if (statement.kind === "modifierProperty" && top?.kind !== "modifier") {
+      diagnostics.push(diagnostic(statement.line, "modifier プロパティは modifier ブロック内にのみ書けます。"));
+    } else if (modifierAncestor && statement.kind === "modifierDefinition") {
+      diagnostics.push(diagnostic(statement.line, "modifier 定義を別のブロック内にネストできません。"));
+    } else if (modifierAncestor && statement.kind !== "modifierProperty") {
+      diagnostics.push(diagnostic(statement.line, "modifier ブロック内には state プロパティだけを書けます。"));
+    }
     if (
       top?.kind === "printLayout" &&
       statement.kind !== "place" &&
@@ -500,6 +684,51 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
 
   for (const frame of stack) {
     diagnostics.push(diagnostic(frame.line, "ブロックが閉じられていません。「}」で閉じてください。"));
+  }
+};
+
+const finalizeModifierStatements = (statements: DslStatement[], diagnostics: DslDiagnostic[]) => {
+  const definitions = statements.filter(
+    (statement): statement is Extract<DslStatement, { kind: "modifierDefinition" }> =>
+      statement.kind === "modifierDefinition"
+  );
+  const seen = new Map<string, number>();
+  for (const definition of definitions) {
+    if (definition.enclosing) {
+      diagnostics.push(diagnostic(definition.line, "modifier 定義は文書のトップレベルにのみ書けます。"));
+    }
+    if (definition.name) {
+      const previousLine = seen.get(definition.name);
+      if (previousLine !== undefined) {
+        diagnostics.push(diagnostic(definition.line, `modifier 名が重複しています: ${definition.name} (行 ${previousLine} と重複)`));
+      } else {
+        seen.set(definition.name, definition.line);
+      }
+    }
+    const properties = statements
+      .filter((statement): statement is Extract<DslStatement, { kind: "modifierProperty" }> =>
+        statement.kind === "modifierProperty" && statement.enclosing?.statementIndex === statements.indexOf(definition)
+      )
+      .map((statement) => statement.property);
+    definition.properties = properties;
+    const stateProperties = properties.filter((property) => property.key === "state");
+    if (properties.some((property) => property.key !== "state")) {
+      for (const property of properties.filter((item) => item.key !== "state")) {
+        diagnostics.push(diagnostic(definition.line, `modifier に未知のプロパティ「${property.key}」があります。`));
+      }
+    }
+    if (stateProperties.length === 0) {
+      diagnostics.push(diagnostic(definition.line, "modifier には state プロパティが1つ必要です。"));
+    } else if (stateProperties.length > 1) {
+      diagnostics.push(diagnostic(definition.line, "modifier の state プロパティは1つだけ指定できます。"));
+    }
+    const state = stateProperties[0]?.value;
+    if (state !== undefined && !modifierStateValues.has(state as DrawingModifierState)) {
+      diagnostics.push(diagnostic(definition.line, "modifier の state は visible / hidden / disabled のいずれかで指定してください。"));
+      definition.state = null;
+    } else {
+      definition.state = state as DrawingModifierState | undefined ?? null;
+    }
   }
 };
 
@@ -544,13 +773,22 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     keywordPhysicalSpan: project(statement.keywordSpan),
     payloadPhysicalSpans: Object.fromEntries(Object.entries(statement.payloadSpans).map(([key, span]) => [key, project(span)]))
   });
-  if (statement.kind === "element") {
-    statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
+  if (statement.kind === "element" || statement.kind === "group") {
+    if (statement.kind === "element") statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
+    statement.modifierNamePhysicalSpans = (statement.modifierNameSpans ?? []).map((span) => project(span));
   } else if (statement.kind === "moduleDefinition") {
     for (const parameter of statement.parameters) {
       parameter.namePhysicalSpan = parameter.nameSpan ? project(parameter.nameSpan) : null;
       parameter.typePhysicalSpan = parameter.typeSpan ? project(parameter.typeSpan) : null;
       parameter.defaultPhysicalSpan = parameter.defaultSpan ? project(parameter.defaultSpan) : null;
+    }
+  } else if (statement.kind === "modifierProperty") {
+    statement.property.keyPhysicalSpan = project(statement.property.keySpan);
+    statement.property.valuePhysicalSpan = project(statement.property.valueSpan);
+  } else if (statement.kind === "modifierDefinition") {
+    for (const property of statement.properties) {
+      property.keyPhysicalSpan = project(property.keySpan);
+      property.valuePhysicalSpan = project(property.valueSpan);
     }
   } else if (statement.kind === "typedDeclaration") {
     statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
@@ -629,6 +867,7 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
     diagnostics.push(...parsed.diagnostics);
   }
   applyBlockStructure(statements, diagnostics);
+  finalizeModifierStatements(statements, diagnostics);
   reportDuplicateNames(statements, diagnostics);
   for (const extra of statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))

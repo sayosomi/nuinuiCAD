@@ -10,6 +10,7 @@ import type {
   CadElement,
   CadElementType,
   DocumentPalette,
+  DrawingModifierDefinition,
   ElementId,
   PaletteColor,
   PrintLayout,
@@ -87,6 +88,8 @@ export {
 
 export type DslDocumentData = {
   elements: CadElement[];
+  /** Document-level source definitions; runtime modifier resolution is deferred. */
+  modifiers?: DrawingModifierDefinition[];
   palette: DocumentPalette;
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
@@ -143,6 +146,10 @@ export type StatementMap = {
   statements: StatementInfo[];
   byElementId: Map<ElementId, StatementInfo>;
   elementIdByStatementIndex: Map<number, ElementId>;
+  /** Stable source ownership for document-level modifier definitions. */
+  byModifierName: Map<string, StatementInfo>;
+  /** Definition ranges keyed by the source modifier name. */
+  modifierDefinitionRangeByName: Map<string, LineRange>;
   /** Reconciler-owned identities, present only when typed declarations need them. */
   statementIdByStatementIndex?: Map<number, string>;
   /** Reverse lookup for a current reconciler-owned statement identity. */
@@ -159,6 +166,7 @@ export type StatementMap = {
   sectionEnds: {
     version?: number;
     palette?: number;
+    modifiers?: number;
     visibility?: number;
     elements?: number;
     printLayouts?: number;
@@ -296,6 +304,14 @@ export const serializePaletteColorLine = (
 export const serializePaletteLines = (
   palette: DocumentPalette
 ): string[] => palette.colors.map((color) => serializePaletteColorLine(color, palette.defaultColorId));
+
+export const serializeDrawingModifierLines = (
+  modifiers: readonly DrawingModifierDefinition[]
+): string[] => modifiers.flatMap((modifier) => [
+  `modifier ${formatDslName(modifier.name)} {`,
+  `${DSL_INDENT}state: ${modifier.state},`,
+  "}"
+]);
 
 // ==== 印刷レイアウト ====
 
@@ -651,6 +667,7 @@ export const serializeDocumentToDsl = (
     [`nui ${majorVersion}`, ...(options.headerComment ? [`# ${options.headerComment}`] : [])],
     serializePaletteLines(data.palette),
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
+    serializeDrawingModifierLines(data.modifiers ?? []),
     options.preserveElementOrder
       ? serializeFlatElementTree(data.elements, refs, data.evaluationLimitIndex)
       : serializeElementTree(data.elements, refs, data.evaluationLimitIndex),
@@ -848,6 +865,9 @@ const buildStatementMap = (
       case "color":
         byKey.set(`color:${statement.name}`, info);
         break;
+      case "modifierDefinition":
+        byKey.set(`modifier:${statement.name}`, info);
+        break;
       case "role":
         byKey.set(`role:${attrValueOf(statement, "id") ?? statement.name}`, info);
         break;
@@ -889,6 +909,16 @@ const buildStatementMap = (
     const info = infos[statementIndex];
     if (info) byElementId.set(elementId, info);
   }
+  const byModifierName = new Map<string, StatementInfo>();
+  const modifierDefinitionRangeByName = new Map<string, LineRange>();
+  for (const info of infos) {
+    const statement = statements[info.statementIndex];
+    if (!includeStatement(statement, info.statementIndex) || statement.kind !== "modifierDefinition") continue;
+    if (!byModifierName.has(statement.name)) byModifierName.set(statement.name, info);
+    if (!modifierDefinitionRangeByName.has(statement.name)) {
+      modifierDefinitionRangeByName.set(statement.name, { ...info.range });
+    }
+  }
   const statementIdByStatementIndex = assignedStatementIds
     ? new Map<number, string>(assignedStatementIds)
     : undefined;
@@ -927,6 +957,8 @@ const buildStatementMap = (
       sectionEnds.version = Math.max(sectionEnds.version ?? 0, info.line);
     } else if (statement.kind === "color") {
       sectionEnds.palette = Math.max(sectionEnds.palette ?? 0, info.line);
+    } else if (statement.kind === "modifierDefinition") {
+      sectionEnds.modifiers = Math.max(sectionEnds.modifiers ?? 0, info.range.endLine, info.endLine);
     } else if (statement.kind === "role" || statement.kind === "view" || statement.kind === "activeView") {
       sectionEnds.visibility = Math.max(sectionEnds.visibility ?? 0, info.line);
     } else if (
@@ -950,6 +982,8 @@ const buildStatementMap = (
     statements: infos,
     byElementId,
     elementIdByStatementIndex,
+    byModifierName,
+    modifierDefinitionRangeByName,
     ...(statementIdByStatementIndex ? { statementIdByStatementIndex } : {}),
     ...(statementIndexByStatementId ? { statementIndexByStatementId } : {}),
     statementRangeById,
@@ -1554,6 +1588,7 @@ export const compileDslDocument = (
 
   const document: DslDocumentData = {
     elements: compiled.elements,
+    modifiers: compiled.modifiers ?? [],
     palette: compiled.palette ?? defaultDocumentPalette(),
     visibilityRoles: compiled.visibilityRoles ?? [],
     visibilityProfiles,

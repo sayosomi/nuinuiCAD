@@ -5,11 +5,20 @@ import type { ScalarEvaluation } from "../scalars/types";
 
 export type ElementId = string;
 
+export type DrawingModifierState = "visible" | "hidden" | "disabled";
+
+export type DrawingModifierDefinition = {
+  name: string;
+  state: DrawingModifierState;
+};
+
 export type CadElementBase = {
   id: ElementId;
   name: string;
   activity: "visible" | "hidden" | "disabled";
   colorId?: string;
+  /** Source-owned, ordered references to document-level drawing modifiers. */
+  modifierNames?: string[];
   parentGroupId?: ElementId;
   conditionalBranch?: ConditionalBranch;
   numericParameterSteps?: Partial<Record<string, number>>;
