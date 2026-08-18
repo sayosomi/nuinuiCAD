@@ -25,6 +25,12 @@ import {
   createNuiRenameProvider,
   nuiRenameSelector
 } from "./renameProvider";
+import {
+  createNuiChoiceQuickFixApplyHandler,
+  createNuiChoiceQuickFixProvider,
+  nuiChoiceQuickFixSelector,
+  NUI_CHOICE_QUICK_FIX_APPLY_COMMAND
+} from "./choiceQuickFixProvider";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -250,6 +256,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
     nuiRenameSelector,
     createNuiRenameProvider(languageAnalysisSessionFor)
   );
+  const choiceQuickFixProvider = vscode.languages.registerCodeActionsProvider(
+    nuiChoiceQuickFixSelector,
+    createNuiChoiceQuickFixProvider(languageAnalysisSessionFor),
+    { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+  );
   context.subscriptions.push(
     compilerDiagnosticCollection,
     compilerDiagnosticOpenListener,
@@ -258,7 +269,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     disposeCompilerDiagnosticSessions,
     completionProvider,
     definitionProvider,
-    renameProvider
+    renameProvider,
+    choiceQuickFixProvider
   );
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 
@@ -440,6 +452,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
     createCanvasPanel(editor);
   });
+  const choiceQuickFixApplyCommand = vscode.commands.registerCommand(
+    NUI_CHOICE_QUICK_FIX_APPLY_COMMAND,
+    createNuiChoiceQuickFixApplyHandler(languageAnalysisSessionFor)
+  );
 
   const closeDocumentListener = vscode.workspace.onDidCloseTextDocument((document) => {
     const session = sessions.get(documentKey(document));
@@ -454,7 +470,13 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const disposeRustProcess = {
     dispose: () => rustProcessOwner.dispose()
   };
-  context.subscriptions.push(command, closeDocumentListener, disposeAllSessions, disposeRustProcess);
+  context.subscriptions.push(
+    command,
+    choiceQuickFixApplyCommand,
+    closeDocumentListener,
+    disposeAllSessions,
+    disposeRustProcess
+  );
 
   if (benchmarkConfig) {
     const startWhenEditorIsReady = () => {

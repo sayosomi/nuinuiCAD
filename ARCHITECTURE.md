@@ -351,6 +351,7 @@ Primary:
 - `vscode-extension/src/completionProvider.ts`
 - `vscode-extension/src/definitionProvider.ts`
 - `vscode-extension/src/renameProvider.ts`
+- `vscode-extension/src/choiceQuickFixProvider.ts`
 - `vscode-extension/src/rustEvaluationProcessOwner.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
@@ -399,7 +400,9 @@ VS Code TextDocument
 ├→ compiler diagnostics → DiagnosticCollection
 ├→ queryDslCompletion → CompletionItemProvider
 ├→ queryDslDefinition → DefinitionProvider
-└→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
+├→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
+└→ current invalid-choice diagnostic → typedVariableQuickFixes choice-replacement subset
+   → CodeActionProvider → guarded internal apply command → WorkspaceEdit
 ```
 
 `languageAnalysisSession.ts` owns current raw source, source replacement,
@@ -415,8 +418,12 @@ UTF-16 raw offsets across CRLF normalization, delegates semantic resolution to
 `DefinitionLink`. Rename target and edit-plan projection similarly remain
 host-neutral; VS Code `RenameProvider` registration is an adapter boundary,
 not a second rename resolver. Neither diagnostics, completion, definition
-navigation, nor rename planning performs runtime evaluation or starts the Rust
-process.
+navigation, rename planning, nor choice Quick Fix generation performs runtime
+evaluation or starts the Rust process. Choice Quick Fix reuses the current
+compiler invalid-choice diagnostic and the existing `typedVariableQuickFixes`
+choice-replacement descriptors; it does not use the CodeMirror adapter. The
+internal apply command is authoritative only for the current open file
+document/version/source and fails closed before creating a `WorkspaceEdit`.
 
 `src-tauri/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。
