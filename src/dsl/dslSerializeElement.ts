@@ -26,6 +26,11 @@ const defaultGroupAnchor = (value: PointAnchor | null | undefined) =>
 const constructionForElement = (element: CadElement): DslConstructionSpec =>
   constructionForElementType(element.type);
 
+const modifierReferenceSuffix = (element: CadElement) =>
+  element.modifierNames?.length
+    ? ` [${element.modifierNames.map(formatDslName).join(", ")}]`
+    : "";
+
 const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerializerRefs): string | null => {
   switch (arg.special) {
     case "steps": {
@@ -168,7 +173,7 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
       close: null
     };
   }
-  const prefix = [spec.category, name].filter(Boolean).join(" ");
+  const prefix = `${[spec.category, name].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)}`;
   const positional = spec.args
     .filter((arg) => arg.positional)
     .map((arg) => positionalText(element, arg, refs));
@@ -196,7 +201,7 @@ export const serializeElementStatementBlock = (
 
   const header = spec.category === MUTATION_CATEGORY
     ? `${spec.construction}(`
-    : [spec.category, refs.name(element), "=", `${spec.construction}(`].filter(Boolean).join(" ");
+    : `${[spec.category, refs.name(element)].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)} = ${spec.construction}(`;
   return {
     header,
     args: [...constructionArgs(element, spec, refs), ...common],
@@ -226,7 +231,7 @@ export const serializeElementStatementBlockWithBlanks = (
   const common = commonArgs(element, refs, new Set(spec.args.map((argSpec) => argSpec.arg)));
   const header = spec.category === MUTATION_CATEGORY
     ? `${spec.construction}(`
-    : [spec.category, refs.name(element), "=", `${spec.construction}(`].filter(Boolean).join(" ");
+    : `${[spec.category, refs.name(element)].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)} = ${spec.construction}(`;
   const constructionArgsWithBlanks = spec.args
     .filter((argSpec) => !argSpec.positional)
     .flatMap((argSpec) => {

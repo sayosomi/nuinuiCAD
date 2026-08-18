@@ -345,6 +345,7 @@ export const regenerateCanonicalFromModel = (
 
 const emptyFileSnapshot = (): DslDocumentData => ({
   elements: [],
+  modifiers: [],
   palette: defaultDocumentPalette(),
   visibilityRoles: [],
   visibilityProfiles: [defaultVisibilityProfile()],

@@ -10,6 +10,7 @@ import type { DslStatement } from "../dsl/dslTypes";
 import type {
   CadElement,
   DocumentPalette,
+  DrawingModifierDefinition,
   ElementId,
   PrintLayout,
   VisibilityProfile,
@@ -41,6 +42,7 @@ export type ShadowState = {
 // 影機構自体の純粋性維持)。読むフィールドだけを構造的に受け取る。
 export type ModelSnapshotForShadow = {
   elements: CadElement[];
+  modifiers?: DrawingModifierDefinition[];
   palette: DocumentPalette;
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
@@ -52,6 +54,7 @@ export type ModelSnapshotForShadow = {
 
 export const snapshotToDslData = (snapshot: ModelSnapshotForShadow): DslDocumentData => ({
   elements: snapshot.elements,
+  modifiers: snapshot.modifiers ?? [],
   palette: snapshot.palette,
   visibilityRoles: snapshot.visibilityRoles,
   visibilityProfiles: snapshot.visibilityProfiles,

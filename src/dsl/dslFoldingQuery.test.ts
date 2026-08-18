@@ -26,6 +26,16 @@ describe("DSL structural folding query", () => {
     ]);
   });
 
+  it("folds modifier blocks through generic opensBlock semantics", () => {
+    expect(syntaxFoldsFor([
+      "modifier 元袖ぐり {",
+      "  state: hidden,",
+      "}"
+    ].join("\n"))).toEqual([
+      { kind: "syntax", startLine: 1, endLine: 3 }
+    ]);
+  });
+
   it("folds nested multiline brace blocks independently", () => {
     expect(syntaxFoldsFor([
       "group Outer {",

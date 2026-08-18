@@ -39,6 +39,7 @@ import {
 import type {
   CadElement,
   DocumentPalette,
+  DrawingModifierDefinition,
   ElementId,
   PaletteColor,
   PrintLayout,
@@ -86,6 +87,8 @@ export type CadDocumentState = {
   typedDependencyGraph?: TypedDependencyGraph;
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   elements: CadElement[];
+  /** @deprecated Derived compatibility view. sourceText remains canonical. */
+  modifiers?: DrawingModifierDefinition[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   palette: DocumentPalette;
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
@@ -161,6 +164,7 @@ const HISTORY_LIMIT = 200;
 type DocumentCompatibilityView = Pick<
   CadDocumentState,
   | "elements"
+  | "modifiers"
   | "palette"
   | "visibilityRoles"
   | "visibilityProfiles"
@@ -172,6 +176,7 @@ type DocumentCompatibilityView = Pick<
 
 const documentOf = (state: DocumentCompatibilityView): DslDocumentData => ({
   elements: state.elements,
+  modifiers: state.modifiers ?? [],
   palette: state.palette,
   visibilityRoles: state.visibilityRoles,
   visibilityProfiles: state.visibilityProfiles,
@@ -184,6 +189,7 @@ const documentOf = (state: DocumentCompatibilityView): DslDocumentData => ({
 const compatibilityViewMatchesDoc = (state: CadDocumentState) => {
   const document = state.doc.document;
   return state.elements === document.elements &&
+    state.modifiers === document.modifiers &&
     state.palette === document.palette &&
     state.visibilityRoles === document.visibilityRoles &&
     state.visibilityProfiles === document.visibilityProfiles &&
@@ -242,6 +248,7 @@ const canonicalFields = (value: CanonicalDocumentValue) => {
     bindingIssueDiagnostics: value.bindingIssueDiagnostics,
     typedDependencyGraph: value.typedDependencyGraph,
     elements: document.elements,
+    modifiers: document.modifiers ?? [],
     palette: document.palette,
     visibilityRoles: document.visibilityRoles,
     visibilityProfiles: document.visibilityProfiles,
@@ -285,6 +292,7 @@ const documentFromChange = (
   const before = documentOf(state);
   return {
     elements: change.elements ?? before.elements,
+    modifiers: change.modifiers ?? before.modifiers ?? [],
     palette: change.palette ?? before.palette,
     visibilityRoles: change.visibilityRoles ?? before.visibilityRoles,
     visibilityProfiles: change.visibilityProfiles ?? before.visibilityProfiles,
@@ -408,6 +416,7 @@ const modelCommit = (
 
 const initialSnapshot = (): DslDocumentData => ({
   elements: sampleElements,
+  modifiers: [],
   palette: defaultDocumentPalette(),
   visibilityRoles: [],
   visibilityProfiles: [defaultVisibilityProfile()],

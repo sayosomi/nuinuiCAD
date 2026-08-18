@@ -26,6 +26,8 @@ export type DslCallStatement = {
   args: ScannedArg[];
   attrs: DslAttribute[];
   payloadSpans: Record<string, DslSpan>;
+  modifierNames: string[];
+  modifierNameSpans: DslSpan[];
   opensBlock: boolean;
 };
 
@@ -119,6 +121,80 @@ export const UNCLOSED_CALL_CODE = "unclosed-call";
 const parseName = (source: string, span: DslSpan) => {
   if (span.start === span.end) return { name: "", nameSpan: null };
   return { name: unquoteDslString(source.slice(span.start, span.end)), nameSpan: span };
+};
+
+const matchingSquareClose = (source: string, open: number) => {
+  let quote: string | null = null;
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote && !escaped(source, index)) quote = null;
+      continue;
+    }
+    if ((character === "\"" || character === "'") && !escaped(source, index)) {
+      quote = character;
+    } else if (character === "[") {
+      depth += 1;
+    } else if (character === "]" && --depth === 0) {
+      return index;
+    }
+  }
+  return -1;
+};
+
+type ParsedNameWithModifiers = ReturnType<typeof parseName> & {
+  modifierNames: string[];
+  modifierNameSpans: DslSpan[];
+};
+
+const parseNameWithModifiers = (
+  source: string,
+  span: DslSpan,
+  diagnostics: DslCallDiagnostic[]
+): ParsedNameWithModifiers => {
+  const listOpen = topLevelIndex(source, "[", span.start);
+  if (listOpen < 0 || listOpen >= span.end) {
+    return { ...parseName(source, span), modifierNames: [], modifierNameSpans: [] };
+  }
+
+  const nameSpan = trimSpan(source, span.start, listOpen);
+  if (nameSpan.start === nameSpan.end) {
+    diagnostic(diagnostics, "modifier参照は名前付きのgeometry / groupにのみ指定できます。", { start: listOpen, end: listOpen + 1 });
+  }
+  const close = matchingSquareClose(source, listOpen);
+  if (close < 0 || close > span.end) {
+    diagnostic(diagnostics, "modifier参照リストの「[」が閉じられていません。", { start: listOpen, end: listOpen + 1 });
+    return { ...parseName(source, nameSpan), modifierNames: [], modifierNameSpans: [] };
+  }
+  const tail = trimSpan(source, close + 1, span.end);
+  if (tail.start < tail.end) {
+    diagnostic(diagnostics, "modifier参照リストの後に余分なトークンがあります。", tail);
+  }
+
+  const scanned = scanCallArgs(source, { start: listOpen + 1, end: close });
+  diagnostics.push(...scanned.errors);
+  const modifierNames: string[] = [];
+  const modifierNameSpans: DslSpan[] = [];
+  for (const arg of scanned.args) {
+    if (arg.key !== null) {
+      diagnostic(diagnostics, "modifier参照リストには名前だけを書いてください。", arg.keySpan ?? arg.valueSpan);
+      continue;
+    }
+    const raw = source.slice(arg.valueSpan.start, arg.valueSpan.end);
+    const name = unquoteDslString(arg.value).trim();
+    if (!name || name.startsWith("@")) {
+      diagnostic(diagnostics, "modifier参照名が空、または不正です。", arg.valueSpan);
+      continue;
+    }
+    if (!raw.startsWith("\"") && /\s/.test(raw)) {
+      diagnostic(diagnostics, "modifier参照名に空白を含める場合は引用符で囲んでください。", arg.valueSpan);
+      continue;
+    }
+    modifierNames.push(name);
+    modifierNameSpans.push(arg.valueSpan);
+  }
+  return { ...parseName(source, nameSpan), modifierNames, modifierNameSpans };
 };
 
 const validateArgs = (
@@ -223,7 +299,7 @@ const callStatement = (
   source: string,
   category: string,
   keywordSpan: DslSpan,
-  name: ReturnType<typeof parseName>,
+  name: ParsedNameWithModifiers,
   construction: string,
   constructionSpan: DslSpan | null,
   callSpan: DslSpan,
@@ -244,6 +320,8 @@ const callStatement = (
     args: scanned.args,
     attrs: attrsFromArgs(scanned.args),
     payloadSpans,
+    modifierNames: name.modifierNames,
+    modifierNameSpans: name.modifierNameSpans,
     opensBlock,
   } satisfies DslCallStatement;
 };
@@ -312,6 +390,8 @@ export const parseDslCallStatement = (
           args: scanned.args,
           attrs: attrsFromArgs(scanned.args),
           payloadSpans,
+          modifierNames: [],
+          modifierNameSpans: [],
           opensBlock
         } satisfies DslCallStatement;
         return { statement, diagnostics };
@@ -335,7 +415,9 @@ export const parseDslCallStatement = (
     if (category === "for") {
       diagnostic(diagnostics, "for は `for i in range(...) { ... }` の形式で書いてください。", beforeCall.start < beforeCall.end ? beforeCall : keywordSpan);
     }
-    const name = parseName(logicalText, beforeCall);
+    const name = category === "if"
+      ? { ...parseName(logicalText, beforeCall), modifierNames: [], modifierNameSpans: [] }
+      : parseNameWithModifiers(logicalText, beforeCall, diagnostics);
     const close = open >= 0 ? matchingClose(logicalText, open) : -1;
     const tail = close >= 0 ? trimSpan(logicalText, close + 1, headerEnd) : { start: headerEnd, end: headerEnd };
     if (close >= headerEnd && close >= 0) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", { start: headerEnd, end: close + 1 });
@@ -354,7 +436,7 @@ export const parseDslCallStatement = (
   // itself leads the statement && doubles as its own construction token.
   const bareSpec = bareConstructionFor(category);
   if (bareSpec) {
-    const bareName = { name: "", nameSpan: null };
+    const bareName = { name: "", nameSpan: null, modifierNames: [], modifierNameSpans: [] };
     let open = keywordSpan.end;
     while (whitespace.test(logicalText[open] ?? "")) open += 1;
     if (logicalText[open] !== "(") {
@@ -384,7 +466,11 @@ export const parseDslCallStatement = (
     diagnostic(diagnostics, "要素文には「=」が必要です。", keywordSpan);
     return { statement: null, diagnostics };
   }
-  const name = parseName(logicalText, trimSpan(logicalText, afterCategory.start, equals));
+  const name = parseNameWithModifiers(
+    logicalText,
+    trimSpan(logicalText, afterCategory.start, equals),
+    diagnostics
+  );
   const constructionStart = trimSpan(logicalText, equals + 1, logicalText.length).start;
   const constructionMatch = logicalText.slice(constructionStart).match(identifier);
   if (!constructionMatch) {

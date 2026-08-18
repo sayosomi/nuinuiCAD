@@ -6,6 +6,7 @@ import type {
   CadElement,
   CadElementType,
   DocumentPalette,
+  DrawingModifierDefinition,
   ElementId,
   PaletteColor,
   PrintLayout,
@@ -68,6 +69,13 @@ const warning = (line: number, message: string): DslDiagnostic => ({
   message
 });
 
+const modifierDefinitionsFromStatements = (statements: readonly DslStatement[]): DrawingModifierDefinition[] =>
+  statements.flatMap((statement) =>
+    statement.kind === "modifierDefinition" && !statement.enclosing && statement.state
+      ? [{ name: statement.name, state: statement.state }]
+      : []
+  );
+
 const booleanValue = (value: string) =>
   ["true", "1", "yes", "on"].includes(value.toLowerCase())
     ? true
@@ -129,7 +137,11 @@ export const applyStatement = (
   geometryResolvers?: DslGeometryResolverOverrides,
   statementIndex?: number
 ): CadElement => {
-  const named = { ...element, name: statement.name };
+  const named = {
+    ...element,
+    name: statement.name,
+    ...(statement.modifierNames?.length ? { modifierNames: [...statement.modifierNames] } : { modifierNames: undefined })
+  };
   const spec = constructionSpecFor(statement);
   if (!spec) return named;
 
@@ -454,12 +466,14 @@ export const buildBlockPrintLayouts = ({
 
 export const compileDslToElements = (source: string, context: CompileDslContext): CompileDslResult => {
   const parsed = context.preparsed ?? parseDsl(source);
+  const modifiers = modifierDefinitionsFromStatements(parsed.statements);
   // Same missing-attribute-value carve-out as dslDocument.ts's fatal gates:
   // an intentionally-blank `key:` value must not prevent every other
   // statement in the document from compiling into elements.
   if (parsed.diagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
     return {
       elements: context.elements,
+      modifiers,
       selectedElementId: null,
       selectedElementIds: [],
       visibilityRoles: context.visibilityRoles,
@@ -499,7 +513,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       moduleMaterialization
     });
     diagnostics.push(...moduleGeometryRuntime.diagnostics);
-    return compileMaterializedExecution({
+    return {
+      ...compileMaterializedExecution({
       statements: parsed.statements,
       context,
       diagnostics,
@@ -509,7 +524,9 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       moduleGeometryRuntime,
       applyStatement,
       buildBlockPrintLayouts
-    });
+      }),
+      modifiers
+    };
   }
   const existing = documentMode ? [] : context.elements;
   const statementIndexOf = new Map<DslStatement, number>(
@@ -531,6 +548,14 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
           : undefined)
     };
   });
+  const modifierNames = new Set(modifiers.map((modifier) => modifier.name));
+  for (const { statement } of statementsWithIds) {
+    for (const modifierName of statement.modifierNames ?? []) {
+      if (!modifierNames.has(modifierName)) {
+        diagnostics.push(diagnostic(statement.line, `未定義の modifier です: ${modifierName}`));
+      }
+    }
+  }
   const createdIds = new Map<DslStatement, ElementId>();
   for (const item of statementsWithIds) {
     createdIds.set(item.statement, item.id ?? createCadElement(item.type, existing).id);
@@ -682,6 +707,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
 
   return {
     elements,
+    modifiers,
     selectedElementId: selectedElementIds[0] ?? null,
     selectedElementIds,
     visibilityRoles: visibilitySettings.visibilityRoles,

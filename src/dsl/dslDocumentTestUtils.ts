@@ -21,6 +21,7 @@ const TEST_DEFAULT_DSL_MAJOR_VERSION: DslMajorVersion = 4;
 
 export const emptyDocument = (): DslDocumentData => ({
   elements: [],
+  modifiers: [],
   palette: defaultDocumentPalette(),
   visibilityRoles: [],
   visibilityProfiles: [defaultVisibilityProfile()],
@@ -96,6 +97,7 @@ export const comparableLayouts = (layouts: readonly PrintLayout[] | undefined, e
 
 export const expectSemanticallyEqualDocuments = (a: DslDocumentData, b: DslDocumentData) => {
   expect(normalizeForComparison(a.elements)).toEqual(normalizeForComparison(b.elements));
+  expect(a.modifiers ?? []).toEqual(b.modifiers ?? []);
   expect(a.palette).toEqual(b.palette);
   expect(a.visibilityRoles).toEqual(b.visibilityRoles);
   expect(a.visibilityProfiles).toEqual(b.visibilityProfiles);
@@ -147,6 +149,7 @@ export const roundTrip = (source: string) => {
   expect(first.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const document: DslDocumentData = {
     elements: first.elements,
+    modifiers: first.modifiers ?? [],
     palette: first.palette ?? defaultDocumentPalette(),
     visibilityRoles: first.visibilityRoles ?? [],
     visibilityProfiles: first.visibilityProfiles?.length ? first.visibilityProfiles : [defaultVisibilityProfile()],
