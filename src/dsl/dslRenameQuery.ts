@@ -478,7 +478,7 @@ const projectModuleElementRenameEdits = (
   for (const candidate of candidateRanges) {
     if (candidate.identity.kind !== "element" || candidate.identity.elementId !== elementId) continue;
     if (candidate.from < 0 || candidate.to <= candidate.from || candidate.to > sourceText.length) return null;
-    if (sourceText.slice(candidate.from, candidate.to) !== targetIdentifier) return null;
+    if (sourceText.slice(candidate.from, candidate.to) !== targetIdentifier) continue;
     ranges.set(`${candidate.from}:${candidate.to}`, { from: candidate.from, to: candidate.to });
   }
   if (ranges.size === 0) return null;

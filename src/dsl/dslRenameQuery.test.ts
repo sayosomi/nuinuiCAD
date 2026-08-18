@@ -281,6 +281,43 @@ describe("host-neutral DSL rename query", () => {
     expect(widthPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["width", "width"]);
   });
 
+  it("renames qualified module-backed element segments without projecting aggregate candidates", () => {
+    const source = [
+      "nui 4",
+      "group Front {",
+      "  point Shoulder = coordinate(x: 0, y: 20)",
+      "}",
+      "point QualifiedUse = offset(",
+      "  from: @Front::Shoulder,",
+      "  dx: 10,",
+      "  dy: 0,",
+      ")",
+      "module Measure(input: point) {",
+      "  point P = offset(from: @input, dx: 1, dy: 0)",
+      "}",
+      "instance Call = Measure(input: @QualifiedUse)"
+    ].join("\n");
+    const qualifiedReference = at(source, "@Front::Shoulder");
+    const frontOffset = qualifiedReference + 1;
+    const shoulderOffset = qualifiedReference + "@Front::".length;
+
+    const frontPlan = planDslRenameEdits(snapshot(source), frontOffset, "Bodice");
+    expect(frontPlan).not.toBeNull();
+    expect(frontPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["Front", "Front"]);
+    expect(frontPlan?.edits.map((edit) => edit.newText)).toEqual(["Bodice", "Bodice"]);
+
+    const shoulderFromReference = planDslRenameEdits(snapshot(source), shoulderOffset, "NeckPoint");
+    const shoulderFromDeclaration = planDslRenameEdits(snapshot(source), at(source, "Shoulder ="), "NeckPoint");
+    for (const shoulderPlan of [shoulderFromReference, shoulderFromDeclaration]) {
+      expect(shoulderPlan).not.toBeNull();
+      expect(shoulderPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["Shoulder", "Shoulder"]);
+      expect(shoulderPlan?.edits.map((edit) => edit.expectedText)).toEqual(["Shoulder", "Shoulder"]);
+      expect(shoulderPlan?.edits.map((edit) => edit.newText)).toEqual(["NeckPoint", "NeckPoint"]);
+      expect(shoulderPlan?.edits.every((edit) => source.slice(edit.from, edit.to) !== "Front::Shoulder")).toBe(true);
+    }
+    expect(shoulderFromReference?.edits).toEqual(shoulderFromDeclaration?.edits);
+  });
+
   it("preserves ordinary same-scope collisions in a document with materialized Module elements", () => {
     const source = [
       "nui 4",
