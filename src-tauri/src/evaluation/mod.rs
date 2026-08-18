@@ -634,10 +634,13 @@ fn evaluate_document_input_with_scalar_program(
         .evaluation_limit_index
         .unwrap_or(input.elements.len())
         .min(input.elements.len());
+    let drawing_modifiers = input
+        .drawing_modifiers
+        .unwrap_or_else(|| Value::Array(Vec::new()));
     let evaluated_elements = input.elements[..evaluation_limit_index].to_vec();
     let evaluated_ids: HashSet<ElementId> =
         evaluated_elements.iter().filter_map(element_id).collect();
-    let activities = effective_activity_by_element_id(&input.elements);
+    let activities = effective_activity_by_element_id(&input.elements, Some(&drawing_modifiers));
     let group_states = group_state_by_element_id(&input.elements, &activities);
     let mut effective_visible_element_ids =
         effective_element_ids(&input.elements, &activities, true)
@@ -658,6 +661,7 @@ fn evaluate_document_input_with_scalar_program(
             .collect(),
         elements: input.elements,
         group_states,
+        drawing_modifiers,
         computed_geometry: HashMap::new(),
         computed_geometry_order: Vec::new(),
         errors: Vec::new(),

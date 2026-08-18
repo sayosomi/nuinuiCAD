@@ -1,4 +1,4 @@
-import type { CadElement, ElementId } from "../types/geometry";
+import type { CadElement, DrawingModifierDefinition, ElementId } from "../types/geometry";
 import { isRustLinearMutationEligible } from "../scalars/linearMutationEvaluator";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { buildRustBindingMutationPayload, type RustBindingMutationPayload } from "./bindingVersionPayload";
@@ -13,6 +13,7 @@ type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemp
 export type EvaluateDocumentInput = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
+  drawingModifiers?: readonly DrawingModifierDefinition[];
   scalarProgram?: EvaluateElementsOptions["scalarProgram"];
   scalarExpressionPayload?: { numericBindings: readonly NumericBindingRuntimeEntry[] };
   bindingVersions?: RustBindingMutationPayload;
@@ -47,6 +48,7 @@ export const buildRustEvaluationInput = (
   return {
     elements,
     evaluationLimitIndex: options.evaluationLimitIndex,
+    drawingModifiers: options.drawingModifiers ?? [],
     ...(mutationPayload
       ? { bindingVersions: mutationPayload }
       : options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),

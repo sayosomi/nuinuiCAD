@@ -1,4 +1,13 @@
-import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationResult, EvaluationWarning, ForGroupGeneratedRow } from "../types/geometry";
+import type {
+  CadElement,
+  ComputedGeometry,
+  DependencyError,
+  DrawingModifierDefinition,
+  ElementId,
+  EvaluationResult,
+  EvaluationWarning,
+  ForGroupGeneratedRow
+} from "../types/geometry";
 import {
   isConditionalGroupElement,
   isForGroupElement,
@@ -50,6 +59,8 @@ import { computedReferencePathValue } from "./numericExpressions";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
+  /** Compiled document-level drawing modifier definitions. */
+  drawingModifiers?: readonly DrawingModifierDefinition[];
   /**
    * Task 19's compiled declaration program. Task 20 evaluates it (via
    * createDocumentScalarBindingResolver) on this TS reference path only -
@@ -163,7 +174,7 @@ export const evaluateElements = (
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const runtimeElementsById = new Map(elementsById);
   const runtimeElements = [...evaluatedElements];
-  const activities = effectiveElementActivityById(elements);
+  const activities = effectiveElementActivityById(elements, options.drawingModifiers);
   const effectiveVisibleIds = new Set(elements
     .filter((element) => evaluatedElementIds.has(element.id) &&
       activityAllowsDrawing(effectiveElementActivity(element, activities).activity))

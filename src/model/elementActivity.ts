@@ -1,4 +1,4 @@
-import type { CadElementType, ElementId } from "../types/geometry";
+import type { CadElementType, DrawingModifierDefinition, ElementId } from "../types/geometry";
 import { isContainerElementType } from "./containers";
 
 export type ElementActivity = "visible" | "hidden" | "disabled";
@@ -9,6 +9,7 @@ type ActivityElement = {
   id: ElementId;
   type: string;
   activity: ElementActivity;
+  modifierNames?: readonly string[];
   parentGroupId?: ElementId;
 };
 
@@ -57,24 +58,23 @@ export const nextElementActivity = (
  * evaluation || drawing.
  */
 export const effectiveElementActivityById = <T extends ActivityElement>(
-  elements: readonly T[]
+  elements: readonly T[],
+  drawingModifiers: readonly DrawingModifierDefinition[] = []
 ): ReadonlyMap<ElementId, EffectiveElementActivity> => {
   const byId = new Map(elements.map((element) => [element.id, element]));
+  const modifierStateByName = new Map(drawingModifiers.map((modifier) => [modifier.name, modifier.state] as const));
+  const directCache = new Map<ElementId, EffectiveElementActivity>();
   const cache = new Map<ElementId, EffectiveElementActivity>();
 
-  const resolve = (element: T, visiting = new Set<ElementId>()): EffectiveElementActivity => {
-    const cached = cache.get(element.id);
+  const resolveDirectActivity = (element: T, visiting = new Set<ElementId>()): EffectiveElementActivity => {
+    const cached = directCache.get(element.id);
     if (cached) return cached;
 
+    if (!visiting.add(element.id)) return { activity: "visible" };
     const ownActivity = element.activity;
     const parent = element.parentGroupId ? byId.get(element.parentGroupId) : undefined;
-    const parentActivity = parent && isContainerElementType(parent.type) && !visiting.has(element.id)
-      ? (() => {
-          visiting.add(element.id);
-          const resolved = resolve(parent, visiting);
-          visiting.delete(element.id);
-          return resolved;
-        })()
+    const parentActivity = parent && isContainerElementType(parent.type)
+      ? resolveDirectActivity(parent, visiting)
       : undefined;
 
     // An ancestor disabled state wins over a child's own state. This preserves
@@ -88,11 +88,46 @@ export const effectiveElementActivityById = <T extends ActivityElement>(
           : ownActivity === "hidden"
             ? { activity: "hidden" as const, hiddenByElementId: element.id }
             : { activity: "visible" as const };
-    cache.set(element.id, resolved);
+    visiting.delete(element.id);
+    directCache.set(element.id, resolved);
     return resolved;
   };
 
-  for (const element of elements) resolve(element);
+  const modifierActivityFor = (element: T): { activity: ElementActivity; ownerId: ElementId } | undefined => {
+    const owners: T[] = [element];
+    const visited = new Set<ElementId>([element.id]);
+    let parent = element.parentGroupId ? byId.get(element.parentGroupId) : undefined;
+    while (parent && isContainerElementType(parent.type) && visited.add(parent.id)) {
+      owners.push(parent);
+      parent = parent.parentGroupId ? byId.get(parent.parentGroupId) : undefined;
+    }
+    owners.reverse();
+
+    let winning: { activity: ElementActivity; ownerId: ElementId } | undefined;
+    for (const owner of owners) {
+      for (const modifierName of owner.modifierNames ?? []) {
+        const activity = modifierStateByName.get(modifierName);
+        if (activity !== undefined) winning = { activity, ownerId: owner.id };
+      }
+    }
+    return winning;
+  };
+
+  for (const element of elements) {
+    const directActivity = resolveDirectActivity(element);
+    if (directActivity.activity !== "visible") {
+      cache.set(element.id, directActivity);
+      continue;
+    }
+
+    const modifierActivity = modifierActivityFor(element);
+    const resolved = modifierActivity?.activity === "disabled"
+      ? { activity: "disabled" as const, disabledByElementId: modifierActivity.ownerId }
+      : modifierActivity?.activity === "hidden"
+        ? { activity: "hidden" as const, hiddenByElementId: modifierActivity.ownerId }
+        : { activity: "visible" as const };
+    cache.set(element.id, resolved);
+  }
   return cache;
 };
 
@@ -101,15 +136,21 @@ export const effectiveElementActivity = <T extends ActivityElement>(
   activities: ReadonlyMap<ElementId, EffectiveElementActivity>
 ) => activities.get(element.id) ?? { activity: element.activity };
 
-export const effectiveDrawElementIds = <T extends ActivityElement>(elements: readonly T[]) => {
-  const activities = effectiveElementActivityById(elements);
+export const effectiveDrawElementIds = <T extends ActivityElement>(
+  elements: readonly T[],
+  drawingModifiers: readonly DrawingModifierDefinition[] = []
+) => {
+  const activities = effectiveElementActivityById(elements, drawingModifiers);
   return new Set(elements.filter((element) =>
     activityAllowsDrawing(effectiveElementActivity(element, activities).activity)
   ).map((element) => element.id));
 };
 
-export const effectiveEvaluationElementIds = <T extends ActivityElement>(elements: readonly T[]) => {
-  const activities = effectiveElementActivityById(elements);
+export const effectiveEvaluationElementIds = <T extends ActivityElement>(
+  elements: readonly T[],
+  drawingModifiers: readonly DrawingModifierDefinition[] = []
+) => {
+  const activities = effectiveElementActivityById(elements, drawingModifiers);
   return new Set(elements.filter((element) =>
     activityAllowsEvaluation(effectiveElementActivity(element, activities).activity)
   ).map((element) => element.id));

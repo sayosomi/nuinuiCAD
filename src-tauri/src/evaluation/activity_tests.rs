@@ -30,11 +30,14 @@ fn activity_values_use_the_shared_three_state_truth_table() {
 
 #[test]
 fn parent_disabled_takes_precedence_over_hidden() {
-    let activities = effective_activity_by_element_id(&[
-        json!({ "id": "hidden", "type": "group", "activity": "hidden" }),
-        json!({ "id": "nested", "type": "group", "parentGroupId": "hidden", "activity": "disabled" }),
-        json!({ "id": "child", "type": "freePoint", "parentGroupId": "nested", "activity": "visible" }),
-    ]);
+    let activities = effective_activity_by_element_id(
+        &[
+            json!({ "id": "hidden", "type": "group", "activity": "hidden" }),
+            json!({ "id": "nested", "type": "group", "parentGroupId": "hidden", "activity": "disabled" }),
+            json!({ "id": "child", "type": "freePoint", "parentGroupId": "nested", "activity": "visible" }),
+        ],
+        None,
+    );
 
     assert_eq!(activities["child"].activity, ElementActivity::Disabled);
     assert_eq!(
@@ -50,12 +53,13 @@ fn module_instance_is_an_activity_container_and_a_geometry_noop() {
         json!({ "id": "module", "name": "module", "type": "moduleInstance", "parentGroupId": "outer", "activity": "visible" }),
         json!({ "id": "child", "name": "child", "type": "freePoint", "parentGroupId": "module", "activity": "visible", "x": 10, "y": 20 }),
     ];
-    let activities = effective_activity_by_element_id(&elements);
+    let activities = effective_activity_by_element_id(&elements, None);
     assert_eq!(activities["child"].activity, ElementActivity::Hidden);
 
     let result = evaluate_document_input(super::types::EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,
@@ -82,13 +86,97 @@ fn module_instance_is_preserved_as_the_disabled_activity_source() {
         json!({ "id": "module", "name": "module", "type": "moduleInstance", "activity": "disabled" }),
         json!({ "id": "child", "name": "child", "type": "freePoint", "parentGroupId": "module", "activity": "visible", "x": 0, "y": 0 }),
     ];
-    let activities = effective_activity_by_element_id(&elements);
+    let activities = effective_activity_by_element_id(&elements, None);
     let states = group_state_by_element_id(&elements, &activities);
 
     assert_eq!(
         states["child"].disabled_by_group_id.as_deref(),
         Some("module")
     );
+}
+
+#[test]
+fn drawing_modifiers_resolve_outer_to_inner_to_element_with_last_wins() {
+    let modifiers = json!([
+        { "name": "Hide", "state": "hidden" },
+        { "name": "Disable", "state": "disabled" },
+        { "name": "Show", "state": "visible" }
+    ]);
+    let elements = vec![
+        json!({ "id": "outer", "type": "group", "activity": "visible", "modifierNames": ["Hide"] }),
+        json!({ "id": "inner", "type": "group", "parentGroupId": "outer", "activity": "visible", "modifierNames": ["Disable", "Show"] }),
+        json!({ "id": "child", "type": "freePoint", "parentGroupId": "inner", "activity": "visible" }),
+    ];
+
+    let activities = effective_activity_by_element_id(&elements, Some(&modifiers));
+    assert_eq!(activities["child"].activity, ElementActivity::Visible);
+    assert_eq!(activities["child"].hidden_by_element_id, None);
+    assert_eq!(activities["child"].disabled_by_element_id, None);
+
+    let mut direct_gate_elements = elements;
+    direct_gate_elements[0]["activity"] = json!("hidden");
+    direct_gate_elements[2]["modifierNames"] = json!(["Show"]);
+    let gated = effective_activity_by_element_id(&direct_gate_elements, Some(&modifiers));
+    assert_eq!(gated["child"].activity, ElementActivity::Hidden);
+    assert_eq!(
+        gated["child"].hidden_by_element_id.as_deref(),
+        Some("outer")
+    );
+
+    direct_gate_elements[0]["activity"] = json!("disabled");
+    let disabled = effective_activity_by_element_id(&direct_gate_elements, Some(&modifiers));
+    assert_eq!(disabled["child"].activity, ElementActivity::Disabled);
+    assert_eq!(
+        disabled["child"].disabled_by_element_id.as_deref(),
+        Some("outer")
+    );
+}
+
+#[test]
+fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
+    let result = evaluate_document_input(super::types::EvaluationInput {
+        elements: vec![
+            json!({ "id": "hidden", "type": "freePoint", "activity": "visible", "modifierNames": ["Hide"], "x": 0, "y": 0 }),
+            json!({ "id": "disabled", "type": "freePoint", "activity": "visible", "modifierNames": ["Disable"], "x": 1, "y": 0 }),
+            json!({ "id": "shown", "type": "freePoint", "activity": "visible", "modifierNames": ["Show"], "x": 2, "y": 0 }),
+        ],
+        evaluation_limit_index: None,
+        drawing_modifiers: Some(json!([
+            { "name": "Hide", "state": "hidden" },
+            { "name": "Disable", "state": "disabled" },
+            { "name": "Show", "state": "visible" }
+        ])),
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+    });
+
+    assert!(result
+        .computed_geometry
+        .iter()
+        .any(|geometry| geometry["elementId"] == json!("hidden")));
+    assert!(result
+        .computed_geometry
+        .iter()
+        .all(|geometry| geometry["elementId"] != json!("disabled")));
+    assert!(result
+        .computed_geometry
+        .iter()
+        .any(|geometry| geometry["elementId"] == json!("shown")));
+    assert!(!result
+        .effective_visible_element_ids
+        .contains(&"hidden".to_owned()));
+    assert!(!result
+        .effective_enabled_element_ids
+        .contains(&"disabled".to_owned()));
+    assert!(result
+        .effective_visible_element_ids
+        .contains(&"shown".to_owned()));
 }
 
 #[test]
@@ -107,6 +195,7 @@ fn directly_disabled_dependency_reports_evaluation_off() {
             }),
         ],
         evaluation_limit_index: None,
+        drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,

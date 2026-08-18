@@ -2,7 +2,7 @@
 // records only: it deliberately never parses DSL source || resolves names.
 import type { DslSpan } from "../dsl/dslTypes";
 import { effectiveElementActivityById } from "../model/elementActivity";
-import type { CadElement, ElementId } from "../types/geometry";
+import type { CadElement, DrawingModifierDefinition, ElementId } from "../types/geometry";
 import type { BindingAnalysis, BindingIssue } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { beforeStatement, readBindingVersionAtPosition, type BindingVersionGraph } from "./bindingVersions";
@@ -38,6 +38,7 @@ export type TypedDependencyGraph = {
 
 export type TypedDependencyGraphInput = {
   elements: readonly CadElement[];
+  drawingModifiers?: readonly DrawingModifierDefinition[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   bindingAnalysis?: BindingAnalysis;
   bindingVersions?: BindingVersionGraph;
@@ -71,8 +72,12 @@ const issueReason = (issue: BindingIssue): TypedDependencyReason => {
   return "invalid";
 };
 
-const staticDisabledBindingIds = (analysis: BindingAnalysis, elements: readonly CadElement[]): ReadonlySet<BindingId> => {
-  const activities = effectiveElementActivityById(elements);
+const staticDisabledBindingIds = (
+  analysis: BindingAnalysis,
+  elements: readonly CadElement[],
+  drawingModifiers: readonly DrawingModifierDefinition[] = []
+): ReadonlySet<BindingId> => {
+  const activities = effectiveElementActivityById(elements, drawingModifiers);
   const disabled = new Set<BindingId>();
   for (const binding of analysis.catalog.bindings) {
     const ownerId = analysis.catalog.containerIndex.ownerContainerIdByStatementIndex.get(binding.statementIndex);
@@ -115,6 +120,7 @@ export const geometryPropertiesIn = (expression: TypedScalarExpression): readonl
 /** Builds once during compilation; query consumers only read its adjacency maps. */
 export const buildTypedDependencyGraph = ({
   elements,
+  drawingModifiers,
   elementIdByStatementIndex,
   bindingAnalysis,
   bindingVersions,
@@ -126,7 +132,7 @@ export const buildTypedDependencyGraph = ({
 }: TypedDependencyGraphInput): TypedDependencyGraph | undefined => {
   if (!bindingAnalysis) return undefined;
   const elementsById = new Map(elements.map((element) => [element.id, element]));
-  const disabledBindingIds = staticDisabledBindingIds(bindingAnalysis, elements);
+  const disabledBindingIds = staticDisabledBindingIds(bindingAnalysis, elements, drawingModifiers);
   const edges: TypedDependencyEdge[] = [];
   const seen = new Set<string>();
   const add = (edge: TypedDependencyEdge) => {

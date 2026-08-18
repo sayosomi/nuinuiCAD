@@ -36,6 +36,7 @@ fn state_with_geometry(
             Vec::new()
         },
         elements_by_id,
+        drawing_modifiers: serde_json::json!([]),
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([(id.to_owned(), geometry)]),
         computed_geometry_order: vec![id.to_owned()],
@@ -118,6 +119,26 @@ fn earlier_point_target_resolves() {
 #[test]
 fn disabled_geometry_target_has_a_distinct_runtime_failure() {
     let state = disabled_state_with_geometry("point-id", point_value(2.0, 3.0));
+    assert_eq!(
+        resolve_geometry_builtin_target(
+            &state,
+            2,
+            &target("point-id", 1, GeometryInterfaceType::Point)
+        ),
+        Err(GeometryBuiltinRuntimeError::Disabled)
+    );
+}
+
+#[test]
+fn modifier_disabled_geometry_target_has_a_distinct_runtime_failure() {
+    let mut state = state_with_geometry("point-id", point_value(2.0, 3.0), true);
+    state.elements = vec![json!({
+        "id": "point-id",
+        "type": "freePoint",
+        "modifierNames": ["Disable"]
+    })];
+    state.drawing_modifiers = json!([{ "name": "Disable", "state": "disabled" }]);
+
     assert_eq!(
         resolve_geometry_builtin_target(
             &state,

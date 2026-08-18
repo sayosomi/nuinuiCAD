@@ -18,6 +18,7 @@ fn input(
     EvaluationInput {
         elements,
         evaluation_limit_index: None,
+        drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program,
         binding_versions: None,

@@ -79,6 +79,69 @@ describe("element activity", () => {
     ]).get("child")).toMatchObject({ activity: "disabled", disabledByElementId: "module" });
   });
 
+  it("resolves modifier state outer-to-inner-to-element with left-to-right last-wins", () => {
+    const definitions = [
+      { name: "hide", state: "hidden" },
+      { name: "disable", state: "disabled" },
+      { name: "show", state: "visible" }
+    ] as const;
+    const outer = { id: "outer", type: "group", activity: "visible" as const, modifierNames: ["hide"] };
+    const inner = {
+      id: "inner",
+      type: "group",
+      activity: "visible" as const,
+      parentGroupId: "outer",
+      modifierNames: ["disable", "show"]
+    };
+
+    expect(effectiveElementActivityById([outer, inner, {
+      id: "child",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner"
+    }], definitions).get("child")).toEqual({ activity: "visible" });
+
+    expect(effectiveElementActivityById([outer, inner, {
+      id: "child",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner",
+      modifierNames: ["disable"]
+    }], definitions).get("child")).toEqual({ activity: "disabled", disabledByElementId: "child" });
+
+    expect(effectiveElementActivityById([{ ...outer, modifierNames: ["hide"] }, {
+      ...inner,
+      modifierNames: ["disable"]
+    }, {
+      id: "child",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "inner"
+    }], definitions).get("child")).toEqual({ activity: "disabled", disabledByElementId: "inner" });
+  });
+
+  it("lets modifier visible clear an earlier modifier state but not a direct hard gate", () => {
+    const definitions = [
+      { name: "hide", state: "hidden" },
+      { name: "disable", state: "disabled" },
+      { name: "show", state: "visible" }
+    ] as const;
+
+    expect(effectiveElementActivityById([
+      { id: "group", type: "group", activity: "visible", modifierNames: ["hide", "show"] },
+      { id: "child", type: "freePoint", activity: "visible", parentGroupId: "group" }
+    ], definitions).get("child")).toEqual({ activity: "visible" });
+
+    expect(effectiveElementActivityById([
+      { id: "group", type: "group", activity: "hidden", modifierNames: ["disable"] },
+      { id: "child", type: "freePoint", activity: "visible", parentGroupId: "group", modifierNames: ["show"] }
+    ], definitions).get("child")).toEqual({ activity: "hidden", hiddenByElementId: "group" });
+
+    expect(effectiveElementActivityById([
+      { id: "child", type: "freePoint", activity: "disabled", modifierNames: ["show"] }
+    ], definitions).get("child")).toEqual({ activity: "disabled", disabledByElementId: "child" });
+  });
+
   it.each([
     ["group", true],
     ["conditionalGroup", true],

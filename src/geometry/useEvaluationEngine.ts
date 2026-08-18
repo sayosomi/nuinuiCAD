@@ -87,6 +87,7 @@ export const useEvaluationEngine = (
   rustTransport?: RustEvaluationTransport
 ): EvaluationEngineState => {
   const evaluationLimitIndex = options.evaluationLimitIndex;
+  const drawingModifiers = options.drawingModifiers;
   const scalarProgram = options.scalarProgram;
   const bindingVersions = options.bindingVersions;
   const statementInfoByElementId = options.statementInfoByElementId;
@@ -106,6 +107,7 @@ export const useEvaluationEngine = (
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
+      ...(drawingModifiers?.length ? { drawingModifiers } : {}),
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(bindingVersions ? {
         bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, scalarExecutionPositionByElementId, statementIdByStatementIndex,
@@ -121,6 +123,7 @@ export const useEvaluationEngine = (
     }),
     [
       evaluationLimitIndex,
+      drawingModifiers,
       scalarProgram,
       bindingVersions,
       statementInfoByElementId,
@@ -148,6 +151,7 @@ export const useEvaluationEngine = (
     () => JSON.stringify({
       elements,
       evaluationLimitIndex,
+      drawingModifiers,
       scalarProgram,
       bindingVersions,
       statementIdByStatementIndex: statementIdByStatementIndex ? Array.from(statementIdByStatementIndex) : undefined,
@@ -173,6 +177,7 @@ export const useEvaluationEngine = (
     [
       elements,
       evaluationLimitIndex,
+      drawingModifiers,
       scalarProgram,
       bindingVersions,
       statementIdByStatementIndex,

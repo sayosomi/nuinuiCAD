@@ -1,0 +1,19 @@
+nui 4
+modifier Hide {
+  state: hidden,
+}
+modifier Disable {
+  state: disabled,
+}
+modifier Show {
+  state: visible,
+}
+module M() {
+  group Inner [Disable] {
+    point P = coordinate(x: 1, y: 2)
+  }
+}
+group Outer [Hide] {
+  instance Use = M()
+}
+point Visible = coordinate(x: 3, y: 4)

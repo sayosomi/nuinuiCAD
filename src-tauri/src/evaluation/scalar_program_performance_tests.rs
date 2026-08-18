@@ -37,6 +37,7 @@ fn evaluate(program: Value) -> EvaluationPayload {
         text_property_bindings: None,
         elements: vec![],
         evaluation_limit_index: None,
+        drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: Some(program),
         binding_versions: None,
