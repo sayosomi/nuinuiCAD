@@ -36,8 +36,10 @@ export const dependencyError = (
   const dependencyLabel = missingDependencyName ?? missingDependencyId;
   const disabledGroupId = disabledByGroupId.get(missingDependencyId);
   const disabledGroupName = disabledGroupId ? findElementName(elementsById, disabledGroupId) : null;
+  const dependencyDirectlyDisabled = elementsById.get(missingDependencyId)?.activity === "disabled";
   const dependencyEvaluationFailed =
     !disabledGroupName &&
+    !dependencyDirectlyDisabled &&
     elementsById.has(missingDependencyId) &&
     priorErrors.some((error) => error.elementId === missingDependencyId);
 
@@ -48,6 +50,8 @@ export const dependencyError = (
     missingDependencyName,
     message: disabledGroupName
       ? `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} はグループ ${disabledGroupName} により評価OFFです。${disabledGroupName} を評価ONにするか、参照先を変更してください。`
+      : dependencyDirectlyDisabled
+        ? `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} は評価OFFです。${dependencyLabel} を評価ONにするか、参照先を変更してください。`
       : dependencyEvaluationFailed
         ? `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} の評価に失敗しているため評価できません。先に ${dependencyLabel} のエラーを解消してください。`
         : `${elementName} は ${dependencyLabel} を参照していますが、${dependencyLabel} はこの要素より後にあるか、存在しません。${dependencyLabel} を ${elementName} より前に移動してください。`
