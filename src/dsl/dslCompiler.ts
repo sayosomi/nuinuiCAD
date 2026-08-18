@@ -499,6 +499,25 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     includeStatement
   });
   const documentMode = context.mode === "document";
+  const moduleAwareCompilation = documentMode && context.moduleSemanticAnalysis && context.stableStatementIdByIndex;
+  // Drawing Modifier references belong to the source document, not to the
+  // materialized runtime element list. Validate every geometry/group
+  // declaration against the document-level modifier definitions before the
+  // selected compilation path continues. The module-aware call sees the full
+  // source AST, including declarations inside Module bodies; the ordinary
+  // preflight retains its existing module-subtree exclusion.
+  const modifierNames = new Set(modifiers.map((modifier) => modifier.name));
+  const modifierStatements = moduleAwareCompilation
+    ? parsed.statements
+    : parsed.statements.filter((statement, statementIndex) => isCompilableDslStatement(parsed.statements, statementIndex));
+  for (const statement of modifierStatements) {
+    if (!isElementDslStatement(statement)) continue;
+    for (const modifierName of statement.modifierNames ?? []) {
+      if (!modifierNames.has(modifierName)) {
+        diagnostics.push(diagnostic(statement.line, `未定義の modifier です: ${modifierName}`));
+      }
+    }
+  }
   if (documentMode && context.moduleSemanticAnalysis && context.stableStatementIdByIndex) {
     const moduleMaterialization = materializeModuleExecution({
       statements: parsed.statements,
@@ -548,14 +567,6 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
           : undefined)
     };
   });
-  const modifierNames = new Set(modifiers.map((modifier) => modifier.name));
-  for (const { statement } of statementsWithIds) {
-    for (const modifierName of statement.modifierNames ?? []) {
-      if (!modifierNames.has(modifierName)) {
-        diagnostics.push(diagnostic(statement.line, `未定義の modifier です: ${modifierName}`));
-      }
-    }
-  }
   const createdIds = new Map<DslStatement, ElementId>();
   for (const item of statementsWithIds) {
     createdIds.set(item.statement, item.id ?? createCadElement(item.type, existing).id);
