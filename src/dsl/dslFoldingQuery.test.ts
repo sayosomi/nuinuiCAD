@@ -147,7 +147,7 @@ describe("DSL structural folding query", () => {
     ].join("\n"))).toEqual([]);
   });
 
-  it("ignores a stray close and an invalid else", () => {
+  it("fails closed for an invalid else in a non-conditional block", () => {
     expect(syntaxFoldsFor([
       "}",
       "group A {",
@@ -155,8 +155,37 @@ describe("DSL structural folding query", () => {
       "} else {",
       "  point Q = coordinate(x: 1, y: 1)",
       "}"
+    ].join("\n"))).toEqual([]);
+  });
+
+  it("fails closed for a second invalid else in a conditional block", () => {
+    expect(syntaxFoldsFor([
+      "if (true) {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "} else {",
+      "  point B = coordinate(x: 1, y: 1)",
+      "} else {",
+      "  point C = coordinate(x: 2, y: 2)",
+      "}"
+    ].join("\n"))).toEqual([]);
+  });
+
+  it("keeps independent valid blocks around an invalid else", () => {
+    expect(syntaxFoldsFor([
+      "group Before {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "}",
+      "group Broken {",
+      "  point B = coordinate(x: 1, y: 1)",
+      "} else {",
+      "  point C = coordinate(x: 2, y: 2)",
+      "}",
+      "group After {",
+      "  point D = coordinate(x: 3, y: 3)",
+      "}"
     ].join("\n"))).toEqual([
-      { kind: "syntax", startLine: 2, endLine: 6 }
+      { kind: "syntax", startLine: 1, endLine: 3 },
+      { kind: "syntax", startLine: 9, endLine: 11 }
     ]);
   });
 
@@ -194,6 +223,30 @@ describe("DSL structural folding query", () => {
     ].join("\n"))).toEqual([
       { kind: "syntax", startLine: 1, endLine: 3 },
       { kind: "syntax", startLine: 8, endLine: 10 }
+    ]);
+  });
+
+  it("does not fold delimiters for an invalid source-map continuation", () => {
+    expect(syntaxFoldsFor([
+      "foo(",
+      "  \"unterminated",
+      "  \" )",
+      "",
+      "bar(",
+      "  value",
+      ")"
+    ].join("\n"))).toEqual([
+      { kind: "syntax", startLine: 5, endLine: 7 }
+    ]);
+  });
+
+  it("resets quote handling at each physical line", () => {
+    expect(syntaxFoldsFor([
+      "foo(",
+      "  \"value",
+      "  ) \""
+    ].join("\n"))).toEqual([
+      { kind: "syntax", startLine: 1, endLine: 3 }
     ]);
   });
 });

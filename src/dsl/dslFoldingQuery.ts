@@ -47,21 +47,25 @@ const braceRangesFor = (
 
   const elseByOpener = new Map<number, DslStatement>();
   const closeByOpener = new Map<number, DslStatement>();
+  const malformedOpeners = new Set<number>();
   for (const statement of statements) {
     const enclosing = statement.enclosing;
     if (!enclosing || !openers.has(enclosing.statementIndex)) continue;
-    if (
-      statement.kind === "blockElse" &&
-      enclosing.branch === "then" &&
-      isConditionalBlockOpener(openers.get(enclosing.statementIndex)!)
-    ) {
-      elseByOpener.set(enclosing.statementIndex, statement);
+    const opener = openers.get(enclosing.statementIndex)!;
+    if (statement.kind === "blockElse") {
+      const isValidElse = enclosing.branch === "then" && isConditionalBlockOpener(opener);
+      if (isValidElse) {
+        elseByOpener.set(enclosing.statementIndex, statement);
+      } else {
+        malformedOpeners.add(enclosing.statementIndex);
+      }
     }
     if (statement.kind === "blockEnd") closeByOpener.set(enclosing.statementIndex, statement);
   }
 
   const ranges: DslFoldingRange[] = [];
   for (const [index, opener] of openers.entries()) {
+    if (malformedOpeners.has(index)) continue;
     const close = closeByOpener.get(index);
     if (!close) continue;
 
@@ -90,10 +94,10 @@ const delimiterRangesForStatement = (
 
   const stack: DelimiterFrame[] = [];
   const ranges: DslFoldingRange[] = [];
-  let quote: string | null = null;
 
   for (let line = statement.range.startLine; line <= statement.range.endLine; line += 1) {
     const code = splitDslComment(sourceLines[line - 1] ?? "").code;
+    let quote: string | null = null;
     for (let index = 0; index < code.length; index += 1) {
       const char = code[index]!;
       if ((char === "\"" || char === "'") && code[index - 1] !== "\\") {
@@ -151,8 +155,11 @@ export const queryDslFolding = ({
   if (sourceMap.source !== source.normalizedSource || sourceMap.sourceRevision !== source.sourceRevision) return [];
 
   const sourceLines = source.normalizedSource.split("\n");
+  const invalidContinuationLines = new Set(sourceMap.invalidContinuationLines);
   const delimiterRanges = sourceMap.statements.flatMap((statement) =>
-    delimiterRangesForStatement(sourceLines, statement)
+    invalidContinuationLines.has(statement.range.endLine)
+      ? []
+      : delimiterRangesForStatement(sourceLines, statement)
   );
 
   return sortRanges([
