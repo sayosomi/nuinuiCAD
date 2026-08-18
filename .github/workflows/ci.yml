@@ -12,18 +12,97 @@ permissions:
   contents: read
 
 jobs:
+  classification:
+    name: Classify changes
+    runs-on: ubuntu-24.04
+    outputs:
+      base_sha: ${{ steps.classify.outputs.base_sha }}
+      node: ${{ steps.classify.outputs.node }}
+      full_node: ${{ steps.classify.outputs.full_node }}
+      vscode: ${{ steps.classify.outputs.vscode }}
+      rust: ${{ steps.classify.outputs.rust }}
+      parity: ${{ steps.classify.outputs.parity }}
+      workflow: ${{ steps.classify.outputs.workflow }}
+      unknown: ${{ steps.classify.outputs.unknown }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Test change classifier
+        run: node --test scripts/ci/classifyChanges.test.mjs
+
+      - name: Resolve diff base
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          case "$EVENT_NAME:$EVENT_REF" in
+            pull_request:*)
+              base_sha="$PR_BASE_SHA"
+              ;;
+            push:refs/heads/main)
+              base_sha="$PUSH_BEFORE_SHA"
+              ;;
+            *)
+              base_sha=""
+              ;;
+          esac
+
+          if [[ ! "$base_sha" =~ ^[0-9a-fA-F]{40}$ ]] ||
+             [[ "$base_sha" =~ ^0+$ ]] ||
+             [[ ! "$HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]] ||
+             ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null ||
+             ! git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null; then
+            echo "base_sha=" >> "$GITHUB_OUTPUT"
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Unable to resolve a safe event diff base; using full CI coverage."
+          else
+            echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check whitespace and classify changes
+        id: classify
+        env:
+          BASE_SHA: ${{ steps.base.outputs.base_sha }}
+          BASE_VALID: ${{ steps.base.outputs.valid }}
+        run: |
+          set -euo pipefail
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+          if [[ "$BASE_VALID" == "true" ]]; then
+            git diff --check "$BASE_SHA" "$GITHUB_SHA"
+            git diff --no-renames --name-only -z "$BASE_SHA" "$GITHUB_SHA" |
+              node scripts/ci/classifyChanges.mjs >> "$GITHUB_OUTPUT"
+          else
+            node scripts/ci/classifyChanges.mjs --full </dev/null >> "$GITHUB_OUTPUT"
+          fi
+
   node:
     name: Node
+    needs: classification
+    if: ${{ needs.classification.result == 'success' && needs.classification.outputs.node == 'true' }}
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          fetch-depth: 2
-
-      - name: Check whitespace
-        run: git diff --check HEAD^ HEAD
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -40,8 +119,24 @@ jobs:
       - name: Build
         run: npm run build
 
-  rust:
+      - name: Changed Node tests
+        if: ${{ needs.classification.outputs.full_node != 'true' }}
+        env:
+          BASE_SHA: ${{ needs.classification.outputs.base_sha }}
+        run: npm test -- --changed "$BASE_SHA" --passWithNoTests
+
+      - name: Filesystem-backed binding resolution invariant
+        if: ${{ needs.classification.outputs.full_node != 'true' }}
+        run: npm test -- test/bindingResolutionPublicSurface.test.ts
+
+      - name: Build VS Code extension
+        if: ${{ needs.classification.outputs.vscode == 'true' }}
+        run: npm run build:vscode
+
+  rust_parity:
     name: Rust + parity
+    needs: classification
+    if: ${{ needs.classification.result == 'success' && (needs.classification.outputs.rust == 'true' || needs.classification.outputs.parity == 'true' || needs.classification.outputs.full_node == 'true') }}
     runs-on: ubuntu-24.04
 
     steps:
@@ -53,9 +148,6 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Check Rust formatting
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-
       - name: Install Tauri Linux dependencies
         timeout-minutes: 10
         run: |
@@ -66,26 +158,104 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
+      - name: Check Rust formatting
+        if: ${{ needs.classification.outputs.rust == 'true' }}
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
       - name: Cargo check
+        if: ${{ needs.classification.outputs.rust == 'true' }}
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
       - name: Cargo test
+        if: ${{ needs.classification.outputs.rust == 'true' }}
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Cargo clippy
+        if: ${{ needs.classification.outputs.rust == 'true' }}
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
       - name: Setup Node
+        if: ${{ needs.classification.outputs.parity == 'true' || needs.classification.outputs.full_node == 'true' }}
         uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
 
       - name: Install Node dependencies
+        if: ${{ needs.classification.outputs.parity == 'true' || needs.classification.outputs.full_node == 'true' }}
         run: npm ci
 
-      - name: Test
+      - name: Full Node tests
+        if: ${{ needs.classification.outputs.full_node == 'true' }}
         run: npm test
 
       - name: TypeScript/Rust parity
+        if: ${{ needs.classification.outputs.parity == 'true' }}
         run: npm run test:parity
+
+  ci:
+    name: CI
+    if: ${{ always() }}
+    needs:
+      - classification
+      - node
+      - rust_parity
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check required CI results
+        env:
+          CLASSIFICATION_RESULT: ${{ needs.classification.result }}
+          CLASSIFICATION_NODE: ${{ needs.classification.outputs.node }}
+          CLASSIFICATION_FULL_NODE: ${{ needs.classification.outputs.full_node }}
+          CLASSIFICATION_VSCODE: ${{ needs.classification.outputs.vscode }}
+          CLASSIFICATION_RUST: ${{ needs.classification.outputs.rust }}
+          CLASSIFICATION_PARITY: ${{ needs.classification.outputs.parity }}
+          CLASSIFICATION_WORKFLOW: ${{ needs.classification.outputs.workflow }}
+          CLASSIFICATION_UNKNOWN: ${{ needs.classification.outputs.unknown }}
+          NODE_RESULT: ${{ needs.node.result }}
+          RUST_PARITY_RESULT: ${{ needs.rust_parity.result }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$CLASSIFICATION_RESULT" != "success" ]]; then
+            echo "Classification job did not succeed: $CLASSIFICATION_RESULT"
+            exit 1
+          fi
+
+          for classifier_output in \
+            "$CLASSIFICATION_NODE" \
+            "$CLASSIFICATION_FULL_NODE" \
+            "$CLASSIFICATION_VSCODE" \
+            "$CLASSIFICATION_RUST" \
+            "$CLASSIFICATION_PARITY" \
+            "$CLASSIFICATION_WORKFLOW" \
+            "$CLASSIFICATION_UNKNOWN"; do
+            if [[ "$classifier_output" != "true" && "$classifier_output" != "false" ]]; then
+              echo "Malformed classifier output: '$classifier_output'"
+              exit 1
+            fi
+          done
+
+          if [[ "$CLASSIFICATION_NODE" == "true" ]]; then
+            if [[ "$NODE_RESULT" != "success" ]]; then
+              echo "Required Node job did not succeed: $NODE_RESULT"
+              exit 1
+            fi
+          elif [[ "$NODE_RESULT" != "success" && "$NODE_RESULT" != "skipped" ]]; then
+            echo "Optional Node job did not succeed: $NODE_RESULT"
+            exit 1
+          fi
+
+          if [[ "$CLASSIFICATION_RUST" == "true" ||
+                "$CLASSIFICATION_PARITY" == "true" ||
+                "$CLASSIFICATION_FULL_NODE" == "true" ]]; then
+            if [[ "$RUST_PARITY_RESULT" != "success" ]]; then
+              echo "Required Rust/parity job did not succeed: $RUST_PARITY_RESULT"
+              exit 1
+            fi
+          elif [[ "$RUST_PARITY_RESULT" != "success" &&
+                  "$RUST_PARITY_RESULT" != "skipped" ]]; then
+            echo "Optional Rust/parity job did not succeed: $RUST_PARITY_RESULT"
+            exit 1
+          fi
