@@ -37,7 +37,7 @@ describe("typed rename occurrence coverage against Task 36's dependency graph", 
     expect(graph.edges.length).toBeGreaterThan(0);
 
     const occurrences = [
-      ...collectInitializerOccurrences(compiled.scalarProgram),
+      ...collectInitializerOccurrences(compiled.scalarProgram, compiled.bindingAnalysis!.catalog),
       ...collectSiteBatchOccurrences({
         scopeIndex: compiled.bindingAnalysis!.catalog.scopeIndex,
         statements: compiled.statements,
@@ -83,5 +83,31 @@ describe("typed rename occurrence coverage against Task 36's dependency graph", 
     );
     expect(targetOccurrence).toBeDefined();
     expect(targetOccurrence!.span).toEqual(setStatement.nameSpan);
+  });
+
+  it("uses BindingCatalog statement identity for Module-aware initializer sites", () => {
+    const moduleSource = [
+      "nui 4",
+      "const width: number = 10",
+      "const result: number = @width + 5",
+      "module Measure(input: number) {",
+      "  const local: number = @input + 1",
+      "}",
+      "instance Call = Measure(input: @width)"
+    ].join("\n");
+    const parsed = parseDsl(moduleSource);
+    const compiled = compileDslDocument(moduleSource, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:module:${index}`]))
+    });
+    const catalog = compiled.bindingAnalysis!.catalog;
+    const result = catalog.bindings.find((binding) => binding.name === "result")!;
+    const scalarStatement = compiled.scalarProgram!.statements.find((statement) => statement.bindingId === result.id)!;
+    const occurrence = collectInitializerOccurrences(compiled.scalarProgram, catalog)
+      .find((candidate) => candidate.initializerOwner?.fromBindingId === result.id && candidate.currentName === "width");
+
+    expect(occurrence).toBeDefined();
+    expect(occurrence!.site.statementIndex).toBe(result.statementIndex);
+    expect(occurrence!.site.statementIndex).not.toBe(scalarStatement.sourceOrder);
   });
 });

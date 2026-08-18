@@ -3,6 +3,7 @@ import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
 import { parseDslSnapshot } from "./dslParser";
 import {
   planDslRenameEdits,
+  planDslRenameEditsResult,
   queryDslRenameTarget,
   type DslRenameSnapshot
 } from "./dslRenameQuery";
@@ -36,6 +37,50 @@ describe("host-neutral DSL rename query", () => {
     const plan = planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "横幅");
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["width", "width"]);
     expect(plan?.edits.every((edit) => edit.newText === "横幅")).toBe(true);
+  });
+
+  it("returns a structured typed same-scope collision while preserving the null wrapper", () => {
+    const source = [
+      "nui 4",
+      "const width: number = 10",
+      "const result: number = @width + 5"
+    ].join("\n");
+    const result = planDslRenameEditsResult(snapshot(source), at(source, "@width") + 1, "result");
+
+    expect(result).toEqual({
+      status: "rejected",
+      rejection: { reason: "same-scope-collision", conflictingName: "result", conflictingLine: 3 }
+    });
+    expect(planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "result")).toBeNull();
+  });
+
+  it("returns a structured invalid-name rejection from the typed analyzer", () => {
+    const source = "nui 4\nconst width: number = 10";
+
+    expect(planDslRenameEditsResult(snapshot(source), at(source, "width"), "")).toEqual({
+      status: "rejected",
+      rejection: { reason: "invalid-name", message: "名前は空にできません。" }
+    });
+  });
+
+  it("returns a structured typed reference-resolution rejection for capture", () => {
+    const source = [
+      "nui 4",
+      "const outer: number = 1",
+      "group G {",
+      "  const inner: number = 2",
+      "  const use: number = @outer",
+      "}"
+    ].join("\n");
+
+    const result = planDslRenameEditsResult(snapshot(source), at(source, "@outer") + 1, "inner");
+
+    expect(result.status).toBe("rejected");
+    expect(result.status === "rejected" ? result.rejection : null).toEqual({
+      reason: "reference-resolution-change",
+      family: "typed",
+      referencedName: "outer"
+    });
   });
 
   it("keeps @ and qualified separators outside the target range", () => {
@@ -244,5 +289,133 @@ describe("host-neutral DSL rename query", () => {
     const offset = source.indexOf("前身頃");
     const target = queryDslRenameTarget(snapshot(source), offset + 1);
     expect(target?.range).toEqual({ from: offset, to: offset + "前身頃".length });
+  });
+
+  it("renames an ordinary source element in a document with materialized Module elements", () => {
+    const source = [
+      "nui 4",
+      "const width: number = 10",
+      "const result: number = @width + 5",
+      "point 前身頃 = coordinate(x: 0, y: 0)",
+      "point 使用点 = offset(from: @前身頃, dx: 10, dy: 0)",
+      "const 前身頃X: number = @前身頃.x",
+      "module Measure(input: point) {",
+      "  point P = offset(from: @input, dx: 10, dy: 0)",
+      "}",
+      "instance Call = Measure(input: @前身頃)"
+    ].join("\n");
+    const declarationOffset = at(source, "前身頃 =");
+    const referenceOffset = at(source, "@前身頃") + 1;
+
+    const declarationPlan = planDslRenameEdits(snapshot(source), declarationOffset, "後身頃");
+    const referencePlan = planDslRenameEdits(snapshot(source), referenceOffset, "後身頃");
+
+    expect(declarationPlan).not.toBeNull();
+    expect(referencePlan).not.toBeNull();
+    expect(declarationPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual([
+      "前身頃",
+      "前身頃",
+      "前身頃",
+      "前身頃"
+    ]);
+    expect(declarationPlan?.edits.map((edit) => edit.newText)).toEqual(["後身頃", "後身頃", "後身頃", "後身頃"]);
+    expect(referencePlan?.edits).toEqual(declarationPlan?.edits);
+    expect(declarationPlan?.edits.every((edit) => !source.slice(edit.from, edit.to).includes(".x"))).toBe(true);
+
+    const widthPlan = planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "renamedWidth");
+    expect(widthPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["width", "width"]);
+  });
+
+  it("renames qualified module-backed element segments without projecting aggregate candidates", () => {
+    const source = [
+      "nui 4",
+      "group Front {",
+      "  point Shoulder = coordinate(x: 0, y: 20)",
+      "}",
+      "point QualifiedUse = offset(",
+      "  from: @Front::Shoulder,",
+      "  dx: 10,",
+      "  dy: 0,",
+      ")",
+      "module Measure(input: point) {",
+      "  point P = offset(from: @input, dx: 1, dy: 0)",
+      "}",
+      "instance Call = Measure(input: @QualifiedUse)"
+    ].join("\n");
+    const qualifiedReference = at(source, "@Front::Shoulder");
+    const frontOffset = qualifiedReference + 1;
+    const shoulderOffset = qualifiedReference + "@Front::".length;
+
+    const frontPlan = planDslRenameEdits(snapshot(source), frontOffset, "Bodice");
+    expect(frontPlan).not.toBeNull();
+    expect(frontPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["Front", "Front"]);
+    expect(frontPlan?.edits.map((edit) => edit.newText)).toEqual(["Bodice", "Bodice"]);
+
+    const shoulderFromReference = planDslRenameEdits(snapshot(source), shoulderOffset, "NeckPoint");
+    const shoulderFromDeclaration = planDslRenameEdits(snapshot(source), at(source, "Shoulder ="), "NeckPoint");
+    for (const shoulderPlan of [shoulderFromReference, shoulderFromDeclaration]) {
+      expect(shoulderPlan).not.toBeNull();
+      expect(shoulderPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["Shoulder", "Shoulder"]);
+      expect(shoulderPlan?.edits.map((edit) => edit.expectedText)).toEqual(["Shoulder", "Shoulder"]);
+      expect(shoulderPlan?.edits.map((edit) => edit.newText)).toEqual(["NeckPoint", "NeckPoint"]);
+      expect(shoulderPlan?.edits.every((edit) => source.slice(edit.from, edit.to) !== "Front::Shoulder")).toBe(true);
+    }
+    expect(shoulderFromReference?.edits).toEqual(shoulderFromDeclaration?.edits);
+  });
+
+  it("preserves ordinary same-scope collisions in a document with materialized Module elements", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 1, y: 0)",
+      "module Measure(input: point) {",
+      "  point P = offset(from: @input, dx: 10, dy: 0)",
+      "}",
+      "instance Call = Measure(input: @A)"
+    ].join("\n");
+
+    const result = planDslRenameEditsResult(snapshot(source), at(source, "A ="), "B");
+
+    expect(result).toEqual({
+      status: "rejected",
+      rejection: {
+        reason: "same-scope-collision",
+        conflictingName: "B",
+        conflictingLine: 3
+      }
+    });
+    expect(planDslRenameEdits(snapshot(source), at(source, "A ="), "B")).toBeNull();
+  });
+
+  it("returns a structured collision for an ordinary element without Module materialization", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 1, y: 0)"
+    ].join("\n");
+
+    expect(planDslRenameEditsResult(snapshot(source), at(source, "A ="), "B")).toEqual({
+      status: "rejected",
+      rejection: {
+        reason: "same-scope-collision",
+        conflictingName: "B",
+        conflictingLine: 3
+      }
+    });
+  });
+
+  it("returns a structured Module parameter collision", () => {
+    const source = [
+      "nui 4",
+      "module Measure(width: number, length: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "instance Call = Measure(width: 10, length: 20)"
+    ].join("\n");
+
+    expect(planDslRenameEditsResult(snapshot(source), at(source, "width: number"), "length")).toEqual({
+      status: "rejected",
+      rejection: { reason: "same-scope-collision", conflictingName: "length", conflictingLine: 2 }
+    });
   });
 });

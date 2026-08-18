@@ -66,11 +66,13 @@ const mocks = vi.hoisted(() => ({
   contexts: [] as Array<{ subscriptions: Array<{ dispose: () => void }> }>,
   completionRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
   definitionRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
+  renameRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   showErrorMessage: vi.fn(),
   createWebviewPanel: vi.fn(),
   createDiagnosticCollection: vi.fn(),
   registerCompletionItemProvider: vi.fn(),
   registerDefinitionProvider: vi.fn(),
+  registerRenameProvider: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
   onDidOpenTextDocument: vi.fn(),
@@ -131,7 +133,8 @@ vi.mock("vscode", () => {
     languages: {
       createDiagnosticCollection: mocks.createDiagnosticCollection,
       registerCompletionItemProvider: mocks.registerCompletionItemProvider,
-      registerDefinitionProvider: mocks.registerDefinitionProvider
+      registerDefinitionProvider: mocks.registerDefinitionProvider,
+      registerRenameProvider: mocks.registerRenameProvider
     },
     Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
     ViewColumn: { Beside: 2 },
@@ -317,6 +320,11 @@ const setup = (
     mocks.definitionRegistrations.push({ selector, provider, disposable: registration });
     return registration;
   });
+  mocks.registerRenameProvider.mockImplementation((selector: unknown, provider: unknown) => {
+    const registration = disposable();
+    mocks.renameRegistrations.push({ selector, provider, disposable: registration });
+    return registration;
+  });
   mocks.onDidOpenTextDocument.mockImplementation((listener: (document: TestDocument) => void) => {
     mocks.documentOpenListeners.push(listener);
     return disposable();
@@ -369,11 +377,13 @@ afterEach(() => {
   mocks.contexts.length = 0;
   mocks.completionRegistrations.length = 0;
   mocks.definitionRegistrations.length = 0;
+  mocks.renameRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.createWebviewPanel.mockReset();
   mocks.createDiagnosticCollection.mockReset();
   mocks.registerCompletionItemProvider.mockReset();
   mocks.registerDefinitionProvider.mockReset();
+  mocks.registerRenameProvider.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
   mocks.onDidOpenTextDocument.mockReset();
@@ -930,6 +940,47 @@ describe("VS Code native definition lifecycle", () => {
     expect(fromSource).toHaveBeenCalledTimes(1);
     expect(links).toHaveLength(1);
     expect(links?.[0]?.targetSelectionRange.start).toEqual({ line: 1, character: "point ".length });
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.rustProcesses).toHaveLength(0);
+    fromSource.mockRestore();
+  });
+});
+
+describe("VS Code native rename lifecycle", () => {
+  it("registers the provider with the requested selector and lifecycle disposable", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.renameRegistrations[0]!;
+
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+
+  it("shares the URI-scoped analysis session without Canvas or Rust", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 1, dy: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/rename.nui", "file:///tmp/rename.nui", source);
+    const fromSource = vi.spyOn(AutomationDocument, "fromSource");
+    setup(false, null, [document]);
+    const registration = mocks.renameRegistrations[0]!;
+    const provider = registration.provider as {
+      prepareRename: (
+        document: TestDocument,
+        position: { line: number; character: number },
+        token: unknown
+      ) => unknown;
+    };
+    const referenceLine = source.split("\n")[2]!;
+    const result = provider.prepareRename(
+      document,
+      { line: 2, character: referenceLine.indexOf("@A") + 1 },
+      undefined
+    );
+
+    expect(fromSource).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ placeholder: "A" });
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
     expect(mocks.rustProcesses).toHaveLength(0);
     fromSource.mockRestore();

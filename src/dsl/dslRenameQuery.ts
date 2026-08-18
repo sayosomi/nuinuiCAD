@@ -1,5 +1,5 @@
 import { exactPhysicalSpan } from "./dslDiagnosticSpan";
-import type { CompiledDslDocument } from "./dslDocument";
+import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
 import {
   createModuleSemanticRangeIndex,
   moduleSemanticTargetKey,
@@ -23,18 +23,28 @@ import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { resolveParameterValueSpan } from "./dslParameterSpans";
 import { coordinateComponent } from "./dslParameterSpanScanner";
-import { analyzeTypedBindingRenameInDocument } from "../document/typedRenameAnalysis";
+import {
+  analyzeTypedBindingRenameInDocument,
+  type TypedRenameAnalysisRejected
+} from "../document/typedRenameAnalysis";
 import {
   projectTypedRenameEdits,
   type TypedRenameSpliceEntry
 } from "../document/typedRenameSplice";
 import {
-  analyzeModuleSemanticRename
+  analyzeModuleSemanticRename,
+  moduleSemanticStableFingerprint,
+  type ModuleRenameAnalysisRejected
 } from "../document/moduleSemanticRenameAnalysis";
 import {
   analyzeRename,
-  projectElementRenameEdits
+  projectElementRenameEdits,
+  validateElementRenameRequest,
+  validateRenameReferenceStability,
+  type RenameAnalysisRejected
 } from "../document/renameAnalysis";
+import { sourceOwnerForRuntimeElementId } from "./sourceOwnership";
+import { formatDslName } from "./dslTokens";
 import type { ElementId } from "../types/geometry";
 
 export type DslRenameTarget = {
@@ -55,6 +65,44 @@ export type DslRenameEditPlan = {
   target: DslRenameTarget;
   edits: readonly DslRenameEdit[];
 };
+
+export type DslRenameRejection =
+  | {
+      reason: "invalid-name";
+      message: string;
+    }
+  | {
+      reason: "same-scope-collision";
+      conflictingName: string;
+      conflictingLine?: number;
+    }
+  | {
+      reason: "reference-resolution-change";
+      family: "typed";
+      referencedName: string;
+    }
+  | {
+      reason: "reference-resolution-change";
+      family: "element";
+      line?: number;
+    }
+  | {
+      reason: "reference-resolution-change";
+      family: "module";
+    }
+  | {
+      reason: "unavailable";
+    };
+
+export type DslRenameEditPlanResult =
+  | {
+      status: "ok";
+      plan: DslRenameEditPlan;
+    }
+  | {
+      status: "rejected";
+      rejection: DslRenameRejection;
+    };
 
 export type DslRenameSemanticSnapshot = {
   sourceRevision: SourceRevision;
@@ -117,6 +165,15 @@ const physicalRange = (compiled: CompiledDslDocument, statementIndex: number, sp
   if (!statement) return null;
   const physical = exactPhysicalSpan(compiled.spans, statement, span);
   return physical?.segments.length === 1 ? physical.segments[0] : null;
+};
+
+const lineNumberAtOffset = (source: string, offset: number): number | undefined => {
+  if (!Number.isInteger(offset) || offset < 0 || offset > source.length) return undefined;
+  let line = 1;
+  for (let index = 0; index < offset; index += 1) {
+    if (source[index] === "\n") line += 1;
+  }
+  return line;
 };
 
 const statementIndexForId = (compiled: CompiledDslDocument, statementId: string) =>
@@ -203,7 +260,14 @@ const addTypedCandidates = (compiled: CompiledDslDocument, candidates: RenameCan
     }
   };
   for (const statement of compiled.scalarProgram?.statements ?? []) {
-    addExpression(statement.sourceOrder, statement.declaration.initializer);
+    const statementIndex = analysis.catalog.bindingsById.get(statement.bindingId)?.statementIndex;
+    if (statementIndex !== undefined) {
+      addExpression(statementIndex, statement.declaration.initializer);
+      for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
+        const identity = elementIdentity(compiled, reference.elementId);
+        if (identity) addPhysicalCandidate(candidates, compiled, statementIndex, reference.elementNameSpan, identity);
+      }
+    }
   }
   for (const [occurrenceKey, source] of compiled.propertyBindings ?? []) {
     const statementIndex = Number(occurrenceKey.slice(0, occurrenceKey.indexOf(":")));
@@ -442,6 +506,194 @@ const editsAreSafe = (edits: readonly DslRenameEdit[]) => {
   return seen.size === ordered.length;
 };
 
+const mapsMatch = <Value>(before: ReadonlyMap<number, Value>, after: ReadonlyMap<number, Value>) =>
+  before.size === after.size && [...before].every(([index, value]) => after.get(index) === value);
+
+const unavailableRenameRejection = (): DslRenameRejection => ({ reason: "unavailable" });
+
+const typedRenameRejection = (
+  analysis: TypedRenameAnalysisRejected,
+  compiled: CompiledDslDocument
+): DslRenameRejection => {
+  switch (analysis.reason) {
+    case "invalid-name":
+      return { reason: "invalid-name", message: analysis.detail.message };
+    case "same-scope-collision": {
+      const conflictingBinding = compiled.bindingAnalysis?.catalog.bindingsById.get(analysis.detail.conflictingBindingId);
+      const conflictingPhysical = conflictingBinding?.nameSpan
+        ? physicalRange(compiled, conflictingBinding.statementIndex, conflictingBinding.nameSpan)
+        : null;
+      const conflictingLine = conflictingPhysical
+        ? lineNumberAtOffset(compiled.spans.sourceMap.source, conflictingPhysical.from)
+        : undefined;
+      return {
+        reason: "same-scope-collision",
+        conflictingName: analysis.detail.conflictingName,
+        ...(conflictingLine === undefined ? {} : { conflictingLine })
+      };
+    }
+    case "capture":
+      return {
+        reason: "reference-resolution-change",
+        family: "typed",
+        referencedName: analysis.detail.name
+      };
+    case "target-not-found":
+      return unavailableRenameRejection();
+  }
+};
+
+const moduleRenameRejection = (
+  analysis: ModuleRenameAnalysisRejected,
+  newName: string,
+  compiled: CompiledDslDocument
+): DslRenameRejection => {
+  switch (analysis.reason) {
+    case "invalid-name":
+      return {
+        reason: "invalid-name",
+        message: analysis.detail ?? "名前をDSL識別子として安全に表現できません。"
+      };
+    case "same-scope-collision": {
+      const conflictingLine = analysis.conflictingRange
+        ? lineNumberAtOffset(compiled.spans.sourceMap.source, analysis.conflictingRange.from)
+        : undefined;
+      return {
+        reason: "same-scope-collision",
+        conflictingName: analysis.detail ?? newName,
+        ...(conflictingLine === undefined ? {} : { conflictingLine })
+      };
+    }
+    case "capture":
+      return { reason: "reference-resolution-change", family: "module" };
+    case "target-not-found":
+    case "stale":
+    case "span-mismatch":
+    case "overlap":
+      return unavailableRenameRejection();
+  }
+};
+
+const elementRenameRejection = (analysis: RenameAnalysisRejected): DslRenameRejection => {
+  switch (analysis.reason) {
+    case "invalid-name":
+      return { reason: "invalid-name", message: analysis.detail.message };
+    case "same-scope-conflict":
+      return {
+        reason: "same-scope-collision",
+        conflictingName: analysis.detail.conflictingElementName,
+        conflictingLine: analysis.detail.conflictingLine
+      };
+    case "resolution-change":
+      return {
+        reason: "reference-resolution-change",
+        family: "element",
+        ...(analysis.detail.changes[0] ? { line: analysis.detail.changes[0].line } : {})
+      };
+    case "invalid-source":
+    case "target-not-found":
+    case "analysis-incomplete":
+      return unavailableRenameRejection();
+  }
+};
+
+const projectModuleElementRenameEdits = (
+  sourceText: string,
+  compiled: CompiledDslDocument,
+  elementId: ElementId,
+  candidateRanges: readonly RenameCandidate[],
+  newName: string
+):
+  | { ok: true; edits: readonly DslRenameEdit[] }
+  | { ok: false; rejection: DslRenameRejection } => {
+  if (!compiled.statementMap) return { ok: false, rejection: unavailableRenameRejection() };
+  const owner = sourceOwnerForRuntimeElementId({ ...compiled, statementMap: compiled.statementMap }, elementId);
+  if (!owner || owner.kind !== "ordinary") return { ok: false, rejection: unavailableRenameRejection() };
+  const validation = validateElementRenameRequest({ compiled, targetElementId: elementId, newName });
+  if (!validation.ok) return { ok: false, rejection: elementRenameRejection(validation.rejection) };
+
+  const targetIdentifier = formatDslName(validation.target.name);
+  const replacementIdentifier = formatDslName(validation.newName);
+  if (targetIdentifier === replacementIdentifier) return { ok: true, edits: [] };
+
+  const ranges = new Map<string, { from: number; to: number }>();
+  for (const candidate of candidateRanges) {
+    if (candidate.identity.kind !== "element" || candidate.identity.elementId !== elementId) continue;
+    if (candidate.from < 0 || candidate.to <= candidate.from || candidate.to > sourceText.length) {
+      return { ok: false, rejection: unavailableRenameRejection() };
+    }
+    if (sourceText.slice(candidate.from, candidate.to) !== targetIdentifier) continue;
+    ranges.set(`${candidate.from}:${candidate.to}`, { from: candidate.from, to: candidate.to });
+  }
+  if (ranges.size === 0) return { ok: false, rejection: unavailableRenameRejection() };
+  const declarationStatement = compiled.statements[owner.sourceStatementIndex];
+  const declarationPhysical = declarationStatement?.nameSpan
+    ? physicalRange(compiled, owner.sourceStatementIndex, declarationStatement.nameSpan)
+    : null;
+  if (!declarationPhysical || !ranges.has(`${declarationPhysical.from}:${declarationPhysical.to}`)) {
+    return { ok: false, rejection: unavailableRenameRejection() };
+  }
+
+  const orderedRanges = [...ranges.values()].sort((left, right) => left.from - right.from || left.to - right.to);
+  for (let index = 1; index < orderedRanges.length; index += 1) {
+    if (orderedRanges[index].from < orderedRanges[index - 1].to) {
+      return { ok: false, rejection: unavailableRenameRejection() };
+    }
+  }
+  const candidateSource = orderedRanges.reduceRight(
+    (source, range) => `${source.slice(0, range.from)}${replacementIdentifier}${source.slice(range.to)}`,
+    sourceText
+  );
+  const beforeStatementMap = compiled.statementMap;
+  if (!beforeStatementMap || !compiled.sourceLexicalNamespace || !compiled.moduleSemanticAnalysis) {
+    return { ok: false, rejection: unavailableRenameRejection() };
+  }
+  const after = compileDslDocument(candidateSource, {
+    assignedElementIds: beforeStatementMap.elementIdByStatementIndex,
+    assignedStatementIds: beforeStatementMap.statementIdByStatementIndex
+  });
+  if (
+    after.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    !after.document ||
+    !after.statementMap ||
+    !after.sourceLexicalNamespace ||
+    !after.moduleSemanticAnalysis ||
+    !mapsMatch(beforeStatementMap.elementIdByStatementIndex, after.statementMap.elementIdByStatementIndex) ||
+    (beforeStatementMap.statementIdByStatementIndex !== undefined &&
+      (!after.statementMap.statementIdByStatementIndex ||
+        !mapsMatch(beforeStatementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex)))
+  ) return { ok: false, rejection: unavailableRenameRejection() };
+
+  const referenceStability = validateRenameReferenceStability({ before: compiled, after });
+  if (referenceStability.verdict !== "ok") {
+    return {
+      ok: false,
+      rejection: referenceStability.reason === "resolution-change"
+        ? {
+            reason: "reference-resolution-change",
+            family: "element",
+            ...(referenceStability.detail.changes[0] ? { line: referenceStability.detail.changes[0].line } : {})
+          }
+        : unavailableRenameRejection()
+    };
+  }
+  const beforeFingerprint = moduleSemanticStableFingerprint(compiled);
+  const afterFingerprint = moduleSemanticStableFingerprint(after);
+  if (!beforeFingerprint || !afterFingerprint || beforeFingerprint !== afterFingerprint) {
+    return { ok: false, rejection: unavailableRenameRejection() };
+  }
+
+  return {
+    ok: true,
+    edits: orderedRanges.map((range) => ({
+      from: range.from,
+      to: range.to,
+      expectedText: sourceText.slice(range.from, range.to),
+      newText: replacementIdentifier
+    }))
+  };
+};
+
 export const queryDslRenameTarget = (
   snapshot: DslRenameSnapshot,
   sourceOffset: number
@@ -451,60 +703,97 @@ export const queryDslRenameTarget = (
   return candidateAt(exact.compiled, sourceOffset)?.target ?? null;
 };
 
-export const planDslRenameEdits = (
+export const planDslRenameEditsResult = (
   snapshot: DslRenameSnapshot,
   sourceOffset: number,
   newName: string
-): DslRenameEditPlan | null => {
+): DslRenameEditPlanResult => {
   const exact = exactSnapshot(snapshot);
-  if (!exact || sourceOffset < 0 || sourceOffset >= exact.source.normalizedSource.length) return null;
+  if (!exact || sourceOffset < 0 || sourceOffset >= exact.source.normalizedSource.length) {
+    return { status: "rejected", rejection: unavailableRenameRejection() };
+  }
   const selected = candidateAt(exact.compiled, sourceOffset);
-  if (!selected) return null;
+  if (!selected) return { status: "rejected", rejection: unavailableRenameRejection() };
 
   let edits: readonly DslRenameEdit[];
   const identity = selected.candidate.identity;
   if (identity.kind === "typed") {
     const analysis = analyzeTypedBindingRenameInDocument({ compiled: exact.compiled, targetBindingId: identity.bindingId, newName });
-    if (analysis.verdict !== "ok" || !analysis.declarationSpan) return null;
+    if (analysis.verdict !== "ok") {
+      return { status: "rejected", rejection: typedRenameRejection(analysis, exact.compiled) };
+    }
+    if (!analysis.declarationSpan) return { status: "rejected", rejection: unavailableRenameRejection() };
     const target = exact.compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId);
-    if (!target) return null;
+    if (!target) return { status: "rejected", rejection: unavailableRenameRejection() };
     const entries: TypedRenameSpliceEntry[] = [
       { statementIndex: target.statementIndex, span: analysis.declarationSpan, oldName: target.name, newName: analysis.newName },
       ...analysis.occurrences
     ];
     const projection = projectTypedRenameEdits(exact.source.normalizedSource, exact.compiled, entries);
-    if (!projection.ok) return null;
+    if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
     edits = projection.edits.map((edit) => ({ ...edit }));
   } else if (identity.kind === "module") {
     const analysis = analyzeModuleSemanticRename(exact.source.normalizedSource, exact.compiled, identity.target, newName);
-    if (analysis.verdict !== "ok") return null;
+    if (analysis.verdict !== "ok") {
+      return { status: "rejected", rejection: moduleRenameRejection(analysis, newName, exact.compiled) };
+    }
     const projection = projectTypedRenameEdits(exact.source.normalizedSource, exact.compiled, analysis.entries);
-    if (!projection.ok) return null;
+    if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
     edits = projection.edits.map((edit) => ({ ...edit }));
   } else {
-    const analysis = analyzeRename({
-      sourceText: exact.source.normalizedSource,
-      compiled: exact.compiled,
-      targetElementId: identity.elementId,
-      newName
-    });
-    if (analysis.verdict !== "ok") return null;
-    const projection = projectElementRenameEdits({
-      sourceText: exact.source.normalizedSource,
-      compiled: exact.compiled,
-      targetElementId: identity.elementId,
-      analysis
-    });
-    if (!projection.ok) return null;
-    edits = projection.edits.map((edit) => ({ ...edit }));
+    const owner = sourceOwnerForRuntimeElementId({ ...exact.compiled, statementMap: exact.compiled.statementMap! }, identity.elementId);
+    if (!owner || owner.kind !== "ordinary") return { status: "rejected", rejection: unavailableRenameRejection() };
+    if (exact.compiled.moduleMaterialization) {
+      const projected = projectModuleElementRenameEdits(
+        exact.source.normalizedSource,
+        exact.compiled,
+        identity.elementId,
+        candidatesFor(exact.compiled).filter((candidate) =>
+          candidate.identity.kind === "element" && candidate.identity.elementId === identity.elementId
+        ),
+        newName
+      );
+      if (!projected.ok) return { status: "rejected", rejection: projected.rejection };
+      edits = projected.edits;
+    } else {
+      const analysis = analyzeRename({
+        sourceText: exact.source.normalizedSource,
+        compiled: exact.compiled,
+        targetElementId: identity.elementId,
+        newName
+      });
+      if (analysis.verdict !== "ok") {
+        return { status: "rejected", rejection: elementRenameRejection(analysis) };
+      }
+      const projection = projectElementRenameEdits({
+        sourceText: exact.source.normalizedSource,
+        compiled: exact.compiled,
+        targetElementId: identity.elementId,
+        analysis
+      });
+      if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
+      edits = projection.edits.map((edit) => ({ ...edit }));
+    }
   }
 
-  if (!editsAreSafe(edits)) return null;
+  if (!editsAreSafe(edits)) return { status: "rejected", rejection: unavailableRenameRejection() };
   return {
-    sourceRevision: exact.source.sourceRevision,
-    target: selected.target,
-    edits
+    status: "ok",
+    plan: {
+      sourceRevision: exact.source.sourceRevision,
+      target: selected.target,
+      edits
+    }
   };
+};
+
+export const planDslRenameEdits = (
+  snapshot: DslRenameSnapshot,
+  sourceOffset: number,
+  newName: string
+): DslRenameEditPlan | null => {
+  const result = planDslRenameEditsResult(snapshot, sourceOffset, newName);
+  return result.status === "ok" ? result.plan : null;
 };
 
 export type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";

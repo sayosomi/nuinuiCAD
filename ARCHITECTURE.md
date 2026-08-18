@@ -350,6 +350,7 @@ Primary:
 - `vscode-extension/src/languageAnalysisSession.ts`
 - `vscode-extension/src/completionProvider.ts`
 - `vscode-extension/src/definitionProvider.ts`
+- `vscode-extension/src/renameProvider.ts`
 - `vscode-extension/src/rustEvaluationProcessOwner.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
@@ -398,7 +399,7 @@ VS Code TextDocument
 ├→ compiler diagnostics → DiagnosticCollection
 ├→ queryDslCompletion → CompletionItemProvider
 ├→ queryDslDefinition → DefinitionProvider
-└→ queryDslRenameTarget / planDslRenameEdits → host-neutral rename edit plan
+└→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
 ```
 
 `languageAnalysisSession.ts` owns current raw source, source replacement,

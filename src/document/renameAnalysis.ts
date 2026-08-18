@@ -2,7 +2,7 @@ import type { CompiledDslDocument, DslDocumentData } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import { formatDslName } from "../dsl/dslTokens";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
-import type { ElementId } from "../types/geometry";
+import type { CadElement, ElementId } from "../types/geometry";
 import {
   completeCompiled,
   recompileRenameCandidate,
@@ -14,6 +14,7 @@ import {
   type RenameReferenceState
 } from "./renameReferenceCatalog";
 import { applyLineSplices, buildTextPatch } from "./textPatch";
+import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
 
 export type { RenameReferenceForm, RenameReferenceState } from "./renameReferenceCatalog";
 
@@ -89,6 +90,10 @@ export type ElementRenameEditProjection =
   | { ok: true; edits: readonly ElementRenameEdit[] }
   | { ok: false; reason: string };
 
+export type ElementRenameRequestValidation =
+  | { ok: true; target: CadElement; newName: string }
+  | { ok: false; rejection: Extract<RenameAnalysisRejected, { reason: "target-not-found" | "invalid-name" | "same-scope-conflict" | "analysis-incomplete" }> };
+
 const descendantIds = (document: DslDocumentData, rootId: ElementId) => {
   const ids = new Set<ElementId>([rootId]);
   let changed = true;
@@ -112,6 +117,96 @@ const validationError = (name: string) => {
     return "名前を DSL トークンとして安全に表現できません。";
   }
   return null;
+};
+
+export const validateElementRenameRequest = ({
+  compiled,
+  targetElementId,
+  newName: requestedName
+}: {
+  compiled: CompiledDslDocument;
+  targetElementId: ElementId;
+  newName: string;
+}): ElementRenameRequestValidation => {
+  const target = compiled.document?.elements.find((element) => element.id === targetElementId);
+  if (!target) return { ok: false, rejection: { verdict: "rejected", reason: "target-not-found", detail: { targetElementId } } };
+  if (!compiled.statementMap) {
+    return { ok: false, rejection: { verdict: "rejected", reason: "analysis-incomplete", detail: { message: "完全な compiled document / statementMap が必要です。" } } };
+  }
+  const ownershipDocument = { ...compiled, statementMap: compiled.statementMap };
+  const owner = sourceOwnerForRuntimeElementId(ownershipDocument, targetElementId);
+  if (!owner) {
+    return {
+      ok: false,
+      rejection: { verdict: "rejected", reason: "analysis-incomplete", detail: { message: "対象要素の source ownership を解決できません。" } }
+    };
+  }
+  if (owner.kind !== "ordinary") {
+    return {
+      ok: false,
+      rejection: { verdict: "rejected", reason: "target-not-found", detail: { targetElementId } }
+    };
+  }
+
+  const newName = requestedName.trim();
+  const nameError = validationError(newName);
+  if (nameError) {
+    return { ok: false, rejection: { verdict: "rejected", reason: "invalid-name", detail: { input: requestedName, message: nameError } } };
+  }
+  const sourceElements: CadElement[] = [];
+  for (const element of compiled.document!.elements) {
+    const elementOwner = sourceOwnerForRuntimeElementId(ownershipDocument, element.id);
+    if (!elementOwner) {
+      return {
+        ok: false,
+        rejection: { verdict: "rejected", reason: "analysis-incomplete", detail: { message: "要素の source ownership を完全に解決できません。" } }
+      };
+    }
+    if (elementOwner.kind === "ordinary") sourceElements.push(element);
+  }
+  const uniqueName = makeUniqueElementName({
+    elements: sourceElements,
+    elementId: target.id,
+    requestedName,
+    fallbackBaseName: fallbackElementName(target.type),
+    parentGroupId: target.parentGroupId
+  });
+  if (uniqueName !== newName) {
+    const conflict = sourceElements.find(
+      (element) =>
+        element.id !== target.id &&
+        element.parentGroupId === target.parentGroupId &&
+        element.name.trim() === newName
+    );
+    if (!conflict) {
+      return {
+        ok: false,
+        rejection: { verdict: "rejected", reason: "analysis-incomplete", detail: { message: "同一スコープの衝突要素を特定できません。" } }
+      };
+    }
+    const conflictingLine = compiled.statementMap?.byElementId.get(conflict.id)?.line;
+    if (conflictingLine === undefined) {
+      return {
+        ok: false,
+        rejection: { verdict: "rejected", reason: "analysis-incomplete", detail: { message: `衝突要素 ${conflict.id} の行位置を特定できません。` } }
+      };
+    }
+    return {
+      ok: false,
+      rejection: {
+        verdict: "rejected",
+        reason: "same-scope-conflict",
+        detail: {
+          targetElementId: target.id,
+          newName,
+          conflictingElementId: conflict.id,
+          conflictingElementName: conflict.name,
+          conflictingLine
+        }
+      }
+    };
+  }
+  return { ok: true, target, newName };
 };
 
 /** Compares every before/after reference slot; rename targets receive no exception. */
@@ -182,58 +277,13 @@ export const analyzeRename = (input: RenameAnalysisInput): RenameAnalysis => {
   if (!completeCompiled(input.compiled) || input.compiled.sourceLines.join("\n") !== input.sourceText.replace(/\r\n/g, "\n")) {
     return { verdict: "rejected", reason: "invalid-source", detail: { message: "sourceText と compiled が一致しません。" } };
   }
-  const target = input.compiled.document.elements.find((element) => element.id === input.targetElementId);
-  if (!target) {
-    return { verdict: "rejected", reason: "target-not-found", detail: { targetElementId: input.targetElementId } };
-  }
-
-  // The retired store renameElement delegated its requestedName to makeUniqueElementName,
-  // which trimmed input before collision handling. Keep that established rule here.
-  const newName = input.newName.trim();
-  const nameError = validationError(newName);
-  if (nameError) return { verdict: "rejected", reason: "invalid-name", detail: { input: input.newName, message: nameError } };
-
-  const uniqueName = makeUniqueElementName({
-    elements: input.compiled.document.elements,
-    elementId: target.id,
-    requestedName: input.newName,
-    fallbackBaseName: fallbackElementName(target.type),
-    parentGroupId: target.parentGroupId
+  const validation = validateElementRenameRequest({
+    compiled: input.compiled,
+    targetElementId: input.targetElementId,
+    newName: input.newName
   });
-  if (uniqueName !== newName) {
-    const conflict = input.compiled.document.elements.find(
-      (element) =>
-        element.id !== target.id &&
-        element.parentGroupId === target.parentGroupId &&
-        element.name.trim() === newName
-    );
-    if (!conflict) {
-      return {
-        verdict: "rejected",
-        reason: "analysis-incomplete",
-        detail: { message: "同一スコープの衝突要素を特定できません。" }
-      };
-    }
-    const conflictingLine = input.compiled.statementMap.byElementId.get(conflict.id)?.line;
-    if (conflictingLine === undefined) {
-      return {
-        verdict: "rejected",
-        reason: "analysis-incomplete",
-        detail: { message: `衝突要素 ${conflict.id} の行位置を特定できません。` }
-      };
-    }
-    return {
-      verdict: "rejected",
-      reason: "same-scope-conflict",
-      detail: {
-        targetElementId: target.id,
-        newName,
-        conflictingElementId: conflict.id,
-        conflictingElementName: conflict.name,
-        conflictingLine
-      }
-    };
-  }
+  if (!validation.ok) return validation.rejection;
+  const { target, newName } = validation;
 
   const afterDocument: DslDocumentData = {
     ...input.compiled.document,

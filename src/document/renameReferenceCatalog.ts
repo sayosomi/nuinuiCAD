@@ -1,6 +1,7 @@
 import { getDirectParentIds } from "../model/dependencies";
 import { isElementDslStatement } from "../dsl/dslParser";
 import type { CompiledDslDocument } from "../dsl/dslDocument";
+import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
 import type { CadElement, ElementId, NumericValue, PrintLayout } from "../types/geometry";
 import {
   consumeReference,
@@ -162,9 +163,15 @@ export const collectRenameReferenceCatalog = (compiled: CompiledDslDocument): Re
     return { complete: false, message: "有効な compiled document / statementMap が必要です。" };
   }
   const { document, statementMap } = compiled;
+  const ownershipDocument = { ...compiled, statementMap };
   const elementIds = new Set(document.elements.map((element) => element.id));
   const slots: RenameReferenceSlot[] = [];
   for (const element of document.elements) {
+    const owner = sourceOwnerForRuntimeElementId(ownershipDocument, element.id);
+    if (!owner) {
+      return { complete: false, message: "要素の source ownership を完全に解決できません。" };
+    }
+    if (owner.kind !== "ordinary") continue;
     const info = statementMap.byElementId.get(element.id);
     if (!info) return { complete: false, message: `要素 ${element.id} の文位置を特定できません。` };
     const statement = compiled.statements[info.statementIndex];

@@ -13,7 +13,7 @@
 // not), since it only needs the statement's own `name`/`nameSpan`, already
 // parsed - no RHS parsing required.
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
-import type { BindingId } from "./bindingCatalog";
+import type { BindingCatalog, BindingId } from "./bindingCatalog";
 import type { BindingReferenceSite } from "./bindingResolution";
 import type { LexicalScopeIndex } from "./lexicalScopeIndex";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
@@ -52,16 +52,19 @@ export const occurrenceKeyForInitializerRef = (bindingId: BindingId, occurrenceI
 
 /** Every reference inside every program-eligible typed declaration's initializer. */
 export const collectInitializerOccurrences = (
-  scalarProgram: ScalarProgram | undefined
+  scalarProgram: ScalarProgram | undefined,
+  catalog: BindingCatalog
 ): readonly TypedRenameOccurrence[] => {
   const occurrences: TypedRenameOccurrence[] = [];
   for (const statement of scalarProgram?.statements ?? []) {
+    const binding = catalog.bindingsById.get(statement.bindingId);
+    if (!binding) continue;
     const refs = referencesIn(statement.declaration.initializer);
     refs.forEach((reference, occurrenceIndex) => {
       occurrences.push({
         kind: "initializer",
         key: occurrenceKeyForInitializerRef(statement.bindingId, occurrenceIndex),
-        site: { scopeId: statement.scopeId, statementIndex: statement.sourceOrder },
+        site: { scopeId: statement.scopeId, statementIndex: binding.statementIndex },
         span: reference.nameSpan,
         currentName: reference.name,
         initializerOwner: { fromBindingId: statement.bindingId, occurrenceIndex }
