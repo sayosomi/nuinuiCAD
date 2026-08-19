@@ -1,6 +1,7 @@
 import type {
   PointerEvent as ReactPointerEvent,
   RefObject,
+  KeyboardEvent as ReactKeyboardEvent,
   WheelEvent as ReactWheelEvent
 } from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState } from "react";
@@ -164,6 +165,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activeLinePickTarget,
     commandLineSession
   } = hostAdapter;
+  const renderFixedCanvasChrome = hostAdapter.renderFixedCanvasChrome ?? true;
   const previewElementIds = useMemo(() => {
     const documentElementIds = new Set(documentElements.map((element) => element.id));
     return new Set(elements.filter((element) => !documentElementIds.has(element.id)).map((element) => element.id));
@@ -733,6 +735,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     });
     if (!elementId) {
       focusCanvas();
+      hostAdapter.clearCanvasSelection();
       return;
     }
 
@@ -1008,6 +1011,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     setIsPanning(true);
   };
 
+  const handleCanvasKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape" || event.currentTarget !== document.activeElement) return;
+    if (commandLineSession || activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget) return;
+    event.preventDefault();
+    hostAdapter.clearCanvasSelection();
+  };
+
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const pointerMoveEntry = capturePointerMoveEntry();
     if (pendingPointerStateRef.current.kind === "waiting") {
@@ -1116,6 +1126,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         ref={canvasFocusRef}
         tabIndex={-1}
         data-canvas-viewport="true"
+        onKeyDown={handleCanvasKeyDown}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -1170,32 +1181,34 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           isLinePickActive={Boolean(activeLinePickTarget)}
         />
         {hostAdapter.renderHostOverlay?.(viewportSize)}
-        <div className="canvas-display-controls" aria-label="キャンバス表示設定">
-          <button
-            type="button"
-            className={showCanvasElementNames ? "active-toggle" : ""}
-            aria-pressed={showCanvasElementNames}
-            onClick={() => hostAdapter.toggleCanvasElementNames()}
-          >
-            要素名
-          </button>
-          <button
-            type="button"
-            className={showCanvasPoints ? "active-toggle" : ""}
-            aria-pressed={showCanvasPoints}
-            onClick={() => hostAdapter.toggleCanvasPoints()}
-          >
-            点
-          </button>
-          <button
-            type="button"
-            className={showPrintPreviewWindow ? "active-toggle" : ""}
-            aria-pressed={showPrintPreviewWindow}
-            onClick={() => hostAdapter.togglePrintPreviewWindow()}
-          >
-            印刷
-          </button>
-        </div>
+        {renderFixedCanvasChrome ? (
+          <div className="canvas-display-controls" aria-label="キャンバス表示設定">
+            <button
+              type="button"
+              className={showCanvasElementNames ? "active-toggle" : ""}
+              aria-pressed={showCanvasElementNames}
+              onClick={() => hostAdapter.toggleCanvasElementNames()}
+            >
+              要素名
+            </button>
+            <button
+              type="button"
+              className={showCanvasPoints ? "active-toggle" : ""}
+              aria-pressed={showCanvasPoints}
+              onClick={() => hostAdapter.toggleCanvasPoints()}
+            >
+              点
+            </button>
+            <button
+              type="button"
+              className={showPrintPreviewWindow ? "active-toggle" : ""}
+              aria-pressed={showPrintPreviewWindow}
+              onClick={() => hostAdapter.togglePrintPreviewWindow()}
+            >
+              印刷
+            </button>
+          </div>
+        ) : null}
         <CanvasCandidateMenus
           measurementCandidateMenu={measurementCandidateMenu}
           pointPickCandidateMenu={pointPickCandidateMenu}
@@ -1204,12 +1217,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           onApplyPointPickCandidate={applyPointPickCandidate}
           onApplyLinePickCandidate={applyLinePickCandidate}
         />
-        {evaluation.errors.length + evaluation.warnings.length > 0 ? (
+        {renderFixedCanvasChrome && evaluation.errors.length + evaluation.warnings.length > 0 ? (
           <div className="canvas-warning">
             ⚠ {evaluation.errors.length + evaluation.warnings.length} 件のエラー/警告があります
           </div>
         ) : null}
-        <div className="canvas-scale-overlay">縮尺 {canvasViewport.zoom.toFixed(2)}px/mm</div>
+        {renderFixedCanvasChrome ? (
+          <div className="canvas-scale-overlay">縮尺 {canvasViewport.zoom.toFixed(2)}px/mm</div>
+        ) : null}
       </div>
     </section>
   );

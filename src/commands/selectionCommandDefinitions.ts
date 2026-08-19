@@ -23,6 +23,7 @@ import {
 } from "./forGroupCommands";
 import {
   extendSelectionByOffset,
+  clearCanvasSelection,
   groupSelectedElements,
   indentSelectedElements,
   moveElementToInsertionIndex,
@@ -236,6 +237,12 @@ export const selectionCommandDefinitions = {
       if (!context?.elementId) return;
       selectElement(context.elementId, context.selectionMode);
     }
+  },
+  clearCanvasSelection: {
+    id: "clearCanvasSelection",
+    label: "キャンバス選択を解除",
+    palette: { order: 25.25, keywords: ["clear", "selection", "canvas", "選択解除", "キャンバス"] },
+    run: () => clearCanvasSelection()
   },
   selectAllElements: {
     id: "selectAllElements",

@@ -74,6 +74,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       showCanvasElementNames,
       showCanvasPoints,
       showPrintPreviewWindow,
+      renderFixedCanvasChrome: true,
       activePointPickTarget,
       activeNumericReferencePickTarget,
       activeLinePickTarget,
@@ -94,6 +95,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
       selectElement: (elementId, selectionMode) => dispatchCommand("selectElement", { elementId, selectionMode }),
+      clearCanvasSelection: () => dispatchCommand("clearCanvasSelection"),
       movePointElementByDelta: (action) => dispatchCommand("movePointElementByDelta", action),
       moveBezierHandleByDelta: (action) => dispatchCommand("moveBezierHandleByDelta", action),
       applyPickedNumericReference: (numericReferenceExpression) => dispatchCommand("applyPickedNumericReference", {

@@ -26,6 +26,7 @@ type TestEditor = {
 
 type TestPanel = {
   title: string;
+  active: boolean;
   webview: {
     cspSource: string;
     html: string;
@@ -270,6 +271,7 @@ const contextFor = () => ({
 const panelFor = (): TestPanel => {
   const panel = {
     title: "",
+    active: true,
     webview: {
       cspSource: "csp",
       html: "",
@@ -471,6 +473,40 @@ describe("VS Code production document lifecycle", () => {
 
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
     expect(panel.reveal).toHaveBeenCalledWith(2);
+  });
+
+  it("routes Canvas command palette commands to the active Canvas webview", () => {
+    setup();
+    const panel = openPanelFor();
+
+    for (const command of [
+      "nuinuiCAD.clearCanvasSelection",
+      "nuinuiCAD.resetCanvasView",
+      "nuinuiCAD.fitDrawing",
+      "nuinuiCAD.toggleCanvasElementNames",
+      "nuinuiCAD.toggleCanvasPoints"
+    ]) {
+      commandHandlerFor(command)?.();
+    }
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "clearCanvasSelection" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "resetCanvasView" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "fitDrawing" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasElementNames" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPoints" });
+  });
+
+  it("fails safely when no Canvas webview is active", () => {
+    setup();
+    const panel = openPanelFor();
+    panel.active = false;
+
+    commandHandlerFor("nuinuiCAD.fitDrawing")?.();
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
   });
 
   it("keeps two document sessions independent", () => {

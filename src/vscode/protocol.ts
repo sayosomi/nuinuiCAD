@@ -21,6 +21,13 @@ export type VscodeToExtensionMessage =
   | { type: "benchmarkResult"; result: unknown }
   | { type: "benchmarkError"; error: string };
 
+export type VscodeCanvasCommandId =
+  | "clearCanvasSelection"
+  | "resetCanvasView"
+  | "fitDrawing"
+  | "toggleCanvasElementNames"
+  | "toggleCanvasPoints";
+
 export type VscodeBenchmarkConfig = {
   runId: string;
   fixtureId: string;
@@ -40,6 +47,7 @@ export type ExtensionToVscodeMessage =
   | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
   | { type: "commitText"; sourceText: string; documentVersion: number }
   | { type: "canvasThemeChanged" }
+  | { type: "canvasCommand"; commandId: VscodeCanvasCommandId }
   | { type: "rustEvaluationResponse"; id: number; payload: unknown }
   | { type: "rustEvaluationError"; id: number; error: string }
   | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig };

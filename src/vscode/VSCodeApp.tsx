@@ -8,6 +8,7 @@ import {
   useCadDocumentStore
 } from "../state/cadDocumentStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
+import { dispatchCommand } from "../commands/commands";
 import { VSCodeBenchmarkCaptureRunner } from "./VSCodeBenchmarkCaptureRunner";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { isStaleHostDocumentVersion } from "./hostDocumentVersion";
@@ -39,6 +40,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     compiledDocumentRevision,
     rustTransport.transport
   );
+  const evaluationRef = useRef(evaluationState.evaluation);
+  useEffect(() => {
+    evaluationRef.current = evaluationState.evaluation;
+  }, [evaluationState.evaluation]);
 
   useEffect(() => {
     const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
@@ -48,6 +53,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (rustTransport.handleMessage(message)) return;
       if (message.type === "canvasThemeChanged") {
         refreshCanvasTheme();
+      } else if (message.type === "canvasCommand") {
+        dispatchCommand(message.commandId, {
+          evaluation: evaluationRef.current,
+          getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null
+        });
       } else if (message.type === "replaceTextDocument") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         latestHostDocumentVersionRef.current = message.documentVersion;

@@ -189,9 +189,9 @@ describe("cadDocumentStore file state", () => {
       dirtySinceSave: false
     });
     expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: sampleElements[1].id,
-      selectedElementIds: [sampleElements[1].id],
-      selectionAnchorElementId: sampleElements[1].id,
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null,
     });
   });
 
