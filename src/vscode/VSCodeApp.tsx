@@ -21,6 +21,8 @@ import type {
   VscodeWebviewApi
 } from "./protocol";
 
+type CanvasHistoryDirection = "undo" | "redo";
+
 export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore(effectiveEvaluationLimitIndex);
@@ -29,7 +31,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
-  const canvasHistoryInFlightRef = useRef<"undo" | "redo" | null>(null);
+  const canvasHistoryInFlightRef = useRef<CanvasHistoryDirection | null>(null);
+  const pendingCanvasHistoryRef = useRef<CanvasHistoryDirection[]>([]);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const measureCanvasTextWidth = useMemo(
     () => createCanvasTextWidthMeasurer(() =>
@@ -53,22 +56,35 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     evaluationRef.current = evaluationState.evaluation;
   }, [evaluationState.evaluation]);
 
-  const requestCanvasHistory = useCallback((direction: "undo" | "redo") => {
-    if (canvasHistoryInFlightRef.current !== null) return;
-    const appliedLocally = direction === "undo"
-      ? useCadDocumentStore.getState().undoCanvasSelection()
-      : useCadDocumentStore.getState().redoCanvasSelection();
-    if (appliedLocally) return;
+  const restoreCanvasFocus = useCallback((afterFocus?: () => void) => {
+    queueMicrotask(() => {
+      canvasFocusRef.current?.focus();
+      afterFocus?.();
+    });
+  }, []);
 
-    const expectedDocumentVersion = latestHostDocumentVersionRef.current;
-    if (expectedDocumentVersion === null) return;
-    canvasHistoryInFlightRef.current = direction;
-    api.postMessage({ type: "canvasHistoryRequest", direction, expectedDocumentVersion });
+  const pumpCanvasHistory = useCallback(() => {
+    while (
+      canvasHistoryInFlightRef.current === null
+      && pendingCanvasHistoryRef.current.length > 0
+    ) {
+      const direction = pendingCanvasHistoryRef.current.shift()!;
+      const appliedLocally = direction === "undo"
+        ? useCadDocumentStore.getState().undoCanvasSelection()
+        : useCadDocumentStore.getState().redoCanvasSelection();
+      if (appliedLocally) continue;
+
+      const expectedDocumentVersion = latestHostDocumentVersionRef.current;
+      if (expectedDocumentVersion === null) return;
+      canvasHistoryInFlightRef.current = direction;
+      api.postMessage({ type: "canvasHistoryRequest", direction, expectedDocumentVersion });
+    }
   }, [api]);
 
-  const restoreCanvasFocus = useCallback(() => {
-    queueMicrotask(() => canvasFocusRef.current?.focus());
-  }, []);
+  const requestCanvasHistory = useCallback((direction: CanvasHistoryDirection) => {
+    pendingCanvasHistoryRef.current.push(direction);
+    pumpCanvasHistory();
+  }, [pumpCanvasHistory]);
 
   useEffect(() => {
     const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
@@ -89,7 +105,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       } else if (message.type === "canvasHistoryResult") {
         if (canvasHistoryInFlightRef.current !== message.direction) return;
         canvasHistoryInFlightRef.current = null;
-        restoreCanvasFocus();
+        if (message.status !== "completed") {
+          pendingCanvasHistoryRef.current = [];
+        }
+        restoreCanvasFocus(message.status === "completed" ? pumpCanvasHistory : undefined);
       } else if (message.type === "replaceTextDocument") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         latestHostDocumentVersionRef.current = message.documentVersion;
@@ -117,7 +136,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, measureCanvasTextWidth, requestCanvasHistory, restoreCanvasFocus, rustTransport]);
+  }, [api, measureCanvasTextWidth, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport]);
 
   const surfaceStyle = benchmarkConfig
     ? {
