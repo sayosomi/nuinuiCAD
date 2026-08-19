@@ -67,6 +67,22 @@ const say48SourceFingerprint = (sourceText: string): string => {
   return `${sourceText.length}:${(hash >>> 0).toString(16).padStart(8, "0")}`;
 };
 
+const say48SerializeDetails = (details: Record<string, unknown>): string => {
+  const seen = new WeakSet<object>();
+  try {
+    return JSON.stringify(details, (_key, value) => {
+      if (typeof value === "bigint") return `${value}n`;
+      if (value !== null && typeof value === "object") {
+        if (seen.has(value)) return "[Circular]";
+        seen.add(value);
+      }
+      return value;
+    }) ?? "null";
+  } catch {
+    return "{\"serializationError\":\"unable to serialize diagnostic details\"}";
+  }
+};
+
 const say48HistoryLog = (
   label: string,
   document: vscode.TextDocument | undefined,
@@ -76,16 +92,18 @@ const say48HistoryLog = (
   const timestamp = typeof performance !== "undefined"
     ? performance.timeOrigin + performance.now()
     : Date.now();
-  console.info(`[SAY48-HISTORY] seq=${sequence} t=${timestamp.toFixed(3)} ${label}`, {
-    ...(document
-      ? {
-          documentUri: document.uri.toString(),
-          fileName: document.fileName,
-          documentVersion: document.version
-        }
-      : {}),
-    ...details
-  });
+  console.info(
+    `[SAY48-HISTORY] seq=${sequence} t=${timestamp.toFixed(3)} ${label} ${say48SerializeDetails({
+      ...(document
+        ? {
+            documentUri: document.uri.toString(),
+            fileName: document.fileName,
+            documentVersion: document.version
+          }
+        : {}),
+      ...details
+    })}`
+  );
 };
 
 const say48InFlightHistoryForLog = (inFlightHistory: DocumentSession["inFlightCanvasHistory"]) =>
