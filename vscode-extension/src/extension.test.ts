@@ -558,6 +558,43 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.reveal).toHaveBeenCalledWith(2, false);
   });
 
+  it.each(["undo", "redo"] as const)("waits for a delayed native Canvas %s change event before completing history", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      expect(command).toBe(direction);
+      document.version = 2;
+      document.setSourceText(`nui 4\n// native ${direction}\n`);
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasHistoryResult" }));
+    expect(panel.reveal).not.toHaveBeenCalled();
+
+    emitDocumentChange(document);
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      documentVersion: 2,
+      reason: direction
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction,
+      status: "completed",
+      documentVersion: 2
+    });
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
   it.each(["undo", "redo"] as const)("treats native Canvas %s with no document version change as a completed no-op", async (direction) => {
     const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
     const editor = editorFor(document);

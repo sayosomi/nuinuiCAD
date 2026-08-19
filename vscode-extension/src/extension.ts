@@ -52,6 +52,7 @@ type DocumentSession = {
     direction: "undo" | "redo";
     expectedDocumentVersion: number;
     changeObserved: boolean;
+    commandCompleted: boolean;
   } | null;
 };
 
@@ -312,6 +313,19 @@ export const activate = (context: vscode.ExtensionContext): void => {
     postAuthoritativeDocument(session.panel, session.document);
   };
 
+  const completeCanvasHistory = (session: DocumentSession): void => {
+    const inFlightHistory = session.inFlightCanvasHistory;
+    if (!inFlightHistory) return;
+    session.inFlightCanvasHistory = null;
+    session.panel.reveal(vscode.ViewColumn.Beside, false);
+    void session.panel.webview.postMessage({
+      type: "canvasHistoryResult",
+      direction: inFlightHistory.direction,
+      status: "completed",
+      documentVersion: session.document.version
+    } satisfies ExtensionToVscodeMessage);
+  };
+
   const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
     for (const session of sessions.values()) {
       void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
@@ -386,9 +400,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
         documentVersion: session.document.version
       } satisfies ExtensionToVscodeMessage);
     };
+    let sourceEditorActivated = false;
     const failClosed = (status: "resynced" | "failed") => {
+      session.inFlightCanvasHistory = null;
       resync(session);
       postResult(status);
+      if (sourceEditorActivated) session.panel.reveal(vscode.ViewColumn.Beside, false);
     };
 
     if (
@@ -407,7 +424,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
 
     const expectedVersion = session.document.version;
-    let sourceEditorActivated = false;
     try {
       await vscode.window.showTextDocument(session.document, {
         viewColumn: editor.viewColumn,
@@ -418,23 +434,27 @@ export const activate = (context: vscode.ExtensionContext): void => {
       session.inFlightCanvasHistory = {
         direction: message.direction,
         expectedDocumentVersion: expectedVersion,
-        changeObserved: false
+        changeObserved: false,
+        commandCompleted: false
       };
       await vscode.commands.executeCommand(message.direction === "undo" ? "undo" : "redo");
     } catch {
       failClosed("failed");
       return;
-    } finally {
-      session.inFlightCanvasHistory = null;
-      if (sourceEditorActivated) session.panel.reveal(vscode.ViewColumn.Beside, false);
     }
+
+    const inFlightHistory = session.inFlightCanvasHistory;
+    if (!inFlightHistory) return;
+    inFlightHistory.commandCompleted = true;
 
     if (!isOpenDocument(session.document)) {
       failClosed("resynced");
       return;
     }
 
-    postResult("completed");
+    if (inFlightHistory.changeObserved || session.document.version === inFlightHistory.expectedDocumentVersion) {
+      completeCanvasHistory(session);
+    }
   };
 
   const disposeSession = (session: DocumentSession): void => {
@@ -500,7 +520,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
           const documentChangedDuringCanvasHistory = inFlightHistory !== null
             && !inFlightHistory.changeObserved
             && event.document.version !== inFlightHistory.expectedDocumentVersion;
-          if (documentChangedDuringCanvasHistory) inFlightHistory.changeObserved = true;
+          if (documentChangedDuringCanvasHistory) {
+            inFlightHistory.changeObserved = true;
+          }
           postDocumentText(
             panel,
             event.document.getText(),
@@ -509,6 +531,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
               ? inFlightHistory.direction
               : documentChangeReasonFor(event.reason)
           );
+          if (documentChangedDuringCanvasHistory && inFlightHistory.commandCompleted) {
+            completeCanvasHistory(session);
+          }
         }
       }));
     }
