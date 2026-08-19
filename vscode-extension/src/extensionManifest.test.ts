@@ -24,7 +24,7 @@ describe("VS Code extension manifest keybindings", () => {
       await readFile(manifestPath, "utf8")
     ) as ExtensionManifest;
     const keybindings = manifest.contributes?.keybindings ?? [];
-    const canvasWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
+    const canvasWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
 
     expect(keybindings).toHaveLength(2);
     expect(keybindings).toContainEqual({

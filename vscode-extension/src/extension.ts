@@ -223,6 +223,27 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const benchmarkConfig = benchmarkConfigFromEnvironment();
   let benchmarkStarted = false;
   let benchmarkEditorListener: vscode.Disposable | null = null;
+  const canvasHistoryHandoffContextKey = "nuinuiCAD.canvasHistoryHandoff";
+  let canvasHistoryHandoffSession: DocumentSession | null = null;
+  let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
+
+  const setCanvasHistoryHandoffContext = (enabled: boolean): Promise<void> => {
+    canvasHistoryHandoffContextUpdate = canvasHistoryHandoffContextUpdate
+      .catch(() => undefined)
+      .then(() => vscode.commands.executeCommand("setContext", canvasHistoryHandoffContextKey, enabled))
+      .then(() => undefined);
+    return canvasHistoryHandoffContextUpdate;
+  };
+
+  const clearCanvasHistoryHandoff = (session: DocumentSession): void => {
+    if (canvasHistoryHandoffSession !== session) return;
+    canvasHistoryHandoffSession = null;
+    void setCanvasHistoryHandoffContext(false).catch(() => undefined);
+  };
+
+  const clearCanvasHistoryHandoffIfReady = (session: DocumentSession): void => {
+    if (session.panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
+  };
 
   const publishCompilerDiagnostics = (document: vscode.TextDocument): void => {
     if (!isSupportedNuiDocument(document)) return;
@@ -324,6 +345,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       status: "completed",
       documentVersion: session.document.version
     } satisfies ExtensionToVscodeMessage);
+    clearCanvasHistoryHandoffIfReady(session);
   };
 
   const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
@@ -406,6 +428,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       resync(session);
       postResult(status);
       if (sourceEditorActivated) session.panel.reveal(vscode.ViewColumn.Beside, false);
+      clearCanvasHistoryHandoffIfReady(session);
     };
 
     if (
@@ -424,19 +447,22 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
 
     const expectedVersion = session.document.version;
+    session.inFlightCanvasHistory = {
+      direction: message.direction,
+      expectedDocumentVersion: expectedVersion,
+      changeObserved: false,
+      commandCompleted: false
+    };
+    canvasHistoryHandoffSession = session;
     try {
+      await setCanvasHistoryHandoffContext(true);
+      if (canvasHistoryHandoffSession !== session || sessions.get(session.key) !== session) return;
       await vscode.window.showTextDocument(session.document, {
         viewColumn: editor.viewColumn,
         preserveFocus: false,
         preview: false
       });
       sourceEditorActivated = true;
-      session.inFlightCanvasHistory = {
-        direction: message.direction,
-        expectedDocumentVersion: expectedVersion,
-        changeObserved: false,
-        commandCompleted: false
-      };
       await vscode.commands.executeCommand(message.direction === "undo" ? "undo" : "redo");
     } catch {
       failClosed("failed");
@@ -459,6 +485,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const disposeSession = (session: DocumentSession): void => {
     if (sessions.get(session.key) !== session) return;
+    session.inFlightCanvasHistory = null;
+    clearCanvasHistoryHandoff(session);
     sessions.delete(session.key);
     disposeSessionListeners(session);
     updatePanelTitles();
@@ -538,6 +566,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
       }));
     }
 
+    session.disposables.push(panel.onDidChangeViewState(() => {
+      if (panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
+    }));
+
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "webviewReady") {
         postAuthoritativeDocument(panel, session.document);
@@ -584,7 +616,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const executeCanvasCommand = (commandId: VscodeCanvasCommandId): void => {
-    const session = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const session = activeSession ?? (
+      commandId === "undo" || commandId === "redo"
+        ? canvasHistoryHandoffSession
+        : null
+    );
     if (!session) {
       void vscode.window.showErrorMessage("nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。");
       return;

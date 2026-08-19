@@ -20,13 +20,13 @@
         "command": "nuinuiCAD.canvasUndo",
         "key": "ctrl+z",
         "mac": "cmd+z",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)"
       },
       {
         "command": "nuinuiCAD.canvasRedo",
         "key": "ctrl+y",
         "mac": "cmd+shift+z",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)"
       }
     ],
     "commands": [

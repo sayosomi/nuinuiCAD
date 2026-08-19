@@ -37,6 +37,7 @@ type TestPanel = {
   reveal: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
   onDidDispose: ReturnType<typeof vi.fn>;
+  onDidChangeViewState: ReturnType<typeof vi.fn>;
 };
 
 type TestRustProcess = {
@@ -285,7 +286,8 @@ const panelFor = (): TestPanel => {
     },
     reveal: vi.fn(),
     dispose: vi.fn(),
-    onDidDispose: vi.fn()
+    onDidDispose: vi.fn(),
+    onDidChangeViewState: vi.fn()
   } as TestPanel;
   panel.webview.onDidReceiveMessage.mockImplementation((handler: (message: unknown) => Promise<void>) => {
     (panel as TestPanel & { messageHandler: (message: unknown) => Promise<void> }).messageHandler = handler;
@@ -294,6 +296,10 @@ const panelFor = (): TestPanel => {
   panel.onDidDispose.mockImplementation((handler: () => void) => {
     (panel as TestPanel & { disposeHandler: () => void }).disposeHandler = handler;
     panel.dispose.mockImplementation(() => (panel as TestPanel & { disposeHandler: () => void }).disposeHandler?.());
+    return disposable();
+  });
+  panel.onDidChangeViewState.mockImplementation((handler: () => void) => {
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler = handler;
     return disposable();
   });
   mocks.panels.push(panel);
@@ -527,6 +533,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     mocks.showTextDocument.mockResolvedValue(editor);
     mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "setContext") return;
       expect(command).toBe(direction);
       document.version = 2;
       document.setSourceText(`nui 4\n// native ${direction}\n`);
@@ -565,6 +572,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     mocks.showTextDocument.mockResolvedValue(editor);
     mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "setContext") return;
       expect(command).toBe(direction);
       document.version = 2;
       document.setSourceText(`nui 4\n// native ${direction}\n`);
@@ -625,7 +633,10 @@ describe("VS Code production document lifecycle", () => {
     setup(false, editor);
     const panel = openPanelFor(editor);
     mocks.showTextDocument.mockResolvedValue(editor);
-    mocks.executeCommand.mockRejectedValue(new Error("native history failed"));
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "setContext") return;
+      throw new Error("native history failed");
+    });
 
     await messageHandlerFor(panel)({
       type: "canvasHistoryRequest",
@@ -672,6 +683,122 @@ describe("VS Code production document lifecycle", () => {
     panel.active = false;
 
     commandHandlerFor("nuinuiCAD.fitDrawing")?.();
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
+  });
+
+  it.each(["undo", "redo"] as const)("routes a second Canvas %s through the handoff session while native history is in flight", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    let resolveNativeHistory!: () => void;
+    const nativeHistory = new Promise<void>((resolve) => {
+      resolveNativeHistory = resolve;
+    });
+    const historyCommand = direction === "undo" ? "nuinuiCAD.canvasUndo" : "nuinuiCAD.canvasRedo";
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      return editor;
+    });
+    mocks.executeCommand.mockImplementation((command: string) => {
+      if (command === "setContext") return Promise.resolve();
+      if (command === direction) return nativeHistory;
+      return Promise.resolve();
+    });
+
+    const firstRequest = messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(direction));
+
+    const setContextTrueCall = mocks.executeCommand.mock.calls.find(([command, key, enabled]) =>
+      command === "setContext" && key === "nuinuiCAD.canvasHistoryHandoff" && enabled === true
+    );
+    expect(setContextTrueCall).toBeDefined();
+    const setContextTrueCallIndex = mocks.executeCommand.mock.calls.indexOf(setContextTrueCall!);
+    expect(mocks.executeCommand.mock.invocationCallOrder[setContextTrueCallIndex]).toBeLessThan(mocks.showTextDocument.mock.invocationCallOrder[0]!);
+
+    commandHandlerFor(historyCommand)?.();
+
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: direction });
+
+    mocks.showErrorMessage.mockClear();
+    panel.webview.postMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.fitDrawing")?.();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
+
+    resolveNativeHistory();
+    await firstRequest;
+
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith("setContext", "nuinuiCAD.canvasHistoryHandoff", false);
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      false
+    ));
+  });
+
+  it("clears the Canvas history handoff context when its session is disposed", async () => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    let resolveNativeHistory!: () => void;
+    const nativeHistory = new Promise<void>((resolve) => {
+      resolveNativeHistory = resolve;
+    });
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      return editor;
+    });
+    mocks.executeCommand.mockImplementation((command: string) => {
+      if (command === "setContext") return Promise.resolve();
+      if (command === "undo") return nativeHistory;
+      return Promise.resolve();
+    });
+
+    const firstRequest = messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 1
+    });
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      true
+    ));
+
+    panel.dispose();
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      false
+    ));
+
+    resolveNativeHistory();
+    await firstRequest;
+  });
+
+  it.each(["nuinuiCAD.canvasUndo", "nuinuiCAD.canvasRedo"])("rejects %s when no Canvas is active and no history handoff exists", (command) => {
+    setup();
+    const panel = openPanelFor();
+    panel.active = false;
+
+    commandHandlerFor(command)?.();
 
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
       "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
