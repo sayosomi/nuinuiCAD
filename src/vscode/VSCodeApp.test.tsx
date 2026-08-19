@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import type { RefObject } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { selectElement } from "../commands/selectionCommands";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -29,6 +30,11 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
 
 const sourceFor = (x: number) => dslTextForElements([
   { id: "a", name: "A", type: "freePoint", activity: "visible", x, y: 0 }
+]);
+
+const sourceForSelectionChronology = (x: number) => dslTextForElements([
+  { id: "a", name: "A", type: "freePoint", activity: "visible", x, y: 0 },
+  { id: "b", name: "B", type: "freePoint", activity: "visible", x: x + 10, y: 0 }
 ]);
 
 describe("VSCodeApp Canvas history coordinator", () => {
@@ -81,5 +87,47 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     expect(useCadDocumentStore.getState().sourceText).toBe(oldSource);
     expect(document.activeElement).toBe(canvas);
+  });
+
+  it("uses the second Undo for local selection history after authoritative source Undo", async () => {
+    const oldSource = sourceForSelectionChronology(0);
+    const newSource = sourceForSelectionChronology(40);
+    useCadDocumentStore.getState().replaceTextDocument(oldSource, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const [a, b] = useCadDocumentStore.getState().elements.map((element) => element.id);
+    useCadUiStore.getState().setSelectedElementId(a!);
+    selectElement(b!, "replace", true);
+    useCadDocumentStore.getState().commitText(newSource, "editor");
+    const api = { postMessage: vi.fn() };
+
+    render(<VSCodeAppForTest api={api} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: newSource, documentVersion: 1, reason: "edit" }
+      }));
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: oldSource, documentVersion: 2, reason: "undo" }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    const historyRequestsBeforeLocalUndo = api.postMessage.mock.calls.filter(
+      ([message]) => message?.type === "canvasHistoryRequest"
+    ).length;
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "undo" }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(a);
+    expect(api.postMessage.mock.calls.filter(
+      ([message]) => message?.type === "canvasHistoryRequest"
+    )).toHaveLength(historyRequestsBeforeLocalUndo);
   });
 });

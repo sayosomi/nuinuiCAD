@@ -48,6 +48,11 @@ type DocumentSession = {
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
   disposables: vscode.Disposable[];
+  inFlightCanvasHistory: {
+    direction: "undo" | "redo";
+    expectedDocumentVersion: number;
+    changeObserved: boolean;
+  } | null;
 };
 
 const benchmarkConfigFromEnvironment = (): VscodeBenchmarkConfig | null => {
@@ -402,24 +407,33 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
 
     const expectedVersion = session.document.version;
+    let sourceEditorActivated = false;
     try {
       await vscode.window.showTextDocument(session.document, {
         viewColumn: editor.viewColumn,
         preserveFocus: false,
         preview: false
       });
+      sourceEditorActivated = true;
+      session.inFlightCanvasHistory = {
+        direction: message.direction,
+        expectedDocumentVersion: expectedVersion,
+        changeObserved: false
+      };
       await vscode.commands.executeCommand(message.direction === "undo" ? "undo" : "redo");
     } catch {
       failClosed("failed");
       return;
+    } finally {
+      session.inFlightCanvasHistory = null;
+      if (sourceEditorActivated) session.panel.reveal(vscode.ViewColumn.Beside, false);
     }
 
-    if (!isOpenDocument(session.document) || session.document.version === expectedVersion) {
+    if (!isOpenDocument(session.document)) {
       failClosed("resynced");
       return;
     }
 
-    session.panel.reveal(vscode.ViewColumn.Beside, false);
     postResult("completed");
   };
 
@@ -468,7 +482,13 @@ export const activate = (context: vscode.ExtensionContext): void => {
       }
     );
     panel.webview.html = webviewHtml(panel, context);
-    const session: DocumentSession = { key, document, panel, disposables: [] };
+    const session: DocumentSession = {
+      key,
+      document,
+      panel,
+      disposables: [],
+      inFlightCanvasHistory: null
+    };
     sessions.set(key, session);
     updatePanelTitles();
 
@@ -476,11 +496,18 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (!benchmarkConfig) {
       session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
         if (sameDocument(event.document, session.document)) {
+          const inFlightHistory = session.inFlightCanvasHistory;
+          const documentChangedDuringCanvasHistory = inFlightHistory !== null
+            && !inFlightHistory.changeObserved
+            && event.document.version !== inFlightHistory.expectedDocumentVersion;
+          if (documentChangedDuringCanvasHistory) inFlightHistory.changeObserved = true;
           postDocumentText(
             panel,
             event.document.getText(),
             event.document.version,
-            documentChangeReasonFor(event.reason)
+            documentChangedDuringCanvasHistory
+              ? inFlightHistory.direction
+              : documentChangeReasonFor(event.reason)
           );
         }
       }));

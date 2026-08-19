@@ -520,22 +520,22 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "redo" });
   });
 
-  it("executes native Canvas history only for a validated document and restores Canvas focus", async () => {
+  it.each(["undo", "redo"] as const)("uses the requested Canvas history direction when the native change has no explicit reason (%s)", async (direction) => {
     const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
     const editor = editorFor(document);
     setup(false, editor);
     const panel = openPanelFor(editor);
     mocks.showTextDocument.mockResolvedValue(editor);
     mocks.executeCommand.mockImplementation(async (command: string) => {
-      expect(command).toBe("undo");
+      expect(command).toBe(direction);
       document.version = 2;
-      document.setSourceText("nui 4\n// native undo\n");
-      emitDocumentChange(document, 1);
+      document.setSourceText(`nui 4\n// native ${direction}\n`);
+      emitDocumentChange(document);
     });
 
     await messageHandlerFor(panel)({
       type: "canvasHistoryRequest",
-      direction: "undo",
+      direction,
       expectedDocumentVersion: 1
     });
 
@@ -543,19 +543,67 @@ describe("VS Code production document lifecycle", () => {
       preserveFocus: false,
       preview: false
     }));
-    expect(mocks.executeCommand).toHaveBeenCalledWith("undo");
+    expect(mocks.executeCommand).toHaveBeenCalledWith(direction);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "commitText",
       documentVersion: 2,
-      reason: "undo"
+      reason: direction
     }));
     expect(panel.webview.postMessage).toHaveBeenCalledWith({
       type: "canvasHistoryResult",
-      direction: "undo",
+      direction,
       status: "completed",
       documentVersion: 2
     });
     expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
+  it.each(["undo", "redo"] as const)("treats native Canvas %s with no document version change as a completed no-op", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockResolvedValue(editor);
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+
+    expect(mocks.executeCommand).toHaveBeenCalledWith(direction);
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument" }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction,
+      status: "completed",
+      documentVersion: 1
+    });
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
+  it("restores the Canvas panel when native history fails after source focus is transferred", async () => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.executeCommand.mockRejectedValue(new Error("native history failed"));
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 1
+    });
+
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument" }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction: "undo",
+      status: "failed",
+      documentVersion: 1
+    });
   });
 
   it("resyncs and never executes native history for a stale Canvas document version", async () => {
