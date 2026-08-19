@@ -2070,6 +2070,7 @@ export class SourceEditorController implements SourceEditorHandle {
       elementIdByStatementIndex: state.doc.statementMap.elementIdByStatementIndex,
       propertySourcesByOccurrenceKey: state.doc.propertyBindings ?? new Map(),
       occurrenceKeysByBindingId: state.doc.occurrenceKeysByBindingId ?? new Map(),
+      elements: state.elements,
       freshness: this.currentRuntimeFreshnessInput()
     });
   }

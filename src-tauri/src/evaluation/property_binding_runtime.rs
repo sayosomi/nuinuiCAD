@@ -93,6 +93,7 @@ pub(crate) fn apply_property_bindings(
                 r#type: entry.expected_type.clone(),
                 issue_code: "property-binding-missing-source".to_owned(),
                 binding_id: None,
+                context: None,
             }
         };
         match evaluation {

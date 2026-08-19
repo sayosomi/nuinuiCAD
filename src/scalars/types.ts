@@ -14,9 +14,21 @@ export type ScalarValue =
   | { kind: "boolean"; value: boolean }
   | { kind: "choice"; value: string; options: readonly string[] };
 
+export type ScalarEvaluationErrorContext = {
+  kind: "geometryBuiltinTarget";
+  targetElementId: string;
+  pointKey?: string;
+};
+
 export type ScalarEvaluation =
   | { status: "ok"; type: ScalarType; value: ScalarValue }
-  | { status: "error"; type: ScalarType; issueCode: string; bindingId?: string };
+  | {
+      status: "error";
+      type: ScalarType;
+      issueCode: string;
+      bindingId?: string;
+      context?: ScalarEvaluationErrorContext;
+    };
 
 export type NumberScalarType = Extract<ScalarType, { kind: "number" }>;
 export type StringScalarType = Extract<ScalarType, { kind: "string" }>;

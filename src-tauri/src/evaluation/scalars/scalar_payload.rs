@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
-use super::types::{ScalarEvaluation, ScalarType, ScalarValue};
+use super::types::{ScalarEvaluation, ScalarEvaluationErrorContext, ScalarType, ScalarValue};
 
 /// A single node's `options` array is bounded independently of AST depth or
 /// node count: it needs no tree recursion to be made arbitrarily large, so
@@ -108,6 +108,61 @@ pub(crate) fn scalar_value_matches_type(scalar_type: &ScalarType, value: &Scalar
             },
         ) => type_options == value_options && value_options.contains(value),
         _ => false,
+    }
+}
+
+fn decode_scalar_evaluation_error_context(
+    json: &Value,
+) -> Result<ScalarEvaluationErrorContext, ScalarPayloadIssue> {
+    let object = as_object(json, "scalar evaluation error context")?;
+    let kind = require_field(object, "kind", "scalar evaluation error context")?
+        .as_str()
+        .ok_or_else(|| {
+            issue(
+                Code::InvalidFieldType,
+                "scalar evaluation error context \"kind\" must be a string",
+            )
+        })?;
+    match kind {
+        "geometryBuiltinTarget" => {
+            reject_unexpected_fields(
+                object,
+                &["kind", "targetElementId", "pointKey"],
+                "geometry builtin target context",
+            )?;
+            let target_element_id =
+                require_field(object, "targetElementId", "geometry builtin target context")?
+                    .as_str()
+                    .ok_or_else(|| {
+                        issue(
+                            Code::InvalidFieldType,
+                            "geometry builtin target context \"targetElementId\" must be a string",
+                        )
+                    })?
+                    .to_owned();
+            let point_key = match object.get("pointKey") {
+                None => None,
+                Some(value) => Some(
+                    value
+                        .as_str()
+                        .ok_or_else(|| {
+                            issue(
+                                Code::InvalidFieldType,
+                                "geometry builtin target context \"pointKey\", when present, must be a string",
+                            )
+                        })?
+                        .to_owned(),
+                ),
+            };
+            Ok(ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+                target_element_id,
+                point_key,
+            })
+        }
+        other => Err(issue(
+            Code::UnknownKind,
+            format!("unknown scalar evaluation error context kind \"{other}\""),
+        )),
     }
 }
 
@@ -230,7 +285,7 @@ pub(crate) fn decode_scalar_evaluation(
         "error" => {
             reject_unexpected_fields(
                 object,
-                &["type", "status", "issueCode", "bindingId"],
+                &["type", "status", "issueCode", "bindingId", "context"],
                 "error scalar evaluation",
             )?;
             let issue_code = require_field(object, "issueCode", "error scalar evaluation")?
@@ -261,10 +316,15 @@ pub(crate) fn decode_scalar_evaluation(
                         .to_owned(),
                 ),
             };
+            let context = match object.get("context") {
+                None => None,
+                Some(value) => Some(decode_scalar_evaluation_error_context(value)?),
+            };
             Ok(ScalarEvaluation::Error {
                 r#type: scalar_type,
                 issue_code,
                 binding_id,
+                context,
             })
         }
         other => Err(issue(

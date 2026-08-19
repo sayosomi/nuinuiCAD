@@ -33,6 +33,7 @@ impl ScalarEvaluationEnvironment for StubContext {
                 r#type: ScalarType::Number,
                 issue_code: "test-binding-not-registered".to_owned(),
                 binding_id: Some(binding_id.to_owned()),
+                context: None,
             })
     }
 }

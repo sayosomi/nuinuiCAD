@@ -7,9 +7,12 @@
 
 use std::collections::HashMap;
 
-use super::bindings::ScalarBindingResolver;
+use super::bindings::{scalar_evaluation_json, ScalarBindingResolver};
 use super::program_payload::{ValidatedScalarProgram, ValidatedScalarProgramStatement};
-use super::types::{ScalarEvaluation, ScalarSpan, ScalarType, ScalarValue, TypedScalarExpression};
+use super::types::{
+    ScalarEvaluation, ScalarEvaluationErrorContext, ScalarSpan, ScalarType, ScalarValue,
+    TypedScalarExpression,
+};
 use crate::evaluation::types::EvaluationState;
 
 const SPAN: ScalarSpan = ScalarSpan { start: 0, end: 0 };
@@ -133,4 +136,25 @@ fn returns_a_cycle_guard_error_instead_of_infinite_recursing_on_a_synthetic_cycl
         }
         other => panic!("expected a cycle-guard error, got {other:?}"),
     }
+}
+
+#[test]
+fn scalar_evaluation_json_round_trips_geometry_builtin_target_context() {
+    let evaluation = ScalarEvaluation::Error {
+        r#type: ScalarType::Number,
+        issue_code: "evaluation-geometry-builtin-disabled".to_owned(),
+        binding_id: None,
+        context: Some(ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+            target_element_id: "shoulder".to_owned(),
+            point_key: Some("start".to_owned()),
+        }),
+    };
+    let payload = scalar_evaluation_json(&evaluation);
+    assert_eq!(payload["context"]["kind"], "geometryBuiltinTarget");
+    assert_eq!(payload["context"]["targetElementId"], "shoulder");
+    assert_eq!(payload["context"]["pointKey"], "start");
+    assert_eq!(
+        super::scalar_payload::decode_scalar_evaluation(&payload).unwrap(),
+        evaluation
+    );
 }

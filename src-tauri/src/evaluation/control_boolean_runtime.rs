@@ -38,6 +38,7 @@ impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-geometry-property-unavailable".to_owned(),
                 binding_id: None,
+                context: None,
             };
         };
         let Some(value) = computed_reference_value(geometry, property) else {
@@ -45,6 +46,7 @@ impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-geometry-property-unavailable".to_owned(),
                 binding_id: None,
+                context: None,
             };
         };
         ScalarEvaluation::Ok {
@@ -101,6 +103,7 @@ pub(crate) fn resolve_for_group_effective_show_generated(
             r#type: entry.expected_type.clone(),
             issue_code: "property-binding-missing-source".to_owned(),
             binding_id: None,
+            context: None,
         }
     };
     matches!(

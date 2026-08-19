@@ -461,7 +461,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(runtimeDiagnosticsFor(fixture, payload)).toEqual(expect.arrayContaining([
         expect.objectContaining({
           code: "evaluation-geometry-builtin-disabled",
-          message: "組み込み関数のgeometry引数がdisabledのため利用できません。",
+          message: "「Disabled」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。",
           origin: "runtime"
         })
       ]));

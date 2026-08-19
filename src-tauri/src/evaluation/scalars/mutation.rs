@@ -133,6 +133,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-binding-unavailable".to_owned(),
                 binding_id: Some(binding_id.to_owned()),
+                context: None,
             }
         }
     }
@@ -239,6 +240,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     r#type: version.declared_type.clone(),
                     issue_code: "poisoned-binding".to_owned(),
                     binding_id: Some(version.binding_id.clone()),
+                    context: None,
                 }
             }
             (
@@ -310,6 +312,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     .unwrap_or(ScalarType::Number),
                 issue_code: VERSION_UNAVAILABLE.to_owned(),
                 binding_id: Some(binding_id.to_owned()),
+                context: None,
             })
     }
 }
@@ -333,6 +336,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-geometry-property-unavailable".to_owned(),
                 binding_id: None,
+                context: None,
             };
         }
         match self
@@ -349,6 +353,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-geometry-property-unavailable".to_owned(),
                 binding_id: None,
+                context: None,
             },
         }
     }

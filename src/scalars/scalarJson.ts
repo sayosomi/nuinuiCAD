@@ -3,7 +3,13 @@
 // Rust evaluation core owns for its own payloads (D17): any structural
 // mismatch throws rather than falling back to a best-effort guess.
 
-import { scalarValueMatchesType, type ScalarEvaluation, type ScalarType, type ScalarValue } from "./types";
+import {
+  scalarValueMatchesType,
+  type ScalarEvaluation,
+  type ScalarEvaluationErrorContext,
+  type ScalarType,
+  type ScalarValue
+} from "./types";
 
 const fail = (message: string): never => {
   throw new Error(`invalid scalar JSON payload: ${message}`);
@@ -68,6 +74,25 @@ export const parseScalarValueJson = (json: unknown): ScalarValue => {
   }
 };
 
+const parseScalarEvaluationErrorContextJson = (json: unknown): ScalarEvaluationErrorContext => {
+  if (!isPlainObject(json)) return fail("error context must be a plain object");
+  for (const key of Object.keys(json)) {
+    if (key !== "kind" && key !== "targetElementId" && key !== "pointKey") {
+      return fail(`error context has unexpected field "${key}"`);
+    }
+  }
+  if (json.kind !== "geometryBuiltinTarget") return fail(`unknown error context kind: ${String(json.kind)}`);
+  if (typeof json.targetElementId !== "string") return fail("geometry builtin target context targetElementId must be a string");
+  if (json.pointKey !== undefined && typeof json.pointKey !== "string") {
+    return fail("geometry builtin target context pointKey, when present, must be a string");
+  }
+  return {
+    kind: "geometryBuiltinTarget",
+    targetElementId: json.targetElementId,
+    ...(json.pointKey !== undefined ? { pointKey: json.pointKey } : {})
+  };
+};
+
 export const parseScalarEvaluationJson = (json: unknown): ScalarEvaluation => {
   if (!isPlainObject(json)) return fail("scalar evaluation must be a plain object");
   const type = parseScalarTypeJson(json.type);
@@ -84,11 +109,17 @@ export const parseScalarEvaluationJson = (json: unknown): ScalarEvaluation => {
       return fail("error evaluation requires a non-empty issueCode");
     }
     const bindingId = json.bindingId;
-    if (bindingId === undefined) return { status: "error", type, issueCode };
-    if (typeof bindingId !== "string" || bindingId.length === 0) {
+    if (bindingId !== undefined && (typeof bindingId !== "string" || bindingId.length === 0)) {
       return fail("bindingId, when present, must be a non-empty string");
     }
-    return { status: "error", type, issueCode, bindingId };
+    const context = json.context === undefined ? undefined : parseScalarEvaluationErrorContextJson(json.context);
+    return {
+      status: "error",
+      type,
+      issueCode,
+      ...(bindingId !== undefined ? { bindingId } : {}),
+      ...(context !== undefined ? { context } : {})
+    };
   }
 
   return fail(`unknown scalar evaluation status: ${String(json.status)}`);

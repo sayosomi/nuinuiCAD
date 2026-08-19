@@ -48,11 +48,11 @@ impl PartialEq for GeometryBuiltinRuntimeTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum GeometryBuiltinRuntimeError {
     Unavailable,
     InvalidArgument,
-    Disabled,
+    Disabled(ScalarExpressionResolvedGeometryTarget),
     ZeroLengthLine,
 }
 
@@ -73,7 +73,7 @@ pub(crate) fn resolve_geometry_builtin_target(
         .get(&target.statement_id)
         .is_some_and(|activity| activity.activity == ElementActivity::Disabled)
     {
-        return Err(GeometryBuiltinRuntimeError::Disabled);
+        return Err(GeometryBuiltinRuntimeError::Disabled(target.clone()));
     }
     let Some(geometry) = state.computed_geometry.get(&target.statement_id) else {
         return Err(GeometryBuiltinRuntimeError::Unavailable);

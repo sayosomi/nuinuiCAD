@@ -3,6 +3,7 @@ import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import type { BindingId } from "./bindingCatalog";
 import { runtimeScalarDiagnostics, type RuntimeScalarDiagnosticsInput } from "./runtimeScalarDiagnostics";
+import type { CadElement } from "../types/geometry";
 import type { ScalarEvaluation } from "./types";
 
 const compile = (source: string) => {
@@ -24,7 +25,8 @@ const FRESH = { isSourceDirty: false, isEvaluationStale: false };
 const baseInput = (
   compiled: ReturnType<typeof compile>,
   computedScalarBindings: RuntimeScalarDiagnosticsInput["computedScalarBindings"],
-  freshness = FRESH
+  freshness = FRESH,
+  elements: readonly CadElement[] = []
 ): RuntimeScalarDiagnosticsInput => ({
   computedScalarBindings,
   bindingAnalysis: compiled.bindingAnalysis!,
@@ -33,6 +35,7 @@ const baseInput = (
   elementIdByStatementIndex: compiled.statementMap!.elementIdByStatementIndex,
   propertySourcesByOccurrenceKey: compiled.propertyBindings ?? new Map(),
   occurrenceKeysByBindingId: compiled.occurrenceKeysByBindingId ?? new Map(),
+  elements,
   freshness
 });
 
@@ -135,5 +138,28 @@ describe("runtimeScalarDiagnostics", () => {
       baseInput(compiled, new Map([["binding:stale-removed" as BindingId, errorEvaluation("poisoned-binding")]]))
     );
     expect(diagnostics).toEqual([]);
+  });
+
+  it("uses the named disabled-target wording and falls back to the target ID", () => {
+    const compiled = compile(["nui 4", "const x: number = 1"].join("\n"));
+    const bindingId = bindingIdFor(compiled, "x");
+    const evaluation: ScalarEvaluation = {
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-geometry-builtin-disabled",
+      context: { kind: "geometryBuiltinTarget", targetElementId: "target-id" }
+    };
+    const namedDiagnostics = runtimeScalarDiagnostics(
+      baseInput(compiled, new Map([[bindingId, evaluation]]), FRESH, [{ id: "target-id", name: "Shoulder" } as CadElement])
+    );
+    expect(namedDiagnostics[0]?.message).toBe(
+      "「Shoulder」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。"
+    );
+    const fallbackDiagnostics = runtimeScalarDiagnostics(
+      baseInput(compiled, new Map([[bindingId, evaluation]]))
+    );
+    expect(fallbackDiagnostics[0]?.message).toBe(
+      "「target-id」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。"
+    );
   });
 });

@@ -666,6 +666,7 @@ mod tests {
                 r#type: ScalarType::Number,
                 issue_code: "unused".to_owned(),
                 binding_id: None,
+                context: None,
             }),
             None,
             &state(element.clone()),
@@ -701,6 +702,7 @@ mod tests {
                 r#type: ScalarType::Number,
                 issue_code: "unused".to_owned(),
                 binding_id: None,
+                context: None,
             }),
             Some(2),
             &geometry_state(element.clone()),
@@ -720,6 +722,7 @@ mod tests {
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-error".to_owned(),
                 binding_id: None,
+                context: None,
             },
             ScalarEvaluation::Ok {
                 r#type: ScalarType::Number,

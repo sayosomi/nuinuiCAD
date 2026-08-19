@@ -77,6 +77,21 @@ describe("parseScalarEvaluationJson", () => {
     expect(parseScalarEvaluationJson(JSON.parse(JSON.stringify(withBindingId)))).toEqual(withBindingId);
   });
 
+  it("round-trips a geometry builtin target context and keeps legacy errors context-free", () => {
+    const evaluation: ScalarEvaluation = {
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-geometry-builtin-disabled",
+      context: { kind: "geometryBuiltinTarget", targetElementId: "shoulder", pointKey: "start" }
+    };
+    expect(parseScalarEvaluationJson(JSON.parse(JSON.stringify(evaluation)))).toEqual(evaluation);
+    expect(parseScalarEvaluationJson({ status: "error", type: { kind: "number" }, issueCode: "legacy" })).toEqual({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "legacy"
+    });
+  });
+
   it("fails closed when an ok evaluation's value does not match its declared type", () => {
     expect(() =>
       parseScalarEvaluationJson({
@@ -121,6 +136,14 @@ describe("parseScalarEvaluationJson", () => {
         bindingId: 42
       })
     ).toThrow();
+  });
+
+  it("fails closed on malformed error contexts", () => {
+    const base = { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-builtin-disabled" };
+    expect(() => parseScalarEvaluationJson({ ...base, context: { kind: "other", targetElementId: "x" } })).toThrow();
+    expect(() => parseScalarEvaluationJson({ ...base, context: { kind: "geometryBuiltinTarget", targetElementId: 1 } })).toThrow();
+    expect(() => parseScalarEvaluationJson({ ...base, context: { kind: "geometryBuiltinTarget", targetElementId: "x", pointKey: null } })).toThrow();
+    expect(() => parseScalarEvaluationJson({ ...base, context: { kind: "geometryBuiltinTarget", targetElementId: "x", extra: "nope" } })).toThrow();
   });
 
   it("fails closed on an unknown status", () => {

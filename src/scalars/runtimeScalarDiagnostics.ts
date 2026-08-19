@@ -16,7 +16,7 @@
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { DslDiagnostic, DslStatement } from "../dsl/dslTypes";
 import { isRuntimeBindingDisplayFresh, type RuntimeBindingFreshnessInput } from "../model/runtimeBindingFreshness";
-import type { ElementId, EvaluationResult } from "../types/geometry";
+import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { parsePropertyBindingOccurrenceKey, type ScalarValueSource } from "./propertyBindingCompiler";
@@ -30,12 +30,14 @@ export type RuntimeScalarDiagnosticsInput = {
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   propertySourcesByOccurrenceKey: ReadonlyMap<string, ScalarValueSource>;
   occurrenceKeysByBindingId: ReadonlyMap<BindingId, readonly string[]>;
+  elements?: readonly CadElement[];
   freshness: RuntimeBindingFreshnessInput;
 };
 
 const declarationDiagnostic = (
   bindingId: BindingId,
   issueCode: string,
+  context: Parameters<typeof runtimeIssueMessage>[1],
   input: RuntimeScalarDiagnosticsInput
 ): DslDiagnostic | null => {
   const binding = input.bindingAnalysis.catalog.bindingsById.get(bindingId);
@@ -48,7 +50,7 @@ const declarationDiagnostic = (
     line: statement.line,
     column: nameSpan.start + 1,
     code: issueCode,
-    message: runtimeIssueMessage(issueCode),
+    message: runtimeIssueMessage(issueCode, context, input.elements),
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {}),
     origin: "runtime",
@@ -61,6 +63,7 @@ const consumerDiagnostic = (
   occurrenceKey: string,
   bindingId: BindingId,
   issueCode: string,
+  context: Parameters<typeof runtimeIssueMessage>[1],
   input: RuntimeScalarDiagnosticsInput
 ): DslDiagnostic | null => {
   const source = input.propertySourcesByOccurrenceKey.get(occurrenceKey);
@@ -75,7 +78,7 @@ const consumerDiagnostic = (
     line: statement.line,
     column: source.span.start + 1,
     code: issueCode,
-    message: runtimeIssueMessage(issueCode),
+    message: runtimeIssueMessage(issueCode, context, input.elements),
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {}),
     origin: "runtime",
@@ -102,12 +105,12 @@ export const runtimeScalarDiagnostics = (input: RuntimeScalarDiagnosticsInput): 
       // value where it is actually used. Never both: this is the one place
       // a runtime error for this binding is reported.
       for (const occurrenceKey of occurrenceKeys) {
-        const diagnostic = consumerDiagnostic(occurrenceKey, bindingId, evaluation.issueCode, input);
+        const diagnostic = consumerDiagnostic(occurrenceKey, bindingId, evaluation.issueCode, evaluation.context, input);
         if (diagnostic) diagnostics.push(diagnostic);
       }
       continue;
     }
-    const diagnostic = declarationDiagnostic(bindingId, evaluation.issueCode, input);
+    const diagnostic = declarationDiagnostic(bindingId, evaluation.issueCode, evaluation.context, input);
     if (diagnostic) diagnostics.push(diagnostic);
   }
   return diagnostics;

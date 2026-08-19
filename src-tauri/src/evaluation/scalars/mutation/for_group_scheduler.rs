@@ -205,6 +205,7 @@ impl ScalarMutationResolver<'_> {
                     r#type: version.declared_type.clone(),
                     issue_code: "poisoned-binding".to_owned(),
                     binding_id: Some(version.binding_id.clone()),
+                    context: None,
                 }
             }
             (
@@ -327,6 +328,7 @@ impl ScalarEvaluationEnvironment for ForGroupMutationEvaluationEnvironment<'_, '
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-geometry-property-unavailable".to_owned(),
                 binding_id: None,
+                context: None,
             };
         }
         match self
@@ -343,6 +345,7 @@ impl ScalarEvaluationEnvironment for ForGroupMutationEvaluationEnvironment<'_, '
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-geometry-property-unavailable".to_owned(),
                 binding_id: None,
+                context: None,
             },
         }
     }

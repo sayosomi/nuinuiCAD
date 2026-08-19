@@ -6,6 +6,7 @@ import { evaluateElements, type EvaluateElementsOptions } from "../geometry/eval
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import type { BindingId } from "../scalars/bindingCatalog";
+import type { ScalarEvaluation } from "../scalars/types";
 import type { EvaluationResult } from "../types/geometry";
 import {
   typedBindingRuntimeInspectorPresentation,
@@ -122,6 +123,32 @@ describe("typedBindingRuntimeInspectorPresentation: declaration-only (no set)", 
     expect(valueRow(presentation)).toBe("無効(poisoned)");
     expect(presentation?.invalidMessage).toBeTruthy();
     expect(historyRow(presentation)).toBeUndefined();
+  });
+
+  it("uses the resolved disabled geometry target name, including derived points", () => {
+    const compiled = compileCanonical([
+      "nui 4",
+      "point Shoulder = coordinate(x: 0, y: 0)",
+      "const measured: number = 1"
+    ].join("\n"));
+    const bindingId = bindingIdByName(compiled, "measured");
+    const target = compiled.document.elements.find((element) => element.name === "Shoulder");
+    expect(target).toBeDefined();
+    const evaluation = {
+      computedScalarBindings: new Map<BindingId, ScalarEvaluation>([
+        [bindingId, {
+          status: "error",
+          type: { kind: "number" },
+          issueCode: "evaluation-geometry-builtin-disabled",
+          context: { kind: "geometryBuiltinTarget", targetElementId: target!.id, pointKey: "start" }
+        }]
+      ]),
+      computedScalarBindingVersions: new Map()
+    } satisfies Pick<EvaluationResult, "computedScalarBindings" | "computedScalarBindingVersions">;
+    const presentation = present(compiled, bindingId, evaluation);
+    expect(presentation?.invalidMessage).toBe(
+      "「Shoulder.start」は評価OFFのためgeometry引数として利用できません。「Shoulder」を評価ONにするか、参照先を変更してください。"
+    );
   });
 });
 

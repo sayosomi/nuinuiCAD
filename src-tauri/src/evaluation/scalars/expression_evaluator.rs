@@ -56,6 +56,7 @@ pub(crate) trait ScalarEvaluationEnvironment {
             r#type: ScalarType::Number,
             issue_code: "evaluation-geometry-property-unavailable".to_owned(),
             binding_id: None,
+            context: None,
         }
     }
 
@@ -298,6 +299,7 @@ fn eval_node<'a>(
                         r#type: concrete_type.clone(),
                         issue_code: "evaluation-invalid-builtin-argument".to_owned(),
                         binding_id: None,
+                        context: None,
                     });
                 } else {
                     work.push(EvalWork::ContinueBuiltinCall {
