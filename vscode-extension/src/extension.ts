@@ -39,6 +39,7 @@ import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
   VscodeBenchmarkConfig,
+  VscodeDocumentChangeReason,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
 
@@ -99,9 +100,26 @@ const webviewHtml = (panel: vscode.WebviewPanel, context: vscode.ExtensionContex
 const rustBinaryPath = (context: vscode.ExtensionContext): string =>
   process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(context.extensionPath, "..", "src-tauri", "target", "debug", "evaluation_stdio");
 
-const postDocumentText = (panel: vscode.WebviewPanel, sourceText: string, documentVersion: number): void => {
-  void panel.webview.postMessage({ type: "commitText", sourceText, documentVersion } satisfies ExtensionToVscodeMessage);
+const postDocumentText = (
+  panel: vscode.WebviewPanel,
+  sourceText: string,
+  documentVersion: number,
+  reason: VscodeDocumentChangeReason
+): void => {
+  void panel.webview.postMessage({
+    type: "commitText",
+    sourceText,
+    documentVersion,
+    reason
+  } satisfies ExtensionToVscodeMessage);
 };
+
+const documentChangeReasonFor = (reason: vscode.TextDocumentChangeReason | undefined): VscodeDocumentChangeReason =>
+  reason === vscode.TextDocumentChangeReason.Undo
+    ? "undo"
+    : reason === vscode.TextDocumentChangeReason.Redo
+      ? "redo"
+      : "edit";
 
 const postAuthoritativeDocument = (panel: vscode.WebviewPanel, document: vscode.TextDocument): void => {
   void panel.webview.postMessage({
@@ -351,6 +369,60 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
   };
 
+  const applyCanvasHistory = async (
+    session: DocumentSession,
+    message: Extract<VscodeToExtensionMessage, { type: "canvasHistoryRequest" }>
+  ): Promise<void> => {
+    const postResult = (status: "completed" | "resynced" | "failed") => {
+      void session.panel.webview.postMessage({
+        type: "canvasHistoryResult",
+        direction: message.direction,
+        status,
+        documentVersion: session.document.version
+      } satisfies ExtensionToVscodeMessage);
+    };
+    const failClosed = (status: "resynced" | "failed") => {
+      resync(session);
+      postResult(status);
+    };
+
+    if (
+      !session.panel.active ||
+      !isOpenDocument(session.document) ||
+      session.document.version !== message.expectedDocumentVersion
+    ) {
+      failClosed("resynced");
+      return;
+    }
+
+    const editor = visibleEditorFor(session.document);
+    if (!editor) {
+      failClosed("resynced");
+      return;
+    }
+
+    const expectedVersion = session.document.version;
+    try {
+      await vscode.window.showTextDocument(session.document, {
+        viewColumn: editor.viewColumn,
+        preserveFocus: false,
+        preview: false
+      });
+      await vscode.commands.executeCommand(message.direction === "undo" ? "undo" : "redo");
+    } catch {
+      failClosed("failed");
+      return;
+    }
+
+    if (!isOpenDocument(session.document) || session.document.version === expectedVersion) {
+      failClosed("resynced");
+      return;
+    }
+
+    session.panel.reveal(vscode.ViewColumn.Beside, false);
+    postResult("completed");
+  };
+
   const disposeSession = (session: DocumentSession): void => {
     if (sessions.get(session.key) !== session) return;
     sessions.delete(session.key);
@@ -404,7 +476,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (!benchmarkConfig) {
       session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
         if (sameDocument(event.document, session.document)) {
-          postDocumentText(panel, event.document.getText(), event.document.version);
+          postDocumentText(
+            panel,
+            event.document.getText(),
+            event.document.version,
+            documentChangeReasonFor(event.reason)
+          );
         }
       }));
     }
@@ -418,6 +495,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
       if (message.type === "canvasCommit") {
         if (benchmarkConfig) return;
         await applyCanvasCommit(session, message);
+        return;
+      }
+      if (message.type === "canvasHistoryRequest") {
+        if (benchmarkConfig) return;
+        await applyCanvasHistory(session, message);
         return;
       }
       if (message.type === "rustEvaluationRequest") {
@@ -483,6 +565,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     createNuiChoiceQuickFixApplyHandler(languageAnalysisSessionFor)
   );
   const canvasCommandDisposables = [
+    ["nuinuiCAD.canvasUndo", "undo"],
+    ["nuinuiCAD.canvasRedo", "redo"],
     ["nuinuiCAD.clearCanvasSelection", "clearCanvasSelection"],
     ["nuinuiCAD.resetCanvasView", "resetCanvasView"],
     ["nuinuiCAD.fitDrawing", "fitDrawing"],

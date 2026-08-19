@@ -15,10 +15,40 @@
         "editor.wordBasedSuggestions": "off"
       }
     },
+    "keybindings": [
+      {
+        "command": "nuinuiCAD.canvasUndo",
+        "key": "ctrl+z",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+      },
+      {
+        "command": "nuinuiCAD.canvasUndo",
+        "key": "cmd+z",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+      },
+      {
+        "command": "nuinuiCAD.canvasRedo",
+        "key": "ctrl+y",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+      },
+      {
+        "command": "nuinuiCAD.canvasRedo",
+        "key": "cmd+shift+z",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+      }
+    ],
     "commands": [
       {
         "command": "nuinuiCAD.openCanvas",
         "title": "nuinuiCAD: Open Canvas"
+      },
+      {
+        "command": "nuinuiCAD.canvasUndo",
+        "title": "nuinuiCAD: Undo Canvas Transition"
+      },
+      {
+        "command": "nuinuiCAD.canvasRedo",
+        "title": "nuinuiCAD: Redo Canvas Transition"
       },
       {
         "command": "nuinuiCAD.clearCanvasSelection",

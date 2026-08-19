@@ -394,6 +394,17 @@ visible `TextEditor.edit()` transaction after version and source checks.
 acknowledged only by the normal `TextEditor.edit()` →
 `onDidChangeTextDocument` → `commitText` echo path.
 
+Canvas-scoped Undo/Redo keybindings route to the active Canvas session. The
+Webview applies element-selection history locally while the current source
+checkpoint has an inner selection step; otherwise it requests native
+TextDocument Undo/Redo with an expected document version. The Extension Host
+validates the session, document, version, and visible editor, executes the
+native command, and forwards the authoritative document-change reason. The
+Webview reconciles adjacent source checkpoints and restores Canvas focus; a
+validation or checkpoint mismatch resynchronizes from the TextDocument. These
+keybindings are scoped to the Canvas webview and do not intercept Source Editor
+Undo/Redo.
+
 `RustEvaluationProcess` is lazy and extension-wide through
 `RustEvaluationProcessOwner`; all document sessions share it. A panel does not
 own or kill the process. Unexpected process death rejects pending work, clears

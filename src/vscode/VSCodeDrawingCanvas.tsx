@@ -137,8 +137,12 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       },
       panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
-      selectElement: (elementId, selectionMode) => dispatchCommand("selectElement", { elementId, selectionMode }),
-      clearCanvasSelection: () => dispatchCommand("clearCanvasSelection"),
+      selectElement: (elementId, selectionMode) => dispatchCommand("selectElement", {
+        elementId,
+        selectionMode,
+        recordSelectionHistory: true
+      }),
+      clearCanvasSelection: () => dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true }),
       movePointElementByDelta: (action) => action.commitMode === "preview"
         ? dragPreviewScheduler.dispatchPreview(action, evaluationState)
         : commitGeometryCommand.movePointElementByDelta(action),

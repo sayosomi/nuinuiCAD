@@ -8,6 +8,8 @@ export type VscodeRustEvaluationRequest = {
   input: unknown;
 };
 
+export type VscodeDocumentChangeReason = "edit" | "undo" | "redo";
+
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
   | VscodeRustEvaluationRequest
@@ -18,10 +20,17 @@ export type VscodeToExtensionMessage =
       mutationKind: "model-patch" | "reset";
       splices?: readonly LineSplice[];
     }
+  | {
+      type: "canvasHistoryRequest";
+      direction: "undo" | "redo";
+      expectedDocumentVersion: number;
+    }
   | { type: "benchmarkResult"; result: unknown }
   | { type: "benchmarkError"; error: string };
 
 export type VscodeCanvasCommandId =
+  | "undo"
+  | "redo"
   | "clearCanvasSelection"
   | "resetCanvasView"
   | "fitDrawing"
@@ -45,7 +54,13 @@ export type VscodeBenchmarkConfig = {
 
 export type ExtensionToVscodeMessage =
   | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
-  | { type: "commitText"; sourceText: string; documentVersion: number }
+  | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason }
+  | {
+      type: "canvasHistoryResult";
+      direction: "undo" | "redo";
+      status: "completed" | "resynced" | "failed";
+      documentVersion: number;
+    }
   | { type: "canvasThemeChanged" }
   | { type: "canvasCommand"; commandId: VscodeCanvasCommandId }
   | { type: "rustEvaluationResponse"; id: number; payload: unknown }

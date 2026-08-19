@@ -60,7 +60,7 @@ const mocks = vi.hoisted(() => ({
   activeEditorListeners: [] as Array<() => void>,
   activeColorThemeListeners: [] as Array<() => void>,
   documentOpenListeners: [] as Array<(document: TestDocument) => void>,
-  documentChangeListeners: [] as Array<(event: { document: TestDocument }) => void>,
+  documentChangeListeners: [] as Array<(event: { document: TestDocument; reason?: number }) => void>,
   documentCloseListeners: [] as Array<(document: TestDocument) => void>,
   panels: [] as TestPanel[],
   rustProcesses: [] as TestRustProcess[],
@@ -72,6 +72,8 @@ const mocks = vi.hoisted(() => ({
   codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
   foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   showErrorMessage: vi.fn(),
+  showTextDocument: vi.fn(),
+  executeCommand: vi.fn(),
   createWebviewPanel: vi.fn(),
   createDiagnosticCollection: vi.fn(),
   registerCompletionItemProvider: vi.fn(),
@@ -133,7 +135,8 @@ vi.mock("vscode", () => {
       createWebviewPanel: mocks.createWebviewPanel,
       onDidChangeActiveTextEditor: mocks.onDidChangeActiveTextEditor,
       onDidChangeActiveColorTheme: mocks.onDidChangeActiveColorTheme,
-      showErrorMessage: mocks.showErrorMessage
+      showErrorMessage: mocks.showErrorMessage,
+      showTextDocument: mocks.showTextDocument
     },
     workspace: {
       get textDocuments() {
@@ -144,7 +147,7 @@ vi.mock("vscode", () => {
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
       asRelativePath: mocks.asRelativePath
     },
-    commands: { registerCommand: mocks.registerCommand },
+    commands: { registerCommand: mocks.registerCommand, executeCommand: mocks.executeCommand },
     languages: {
       createDiagnosticCollection: mocks.createDiagnosticCollection,
       registerCompletionItemProvider: mocks.registerCompletionItemProvider,
@@ -168,6 +171,7 @@ vi.mock("vscode", () => {
     },
     CodeActionKind: { QuickFix: "quickfix" },
     FoldingRangeKind: { Comment: "comment" },
+    TextDocumentChangeReason: { Undo: 1, Redo: 2 },
     Position,
     Range,
     Diagnostic,
@@ -378,7 +382,7 @@ const setup = (
     mocks.documentOpenListeners.push(listener);
     return disposable();
   });
-  mocks.onDidChangeTextDocument.mockImplementation((listener: (event: { document: TestDocument }) => void) => {
+  mocks.onDidChangeTextDocument.mockImplementation((listener: (event: { document: TestDocument; reason?: number }) => void) => {
     mocks.documentChangeListeners.push(listener);
     return disposable();
   });
@@ -390,8 +394,8 @@ const setup = (
   return context;
 };
 
-const emitDocumentChange = (document: TestDocument): void => {
-  for (const listener of mocks.documentChangeListeners) listener({ document });
+const emitDocumentChange = (document: TestDocument, reason?: number): void => {
+  for (const listener of mocks.documentChangeListeners) listener({ document, reason });
 };
 
 const emitDocumentOpen = (document: TestDocument): void => {
@@ -431,6 +435,8 @@ afterEach(() => {
   mocks.codeActionRegistrations.length = 0;
   mocks.foldingRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
+  mocks.showTextDocument.mockReset();
+  mocks.executeCommand.mockReset();
   mocks.createWebviewPanel.mockReset();
   mocks.createDiagnosticCollection.mockReset();
   mocks.registerCompletionItemProvider.mockReset();
@@ -494,6 +500,78 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "fitDrawing" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasElementNames" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPoints" });
+  });
+
+  it("routes Canvas Undo/Redo to the active Canvas webview", () => {
+    setup();
+    const panel = openPanelFor();
+
+    commandHandlerFor("nuinuiCAD.canvasUndo")?.();
+    commandHandlerFor("nuinuiCAD.canvasRedo")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "undo" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "redo" });
+  });
+
+  it("executes native Canvas history only for a validated document and restores Canvas focus", async () => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      expect(command).toBe("undo");
+      document.version = 2;
+      document.setSourceText("nui 4\n// native undo\n");
+      emitDocumentChange(document, 1);
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 1
+    });
+
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
+      preserveFocus: false,
+      preview: false
+    }));
+    expect(mocks.executeCommand).toHaveBeenCalledWith("undo");
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      documentVersion: 2,
+      reason: "undo"
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction: "undo",
+      status: "completed",
+      documentVersion: 2
+    });
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
+  it("resyncs and never executes native history for a stale Canvas document version", async () => {
+    setup();
+    const panel = openPanelFor();
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "redo",
+      expectedDocumentVersion: 99
+    });
+
+    expect(mocks.executeCommand).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "replaceTextDocument",
+      documentVersion: 1
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction: "redo",
+      status: "resynced",
+      documentVersion: 1
+    });
   });
 
   it("fails safely when no Canvas webview is active", () => {

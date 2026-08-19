@@ -81,14 +81,26 @@ export const viewModeCommandDefinitions = {
     label: "元に戻す",
     palette: { order: 24, keywords: ["undo", "戻す"] },
     shortcuts: [{ keys: "Mod+Z" }],
-    run: () => useCadDocumentStore.getState().undo()
+    run: (context) => {
+      if (context?.canvasHistory) {
+        context.canvasHistory("undo");
+        return;
+      }
+      useCadDocumentStore.getState().undo();
+    }
   },
   redo: {
     id: "redo",
     label: "やり直す",
     palette: { order: 25, keywords: ["redo", "やり直す"] },
     shortcuts: [{ keys: "Mod+Y" }],
-    run: () => useCadDocumentStore.getState().redo()
+    run: (context) => {
+      if (context?.canvasHistory) {
+        context.canvasHistory("redo");
+        return;
+      }
+      useCadDocumentStore.getState().redo();
+    }
   },
   zoomInCanvas: {
     id: "zoomInCanvas",

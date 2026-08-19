@@ -48,9 +48,17 @@ import type {
 } from "../types/geometry";
 import { useCadUiStore, type CadElementSelection } from "./cadUiStore";
 
+export type SelectionSnapshot = {
+  selectedElementId: ElementId | null;
+  selectedElementIds: ElementId[];
+  selectionAnchorElementId: ElementId | null;
+};
+
 export type TextSnapshot = {
   text: string;
-  selectionElementIds: ElementId[];
+  selection: SelectionSnapshot;
+  selectionPast: SelectionSnapshot[];
+  selectionFuture: SelectionSnapshot[];
   cursorLine: number | null;
 };
 
@@ -114,6 +122,9 @@ export type CadDocumentState = {
   /** sourceText at the last successful save/load; null means an unsaved import. */
   savedSourceText: string | null;
   dirtySinceSave: boolean;
+  /** VS Code Canvas-only selection history inside the current source checkpoint. */
+  selectionPast: SelectionSnapshot[];
+  selectionFuture: SelectionSnapshot[];
   commitText: (
     nextText: string,
     origin: CommitTextOrigin,
@@ -156,6 +167,10 @@ export type CadDocumentState = {
     options: { currentFilePath: string | null; dirtySinceSave: boolean }
   ) => void;
   markDocumentSaved: (filePath: string, savedSourceText: string) => void;
+  recordCanvasSelection: (previousSelection: SelectionSnapshot) => void;
+  undoCanvasSelection: () => boolean;
+  redoCanvasSelection: () => boolean;
+  reconcileAuthoritativeHistory: (sourceText: string, direction: "undo" | "redo") => "reconciled" | "reset";
   undo: () => void;
   redo: () => void;
 };
@@ -223,12 +238,35 @@ const clearedPreviewState = () => ({
   previewEvaluationLimitIndex: null
 });
 
+const cloneSelection = (selection: SelectionSnapshot): SelectionSnapshot => ({
+  selectedElementId: selection.selectedElementId,
+  selectedElementIds: [...selection.selectedElementIds],
+  selectionAnchorElementId: selection.selectionAnchorElementId
+});
+
+const selectionSnapshot = (selection: CadElementSelection): SelectionSnapshot => cloneSelection(selection);
+
+const selectionEqual = (left: SelectionSnapshot, right: SelectionSnapshot) =>
+  left.selectedElementId === right.selectedElementId &&
+  left.selectionAnchorElementId === right.selectionAnchorElementId &&
+  left.selectedElementIds.length === right.selectedElementIds.length &&
+  left.selectedElementIds.every((id, index) => id === right.selectedElementIds[index]);
+
+const cloneSelectionHistory = (history: readonly SelectionSnapshot[]) => history.map(cloneSelection);
+
+const appendSelectionPast = (past: SelectionSnapshot[], snapshot: SelectionSnapshot) =>
+  [...past, cloneSelection(snapshot)].slice(-HISTORY_LIMIT);
+
 const textSnapshot = (
   state: Pick<CadDocumentState, "sourceText">,
-  selection: CadElementSelection & { sourceCursorLine: number | null }
+  selection: CadElementSelection & { sourceCursorLine: number | null },
+  selectionPast: readonly SelectionSnapshot[] = [],
+  selectionFuture: readonly SelectionSnapshot[] = []
 ): TextSnapshot => ({
   text: state.sourceText,
-  selectionElementIds: selection.selectedElementIds,
+  selection: selectionSnapshot(selection),
+  selectionPast: cloneSelectionHistory(selectionPast),
+  selectionFuture: cloneSelectionHistory(selectionFuture),
   cursorLine: selection.sourceCursorLine
 });
 
@@ -405,8 +443,13 @@ const modelCommit = (
     state: {
       ...canonicalFields(value),
       ...clearedPreviewState(),
-      past: appendPast(state.past, textSnapshot(current, previousSelection)),
+      past: appendPast(
+        state.past,
+        textSnapshot(current, previousSelection, state.selectionPast, state.selectionFuture)
+      ),
       future: [],
+      selectionPast: [],
+      selectionFuture: [],
       dirtySinceSave: dirtyForText(current, value.sourceText),
       ...canonicalRevisionFields(state, value, rebased ? "reset" : updateKind, splices)
     },
@@ -437,6 +480,8 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
     ...clearedPreviewState(),
     past: [],
     future: [],
+    selectionPast: [],
+    selectionFuture: [],
     currentFilePath: null,
     savedSourceText: canonical.sourceText,
     dirtySinceSave: false
@@ -475,6 +520,10 @@ type CadDocumentActions = Pick<
   | "replaceDocument"
   | "replaceTextDocument"
   | "markDocumentSaved"
+  | "recordCanvasSelection"
+  | "undoCanvasSelection"
+  | "redoCanvasSelection"
+  | "reconcileAuthoritativeHistory"
   | "undo"
   | "redo"
 >;
@@ -561,9 +610,16 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         ...clearedPreviewState(),
         past: appendPast(
           state.past,
-          textSnapshot(state, { ...previousSelection, sourceCursorLine: snapshotCursorLine })
+          textSnapshot(
+            state,
+            { ...previousSelection, sourceCursorLine: snapshotCursorLine },
+            state.selectionPast,
+            state.selectionFuture
+          )
         ),
         future: [],
+        selectionPast: [],
+        selectionFuture: [],
         dirtySinceSave: dirtyForText(state, result.sourceText),
         ...canonicalRevisionFields(state, result, origin === "editor" ? "editor" : "reset")
       };
@@ -642,8 +698,13 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       return {
         ...canonicalFields(outcome.value),
         ...clearedPreviewState(),
-        past: appendPast(state.past, textSnapshot(state, previousSelection)),
+        past: appendPast(
+          state.past,
+          textSnapshot(state, previousSelection, state.selectionPast, state.selectionFuture)
+        ),
         future: [],
+        selectionPast: [],
+        selectionFuture: [],
         dirtySinceSave: dirtyForText(state, outcome.value.sourceText),
         ...canonicalRevisionFields(state, outcome.value, "model-patch", outcome.splices)
       };
@@ -840,6 +901,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
           ...clearedPreviewState(),
           past: [],
           future: [],
+          selectionPast: [],
+          selectionFuture: [],
           currentFilePath,
           savedSourceText: canonical.sourceText,
           dirtySinceSave: false,
@@ -876,6 +939,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         ...clearedPreviewState(),
         past: [],
         future: [],
+        selectionPast: [],
+        selectionFuture: [],
         currentFilePath: options.currentFilePath,
         savedSourceText: options.dirtySinceSave ? null : compiled.sourceText,
         dirtySinceSave: options.dirtySinceSave,
@@ -894,6 +959,116 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       savedSourceText,
       dirtySinceSave: state.sourceText !== savedSourceText
     })),
+  recordCanvasSelection: (previousSelection) => {
+    const nextSelection = selectionSnapshot(useCadUiStore.getState());
+    if (selectionEqual(previousSelection, nextSelection)) return;
+    set((state) => ({
+      selectionPast: appendSelectionPast(state.selectionPast, previousSelection),
+      selectionFuture: []
+    }));
+  },
+  undoCanvasSelection: () => {
+    let restoredSelection: SelectionSnapshot | null = null;
+    set((state) => {
+      const previous = state.selectionPast.at(-1);
+      if (!previous) return {};
+      restoredSelection = cloneSelection(previous);
+      return {
+        selectionPast: state.selectionPast.slice(0, -1),
+        selectionFuture: [selectionSnapshot(useCadUiStore.getState()), ...state.selectionFuture]
+      };
+    });
+    if (!restoredSelection) return false;
+    useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, restoredSelection);
+    return true;
+  },
+  redoCanvasSelection: () => {
+    let restoredSelection: SelectionSnapshot | null = null;
+    set((state) => {
+      const next = state.selectionFuture[0];
+      if (!next) return {};
+      restoredSelection = cloneSelection(next);
+      return {
+        selectionPast: appendSelectionPast(state.selectionPast, selectionSnapshot(useCadUiStore.getState())),
+        selectionFuture: state.selectionFuture.slice(1)
+      };
+    });
+    if (!restoredSelection) return false;
+    useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, restoredSelection);
+    return true;
+  },
+  reconcileAuthoritativeHistory: (sourceText, direction) => {
+    let outcome: "reconciled" | "reset" = "reset";
+    const selectionResult: {
+      value: {
+        elements: CadElement[];
+        selection: SelectionSnapshot;
+        cursorLine: number | null;
+      } | null;
+    } = { value: null };
+    set((state) => {
+      const adjacent = direction === "undo" ? state.past.at(-1) : state.future[0];
+      if (!adjacent || adjacent.text !== sourceText) {
+        const authoritative = compileFreshCanonicalText(sourceText);
+        selectionResult.value = {
+          elements: authoritative.doc.document.elements,
+          selection: {
+            selectedElementId: null,
+            selectedElementIds: [],
+            selectionAnchorElementId: null
+          },
+          cursorLine: null
+        };
+        return {
+          ...canonicalFields(authoritative),
+          ...clearedPreviewState(),
+          past: [],
+          future: [],
+          selectionPast: [],
+          selectionFuture: [],
+          dirtySinceSave: dirtyForText(state, authoritative.sourceText),
+          ...canonicalRevisionFields(state, authoritative, "reset")
+        };
+      }
+
+      const currentSelection = useCadUiStore.getState();
+      const currentSnapshot = textSnapshot(
+        state,
+        currentSelection,
+        state.selectionPast,
+        state.selectionFuture
+      );
+      const currentIds = new Set(state.doc.document.elements.map((element) => element.id));
+      const restored = compileCanonicalText(state, adjacent.text, {
+        createdElementIds: adjacent.selection.selectedElementIds.filter((id) => !currentIds.has(id))
+      });
+      selectionResult.value = {
+        elements: restored.doc.document.elements,
+        selection: cloneSelection(adjacent.selection),
+        cursorLine: adjacent.cursorLine
+      };
+      outcome = "reconciled";
+      return {
+        ...canonicalFields(restored),
+        ...clearedPreviewState(),
+        past: direction === "undo"
+          ? state.past.slice(0, -1)
+          : appendPast(state.past, currentSnapshot),
+        future: direction === "undo"
+          ? [currentSnapshot, ...state.future]
+          : state.future.slice(1),
+        selectionPast: cloneSelectionHistory(adjacent.selectionPast),
+        selectionFuture: cloneSelectionHistory(adjacent.selectionFuture),
+        dirtySinceSave: dirtyForText(state, restored.sourceText),
+        ...canonicalRevisionFields(state, restored, "reset")
+      };
+    });
+    if (selectionResult.value) {
+      useCadUiStore.getState().applySelection(selectionResult.value.elements, selectionResult.value.selection);
+      useCadUiStore.getState().setSourceCursorLine(selectionResult.value.cursorLine);
+    }
+    return outcome;
+  },
   undo: () => {
     if (sourceEditSession.isComposing()) {
       useCadUiStore.getState().setCommandErrorMessage(
@@ -913,19 +1088,17 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const previousSelection = useCadUiStore.getState();
       const currentIds = new Set(state.doc.document.elements.map((element) => element.id));
       const restored = compileCanonicalText(state, previous.text, {
-        createdElementIds: previous.selectionElementIds.filter((id) => !currentIds.has(id))
+        createdElementIds: previous.selection.selectedElementIds.filter((id) => !currentIds.has(id))
       });
-      const restoredSelection: CadElementSelection = {
-        selectedElementId: previous.selectionElementIds[0] ?? null,
-        selectedElementIds: previous.selectionElementIds,
-        selectionAnchorElementId: previous.selectionElementIds[0] ?? null
-      };
+      const restoredSelection: CadElementSelection = previous.selection;
       selectionResult.value = { elements: restored.doc.document.elements, snapshot: restoredSelection, cursorLine: previous.cursorLine };
       return {
         ...canonicalFields(restored),
         ...clearedPreviewState(),
         past: state.past.slice(0, -1),
-        future: [textSnapshot(state, previousSelection), ...state.future],
+        future: [textSnapshot(state, previousSelection, state.selectionPast, state.selectionFuture), ...state.future],
+        selectionPast: previous.selectionPast,
+        selectionFuture: previous.selectionFuture,
         dirtySinceSave: dirtyForText(state, restored.sourceText),
         ...canonicalRevisionFields(state, restored, "reset")
       };
@@ -954,19 +1127,17 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const previousSelection = useCadUiStore.getState();
       const currentIds = new Set(state.doc.document.elements.map((element) => element.id));
       const restored = compileCanonicalText(state, next.text, {
-        createdElementIds: next.selectionElementIds.filter((id) => !currentIds.has(id))
+        createdElementIds: next.selection.selectedElementIds.filter((id) => !currentIds.has(id))
       });
-      const restoredSelection: CadElementSelection = {
-        selectedElementId: next.selectionElementIds[0] ?? null,
-        selectedElementIds: next.selectionElementIds,
-        selectionAnchorElementId: next.selectionElementIds[0] ?? null
-      };
+      const restoredSelection: CadElementSelection = next.selection;
       selectionResult.value = { elements: restored.doc.document.elements, snapshot: restoredSelection, cursorLine: next.cursorLine };
       return {
         ...canonicalFields(restored),
         ...clearedPreviewState(),
-        past: appendPast(state.past, textSnapshot(state, previousSelection)),
+        past: appendPast(state.past, textSnapshot(state, previousSelection, state.selectionPast, state.selectionFuture)),
         future: state.future.slice(1),
+        selectionPast: next.selectionPast,
+        selectionFuture: next.selectionFuture,
         dirtySinceSave: dirtyForText(state, restored.sourceText),
         ...canonicalRevisionFields(state, restored, "reset")
       };
