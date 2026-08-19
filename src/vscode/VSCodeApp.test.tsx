@@ -28,10 +28,6 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
   VSCodeBenchmarkCaptureRunner: () => null
 }));
 
-const sourceFor = (x: number) => dslTextForElements([
-  { id: "a", name: "A", type: "freePoint", activity: "visible", x, y: 0 }
-]);
-
 const sourceForSelectionChronology = (x: number) => dslTextForElements([
   { id: "a", name: "A", type: "freePoint", activity: "visible", x, y: 0 },
   { id: "b", name: "B", type: "freePoint", activity: "visible", x: x + 10, y: 0 }
@@ -43,18 +39,28 @@ describe("VSCodeApp Canvas history coordinator", () => {
     useCadUiStore.setState(initialCadUiState());
   });
 
-  it("does not speculate or issue a second host transition while the first is in flight", async () => {
-    const oldSource = sourceFor(0);
-    const newSource = sourceFor(10);
+  it("keeps Canvas history in flight until the authoritative result and restores focus after completion", async () => {
+    const oldSource = sourceForSelectionChronology(0);
+    const newSource = sourceForSelectionChronology(40);
     useCadDocumentStore.getState().replaceTextDocument(oldSource, {
       currentFilePath: null,
       dirtySinceSave: false
     });
+    const [a, b] = useCadDocumentStore.getState().elements.map((element) => element.id);
+    useCadUiStore.getState().setSelectedElementId(a!);
+    selectElement(b!, "replace", true);
     useCadDocumentStore.getState().commitText(newSource, "editor");
     const api = { postMessage: vi.fn() };
 
-    render(<VSCodeAppForTest api={api} />);
+    render(
+      <>
+        <VSCodeAppForTest api={api} />
+        <input data-testid="focus-sink" />
+      </>
+    );
     const canvas = screen.getByTestId("canvas");
+    const focusSink = screen.getByTestId("focus-sink");
+    focusSink.focus();
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "commitText", sourceText: newSource, documentVersion: 1, reason: "edit" }
@@ -65,14 +71,13 @@ describe("VSCodeApp Canvas history coordinator", () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "canvasCommand", commandId: "undo" }
       }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "canvasCommand", commandId: "undo" }
-      }));
     });
 
-    expect(useCadDocumentStore.getState().sourceText).toBe(newSource);
-    expect(api.postMessage).toHaveBeenCalledTimes(2);
-    expect(api.postMessage).toHaveBeenLastCalledWith({
+    const canvasHistoryRequests = () => api.postMessage.mock.calls.filter(
+      ([message]) => message?.type === "canvasHistoryRequest"
+    );
+    expect(canvasHistoryRequests()).toHaveLength(1);
+    expect(canvasHistoryRequests()[0]?.[0]).toEqual({
       type: "canvasHistoryRequest",
       direction: "undo",
       expectedDocumentVersion: 1
@@ -82,11 +87,46 @@ describe("VSCodeApp Canvas history coordinator", () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "commitText", sourceText: oldSource, documentVersion: 2, reason: "undo" }
       }));
-      await Promise.resolve();
     });
 
     expect(useCadDocumentStore.getState().sourceText).toBe(oldSource);
+    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+    expect(canvasHistoryRequests()).toHaveLength(1);
+    expect(document.activeElement).toBe(focusSink);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "undo" }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(b);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+    expect(canvasHistoryRequests()).toHaveLength(1);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasHistoryResult",
+          direction: "undo",
+          status: "completed",
+          documentVersion: 2
+        }
+      }));
+      await Promise.resolve();
+    });
+
     expect(document.activeElement).toBe(canvas);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "undo" }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(a);
+    expect(canvasHistoryRequests()).toHaveLength(1);
   });
 
   it("uses the second Undo for local selection history after authoritative source Undo", async () => {

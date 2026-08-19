@@ -102,10 +102,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         latestHostDocumentVersionRef.current = message.documentVersion;
         if (message.reason === "undo" || message.reason === "redo") {
           useCadDocumentStore.getState().reconcileAuthoritativeHistory(message.sourceText, message.reason);
-          if (canvasHistoryInFlightRef.current === message.reason) {
-            canvasHistoryInFlightRef.current = null;
-            restoreCanvasFocus();
-          }
         } else {
           useCadDocumentStore.getState().commitText(message.sourceText, "editor", {
             cursorLineAtBurstStart: null
