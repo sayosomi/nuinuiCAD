@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import type { CadElement, ComputedGeometry, EvaluationResult } from "../types/geometry";
-import { visibleCanvasDrawingBounds } from "./canvasDrawingBounds";
+import { canvasElementDrawingBounds, visibleCanvasDrawingBounds } from "./canvasDrawingBounds";
 
 const element = (id: string, type: CadElement["type"], activity: CadElement["activity"] = "visible") => ({
   id,
@@ -39,6 +39,39 @@ const textGeometry = ({
 });
 
 describe("visibleCanvasDrawingBounds", () => {
+  it("reuses the exact curve extent path for one visible target", () => {
+    const curve: ComputedGeometry = {
+      kind: "bezierCurve",
+      elementId: "curve",
+      name: "curve",
+      startPointId: null,
+      endPointId: null,
+      intermediatePointIds: [],
+      segments: [{
+        startPointId: null,
+        endPointId: null,
+        start: { kind: "point", elementId: "start", name: "start", x: 0, y: 0 },
+        control1: { x: 0, y: 100 },
+        control2: { x: 100, y: 100 },
+        end: { kind: "point", elementId: "end", name: "end", x: 100, y: 0 }
+      }],
+      length: 0,
+      startTangentAngleDeg: null,
+      endTangentAngleDeg: null,
+      startHandleAngleDeg: 0,
+      startHandleLength: 0,
+      endHandleAngleDeg: 0,
+      endHandleLength: 0
+    };
+    const profiles = [defaultVisibilityProfile()];
+    expect(canvasElementDrawingBounds({
+      elementId: "curve",
+      elements: [element("curve", "bezierCurve")],
+      evaluation: evaluationFor([curve], ["curve"]),
+      visibilityProfiles: profiles,
+      activeVisibilityProfileId: profiles[0]!.id
+    })).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 75 });
+  });
   it("uses actual cubic extrema and excludes hidden, disabled, and image geometry", () => {
     const curve: ComputedGeometry = {
       kind: "bezierCurve",

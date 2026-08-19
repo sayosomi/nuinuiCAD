@@ -349,7 +349,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 .canvas-viewport:focus-visible {
-  outline: 2px solid #0f766e;
+  outline: 2px solid var(--canvas-accent, #0f766e);
   outline-offset: 2px;
 }
 

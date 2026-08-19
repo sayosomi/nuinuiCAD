@@ -36,6 +36,14 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
+          "command": "nuinuiCAD.goToSourceDefinition",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.revealInCanvas",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
           "command": "nuinuiCAD.clearCanvasSelection",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -63,12 +71,32 @@
           "command": "nuinuiCAD.canvasRedo",
           "when": "false"
         }
+      ],
+      "webview/context": [
+        {
+          "command": "nuinuiCAD.goToSourceDefinition",
+          "when": "webviewId == 'nuinuiCAD.canvas'"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "nuinuiCAD.revealInCanvas",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        }
       ]
     },
     "commands": [
       {
         "command": "nuinuiCAD.openCanvas",
         "title": "nuinuiCAD: Open Canvas"
+      },
+      {
+        "command": "nuinuiCAD.goToSourceDefinition",
+        "title": "nuinuiCAD: Go to Source Definition"
+      },
+      {
+        "command": "nuinuiCAD.revealInCanvas",
+        "title": "nuinuiCAD: Reveal in Canvas"
       },
       {
         "command": "nuinuiCAD.canvasUndo",

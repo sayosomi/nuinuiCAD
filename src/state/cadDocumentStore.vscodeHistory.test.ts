@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { dispatchCommand } from "../commands/commands";
-import { clearCanvasSelection, selectElement } from "../commands/selectionCommands";
+import { clearCanvasSelection, replaceCanvasSelection, selectElement } from "../commands/selectionCommands";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
 import {
@@ -100,6 +100,26 @@ describe("VS Code Canvas selection history", () => {
 
     expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(sourceFor(1), "redo")).toBe("reconciled");
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceFor(1));
+  });
+
+  it("replaces a multi-selection in document order with one primary and one history transition", () => {
+    const [a, b, c] = ids();
+    useCadUiStore.getState().setSelectedElementId(a!);
+
+    expect(replaceCanvasSelection([c!, b!], b!, true)).toBe(true);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: b,
+      selectedElementIds: [b, c],
+      selectionAnchorElementId: b
+    });
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+
+    replaceCanvasSelection([c!, b!], b!, true);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+    expect(useCadDocumentStore.getState().undoCanvasSelection()).toBe(true);
+    expect(useCadUiStore.getState().selectedElementId).toBe(a);
+    expect(useCadDocumentStore.getState().redoCanvasSelection()).toBe(true);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([b, c]);
   });
 
   it("keeps a new Source Editor edit as the normal source branch after native Undo", () => {

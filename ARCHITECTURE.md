@@ -387,6 +387,26 @@ an active-editor change never rebinds that session. Session disposal removes
 only its panel/listener ownership. Closing the matching TextDocument disposes
 that session, so a later open performs a fresh authoritative handshake.
 
+Explicit VS Code navigation is bidirectional and opt-in: Canvas selection does
+not follow the Editor cursor, and Editor cursor movement does not change Canvas
+selection. The TextDocument remains the source authority. The Extension Host /
+Webview boundary transports only the TextDocument version plus a normalized LF
+source position or range; runtime ElementIds and reconciler StatementIdentity
+remain Webview-local. Editor → Canvas runs the host-neutral source-target query
+before opening Canvas, so non-runtime source never creates a panel. Canvas →
+Editor resolves the selected runtime element through the same source-ownership
+query and exact compiled physical spans. Both directions fail closed on stale
+source, version, compilation, or session state.
+
+The Webview keeps the last authoritative host source snapshot separately from
+its latest host version. Navigation is allowed only when that snapshot, the
+current canonical Webview source, and the current compiled source/revision
+agree. Pending Editor → Canvas navigation is document-scoped, latest-request
+wins, waits for Webview readiness and authoritative hydration, and activates
+the Canvas only after Webview validation. Successful navigation explicitly
+focuses the actual Canvas viewport DOM node; failed or stale navigation does
+not steal destination focus.
+
 Canvas pointerup commits reuse the production store's `SourceUpdate` boundary.
 `model-patch` messages carry the existing `LineSplice[]` and are applied as one
 visible `TextEditor.edit()` transaction after version and source checks.
@@ -404,6 +424,14 @@ Webview reconciles adjacent source checkpoints and restores Canvas focus; a
 validation or checkpoint mismatch resynchronizes from the TextDocument. These
 keybindings are scoped to the Canvas webview and do not intercept Source Editor
 Undo/Redo.
+
+Editor → Canvas selection replacement uses the shared selection command owner
+and records one SAY-48 selection-history transition for a changed single- or
+multi-element target. Identical replacements are history no-ops. Canvas →
+Editor navigation does not mutate Canvas selection and therefore does not add a
+selection-history entry. Native Editor Undo/Redo and F2 retain ownership after
+successful explicit Canvas → Editor navigation because Canvas history handoff
+context is cleared before Editor focus is transferred.
 
 `RustEvaluationProcess` is lazy and extension-wide through
 `RustEvaluationProcessOwner`; all document sessions share it. A panel does not
