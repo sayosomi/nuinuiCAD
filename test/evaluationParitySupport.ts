@@ -95,6 +95,7 @@ export const runtimeDiagnosticsFor = (fixture: EvaluationFixture, payload: Evalu
     elementIdByStatementIndex: doc.statementMap.elementIdByStatementIndex,
     propertySourcesByOccurrenceKey: doc.propertyBindings ?? new Map(),
     occurrenceKeysByBindingId: doc.occurrenceKeysByBindingId ?? new Map(),
+    elements: fixture.elements,
     freshness: { isSourceDirty: false, isEvaluationStale: false }
   });
 };

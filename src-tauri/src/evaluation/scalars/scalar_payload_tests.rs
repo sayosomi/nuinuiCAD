@@ -2,7 +2,7 @@ use serde_json::json;
 
 use super::issue::ScalarPayloadIssueCode as Code;
 use super::scalar_payload::{decode_scalar_evaluation, decode_scalar_type, decode_scalar_value};
-use super::types::{ScalarEvaluation, ScalarType, ScalarValue};
+use super::types::{ScalarEvaluation, ScalarEvaluationErrorContext, ScalarType, ScalarValue};
 
 #[test]
 fn decodes_each_scalar_type_kind() {
@@ -136,7 +136,8 @@ fn decodes_error_scalar_evaluation_with_an_open_issue_code_string() {
         ScalarEvaluation::Error {
             r#type: ScalarType::Boolean,
             issue_code: "poisoned-binding".to_owned(),
-            binding_id: None
+            binding_id: None,
+            context: None
         }
     );
 }
@@ -155,9 +156,52 @@ fn decodes_error_scalar_evaluation_with_a_binding_id() {
         ScalarEvaluation::Error {
             r#type: ScalarType::Number,
             issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
-            binding_id: Some("binding:mismatched".to_owned())
+            binding_id: Some("binding:mismatched".to_owned()),
+            context: None
         }
     );
+}
+
+#[test]
+fn decodes_and_rejects_geometry_builtin_target_contexts_fail_closed() {
+    let evaluation = decode_scalar_evaluation(&json!({
+        "status": "error",
+        "type": {"kind": "number"},
+        "issueCode": "evaluation-geometry-builtin-disabled",
+        "context": {
+            "kind": "geometryBuiltinTarget",
+            "targetElementId": "shoulder",
+            "pointKey": "start"
+        }
+    }))
+    .unwrap();
+    assert_eq!(
+        evaluation,
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-geometry-builtin-disabled".to_owned(),
+            binding_id: None,
+            context: Some(ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+                target_element_id: "shoulder".to_owned(),
+                point_key: Some("start".to_owned()),
+            }),
+        }
+    );
+
+    for context in [
+        json!({"kind": "other", "targetElementId": "shoulder"}),
+        json!({"kind": "geometryBuiltinTarget", "targetElementId": 1}),
+        json!({"kind": "geometryBuiltinTarget", "targetElementId": "shoulder", "pointKey": null}),
+        json!({"kind": "geometryBuiltinTarget", "targetElementId": "shoulder", "extra": true}),
+    ] {
+        assert!(decode_scalar_evaluation(&json!({
+            "status": "error",
+            "type": {"kind": "number"},
+            "issueCode": "evaluation-geometry-builtin-disabled",
+            "context": context
+        }))
+        .is_err());
+    }
 }
 
 #[test]

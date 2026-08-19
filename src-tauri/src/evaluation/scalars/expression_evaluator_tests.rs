@@ -20,8 +20,9 @@ use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuilt
 use super::scalar_payload::decode_scalar_evaluation;
 use super::types::{
     BindingId, BuiltinFunctionName, GeometryInterfaceType, ScalarBinaryOperator, ScalarEvaluation,
-    ScalarExpressionResolvedGeometryTarget, ScalarSpan, ScalarType, ScalarUnaryOperator,
-    ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget, TypedScalarExpression,
+    ScalarEvaluationErrorContext, ScalarExpressionResolvedGeometryTarget, ScalarSpan, ScalarType,
+    ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
+    TypedScalarExpression,
 };
 
 // --- shared-vector parity loop --------------------------------------------
@@ -292,6 +293,7 @@ impl ScalarEvaluationEnvironment for PoisonedEnvironment {
             r#type: ScalarType::Number,
             issue_code: "poisoned-binding".to_owned(),
             binding_id: Some("binding:poisoned".to_owned()),
+            context: None,
         }
     }
 }
@@ -325,6 +327,7 @@ fn carries_the_original_issue_code_and_binding_id_through_nested_group_unary_bin
             r#type: ScalarType::Number,
             issue_code: "poisoned-binding".to_owned(),
             binding_id: Some("binding:poisoned".to_owned()),
+            context: None,
         }
     );
 }
@@ -526,6 +529,7 @@ fn evaluates_builtin_arguments_left_to_right_and_stops_at_the_first_error() {
                     r#type: ScalarType::Number,
                     issue_code: "first-argument-error".to_owned(),
                     binding_id: Some("binding:first".to_owned()),
+                    context: None,
                 },
             ),
             (
@@ -552,6 +556,7 @@ fn evaluates_builtin_arguments_left_to_right_and_stops_at_the_first_error() {
             r#type: ScalarType::Number,
             issue_code: "first-argument-error".to_owned(),
             binding_id: Some("binding:first".to_owned()),
+            context: None,
         }
     );
     assert_eq!(environment.looked_up.into_inner(), vec!["binding:first"]);
@@ -571,6 +576,7 @@ fn maps_builtin_runtime_argument_and_non_finite_errors() {
             r#type: ScalarType::Number,
             issue_code: "evaluation-sqrt-negative-input".to_owned(),
             binding_id: None,
+            context: None,
         }
     );
 
@@ -585,6 +591,7 @@ fn maps_builtin_runtime_argument_and_non_finite_errors() {
             r#type: ScalarType::Number,
             issue_code: "evaluation-non-finite-result".to_owned(),
             binding_id: None,
+            context: None,
         }
     );
 }
@@ -607,6 +614,7 @@ fn uses_static_type_null_error_for_an_untyped_call() {
             r#type: ScalarType::Number,
             issue_code: "evaluation-static-type-null".to_owned(),
             binding_id: None,
+            context: None,
         }
     );
 }
@@ -641,6 +649,7 @@ fn static_type_null_geometry_call_does_not_lookup_geometry_targets() {
             r#type: ScalarType::Number,
             issue_code: "evaluation-static-type-null".to_owned(),
             binding_id: None,
+            context: None,
         }
     );
     assert!(environment.looked_up.into_inner().is_empty());
@@ -1043,6 +1052,7 @@ fn zero_length_first_or_second_line_has_a_distinct_runtime_failure_for_line_angl
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-zero-length-line".to_owned(),
                 binding_id: None,
+                context: None,
             }
         );
     }
@@ -1088,6 +1098,7 @@ fn maps_geometry_non_finite_result_to_evaluation_non_finite_result() {
             r#type: ScalarType::Number,
             issue_code: "evaluation-non-finite-result".to_owned(),
             binding_id: None,
+            context: None,
         }
     );
 }
@@ -1125,12 +1136,19 @@ fn geometry_runtime_kind_mismatch_is_unavailable() {
             r#type: ScalarType::Number,
             issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
             binding_id: None,
+            context: None,
         }
     );
 }
 
 #[test]
 fn geometry_runtime_disabled_is_distinct_from_unavailable() {
+    let disabled_target = ScalarExpressionResolvedGeometryTarget {
+        statement_id: "disabled".to_owned(),
+        statement_index: 1,
+        geometry_type: GeometryInterfaceType::Point,
+        point_key: None,
+    };
     let node = geometry_call(
         BuiltinFunctionName::Distance,
         vec![
@@ -1152,7 +1170,9 @@ fn geometry_runtime_disabled_is_distinct_from_unavailable() {
     let environment = GeometryBuiltinEnvironment {
         targets: HashMap::from([(
             "disabled".to_owned(),
-            Err(GeometryBuiltinRuntimeError::Disabled),
+            Err(GeometryBuiltinRuntimeError::Disabled(
+                disabled_target.clone(),
+            )),
         )]),
         looked_up: RefCell::new(Vec::new()),
     };
@@ -1162,8 +1182,121 @@ fn geometry_runtime_disabled_is_distinct_from_unavailable() {
             r#type: ScalarType::Number,
             issue_code: "evaluation-geometry-builtin-disabled".to_owned(),
             binding_id: None,
+            context: Some(ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+                target_element_id: "disabled".to_owned(),
+                point_key: None,
+            }),
         }
     );
+}
+
+#[test]
+fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_point_key() {
+    let first_target = ScalarExpressionResolvedGeometryTarget {
+        statement_id: "first".to_owned(),
+        statement_index: 1,
+        geometry_type: GeometryInterfaceType::Point,
+        point_key: None,
+    };
+    let second_target = ScalarExpressionResolvedGeometryTarget {
+        statement_id: "second".to_owned(),
+        statement_index: 2,
+        geometry_type: GeometryInterfaceType::Point,
+        point_key: Some("start".to_owned()),
+    };
+    let node = geometry_call(
+        BuiltinFunctionName::Distance,
+        vec![
+            TypedBuiltinArgument::GeometryReference {
+                expected_geometry_type: GeometryInterfaceType::Point,
+                target: Some(first_target.clone()),
+            },
+            TypedBuiltinArgument::GeometryReference {
+                expected_geometry_type: GeometryInterfaceType::Point,
+                target: Some(second_target.clone()),
+            },
+        ],
+        ScalarType::Number,
+    );
+    let environment = GeometryBuiltinEnvironment {
+        targets: HashMap::from([
+            ("first".to_owned(), Ok(runtime_point("first", 0.0, 0.0))),
+            (
+                "second".to_owned(),
+                Err(GeometryBuiltinRuntimeError::Disabled(second_target.clone())),
+            ),
+        ]),
+        looked_up: RefCell::new(Vec::new()),
+    };
+    assert_eq!(
+        evaluate_typed_expression(&node, &environment),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-geometry-builtin-disabled".to_owned(),
+            binding_id: None,
+            context: Some(ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+                target_element_id: "second".to_owned(),
+                point_key: Some("start".to_owned()),
+            }),
+        }
+    );
+    assert_eq!(environment.looked_up.into_inner(), vec!["first", "second"]);
+
+    let first_disabled_target = first_target.clone();
+    let both_disabled = GeometryBuiltinEnvironment {
+        targets: HashMap::from([
+            (
+                "first".to_owned(),
+                Err(GeometryBuiltinRuntimeError::Disabled(first_disabled_target)),
+            ),
+            (
+                "second".to_owned(),
+                Err(GeometryBuiltinRuntimeError::Disabled(second_target)),
+            ),
+        ]),
+        looked_up: RefCell::new(Vec::new()),
+    };
+    let both_result = evaluate_typed_expression(
+        &TypedScalarExpression::Call {
+            span: span(),
+            name_span: span(),
+            name: "source-name-is-not-dispatch".to_owned(),
+            target: TypedScalarCallTarget::Builtin(BuiltinFunctionName::Distance),
+            args: vec![
+                TypedBuiltinArgument::GeometryReference {
+                    expected_geometry_type: GeometryInterfaceType::Point,
+                    target: Some(ScalarExpressionResolvedGeometryTarget {
+                        statement_id: "first".to_owned(),
+                        statement_index: 1,
+                        geometry_type: GeometryInterfaceType::Point,
+                        point_key: None,
+                    }),
+                },
+                TypedBuiltinArgument::GeometryReference {
+                    expected_geometry_type: GeometryInterfaceType::Point,
+                    target: Some(ScalarExpressionResolvedGeometryTarget {
+                        statement_id: "second".to_owned(),
+                        statement_index: 2,
+                        geometry_type: GeometryInterfaceType::Point,
+                        point_key: Some("start".to_owned()),
+                    }),
+                },
+            ],
+            r#type: Some(ScalarType::Number),
+        },
+        &both_disabled,
+    );
+    assert!(matches!(
+        both_result,
+        ScalarEvaluation::Error {
+            context: Some(ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+                target_element_id,
+                point_key: None,
+            }),
+            ..
+        } if target_element_id == "first"
+    ));
+    assert_eq!(both_disabled.looked_up.into_inner(), vec!["first"]);
 }
 
 #[test]
@@ -1202,6 +1335,7 @@ fn zero_length_line_is_an_invalid_builtin_argument() {
             r#type: ScalarType::Number,
             issue_code: "evaluation-zero-length-line".to_owned(),
             binding_id: None,
+            context: None,
         }
     );
 }
@@ -1330,6 +1464,7 @@ fn reference_as_an_arithmetic_operand_is_checked_and_stops_the_whole_expression(
             r#type: ScalarType::Number,
             issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
             binding_id: Some("binding:x".to_owned()),
+            context: None,
         }
     );
 }
@@ -1359,6 +1494,7 @@ fn reference_as_an_equality_operand_is_checked() {
             r#type: ScalarType::Boolean,
             issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
             binding_id: Some("binding:x".to_owned()),
+            context: None,
         }
     );
 }

@@ -103,10 +103,13 @@ const geometryArgument = (
 };
 
 /** Re-stamps an already-produced error to `type`, keeping issueCode/bindingId verbatim. */
-const propagateError = (type: ScalarType, source: Extract<ScalarEvaluation, { status: "error" }>): ScalarEvaluation =>
-  source.bindingId !== undefined
-    ? { status: "error", type, issueCode: source.issueCode, bindingId: source.bindingId }
-    : { status: "error", type, issueCode: source.issueCode };
+const propagateError = (type: ScalarType, source: Extract<ScalarEvaluation, { status: "error" }>): ScalarEvaluation => ({
+  status: "error",
+  type,
+  issueCode: source.issueCode,
+  ...(source.bindingId !== undefined ? { bindingId: source.bindingId } : {}),
+  ...(source.context !== undefined ? { context: source.context } : {})
+});
 
 /**
  * These extraction helpers throw on a kind mismatch rather than returning a
@@ -301,7 +304,21 @@ const evaluateGeometryBuiltin = (
   for (const [index, argument] of node.args.entries()) {
     const geometry = geometryArgument(argument, expectedTypes[index]!, environment);
     if (geometry?.kind === "unavailable") {
-      return { status: "error", type, issueCode: "evaluation-geometry-builtin-disabled" };
+      const target = argument.kind === "geometryReference" ? argument.target : null;
+      return {
+        status: "error",
+        type,
+        issueCode: "evaluation-geometry-builtin-disabled",
+        ...(target
+          ? {
+              context: {
+                kind: "geometryBuiltinTarget" as const,
+                targetElementId: target.statementId,
+                ...(target.pointKey !== undefined ? { pointKey: target.pointKey } : {})
+              }
+            }
+          : {})
+      };
     }
     if (!geometry) return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
     argumentsByPosition.push(geometry);

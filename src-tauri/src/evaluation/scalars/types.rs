@@ -68,6 +68,14 @@ pub(crate) enum ScalarValue {
     Choice { value: String, options: Vec<String> },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ScalarEvaluationErrorContext {
+    GeometryBuiltinTarget {
+        target_element_id: String,
+        point_key: Option<String>,
+    },
+}
+
 /// Mirrors `src/scalars/types.ts`'s `ScalarEvaluation`. `issue_code` is a
 /// plain `String`, not a closed Rust enum: the TS type declares it as an
 /// open `string`, and the shared fixture already exercises values (e.g.
@@ -83,6 +91,7 @@ pub(crate) enum ScalarEvaluation {
         r#type: ScalarType,
         issue_code: String,
         binding_id: Option<String>,
+        context: Option<ScalarEvaluationErrorContext>,
     },
 }
 

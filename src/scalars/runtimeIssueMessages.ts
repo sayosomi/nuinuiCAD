@@ -7,6 +7,9 @@
 // (src/scalars/*.ts, src-tauri/src/evaluation/scalars/*.rs) - kept in sync by
 // hand since Rust never sends a code TS doesn't also define. Unknown codes
 // still get a message (fail-closed, never blank) rather than being dropped.
+import type { CadElement } from "../types/geometry";
+import type { ScalarEvaluationErrorContext } from "./types";
+
 const RUNTIME_ISSUE_MESSAGES: Readonly<Record<string, string>> = {
   "poisoned-binding": "評価に失敗し無効化されています。",
   "evaluation-binding-unavailable": "参照先のbindingを解決できません。",
@@ -31,4 +34,16 @@ const RUNTIME_ISSUE_MESSAGES: Readonly<Record<string, string>> = {
   "evaluation-geometry-property-unavailable": "要素プロパティはこの位置では評価できません。参照先が前方にあり、有効で、正常に評価済みか確認してください。"
 };
 
-export const runtimeIssueMessage = (issueCode: string): string => RUNTIME_ISSUE_MESSAGES[issueCode] ?? "実行時エラーが発生しました。";
+export const runtimeIssueMessage = (
+  issueCode: string,
+  context?: ScalarEvaluationErrorContext,
+  elements?: readonly CadElement[]
+): string => {
+  if (issueCode === "evaluation-geometry-builtin-disabled" && context?.kind === "geometryBuiltinTarget") {
+    const target = elements?.find((element) => element.id === context.targetElementId);
+    const base = target?.name && target.name.trim().length > 0 ? target.name : context.targetElementId;
+    const displayTarget = context.pointKey !== undefined ? `${base}.${context.pointKey}` : base;
+    return `組み込み関数のgeometry引数「${displayTarget}」は評価OFFのため利用できません。「${base}」を評価ONにするか、参照先を変更してください。`;
+  }
+  return RUNTIME_ISSUE_MESSAGES[issueCode] ?? "実行時エラーが発生しました。";
+};

@@ -268,7 +268,7 @@ export const typedBindingRuntimeInspectorPresentation = (
     rows.push({ key: "value", label: "最終値", value: formatScalarValue(scalarEvaluation.value) });
   } else {
     status = "poisoned";
-    invalidMessage = runtimeIssueMessage(scalarEvaluation.issueCode);
+    invalidMessage = runtimeIssueMessage(scalarEvaluation.issueCode, scalarEvaluation.context, consumers.elements);
     rows.push({ key: "value", label: "最終値", value: "無効(poisoned)" });
   }
 

@@ -19,9 +19,9 @@ use super::geometry_builtin_runtime::{
 };
 use super::scalar_payload::scalar_value_matches_type;
 use super::types::{
-    BindingId, BuiltinFunctionName, ScalarBinaryOperator, ScalarEvaluation, ScalarType,
-    ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
-    TypedScalarExpression,
+    BindingId, BuiltinFunctionName, ScalarBinaryOperator, ScalarEvaluation,
+    ScalarEvaluationErrorContext, ScalarType, ScalarUnaryOperator, ScalarValue,
+    TypedBuiltinArgument, TypedScalarCallTarget, TypedScalarExpression,
 };
 
 /// Documented placeholder used only when a node's static `type` is `None`.
@@ -48,6 +48,7 @@ pub(crate) fn static_type_null_error(binding_id: Option<BindingId>) -> ScalarEva
         r#type: static_type_null_placeholder(),
         issue_code: "evaluation-static-type-null".to_owned(),
         binding_id,
+        context: None,
     }
 }
 
@@ -60,11 +61,13 @@ fn propagate_error(r#type: ScalarType, source: ScalarEvaluation) -> ScalarEvalua
         ScalarEvaluation::Error {
             issue_code,
             binding_id,
+            context,
             ..
         } => ScalarEvaluation::Error {
             r#type,
             issue_code,
             binding_id,
+            context,
         },
         ScalarEvaluation::Ok { .. } => {
             unreachable!("propagate_error must only be called with an error result")
@@ -99,6 +102,7 @@ fn runtime_value_type_mismatch(r#type: ScalarType) -> ScalarEvaluation {
         r#type,
         issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
         binding_id: None,
+        context: None,
     }
 }
 
@@ -113,6 +117,7 @@ fn finite_number_result(r#type: ScalarType, value: f64) -> ScalarEvaluation {
             r#type,
             issue_code: "evaluation-non-finite-result".to_owned(),
             binding_id: None,
+            context: None,
         }
     }
 }
@@ -152,6 +157,7 @@ fn finish_builtin_call(
                 r#type,
                 issue_code: issue_code.to_owned(),
                 binding_id: None,
+                context: None,
             }
         }
     }
@@ -194,6 +200,7 @@ pub(crate) fn continue_builtin_call<'a>(
                 r#type,
                 issue_code: "evaluation-invalid-builtin-argument".to_owned(),
                 binding_id: None,
+                context: None,
             });
             return;
         };
@@ -271,6 +278,7 @@ pub(crate) fn evaluate_geometry_builtin_call(
                         r#type,
                         issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
                         binding_id: None,
+                        context: None,
                     };
                 }
             };
@@ -280,21 +288,28 @@ pub(crate) fn evaluate_geometry_builtin_call(
             r#type,
             issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
             binding_id: None,
+            context: None,
         },
         Err(GeometryBuiltinRuntimeError::InvalidArgument) => ScalarEvaluation::Error {
             r#type,
             issue_code: "evaluation-invalid-builtin-argument".to_owned(),
             binding_id: None,
+            context: None,
         },
-        Err(GeometryBuiltinRuntimeError::Disabled) => ScalarEvaluation::Error {
+        Err(GeometryBuiltinRuntimeError::Disabled(target)) => ScalarEvaluation::Error {
             r#type,
             issue_code: "evaluation-geometry-builtin-disabled".to_owned(),
             binding_id: None,
+            context: Some(ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+                target_element_id: target.statement_id,
+                point_key: target.point_key,
+            }),
         },
         Err(GeometryBuiltinRuntimeError::ZeroLengthLine) => ScalarEvaluation::Error {
             r#type,
             issue_code: "evaluation-zero-length-line".to_owned(),
             binding_id: None,
+            context: None,
         },
     }
 }
@@ -329,6 +344,7 @@ pub(crate) fn evaluate_reference(
                     r#type: declared_type.clone(),
                     issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
                     binding_id: Some(id.clone()),
+                    context: None,
                 };
             }
             result
@@ -502,6 +518,7 @@ pub(crate) fn finish_eager_binary(
                     r#type,
                     issue_code: "evaluation-divide-by-zero".to_owned(),
                     binding_id: None,
+                    context: None,
                 }
             } else {
                 finite_number_result(r#type, quotient)
@@ -513,6 +530,7 @@ pub(crate) fn finish_eager_binary(
                     r#type,
                     issue_code: "evaluation-remainder-by-zero".to_owned(),
                     binding_id: None,
+                    context: None,
                 }
             } else {
                 finite_number_result(r#type, left_number % right_number)

@@ -9,7 +9,9 @@ use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnv
 use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::program_payload::{ValidatedScalarProgram, ValidatedScalarProgramStatement};
 use super::scalar_payload::scalar_value_matches_type;
-use super::types::{BindingId, ScalarEvaluation, ScalarType, ScalarValue};
+use super::types::{
+    BindingId, ScalarEvaluation, ScalarEvaluationErrorContext, ScalarType, ScalarValue,
+};
 use crate::evaluation::numeric_expression::computed_reference_value;
 use crate::evaluation::types::EvaluationState;
 
@@ -26,6 +28,7 @@ fn unavailable_binding(binding_id: &str) -> ScalarEvaluation {
         r#type: ScalarType::Number,
         issue_code: BINDING_UNAVAILABLE.to_owned(),
         binding_id: Some(binding_id.to_owned()),
+        context: None,
     }
 }
 
@@ -45,6 +48,7 @@ pub(crate) fn result_for_declared_type(
             r#type: declared_type.clone(),
             issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
             binding_id: Some(binding_id.to_owned()),
+            context: None,
         },
     }
 }
@@ -111,6 +115,7 @@ impl<'a> ScalarBindingResolver<'a> {
                 r#type: statement.declared_type.clone(),
                 issue_code: BINDING_CYCLE_GUARD.to_owned(),
                 binding_id: Some(binding_id.to_owned()),
+                context: None,
             };
         }
 
@@ -129,6 +134,7 @@ impl<'a> ScalarBindingResolver<'a> {
                 r#type: statement.declared_type.clone(),
                 issue_code: issue_code.clone(),
                 binding_id: Some(statement.binding_id.clone()),
+                context: None,
             },
         };
 
@@ -187,6 +193,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_> {
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-geometry-property-unavailable".to_owned(),
                 binding_id: None,
+                context: None,
             };
         }
         match self
@@ -203,6 +210,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_> {
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-geometry-property-unavailable".to_owned(),
                 binding_id: None,
+                context: None,
             },
         }
     }
@@ -249,6 +257,7 @@ pub(crate) fn scalar_evaluation_json(evaluation: &ScalarEvaluation) -> Value {
             r#type,
             issue_code,
             binding_id,
+            context,
         } => {
             let mut value = json!({
                 "status": "error",
@@ -257,6 +266,23 @@ pub(crate) fn scalar_evaluation_json(evaluation: &ScalarEvaluation) -> Value {
             });
             if let Some(binding_id) = binding_id {
                 value["bindingId"] = Value::String(binding_id.clone());
+            }
+            if let Some(context) = context {
+                value["context"] = match context {
+                    ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+                        target_element_id,
+                        point_key,
+                    } => {
+                        let mut context = json!({
+                            "kind": "geometryBuiltinTarget",
+                            "targetElementId": target_element_id,
+                        });
+                        if let Some(point_key) = point_key {
+                            context["pointKey"] = Value::String(point_key.clone());
+                        }
+                        context
+                    }
+                };
             }
             value
         }

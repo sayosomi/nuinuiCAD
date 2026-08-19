@@ -622,7 +622,72 @@ describe("evaluateTypedExpression / geometry measurement builtins", () => {
         lookupGeometryTarget: () => ({ kind: "unavailable", reason: "disabled" })
       }
     );
-    expect(result).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-builtin-disabled" });
+    expect(result).toEqual({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-geometry-builtin-disabled",
+      context: { kind: "geometryBuiltinTarget", targetElementId: "disabled" }
+    });
+  });
+
+  it.each([
+    ["first", ["first"], "first"],
+    ["second", ["first", "second"], "second"],
+    ["both", ["first"], "first"]
+  ] as const)("preserves the %s disabled target and stops at the first failure", (_label, lookedUpExpected, targetId) => {
+    const firstTarget = geometryTarget("first", 1, "point");
+    const secondTarget = geometryTarget("second", 2, "point");
+    const lookedUp: string[] = [];
+    const result = evaluateTypedExpression(
+      geometryBuiltinCall("distance", [geometryReference("point", firstTarget), geometryReference("point", secondTarget)]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: (target) => {
+          lookedUp.push(target.statementId);
+          return target.statementId === targetId ? { kind: "unavailable", reason: "disabled" } : start;
+        }
+      }
+    );
+    expect(result).toMatchObject({
+      status: "error",
+      type: { kind: "number" },
+      issueCode: "evaluation-geometry-builtin-disabled",
+      context: { kind: "geometryBuiltinTarget", targetElementId: targetId }
+    });
+    expect(lookedUp).toEqual(lookedUpExpected);
+  });
+
+  it("preserves a derived point key on a disabled geometry target", () => {
+    const target = { ...geometryTarget("shoulder", 1, "point"), pointKey: "start" };
+    const result = evaluateTypedExpression(
+      geometryBuiltinCall("distance", [geometryReference("point", target), geometryReference("point", geometryTarget("other", 2, "point"))]),
+      {
+        lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+        lookupGeometryTarget: () => ({ kind: "unavailable", reason: "disabled" })
+      }
+    );
+    expect(result).toMatchObject({
+      issueCode: "evaluation-geometry-builtin-disabled",
+      context: { kind: "geometryBuiltinTarget", targetElementId: "shoulder", pointKey: "start" }
+    });
+  });
+
+  it("preserves a disabled geometry target through nested expression propagation", () => {
+    const target = geometryTarget("nested-target", 1, "point");
+    const nested: TypedScalarExpression = {
+      kind: "unary",
+      span: { start: 0, end: 0 },
+      operator: "-",
+      type: { kind: "number" },
+      operand: geometryBuiltinCall("distance", [geometryReference("point", target), geometryReference("point", target)])
+    };
+    expect(evaluateTypedExpression(nested, {
+      lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
+      lookupGeometryTarget: () => ({ kind: "unavailable", reason: "disabled" })
+    })).toMatchObject({
+      issueCode: "evaluation-geometry-builtin-disabled",
+      context: { kind: "geometryBuiltinTarget", targetElementId: "nested-target" }
+    });
   });
 
   it("rejects a point builtin argument backed by a runtime line", () => {

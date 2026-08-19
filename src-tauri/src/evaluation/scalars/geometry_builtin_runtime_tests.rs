@@ -117,15 +117,30 @@ fn earlier_point_target_resolves() {
 }
 
 #[test]
-fn disabled_geometry_target_has_a_distinct_runtime_failure() {
-    let state = disabled_state_with_geometry("point-id", point_value(2.0, 3.0));
-    assert_eq!(
+fn hidden_geometry_target_remains_usable() {
+    let mut state = state_with_geometry("point-id", point_value(2.0, 3.0), true);
+    state.elements = vec![json!({
+        "id": "point-id",
+        "type": "freePoint",
+        "activity": "hidden"
+    })];
+    assert!(matches!(
         resolve_geometry_builtin_target(
             &state,
             2,
             &target("point-id", 1, GeometryInterfaceType::Point)
         ),
-        Err(GeometryBuiltinRuntimeError::Disabled)
+        Ok(GeometryBuiltinRuntimeTarget::Point(_))
+    ));
+}
+
+#[test]
+fn disabled_geometry_target_has_a_distinct_runtime_failure() {
+    let state = disabled_state_with_geometry("point-id", point_value(2.0, 3.0));
+    let expected_target = target("point-id", 1, GeometryInterfaceType::Point);
+    assert_eq!(
+        resolve_geometry_builtin_target(&state, 2, &expected_target),
+        Err(GeometryBuiltinRuntimeError::Disabled(expected_target))
     );
 }
 
@@ -139,13 +154,25 @@ fn modifier_disabled_geometry_target_has_a_distinct_runtime_failure() {
     })];
     state.drawing_modifiers = json!([{ "name": "Disable", "state": "disabled" }]);
 
+    let expected_target = target("point-id", 1, GeometryInterfaceType::Point);
     assert_eq!(
-        resolve_geometry_builtin_target(
-            &state,
-            2,
-            &target("point-id", 1, GeometryInterfaceType::Point)
-        ),
-        Err(GeometryBuiltinRuntimeError::Disabled)
+        resolve_geometry_builtin_target(&state, 2, &expected_target),
+        Err(GeometryBuiltinRuntimeError::Disabled(expected_target))
+    );
+}
+
+#[test]
+fn ancestor_group_disabled_geometry_target_has_a_distinct_runtime_failure() {
+    let mut state = state_with_geometry("child", point_value(2.0, 3.0), true);
+    state.elements = vec![
+        json!({"id": "group", "type": "group", "activity": "disabled"}),
+        json!({"id": "child", "type": "freePoint", "parentGroupId": "group", "activity": "visible"}),
+    ];
+    state.elements_by_id = HashMap::from([("group".to_owned(), 0), ("child".to_owned(), 1)]);
+    let expected_target = target("child", 1, GeometryInterfaceType::Point);
+    assert_eq!(
+        resolve_geometry_builtin_target(&state, 2, &expected_target),
+        Err(GeometryBuiltinRuntimeError::Disabled(expected_target))
     );
 }
 

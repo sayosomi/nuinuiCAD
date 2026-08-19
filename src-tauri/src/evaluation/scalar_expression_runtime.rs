@@ -35,6 +35,7 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-geometry-property-unavailable".to_owned(),
                 binding_id: None,
+                context: None,
             };
         };
         let Some(value) = computed_reference_value(geometry, property) else {
@@ -42,6 +43,7 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
                 r#type: ScalarType::Number,
                 issue_code: "evaluation-geometry-property-unavailable".to_owned(),
                 binding_id: None,
+                context: None,
             };
         };
         ScalarEvaluation::Ok {
