@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "../../src/document/automationDocument";
 
+type MockPosition = { line: number; character: number };
+
 type TestDocument = {
   fileName: string;
   version: number;
@@ -107,7 +109,15 @@ vi.mock("vscode", () => {
     constructor(public readonly start: unknown, public readonly end: unknown) {}
   }
   class Selection {
-    constructor(public readonly start: unknown, public readonly end: unknown) {}
+    readonly start: MockPosition;
+    readonly end: MockPosition;
+
+    constructor(public readonly anchor: MockPosition, public readonly active: MockPosition) {
+      const anchorBeforeActive = anchor.line < active.line ||
+        (anchor.line === active.line && anchor.character <= active.character);
+      this.start = anchorBeforeActive ? anchor : active;
+      this.end = anchorBeforeActive ? active : anchor;
+    }
   }
   class Diagnostic {
     code?: string | number;
@@ -1428,10 +1438,10 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await historyRequest;
   });
 
-  it("projects Canvas selection to an exact source range and transfers Editor focus", async () => {
+  it("keeps the active cursor inside a named Canvas source range for immediate Rename", async () => {
     const source = [
       "nui 4",
-      "point A = coordinate(x: 0, y: 0)"
+      "point BaseLine = coordinate(x: 0, y: 0)"
     ].join("\n");
     const document = documentFor("/tmp/go-to-source.nui", "file:///tmp/go-to-source.nui", source);
     const editor = editorFor(document);
@@ -1447,17 +1457,68 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       type: "canvasSourceDefinitionResult",
       requestId: request.requestId,
       documentVersion: 1,
-      range: { from: source.indexOf("A"), to: source.indexOf("A") + 1 }
+      range: { from: source.indexOf("BaseLine"), to: source.indexOf("BaseLine") + "BaseLine".length }
     });
 
     expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({ preserveFocus: false }));
     expect(editor.selection).toMatchObject({
       start: { line: 1, character: "point ".length },
-      end: { line: 1, character: "point A".length }
+      end: { line: 1, character: "point BaseLine".length },
+      active: { line: 1, character: "point ".length }
+    });
+    const renameProvider = mocks.renameRegistrations[0]!.provider as {
+      prepareRename: (document: TestDocument, position: { line: number; character: number }) => {
+        range: { start: { line: number; character: number }; end: { line: number; character: number } };
+        placeholder: string;
+      };
+    };
+    expect(renameProvider.prepareRename(document, editor.selection.active)).toMatchObject({
+      range: {
+        start: { line: 1, character: "point ".length },
+        end: { line: 1, character: "point BaseLine".length }
+      },
+      placeholder: "BaseLine"
     });
     expect(mocks.executeCommand).toHaveBeenCalledWith("editor.unfold");
     expect(editor.revealRange).toHaveBeenCalled();
     expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({ preserveFocus: false }));
+  });
+
+  it("keeps unnamed Canvas keyword navigation exact without adding Rename support", async () => {
+    const source = [
+      "nui 4",
+      "point = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/go-to-unnamed-source.nui", "file:///tmp/go-to-unnamed-source.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const request = panel.webview.postMessage.mock.calls.find(([message]) => message?.type === "canvasSourceDefinitionRequest")?.[0] as { requestId: number };
+    expect(request).toBeDefined();
+
+    mocks.showTextDocument.mockResolvedValue(editor);
+    await messageHandlerFor(panel)({
+      type: "canvasSourceDefinitionResult",
+      requestId: request.requestId,
+      documentVersion: 1,
+      range: { from: source.indexOf("point"), to: source.indexOf("point") + "point".length }
+    });
+
+    expect(editor.selection).toMatchObject({
+      start: { line: 1, character: 0 },
+      end: { line: 1, character: "point".length },
+      active: { line: 1, character: 0 }
+    });
+    const renameProvider = mocks.renameRegistrations[0]!.provider as {
+      prepareRename: (document: TestDocument, position: { line: number; character: number }) => unknown;
+    };
+    expect(() => renameProvider.prepareRename(document, editor.selection.active)).toThrow(
+      "Rename is not available at this position."
+    );
+    expect(mocks.executeCommand).toHaveBeenCalledWith("editor.unfold");
+    expect(editor.revealRange).toHaveBeenCalled();
   });
 });
 

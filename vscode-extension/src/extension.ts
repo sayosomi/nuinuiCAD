@@ -416,7 +416,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       return;
     }
     if (!editor || session.document.version !== message.documentVersion) return;
-    editor.selection = new vscode.Selection(range.start, range.end);
+    editor.selection = new vscode.Selection(range.end, range.start);
     try {
       await vscode.commands.executeCommand("editor.unfold");
     } catch {
