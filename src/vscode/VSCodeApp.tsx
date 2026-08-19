@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
-import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
+import { evaluationStateIsCurrentFor, useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import {
   effectiveCompiledDocument,
   effectiveElements,
   effectiveEvaluationLimitIndex,
   useCadDocumentStore
 } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
 import { dispatchCommand } from "../commands/commands";
 import { VSCodeBenchmarkCaptureRunner } from "./VSCodeBenchmarkCaptureRunner";
@@ -15,6 +16,11 @@ import { isStaleHostDocumentVersion } from "./hostDocumentVersion";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
+import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
+import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
+import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
+import { minimumCanvasPanForBounds } from "../geometry/canvasViewportReveal";
+import { replaceCanvasSelection } from "../commands/selectionCommands";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -22,6 +28,13 @@ import type {
 } from "./protocol";
 
 type CanvasHistoryDirection = "undo" | "redo";
+
+type AuthoritativeHostSourceSnapshot = {
+  documentVersion: number;
+  normalizedSource: string;
+};
+
+const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
 export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const elements = useCadDocumentStore(effectiveElements);
@@ -31,6 +44,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
+  const lastAuthoritativeHostSourceSnapshotRef = useRef<AuthoritativeHostSourceSnapshot | null>(null);
+  const latestCanvasNavigationRequestRef = useRef<number | null>(null);
   const canvasHistoryInFlightRef = useRef<CanvasHistoryDirection | null>(null);
   const pendingCanvasHistoryRef = useRef<CanvasHistoryDirection[]>([]);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
@@ -52,9 +67,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     rustTransport.transport
   );
   const evaluationRef = useRef(evaluationState.evaluation);
+  const evaluationStateRef = useRef(evaluationState);
   useEffect(() => {
     evaluationRef.current = evaluationState.evaluation;
-  }, [evaluationState.evaluation]);
+    evaluationStateRef.current = evaluationState;
+  }, [evaluationState]);
 
   const restoreCanvasFocus = useCallback((afterFocus?: () => void) => {
     queueMicrotask(() => {
@@ -86,6 +103,28 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     pumpCanvasHistory();
   }, [pumpCanvasHistory]);
 
+  const currentAuthoritativeDocument = useCallback((expectedDocumentVersion: number) => {
+    const state = useCadDocumentStore.getState();
+    const compiled = effectiveCompiledDocument(state);
+    const normalizedSource = normalizedSourceFor(state.sourceText);
+    const authoritative = lastAuthoritativeHostSourceSnapshotRef.current;
+    if (
+      latestHostDocumentVersionRef.current !== expectedDocumentVersion ||
+      authoritative?.documentVersion !== expectedDocumentVersion ||
+      authoritative?.normalizedSource !== normalizedSource ||
+      compiled.spans.sourceMap.source !== normalizedSource ||
+      compiled.spans.sourceMap.sourceRevision !== state.doc.statementMap.sourceRevision
+    ) return null;
+    return {
+      state,
+      compiled,
+      source: {
+        normalizedSource,
+        sourceRevision: compiled.spans.sourceMap.sourceRevision
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
     refreshCanvasTheme();
@@ -109,16 +148,107 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           pendingCanvasHistoryRef.current = [];
         }
         restoreCanvasFocus(message.status === "completed" ? pumpCanvasHistory : undefined);
+      } else if (message.type === "canvasSourceDefinitionRequest") {
+        const expectedDocumentVersion = latestHostDocumentVersionRef.current;
+        if (expectedDocumentVersion === null || canvasHistoryInFlightRef.current !== null) {
+          api.postMessage({
+            type: "canvasSourceDefinitionResult",
+            requestId: message.requestId,
+            documentVersion: null,
+            range: null
+          });
+          return;
+        }
+        const current = currentAuthoritativeDocument(expectedDocumentVersion);
+        const selectedElementId = useCadUiStore.getState().selectedElementId;
+        const range = current && selectedElementId
+          ? queryDslCanvasSourceDefinition({
+              source: current.source,
+              compiled: current.compiled,
+              runtimeElementId: selectedElementId
+            })
+          : null;
+        api.postMessage({
+          type: "canvasSourceDefinitionResult",
+          requestId: message.requestId,
+          documentVersion: expectedDocumentVersion,
+          range
+        });
+      } else if (message.type === "canvasNavigationRequest") {
+        latestCanvasNavigationRequestRef.current = message.requestId;
+        const current = currentAuthoritativeDocument(message.documentVersion);
+        if (!current || canvasHistoryInFlightRef.current !== null) {
+          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "stale" });
+          return;
+        }
+        const target = queryDslCanvasSourceTarget({
+          source: current.source,
+          compiled: current.compiled,
+          position: message.normalizedSourceOffset
+        });
+        if (!target) {
+          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
+          return;
+        }
+        const owners = sourceOwnerByRuntimeElementId(current.compiled);
+        const runtimeElementIds = current.state.elements
+          .filter((element) => owners.get(element.id)?.sourceStatementIndex === target.sourceStatementIndex)
+          .map((element) => element.id);
+        if (runtimeElementIds.length === 0 || !replaceCanvasSelection(runtimeElementIds, runtimeElementIds[0], true)) {
+          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
+          return;
+        }
+
+        const viewport = canvasFocusRef.current;
+        if (viewport) {
+          const rect = viewport.getBoundingClientRect();
+          const evaluation = evaluationRef.current;
+          const bounds = evaluation &&
+            evaluationStateIsCurrentFor(evaluationStateRef.current, current.state.compiledDocumentRevision) &&
+            evaluation.computedGeometry instanceof Map
+            ? canvasElementDrawingBounds({
+                elementId: runtimeElementIds[0]!,
+                elements: effectiveElements(current.state),
+                evaluation,
+                visibilityProfiles: current.state.visibilityProfiles,
+                activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+                measureCanvasTextWidth
+              })
+            : null;
+          if (bounds && Number.isFinite(rect.width) && Number.isFinite(rect.height)) {
+            const pan = minimumCanvasPanForBounds(bounds, useCadUiStore.getState().canvasViewport, {
+              width: rect.width,
+              height: rect.height
+            });
+            if (pan && (pan.dx !== 0 || pan.dy !== 0)) {
+              useCadUiStore.getState().panCanvasViewport(pan.dx, pan.dy);
+            }
+          }
+        }
+        api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "ready" });
+      } else if (message.type === "focusCanvas") {
+        if (latestCanvasNavigationRequestRef.current !== message.requestId) return;
+        canvasFocusRef.current?.focus();
+        api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "focused" });
       } else if (message.type === "replaceTextDocument") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         latestHostDocumentVersionRef.current = message.documentVersion;
+        lastAuthoritativeHostSourceSnapshotRef.current = {
+          documentVersion: message.documentVersion,
+          normalizedSource: normalizedSourceFor(message.sourceText)
+        };
         useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
           currentFilePath: null,
           dirtySinceSave: false
         });
+        api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
       } else if (message.type === "commitText") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         latestHostDocumentVersionRef.current = message.documentVersion;
+        lastAuthoritativeHostSourceSnapshotRef.current = {
+          documentVersion: message.documentVersion,
+          normalizedSource: normalizedSourceFor(message.sourceText)
+        };
         if (message.reason === "undo" || message.reason === "redo") {
           useCadDocumentStore.getState().reconcileAuthoritativeHistory(message.sourceText, message.reason);
         } else {
@@ -126,6 +256,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             cursorLineAtBurstStart: null
           });
         }
+        api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
       } else if (message.type === "benchmarkConfig") {
         setBenchmarkConfig(message.config);
       }
@@ -136,7 +267,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, measureCanvasTextWidth, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport]);
+  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport]);
 
   const surfaceStyle = benchmarkConfig
     ? {

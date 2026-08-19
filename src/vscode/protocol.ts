@@ -1,6 +1,7 @@
 import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixtureManifest";
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
 import type { LineSplice } from "../document/textPatch";
+import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 
 export type VscodeRustEvaluationRequest = {
   type: "rustEvaluationRequest";
@@ -12,6 +13,9 @@ export type VscodeDocumentChangeReason = "edit" | "undo" | "redo";
 
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
+  | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
+  | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
+  | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "stale" | "focused" }
   | VscodeRustEvaluationRequest
   | {
       type: "canvasCommit";
@@ -55,6 +59,9 @@ export type VscodeBenchmarkConfig = {
 export type ExtensionToVscodeMessage =
   | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
   | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason }
+  | { type: "canvasSourceDefinitionRequest"; requestId: number }
+  | { type: "canvasNavigationRequest"; requestId: number; documentVersion: number; normalizedSourceOffset: number }
+  | { type: "focusCanvas"; requestId: number }
   | {
       type: "canvasHistoryResult";
       direction: "undo" | "redo";

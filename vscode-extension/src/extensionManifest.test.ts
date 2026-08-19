@@ -33,6 +33,8 @@ type ExtensionManifest = {
 const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
 const commandIds = [
   "nuinuiCAD.openCanvas",
+  "nuinuiCAD.goToSourceDefinition",
+  "nuinuiCAD.revealInCanvas",
   "nuinuiCAD.canvasUndo",
   "nuinuiCAD.canvasRedo",
   "nuinuiCAD.clearCanvasSelection",
@@ -50,13 +52,15 @@ async function readManifest(): Promise<ExtensionManifest> {
 }
 
 describe("VS Code extension manifest command contributions", () => {
-  it("keeps the current eight command registrations", async () => {
+  it("registers the current command set", async () => {
     const manifest = await readManifest();
     const commands = manifest.contributes?.commands ?? [];
 
     expect(commands.map(({ command }) => command)).toEqual(commandIds);
     expect(commands.map(({ title }) => title)).toEqual([
       "nuinuiCAD: Open Canvas",
+      "nuinuiCAD: Go to Source Definition",
+      "nuinuiCAD: Reveal in Canvas",
       "nuinuiCAD: Undo Canvas Transition",
       "nuinuiCAD: Redo Canvas Transition",
       "nuinuiCAD: Clear Canvas Selection",
@@ -73,6 +77,8 @@ describe("VS Code extension manifest command contributions", () => {
 
     expect(commandPalette).toEqual([
       { command: "nuinuiCAD.openCanvas", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.clearCanvasSelection", when: canvasPaletteWhen },
       { command: "nuinuiCAD.resetCanvasView", when: canvasPaletteWhen },
       { command: "nuinuiCAD.fitDrawing", when: canvasPaletteWhen },
@@ -81,6 +87,14 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.canvasUndo", when: "false" },
       { command: "nuinuiCAD.canvasRedo", when: "false" }
     ]);
+  });
+
+  it("adds the exact Source and Canvas context menu conditions", async () => {
+    const manifest = await readManifest();
+    expect(manifest.contributes?.menus).toMatchObject({
+      "webview/context": [{ command: "nuinuiCAD.goToSourceDefinition", when: "webviewId == 'nuinuiCAD.canvas'" }],
+      "editor/context": [{ command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen }]
+    });
   });
 });
 

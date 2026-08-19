@@ -206,11 +206,32 @@ export const visibleCanvasDrawingBounds = ({
     activeVisibilityProfileId
   });
   const elementById = new Map(elements.map((element) => [element.id, element]));
+  return canvasDrawingBoundsForVisibleIds({
+    evaluation,
+    visibleIds,
+    elementById,
+    measureCanvasTextWidth
+  });
+};
+
+const canvasDrawingBoundsForVisibleIds = ({
+  evaluation,
+  visibleIds,
+  elementById,
+  measureCanvasTextWidth,
+  targetElementId
+}: {
+  evaluation: EvaluationResult;
+  visibleIds: ReadonlySet<string>;
+  elementById: ReadonlyMap<string, CadElement>;
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer;
+  targetElementId?: string;
+}): CanvasDrawingBounds | null => {
   let bounds: MutableBounds = null;
   let textMeasurementFailed = false;
 
   for (const geometry of evaluation.computedGeometry.values()) {
-    if (!visibleIds.has(geometry.elementId)) continue;
+    if (!visibleIds.has(geometry.elementId) || (targetElementId !== undefined && geometry.elementId !== targetElementId)) continue;
     const element = elementById.get(geometry.elementId);
     if (element && runtimeOnlyElementTypes.has(element.type)) continue;
 
@@ -253,4 +274,36 @@ export const visibleCanvasDrawingBounds = ({
   }
 
   return textMeasurementFailed ? null : bounds;
+};
+
+/** Bounds for one currently renderable Canvas element, using the Fit Drawing extent path. */
+export const canvasElementDrawingBounds = ({
+  elementId,
+  elements,
+  evaluation,
+  visibilityProfiles,
+  activeVisibilityProfileId,
+  measureCanvasTextWidth
+}: {
+  elementId: string;
+  elements: readonly CadElement[];
+  evaluation: EvaluationResult;
+  visibilityProfiles: readonly VisibilityProfile[];
+  activeVisibilityProfileId: string | null;
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer;
+}): CanvasDrawingBounds | null => {
+  const visibleIds = effectiveCanvasVisibleElementIds({
+    elements,
+    evaluation,
+    visibilityProfiles,
+    activeVisibilityProfileId
+  });
+  if (!visibleIds.has(elementId)) return null;
+  return canvasDrawingBoundsForVisibleIds({
+    evaluation,
+    visibleIds,
+    elementById: new Map(elements.map((element) => [element.id, element])),
+    measureCanvasTextWidth,
+    targetElementId: elementId
+  });
 };

@@ -9,13 +9,17 @@ import {
 } from "../../src/dsl/dslRenameQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  normalizedOffsetFromRaw,
+  normalizedSourceFor,
+  vscodeRangeForNormalized
+} from "./sourceOffsetAdapter";
 
 export const nuiRenameSelector: vscode.DocumentSelector = {
   language: "nui",
   scheme: "file"
 };
 
-const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 const prepareRenameFailureMessage = "Rename is not available at this position.";
 const provideRenameEditsFailureMessage = "Rename could not be applied.";
 const invalidCurrentSourceRenameMessage = "現在のソースにエラーがあるため、リネームできません。エラーを修正してから再試行してください。";
@@ -41,33 +45,11 @@ export const renameRejectionMessage = (rejection: DslRenameRejection): string =>
   }
 };
 
-const normalizedOffsetFromRaw = (rawSource: string, rawOffset: number): number => {
-  let removedCarriageReturns = 0;
-  for (let index = 0; index < rawOffset; index += 1) {
-    if (rawSource[index] === "\r" && rawSource[index + 1] === "\n") removedCarriageReturns += 1;
-  }
-  return rawOffset - removedCarriageReturns;
-};
-
-const rawOffsetFromNormalized = (rawSource: string, normalizedOffset: number): number => {
-  let rawOffset = 0;
-  let normalizedPosition = 0;
-  while (rawOffset < rawSource.length && normalizedPosition < normalizedOffset) {
-    if (rawSource[rawOffset] === "\r" && rawSource[rawOffset + 1] === "\n") rawOffset += 1;
-    rawOffset += 1;
-    normalizedPosition += 1;
-  }
-  return rawOffset;
-};
-
 const vscodeRangeFor = (
   document: vscode.TextDocument,
   rawSource: string,
   range: { from: number; to: number }
-): vscode.Range => new vscode.Range(
-  document.positionAt(rawOffsetFromNormalized(rawSource, range.from)),
-  document.positionAt(rawOffsetFromNormalized(rawSource, range.to))
-);
+): vscode.Range => vscodeRangeForNormalized(document, rawSource, range);
 
 export type NuiRenameSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
 

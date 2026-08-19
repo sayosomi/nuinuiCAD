@@ -12,6 +12,7 @@ vi.mock("../geometry/productionEvaluationContext", () => ({
 }));
 
 vi.mock("../geometry/useEvaluationEngine", () => ({
+  evaluationStateIsCurrentFor: () => true,
   useEvaluationEngine: () => ({
     evaluation: {},
     evaluationState: { evaluation: {} }
@@ -210,5 +211,46 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage.mock.calls.filter(
       ([message]) => message?.type === "canvasHistoryRequest"
     )).toHaveLength(historyRequestsBeforeLocalUndo);
+  });
+
+  it("revalidates an Editor target, replaces selection through history, and focuses the viewport", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasNavigationRequest", requestId: 12, documentVersion: 7, normalizedSourceOffset: source.indexOf("B") }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(
+      useCadDocumentStore.getState().elements.find((element) => element.name === "B")?.id
+    );
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasNavigationResult",
+      requestId: 12,
+      status: "ready"
+    });
+
+    const canvas = screen.getByTestId("canvas");
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "focusCanvas", requestId: 12 }
+      }));
+    });
+    expect(document.activeElement).toBe(canvas);
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasNavigationResult",
+      requestId: 12,
+      status: "focused"
+    });
   });
 });

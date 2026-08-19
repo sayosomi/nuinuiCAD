@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import * as vscode from "vscode";
 import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
+import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "../../src/dsl/dslNavigationQuery";
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import {
@@ -42,6 +43,7 @@ import type {
   VscodeDocumentChangeReason,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
+import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 
 type DocumentSession = {
   key: string;
@@ -54,6 +56,18 @@ type DocumentSession = {
     changeObserved: boolean;
     commandCompleted: boolean;
   } | null;
+  webviewReady: boolean;
+  authoritativeDocumentVersion: number | null;
+  pendingCanvasNavigation: {
+    requestId: number;
+    documentVersion: number;
+    normalizedSourceOffset: number;
+  } | null;
+  inFlightCanvasNavigation: {
+    requestId: number;
+    documentVersion: number;
+  } | null;
+  pendingSourceDefinitionRequest: { requestId: number } | null;
 };
 
 const benchmarkConfigFromEnvironment = (): VscodeBenchmarkConfig | null => {
@@ -226,6 +240,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const canvasHistoryHandoffContextKey = "nuinuiCAD.canvasHistoryHandoff";
   let canvasHistoryHandoffSession: DocumentSession | null = null;
   let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
+  let nextNavigationRequestId = 1;
 
   const setCanvasHistoryHandoffContext = (enabled: boolean): Promise<void> => {
     canvasHistoryHandoffContextUpdate = canvasHistoryHandoffContextUpdate
@@ -331,7 +346,111 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const resync = (session: DocumentSession): void => {
     if (sessions.get(session.key) !== session || !isOpenDocument(session.document)) return;
+    session.authoritativeDocumentVersion = null;
     postAuthoritativeDocument(session.panel, session.document);
+  };
+
+  const deliverPendingCanvasNavigation = (session: DocumentSession): void => {
+    const pending = session.pendingCanvasNavigation;
+    if (
+      !pending ||
+      !session.webviewReady ||
+      session.authoritativeDocumentVersion !== session.document.version ||
+      session.inFlightCanvasHistory !== null ||
+      canvasHistoryHandoffSession !== null
+    ) return;
+    session.pendingCanvasNavigation = null;
+    session.inFlightCanvasNavigation = {
+      requestId: pending.requestId,
+      documentVersion: pending.documentVersion
+    };
+    void session.panel.webview.postMessage({
+      type: "canvasNavigationRequest",
+      requestId: pending.requestId,
+      documentVersion: pending.documentVersion,
+      normalizedSourceOffset: pending.normalizedSourceOffset
+    } satisfies ExtensionToVscodeMessage);
+  };
+
+  const normalizedRangeIsSafe = (
+    document: vscode.TextDocument,
+    range: NormalizedSourceRange
+  ): boolean => {
+    const normalizedSource = normalizedSourceFor(document.getText());
+    return Number.isInteger(range.from) &&
+      Number.isInteger(range.to) &&
+      range.from >= 0 &&
+      range.to > range.from &&
+      range.to <= normalizedSource.length;
+  };
+
+  const handleCanvasSourceDefinitionResult = async (
+    session: DocumentSession,
+    message: Extract<VscodeToExtensionMessage, { type: "canvasSourceDefinitionResult" }>
+  ): Promise<void> => {
+    if (
+      session.pendingSourceDefinitionRequest?.requestId !== message.requestId ||
+      !session.panel.active ||
+      session.inFlightCanvasHistory !== null ||
+      canvasHistoryHandoffSession !== null
+    ) return;
+    session.pendingSourceDefinitionRequest = null;
+    if (
+      message.documentVersion === null ||
+      session.document.version !== message.documentVersion ||
+      !message.range ||
+      !normalizedRangeIsSafe(session.document, message.range)
+    ) return;
+
+    const visibleEditor = visibleEditorFor(session.document);
+    const range = vscodeRangeForNormalized(session.document, session.document.getText(), message.range);
+    let editor: vscode.TextEditor | undefined;
+    try {
+      editor = await vscode.window.showTextDocument(session.document, {
+        viewColumn: visibleEditor?.viewColumn ?? vscode.ViewColumn.Beside,
+        preserveFocus: false,
+        preview: false,
+        selection: range
+      });
+    } catch {
+      return;
+    }
+    if (!editor || session.document.version !== message.documentVersion) return;
+    editor.selection = new vscode.Selection(range.start, range.end);
+    try {
+      await vscode.commands.executeCommand("editor.unfold");
+    } catch {
+      return;
+    }
+    editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+    clearCanvasHistoryHandoff(session);
+  };
+
+  const handleCanvasNavigationResult = (
+    session: DocumentSession,
+    message: Extract<VscodeToExtensionMessage, { type: "canvasNavigationResult" }>
+  ): void => {
+    const inFlight = session.inFlightCanvasNavigation;
+    if (!inFlight || inFlight.requestId !== message.requestId) return;
+    if (message.status === "ready") {
+      if (
+        session.document.version !== inFlight.documentVersion ||
+        session.inFlightCanvasHistory !== null ||
+        canvasHistoryHandoffSession !== null
+      ) {
+        session.inFlightCanvasNavigation = null;
+        return;
+      }
+      session.panel.reveal(vscode.ViewColumn.Beside, false);
+      void session.panel.webview.postMessage({ type: "focusCanvas", requestId: message.requestId } satisfies ExtensionToVscodeMessage);
+      return;
+    }
+    if (message.status === "focused") {
+      session.inFlightCanvasNavigation = null;
+      return;
+    }
+    session.inFlightCanvasNavigation = null;
+    deliverPendingCanvasNavigation(session);
   };
 
   const completeCanvasHistory = (session: DocumentSession): void => {
@@ -523,19 +642,24 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
   };
 
-  const createCanvasPanel = (editor: vscode.TextEditor): void => {
+  const createCanvasPanel = (
+    editor: vscode.TextEditor,
+    preserveFocus = false
+  ): DocumentSession | undefined => {
     const document = editor.document;
     const key = documentKey(document);
     const existing = sessions.get(key);
     if (existing) {
       existing.panel.reveal(vscode.ViewColumn.Beside);
-      return;
+      return existing;
     }
 
     const panel = vscode.window.createWebviewPanel(
       "nuinuiCAD.canvas",
       `${basename(document.fileName)} — nuinuiCAD`,
-      vscode.ViewColumn.Beside,
+      preserveFocus
+        ? { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }
+        : vscode.ViewColumn.Beside,
       {
         enableScripts: true,
         localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")]
@@ -547,7 +671,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
       document,
       panel,
       disposables: [],
-      inFlightCanvasHistory: null
+      inFlightCanvasHistory: null,
+      webviewReady: false,
+      authoritativeDocumentVersion: null,
+      pendingCanvasNavigation: null,
+      inFlightCanvasNavigation: null,
+      pendingSourceDefinitionRequest: null
     };
     sessions.set(key, session);
     updatePanelTitles();
@@ -557,6 +686,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
       session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
         if (sameDocument(event.document, session.document)) {
           if (event.contentChanges.length === 0) return;
+
+          session.authoritativeDocumentVersion = null;
+          session.pendingCanvasNavigation = null;
+          session.inFlightCanvasNavigation = null;
+          session.pendingSourceDefinitionRequest = null;
 
           const inFlightHistory = session.inFlightCanvasHistory;
           const documentChangedDuringCanvasHistory = inFlightHistory !== null
@@ -588,8 +722,24 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "webviewReady") {
+        session.webviewReady = true;
+        session.authoritativeDocumentVersion = null;
         postAuthoritativeDocument(panel, session.document);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
+        return;
+      }
+      if (message.type === "webviewAuthoritativeDocumentReady") {
+        if (message.documentVersion !== session.document.version) return;
+        session.authoritativeDocumentVersion = message.documentVersion;
+        deliverPendingCanvasNavigation(session);
+        return;
+      }
+      if (message.type === "canvasSourceDefinitionResult") {
+        await handleCanvasSourceDefinitionResult(session, message);
+        return;
+      }
+      if (message.type === "canvasNavigationResult") {
+        handleCanvasNavigationResult(session, message);
         return;
       }
       if (message.type === "canvasCommit") {
@@ -629,6 +779,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         writeFileSync(`${benchmarkConfig.resultPath}.error.json`, JSON.stringify({ runId: benchmarkConfig.runId, error: "Performance PoC panel closed before completion" }, null, 2), "utf8");
       }
     });
+    return session;
   };
 
   const executeCanvasCommand = (commandId: VscodeCanvasCommandId): void => {
@@ -643,6 +794,53 @@ export const activate = (context: vscode.ExtensionContext): void => {
       return;
     }
     void session.panel.webview.postMessage({ type: "canvasCommand", commandId } satisfies ExtensionToVscodeMessage);
+  };
+
+  const goToSourceDefinition = (): void => {
+    const session = [...sessions.values()].find((candidate) => candidate.panel.active);
+    if (
+      !session ||
+      session.inFlightCanvasHistory !== null ||
+      canvasHistoryHandoffSession !== null
+    ) return;
+    const requestId = nextNavigationRequestId++;
+    session.pendingSourceDefinitionRequest = { requestId };
+    void session.panel.webview.postMessage({
+      type: "canvasSourceDefinitionRequest",
+      requestId
+    } satisfies ExtensionToVscodeMessage);
+  };
+
+  const revealInCanvas = (): void => {
+    const editor = activeNuiEditor();
+    if (!editor) return;
+    const document = editor.document;
+    const rawSource = document.getText();
+    const sessionForDocument = languageAnalysisSessionFor(document);
+    if (sessionForDocument.getSource() !== rawSource) sessionForDocument.replaceSource(rawSource);
+    const source = {
+      normalizedSource: normalizedSourceFor(rawSource),
+      sourceRevision: sessionForDocument.getSourceRevision()
+    };
+    const semantic = sessionForDocument.definitionSemanticSnapshot(source);
+    if (!semantic?.compiled) return;
+    const normalizedSourceOffset = normalizedOffsetFromRaw(rawSource, document.offsetAt(editor.selection.active));
+    if (!queryDslCanvasSourceTarget({ source, compiled: semantic.compiled, position: normalizedSourceOffset })) return;
+
+    const key = documentKey(document);
+    let session = sessions.get(key);
+    if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) return;
+    if (!session) session = createCanvasPanel(editor, true);
+    if (!session) return;
+
+    const requestId = nextNavigationRequestId++;
+    session.pendingCanvasNavigation = {
+      requestId,
+      documentVersion: document.version,
+      normalizedSourceOffset
+    };
+    session.panel.reveal(vscode.ViewColumn.Beside, true);
+    deliverPendingCanvasNavigation(session);
   };
 
   const startBenchmark = (editor: vscode.TextEditor): void => {
@@ -665,6 +863,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
     createCanvasPanel(editor);
   });
+  const goToSourceDefinitionCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.goToSourceDefinition",
+    goToSourceDefinition
+  );
+  const revealInCanvasCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.revealInCanvas",
+    revealInCanvas
+  );
   const choiceQuickFixApplyCommand = vscode.commands.registerCommand(
     NUI_CHOICE_QUICK_FIX_APPLY_COMMAND,
     createNuiChoiceQuickFixApplyHandler(languageAnalysisSessionFor)
@@ -696,6 +902,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
   context.subscriptions.push(
     command,
+    goToSourceDefinitionCommand,
+    revealInCanvasCommand,
     choiceQuickFixApplyCommand,
     ...canvasCommandDisposables,
     closeDocumentListener,

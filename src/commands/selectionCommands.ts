@@ -143,6 +143,28 @@ const mutateCanvasSelection = (recordHistory: boolean, mutate: () => void) => {
   if (recordHistory) useCadDocumentStore.getState().recordCanvasSelection(before);
 };
 
+/** Replace Canvas selection in document order through the shared history owner. */
+export const replaceCanvasSelection = (
+  elementIds: readonly ElementId[],
+  primaryElementId?: ElementId,
+  recordHistory = false
+) => {
+  const elements = useCadDocumentStore.getState().elements;
+  const requested = new Set(elementIds);
+  const orderedIds = elements
+    .filter((element) => requested.has(element.id))
+    .map((element) => element.id);
+  if (orderedIds.length === 0) return false;
+  const primaryId = primaryElementId && orderedIds.includes(primaryElementId)
+    ? primaryElementId
+    : orderedIds[0];
+  mutateCanvasSelection(recordHistory, () =>
+    useCadUiStore.getState().setSelectedElementIds(orderedIds, primaryId)
+  );
+  clearTransientSelectionUi();
+  return true;
+};
+
 export const clearCanvasSelection = (recordHistory = false) => {
   mutateCanvasSelection(recordHistory, () => useCadUiStore.getState().clearElementSelection());
   clearTransientSelectionUi();

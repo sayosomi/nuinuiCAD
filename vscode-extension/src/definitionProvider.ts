@@ -2,41 +2,22 @@ import * as vscode from "vscode";
 import { queryDslDefinition, type DslDefinitionRange } from "../../src/dsl/dslDefinitionQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  normalizedOffsetFromRaw,
+  normalizedSourceFor,
+  vscodeRangeForNormalized
+} from "./sourceOffsetAdapter";
 
 export const nuiDefinitionSelector: vscode.DocumentSelector = {
   language: "nui",
   scheme: "file"
 };
 
-const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
-
-const normalizedOffsetFromRaw = (rawSource: string, rawOffset: number): number => {
-  let removedCarriageReturns = 0;
-  for (let index = 0; index < rawOffset; index += 1) {
-    if (rawSource[index] === "\r" && rawSource[index + 1] === "\n") removedCarriageReturns += 1;
-  }
-  return rawOffset - removedCarriageReturns;
-};
-
-const rawOffsetFromNormalized = (rawSource: string, normalizedOffset: number): number => {
-  let rawOffset = 0;
-  let normalizedPosition = 0;
-  while (rawOffset < rawSource.length && normalizedPosition < normalizedOffset) {
-    if (rawSource[rawOffset] === "\r" && rawSource[rawOffset + 1] === "\n") rawOffset += 1;
-    rawOffset += 1;
-    normalizedPosition += 1;
-  }
-  return rawOffset;
-};
-
 const vscodeRangeFor = (
   document: vscode.TextDocument,
   rawSource: string,
   range: DslDefinitionRange
-): vscode.Range => new vscode.Range(
-  document.positionAt(rawOffsetFromNormalized(rawSource, range.from)),
-  document.positionAt(rawOffsetFromNormalized(rawSource, range.to))
-);
+): vscode.Range => vscodeRangeForNormalized(document, rawSource, range);
 
 export type NuiDefinitionSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
 
