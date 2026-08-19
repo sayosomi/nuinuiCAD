@@ -148,6 +148,22 @@ shortcuts, command palette entries, and canvas interactions should dispatch the
 same command implementations instead of duplicating business logic in React
 components.
 
+Every new user-facing VS Code command must declare a Palette scope before
+implementation. Allowed scopes are exactly:
+
+* `Global`
+* `Source`
+* `Canvas`
+* `Source+Canvas`
+
+Palette scope is part of the implementation contract. Palette visibility
+represents the relevant surface, not fine-grained transient executability. Do
+not make Palette visibility depend on transient state such as Canvas
+selection, single or multi selection, cursor or token position, drawable
+geometry availability, or whether the command can succeed at that exact
+moment. Keep those checks in command execution semantics. Do not pre-design
+Print Preview or other unconfirmed surfaces.
+
 Global shortcuts must not interfere with normal text and number entry. When an
 `input`, `textarea`, `select`, or `contenteditable` element is focused,
 ordinary typing and editing shortcuts should continue to work normally.

@@ -29,6 +29,42 @@
         "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "nuinuiCAD.openCanvas",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
+          "command": "nuinuiCAD.clearCanvasSelection",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.resetCanvasView",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.fitDrawing",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.toggleCanvasElementNames",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.toggleCanvasPoints",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.canvasUndo",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.canvasRedo",
+          "when": "false"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "nuinuiCAD.openCanvas",
