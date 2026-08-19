@@ -39,6 +39,7 @@ import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
   VscodeBenchmarkConfig,
+  VscodeDocumentChangeReason,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
 
@@ -47,6 +48,12 @@ type DocumentSession = {
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
   disposables: vscode.Disposable[];
+  inFlightCanvasHistory: {
+    direction: "undo" | "redo";
+    expectedDocumentVersion: number;
+    changeObserved: boolean;
+    commandCompleted: boolean;
+  } | null;
 };
 
 const benchmarkConfigFromEnvironment = (): VscodeBenchmarkConfig | null => {
@@ -99,9 +106,26 @@ const webviewHtml = (panel: vscode.WebviewPanel, context: vscode.ExtensionContex
 const rustBinaryPath = (context: vscode.ExtensionContext): string =>
   process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(context.extensionPath, "..", "src-tauri", "target", "debug", "evaluation_stdio");
 
-const postDocumentText = (panel: vscode.WebviewPanel, sourceText: string, documentVersion: number): void => {
-  void panel.webview.postMessage({ type: "commitText", sourceText, documentVersion } satisfies ExtensionToVscodeMessage);
+const postDocumentText = (
+  panel: vscode.WebviewPanel,
+  sourceText: string,
+  documentVersion: number,
+  reason: VscodeDocumentChangeReason
+): void => {
+  void panel.webview.postMessage({
+    type: "commitText",
+    sourceText,
+    documentVersion,
+    reason
+  } satisfies ExtensionToVscodeMessage);
 };
+
+const documentChangeReasonFor = (reason: vscode.TextDocumentChangeReason | undefined): VscodeDocumentChangeReason =>
+  reason === vscode.TextDocumentChangeReason.Undo
+    ? "undo"
+    : reason === vscode.TextDocumentChangeReason.Redo
+      ? "redo"
+      : "edit";
 
 const postAuthoritativeDocument = (panel: vscode.WebviewPanel, document: vscode.TextDocument): void => {
   void panel.webview.postMessage({
@@ -199,6 +223,27 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const benchmarkConfig = benchmarkConfigFromEnvironment();
   let benchmarkStarted = false;
   let benchmarkEditorListener: vscode.Disposable | null = null;
+  const canvasHistoryHandoffContextKey = "nuinuiCAD.canvasHistoryHandoff";
+  let canvasHistoryHandoffSession: DocumentSession | null = null;
+  let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
+
+  const setCanvasHistoryHandoffContext = (enabled: boolean): Promise<void> => {
+    canvasHistoryHandoffContextUpdate = canvasHistoryHandoffContextUpdate
+      .catch(() => undefined)
+      .then(() => vscode.commands.executeCommand("setContext", canvasHistoryHandoffContextKey, enabled))
+      .then(() => undefined);
+    return canvasHistoryHandoffContextUpdate;
+  };
+
+  const clearCanvasHistoryHandoff = (session: DocumentSession): void => {
+    if (canvasHistoryHandoffSession !== session) return;
+    canvasHistoryHandoffSession = null;
+    void setCanvasHistoryHandoffContext(false).catch(() => undefined);
+  };
+
+  const clearCanvasHistoryHandoffIfReady = (session: DocumentSession): void => {
+    if (session.panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
+  };
 
   const publishCompilerDiagnostics = (document: vscode.TextDocument): void => {
     if (!isSupportedNuiDocument(document)) return;
@@ -289,6 +334,19 @@ export const activate = (context: vscode.ExtensionContext): void => {
     postAuthoritativeDocument(session.panel, session.document);
   };
 
+  const completeCanvasHistory = (session: DocumentSession): void => {
+    const inFlightHistory = session.inFlightCanvasHistory;
+    if (!inFlightHistory) return;
+    session.inFlightCanvasHistory = null;
+    session.panel.reveal(vscode.ViewColumn.Beside, false);
+    void session.panel.webview.postMessage({
+      type: "canvasHistoryResult",
+      direction: inFlightHistory.direction,
+      status: "completed",
+      documentVersion: session.document.version
+    } satisfies ExtensionToVscodeMessage);
+  };
+
   const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
     for (const session of sessions.values()) {
       void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
@@ -300,7 +358,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
     session: DocumentSession,
     message: Extract<VscodeToExtensionMessage, { type: "canvasCommit" }>
   ): Promise<void> => {
-    if (!isOpenDocument(session.document) || session.document.version !== message.expectedDocumentVersion) {
+    const matchingDocumentAvailable = isOpenDocument(session.document);
+
+    if (!matchingDocumentAvailable || session.document.version !== message.expectedDocumentVersion) {
       resync(session);
       return;
     }
@@ -345,14 +405,100 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
 
     try {
-      if (!(await editResult)) resync(session);
+      const editCompleted = await editResult;
+      if (!editCompleted) {
+        resync(session);
+      }
     } catch {
       resync(session);
     }
   };
 
+  const applyCanvasHistory = async (
+    session: DocumentSession,
+    message: Extract<VscodeToExtensionMessage, { type: "canvasHistoryRequest" }>
+  ): Promise<void> => {
+    const postResult = (status: "completed" | "resynced" | "failed") => {
+      void session.panel.webview.postMessage({
+        type: "canvasHistoryResult",
+        direction: message.direction,
+        status,
+        documentVersion: session.document.version
+      } satisfies ExtensionToVscodeMessage);
+    };
+    let sourceEditorActivated = false;
+    const failClosed = (status: "resynced" | "failed") => {
+      session.inFlightCanvasHistory = null;
+      resync(session);
+      postResult(status);
+      if (sourceEditorActivated) {
+        session.panel.reveal(vscode.ViewColumn.Beside, false);
+        return;
+      }
+      clearCanvasHistoryHandoffIfReady(session);
+    };
+
+    if (!session.panel.active) {
+      failClosed("resynced");
+      return;
+    }
+    if (!isOpenDocument(session.document)) {
+      failClosed("resynced");
+      return;
+    }
+    if (session.document.version !== message.expectedDocumentVersion) {
+      failClosed("resynced");
+      return;
+    }
+
+    const editor = visibleEditorFor(session.document);
+    if (!editor) {
+      failClosed("resynced");
+      return;
+    }
+
+    const expectedVersion = session.document.version;
+    session.inFlightCanvasHistory = {
+      direction: message.direction,
+      expectedDocumentVersion: expectedVersion,
+      changeObserved: false,
+      commandCompleted: false
+    };
+    canvasHistoryHandoffSession = session;
+    try {
+      await setCanvasHistoryHandoffContext(true);
+      if (canvasHistoryHandoffSession !== session || sessions.get(session.key) !== session) return;
+      await vscode.window.showTextDocument(session.document, {
+        viewColumn: editor.viewColumn,
+        preserveFocus: false,
+        preview: false
+      });
+      sourceEditorActivated = true;
+      const nativeHistoryCommand = message.direction === "undo" ? "undo" : "redo";
+      await vscode.commands.executeCommand(nativeHistoryCommand);
+    } catch {
+      failClosed("failed");
+      return;
+    }
+
+    const inFlightHistory = session.inFlightCanvasHistory;
+    if (!inFlightHistory) return;
+    inFlightHistory.commandCompleted = true;
+
+    if (!isOpenDocument(session.document)) {
+      failClosed("resynced");
+      return;
+    }
+
+    if (inFlightHistory.changeObserved || session.document.version === inFlightHistory.expectedDocumentVersion) {
+      completeCanvasHistory(session);
+    }
+  };
+
   const disposeSession = (session: DocumentSession): void => {
     if (sessions.get(session.key) !== session) return;
+    session.inFlightCanvasHistory = null;
+    clearCanvasHistoryHandoff(session);
     sessions.delete(session.key);
     disposeSessionListeners(session);
     updatePanelTitles();
@@ -396,7 +542,13 @@ export const activate = (context: vscode.ExtensionContext): void => {
       }
     );
     panel.webview.html = webviewHtml(panel, context);
-    const session: DocumentSession = { key, document, panel, disposables: [] };
+    const session: DocumentSession = {
+      key,
+      document,
+      panel,
+      disposables: [],
+      inFlightCanvasHistory: null
+    };
     sessions.set(key, session);
     updatePanelTitles();
 
@@ -404,10 +556,35 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (!benchmarkConfig) {
       session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
         if (sameDocument(event.document, session.document)) {
-          postDocumentText(panel, event.document.getText(), event.document.version);
+          if (event.contentChanges.length === 0) return;
+
+          const inFlightHistory = session.inFlightCanvasHistory;
+          const documentChangedDuringCanvasHistory = inFlightHistory !== null
+            && !inFlightHistory.changeObserved
+            && event.document.version !== inFlightHistory.expectedDocumentVersion;
+          if (documentChangedDuringCanvasHistory) {
+            inFlightHistory.changeObserved = true;
+          }
+          const sourceText = event.document.getText();
+          const effectiveReason = documentChangedDuringCanvasHistory
+            ? inFlightHistory.direction
+            : documentChangeReasonFor(event.reason);
+          postDocumentText(
+            panel,
+            sourceText,
+            event.document.version,
+            effectiveReason
+          );
+          if (documentChangedDuringCanvasHistory && inFlightHistory.commandCompleted) {
+            completeCanvasHistory(session);
+          }
         }
       }));
     }
+
+    session.disposables.push(panel.onDidChangeViewState(() => {
+      if (panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
+    }));
 
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "webviewReady") {
@@ -418,6 +595,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
       if (message.type === "canvasCommit") {
         if (benchmarkConfig) return;
         await applyCanvasCommit(session, message);
+        return;
+      }
+      if (message.type === "canvasHistoryRequest") {
+        if (benchmarkConfig) return;
+        await applyCanvasHistory(session, message);
         return;
       }
       if (message.type === "rustEvaluationRequest") {
@@ -450,7 +632,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const executeCanvasCommand = (commandId: VscodeCanvasCommandId): void => {
-    const session = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const session = activeSession ?? (
+      commandId === "undo" || commandId === "redo"
+        ? canvasHistoryHandoffSession
+        : null
+    );
     if (!session) {
       void vscode.window.showErrorMessage("nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。");
       return;
@@ -483,6 +670,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     createNuiChoiceQuickFixApplyHandler(languageAnalysisSessionFor)
   );
   const canvasCommandDisposables = [
+    ["nuinuiCAD.canvasUndo", "undo"],
+    ["nuinuiCAD.canvasRedo", "redo"],
     ["nuinuiCAD.clearCanvasSelection", "clearCanvasSelection"],
     ["nuinuiCAD.resetCanvasView", "resetCanvasView"],
     ["nuinuiCAD.fitDrawing", "fitDrawing"],

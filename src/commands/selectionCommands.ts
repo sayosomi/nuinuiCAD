@@ -133,12 +133,22 @@ const clearTransientSelectionUi = () => {
   useCadUiStore.getState().clearPickMode();
 };
 
-export const clearCanvasSelection = () => {
-  useCadUiStore.getState().clearElementSelection();
+const mutateCanvasSelection = (recordHistory: boolean, mutate: () => void) => {
+  const before = {
+    selectedElementId: useCadUiStore.getState().selectedElementId,
+    selectedElementIds: [...useCadUiStore.getState().selectedElementIds],
+    selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId
+  };
+  mutate();
+  if (recordHistory) useCadDocumentStore.getState().recordCanvasSelection(before);
+};
+
+export const clearCanvasSelection = (recordHistory = false) => {
+  mutateCanvasSelection(recordHistory, () => useCadUiStore.getState().clearElementSelection());
   clearTransientSelectionUi();
 };
 
-export const selectElementByOffset = (offset: number) => {
+export const selectElementByOffset = (offset: number, recordHistory = false) => {
   const { elements } = useCadDocumentStore.getState();
   const { selectedElementId } = useCadUiStore.getState();
   const nextElementId = elementIdByOffset(
@@ -148,11 +158,11 @@ export const selectElementByOffset = (offset: number) => {
   );
   if (!nextElementId) return;
 
-  useCadUiStore.getState().setSelectedElementId(nextElementId);
+  mutateCanvasSelection(recordHistory, () => useCadUiStore.getState().setSelectedElementId(nextElementId));
   clearTransientSelectionUi();
 };
 
-export const selectAllElements = () => {
+export const selectAllElements = (recordHistory = false) => {
   const { elements } = useCadDocumentStore.getState();
   const { selectedElementId } = useCadUiStore.getState();
   const allElementIds = elements.map((element) => element.id);
@@ -161,11 +171,11 @@ export const selectAllElements = () => {
       ? selectedElementId
       : allElementIds[0] ?? null;
 
-  useCadUiStore.getState().setSelectedElementIds(allElementIds, primaryId);
+  mutateCanvasSelection(recordHistory, () => useCadUiStore.getState().setSelectedElementIds(allElementIds, primaryId));
   clearTransientSelectionUi();
 };
 
-export const extendSelectionByOffset = (offset: number) => {
+export const extendSelectionByOffset = (offset: number, recordHistory = false) => {
   const { elements } = useCadDocumentStore.getState();
   const { selectedElementId, selectionAnchorElementId } = useCadUiStore.getState();
   const visibleElements = visibleOutlineElements(elements, useCadUiStore.getState().groupFoldById);
@@ -173,18 +183,24 @@ export const extendSelectionByOffset = (offset: number) => {
   if (!nextElementId) return;
 
   const anchorId = selectionAnchorElementId ?? selectedElementId ?? elements[0]?.id ?? nextElementId;
-  useCadUiStore.getState().setSelectedElementRange(anchorId, nextElementId);
+  mutateCanvasSelection(recordHistory, () => useCadUiStore.getState().setSelectedElementRange(anchorId, nextElementId));
   clearTransientSelectionUi();
 };
 
-export const selectElement = (elementId: ElementId, selectionMode: CommandContext["selectionMode"] = "replace") => {
+export const selectElement = (
+  elementId: ElementId,
+  selectionMode: CommandContext["selectionMode"] = "replace",
+  recordHistory = false
+) => {
   const { elements } = useCadDocumentStore.getState();
   const { selectedElementIds, selectionAnchorElementId } = useCadUiStore.getState();
   const element = elements.find((item) => item.id === elementId);
   if (!element) return;
 
   if (selectionMode === "range") {
-    useCadUiStore.getState().setSelectedElementRange(selectionAnchorElementId ?? elementId, elementId);
+    mutateCanvasSelection(recordHistory, () =>
+      useCadUiStore.getState().setSelectedElementRange(selectionAnchorElementId ?? elementId, elementId)
+    );
     clearTransientSelectionUi();
     return;
   }
@@ -192,15 +208,15 @@ export const selectElement = (elementId: ElementId, selectionMode: CommandContex
   if (selectionMode === "toggle") {
     const selection = toggleSelectionIds(elements, selectedElementIds, elementId);
     if (!selection) return;
-    useCadUiStore.getState().setSelectedElementIds(
+    mutateCanvasSelection(recordHistory, () => useCadUiStore.getState().setSelectedElementIds(
       selection.selectedElementIds,
       selection.selectedElementId
-    );
+    ));
     clearTransientSelectionUi();
     return;
   }
 
-  useCadUiStore.getState().setSelectedElementId(elementId);
+  mutateCanvasSelection(recordHistory, () => useCadUiStore.getState().setSelectedElementId(elementId));
   clearTransientSelectionUi();
 };
 

@@ -18,6 +18,12 @@ type TestDocument = {
   onGetText?: () => void;
 };
 
+type TestDocumentChangeEvent = {
+  document: TestDocument;
+  reason?: number;
+  contentChanges: readonly unknown[];
+};
+
 type TestEditor = {
   document: TestDocument;
   edit: ReturnType<typeof vi.fn>;
@@ -37,6 +43,7 @@ type TestPanel = {
   reveal: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
   onDidDispose: ReturnType<typeof vi.fn>;
+  onDidChangeViewState: ReturnType<typeof vi.fn>;
 };
 
 type TestRustProcess = {
@@ -60,7 +67,7 @@ const mocks = vi.hoisted(() => ({
   activeEditorListeners: [] as Array<() => void>,
   activeColorThemeListeners: [] as Array<() => void>,
   documentOpenListeners: [] as Array<(document: TestDocument) => void>,
-  documentChangeListeners: [] as Array<(event: { document: TestDocument }) => void>,
+  documentChangeListeners: [] as Array<(event: TestDocumentChangeEvent) => void>,
   documentCloseListeners: [] as Array<(document: TestDocument) => void>,
   panels: [] as TestPanel[],
   rustProcesses: [] as TestRustProcess[],
@@ -72,6 +79,8 @@ const mocks = vi.hoisted(() => ({
   codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
   foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   showErrorMessage: vi.fn(),
+  showTextDocument: vi.fn(),
+  executeCommand: vi.fn(),
   createWebviewPanel: vi.fn(),
   createDiagnosticCollection: vi.fn(),
   registerCompletionItemProvider: vi.fn(),
@@ -133,7 +142,8 @@ vi.mock("vscode", () => {
       createWebviewPanel: mocks.createWebviewPanel,
       onDidChangeActiveTextEditor: mocks.onDidChangeActiveTextEditor,
       onDidChangeActiveColorTheme: mocks.onDidChangeActiveColorTheme,
-      showErrorMessage: mocks.showErrorMessage
+      showErrorMessage: mocks.showErrorMessage,
+      showTextDocument: mocks.showTextDocument
     },
     workspace: {
       get textDocuments() {
@@ -144,7 +154,7 @@ vi.mock("vscode", () => {
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
       asRelativePath: mocks.asRelativePath
     },
-    commands: { registerCommand: mocks.registerCommand },
+    commands: { registerCommand: mocks.registerCommand, executeCommand: mocks.executeCommand },
     languages: {
       createDiagnosticCollection: mocks.createDiagnosticCollection,
       registerCompletionItemProvider: mocks.registerCompletionItemProvider,
@@ -168,6 +178,7 @@ vi.mock("vscode", () => {
     },
     CodeActionKind: { QuickFix: "quickfix" },
     FoldingRangeKind: { Comment: "comment" },
+    TextDocumentChangeReason: { Undo: 1, Redo: 2 },
     Position,
     Range,
     Diagnostic,
@@ -281,7 +292,8 @@ const panelFor = (): TestPanel => {
     },
     reveal: vi.fn(),
     dispose: vi.fn(),
-    onDidDispose: vi.fn()
+    onDidDispose: vi.fn(),
+    onDidChangeViewState: vi.fn()
   } as TestPanel;
   panel.webview.onDidReceiveMessage.mockImplementation((handler: (message: unknown) => Promise<void>) => {
     (panel as TestPanel & { messageHandler: (message: unknown) => Promise<void> }).messageHandler = handler;
@@ -290,6 +302,10 @@ const panelFor = (): TestPanel => {
   panel.onDidDispose.mockImplementation((handler: () => void) => {
     (panel as TestPanel & { disposeHandler: () => void }).disposeHandler = handler;
     panel.dispose.mockImplementation(() => (panel as TestPanel & { disposeHandler: () => void }).disposeHandler?.());
+    return disposable();
+  });
+  panel.onDidChangeViewState.mockImplementation((handler: () => void) => {
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler = handler;
     return disposable();
   });
   mocks.panels.push(panel);
@@ -378,7 +394,7 @@ const setup = (
     mocks.documentOpenListeners.push(listener);
     return disposable();
   });
-  mocks.onDidChangeTextDocument.mockImplementation((listener: (event: { document: TestDocument }) => void) => {
+  mocks.onDidChangeTextDocument.mockImplementation((listener: (event: TestDocumentChangeEvent) => void) => {
     mocks.documentChangeListeners.push(listener);
     return disposable();
   });
@@ -390,8 +406,12 @@ const setup = (
   return context;
 };
 
-const emitDocumentChange = (document: TestDocument): void => {
-  for (const listener of mocks.documentChangeListeners) listener({ document });
+const emitDocumentChange = (
+  document: TestDocument,
+  reason?: number,
+  contentChanges: readonly unknown[] = [{}]
+): void => {
+  for (const listener of mocks.documentChangeListeners) listener({ document, reason, contentChanges });
 };
 
 const emitDocumentOpen = (document: TestDocument): void => {
@@ -431,6 +451,8 @@ afterEach(() => {
   mocks.codeActionRegistrations.length = 0;
   mocks.foldingRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
+  mocks.showTextDocument.mockReset();
+  mocks.executeCommand.mockReset();
   mocks.createWebviewPanel.mockReset();
   mocks.createDiagnosticCollection.mockReset();
   mocks.registerCompletionItemProvider.mockReset();
@@ -503,12 +525,306 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPoints" });
   });
 
+  it("routes Canvas Undo/Redo to the active Canvas webview", () => {
+    setup();
+    const panel = openPanelFor();
+
+    commandHandlerFor("nuinuiCAD.canvasUndo")?.();
+    commandHandlerFor("nuinuiCAD.canvasRedo")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "undo" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "redo" });
+  });
+
+  it.each(["undo", "redo"] as const)("uses the requested Canvas history direction when the native change has no explicit reason (%s)", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "setContext") return;
+      expect(command).toBe(direction);
+      document.version = 2;
+      document.setSourceText(`nui 4\n// native ${direction}\n`);
+      emitDocumentChange(document);
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
+      preserveFocus: false,
+      preview: false
+    }));
+    expect(mocks.executeCommand).toHaveBeenCalledWith(direction);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      documentVersion: 2,
+      reason: direction
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction,
+      status: "completed",
+      documentVersion: 2
+    });
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
+  it.each(["undo", "redo"] as const)("waits for a delayed native Canvas %s change event before completing history", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "setContext") return;
+      expect(command).toBe(direction);
+      document.version = 2;
+      document.setSourceText(`nui 4\n// native ${direction}\n`);
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasHistoryResult" }));
+    expect(panel.reveal).not.toHaveBeenCalled();
+
+    emitDocumentChange(document);
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      documentVersion: 2,
+      reason: direction
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction,
+      status: "completed",
+      documentVersion: 2
+    });
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
+  it.each(["undo", "redo"] as const)("treats native Canvas %s with no document version change as a completed no-op", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockResolvedValue(editor);
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+
+    expect(mocks.executeCommand).toHaveBeenCalledWith(direction);
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument" }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction,
+      status: "completed",
+      documentVersion: 1
+    });
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
+  it("restores the Canvas panel when native history fails after source focus is transferred", async () => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      return editor;
+    });
+    panel.reveal.mockImplementation(() => {
+      panel.active = true;
+    });
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "setContext") return;
+      throw new Error("native history failed");
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 1
+    });
+
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith("setContext", "nuinuiCAD.canvasHistoryHandoff", false);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument" }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction: "undo",
+      status: "failed",
+      documentVersion: 1
+    });
+
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      false
+    ));
+  });
+
+  it("resyncs and never executes native history for a stale Canvas document version", async () => {
+    setup();
+    const panel = openPanelFor();
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "redo",
+      expectedDocumentVersion: 99
+    });
+
+    expect(mocks.executeCommand).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "replaceTextDocument",
+      documentVersion: 1
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction: "redo",
+      status: "resynced",
+      documentVersion: 1
+    });
+  });
+
   it("fails safely when no Canvas webview is active", () => {
     setup();
     const panel = openPanelFor();
     panel.active = false;
 
     commandHandlerFor("nuinuiCAD.fitDrawing")?.();
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
+  });
+
+  it.each(["undo", "redo"] as const)("routes a second Canvas %s through the handoff session while native history is in flight", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    let resolveNativeHistory!: () => void;
+    const nativeHistory = new Promise<void>((resolve) => {
+      resolveNativeHistory = resolve;
+    });
+    const historyCommand = direction === "undo" ? "nuinuiCAD.canvasUndo" : "nuinuiCAD.canvasRedo";
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      return editor;
+    });
+    panel.reveal.mockImplementation(() => {
+      panel.active = true;
+    });
+    mocks.executeCommand.mockImplementation((command: string) => {
+      if (command === "setContext") return Promise.resolve();
+      if (command === direction) return nativeHistory;
+      return Promise.resolve();
+    });
+
+    const firstRequest = messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(direction));
+
+    const setContextTrueCall = mocks.executeCommand.mock.calls.find(([command, key, enabled]) =>
+      command === "setContext" && key === "nuinuiCAD.canvasHistoryHandoff" && enabled === true
+    );
+    expect(setContextTrueCall).toBeDefined();
+    const setContextTrueCallIndex = mocks.executeCommand.mock.calls.indexOf(setContextTrueCall!);
+    expect(mocks.executeCommand.mock.invocationCallOrder[setContextTrueCallIndex]).toBeLessThan(mocks.showTextDocument.mock.invocationCallOrder[0]!);
+
+    commandHandlerFor(historyCommand)?.();
+
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: direction });
+
+    mocks.showErrorMessage.mockClear();
+    panel.webview.postMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.fitDrawing")?.();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
+
+    resolveNativeHistory();
+    await firstRequest;
+
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith("setContext", "nuinuiCAD.canvasHistoryHandoff", false);
+
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      false
+    ));
+  });
+
+  it("clears the Canvas history handoff context when its session is disposed", async () => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    let resolveNativeHistory!: () => void;
+    const nativeHistory = new Promise<void>((resolve) => {
+      resolveNativeHistory = resolve;
+    });
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      return editor;
+    });
+    mocks.executeCommand.mockImplementation((command: string) => {
+      if (command === "setContext") return Promise.resolve();
+      if (command === "undo") return nativeHistory;
+      return Promise.resolve();
+    });
+
+    const firstRequest = messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 1
+    });
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      true
+    ));
+
+    panel.dispose();
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      false
+    ));
+
+    resolveNativeHistory();
+    await firstRequest;
+  });
+
+  it.each(["nuinuiCAD.canvasUndo", "nuinuiCAD.canvasRedo"])("rejects %s when no Canvas is active and no history handoff exists", (command) => {
+    setup();
+    const panel = openPanelFor();
+    panel.active = false;
+
+    commandHandlerFor(command)?.();
 
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
       "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
@@ -625,7 +941,7 @@ describe("VS Code production document lifecycle", () => {
 
     documentB.version = 2;
     documentB.setSourceText("nui 4\n// panel B change\n");
-    for (const listener of mocks.documentChangeListeners) listener({ document: documentB });
+    emitDocumentChange(documentB);
 
     expect(panelB.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "commitText",
@@ -857,6 +1173,39 @@ describe("VS Code production document lifecycle", () => {
     editor.document.setSourceText("nui 4\n// committed\n");
     emitDocumentChange(editor.document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
+  });
+
+  it("does not forward non-content TextDocument changes during a Canvas commit", async () => {
+    const preDrag = "nui 4\n// pre-drag\n";
+    const postDrag = "nui 4\n// post-drag\n";
+    const document = documentFor("/tmp/drag.nui", "file:///tmp/drag.nui", preDrag);
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
+      callback(editor.editBuilder);
+      emitDocumentChange(document, undefined, []);
+      document.version = 2;
+      document.setSourceText(postDrag);
+      emitDocumentChange(document, undefined, [{ text: postDrag }]);
+      return true;
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: postDrag,
+      expectedDocumentVersion: 1,
+      mutationKind: "reset"
+    });
+
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "commitText")).toEqual([
+      [{
+        type: "commitText",
+        sourceText: postDrag,
+        documentVersion: 2,
+        reason: "edit"
+      }]
+    ]);
   });
 });
 

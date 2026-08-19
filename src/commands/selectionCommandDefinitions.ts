@@ -233,48 +233,48 @@ export const selectionCommandDefinitions = {
   selectElement: {
     id: "selectElement",
     label: "要素を選択",
-    run: (context) => {
+    run: (context?) => {
       if (!context?.elementId) return;
-      selectElement(context.elementId, context.selectionMode);
+      selectElement(context.elementId, context.selectionMode, context.recordSelectionHistory);
     }
   },
   clearCanvasSelection: {
     id: "clearCanvasSelection",
     label: "キャンバス選択を解除",
     palette: { order: 25.25, keywords: ["clear", "selection", "canvas", "選択解除", "キャンバス"] },
-    run: () => clearCanvasSelection()
+    run: (context?) => clearCanvasSelection(context?.recordSelectionHistory)
   },
   selectAllElements: {
     id: "selectAllElements",
     label: "すべての要素を選択",
     palette: { order: 25.5, keywords: ["select", "select all", "all", "全選択", "すべて", "要素"] },
-    run: () => selectAllElements()
+    run: (context?) => selectAllElements(context?.recordSelectionHistory)
   },
   selectNextElement: {
     id: "selectNextElement",
     label: "次の要素を選択",
     palette: { order: 26, keywords: ["select", "next", "次", "要素"] },
     shortcuts: [{ keys: "ArrowDown" }, { keys: "Shift+ArrowDown" }],
-    run: () => selectElementByOffset(1)
+    run: (context?) => selectElementByOffset(1, context?.recordSelectionHistory)
   },
   selectPreviousElement: {
     id: "selectPreviousElement",
     label: "前の要素を選択",
     palette: { order: 27, keywords: ["select", "previous", "前", "要素"] },
     shortcuts: [{ keys: "ArrowUp" }, { keys: "Shift+ArrowUp" }],
-    run: () => selectElementByOffset(-1)
+    run: (context?) => selectElementByOffset(-1, context?.recordSelectionHistory)
   },
   extendSelectionToNextElement: {
     id: "extendSelectionToNextElement",
     label: "次の要素まで選択",
     shortcuts: [{ keys: "Shift+ArrowDown" }],
-    run: () => extendSelectionByOffset(1)
+    run: (context?) => extendSelectionByOffset(1, context?.recordSelectionHistory)
   },
   extendSelectionToPreviousElement: {
     id: "extendSelectionToPreviousElement",
     label: "前の要素まで選択",
     shortcuts: [{ keys: "Shift+ArrowUp" }],
-    run: () => extendSelectionByOffset(-1)
+    run: (context?) => extendSelectionByOffset(-1, context?.recordSelectionHistory)
   },
   moveSelectedElementUp: {
     id: "moveSelectedElementUp",

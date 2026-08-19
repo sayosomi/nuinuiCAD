@@ -366,6 +366,7 @@ describe("DrawingCanvas rendering", () => {
     });
 
     expect(hostAdapter.clearCanvasSelection).toHaveBeenCalledTimes(1);
+    expect(viewport).toBe(document.activeElement);
   });
 
   it("clears selection on Canvas Escape but leaves active pick interactions to their owner", () => {

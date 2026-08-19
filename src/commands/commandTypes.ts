@@ -159,6 +159,10 @@ export type CommandId =
   | "confirmCommandLineSession";
 
 export type CommandContext = {
+  /** VS Code Canvas opts into local element-selection history; Tauri leaves this unset. */
+  recordSelectionHistory?: boolean;
+  /** Host-aware Canvas Undo/Redo coordinator. The direct store path remains the Tauri fallback. */
+  canvasHistory?: (direction: "undo" | "redo") => void;
   focusCanvas?: () => void;
   focusSourceEditor?: () => void;
   focusElementSearch?: () => void;

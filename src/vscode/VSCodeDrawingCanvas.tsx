@@ -2,7 +2,10 @@ import type { RefObject } from "react";
 import { forwardRef, useEffect, useMemo } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
+import {
+  effectiveElements,
+  useCadDocumentStore
+} from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
 import { DrawingCanvas } from "../components/DrawingCanvas";
@@ -91,12 +94,18 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const commitGeometryCommand = useMemo(() => ({
       movePointElementByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["movePointElementByDelta"]>>[0]) => {
         const result = dragPreviewScheduler.dispatchCommit(action);
-        if (mutationWasApplied(result)) postCanonicalSourceText(useCadDocumentStore.getState().sourceText);
+        if (mutationWasApplied(result)) {
+          const sourceText = useCadDocumentStore.getState().sourceText;
+          postCanonicalSourceText(sourceText);
+        }
         return result;
       },
       moveBezierHandleByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["moveBezierHandleByDelta"]>>[0]) => {
         const result = dragPreviewScheduler.dispatchCommit(action);
-        if (mutationWasApplied(result)) postCanonicalSourceText(useCadDocumentStore.getState().sourceText);
+        if (mutationWasApplied(result)) {
+          const sourceText = useCadDocumentStore.getState().sourceText;
+          postCanonicalSourceText(sourceText);
+        }
         return result;
       }
     }), [dragPreviewScheduler, postCanonicalSourceText]);
@@ -137,8 +146,14 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       },
       panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
-      selectElement: (elementId, selectionMode) => dispatchCommand("selectElement", { elementId, selectionMode }),
-      clearCanvasSelection: () => dispatchCommand("clearCanvasSelection"),
+      selectElement: (elementId, selectionMode) => {
+        return dispatchCommand("selectElement", {
+          elementId,
+          selectionMode,
+          recordSelectionHistory: true
+        });
+      },
+      clearCanvasSelection: () => dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true }),
       movePointElementByDelta: (action) => action.commitMode === "preview"
         ? dragPreviewScheduler.dispatchPreview(action, evaluationState)
         : commitGeometryCommand.movePointElementByDelta(action),
