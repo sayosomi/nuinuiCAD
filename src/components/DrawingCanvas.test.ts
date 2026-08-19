@@ -346,7 +346,12 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
-  it("dispatches the shared clear command for a blank left click", () => {
+  it.each([
+    ["no modifier", {}],
+    ["Meta", { metaKey: true }],
+    ["Ctrl", { ctrlKey: true }],
+    ["Shift", { shiftKey: true }]
+  ])("keeps selection and focuses Canvas on a blank left click with %s", (_modifierLabel, modifiers) => {
     const hostAdapter = createFakeCanvasHostAdapter();
     const evaluation = evaluateElements(hostAdapter.elements);
     const view = render(createElement(DrawingCanvas, {
@@ -362,10 +367,12 @@ describe("DrawingCanvas rendering", () => {
       buttons: 1,
       clientX: 1,
       clientY: 1,
-      pointerId: 1
+      pointerId: 1,
+      ...modifiers
     });
 
-    expect(hostAdapter.clearCanvasSelection).toHaveBeenCalledTimes(1);
+    expect(hostAdapter.clearCanvasSelection).not.toHaveBeenCalled();
+    expect(viewport).toBe(document.activeElement);
   });
 
   it("clears selection on Canvas Escape but leaves active pick interactions to their owner", () => {
