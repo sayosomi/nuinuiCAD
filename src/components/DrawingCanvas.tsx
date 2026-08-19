@@ -735,6 +735,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     });
     if (!elementId) {
       focusCanvas();
+      hostAdapter.clearCanvasSelection();
       return;
     }
 
