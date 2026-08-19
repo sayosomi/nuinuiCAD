@@ -5,8 +5,6 @@ import {
   effectiveCompiledDocument,
   effectiveElements,
   effectiveEvaluationLimitIndex,
-  say48HistoryState,
-  say48SourceFingerprint,
   useCadDocumentStore
 } from "../state/cadDocumentStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
@@ -122,42 +120,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         latestHostDocumentVersionRef.current = message.documentVersion;
         if (message.reason === "undo" || message.reason === "redo") {
-          say48HistoryState("VSCodeApp incoming authoritative commitText before reconcile", useCadDocumentStore.getState(), {
-            reason: message.reason,
-            documentVersion: message.documentVersion,
-            authoritativeSource: {
-              fingerprint: say48SourceFingerprint(message.sourceText),
-              length: message.sourceText.length
-            }
-          });
           useCadDocumentStore.getState().reconcileAuthoritativeHistory(message.sourceText, message.reason);
-          say48HistoryState("VSCodeApp incoming authoritative commitText after reconcile", useCadDocumentStore.getState(), {
-            reason: message.reason,
-            documentVersion: message.documentVersion,
-            authoritativeSource: {
-              fingerprint: say48SourceFingerprint(message.sourceText),
-              length: message.sourceText.length
-            }
-          });
         } else {
-          say48HistoryState("VSCodeApp incoming ordinary commitText acknowledgement before", useCadDocumentStore.getState(), {
-            reason: message.reason,
-            documentVersion: message.documentVersion,
-            acknowledgedSource: {
-              fingerprint: say48SourceFingerprint(message.sourceText),
-              length: message.sourceText.length
-            }
-          });
           useCadDocumentStore.getState().commitText(message.sourceText, "editor", {
             cursorLineAtBurstStart: null
-          });
-          say48HistoryState("VSCodeApp incoming ordinary commitText acknowledgement after", useCadDocumentStore.getState(), {
-            reason: message.reason,
-            documentVersion: message.documentVersion,
-            acknowledgedSource: {
-              fingerprint: say48SourceFingerprint(message.sourceText),
-              length: message.sourceText.length
-            }
           });
         }
       } else if (message.type === "benchmarkConfig") {
@@ -192,15 +158,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           if (expectedDocumentVersion === null) return;
           const sourceUpdate = useCadDocumentStore.getState().sourceUpdate;
           const mutationKind = sourceUpdate.kind === "model-patch" ? "model-patch" : "reset";
-          say48HistoryState("VSCodeApp outgoing canvasCommit", useCadDocumentStore.getState(), {
-            expectedDocumentVersion,
-            mutationKind,
-            source: {
-              fingerprint: say48SourceFingerprint(sourceText),
-              length: sourceText.length
-            },
-            splices: sourceUpdate.kind === "model-patch" ? sourceUpdate.splices : undefined
-          });
           api.postMessage({
             type: "canvasCommit",
             sourceText,

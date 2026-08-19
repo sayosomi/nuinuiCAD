@@ -56,75 +56,6 @@ type DocumentSession = {
   } | null;
 };
 
-let say48HistorySequence = 0;
-
-const say48SourceFingerprint = (sourceText: string): string => {
-  let hash = 2166136261;
-  for (let index = 0; index < sourceText.length; index += 1) {
-    hash ^= sourceText.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `${sourceText.length}:${(hash >>> 0).toString(16).padStart(8, "0")}`;
-};
-
-const say48SerializeDetails = (details: Record<string, unknown>): string => {
-  const seen = new WeakSet<object>();
-  try {
-    return JSON.stringify(details, (_key, value) => {
-      if (typeof value === "bigint") return `${value}n`;
-      if (value !== null && typeof value === "object") {
-        if (seen.has(value)) return "[Circular]";
-        seen.add(value);
-      }
-      return value;
-    }) ?? "null";
-  } catch {
-    return "{\"serializationError\":\"unable to serialize diagnostic details\"}";
-  }
-};
-
-const say48HistoryLog = (
-  label: string,
-  document: vscode.TextDocument | undefined,
-  details: Record<string, unknown> = {}
-): void => {
-  const sequence = ++say48HistorySequence;
-  const timestamp = typeof performance !== "undefined"
-    ? performance.timeOrigin + performance.now()
-    : Date.now();
-  console.info(
-    `[SAY48-HISTORY] seq=${sequence} t=${timestamp.toFixed(3)} ${label} ${say48SerializeDetails({
-      ...(document
-        ? {
-            documentUri: document.uri.toString(),
-            fileName: document.fileName,
-            documentVersion: document.version
-          }
-        : {}),
-      ...details
-    })}`
-  );
-};
-
-const say48InFlightHistoryForLog = (inFlightHistory: DocumentSession["inFlightCanvasHistory"]) =>
-  inFlightHistory === null
-    ? null
-    : {
-        direction: inFlightHistory.direction,
-        expectedDocumentVersion: inFlightHistory.expectedDocumentVersion,
-        changeObserved: inFlightHistory.changeObserved,
-        commandCompleted: inFlightHistory.commandCompleted
-      };
-
-const say48RawDocumentChangeReason = (reason: vscode.TextDocumentChangeReason | undefined): string =>
-  reason === undefined
-    ? "undefined"
-    : reason === vscode.TextDocumentChangeReason.Undo
-      ? "Undo"
-      : reason === vscode.TextDocumentChangeReason.Redo
-        ? "Redo"
-        : `other(${String(reason)})`;
-
 const benchmarkConfigFromEnvironment = (): VscodeBenchmarkConfig | null => {
   const raw = process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   if (!raw) return null;
@@ -406,10 +337,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const completeCanvasHistory = (session: DocumentSession): void => {
     const inFlightHistory = session.inFlightCanvasHistory;
     if (!inFlightHistory) return;
-    say48HistoryLog("completeCanvasHistory start", session.document, {
-      direction: inFlightHistory.direction,
-      inFlightCanvasHistory: say48InFlightHistoryForLog(inFlightHistory)
-    });
     session.inFlightCanvasHistory = null;
     session.panel.reveal(vscode.ViewColumn.Beside, false);
     void session.panel.webview.postMessage({
@@ -418,11 +345,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
       status: "completed",
       documentVersion: session.document.version
     } satisfies ExtensionToVscodeMessage);
-    say48HistoryLog("canvasHistoryResult posted", session.document, {
-      direction: inFlightHistory.direction,
-      status: "completed",
-      documentVersion: session.document.version
-    });
   };
 
   const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
@@ -437,31 +359,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
     message: Extract<VscodeToExtensionMessage, { type: "canvasCommit" }>
   ): Promise<void> => {
     const matchingDocumentAvailable = isOpenDocument(session.document);
-    const matchingEditorAvailable = visibleEditorFor(session.document) !== undefined;
-    say48HistoryLog("canvasCommit received", session.document, {
-      expectedDocumentVersion: message.expectedDocumentVersion,
-      actualDocumentVersion: session.document.version,
-      mutationKind: message.mutationKind,
-      incomingSourceFingerprint: say48SourceFingerprint(message.sourceText),
-      matchingDocumentAvailable,
-      matchingEditorAvailable
-    });
 
     if (!matchingDocumentAvailable || session.document.version !== message.expectedDocumentVersion) {
-      say48HistoryLog("canvasCommit fail-closed", session.document, {
-        reason: !matchingDocumentAvailable ? "document closed" : "stale expected version",
-        expectedDocumentVersion: message.expectedDocumentVersion,
-        actualDocumentVersion: session.document.version
-      });
       resync(session);
       return;
     }
 
     const editor = visibleEditorFor(session.document);
     if (!editor) {
-      say48HistoryLog("canvasCommit fail-closed", session.document, {
-        reason: "visible editor missing"
-      });
       resync(session);
       return;
     }
@@ -470,40 +375,22 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const lineEdits: Array<{ range: vscode.Range; replacement: string }> = [];
     if (message.mutationKind === "model-patch") {
       if (!message.splices) {
-        say48HistoryLog("canvasCommit fail-closed", session.document, {
-          reason: "model patch splices missing"
-        });
         resync(session);
         return;
       }
       try {
         const patchedText = applyLineSplices(sourceText, message.splices);
         if (patchedText !== message.sourceText) {
-          say48HistoryLog("canvasCommit fail-closed", session.document, {
-            reason: "patch mismatch",
-            currentSourceFingerprint: say48SourceFingerprint(sourceText),
-            incomingSourceFingerprint: say48SourceFingerprint(message.sourceText)
-          });
           resync(session);
           return;
         }
         lineEdits.push(...message.splices.map((splice) => textEditForLineSplice(session.document, sourceText, splice)));
       } catch {
-        say48HistoryLog("canvasCommit fail-closed", session.document, {
-          reason: "patch application failed",
-          currentSourceFingerprint: say48SourceFingerprint(sourceText),
-          incomingSourceFingerprint: say48SourceFingerprint(message.sourceText)
-        });
         resync(session);
         return;
       }
     }
     let editResult: Thenable<boolean>;
-    say48HistoryLog("canvasCommit editor.edit start", session.document, {
-      documentVersionBeforeEdit: session.document.version,
-      currentSourceFingerprint: say48SourceFingerprint(sourceText),
-      targetSourceFingerprint: say48SourceFingerprint(message.sourceText)
-    });
     try {
       editResult = editor.edit((editBuilder) => {
         if (message.mutationKind === "model-patch") {
@@ -513,32 +400,16 @@ export const activate = (context: vscode.ExtensionContext): void => {
         editBuilder.replace(fullDocumentRange(session.document), message.sourceText);
       }, { undoStopBefore: true, undoStopAfter: true });
     } catch {
-      say48HistoryLog("canvasCommit editor.edit rejected", session.document, {
-        reason: "editor.edit invocation threw",
-        currentSourceFingerprint: say48SourceFingerprint(session.document.getText())
-      });
       resync(session);
       return;
     }
 
     try {
       const editCompleted = await editResult;
-      say48HistoryLog("canvasCommit editor.edit completed", session.document, {
-        returnedBoolean: editCompleted,
-        documentVersionAtCompletion: session.document.version,
-        currentSourceFingerprint: say48SourceFingerprint(session.document.getText())
-      });
       if (!editCompleted) {
-        say48HistoryLog("canvasCommit editor.edit rejected", session.document, {
-          reason: "editor.edit returned false"
-        });
         resync(session);
       }
     } catch {
-      say48HistoryLog("canvasCommit editor.edit rejected", session.document, {
-        reason: "editor.edit promise rejected",
-        currentSourceFingerprint: say48SourceFingerprint(session.document.getText())
-      });
       resync(session);
     }
   };
@@ -547,13 +418,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
     session: DocumentSession,
     message: Extract<VscodeToExtensionMessage, { type: "canvasHistoryRequest" }>
   ): Promise<void> => {
-    say48HistoryLog("canvasHistoryRequest received", session.document, {
-      requestedDirection: message.direction,
-      expectedDocumentVersion: message.expectedDocumentVersion,
-      actualDocumentVersion: session.document.version,
-      panelActive: session.panel.active,
-      sourceFingerprint: say48SourceFingerprint(session.document.getText())
-    });
     const postResult = (status: "completed" | "resynced" | "failed") => {
       void session.panel.webview.postMessage({
         type: "canvasHistoryResult",
@@ -561,20 +425,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
         status,
         documentVersion: session.document.version
       } satisfies ExtensionToVscodeMessage);
-      say48HistoryLog("canvasHistoryResult posted", session.document, {
-        direction: message.direction,
-        status,
-        documentVersion: session.document.version
-      });
     };
     let sourceEditorActivated = false;
-    const failClosed = (status: "resynced" | "failed", reason: string) => {
-      say48HistoryLog("canvasHistory fail-closed", session.document, {
-        reason,
-        status,
-        direction: message.direction,
-        inFlightCanvasHistory: say48InFlightHistoryForLog(session.inFlightCanvasHistory)
-      });
+    const failClosed = (status: "resynced" | "failed") => {
       session.inFlightCanvasHistory = null;
       resync(session);
       postResult(status);
@@ -586,21 +439,21 @@ export const activate = (context: vscode.ExtensionContext): void => {
     };
 
     if (!session.panel.active) {
-      failClosed("resynced", "panel inactive");
+      failClosed("resynced");
       return;
     }
     if (!isOpenDocument(session.document)) {
-      failClosed("resynced", "document closed");
+      failClosed("resynced");
       return;
     }
     if (session.document.version !== message.expectedDocumentVersion) {
-      failClosed("resynced", "stale expected version");
+      failClosed("resynced");
       return;
     }
 
     const editor = visibleEditorFor(session.document);
     if (!editor) {
-      failClosed("resynced", "visible editor missing");
+      failClosed("resynced");
       return;
     }
 
@@ -612,68 +465,28 @@ export const activate = (context: vscode.ExtensionContext): void => {
       commandCompleted: false
     };
     canvasHistoryHandoffSession = session;
-    say48HistoryLog("canvasHistory in-flight established", session.document, {
-      direction: message.direction,
-      expectedDocumentVersion: expectedVersion,
-      inFlightCanvasHistory: say48InFlightHistoryForLog(session.inFlightCanvasHistory)
-    });
-    let historyPhase: "handoff-context" | "source-editor-activation" | "native-history-command" = "handoff-context";
     try {
       await setCanvasHistoryHandoffContext(true);
       if (canvasHistoryHandoffSession !== session || sessions.get(session.key) !== session) return;
-      historyPhase = "source-editor-activation";
-      say48HistoryLog("canvasHistory source-editor activation start", session.document, {
-        direction: message.direction,
-        documentVersion: session.document.version
-      });
       await vscode.window.showTextDocument(session.document, {
         viewColumn: editor.viewColumn,
         preserveFocus: false,
         preview: false
       });
-      const activeEditor = vscode.window.activeTextEditor;
-      say48HistoryLog("canvasHistory source-editor activation completed", session.document, {
-        direction: message.direction,
-        activeDocumentUri: activeEditor?.document.uri.toString() ?? null,
-        activeFileName: activeEditor?.document.fileName ?? null,
-        activeDocumentVersion: activeEditor?.document.version ?? null
-      });
       sourceEditorActivated = true;
       const nativeHistoryCommand = message.direction === "undo" ? "undo" : "redo";
-      historyPhase = "native-history-command";
-      say48HistoryLog("native history command start", session.document, {
-        direction: message.direction,
-        command: nativeHistoryCommand,
-        documentVersion: session.document.version
-      });
       await vscode.commands.executeCommand(nativeHistoryCommand);
-      say48HistoryLog("native history command completed", session.document, {
-        direction: message.direction,
-        documentVersion: session.document.version,
-        inFlightCanvasHistory: say48InFlightHistoryForLog(session.inFlightCanvasHistory)
-      });
     } catch {
-      failClosed(
-        "failed",
-        historyPhase === "native-history-command"
-          ? "native history command failure"
-          : historyPhase === "source-editor-activation"
-            ? "source-editor activation failure"
-            : "history handoff context failure"
-      );
+      failClosed("failed");
       return;
     }
 
     const inFlightHistory = session.inFlightCanvasHistory;
     if (!inFlightHistory) return;
     inFlightHistory.commandCompleted = true;
-    say48HistoryLog("native history command state updated", session.document, {
-      direction: inFlightHistory.direction,
-      inFlightCanvasHistory: say48InFlightHistoryForLog(inFlightHistory)
-    });
 
     if (!isOpenDocument(session.document)) {
-      failClosed("resynced", "document closed");
+      failClosed("resynced");
       return;
     }
 
@@ -756,29 +569,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
           const effectiveReason = documentChangedDuringCanvasHistory
             ? inFlightHistory.direction
             : documentChangeReasonFor(event.reason);
-          say48HistoryLog("TextDocument change observed", event.document, {
-            previousOrInFlightExpectedDocumentVersion: inFlightHistory?.expectedDocumentVersion ?? null,
-            newDocumentVersion: event.document.version,
-            rawEventReason: say48RawDocumentChangeReason(event.reason),
-            inFlightCanvasHistoryExists: inFlightHistory !== null,
-            direction: inFlightHistory?.direction ?? null,
-            changeObserved: inFlightHistory?.changeObserved ?? null,
-            commandCompleted: inFlightHistory?.commandCompleted ?? null,
-            documentChangedDuringCanvasHistory,
-            effectiveReason,
-            sourceFingerprint: say48SourceFingerprint(sourceText)
-          });
           postDocumentText(
             panel,
             sourceText,
             event.document.version,
             effectiveReason
           );
-          say48HistoryLog("TextDocument change forwarded", event.document, {
-            documentVersion: event.document.version,
-            forwardedReason: effectiveReason,
-            sourceFingerprint: say48SourceFingerprint(sourceText)
-          });
           if (documentChangedDuringCanvasHistory && inFlightHistory.commandCompleted) {
             completeCanvasHistory(session);
           }

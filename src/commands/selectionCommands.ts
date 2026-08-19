@@ -24,11 +24,7 @@ import {
 } from "../model/groups";
 import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import { isValidPaletteColorId } from "../palette/palette";
-import {
-  say48HistoryState,
-  say48SelectionForLog,
-  useCadDocumentStore
-} from "../state/cadDocumentStore";
+import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
@@ -138,25 +134,13 @@ const clearTransientSelectionUi = () => {
 };
 
 const mutateCanvasSelection = (recordHistory: boolean, mutate: () => void) => {
-  const beforeState = useCadDocumentStore.getState();
   const before = {
     selectedElementId: useCadUiStore.getState().selectedElementId,
     selectedElementIds: [...useCadUiStore.getState().selectedElementIds],
     selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId
   };
-  say48HistoryState("mutateCanvasSelection before", beforeState, {
-    recordHistory,
-    previousSelection: say48SelectionForLog(before, beforeState.elements)
-  });
   mutate();
-  say48HistoryState("mutateCanvasSelection after UI mutation", useCadDocumentStore.getState(), {
-    recordHistory,
-    previousSelection: say48SelectionForLog(before, useCadDocumentStore.getState().elements)
-  });
   if (recordHistory) useCadDocumentStore.getState().recordCanvasSelection(before);
-  if (recordHistory) {
-    say48HistoryState("mutateCanvasSelection after recordCanvasSelection", useCadDocumentStore.getState());
-  }
 };
 
 export const clearCanvasSelection = (recordHistory = false) => {

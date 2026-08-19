@@ -4,8 +4,6 @@ import { dispatchCommand } from "../commands/commands";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import {
   effectiveElements,
-  say48HistoryState,
-  say48SourceFingerprint,
   useCadDocumentStore
 } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -95,43 +93,17 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
 
     const commitGeometryCommand = useMemo(() => ({
       movePointElementByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["movePointElementByDelta"]>>[0]) => {
-        say48HistoryState("VSCodeDrawingCanvas committed movePointElementByDelta before dispatchCommit", useCadDocumentStore.getState(), {
-          action
-        });
         const result = dragPreviewScheduler.dispatchCommit(action);
-        say48HistoryState("VSCodeDrawingCanvas committed movePointElementByDelta after dispatchCommit", useCadDocumentStore.getState(), {
-          action,
-          result
-        });
         if (mutationWasApplied(result)) {
           const sourceText = useCadDocumentStore.getState().sourceText;
-          say48HistoryState("VSCodeDrawingCanvas before postCanonicalSourceText", useCadDocumentStore.getState(), {
-            source: {
-              fingerprint: say48SourceFingerprint(sourceText),
-              length: sourceText.length
-            }
-          });
           postCanonicalSourceText(sourceText);
         }
         return result;
       },
       moveBezierHandleByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["moveBezierHandleByDelta"]>>[0]) => {
-        say48HistoryState("VSCodeDrawingCanvas committed moveBezierHandleByDelta before dispatchCommit", useCadDocumentStore.getState(), {
-          action
-        });
         const result = dragPreviewScheduler.dispatchCommit(action);
-        say48HistoryState("VSCodeDrawingCanvas committed moveBezierHandleByDelta after dispatchCommit", useCadDocumentStore.getState(), {
-          action,
-          result
-        });
         if (mutationWasApplied(result)) {
           const sourceText = useCadDocumentStore.getState().sourceText;
-          say48HistoryState("VSCodeDrawingCanvas before postCanonicalSourceText", useCadDocumentStore.getState(), {
-            source: {
-              fingerprint: say48SourceFingerprint(sourceText),
-              length: sourceText.length
-            }
-          });
           postCanonicalSourceText(sourceText);
         }
         return result;
@@ -175,23 +147,11 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
       selectElement: (elementId, selectionMode) => {
-        say48HistoryState("VSCodeDrawingCanvas selectElement before dispatch", useCadDocumentStore.getState(), {
-          elementId,
-          elementName: useCadDocumentStore.getState().elements.find((element) => element.id === elementId)?.name ?? null,
-          selectionMode
-        });
-        const result = dispatchCommand("selectElement", {
+        return dispatchCommand("selectElement", {
           elementId,
           selectionMode,
           recordSelectionHistory: true
         });
-        say48HistoryState("VSCodeDrawingCanvas selectElement after dispatch", useCadDocumentStore.getState(), {
-          elementId,
-          elementName: useCadDocumentStore.getState().elements.find((element) => element.id === elementId)?.name ?? null,
-          selectionMode,
-          result
-        });
-        return result;
       },
       clearCanvasSelection: () => dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true }),
       movePointElementByDelta: (action) => action.commitMode === "preview"

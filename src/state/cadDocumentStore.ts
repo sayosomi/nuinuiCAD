@@ -439,27 +439,14 @@ const modelCommit = (
     assertReconcileSane(current.doc, value.sourceText, afterDocument);
   }
 
-  say48HistoryState("modelCommit before pre-drag TextSnapshot", state, {
-    previousSelection: say48SelectionForLog(previousSelection, current.elements),
-    currentSelectionPast: state.selectionPast.map((selection) => say48SelectionForLog(selection, current.elements)),
-    currentSelectionFuture: state.selectionFuture.map((selection) => say48SelectionForLog(selection, current.elements)),
-    outerPastTail: state.past.slice(-2).map((snapshot) => say48SnapshotForLog(snapshot, current.elements)),
-    outerFutureHead: state.future.slice(0, 2).map((snapshot) => say48SnapshotForLog(snapshot, current.elements))
-  });
-  const appendedSnapshot = textSnapshot(current, previousSelection, state.selectionPast, state.selectionFuture);
-  say48HistoryState("modelCommit exact pre-drag TextSnapshot appended", state, {
-    snapshot: say48SnapshotForLog(appendedSnapshot, current.elements),
-    checkpointSource: {
-      fingerprint: say48SourceFingerprint(appendedSnapshot.text),
-      length: appendedSnapshot.text.length
-    }
-  });
-
   return {
     state: {
       ...canonicalFields(value),
       ...clearedPreviewState(),
-      past: appendPast(state.past, appendedSnapshot),
+      past: appendPast(
+        state.past,
+        textSnapshot(current, previousSelection, state.selectionPast, state.selectionFuture)
+      ),
       future: [],
       selectionPast: [],
       selectionFuture: [],
@@ -974,27 +961,16 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     })),
   recordCanvasSelection: (previousSelection) => {
     const nextSelection = selectionSnapshot(useCadUiStore.getState());
-    say48HistoryState("recordCanvasSelection before", useCadDocumentStore.getState(), {
-      previousSelection: say48SelectionForLog(previousSelection, useCadDocumentStore.getState().elements),
-      nextSelection: say48SelectionForLog(nextSelection, useCadDocumentStore.getState().elements)
-    });
-    if (selectionEqual(previousSelection, nextSelection)) {
-      say48HistoryState("recordCanvasSelection after (no-op)", useCadDocumentStore.getState());
-      return;
-    }
+    if (selectionEqual(previousSelection, nextSelection)) return;
     set((state) => ({
       selectionPast: appendSelectionPast(state.selectionPast, previousSelection),
       selectionFuture: []
     }));
-    say48HistoryState("recordCanvasSelection after", useCadDocumentStore.getState());
   },
   undoCanvasSelection: () => {
-    say48HistoryState("undoCanvasSelection before", useCadDocumentStore.getState());
     let restoredSelection: SelectionSnapshot | null = null;
-    let selectedSnapshot: TextSnapshot["selection"] | null = null;
     set((state) => {
       const previous = state.selectionPast.at(-1);
-      selectedSnapshot = previous ? cloneSelection(previous) : null;
       if (!previous) return {};
       restoredSelection = cloneSelection(previous);
       return {
@@ -1002,27 +978,8 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         selectionFuture: [selectionSnapshot(useCadUiStore.getState()), ...state.selectionFuture]
       };
     });
-    if (!restoredSelection) {
-      say48HistoryState("undoCanvasSelection outcome", useCadDocumentStore.getState(), {
-        outcome: "no-selectionPast-entry",
-        selectedSnapshot: null
-      });
-      say48HistoryState("undoCanvasSelection after", useCadDocumentStore.getState());
-      return false;
-    }
-    say48HistoryState("undoCanvasSelection selected snapshot", useCadDocumentStore.getState(), {
-      outcome: "entry-found",
-      selectedSnapshot: say48SelectionForLog(selectedSnapshot!, useCadDocumentStore.getState().elements)
-    });
+    if (!restoredSelection) return false;
     useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, restoredSelection);
-    const resultingSelection = selectionSnapshot(useCadUiStore.getState());
-    const selectionWasNormalized = !selectionEqual(restoredSelection, resultingSelection);
-    say48HistoryState("undoCanvasSelection outcome", useCadDocumentStore.getState(), {
-      outcome: selectionWasNormalized ? "entry-applied-but-selection-normalized" : "entry-applied",
-      selectedSnapshot: say48SelectionForLog(restoredSelection, useCadDocumentStore.getState().elements),
-      resultingUiSelection: say48SelectionForLog(resultingSelection, useCadDocumentStore.getState().elements)
-    });
-    say48HistoryState("undoCanvasSelection after", useCadDocumentStore.getState());
     return true;
   },
   redoCanvasSelection: () => {
@@ -1041,15 +998,6 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     return true;
   },
   reconcileAuthoritativeHistory: (sourceText, direction) => {
-    say48HistoryState("reconcileAuthoritativeHistory before", useCadDocumentStore.getState(), {
-      direction,
-      authoritativeSource: say48SourceForLog(sourceText),
-      adjacentSnapshot: (() => {
-        const state = useCadDocumentStore.getState();
-        const adjacent = direction === "undo" ? state.past.at(-1) : state.future[0];
-        return adjacent ? say48SnapshotForLog(adjacent, state.elements) : null;
-      })()
-    });
     let outcome: "reconciled" | "reset" = "reset";
     const selectionResult: {
       value: {
@@ -1119,15 +1067,6 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       useCadUiStore.getState().applySelection(selectionResult.value.elements, selectionResult.value.selection);
       useCadUiStore.getState().setSourceCursorLine(selectionResult.value.cursorLine);
     }
-    say48HistoryState("reconcileAuthoritativeHistory after", useCadDocumentStore.getState(), {
-      outcome,
-      direction,
-      authoritativeSource: say48SourceForLog(sourceText),
-      restoredCurrentSelection: say48SelectionForLog(
-        selectionSnapshot(useCadUiStore.getState()),
-        useCadDocumentStore.getState().elements
-      )
-    });
     return outcome;
   },
   undo: () => {
@@ -1209,100 +1148,6 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     }
   }
 }));
-
-let say48HistorySequence = 0;
-
-export const say48SourceFingerprint = (sourceText: string): string => {
-  let hash = 2166136261;
-  for (let index = 0; index < sourceText.length; index += 1) {
-    hash ^= sourceText.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `${sourceText.length}:${(hash >>> 0).toString(16).padStart(8, "0")}`;
-};
-
-const say48SerializeDetails = (details: Record<string, unknown>): string => {
-  const seen = new WeakSet<object>();
-  try {
-    return JSON.stringify(details, (_key, value) => {
-      if (typeof value === "bigint") return `${value}n`;
-      if (value !== null && typeof value === "object") {
-        if (seen.has(value)) return "[Circular]";
-        seen.add(value);
-      }
-      return value;
-    }) ?? "null";
-  } catch {
-    return "{\"serializationError\":\"unable to serialize diagnostic details\"}";
-  }
-};
-
-export const say48HistoryLog = (label: string, details: Record<string, unknown> = {}) => {
-  const sequence = ++say48HistorySequence;
-  const timestamp = typeof performance !== "undefined"
-    ? performance.timeOrigin + performance.now()
-    : Date.now();
-  console.info(
-    `[SAY48-HISTORY] seq=${sequence} t=${timestamp.toFixed(3)} ${label} ${say48SerializeDetails(details)}`
-  );
-};
-
-const say48SourceForLog = (sourceText: string) => ({
-  fingerprint: say48SourceFingerprint(sourceText),
-  length: sourceText.length
-});
-
-export const say48SelectionForLog = (
-  selection: SelectionSnapshot,
-  elements: readonly CadElement[]
-) => {
-  const nameById = new Map(elements.map((element) => [element.id, element.name]));
-  const nameForId = (id: ElementId | null) => id === null ? null : nameById.get(id) ?? null;
-  return {
-    selectedElementId: selection.selectedElementId,
-    selectedElementName: nameForId(selection.selectedElementId),
-    selectedElementIds: [...selection.selectedElementIds],
-    selectedElementNames: selection.selectedElementIds.map(nameForId),
-    selectionAnchorElementId: selection.selectionAnchorElementId,
-    selectionAnchorElementName: nameForId(selection.selectionAnchorElementId)
-  };
-};
-
-export const say48SnapshotForLog = (
-  snapshot: TextSnapshot,
-  elements: readonly CadElement[]
-) => ({
-  source: {
-    fingerprint: say48SourceFingerprint(snapshot.text),
-    length: snapshot.text.length
-  },
-  selection: say48SelectionForLog(snapshot.selection, elements),
-  selectionPast: snapshot.selectionPast.map((selection) => say48SelectionForLog(selection, elements)),
-  selectionFuture: snapshot.selectionFuture.map((selection) => say48SelectionForLog(selection, elements)),
-  cursorLine: snapshot.cursorLine
-});
-
-export const say48HistoryState = (
-  label: string,
-  state: CadDocumentState = useCadDocumentStore.getState(),
-  details: Record<string, unknown> = {}
-) => {
-  say48HistoryLog(label, {
-    ...details,
-    source: {
-      fingerprint: say48SourceFingerprint(state.sourceText),
-      revision: state.sourceRevision,
-      length: state.sourceText.length
-    },
-    selection: say48SelectionForLog(selectionSnapshot(useCadUiStore.getState()), state.elements),
-    selectionPast: state.selectionPast.map((selection) => say48SelectionForLog(selection, state.elements)),
-    selectionFuture: state.selectionFuture.map((selection) => say48SelectionForLog(selection, state.elements)),
-    outerPastLength: state.past.length,
-    outerFutureLength: state.future.length,
-    outerPastTail: state.past.slice(-3).map((snapshot) => say48SnapshotForLog(snapshot, state.elements)),
-    outerFutureHead: state.future.slice(0, 3).map((snapshot) => say48SnapshotForLog(snapshot, state.elements))
-  });
-};
 
 useCadDocumentStore.subscribe((state, previous) => {
   if (state.doc.document.elements === previous.doc.document.elements) return;
