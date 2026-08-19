@@ -86,6 +86,7 @@ const mocks = vi.hoisted(() => ({
   completionRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
   definitionRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   renameRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
+  referenceRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
   foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   showErrorMessage: vi.fn(),
@@ -96,6 +97,7 @@ const mocks = vi.hoisted(() => ({
   registerCompletionItemProvider: vi.fn(),
   registerDefinitionProvider: vi.fn(),
   registerRenameProvider: vi.fn(),
+  registerReferenceProvider: vi.fn(),
   registerCodeActionsProvider: vi.fn(),
   registerFoldingRangeProvider: vi.fn(),
   registerCommand: vi.fn(),
@@ -181,6 +183,7 @@ vi.mock("vscode", () => {
       registerCompletionItemProvider: mocks.registerCompletionItemProvider,
       registerDefinitionProvider: mocks.registerDefinitionProvider,
       registerRenameProvider: mocks.registerRenameProvider,
+      registerReferenceProvider: mocks.registerReferenceProvider,
       registerCodeActionsProvider: mocks.registerCodeActionsProvider,
       registerFoldingRangeProvider: mocks.registerFoldingRangeProvider
     },
@@ -401,6 +404,11 @@ const setup = (
     mocks.renameRegistrations.push({ selector, provider, disposable: registration });
     return registration;
   });
+  mocks.registerReferenceProvider.mockImplementation((selector: unknown, provider: unknown) => {
+    const registration = disposable();
+    mocks.referenceRegistrations.push({ selector, provider, disposable: registration });
+    return registration;
+  });
   mocks.registerCodeActionsProvider.mockImplementation((
     selector: unknown,
     provider: unknown,
@@ -478,6 +486,7 @@ afterEach(() => {
   mocks.completionRegistrations.length = 0;
   mocks.definitionRegistrations.length = 0;
   mocks.renameRegistrations.length = 0;
+  mocks.referenceRegistrations.length = 0;
   mocks.codeActionRegistrations.length = 0;
   mocks.foldingRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
@@ -488,6 +497,7 @@ afterEach(() => {
   mocks.registerCompletionItemProvider.mockReset();
   mocks.registerDefinitionProvider.mockReset();
   mocks.registerRenameProvider.mockReset();
+  mocks.registerReferenceProvider.mockReset();
   mocks.registerCodeActionsProvider.mockReset();
   mocks.registerFoldingRangeProvider.mockReset();
   mocks.registerCommand.mockReset();
@@ -1871,6 +1881,18 @@ describe("VS Code native rename lifecycle", () => {
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
     expect(mocks.rustProcesses).toHaveLength(0);
     fromSource.mockRestore();
+  });
+});
+
+describe("VS Code native references lifecycle", () => {
+  it("registers the provider with the requested selector and lifecycle disposable", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.referenceRegistrations[0]!;
+
+    expect(mocks.referenceRegistrations).toHaveLength(1);
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.provider).toEqual(expect.objectContaining({ provideReferences: expect.any(Function) }));
+    expect(context.subscriptions).toContain(registration.disposable);
   });
 });
 
