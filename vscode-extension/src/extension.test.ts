@@ -472,6 +472,13 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.title).toBe("front.nui — nuinuiCAD");
   });
 
+  it("marks the Canvas Webview body with its host-specific layout class", () => {
+    setup();
+    const panel = openPanelFor();
+
+    expect(panel.webview.html).toContain('<body class="vscode-canvas-webview">');
+  });
+
   it("reuses and reveals the existing panel when the same document command runs twice", () => {
     setup();
     const panel = openPanelFor();
