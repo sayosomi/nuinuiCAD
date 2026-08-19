@@ -19,21 +19,13 @@
       {
         "command": "nuinuiCAD.canvasUndo",
         "key": "ctrl+z",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
-      },
-      {
-        "command": "nuinuiCAD.canvasUndo",
-        "key": "cmd+z",
+        "mac": "cmd+z",
         "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
       },
       {
         "command": "nuinuiCAD.canvasRedo",
         "key": "ctrl+y",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
-      },
-      {
-        "command": "nuinuiCAD.canvasRedo",
-        "key": "cmd+shift+z",
+        "mac": "cmd+shift+z",
         "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
       }
     ],
