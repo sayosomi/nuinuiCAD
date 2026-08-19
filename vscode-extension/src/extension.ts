@@ -89,7 +89,7 @@ const webviewHtml = (panel: vscode.WebviewPanel, context: vscode.ExtensionContex
     <link rel="stylesheet" href="${style}" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource}; script-src 'nonce-${contentNonce}';" />
   </head>
-  <body>
+  <body class="vscode-canvas-webview">
     <div id="root"></div>
     <script nonce="${contentNonce}" src="${script}"></script>
   </body>
