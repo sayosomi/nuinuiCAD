@@ -3,19 +3,27 @@ import type { CadElement } from "../types/geometry";
 import { runtimeIssueMessage } from "./runtimeIssueMessages";
 
 describe("runtimeIssueMessage", () => {
-  it("resolves a named geometry target and keeps the action text on the base element", () => {
+  it("resolves a named direct geometry target", () => {
+    expect(runtimeIssueMessage(
+      "evaluation-geometry-builtin-disabled",
+      { kind: "geometryBuiltinTarget", targetElementId: "element:direct" },
+      [{ id: "element:direct", name: "DirectOff" } as CadElement]
+    )).toBe("「DirectOff」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。");
+  });
+
+  it("resolves a named derived geometry target and keeps the action text on the base element", () => {
     expect(runtimeIssueMessage(
       "evaluation-geometry-builtin-disabled",
       { kind: "geometryBuiltinTarget", targetElementId: "element:shoulder", pointKey: "start" },
       [{ id: "element:shoulder", name: "肩線" } as CadElement]
-    )).toBe("組み込み関数のgeometry引数「肩線.start」は評価OFFのため利用できません。「肩線」を評価ONにするか、参照先を変更してください。");
+    )).toBe("「肩線.start」は評価OFFのためgeometry引数として利用できません。「肩線」を評価ONにするか、参照先を変更してください。");
   });
 
   it("falls back to an element ID without context, even when the target cannot be resolved", () => {
     expect(runtimeIssueMessage(
       "evaluation-geometry-builtin-disabled",
       { kind: "geometryBuiltinTarget", targetElementId: "element:missing" }
-    )).toBe("組み込み関数のgeometry引数「element:missing」は評価OFFのため利用できません。「element:missing」を評価ONにするか、参照先を変更してください。");
+    )).toBe("「element:missing」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。");
     expect(runtimeIssueMessage("evaluation-geometry-builtin-disabled")).toBe(
       "組み込み関数のgeometry引数がdisabledのため利用できません。"
     );

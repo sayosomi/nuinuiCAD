@@ -147,7 +147,7 @@ describe("typedBindingRuntimeInspectorPresentation: declaration-only (no set)", 
     } satisfies Pick<EvaluationResult, "computedScalarBindings" | "computedScalarBindingVersions">;
     const presentation = present(compiled, bindingId, evaluation);
     expect(presentation?.invalidMessage).toBe(
-      "組み込み関数のgeometry引数「Shoulder.start」は評価OFFのため利用できません。「Shoulder」を評価ONにするか、参照先を変更してください。"
+      "「Shoulder.start」は評価OFFのためgeometry引数として利用できません。「Shoulder」を評価ONにするか、参照先を変更してください。"
     );
   });
 });

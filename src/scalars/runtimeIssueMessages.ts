@@ -43,7 +43,8 @@ export const runtimeIssueMessage = (
     const target = elements?.find((element) => element.id === context.targetElementId);
     const base = target?.name && target.name.trim().length > 0 ? target.name : context.targetElementId;
     const displayTarget = context.pointKey !== undefined ? `${base}.${context.pointKey}` : base;
-    return `組み込み関数のgeometry引数「${displayTarget}」は評価OFFのため利用できません。「${base}」を評価ONにするか、参照先を変更してください。`;
+    const repairAction = context.pointKey !== undefined ? `「${base}」を評価ONに` : "評価ONに";
+    return `「${displayTarget}」は評価OFFのためgeometry引数として利用できません。${repairAction}するか、参照先を変更してください。`;
   }
   return RUNTIME_ISSUE_MESSAGES[issueCode] ?? "実行時エラーが発生しました。";
 };

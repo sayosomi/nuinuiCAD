@@ -153,13 +153,13 @@ describe("runtimeScalarDiagnostics", () => {
       baseInput(compiled, new Map([[bindingId, evaluation]]), FRESH, [{ id: "target-id", name: "Shoulder" } as CadElement])
     );
     expect(namedDiagnostics[0]?.message).toBe(
-      "組み込み関数のgeometry引数「Shoulder」は評価OFFのため利用できません。「Shoulder」を評価ONにするか、参照先を変更してください。"
+      "「Shoulder」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。"
     );
     const fallbackDiagnostics = runtimeScalarDiagnostics(
       baseInput(compiled, new Map([[bindingId, evaluation]]))
     );
     expect(fallbackDiagnostics[0]?.message).toBe(
-      "組み込み関数のgeometry引数「target-id」は評価OFFのため利用できません。「target-id」を評価ONにするか、参照先を変更してください。"
+      "「target-id」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。"
     );
   });
 });
