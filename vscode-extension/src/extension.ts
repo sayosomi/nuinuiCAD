@@ -410,7 +410,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         viewColumn: visibleEditor?.viewColumn ?? vscode.ViewColumn.Beside,
         preserveFocus: false,
         preview: false,
-        selection: range
+        selection: new vscode.Range(range.start, range.start)
       });
     } catch {
       return;
@@ -422,7 +422,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
       return;
     }
     if (session.document.version !== message.documentVersion) return;
-    editor.selection = new vscode.Selection(range.start, range.start);
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
     clearCanvasHistoryHandoff(session);
   };

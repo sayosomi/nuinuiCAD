@@ -1452,11 +1452,19 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await historyRequest;
   });
 
-  it("leaves a collapsed Rename-capable caret after named multiline Canvas navigation", async () => {
+  it("establishes the main-thread Rename caret through showTextDocument for named Canvas navigation", async () => {
     const source = [
       "nui 4",
-      "point A = coordinate(x: 0, y: 0)",
-      "point B = coordinate(x: 10, y: 0)",
+      "point A = coordinate(",
+      "  x: 0,",
+      "  y: 0",
+      ")",
+      "",
+      "point B = coordinate(",
+      "  x: 100,",
+      "  y: 0",
+      ")",
+      "",
       "line BaseLine = segment(",
       "  start: @A,",
       "  end: @B",
@@ -1471,7 +1479,18 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     const request = panel.webview.postMessage.mock.calls.find(([message]) => message?.type === "canvasSourceDefinitionRequest")?.[0] as { requestId: number };
     expect(request).toBeDefined();
 
-    mocks.showTextDocument.mockResolvedValue(editor);
+    let mainThreadPosition: MockPosition | null = null;
+    mocks.showTextDocument.mockImplementation(async (
+      _document: TestDocument,
+      options: { selection?: { start: MockPosition; end: MockPosition } }
+    ) => {
+      const selection = options.selection;
+      expect(selection).toBeDefined();
+      mainThreadPosition = selection!.end;
+      panel.active = false;
+      mocks.activeTextEditor = editor;
+      return editor;
+    });
     const identifierFrom = source.indexOf("BaseLine");
     const identifierTo = identifierFrom + "BaseLine".length;
     const identifierStart = document.positionAt(identifierFrom);
@@ -1485,19 +1504,18 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 
     expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
       preserveFocus: false,
-      selection: expect.objectContaining({ start: identifierStart, end: identifierEnd })
+      selection: expect.objectContaining({ start: identifierStart, end: identifierStart })
     }));
-    expect(editor.selection.start).toEqual(identifierStart);
-    expect(editor.selection.end).toEqual(identifierStart);
-    expect(editor.selection.active).toEqual(identifierStart);
-    expect(editor.selection.anchor).toEqual(identifierStart);
+    expect(mocks.activeTextEditor).toBe(editor);
+    expect(panel.active).toBe(false);
+    expect(mainThreadPosition).toEqual(identifierStart);
     const renameProvider = mocks.renameRegistrations[0]!.provider as {
       prepareRename: (document: TestDocument, position: { line: number; character: number }) => {
         range: { start: { line: number; character: number }; end: { line: number; character: number } };
         placeholder: string;
       };
     };
-    expect(renameProvider.prepareRename(document, editor.selection.active)).toMatchObject({
+    expect(renameProvider.prepareRename(document, mainThreadPosition!)).toMatchObject({
       range: { start: identifierStart, end: identifierEnd },
       placeholder: "BaseLine"
     });
@@ -1522,7 +1540,16 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     const request = panel.webview.postMessage.mock.calls.find(([message]) => message?.type === "canvasSourceDefinitionRequest")?.[0] as { requestId: number };
     expect(request).toBeDefined();
 
-    mocks.showTextDocument.mockResolvedValue(editor);
+    let mainThreadPosition: MockPosition | null = null;
+    mocks.showTextDocument.mockImplementation(async (
+      _document: TestDocument,
+      options: { selection?: { start: MockPosition; end: MockPosition } }
+    ) => {
+      const selection = options.selection;
+      expect(selection).toBeDefined();
+      mainThreadPosition = selection!.end;
+      return editor;
+    });
     await messageHandlerFor(panel)({
       type: "canvasSourceDefinitionResult",
       requestId: request.requestId,
@@ -1532,13 +1559,14 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 
     const keywordStart = document.positionAt(source.indexOf("point"));
     const keywordEnd = document.positionAt(source.indexOf("point") + "point".length);
-    expect(editor.selection.start).toEqual(keywordStart);
-    expect(editor.selection.end).toEqual(keywordStart);
-    expect(editor.selection.active).toEqual(keywordStart);
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
+      selection: expect.objectContaining({ start: keywordStart, end: keywordStart })
+    }));
+    expect(mainThreadPosition).toEqual(keywordStart);
     const renameProvider = mocks.renameRegistrations[0]!.provider as {
       prepareRename: (document: TestDocument, position: { line: number; character: number }) => unknown;
     };
-    expect(() => renameProvider.prepareRename(document, editor.selection.active)).toThrow(
+    expect(() => renameProvider.prepareRename(document, mainThreadPosition!)).toThrow(
       "Rename is not available at this position."
     );
     expect(mocks.executeCommand).toHaveBeenCalledWith("editor.unfold");
