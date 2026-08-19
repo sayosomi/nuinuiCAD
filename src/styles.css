@@ -21,6 +21,13 @@ body {
   min-height: 100vh;
 }
 
+body.vscode-canvas-webview {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
 button,
 input,
 select,

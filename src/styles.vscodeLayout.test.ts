@@ -22,5 +22,11 @@ describe("shared stylesheet host layout ownership", () => {
     const canvasWorkspace = ruleBody(".canvas-workspace");
     expect(canvasWorkspace).toMatch(/min-width:\s*0/);
     expect(canvasWorkspace).toMatch(/overflow:\s*hidden/);
+
+    const vscodeCanvasWebviewBody = ruleBody("body.vscode-canvas-webview");
+    expect(vscodeCanvasWebviewBody).toMatch(/margin:\s*0/);
+    expect(vscodeCanvasWebviewBody).toMatch(/padding:\s*0/);
+    expect(vscodeCanvasWebviewBody).toMatch(/min-width:\s*0/);
+    expect(vscodeCanvasWebviewBody).toMatch(/overflow:\s*hidden/);
   });
 });
