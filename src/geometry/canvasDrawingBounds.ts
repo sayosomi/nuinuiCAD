@@ -18,6 +18,8 @@ export type CanvasDrawingBounds = {
   maxY: number;
 };
 
+export type CanvasTextWidthMeasurer = (text: string, fontSize: number) => number | null;
+
 type MutableBounds = CanvasDrawingBounds | null;
 
 const includePoint = (bounds: MutableBounds, x: number, y: number): MutableBounds => {
@@ -125,17 +127,33 @@ type CanvasTextDrawableExtent = {
   height: number;
 };
 
+const TEXT_MEASUREMENT_FAILED = Symbol("text-measurement-failed");
+
 /**
- * Estimates the world-space rectangle covered by the CanvasOverlay text
- * presentation. One em per Unicode code point is conservative for the normal
- * ASCII, CJK, punctuation, and mixed text used in pattern documents.
+ * Resolves the world-space rectangle covered by the CanvasOverlay text
+ * presentation using the browser's measured line advances.
  */
-const canvasTextDrawableExtent = (text: Pick<ComputedText, "text" | "fontSize">): CanvasTextDrawableExtent | null => {
+const canvasTextDrawableExtent = (
+  text: Pick<ComputedText, "text" | "fontSize">,
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer
+): CanvasTextDrawableExtent | null | typeof TEXT_MEASUREMENT_FAILED => {
   if (typeof text.text !== "string" || !Number.isFinite(text.fontSize) || text.fontSize <= 0) return null;
+  if (!measureCanvasTextWidth) return TEXT_MEASUREMENT_FAILED;
 
   const lines = text.text.split(/\r?\n/);
-  const longestLineLength = Math.max(0, ...lines.map((line) => Array.from(line).length));
-  const width = longestLineLength * text.fontSize;
+  let width = 0;
+  for (const line of lines) {
+    let lineWidth: number | null;
+    try {
+      lineWidth = measureCanvasTextWidth(line, text.fontSize);
+    } catch {
+      return TEXT_MEASUREMENT_FAILED;
+    }
+    if (!(typeof lineWidth === "number" && Number.isFinite(lineWidth) && lineWidth >= 0)) {
+      return TEXT_MEASUREMENT_FAILED;
+    }
+    width = Math.max(width, lineWidth);
+  }
   const height = text.fontSize + Math.max(0, lines.length - 1) * text.fontSize * CANVAS_TEXT_LINE_ADVANCE;
   return Number.isFinite(width) && Number.isFinite(height) ? { width, height } : null;
 };
@@ -172,12 +190,14 @@ export const visibleCanvasDrawingBounds = ({
   elements,
   evaluation,
   visibilityProfiles,
-  activeVisibilityProfileId
+  activeVisibilityProfileId,
+  measureCanvasTextWidth
 }: {
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer;
 }): CanvasDrawingBounds | null => {
   const visibleIds = effectiveCanvasVisibleElementIds({
     elements,
@@ -187,6 +207,7 @@ export const visibleCanvasDrawingBounds = ({
   });
   const elementById = new Map(elements.map((element) => [element.id, element]));
   let bounds: MutableBounds = null;
+  let textMeasurementFailed = false;
 
   for (const geometry of evaluation.computedGeometry.values()) {
     if (!visibleIds.has(geometry.elementId)) continue;
@@ -212,7 +233,11 @@ export const visibleCanvasDrawingBounds = ({
       case "text":
         if (geometry.anchor) bounds = includePoint(bounds, geometry.anchor.x, geometry.anchor.y);
         if (geometry.anchor) {
-          const extent = canvasTextDrawableExtent(geometry);
+          const extent = canvasTextDrawableExtent(geometry, measureCanvasTextWidth);
+          if (extent === TEXT_MEASUREMENT_FAILED) {
+            textMeasurementFailed = true;
+            break;
+          }
           if (extent) {
             // CanvasOverlay maps world Y to screen Y, so the text rectangle
             // extends downward in screen space (toward smaller world Y).
@@ -227,5 +252,5 @@ export const visibleCanvasDrawingBounds = ({
     }
   }
 
-  return bounds;
+  return textMeasurementFailed ? null : bounds;
 };

@@ -48,7 +48,8 @@ const fitDrawing = (context?: CommandContext) => {
     elements,
     evaluation,
     visibilityProfiles: documentState.visibilityProfiles,
-    activeVisibilityProfileId: documentState.activeVisibilityProfileId
+    activeVisibilityProfileId: documentState.activeVisibilityProfileId,
+    measureCanvasTextWidth: context?.measureCanvasTextWidth
   });
   if (!bounds) return;
 

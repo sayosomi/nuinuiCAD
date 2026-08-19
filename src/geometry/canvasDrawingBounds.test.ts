@@ -143,21 +143,35 @@ describe("visibleCanvasDrawingBounds", () => {
       elements: [element("text", "text")],
       evaluation: evaluationFor([textGeometry()], ["text"]),
       visibilityProfiles: profiles,
-      activeVisibilityProfileId: profiles[0]!.id
+      activeVisibilityProfileId: profiles[0]!.id,
+      measureCanvasTextWidth: () => 5
     })).toEqual({ minX: 10, minY: 15, maxX: 15, maxY: 20 });
   });
 
-  it("expands the X bounds for long text using the longest rendered line", () => {
+  it("uses the supplied measured width for ASCII-heavy text", () => {
     const profiles = [defaultVisibilityProfile()];
     const bounds = visibleCanvasDrawingBounds({
       elements: [element("text", "text")],
-      evaluation: evaluationFor([textGeometry({ text: "W".repeat(24), fontSize: 4 })], ["text"]),
+      evaluation: evaluationFor([textGeometry({ text: "ABCDEFGHIJKLMNOPQRSTUVWXYZ", fontSize: 4 })], ["text"]),
       visibilityProfiles: profiles,
-      activeVisibilityProfileId: profiles[0]!.id
+      activeVisibilityProfileId: profiles[0]!.id,
+      measureCanvasTextWidth: () => 18
     });
 
-    expect(bounds).not.toBeNull();
-    expect(bounds!.maxX - bounds!.minX).toBeGreaterThanOrEqual(24 * 4);
+    expect(bounds).toEqual({ minX: 10, minY: 16, maxX: 28, maxY: 20 });
+  });
+
+  it("uses the longest measured line for mixed ASCII and CJK text", () => {
+    const profiles = [defaultVisibilityProfile()];
+    const bounds = visibleCanvasDrawingBounds({
+      elements: [element("text", "text")],
+      evaluation: evaluationFor([textGeometry({ text: "ASCII\n日本語", fontSize: 4 })], ["text"]),
+      visibilityProfiles: profiles,
+      activeVisibilityProfileId: profiles[0]!.id,
+      measureCanvasTextWidth: (line) => line === "ASCII" ? 12 : 27
+    });
+
+    expect(bounds).toEqual({ minX: 10, minY: 11.2, maxX: 37, maxY: 20 });
   });
 
   it("uses the CanvasOverlay line advance for multiline text", () => {
@@ -166,7 +180,8 @@ describe("visibleCanvasDrawingBounds", () => {
       elements: [element("text", "text")],
       evaluation: evaluationFor([textGeometry({ text: "first\nsecond\nthird", fontSize: 10 })], ["text"]),
       visibilityProfiles: profiles,
-      activeVisibilityProfileId: profiles[0]!.id
+      activeVisibilityProfileId: profiles[0]!.id,
+      measureCanvasTextWidth: (line) => ({ first: 40, second: 60, third: 50 })[line] ?? 0
     });
 
     expect(bounds).toEqual({ minX: 10, minY: -14, maxX: 70, maxY: 20 });
@@ -186,7 +201,8 @@ describe("visibleCanvasDrawingBounds", () => {
         textGeometry({ elementId: "disabled", x: 1000, y: -1000, text: "disabled" })
       ], ["visible", "hidden", "disabled"]),
       visibilityProfiles: profiles,
-      activeVisibilityProfileId: profiles[0]!.id
+      activeVisibilityProfileId: profiles[0]!.id,
+      measureCanvasTextWidth: () => 5
     });
 
     expect(bounds).toEqual({ minX: 0, minY: -5, maxX: 5, maxY: 0 });
@@ -211,5 +227,29 @@ describe("visibleCanvasDrawingBounds", () => {
 
     expect(bounds).toEqual({ minX: 3, minY: 4, maxX: 3, maxY: 4 });
     expect(Object.values(bounds ?? {}).every(Number.isFinite)).toBe(true);
+  });
+
+  it.each([null, Number.NaN, -1])("fails closed when visible text measurement returns %s", (measuredWidth) => {
+    const profiles = [defaultVisibilityProfile()];
+    const bounds = visibleCanvasDrawingBounds({
+      elements: [element("text", "text")],
+      evaluation: evaluationFor([textGeometry()], ["text"]),
+      visibilityProfiles: profiles,
+      activeVisibilityProfileId: profiles[0]!.id,
+      measureCanvasTextWidth: () => measuredWidth
+    });
+
+    expect(bounds).toBeNull();
+  });
+
+  it("fails closed when visible text has no measurement capability", () => {
+    const profiles = [defaultVisibilityProfile()];
+
+    expect(visibleCanvasDrawingBounds({
+      elements: [element("text", "text")],
+      evaluation: evaluationFor([textGeometry()], ["text"]),
+      visibilityProfiles: profiles,
+      activeVisibilityProfileId: profiles[0]!.id
+    })).toBeNull();
   });
 });

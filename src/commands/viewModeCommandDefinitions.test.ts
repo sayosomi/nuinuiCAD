@@ -21,6 +21,25 @@ const pointGeometry = (elementId: string, x: number, y: number): ComputedGeometr
   y
 });
 
+const textElement = (id = "text", text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"): CadElement => ({
+  id,
+  name: id,
+  type: "text",
+  activity: "visible",
+  text,
+  anchor: { mode: "coordinate", x: 10, y: 20 },
+  fontSize: 5
+});
+
+const textGeometry = (elementId = "text", text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"): ComputedGeometry => ({
+  kind: "text",
+  elementId,
+  name: elementId,
+  text,
+  anchor: { kind: "point", elementId: `${elementId}-anchor`, name: `${elementId}-anchor`, x: 10, y: 20 },
+  fontSize: 5
+});
+
 const evaluationFor = (geometry: ComputedGeometry[], visibleIds: string[]): EvaluationResult => ({
   computedGeometry: new Map(geometry.map((item) => [item.elementId, item])),
   errors: [],
@@ -78,5 +97,40 @@ describe("fitDrawing", () => {
     });
 
     expect(useCadUiStore.getState().canvasViewport).toEqual({ panX: -84, panY: -56, zoom: 7 });
+  });
+
+  it("fits a text-only drawing using measured width and 32px safe padding", () => {
+    useCadDocumentStore.setState({ elements: [textElement()] });
+    useCadUiStore.getState().setCanvasViewport({ panX: 12, panY: -8, zoom: 7 });
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation: evaluationFor([textGeometry()], ["text"]),
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect),
+      measureCanvasTextWidth: (line, fontSize) => {
+        expect(line).toBe("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+        expect(fontSize).toBe(5);
+        return 40;
+      }
+    });
+
+    expect(useCadUiStore.getState().canvasViewport).toEqual({
+      panX: -252,
+      panY: 147,
+      zoom: 8.4
+    });
+  });
+
+  it.each([null, Number.NaN, -1])("does not change the viewport when text measurement returns %s", (measuredWidth) => {
+    const initialViewport = { panX: 12, panY: -8, zoom: 7 };
+    useCadDocumentStore.setState({ elements: [textElement()] });
+    useCadUiStore.getState().setCanvasViewport(initialViewport);
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation: evaluationFor([textGeometry()], ["text"]),
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect),
+      measureCanvasTextWidth: () => measuredWidth
+    });
+
+    expect(useCadUiStore.getState().canvasViewport).toEqual(initialViewport);
   });
 });

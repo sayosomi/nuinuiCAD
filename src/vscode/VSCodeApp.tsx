@@ -14,6 +14,7 @@ import { VscodeRustTransport } from "./vscodeRustTransport";
 import { isStaleHostDocumentVersion } from "./hostDocumentVersion";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
+import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -29,6 +30,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
+  const measureCanvasTextWidth = useMemo(
+    () => createCanvasTextWidthMeasurer(() =>
+      document.querySelector<HTMLElement>('[data-canvas-viewport="true"]')
+    ),
+    []
+  );
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
   const evaluationOptions = useMemo(
     () => buildEvaluationOptions({ compiledDocument: evaluationDocument, evaluationLimitIndex }),
@@ -56,7 +63,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       } else if (message.type === "canvasCommand") {
         dispatchCommand(message.commandId, {
           evaluation: evaluationRef.current,
-          getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null
+          getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
+          measureCanvasTextWidth
         });
       } else if (message.type === "replaceTextDocument") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
@@ -81,7 +89,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, rustTransport]);
+  }, [api, measureCanvasTextWidth, rustTransport]);
 
   const surfaceStyle = benchmarkConfig
     ? {

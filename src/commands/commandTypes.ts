@@ -6,6 +6,7 @@ import type {
   MeasurementPointSlot
 } from "../state/cadUiStore";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
 import type { ModuleSemanticCursorResolution } from "../editor/sourceEditorTypes";
@@ -183,6 +184,7 @@ export type CommandContext = {
   /** Cancels the deferred Canvas-to-Source-Editor focus handoff before replacement. */
   clearSourceEditorFocusReservation?: () => void;
   getCanvasViewportRect?: () => DOMRect | null;
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   elementId?: ElementId;
   insertionIndex?: number;
   targetParentGroupId?: ElementId | null;
