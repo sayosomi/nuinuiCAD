@@ -85,6 +85,35 @@ describe("queryDslReferences", () => {
     expect(slices(propertySource, property!.referenceRanges)).toEqual(["A", "A"]);
   });
 
+  it("keeps qualified root typed geometry-property references at path-segment identity", () => {
+    const source = [
+      "nui 4",
+      "group Outer {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "}",
+      "const first: number = @Outer::A.x",
+      "const second: number = @Outer::A.x"
+    ].join("\n");
+    const qualifiedStarts = [source.indexOf("@Outer::A.x"), source.indexOf("@Outer::A.x", source.indexOf("const second"))];
+    const a = queryAt(source, "A");
+    const outer = queryAt(source, "Outer");
+
+    expect(a).not.toBeNull();
+    expect(a!.referenceRanges).toEqual(qualifiedStarts.map((start) => ({
+      from: start + 1 + "Outer::".length,
+      to: start + 1 + "Outer::A".length
+    })));
+    expect(a!.referenceRanges.every((range) => source.slice(range.from, range.to) === "A")).toBe(true);
+    expect(a!.referenceRanges.some((range) => source.slice(range.from, range.to) === "Outer::A")).toBe(false);
+
+    expect(outer).not.toBeNull();
+    expect(outer!.referenceRanges).toEqual(qualifiedStarts.map((start) => ({
+      from: start + 1,
+      to: start + 1 + "Outer".length
+    })));
+    expect(outer!.referenceRanges.every((range) => source.slice(range.from, range.to) === "Outer")).toBe(true);
+  });
+
   it("uses BindingId identity and preserves typed shadowing", () => {
     const source = [
       "nui 4",

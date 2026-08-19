@@ -211,7 +211,7 @@ const addTypedOccurrences = (
       addExpression(statementIndex, statement.declaration.initializer);
       for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
         const identity = elementIdentity(compiled, reference.elementId);
-        if (identity) addPhysicalOccurrence(add, compiled, statementIndex, reference.elementNameSpan, identity, "reference");
+        if (identity) addQualifiedPathOccurrences(statementIndex, reference.elementNameSpan, identity);
       }
     }
   }
