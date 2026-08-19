@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { dispatchCommand } from "../commands/commands";
 import { clearCanvasSelection, selectElement } from "../commands/selectionCommands";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
@@ -12,6 +13,14 @@ const sourceFor = (x: number) => dslTextForElements([
   { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
   { id: "c", name: "C", type: "freePoint", activity: "visible", x: 20, y: 0 }
 ]);
+
+const sourceWithLine = [
+  "nui 4",
+  "point A = coordinate(x: 0, y: 0)",
+  "point B = coordinate(x: 10, y: 0)",
+  "point C = coordinate(x: 20, y: 0)",
+  "line AB = segment(start: @A, end: @B)"
+].join("\n");
 
 const reset = () => {
   useCadDocumentStore.setState(initialCadDocumentState());
@@ -106,6 +115,80 @@ describe("VS Code Canvas selection history", () => {
 
 describe("VS Code Canvas point-drag chronology", () => {
   beforeEach(reset);
+
+  it("captures the AB selection history in the real point-drag model checkpoint", () => {
+    useCadDocumentStore.getState().replaceTextDocument(sourceWithLine, {
+      currentFilePath: "/tmp/history.nui",
+      dirtySinceSave: false
+    });
+    const elements = useCadDocumentStore.getState().elements;
+    const pointC = elements.find((element) => element.name === "C");
+    const lineAB = elements.find((element) => element.name === "AB");
+    expect(pointC).toBeDefined();
+    expect(lineAB).toBeDefined();
+
+    selectElement(lineAB!.id, "replace", true);
+    selectElement(pointC!.id, "replace", true);
+
+    const preDragSource = useCadDocumentStore.getState().sourceText;
+    const moveResult = dispatchCommand("movePointElementByDelta", {
+      elementId: pointC!.id,
+      dx: 5,
+      dy: 0,
+      commitMode: "commit"
+    });
+    expect(moveResult).toEqual({ status: "applied" });
+
+    const afterModelCommit = useCadDocumentStore.getState();
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: pointC!.id,
+      selectedElementIds: [pointC!.id],
+      selectionAnchorElementId: pointC!.id
+    });
+    expect(afterModelCommit.selectionPast).toEqual([]);
+    const preDragSnapshot = afterModelCommit.past.at(-1);
+    expect(preDragSnapshot).toBeDefined();
+    expect(preDragSnapshot).toMatchObject({
+      text: preDragSource,
+      selection: {
+        selectedElementId: pointC!.id,
+        selectedElementIds: [pointC!.id],
+        selectionAnchorElementId: pointC!.id
+      }
+    });
+    expect(preDragSnapshot!.selectionPast.at(-1)).toMatchObject({
+      selectedElementId: lineAB!.id,
+      selectedElementIds: [lineAB!.id],
+      selectionAnchorElementId: lineAB!.id
+    });
+    const postDragSource = afterModelCommit.sourceText;
+
+    useCadDocumentStore.getState().commitText(postDragSource, "editor", {
+      cursorLineAtBurstStart: null
+    });
+    expect(useCadDocumentStore.getState().past.at(-1)?.selectionPast.at(-1)).toMatchObject({
+      selectedElementId: lineAB!.id,
+      selectedElementIds: [lineAB!.id],
+      selectionAnchorElementId: lineAB!.id
+    });
+
+    expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(preDragSource, "undo"))
+      .toBe("reconciled");
+    expect(useCadDocumentStore.getState().sourceText).toBe(preDragSource);
+    expect(useCadUiStore.getState().selectedElementId).toBe(pointC!.id);
+    expect(useCadDocumentStore.getState().selectionPast.at(-1)).toMatchObject({
+      selectedElementId: lineAB!.id,
+      selectedElementIds: [lineAB!.id],
+      selectionAnchorElementId: lineAB!.id
+    });
+
+    expect(useCadDocumentStore.getState().undoCanvasSelection()).toBe(true);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: lineAB!.id,
+      selectedElementIds: [lineAB!.id],
+      selectionAnchorElementId: lineAB!.id
+    });
+  });
 
   it("restores an unselected point's old selection before native source Redo", () => {
     const [a, b] = ids();
