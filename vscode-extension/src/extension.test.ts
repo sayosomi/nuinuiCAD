@@ -2,6 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "../../src/document/automationDocument";
 
 type MockPosition = { line: number; character: number };
+type MockSelection = {
+  anchor: MockPosition;
+  active: MockPosition;
+  start: MockPosition;
+  end: MockPosition;
+};
 
 type TestDocument = {
   fileName: string;
@@ -28,7 +34,7 @@ type TestDocumentChangeEvent = {
 
 type TestEditor = {
   document: TestDocument;
-  selection: { active: { line: number; character: number } };
+  selection: MockSelection;
   edit: ReturnType<typeof vi.fn>;
   editBuilder: { replace: ReturnType<typeof vi.fn> };
   revealRange?: ReturnType<typeof vi.fn>;
@@ -281,7 +287,12 @@ const editorFor = (document = documentFor()): TestEditor => {
   const editBuilder = { replace: vi.fn() };
   const editor = {
     document,
-    selection: { active: { line: 1, character: 0 } },
+    selection: {
+      anchor: { line: 1, character: 0 },
+      active: { line: 1, character: 0 },
+      start: { line: 1, character: 0 },
+      end: { line: 1, character: 0 }
+    },
     editBuilder,
     revealRange: vi.fn(),
     edit: vi.fn(async (callback: (builder: typeof editBuilder) => void) => {
@@ -1337,7 +1348,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     ].join("\n");
     const document = documentFor("/tmp/navigation-stale.nui", "file:///tmp/navigation-stale.nui", source);
     const editor = editorFor(document);
-    editor.selection.active = { line: 1, character: source.split("\n")[1]!.indexOf("A") };
+    const initialActive = { line: 1, character: source.split("\n")[1]!.indexOf("A") };
+    editor.selection.active = initialActive;
     setup(false, editor, [document]);
     const panel = openPanelFor(editor);
 
@@ -1353,6 +1365,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       range: { from: source.indexOf("A"), to: source.indexOf("A") + 1 }
     });
     expect(mocks.showTextDocument).not.toHaveBeenCalled();
+    expect(editor.selection.active).toEqual(initialActive);
 
     commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
     const noTargetRequest = panel.webview.postMessage.mock.calls
@@ -1365,6 +1378,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       range: null
     });
     expect(mocks.showTextDocument).not.toHaveBeenCalled();
+    expect(editor.selection.active).toEqual(initialActive);
 
     panel.webview.postMessage.mockClear();
     panel.reveal.mockClear();
@@ -1438,10 +1452,15 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await historyRequest;
   });
 
-  it("keeps the active cursor inside a named Canvas source range for immediate Rename", async () => {
+  it("leaves a collapsed Rename-capable caret after named multiline Canvas navigation", async () => {
     const source = [
       "nui 4",
-      "point BaseLine = coordinate(x: 0, y: 0)"
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line BaseLine = segment(",
+      "  start: @A,",
+      "  end: @B",
+      ")"
     ].join("\n");
     const document = documentFor("/tmp/go-to-source.nui", "file:///tmp/go-to-source.nui", source);
     const editor = editorFor(document);
@@ -1453,19 +1472,25 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     expect(request).toBeDefined();
 
     mocks.showTextDocument.mockResolvedValue(editor);
+    const identifierFrom = source.indexOf("BaseLine");
+    const identifierTo = identifierFrom + "BaseLine".length;
+    const identifierStart = document.positionAt(identifierFrom);
+    const identifierEnd = document.positionAt(identifierTo);
     await messageHandlerFor(panel)({
       type: "canvasSourceDefinitionResult",
       requestId: request.requestId,
       documentVersion: 1,
-      range: { from: source.indexOf("BaseLine"), to: source.indexOf("BaseLine") + "BaseLine".length }
+      range: { from: identifierFrom, to: identifierTo }
     });
 
-    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({ preserveFocus: false }));
-    expect(editor.selection).toMatchObject({
-      start: { line: 1, character: "point ".length },
-      end: { line: 1, character: "point BaseLine".length },
-      active: { line: 1, character: "point ".length }
-    });
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
+      preserveFocus: false,
+      selection: expect.objectContaining({ start: identifierStart, end: identifierEnd })
+    }));
+    expect(editor.selection.start).toEqual(identifierStart);
+    expect(editor.selection.end).toEqual(identifierStart);
+    expect(editor.selection.active).toEqual(identifierStart);
+    expect(editor.selection.anchor).toEqual(identifierStart);
     const renameProvider = mocks.renameRegistrations[0]!.provider as {
       prepareRename: (document: TestDocument, position: { line: number; character: number }) => {
         range: { start: { line: number; character: number }; end: { line: number; character: number } };
@@ -1473,15 +1498,14 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       };
     };
     expect(renameProvider.prepareRename(document, editor.selection.active)).toMatchObject({
-      range: {
-        start: { line: 1, character: "point ".length },
-        end: { line: 1, character: "point BaseLine".length }
-      },
+      range: { start: identifierStart, end: identifierEnd },
       placeholder: "BaseLine"
     });
     expect(mocks.executeCommand).toHaveBeenCalledWith("editor.unfold");
-    expect(editor.revealRange).toHaveBeenCalled();
-    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({ preserveFocus: false }));
+    expect(editor.revealRange).toHaveBeenCalledWith(
+      expect.objectContaining({ start: identifierStart, end: identifierEnd }),
+      1
+    );
   });
 
   it("keeps unnamed Canvas keyword navigation exact without adding Rename support", async () => {
@@ -1506,11 +1530,11 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       range: { from: source.indexOf("point"), to: source.indexOf("point") + "point".length }
     });
 
-    expect(editor.selection).toMatchObject({
-      start: { line: 1, character: 0 },
-      end: { line: 1, character: "point".length },
-      active: { line: 1, character: 0 }
-    });
+    const keywordStart = document.positionAt(source.indexOf("point"));
+    const keywordEnd = document.positionAt(source.indexOf("point") + "point".length);
+    expect(editor.selection.start).toEqual(keywordStart);
+    expect(editor.selection.end).toEqual(keywordStart);
+    expect(editor.selection.active).toEqual(keywordStart);
     const renameProvider = mocks.renameRegistrations[0]!.provider as {
       prepareRename: (document: TestDocument, position: { line: number; character: number }) => unknown;
     };
@@ -1518,7 +1542,10 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       "Rename is not available at this position."
     );
     expect(mocks.executeCommand).toHaveBeenCalledWith("editor.unfold");
-    expect(editor.revealRange).toHaveBeenCalled();
+    expect(editor.revealRange).toHaveBeenCalledWith(
+      expect.objectContaining({ start: keywordStart, end: keywordEnd }),
+      1
+    );
   });
 });
 
