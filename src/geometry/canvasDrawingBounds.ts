@@ -6,6 +6,7 @@ import type {
   ComputedArcLine,
   ComputedBezierSegment,
   ComputedOffsetLineSegment,
+  ComputedText,
   EvaluationResult,
   VisibilityProfile
 } from "../types/geometry";
@@ -117,6 +118,28 @@ const includeOffsetSegment = (bounds: MutableBounds, segment: ComputedOffsetLine
   return includeArc(bounds, segment);
 };
 
+const CANVAS_TEXT_LINE_ADVANCE = 1.2;
+
+type CanvasTextDrawableExtent = {
+  width: number;
+  height: number;
+};
+
+/**
+ * Estimates the world-space rectangle covered by the CanvasOverlay text
+ * presentation. One em per Unicode code point is conservative for the normal
+ * ASCII, CJK, punctuation, and mixed text used in pattern documents.
+ */
+const canvasTextDrawableExtent = (text: Pick<ComputedText, "text" | "fontSize">): CanvasTextDrawableExtent | null => {
+  if (typeof text.text !== "string" || !Number.isFinite(text.fontSize) || text.fontSize <= 0) return null;
+
+  const lines = text.text.split(/\r?\n/);
+  const longestLineLength = Math.max(0, ...lines.map((line) => Array.from(line).length));
+  const width = longestLineLength * text.fontSize;
+  const height = text.fontSize + Math.max(0, lines.length - 1) * text.fontSize * CANVAS_TEXT_LINE_ADVANCE;
+  return Number.isFinite(width) && Number.isFinite(height) ? { width, height } : null;
+};
+
 /**
  * Resolves the same activity/profile visibility set used by the production
  * Canvas overlay. Generated for-group geometry inherits its template's
@@ -188,6 +211,15 @@ export const visibleCanvasDrawingBounds = ({
         break;
       case "text":
         if (geometry.anchor) bounds = includePoint(bounds, geometry.anchor.x, geometry.anchor.y);
+        if (geometry.anchor) {
+          const extent = canvasTextDrawableExtent(geometry);
+          if (extent) {
+            // CanvasOverlay maps world Y to screen Y, so the text rectangle
+            // extends downward in screen space (toward smaller world Y).
+            bounds = includePoint(bounds, geometry.anchor.x, geometry.anchor.y - extent.height);
+            bounds = includePoint(bounds, geometry.anchor.x + extent.width, geometry.anchor.y);
+          }
+        }
         break;
       case "image":
         // Reference images are deliberately excluded from Fit Drawing.

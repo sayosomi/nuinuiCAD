@@ -17,6 +17,27 @@ const evaluationFor = (geometry: ComputedGeometry[], visibleIds: string[]): Eval
   effectiveVisibleElementIds: new Set(visibleIds)
 });
 
+const textGeometry = ({
+  elementId = "text",
+  text = "A",
+  x = 10,
+  y = 20,
+  fontSize = 5
+}: {
+  elementId?: string;
+  text?: string;
+  x?: number;
+  y?: number;
+  fontSize?: number;
+} = {}): ComputedGeometry => ({
+  kind: "text",
+  elementId,
+  name: elementId,
+  text,
+  anchor: { kind: "point", elementId: `${elementId}-anchor`, name: `${elementId}-anchor`, x, y },
+  fontSize
+});
+
 describe("visibleCanvasDrawingBounds", () => {
   it("uses actual cubic extrema and excludes hidden, disabled, and image geometry", () => {
     const curve: ComputedGeometry = {
@@ -113,5 +134,82 @@ describe("visibleCanvasDrawingBounds", () => {
       visibilityProfiles: profiles,
       activeVisibilityProfileId: profiles[0]!.id
     })).toEqual({ minX: 0, minY: 0, maxX: 10, maxY: 10 });
+  });
+
+  it("includes the drawable extent of visible text instead of only its anchor", () => {
+    const profiles = [defaultVisibilityProfile()];
+
+    expect(visibleCanvasDrawingBounds({
+      elements: [element("text", "text")],
+      evaluation: evaluationFor([textGeometry()], ["text"]),
+      visibilityProfiles: profiles,
+      activeVisibilityProfileId: profiles[0]!.id
+    })).toEqual({ minX: 10, minY: 15, maxX: 15, maxY: 20 });
+  });
+
+  it("expands the X bounds for long text using the longest rendered line", () => {
+    const profiles = [defaultVisibilityProfile()];
+    const bounds = visibleCanvasDrawingBounds({
+      elements: [element("text", "text")],
+      evaluation: evaluationFor([textGeometry({ text: "W".repeat(24), fontSize: 4 })], ["text"]),
+      visibilityProfiles: profiles,
+      activeVisibilityProfileId: profiles[0]!.id
+    });
+
+    expect(bounds).not.toBeNull();
+    expect(bounds!.maxX - bounds!.minX).toBeGreaterThanOrEqual(24 * 4);
+  });
+
+  it("uses the CanvasOverlay line advance for multiline text", () => {
+    const profiles = [defaultVisibilityProfile()];
+    const bounds = visibleCanvasDrawingBounds({
+      elements: [element("text", "text")],
+      evaluation: evaluationFor([textGeometry({ text: "first\nsecond\nthird", fontSize: 10 })], ["text"]),
+      visibilityProfiles: profiles,
+      activeVisibilityProfileId: profiles[0]!.id
+    });
+
+    expect(bounds).toEqual({ minX: 10, minY: -14, maxX: 70, maxY: 20 });
+  });
+
+  it("excludes hidden and disabled text from Fit Drawing bounds", () => {
+    const profiles = [defaultVisibilityProfile()];
+    const bounds = visibleCanvasDrawingBounds({
+      elements: [
+        element("visible", "text"),
+        element("hidden", "text", "hidden"),
+        element("disabled", "text", "disabled")
+      ],
+      evaluation: evaluationFor([
+        textGeometry({ elementId: "visible", x: 0, y: 0 }),
+        textGeometry({ elementId: "hidden", x: -1000, y: 1000, text: "hidden" }),
+        textGeometry({ elementId: "disabled", x: 1000, y: -1000, text: "disabled" })
+      ], ["visible", "hidden", "disabled"]),
+      visibilityProfiles: profiles,
+      activeVisibilityProfileId: profiles[0]!.id
+    });
+
+    expect(bounds).toEqual({ minX: 0, minY: -5, maxX: 5, maxY: 0 });
+  });
+
+  it("ignores malformed text geometry without producing non-finite bounds", () => {
+    const profiles = [defaultVisibilityProfile()];
+    const malformed = {
+      ...textGeometry({ elementId: "malformed" }),
+      anchor: { kind: "point", elementId: "malformed-anchor", name: "malformed-anchor", x: Number.NaN, y: 20 },
+      fontSize: Number.POSITIVE_INFINITY
+    } as ComputedGeometry;
+    const bounds = visibleCanvasDrawingBounds({
+      elements: [element("valid", "freePoint"), element("malformed", "text")],
+      evaluation: evaluationFor([
+        { kind: "point", elementId: "valid", name: "valid", x: 3, y: 4 },
+        malformed
+      ], ["valid", "malformed"]),
+      visibilityProfiles: profiles,
+      activeVisibilityProfileId: profiles[0]!.id
+    });
+
+    expect(bounds).toEqual({ minX: 3, minY: 4, maxX: 3, maxY: 4 });
+    expect(Object.values(bounds ?? {}).every(Number.isFinite)).toBe(true);
   });
 });
