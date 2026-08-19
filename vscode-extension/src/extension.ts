@@ -37,6 +37,7 @@ import {
 } from "./foldingProvider";
 import type {
   ExtensionToVscodeMessage,
+  VscodeCanvasCommandId,
   VscodeBenchmarkConfig,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
@@ -448,6 +449,15 @@ export const activate = (context: vscode.ExtensionContext): void => {
     });
   };
 
+  const executeCanvasCommand = (commandId: VscodeCanvasCommandId): void => {
+    const session = [...sessions.values()].find((candidate) => candidate.panel.active);
+    if (!session) {
+      void vscode.window.showErrorMessage("nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。");
+      return;
+    }
+    void session.panel.webview.postMessage({ type: "canvasCommand", commandId } satisfies ExtensionToVscodeMessage);
+  };
+
   const startBenchmark = (editor: vscode.TextEditor): void => {
     if (!benchmarkConfig || benchmarkStarted) return;
     benchmarkStarted = true;
@@ -472,6 +482,15 @@ export const activate = (context: vscode.ExtensionContext): void => {
     NUI_CHOICE_QUICK_FIX_APPLY_COMMAND,
     createNuiChoiceQuickFixApplyHandler(languageAnalysisSessionFor)
   );
+  const canvasCommandDisposables = [
+    ["nuinuiCAD.clearCanvasSelection", "clearCanvasSelection"],
+    ["nuinuiCAD.resetCanvasView", "resetCanvasView"],
+    ["nuinuiCAD.fitDrawing", "fitDrawing"],
+    ["nuinuiCAD.toggleCanvasElementNames", "toggleCanvasElementNames"],
+    ["nuinuiCAD.toggleCanvasPoints", "toggleCanvasPoints"]
+  ].map(([command, commandId]) => vscode.commands.registerCommand(command, () => {
+    executeCanvasCommand(commandId as VscodeCanvasCommandId);
+  }));
 
   const closeDocumentListener = vscode.workspace.onDidCloseTextDocument((document) => {
     const session = sessions.get(documentKey(document));
@@ -489,6 +508,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   context.subscriptions.push(
     command,
     choiceQuickFixApplyCommand,
+    ...canvasCommandDisposables,
     closeDocumentListener,
     disposeAllSessions,
     disposeRustProcess

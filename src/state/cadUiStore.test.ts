@@ -298,13 +298,54 @@ describe("cadUiStore element/binding selection mutual exclusion", () => {
     expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
   });
 
-  it("keeps reconcileSelectionWithElements' existing default-selection behavior while in elements mode", () => {
+  it("preserves a genuinely empty selection while in elements mode", () => {
     useCadUiStore.setState({ selectedElementId: null, selectedElementIds: [], selectionAnchorElementId: null });
     const elements = useCadDocumentStore.getState().elements;
 
     useCadUiStore.getState().reconcileSelectionWithElements(elements);
 
     expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "elements" });
-    expect(useCadUiStore.getState().selectedElementId).toBe(elements[0]?.id ?? null);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(useCadUiStore.getState().selectionAnchorElementId).toBeNull();
+  });
+
+  it("preserves typed-binding ownership when clearing element fields", () => {
+    const element = useCadDocumentStore.getState().elements[0]!;
+    useCadUiStore.getState().setSelectedElementId(element.id);
+    useCadUiStore.getState().setSelectedBindingId("binding:x");
+
+    useCadUiStore.getState().clearElementSelection();
+
+    expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "binding", bindingId: "binding:x" });
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+  });
+});
+
+describe("cadUiStore CAD Canvas zoom safety", () => {
+  beforeEach(() => {
+    useCadUiStore.setState(initialCadUiState());
+  });
+
+  it("allows normal CAD zoom above the historical product ceiling", () => {
+    useCadUiStore.getState().zoomCanvasViewportAt(100);
+
+    expect(useCadUiStore.getState().canvasViewport.zoom).toBe(100);
+  });
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "ignores invalid candidate zoom factor %s",
+    (zoomFactor) => {
+      useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor);
+
+      expect(useCadUiStore.getState().canvasViewport).toEqual(initialCadUiState().canvasViewport);
+    }
+  );
+
+  it("rejects invalid direct CAD viewport zoom values", () => {
+    useCadUiStore.getState().setCanvasViewport({ panX: 4, panY: 5, zoom: Number.NaN });
+
+    expect(useCadUiStore.getState().canvasViewport).toEqual(initialCadUiState().canvasViewport);
   });
 });

@@ -73,6 +73,8 @@ export type CanvasHostAdapter = {
   showCanvasElementNames: boolean;
   showCanvasPoints: boolean;
   showPrintPreviewWindow: boolean;
+  /** Whether the host wants the shared fixed Canvas controls/status chrome. */
+  renderFixedCanvasChrome?: boolean;
   activePointPickTarget: ActivePointPickTarget | null;
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;
@@ -88,6 +90,7 @@ export type CanvasHostAdapter = {
     anchor?: { x: number; y: number; width: number; height: number }
   ) => void;
   selectElement: (elementId: ElementId, selectionMode: CanvasSelectionMode) => unknown;
+  clearCanvasSelection: () => unknown;
   movePointElementByDelta: (action: CanvasPointDragAction) => unknown;
   moveBezierHandleByDelta: (action: CanvasBezierHandleDragAction) => unknown;
   applyPickedNumericReference: (numericReferenceExpression: string) => unknown;

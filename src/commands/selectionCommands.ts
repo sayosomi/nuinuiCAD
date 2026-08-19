@@ -133,6 +133,11 @@ const clearTransientSelectionUi = () => {
   useCadUiStore.getState().clearPickMode();
 };
 
+export const clearCanvasSelection = () => {
+  useCadUiStore.getState().clearElementSelection();
+  clearTransientSelectionUi();
+};
+
 export const selectElementByOffset = (offset: number) => {
   const { elements } = useCadDocumentStore.getState();
   const { selectedElementId } = useCadUiStore.getState();

@@ -231,6 +231,7 @@ const createFakeCanvasHostAdapter = (
     selectElement: vi.fn(),
     movePointElementByDelta: vi.fn(),
     moveBezierHandleByDelta: vi.fn(),
+    clearCanvasSelection: vi.fn(),
     applyPickedNumericReference: vi.fn(),
     applyNumericExpressionReference: vi.fn(),
     applyPickedLine: vi.fn(),
@@ -345,6 +346,73 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("dispatches the shared clear command for a blank left click", () => {
+    const hostAdapter = createFakeCanvasHostAdapter();
+    const evaluation = evaluateElements(hostAdapter.elements);
+    const view = render(createElement(DrawingCanvas, {
+      evaluation,
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter
+    }));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Missing canvas viewport");
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 1,
+      clientY: 1,
+      pointerId: 1
+    });
+
+    expect(hostAdapter.clearCanvasSelection).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears selection on Canvas Escape but leaves active pick interactions to their owner", () => {
+    const hostAdapter = createFakeCanvasHostAdapter();
+    const evaluation = evaluateElements(hostAdapter.elements);
+    const view = render(createElement(DrawingCanvas, {
+      evaluation,
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter
+    }));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Missing canvas viewport");
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: "Escape" });
+    expect(hostAdapter.clearCanvasSelection).toHaveBeenCalledTimes(1);
+
+    view.unmount();
+    const pickingAdapter = createFakeCanvasHostAdapter({
+      activePointPickTarget: { elementId: "target", parameterKey: "point" }
+    });
+    const pickingView = render(createElement(DrawingCanvas, {
+      evaluation,
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter: pickingAdapter
+    }));
+    const pickingViewport = pickingView.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!pickingViewport) throw new Error("Missing picking canvas viewport");
+    pickingViewport.focus();
+    fireEvent.keyDown(pickingViewport, { key: "Escape" });
+
+    expect(pickingAdapter.clearCanvasSelection).not.toHaveBeenCalled();
+  });
+
+  it("lets a host hide the shared fixed Canvas chrome", () => {
+    const hostAdapter = createFakeCanvasHostAdapter({ renderFixedCanvasChrome: false });
+    const view = render(createElement(DrawingCanvas, {
+      evaluation: evaluateElements(hostAdapter.elements),
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter
+    }));
+
+    expect(view.container.querySelector(".canvas-display-controls")).toBeNull();
+    expect(view.container.querySelector(".canvas-warning")).toBeNull();
+    expect(view.container.querySelector(".canvas-scale-overlay")).toBeNull();
+  });
+
   it("uses the host adapter for preview and commit actions with one drag base", () => {
     const hostAdapter = createFakeCanvasHostAdapter();
     const evaluation = evaluateElements(hostAdapter.elements);

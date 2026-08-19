@@ -5,6 +5,7 @@ import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettin
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { evaluationStateIsCurrentFor, useEvaluationEngine } from "../geometry/useEvaluationEngine";
+import { createCanvasTextWidthMeasurer } from "./canvasTextMeasurement";
 import { loadShortcutSettings } from "../keyboard/shortcutSettingsStorage";
 import {
   isSourceEditorDslKeyboardTarget,
@@ -161,6 +162,12 @@ export const AppLayout = () => {
   // element by a render || two (see elementParameterCandidateState). Reuse
   // the engine's own currency check rather than re-deriving it ad hoc.
   const evaluationIsCurrent = evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision);
+  const measureCanvasTextWidth = useMemo(
+    () => createCanvasTextWidthMeasurer(() =>
+      document.querySelector<HTMLElement>('[data-canvas-viewport="true"]')
+    ),
+    []
+  );
   const commandLineStep = currentStep(commandLineSession);
   const isMultiLinePicking = Boolean(activeLinePickTarget && (
     (activeLinePickTarget.elementId === COMMAND_LINE_PICK_TARGET_ID &&
@@ -203,8 +210,9 @@ export const AppLayout = () => {
     clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
     clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
+    measureCanvasTextWidth,
     evaluation
-  }), [evaluation]);
+  }), [evaluation, measureCanvasTextWidth]);
   const handleRenameElementConfirmed = useCallback((elementId: ElementId) => {
     sourceEditorRef.current?.jumpToElement(elementId);
     commandContext.focusSourceEditor?.();

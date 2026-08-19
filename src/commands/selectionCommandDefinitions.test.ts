@@ -40,3 +40,21 @@ describe("selection move commands", () => {
     );
   });
 });
+
+describe("Canvas selection commands", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+  });
+
+  it("clears single and multi-selection through the shared selection owner", () => {
+    const elements = useCadDocumentStore.getState().elements;
+    useCadUiStore.getState().setSelectedElementIds(elements.slice(0, 2).map((element) => element.id));
+
+    selectionCommandDefinitions.clearCanvasSelection.run();
+
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(useCadUiStore.getState().selectionAnchorElementId).toBeNull();
+  });
+});

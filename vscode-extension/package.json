@@ -19,6 +19,26 @@
       {
         "command": "nuinuiCAD.openCanvas",
         "title": "nuinuiCAD: Open Canvas"
+      },
+      {
+        "command": "nuinuiCAD.clearCanvasSelection",
+        "title": "nuinuiCAD: Clear Canvas Selection"
+      },
+      {
+        "command": "nuinuiCAD.resetCanvasView",
+        "title": "nuinuiCAD: Reset Canvas View"
+      },
+      {
+        "command": "nuinuiCAD.fitDrawing",
+        "title": "nuinuiCAD: Fit Drawing"
+      },
+      {
+        "command": "nuinuiCAD.toggleCanvasElementNames",
+        "title": "nuinuiCAD: Toggle Canvas Element Names"
+      },
+      {
+        "command": "nuinuiCAD.toggleCanvasPoints",
+        "title": "nuinuiCAD: Toggle Canvas Points"
       }
     ],
     "languages": [

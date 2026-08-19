@@ -3,7 +3,6 @@ import type { CommandRibbonSettings } from "../commandRibbons/commandRibbonSetti
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { ShortcutSettings } from "../keyboard/shortcutTypes";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
-import { sampleElements } from "../sampleData";
 import { useCadDocumentStore } from "./cadDocumentStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import type { CommandLineSession } from "../commands/commandLineSession";
@@ -161,7 +160,7 @@ const normalizedSelection = (
   const selectedElementId =
     selection.selectedElementId && existingIds.has(selection.selectedElementId)
       ? selection.selectedElementId
-      : selectedElementIds[0] ?? elements[0]?.id ?? null;
+      : selectedElementIds[0] ?? null;
   const normalizedIds =
     selectedElementId && !selectedElementIds.includes(selectedElementId)
       ? [...selectedElementIds, selectedElementId]
@@ -299,6 +298,8 @@ export type CadUiState = CadElementSelection & {
   setSelectedElementId: (id: ElementId | null) => void;
   setSelectedElementIds: (ids: ElementId[], primaryId?: ElementId | null) => void;
   setSelectedElementRange: (anchorId: ElementId, targetId: ElementId) => void;
+  /** Clears element fields while preserving a typed binding as the active subject. */
+  clearElementSelection: () => void;
   /** Selects a typed const/let binding as the current subject, clearing any active element selection. */
   setSelectedBindingId: (bindingId: BindingId) => void;
   setSourceCursorLine: (sourceCursorLine: number | null) => void;
@@ -366,14 +367,15 @@ export const initialCadUiState = (): Omit<
   | "setSelectedElementId"
   | "setSelectedElementIds"
   | "setSelectedElementRange"
+  | "clearElementSelection"
   | "setSelectedBindingId"
   | "setSourceCursorLine"
   | "applySelection"
   | "reconcileSelectionWithElements"
 > => ({
-  selectedElementId: sampleElements[0]?.id ?? null,
-  selectedElementIds: sampleElements[0] ? [sampleElements[0].id] : [],
-  selectionAnchorElementId: sampleElements[0]?.id ?? null,
+  selectedElementId: null,
+  selectedElementIds: [],
+  selectionAnchorElementId: null,
   selectionSubject: { kind: "elements" },
   sourceCursorLine: null,
   groupFoldById: new Map(),
@@ -418,8 +420,13 @@ export const initialCadUiState = (): Omit<
   referenceHelperPosition: null,
 });
 
-const clampCanvasZoom = (zoom: number) =>
-  Math.min(Math.max(zoom, MIN_CANVAS_ZOOM), MAX_CANVAS_ZOOM);
+const isFinitePositive = (value: number): boolean => Number.isFinite(value) && value > 0;
+
+const normalizeCanvasZoom = (zoom: number): number | null =>
+  isFinitePositive(zoom) ? zoom : null;
+
+const clampPrintCanvasZoom = (zoom: number) =>
+  Math.min(Math.max(Number.isFinite(zoom) ? zoom : DEFAULT_CANVAS_VIEWPORT.zoom, MIN_CANVAS_ZOOM), MAX_CANVAS_ZOOM);
 
 export const clampPrintPreviewZoom = (zoom: number) =>
   Math.min(Math.max(Number.isFinite(zoom) ? zoom : DEFAULT_PRINT_PREVIEW_WINDOW.zoom, MIN_PRINT_PREVIEW_ZOOM), MAX_PRINT_PREVIEW_ZOOM);
@@ -436,10 +443,11 @@ export const normalizePrintPreviewWindow = (window: PrintPreviewWindow): PrintPr
 const zoomViewportAt = (
   current: CanvasViewport,
   zoomFactor: number,
-  anchor?: { x: number; y: number; width: number; height: number }
+  anchor: { x: number; y: number; width: number; height: number } | undefined,
+  normalizeZoom: (zoom: number) => number | null
 ) => {
-  const nextZoom = clampCanvasZoom(current.zoom * zoomFactor);
-  if (nextZoom === current.zoom) return current;
+  const nextZoom = normalizeZoom(current.zoom * zoomFactor);
+  if (nextZoom === null || nextZoom === current.zoom) return current;
 
   if (!anchor) {
     return {
@@ -451,11 +459,14 @@ const zoomViewportAt = (
   const worldX = (anchor.x - anchor.width / 2 - current.panX) / current.zoom;
   const worldY = (anchor.height / 2 + current.panY - anchor.y) / current.zoom;
 
-  return {
+  const nextViewport = {
     zoom: nextZoom,
     panX: anchor.x - anchor.width / 2 - worldX * nextZoom,
     panY: anchor.y - anchor.height / 2 + worldY * nextZoom
   };
+  return Number.isFinite(nextViewport.panX) && Number.isFinite(nextViewport.panY)
+    ? nextViewport
+    : current;
 };
 
 export const useCadUiStore = create<CadUiState>((set, get) => ({
@@ -538,11 +549,11 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   setShowCommandPalette: (showCommandPalette) => set({ showCommandPalette }),
   setSelectedPrintPlacementId: (selectedPrintPlacementId) => set({ selectedPrintPlacementId }),
   setCanvasViewport: (canvasViewport) =>
-    set({
-      canvasViewport: {
-        ...canvasViewport,
-        zoom: clampCanvasZoom(canvasViewport.zoom)
+    set(() => {
+      if (!isFinitePositive(canvasViewport.zoom) || !Number.isFinite(canvasViewport.panX) || !Number.isFinite(canvasViewport.panY)) {
+        return {};
       }
+      return { canvasViewport };
     }),
   panCanvasViewport: (dx, dy) =>
     set((state) => ({
@@ -554,7 +565,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     })),
   zoomCanvasViewportAt: (zoomFactor, anchor) =>
     set((state) => {
-      const canvasViewport = zoomViewportAt(state.canvasViewport, zoomFactor, anchor);
+      const canvasViewport = zoomViewportAt(state.canvasViewport, zoomFactor, anchor, normalizeCanvasZoom);
       return canvasViewport === state.canvasViewport ? {} : { canvasViewport };
     }),
   resetCanvasViewport: () => set({ canvasViewport: DEFAULT_CANVAS_VIEWPORT }),
@@ -562,7 +573,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     set({
       printCanvasViewport: {
         ...printCanvasViewport,
-        zoom: clampCanvasZoom(printCanvasViewport.zoom)
+        zoom: clampPrintCanvasZoom(printCanvasViewport.zoom)
       }
     }),
   panPrintCanvasViewport: (dx, dy) =>
@@ -575,7 +586,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     })),
   zoomPrintCanvasViewportAt: (zoomFactor, anchor) =>
     set((state) => {
-      const printCanvasViewport = zoomViewportAt(state.printCanvasViewport, zoomFactor, anchor);
+      const printCanvasViewport = zoomViewportAt(state.printCanvasViewport, zoomFactor, anchor, clampPrintCanvasZoom);
       return printCanvasViewport === state.printCanvasViewport ? {} : { printCanvasViewport };
     }),
   resetPrintCanvasViewport: () => set({ printCanvasViewport: DEFAULT_CANVAS_VIEWPORT }),
@@ -675,10 +686,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   reconcileSelectionWithElements: (elements) =>
     set((state) =>
       // A typed binding is the active subject: element selection was deliberately
-      // cleared (setSelectedBindingId) && must stay cleared. normalizedSelection's
-      // own "default to elements[0]" fallback would otherwise silently repopulate
-      // selectedElementId on the very next document recompile (every keystroke),
-      // undoing that clear.
+      // cleared (setSelectedBindingId) && must stay cleared on document recompile.
       state.selectionSubject.kind === "binding"
         ? {}
         : normalizedSelection(elements, {
@@ -722,6 +730,15 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
         selectionSubject: { kind: "elements" }
       };
     }),
+  clearElementSelection: () =>
+    set((state) => ({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null,
+      selectionSubject: state.selectionSubject.kind === "binding"
+        ? state.selectionSubject
+        : { kind: "elements" }
+    })),
   setSelectedBindingId: (bindingId) =>
     set({
       selectionSubject: { kind: "binding", bindingId },
