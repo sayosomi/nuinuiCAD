@@ -149,4 +149,54 @@ describe("DSL Canvas navigation queries", () => {
     } as CompiledDslDocument;
     expect(queryDslCanvasSourceDefinition({ source: snapshot, compiled: unsafe, runtimeElementId: element.id })).toBeNull();
   });
+
+  it.each([
+    ["stale physicalSpan.sourceRevision", (revision: number, sourceLength: number) => ({ sourceRevision: revision, segments: [{ from: 0, to: Math.min(5, sourceLength) }] }), 1],
+    ["negative segment offset", () => ({ sourceRevision: 0, segments: [{ from: -1, to: 5 }] }), 0],
+    ["out-of-source segment offset", (...parameters: [number, number]) => ({ sourceRevision: 0, segments: [{ from: 0, to: parameters[1] + 1 }] }), 0],
+    ["inverted segment offset", () => ({ sourceRevision: 0, segments: [{ from: 8, to: 8 }] }), 0]
+  ] as const)("fails closed for %s", (_label, physicalSpanFor, revisionDelta) => {
+    const source = [
+      "nui 4",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Use = offset(from: @Base, dx: 1, dy: 0)"
+    ].join("\n");
+    const compiled = compiledFor(source);
+    const snapshot = snapshotFor(compiled);
+    const useIndex = compiled.statements.findIndex((statement) => statement.name === "Use");
+    const unsafe = {
+      ...compiled,
+      statements: compiled.statements.map((statement, statementIndex) => statementIndex === useIndex
+        ? {
+            ...statement,
+            physicalSpan: physicalSpanFor(snapshot.sourceRevision + revisionDelta, source.length)
+          }
+        : statement)
+    } as CompiledDslDocument;
+
+    expect(queryDslCanvasSourceTarget({
+      source: snapshot,
+      compiled: unsafe,
+      position: source.indexOf("Use")
+    })).toBeNull();
+  });
+
+  it("matches only real physical code segments in a multi-segment statement", () => {
+    const source = "nui 4\npoint Base = coordinate(x: 0, /* gap */ y: 0)";
+    const compiled = compiledFor(source);
+    const snapshot = snapshotFor(compiled);
+    const statement = compiled.statements.find((candidate) => candidate.name === "Base")!;
+    expect(statement.physicalSpan.segments.length).toBeGreaterThan(1);
+
+    const [first, second] = statement.physicalSpan.segments;
+    for (let position = first!.to; position < second!.from; position += 1) {
+      expect(queryDslCanvasSourceTarget({ source: snapshot, compiled, position })).toBeNull();
+    }
+    expect(queryDslCanvasSourceTarget({ source: snapshot, compiled, position: first!.from })).toEqual({
+      sourceStatementIndex: compiled.statements.indexOf(statement)
+    });
+    expect(queryDslCanvasSourceTarget({ source: snapshot, compiled, position: second!.from })).toEqual({
+      sourceStatementIndex: compiled.statements.indexOf(statement)
+    });
+  });
 });

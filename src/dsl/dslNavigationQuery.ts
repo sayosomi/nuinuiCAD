@@ -33,22 +33,38 @@ const sourceAndCompiledMatch = (
   return true;
 };
 
+const safePhysicalSegments = (
+  source: SourceSnapshot,
+  span: DslPhysicalSpan | null | undefined
+): readonly DslPhysicalSpan["segments"][number][] | null => {
+  if (!span || span.sourceRevision !== source.sourceRevision || !Array.isArray(span.segments)) return null;
+  if (span.segments.some((segment) =>
+    !segment ||
+    !Number.isInteger(segment.from) ||
+    !Number.isInteger(segment.to) ||
+    segment.from < 0 ||
+    segment.to <= segment.from ||
+    segment.to > source.normalizedSource.length
+  )) return null;
+  return span.segments;
+};
+
 const singleSafePhysicalSegment = (
   source: SourceSnapshot,
   span: DslPhysicalSpan | null | undefined
 ): NormalizedSourceRange | null => {
-  if (!span || span.sourceRevision !== source.sourceRevision || span.segments.length !== 1) return null;
-  const [segment] = span.segments;
-  if (!segment) return null;
-  if (!Number.isInteger(segment.from) || !Number.isInteger(segment.to)) return null;
-  if (segment.from < 0 || segment.to <= segment.from || segment.to > source.normalizedSource.length) return null;
+  const segments = safePhysicalSegments(source, span);
+  if (!segments || segments.length !== 1) return null;
+  const [segment] = segments;
   return { from: segment.from, to: segment.to };
 };
 
-const physicalSpanContains = (span: DslPhysicalSpan | undefined, position: number): boolean =>
-  Boolean(span?.segments.some((segment) =>
-    Number.isInteger(segment.from) &&
-    Number.isInteger(segment.to) &&
+const physicalSpanContains = (
+  source: SourceSnapshot,
+  span: DslPhysicalSpan | undefined,
+  position: number
+): boolean =>
+  Boolean(safePhysicalSegments(source, span)?.some((segment) =>
     segment.from <= position &&
     position < segment.to
   ));
@@ -104,7 +120,7 @@ export const queryDslCanvasSourceTarget = ({
   const statement = compiled.statements.find((candidate, statementIndex) =>
     runtimeStatementIndexes.has(statementIndex) &&
     candidate.sourceRevision === source.sourceRevision &&
-    physicalSpanContains(candidate.physicalSpan, position)
+    physicalSpanContains(source, candidate.physicalSpan, position)
   );
   return statement ? { sourceStatementIndex: compiled.statements.indexOf(statement) } : null;
 };
