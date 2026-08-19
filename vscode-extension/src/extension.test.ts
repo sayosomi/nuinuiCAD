@@ -18,6 +18,12 @@ type TestDocument = {
   onGetText?: () => void;
 };
 
+type TestDocumentChangeEvent = {
+  document: TestDocument;
+  reason?: number;
+  contentChanges: readonly unknown[];
+};
+
 type TestEditor = {
   document: TestDocument;
   edit: ReturnType<typeof vi.fn>;
@@ -61,7 +67,7 @@ const mocks = vi.hoisted(() => ({
   activeEditorListeners: [] as Array<() => void>,
   activeColorThemeListeners: [] as Array<() => void>,
   documentOpenListeners: [] as Array<(document: TestDocument) => void>,
-  documentChangeListeners: [] as Array<(event: { document: TestDocument; reason?: number }) => void>,
+  documentChangeListeners: [] as Array<(event: TestDocumentChangeEvent) => void>,
   documentCloseListeners: [] as Array<(document: TestDocument) => void>,
   panels: [] as TestPanel[],
   rustProcesses: [] as TestRustProcess[],
@@ -388,7 +394,7 @@ const setup = (
     mocks.documentOpenListeners.push(listener);
     return disposable();
   });
-  mocks.onDidChangeTextDocument.mockImplementation((listener: (event: { document: TestDocument; reason?: number }) => void) => {
+  mocks.onDidChangeTextDocument.mockImplementation((listener: (event: TestDocumentChangeEvent) => void) => {
     mocks.documentChangeListeners.push(listener);
     return disposable();
   });
@@ -400,8 +406,12 @@ const setup = (
   return context;
 };
 
-const emitDocumentChange = (document: TestDocument, reason?: number): void => {
-  for (const listener of mocks.documentChangeListeners) listener({ document, reason });
+const emitDocumentChange = (
+  document: TestDocument,
+  reason?: number,
+  contentChanges: readonly unknown[] = [{}]
+): void => {
+  for (const listener of mocks.documentChangeListeners) listener({ document, reason, contentChanges });
 };
 
 const emitDocumentOpen = (document: TestDocument): void => {
@@ -931,7 +941,7 @@ describe("VS Code production document lifecycle", () => {
 
     documentB.version = 2;
     documentB.setSourceText("nui 4\n// panel B change\n");
-    for (const listener of mocks.documentChangeListeners) listener({ document: documentB });
+    emitDocumentChange(documentB);
 
     expect(panelB.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "commitText",
@@ -1163,6 +1173,39 @@ describe("VS Code production document lifecycle", () => {
     editor.document.setSourceText("nui 4\n// committed\n");
     emitDocumentChange(editor.document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
+  });
+
+  it("does not forward non-content TextDocument changes during a Canvas commit", async () => {
+    const preDrag = "nui 4\n// pre-drag\n";
+    const postDrag = "nui 4\n// post-drag\n";
+    const document = documentFor("/tmp/drag.nui", "file:///tmp/drag.nui", preDrag);
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
+      callback(editor.editBuilder);
+      emitDocumentChange(document, undefined, []);
+      document.version = 2;
+      document.setSourceText(postDrag);
+      emitDocumentChange(document, undefined, [{ text: postDrag }]);
+      return true;
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: postDrag,
+      expectedDocumentVersion: 1,
+      mutationKind: "reset"
+    });
+
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "commitText")).toEqual([
+      [{
+        type: "commitText",
+        sourceText: postDrag,
+        documentVersion: 2,
+        reason: "edit"
+      }]
+    ]);
   });
 });
 

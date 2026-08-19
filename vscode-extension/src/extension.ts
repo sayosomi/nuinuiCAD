@@ -743,6 +743,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (!benchmarkConfig) {
       session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
         if (sameDocument(event.document, session.document)) {
+          if (event.contentChanges.length === 0) return;
+
           const inFlightHistory = session.inFlightCanvasHistory;
           const documentChangedDuringCanvasHistory = inFlightHistory !== null
             && !inFlightHistory.changeObserved
