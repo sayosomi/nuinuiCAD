@@ -18,7 +18,6 @@
 
 body {
   margin: 0;
-  min-width: 1180px;
   min-height: 100vh;
 }
 
@@ -369,6 +368,7 @@ textarea {
   display: grid;
   grid-template-columns: var(--left-panel-width, 320px) minmax(0, 1fr) 360px;
   height: 100vh;
+  min-width: 1180px;
   min-height: 100vh;
   overflow: hidden;
 }
