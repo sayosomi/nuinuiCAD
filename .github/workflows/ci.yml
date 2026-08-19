@@ -37,7 +37,7 @@ jobs:
           node-version: 24
 
       - name: Test change classifier
-        run: node --test scripts/ci/classifyChanges.test.mjs
+        run: node --test scripts/ci/classifyChanges.node-test.mjs
 
       - name: Resolve diff base
         id: base
@@ -184,6 +184,10 @@ jobs:
       - name: Install Node dependencies
         if: ${{ needs.classification.outputs.parity == 'true' || needs.classification.outputs.full_node == 'true' }}
         run: npm ci
+
+      - name: Build Rust evaluation fixture
+        if: ${{ needs.classification.outputs.full_node == 'true' }}
+        run: cargo build --quiet --manifest-path src-tauri/Cargo.toml --example evaluate_fixture
 
       - name: Full Node tests
         if: ${{ needs.classification.outputs.full_node == 'true' }}
