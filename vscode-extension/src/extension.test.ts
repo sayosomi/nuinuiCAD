@@ -632,7 +632,13 @@ describe("VS Code production document lifecycle", () => {
     const editor = editorFor(document);
     setup(false, editor);
     const panel = openPanelFor(editor);
-    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      return editor;
+    });
+    panel.reveal.mockImplementation(() => {
+      panel.active = true;
+    });
     mocks.executeCommand.mockImplementation(async (command: string) => {
       if (command === "setContext") return;
       throw new Error("native history failed");
@@ -645,6 +651,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith("setContext", "nuinuiCAD.canvasHistoryHandoff", false);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument" }));
     expect(panel.webview.postMessage).toHaveBeenCalledWith({
       type: "canvasHistoryResult",
@@ -652,6 +659,13 @@ describe("VS Code production document lifecycle", () => {
       status: "failed",
       documentVersion: 1
     });
+
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      false
+    ));
   });
 
   it("resyncs and never executes native history for a stale Canvas document version", async () => {
@@ -704,6 +718,9 @@ describe("VS Code production document lifecycle", () => {
       panel.active = false;
       return editor;
     });
+    panel.reveal.mockImplementation(() => {
+      panel.active = true;
+    });
     mocks.executeCommand.mockImplementation((command: string) => {
       if (command === "setContext") return Promise.resolve();
       if (command === direction) return nativeHistory;
@@ -743,7 +760,6 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.reveal).toHaveBeenCalledWith(2, false);
     expect(mocks.executeCommand).not.toHaveBeenCalledWith("setContext", "nuinuiCAD.canvasHistoryHandoff", false);
 
-    panel.active = true;
     (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
     await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
       "setContext",

@@ -345,7 +345,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
       status: "completed",
       documentVersion: session.document.version
     } satisfies ExtensionToVscodeMessage);
-    clearCanvasHistoryHandoffIfReady(session);
   };
 
   const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
@@ -427,7 +426,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
       session.inFlightCanvasHistory = null;
       resync(session);
       postResult(status);
-      if (sourceEditorActivated) session.panel.reveal(vscode.ViewColumn.Beside, false);
+      if (sourceEditorActivated) {
+        session.panel.reveal(vscode.ViewColumn.Beside, false);
+        return;
+      }
       clearCanvasHistoryHandoffIfReady(session);
     };
 
