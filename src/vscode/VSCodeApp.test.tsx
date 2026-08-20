@@ -367,6 +367,45 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage.mock.calls.filter(([message]) => message?.type === "canvasNavigationResult" && message.status === "focused")).toHaveLength(1);
   });
 
+  it("does not duplicate the Canvas focus acknowledgement when focus re-enters synchronously", async () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasNavigationRequest", requestId: 231, documentVersion: 1, normalizedSourceOffset: source.indexOf("A") }
+      }));
+    });
+
+    const canvas = screen.getByTestId("canvas");
+    const originalFocus = canvas.focus.bind(canvas);
+    let focusEventDispatched = false;
+    vi.spyOn(canvas, "focus").mockImplementation(() => {
+      originalFocus();
+      if (focusEventDispatched) return;
+      focusEventDispatched = true;
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "focusCanvas", requestId: 231 }
+      }));
+    });
+
+    expect(api.postMessage.mock.calls.filter(
+      ([message]) => message?.type === "canvasNavigationResult" && message.status === "focused"
+    )).toHaveLength(1);
+  });
+
   it("does not complete pending focus after a newer Canvas navigation request", async () => {
     const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(false);
     const source = [

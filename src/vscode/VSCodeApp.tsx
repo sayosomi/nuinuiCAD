@@ -100,6 +100,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     const viewport = canvasFocusRef.current;
     if (!viewport) return;
     viewport.focus();
+    if (pendingCanvasFocusRequestRef.current !== requestId) return;
+    if (latestCanvasNavigationRequestRef.current !== requestId) return;
     if (!document.hasFocus() || document.activeElement !== viewport) return;
     pendingCanvasFocusRequestRef.current = null;
     latestCanvasNavigationRequestRef.current = null;
