@@ -6,6 +6,7 @@ import { pickCommandDefinitions } from "./pickCommandDefinitions";
 import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
 import { viewModeCommandDefinitions } from "./viewModeCommandDefinitions";
 import { sourceEditorCommandDefinitions } from "./sourceEditorCommandDefinitions";
+import { bakeCommandDefinitions } from "./bakeCommands";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -18,7 +19,8 @@ export const commands: Record<CommandId, Command> = {
   ...pickCommandDefinitions,
   ...creationCommandDefinitions,
   ...commandLineCommandDefinitions,
-  ...sourceEditorCommandDefinitions
+  ...sourceEditorCommandDefinitions,
+  ...bakeCommandDefinitions
 };
 
 export const dispatchCommand = (commandId: CommandId, context?: CommandContext) => {

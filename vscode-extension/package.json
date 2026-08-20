@@ -10,6 +10,16 @@
   },
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "nuinuiCAD",
+      "properties": {
+        "nuinuiCAD.bake.emitSkippedComments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Bakeできない対象の位置に理由コメントを挿入します。"
+        }
+      }
+    },
     "configurationDefaults": {
       "[nui]": {
         "editor.wordBasedSuggestions": "off"
@@ -62,6 +72,14 @@
         {
           "command": "nuinuiCAD.toggleCanvasPoints",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.bakeCurrentShape",
+          "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.bakeBaseShape",
+          "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
           "command": "nuinuiCAD.canvasUndo",
@@ -125,6 +143,14 @@
       {
         "command": "nuinuiCAD.toggleCanvasPoints",
         "title": "nuinuiCAD: Toggle Canvas Points"
+      },
+      {
+        "command": "nuinuiCAD.bakeCurrentShape",
+        "title": "nuinuiCAD: 現在の形状をBake"
+      },
+      {
+        "command": "nuinuiCAD.bakeBaseShape",
+        "title": "nuinuiCAD: ベース形状をBake"
       }
     ],
     "languages": [

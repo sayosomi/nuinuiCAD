@@ -119,6 +119,7 @@ fn binding_versions(binding_count: usize) -> Value {
 fn input(scalar_program: Option<Value>, binding_versions: Option<Value>) -> EvaluationInput {
     assert!(scalar_program.is_some() ^ binding_versions.is_some());
     EvaluationInput {
+        module_materialization: None,
         elements: vec![],
         evaluation_limit_index: None,
         drawing_modifiers: None,

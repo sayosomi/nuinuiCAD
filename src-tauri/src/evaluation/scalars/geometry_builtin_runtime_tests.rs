@@ -40,7 +40,8 @@ fn state_with_geometry(
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([(id.to_owned(), geometry)]),
         computed_geometry_order: vec![id.to_owned()],
-        pre_mutation_bezier_geometry: HashMap::new(),
+        pre_mutation_geometry: HashMap::new(),
+        instance_base_geometry: HashMap::new(),
         errors: Vec::new(),
         warnings: Vec::new(),
     }

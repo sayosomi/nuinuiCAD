@@ -283,8 +283,8 @@ describe("useCanvasOverlayData", () => {
     ];
     const evaluation = evaluateElements(elements);
     const finalCurve = evaluation.computedGeometry.get("curve");
-    const preMutationCurve = evaluation.preMutationBezierGeometry?.get("curve");
-    if (finalCurve?.kind !== "bezierCurve" || !preMutationCurve) throw new Error("Expected Bezier curves");
+    const preMutationCurve = evaluation.preMutationGeometry?.get("curve");
+    if (finalCurve?.kind !== "bezierCurve" || preMutationCurve?.kind !== "bezierCurve") throw new Error("Expected Bezier curves");
     const { result } = renderHook(() => useCanvasOverlayData({
       evaluation,
       elements,

@@ -40,8 +40,8 @@ const curveFrom = (evaluation: ReturnType<typeof evaluateElements>, id = "curve"
 };
 
 const snapshotFrom = (evaluation: ReturnType<typeof evaluateElements>, id = "curve") => {
-  const geometry = evaluation.preMutationBezierGeometry?.get(id);
-  if (!geometry) throw new Error(`Expected pre-mutation Bezier ${id}`);
+  const geometry = evaluation.preMutationGeometry?.get(id);
+  if (geometry?.kind !== "bezierCurve") throw new Error(`Expected pre-mutation Bezier ${id}`);
   return geometry;
 };
 
@@ -60,7 +60,7 @@ const extendedBezierElements = (extra: CadElement[] = []): CadElement[] => [
   }
 ];
 
-describe("preMutationBezierGeometry", () => {
+describe("preMutationGeometry", () => {
   it("captures an unmodified Bezier and keeps the snapshot independent", () => {
     const evaluation = evaluateElements([point("a", 0, 0), point("b", 100, 0), curve()]);
     const finalCurve = curveFrom(evaluation);
@@ -218,10 +218,10 @@ describe("preMutationBezierGeometry", () => {
     const firstId = forGroupGeneratedElementId({ forGroupId: "loop", templateElementId: "template-curve", iterationIndex: 0 });
     const secondId = forGroupGeneratedElementId({ forGroupId: "loop", templateElementId: "template-curve", iterationIndex: 1 });
 
-    expect(evaluation.preMutationBezierGeometry?.has(firstId)).toBe(true);
-    expect(evaluation.preMutationBezierGeometry?.has(secondId)).toBe(true);
-    expect(evaluation.preMutationBezierGeometry?.get(firstId)?.elementId).toBe(firstId);
-    expect(evaluation.preMutationBezierGeometry?.get(secondId)?.elementId).toBe(secondId);
+    expect(evaluation.preMutationGeometry?.has(firstId)).toBe(true);
+    expect(evaluation.preMutationGeometry?.has(secondId)).toBe(true);
+    expect(evaluation.preMutationGeometry?.get(firstId)?.elementId).toBe(firstId);
+    expect(evaluation.preMutationGeometry?.get(secondId)?.elementId).toBe(secondId);
   });
 
   it("does not expose disabled, failed, or unevaluated Beziers", () => {
@@ -235,9 +235,9 @@ describe("preMutationBezierGeometry", () => {
       evaluationLimitIndex: 2
     });
 
-    expect(disabled.preMutationBezierGeometry?.size).toBe(0);
-    expect(failed.preMutationBezierGeometry?.size).toBe(0);
-    expect(unevaluated.preMutationBezierGeometry?.size).toBe(0);
+    expect(disabled.preMutationGeometry?.get("curve")).toBeUndefined();
+    expect(failed.preMutationGeometry?.get("curve")).toBeUndefined();
+    expect(unevaluated.preMutationGeometry?.get("curve")).toBeUndefined();
   });
 
   it("keeps the snapshot as the constructed curve when final geometry is mutated", () => {

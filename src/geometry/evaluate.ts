@@ -1,6 +1,5 @@
 import type {
   CadElement,
-  ComputedBezierCurve,
   ComputedGeometry,
   DependencyError,
   DrawingModifierDefinition,
@@ -58,6 +57,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
 import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
 import { computedReferencePathValue } from "./numericExpressions";
+import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -87,6 +87,7 @@ export type EvaluateElementsOptions = {
   /** Explicit joins for materialized module control owners. */
   moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
   moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
+  moduleMaterialization?: ModuleMaterialization;
   /**
    * Schema-driven elementId-keyed property sources (already re-keyed from
    * CompiledDslDocument.propertyBindings by
@@ -171,7 +172,18 @@ export const evaluateElements = (
   const evaluatedElements = elements.slice(0, evaluationLimitIndex);
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
-  const preMutationBezierGeometry = new Map<ElementId, ComputedBezierCurve>();
+  const preMutationGeometry = new Map<ElementId, ComputedGeometry>();
+  const instanceBaseGeometry = new Map<ElementId, ComputedGeometry[]>();
+  const instanceSnapshotsByEnd = new Map<number, ModuleMaterialization["instanceBaseGeometrySnapshots"]>();
+  for (const snapshot of options.moduleMaterialization?.instanceBaseGeometrySnapshots ?? []) {
+    instanceSnapshotsByEnd.set(snapshot.endRuntimeIndex, [
+      ...(instanceSnapshotsByEnd.get(snapshot.endRuntimeIndex) ?? []),
+      snapshot
+    ]);
+    if (snapshot.endRuntimeIndex < evaluationLimitIndex) {
+      instanceBaseGeometry.set(snapshot.instanceId, []);
+    }
+  }
   const errors: DependencyError[] = [];
   const warnings: EvaluationWarning[] = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -659,17 +671,22 @@ export const evaluateElements = (
         ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText }
         : {})
     });
-    if (elementToEvaluate.type === "bezierCurve" && !preMutationBezierGeometry.has(elementToEvaluate.id)) {
+    if (!preMutationGeometry.has(elementToEvaluate.id)) {
       const geometry = computedGeometry.get(elementToEvaluate.id);
-      if (geometry?.kind === "bezierCurve") {
-        preMutationBezierGeometry.set(elementToEvaluate.id, structuredClone(geometry));
-      }
+      if (geometry) preMutationGeometry.set(elementToEvaluate.id, structuredClone(geometry));
     }
   };
 
-  for (const element of evaluatedElements) {
+  for (const [elementIndex, element] of evaluatedElements.entries()) {
     if (templateDescendantIds.has(element.id)) continue;
     evaluateRuntimeElement(element);
+    for (const snapshot of instanceSnapshotsByEnd.get(elementIndex) ?? []) {
+      const geometry = snapshot.descendantIds
+        .map((id) => computedGeometry.get(id))
+        .filter((value): value is ComputedGeometry => Boolean(value))
+        .map((value) => structuredClone(value));
+      instanceBaseGeometry.set(snapshot.instanceId, geometry);
+    }
   }
 
   const linearFinal = linearMutationResolver
@@ -695,7 +712,8 @@ export const evaluateElements = (
 
   return {
     computedGeometry,
-    preMutationBezierGeometry,
+    preMutationGeometry,
+    instanceBaseGeometry,
     errors,
     warnings,
     evaluatedElementIds,

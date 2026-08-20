@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 
 fn input(elements: Vec<Value>, scalar_program: Option<Value>) -> EvaluationInput {
     EvaluationInput {
+        module_materialization: None,
         elements,
         evaluation_limit_index: None,
         drawing_modifiers: None,

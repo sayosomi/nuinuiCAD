@@ -119,6 +119,8 @@ export type CommandId =
   | "addMove"
   | "addSymmetricMove"
   | "reverseSelectedPath"
+  | "bakeCurrentShape"
+  | "bakeBaseShape"
   | "addImage"
   | "addBezierIntermediatePoint"
   | "deleteBezierIntermediatePoint"
@@ -194,6 +196,10 @@ export type CommandContext = {
   targetParentGroupId?: ElementId | null;
   evaluationLimitIndex?: number;
   evaluation?: EvaluationResult;
+  evaluationIsCurrent?: boolean;
+  /** Source statement selected by a host-side source cursor query. */
+  sourceStatementIndex?: number;
+  emitSkippedComments?: boolean;
   selectionMode?: "replace" | "toggle" | "range";
   /** Source Editor folded-block move: use elementId alone instead of the current multi-selection. */
   moveCursorElementOnly?: boolean;

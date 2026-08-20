@@ -361,8 +361,8 @@ describe("module geometry runtime", () => {
     const secondCurve = elements.find((element) => element.name === "Curve" && element.parentGroupId === second.id);
     if (!firstCurve || !secondCurve) throw new Error("expected materialized Bezier occurrences");
 
-    const firstSnapshot = result.preMutationBezierGeometry?.get(firstCurve.id);
-    const secondSnapshot = result.preMutationBezierGeometry?.get(secondCurve.id);
+    const firstSnapshot = result.preMutationGeometry?.get(firstCurve.id);
+    const secondSnapshot = result.preMutationGeometry?.get(secondCurve.id);
     expect(firstCurve.id).not.toBe(secondCurve.id);
     expect(result.errors).toEqual([]);
     expect(firstSnapshot).toMatchObject({
@@ -374,7 +374,7 @@ describe("module geometry runtime", () => {
       segments: [{ start: { x: 40, y: 20 }, control1: { x: 60, y: 20 } }]
     });
     expect(firstSnapshot).not.toEqual(secondSnapshot);
-    expect([...result.preMutationBezierGeometry?.keys() ?? []]).toEqual([firstCurve.id, secondCurve.id]);
+    expect([...result.preMutationGeometry?.keys() ?? []]).toEqual([firstCurve.id, secondCurve.id]);
 
     const ownershipDocument = { ...compiled, statementMap: compiled.statementMap };
     expect(sourceOwnerForRuntimeElementId(ownershipDocument, firstCurve.id)).toMatchObject({

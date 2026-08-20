@@ -17,6 +17,7 @@ fn input(
     text_property_bindings: Option<Value>,
 ) -> EvaluationInput {
     EvaluationInput {
+        module_materialization: None,
         elements,
         evaluation_limit_index: None,
         drawing_modifiers: None,

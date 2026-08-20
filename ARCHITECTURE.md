@@ -247,14 +247,25 @@ use `{ elementId, stroke }` entries and retain semantic theme-role colors. For
 `forGroup` runtime geometry, generated entries are propagated from the evaluator's
 structured `forGroupGeneratedRows.templateElementId` relation.
 
-`EvaluationResult.preMutationBezierGeometry` is evaluation-owned, runtime
-ElementId-keyed editing data. The shared TypeScript and Rust evaluators capture a
-deep snapshot immediately after a Bezier has successfully been constructed or
-materialized, before later extend/trim/split/move/pathReverse mutations alter the
-final `computedGeometry`. `computedGeometry` remains authoritative for normal
-Canvas drawing, picking, measurement, and Fit Drawing. The shared host-neutral
-Canvas uses the snapshot only for the selected Bezier's transient editing helper,
-handles, and drag baseline; Tauri and VS Code therefore share the same behavior.
+`EvaluationResult.preMutationGeometry` is evaluator-owned, runtime ElementId-keyed
+data. The shared TypeScript and Rust evaluators capture a deep snapshot immediately
+after each declaration successfully produces geometry, before later
+extend/trim/split/move/pathReverse mutations alter final `computedGeometry`.
+`instanceBaseGeometry` is captured at each concrete module materialization boundary
+from the existing `ModuleMaterialization` execution plan, so caller-side mutations
+after an instance do not leak into its Base shape. Both snapshot maps cross the
+same JSON payload boundary and are available to the host-neutral Bake operation;
+the existing Canvas Bezier editing helper narrows the generalized map to Bezier
+geometry locally.
+
+`src/commands/bakeGeometry.ts` owns host-neutral target resolution, exact primitive
+conversion, generated declaration naming, source insertion planning, and skipped
+target comments. `bakeCurrentShape` and `bakeBaseShape` dispatch through the shared
+command registry. Tauri commits the resulting `LineSplice[]` through the canonical
+document store; the VS Code Webview sends the same splices to the Extension Host,
+which applies one native TextDocument edit. Source ownership and normalized source
+position queries remain the existing SAY-41 boundary; Bake does not create a
+second runtime-to-source map.
 
 ### Rust evaluation
 
@@ -449,6 +460,14 @@ Editor navigation does not mutate Canvas selection and therefore does not add a
 selection-history entry. Native Editor Undo/Redo and F2 retain ownership after
 successful explicit Canvas → Editor navigation because Canvas history handoff
 context is cleared before Editor focus is transferred.
+
+The Source+Canvas `Bake Current Shape` and `Bake Base Shape` commands are visible
+from native command-palette surface predicates only. The Extension Host owns the
+VS Code setting `nuinuiCAD.bake.emitSkippedComments`, document-version isolation,
+and the native edit bridge; the Webview owns target resolution and the shared Bake
+conversion. A source-triggered request keeps Source Editor focus where possible,
+rejects reusable module-definition bodies, and is accepted only after the same
+authoritative source/revision/evaluation checks used by navigation.
 
 `RustEvaluationProcess` is lazy and extension-wide through
 `RustEvaluationProcessOwner`; all document sessions share it. A panel does not

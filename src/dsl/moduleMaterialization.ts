@@ -50,6 +50,13 @@ export type SourceExecutionUnit = {
   runtimeEnd: number;
 };
 
+/** Evaluator-owned boundary for a concrete module instance's Base geometry. */
+export type ModuleMaterializationSnapshot = {
+  instanceId: ElementId;
+  endRuntimeIndex: number;
+  descendantIds: readonly ElementId[];
+};
+
 export type ModuleMaterialization = {
   executionStatements: readonly MaterializedExecutionStatement[];
   sourceExecutionUnits: readonly SourceExecutionUnit[];
@@ -59,6 +66,8 @@ export type ModuleMaterialization = {
   sourceExecutionPositionByRuntimeElementId: ReadonlyMap<ElementId, number>;
   originByRuntimeElementId: ReadonlyMap<ElementId, ModuleOrigin>;
   runtimeIdentityByElementId: ReadonlyMap<ElementId, MaterializedRuntimeIdentity>;
+  /** Concrete-instance boundaries derived from the same execution plan. */
+  instanceBaseGeometrySnapshots: readonly ModuleMaterializationSnapshot[];
   /** Scalar execution order is separate from the outer atomic call unit. */
   scalarExecutionPositionByRuntimeElementId?: ReadonlyMap<ElementId, number>;
   evaluationLimitIndex: number | undefined;
@@ -365,6 +374,27 @@ export const materializeModuleExecution = ({
     sourceExecutionPositionByRuntimeElementId,
     originByRuntimeElementId,
     runtimeIdentityByElementId,
+    instanceBaseGeometrySnapshots: executionStatements
+      .filter((entry) => entry.type === "moduleInstance")
+      .map((entry, entryIndex) => {
+        const path = entry.instancePath;
+        const descendants = executionStatements
+          .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
+          .filter(({ candidate }) =>
+            candidate.runtimeElementId !== entry.runtimeElementId &&
+            candidate.instancePath.length >= path.length &&
+            path.every((identity, index) => candidate.instancePath[index] === identity)
+          );
+        const endRuntimeIndex = descendants.reduce(
+          (last, { candidateIndex }) => Math.max(last, candidateIndex),
+          entryIndex
+        );
+        return {
+          instanceId: entry.runtimeElementId,
+          endRuntimeIndex,
+          descendantIds: descendants.map(({ candidate }) => candidate.runtimeElementId)
+        };
+      }),
     evaluationLimitIndex
   };
 };

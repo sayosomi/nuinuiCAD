@@ -58,6 +58,7 @@ fn module_instance_is_an_activity_container_and_a_geometry_noop() {
     assert_eq!(activities["child"].activity, ElementActivity::Hidden);
 
     let result = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
         elements,
         evaluation_limit_index: None,
         drawing_modifiers: None,
@@ -169,6 +170,7 @@ fn drawing_modifier_strokes_resolve_atomically_and_independently_from_state() {
 #[test]
 fn generated_rows_receive_the_template_stroke_without_id_parsing() {
     let result = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
         elements: vec![
             json!({
                 "id": "loop", "name": "Loop", "type": "forGroup", "activity": "visible",
@@ -210,6 +212,7 @@ fn generated_rows_receive_the_template_stroke_without_id_parsing() {
 #[test]
 fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
     let result = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
         elements: vec![
             json!({ "id": "hidden", "type": "freePoint", "activity": "visible", "modifierNames": ["Hide"], "x": 0, "y": 0 }),
             json!({ "id": "disabled", "type": "freePoint", "activity": "visible", "modifierNames": ["Disable"], "x": 1, "y": 0 }),
@@ -257,6 +260,7 @@ fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
 #[test]
 fn directly_disabled_dependency_reports_evaluation_off() {
     let result = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
         elements: vec![
             json!({
                 "id": "source", "name": "無効点", "type": "freePoint",

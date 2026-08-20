@@ -16,6 +16,7 @@ export type VscodeToExtensionMessage =
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
   | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "stale" | "focused" }
+  | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }
   | VscodeRustEvaluationRequest
   | {
       type: "canvasCommit";
@@ -39,7 +40,9 @@ export type VscodeCanvasCommandId =
   | "resetCanvasView"
   | "fitDrawing"
   | "toggleCanvasElementNames"
-  | "toggleCanvasPoints";
+  | "toggleCanvasPoints"
+  | "bakeCurrentShape"
+  | "bakeBaseShape";
 
 export type VscodeBenchmarkConfig = {
   runId: string;
@@ -69,7 +72,15 @@ export type ExtensionToVscodeMessage =
       documentVersion: number;
     }
   | { type: "canvasThemeChanged" }
-  | { type: "canvasCommand"; commandId: VscodeCanvasCommandId }
+  | { type: "canvasCommand"; commandId: VscodeCanvasCommandId; emitSkippedComments?: boolean }
+  | {
+      type: "bakeSourceRequest";
+      requestId: number;
+      documentVersion: number;
+      normalizedSourceOffset: number;
+      mode: "current" | "base";
+      emitSkippedComments: boolean;
+    }
   | { type: "rustEvaluationResponse"; id: number; payload: unknown }
   | { type: "rustEvaluationError"; id: number; error: string }
   | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig };

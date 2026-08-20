@@ -211,8 +211,9 @@ export const AppLayout = () => {
     clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
     measureCanvasTextWidth,
-    evaluation
-  }), [evaluation, measureCanvasTextWidth]);
+    evaluation,
+    evaluationIsCurrent
+  }), [evaluation, evaluationIsCurrent, measureCanvasTextWidth]);
   const handleRenameElementConfirmed = useCallback((elementId: ElementId) => {
     sourceEditorRef.current?.jumpToElement(elementId);
     commandContext.focusSourceEditor?.();

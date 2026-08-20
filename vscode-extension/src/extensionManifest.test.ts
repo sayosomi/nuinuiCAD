@@ -41,10 +41,13 @@ const commandIds = [
   "nuinuiCAD.resetCanvasView",
   "nuinuiCAD.fitDrawing",
   "nuinuiCAD.toggleCanvasElementNames",
-  "nuinuiCAD.toggleCanvasPoints"
+  "nuinuiCAD.toggleCanvasPoints",
+  "nuinuiCAD.bakeCurrentShape",
+  "nuinuiCAD.bakeBaseShape"
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
+const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
 
 async function readManifest(): Promise<ExtensionManifest> {
@@ -67,7 +70,9 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Reset Canvas View",
       "nuinuiCAD: Fit Drawing",
       "nuinuiCAD: Toggle Canvas Element Names",
-      "nuinuiCAD: Toggle Canvas Points"
+      "nuinuiCAD: Toggle Canvas Points",
+      "nuinuiCAD: 現在の形状をBake",
+      "nuinuiCAD: ベース形状をBake"
     ]);
   });
 
@@ -84,6 +89,8 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.fitDrawing", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasElementNames", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasPoints", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.bakeCurrentShape", when: bakePaletteWhen },
+      { command: "nuinuiCAD.bakeBaseShape", when: bakePaletteWhen },
       { command: "nuinuiCAD.canvasUndo", when: "false" },
       { command: "nuinuiCAD.canvasRedo", when: "false" }
     ]);

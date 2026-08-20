@@ -68,6 +68,8 @@ export const emptyEvaluationResult = (
   );
   return {
     computedGeometry: new Map(),
+    preMutationGeometry: new Map(),
+    instanceBaseGeometry: new Map(),
     errors: [],
     warnings: [],
     evaluatedElementIds: new Set(),

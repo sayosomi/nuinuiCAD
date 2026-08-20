@@ -401,7 +401,7 @@ describe("elementDragTransforms", () => {
     ).toBeNull();
     const evaluationWithoutSnapshot = {
       ...evaluateElements(sampleElements),
-      preMutationBezierGeometry: undefined
+      preMutationGeometry: undefined
     };
     expect(
       moveBezierHandleByDeltaInElements(sampleElements, "curve-ac", {

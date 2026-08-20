@@ -103,6 +103,21 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     pumpCanvasHistory();
   }, [pumpCanvasHistory]);
 
+  const postCanvasCommit = useCallback(() => {
+    if (benchmarkConfig) return;
+    const expectedDocumentVersion = latestHostDocumentVersionRef.current;
+    if (expectedDocumentVersion === null) return;
+    const sourceUpdate = useCadDocumentStore.getState().sourceUpdate;
+    const mutationKind = sourceUpdate.kind === "model-patch" ? "model-patch" : "reset";
+    api.postMessage({
+      type: "canvasCommit",
+      sourceText: useCadDocumentStore.getState().sourceText,
+      expectedDocumentVersion,
+      mutationKind,
+      ...(sourceUpdate.kind === "model-patch" ? { splices: sourceUpdate.splices } : {})
+    });
+  }, [api, benchmarkConfig]);
+
   const currentAuthoritativeDocument = useCallback((expectedDocumentVersion: number) => {
     const state = useCadDocumentStore.getState();
     const compiled = effectiveCompiledDocument(state);
@@ -134,13 +149,50 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (message.type === "canvasThemeChanged") {
         refreshCanvasTheme();
       } else if (message.type === "canvasCommand") {
-        dispatchCommand(message.commandId, {
+        const result = dispatchCommand(message.commandId, {
           evaluation: evaluationRef.current,
+          baseEvaluation: evaluationRef.current,
+          evaluationIsCurrent: evaluationStateIsCurrentFor(
+            evaluationStateRef.current,
+            useCadDocumentStore.getState().compiledDocumentRevision
+          ),
+          emitSkippedComments: message.emitSkippedComments,
           getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
           measureCanvasTextWidth,
           recordSelectionHistory: true,
           canvasHistory: requestCanvasHistory
         });
+        if ((message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") &&
+          typeof result === "object" && result !== null && "status" in result && result.status === "applied") {
+          postCanvasCommit();
+        }
+      } else if (message.type === "bakeSourceRequest") {
+        const current = currentAuthoritativeDocument(message.documentVersion);
+        const evaluation = evaluationRef.current;
+        const currentEvaluation = evaluation && evaluationStateIsCurrentFor(
+          evaluationStateRef.current,
+          current?.state.compiledDocumentRevision ?? -1
+        ) ? evaluation : null;
+        const target = current
+          ? queryDslCanvasSourceTarget({
+              source: current.source,
+              compiled: current.compiled,
+              position: message.normalizedSourceOffset
+            })
+          : null;
+        if (!current || !currentEvaluation || !target) {
+          api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: !current || !currentEvaluation ? "stale" : "rejected" });
+          return;
+        }
+        const result = dispatchCommand(message.mode === "current" ? "bakeCurrentShape" : "bakeBaseShape", {
+          evaluation: currentEvaluation,
+          baseEvaluation: currentEvaluation,
+          sourceStatementIndex: target.sourceStatementIndex,
+          emitSkippedComments: message.emitSkippedComments
+        });
+        const applied = typeof result === "object" && result !== null && "status" in result && result.status === "applied";
+        if (applied) postCanvasCommit();
+        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: applied ? "applied" : "nothing" });
       } else if (message.type === "canvasHistoryResult") {
         if (canvasHistoryInFlightRef.current !== message.direction) return;
         canvasHistoryInFlightRef.current = null;
@@ -267,7 +319,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport]);
+  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport]);
 
   const surfaceStyle = benchmarkConfig
     ? {
@@ -283,20 +335,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         evaluationState={evaluationState}
         canvasFocusRef={canvasFocusRef}
         canvasTheme={canvasTheme}
-        postCanonicalSourceText={(sourceText) => {
-          if (benchmarkConfig) return;
-          const expectedDocumentVersion = latestHostDocumentVersionRef.current;
-          if (expectedDocumentVersion === null) return;
-          const sourceUpdate = useCadDocumentStore.getState().sourceUpdate;
-          const mutationKind = sourceUpdate.kind === "model-patch" ? "model-patch" : "reset";
-          api.postMessage({
-            type: "canvasCommit",
-            sourceText,
-            expectedDocumentVersion,
-            mutationKind,
-            ...(sourceUpdate.kind === "model-patch" ? { splices: sourceUpdate.splices } : {})
-          });
-        }}
+        postCanonicalSourceText={() => postCanvasCommit()}
       />
       <VSCodeBenchmarkCaptureRunner
         config={benchmarkConfig}

@@ -547,6 +547,11 @@ export type ComputedGeometry =
   | ComputedImage
   | ComputedText;
 
+export type InstanceBaseGeometry = {
+  instanceId: ElementId;
+  geometry: ComputedGeometry[];
+};
+
 export type DependencyError = {
   elementId: ElementId;
   elementName: string;
@@ -574,8 +579,10 @@ export type ForGroupGeneratedRow = {
 
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
-  /** Bezier geometry captured before later runtime line mutations. */
-  preMutationBezierGeometry?: Map<ElementId, ComputedBezierCurve>;
+  /** Every successfully evaluated declaration, captured before later mutations. */
+  preMutationGeometry?: Map<ElementId, ComputedGeometry>;
+  /** Concrete module-instance geometry captured at materialization end. */
+  instanceBaseGeometry?: Map<ElementId, ComputedGeometry[]>;
   errors: DependencyError[];
   warnings: EvaluationWarning[];
   evaluatedElementIds?: Set<ElementId>;

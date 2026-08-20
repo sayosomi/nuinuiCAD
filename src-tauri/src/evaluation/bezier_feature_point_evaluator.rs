@@ -345,6 +345,7 @@ mod tests {
 
     fn evaluation_input(elements: Vec<Value>) -> EvaluationInput {
         EvaluationInput {
+            module_materialization: None,
             property_bindings: None,
             control_boolean_bindings: None,
             condition_expressions: None,
@@ -392,7 +393,8 @@ mod tests {
             group_states: HashMap::new(),
             computed_geometry,
             computed_geometry_order: Vec::new(),
-            pre_mutation_bezier_geometry: HashMap::new(),
+            pre_mutation_geometry: HashMap::new(),
+            instance_base_geometry: HashMap::new(),
             errors: Vec::new(),
             warnings: Vec::new(),
         };
@@ -431,7 +433,8 @@ mod tests {
             group_states: HashMap::new(),
             computed_geometry,
             computed_geometry_order: Vec::new(),
-            pre_mutation_bezier_geometry: HashMap::new(),
+            pre_mutation_geometry: HashMap::new(),
+            instance_base_geometry: HashMap::new(),
             errors: Vec::new(),
             warnings: Vec::new(),
         };
