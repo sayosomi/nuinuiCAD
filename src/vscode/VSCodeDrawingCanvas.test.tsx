@@ -1,11 +1,13 @@
 import { createRef } from "react";
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
+import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 
 const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
@@ -51,7 +53,9 @@ const makeEvaluationState = (
 const renderCanvas = (
   evaluation: ReturnType<typeof emptyEvaluationResult>,
   evaluationState: EvaluationEngineState | undefined,
-  postCanonicalSourceText = vi.fn()
+  postCanonicalSourceText = vi.fn(),
+  canvasRibbonRibbons: VscodeCanvasRibbon[] = [],
+  onEditCanvasRibbon = vi.fn()
 ) => {
   const view = render(
     <VSCodeDrawingCanvas
@@ -59,6 +63,8 @@ const renderCanvas = (
       evaluationState={evaluationState}
       canvasFocusRef={createRef()}
       postCanonicalSourceText={postCanonicalSourceText}
+      canvasRibbonRibbons={canvasRibbonRibbons}
+      onEditCanvasRibbon={onEditCanvasRibbon}
     />
   );
   const adapter = mocks.hostAdapter;
@@ -67,6 +73,48 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it("renders the closed Ribbon surface from shared Canvas state and routes only allowed commands", () => {
+    useCadUiStore.setState({
+      selectedElementIds: [],
+      showCanvasElementNames: true,
+      showCanvasPoints: false
+    });
+    mocks.dispatchCommand.mockReturnValue({ status: "applied" });
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const onEditCanvasRibbon = vi.fn();
+    const ribbons: VscodeCanvasRibbon[] = [{
+      id: "ribbon",
+      label: "Ribbon",
+      x: null,
+      y: 12,
+      orientation: "vertical",
+      iconSize: 16,
+      items: [
+        { id: "clear", type: "command", commandId: "clearCanvasSelection", icon: "x", showLabel: true },
+        { id: "names", type: "command", commandId: "toggleCanvasElementNames", icon: "tags", showLabel: false },
+        { id: "points", type: "command", commandId: "toggleCanvasPoints", icon: "dot", showLabel: false },
+        { id: "unknown", type: "command", commandId: "workbench.action.files.openFile", icon: "circle", showLabel: false },
+        { id: "zoom", type: "value", valueId: "canvasZoom", label: "Zoom" },
+        { id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: false }
+      ]
+    }];
+    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), ribbons, onEditCanvasRibbon);
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 });
+    if (!overlay) throw new Error("Ribbon overlay was not rendered");
+    render(overlay);
+
+    expect(screen.getByRole("button", { name: "Ribbonを移動" })).toBeInTheDocument();
+    const unavailable = screen.getByRole("button", { name: "workbench.action.files.openFile" });
+    expect(unavailable).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(unavailable);
+    expect(mocks.dispatchCommand).not.toHaveBeenCalledWith("workbench.action.files.openFile", expect.anything());
+    expect(screen.getByRole("button", { name: "キャンバス要素名を表示/非表示" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "キャンバス点を表示/非表示" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("status", { name: /Zoom: .* px\/mm/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit Canvas Ribbon" }));
+    expect(onEditCanvasRibbon).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps preview mutations in the Webview and sends one canonical source after each commit", () => {
     mocks.dispatchCommand.mockReturnValue({ status: "applied" });
     const postCanonicalSourceText = vi.fn();

@@ -47,6 +47,13 @@ import type {
   VscodeDocumentChangeReason,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
+import {
+  defaultVscodeCanvasRibbons,
+  normalizeVscodeCanvasRibbons,
+  patchVscodeCanvasRibbonPosition,
+  VSCODE_CANVAS_RIBBON_SETTING,
+  type VscodeCanvasRibbon
+} from "../../src/vscode/vscodeCanvasRibbonConfig";
 import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 
 type DocumentSession = {
@@ -81,6 +88,38 @@ const benchmarkConfigFromEnvironment = (): VscodeBenchmarkConfig | null => {
 };
 
 const nonce = () => randomBytes(16).toString("hex");
+
+type CanvasRibbonConfiguration = {
+  get: <T>(section: string) => T | undefined;
+  update: (section: string, value: unknown, target: unknown) => Thenable<void>;
+};
+
+const canvasRibbonConfiguration = (): CanvasRibbonConfiguration | null => {
+  const getConfiguration = (vscode.workspace as typeof vscode.workspace & {
+    getConfiguration?: () => CanvasRibbonConfiguration;
+  }).getConfiguration;
+  if (typeof getConfiguration !== "function") return null;
+  return getConfiguration.call(vscode.workspace);
+};
+
+const normalizedCanvasRibbonConfiguration = (): VscodeCanvasRibbon[] => {
+  const configuration = canvasRibbonConfiguration();
+  if (!configuration) return defaultVscodeCanvasRibbons();
+  return normalizeVscodeCanvasRibbons(configuration.get<unknown>(VSCODE_CANVAS_RIBBON_SETTING));
+};
+
+const globalConfigurationTarget = (): unknown =>
+  (vscode as typeof vscode & { ConfigurationTarget?: { Global: unknown } }).ConfigurationTarget?.Global ?? 1;
+
+const postCanvasRibbonConfiguration = (
+  panel: vscode.WebviewPanel,
+  ribbons: VscodeCanvasRibbon[] = normalizedCanvasRibbonConfiguration()
+): void => {
+  void panel.webview.postMessage({
+    type: "canvasRibbonConfiguration",
+    ribbons
+  } satisfies ExtensionToVscodeMessage);
+};
 
 const fullDocumentRange = (document: vscode.TextDocument): vscode.Range =>
   new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
@@ -245,6 +284,15 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let canvasHistoryHandoffSession: DocumentSession | null = null;
   let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
   let nextNavigationRequestId = 1;
+
+  const editCanvasRibbon = (): void => {
+    void vscode.commands.executeCommand("workbench.action.openSettings", VSCODE_CANVAS_RIBBON_SETTING);
+  };
+
+  const broadcastCanvasRibbonConfiguration = (): void => {
+    const ribbons = normalizedCanvasRibbonConfiguration();
+    for (const session of sessions.values()) postCanvasRibbonConfiguration(session.panel, ribbons);
+  };
 
   const setCanvasHistoryHandoffContext = (enabled: boolean): Promise<void> => {
     canvasHistoryHandoffContextUpdate = canvasHistoryHandoffContextUpdate
@@ -481,6 +529,13 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
   });
   context.subscriptions.push(activeColorThemeListener);
+
+  const canvasRibbonConfigurationListener = vscode.workspace.onDidChangeConfiguration?.((event) => {
+    if (event.affectsConfiguration(VSCODE_CANVAS_RIBBON_SETTING)) {
+      broadcastCanvasRibbonConfiguration();
+    }
+  });
+  if (canvasRibbonConfigurationListener) context.subscriptions.push(canvasRibbonConfigurationListener);
 
   const applyCanvasCommit = async (
     session: DocumentSession,
@@ -734,7 +789,31 @@ export const activate = (context: vscode.ExtensionContext): void => {
         session.webviewReady = true;
         session.authoritativeDocumentVersion = null;
         postAuthoritativeDocument(panel, session.document);
+        postCanvasRibbonConfiguration(panel);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
+        return;
+      }
+      if (message.type === "canvasRibbonPositionCommit") {
+        if (!message.ribbonId || !Number.isFinite(message.x) || !Number.isFinite(message.y)) return;
+        const configuration = canvasRibbonConfiguration();
+        if (!configuration) return;
+        const current = configuration.get<unknown>(VSCODE_CANVAS_RIBBON_SETTING);
+        const patched = patchVscodeCanvasRibbonPosition(
+          current,
+          message.ribbonId,
+          message.x,
+          message.y
+        );
+        if (!patched) return;
+        await configuration.update(
+          VSCODE_CANVAS_RIBBON_SETTING,
+          patched,
+          globalConfigurationTarget()
+        );
+        return;
+      }
+      if (message.type === "editCanvasRibbon") {
+        editCanvasRibbon();
         return;
       }
       if (message.type === "webviewAuthoritativeDocumentReady") {
@@ -884,6 +963,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     NUI_CHOICE_QUICK_FIX_APPLY_COMMAND,
     createNuiChoiceQuickFixApplyHandler(languageAnalysisSessionFor)
   );
+  const editCanvasRibbonCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.editCanvasRibbon",
+    editCanvasRibbon
+  );
   const canvasCommandDisposables = [
     ["nuinuiCAD.canvasUndo", "undo"],
     ["nuinuiCAD.canvasRedo", "redo"],
@@ -914,6 +997,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     goToSourceDefinitionCommand,
     revealInCanvasCommand,
     choiceQuickFixApplyCommand,
+    editCanvasRibbonCommand,
     ...canvasCommandDisposables,
     closeDocumentListener,
     disposeAllSessions,

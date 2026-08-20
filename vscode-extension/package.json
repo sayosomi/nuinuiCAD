@@ -36,6 +36,10 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
+          "command": "nuinuiCAD.editCanvasRibbon",
+          "when": "true"
+        },
+        {
           "command": "nuinuiCAD.goToSourceDefinition",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -125,8 +129,87 @@
       {
         "command": "nuinuiCAD.toggleCanvasPoints",
         "title": "nuinuiCAD: Toggle Canvas Points"
+      },
+      {
+        "command": "nuinuiCAD.editCanvasRibbon",
+        "title": "nuinuiCAD: Edit Canvas Ribbon"
       }
     ],
+    "configuration": {
+      "title": "nuinuiCAD",
+      "properties": {
+        "nuinuiCAD.canvasRibbon.ribbons": {
+          "type": "array",
+          "scope": "application",
+          "description": "Canvas Ribbons shown in the nuinuiCAD VS Code Canvas.",
+          "default": [
+            {
+              "id": "canvas-ribbon",
+              "label": "Canvas Ribbon",
+              "x": null,
+              "y": 12,
+              "orientation": "horizontal",
+              "iconSize": 16,
+              "items": [
+                {
+                  "id": "editCanvasRibbon",
+                  "type": "command",
+                  "commandId": "editCanvasRibbon",
+                  "icon": "settings-2",
+                  "showLabel": false
+                }
+              ]
+            }
+          ],
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["id", "label", "x", "y", "orientation", "iconSize", "items"],
+                "properties": {
+                  "id": { "type": "string", "minLength": 1 },
+                  "label": { "type": "string" },
+                  "x": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
+                  "y": { "type": "number" },
+                  "orientation": { "enum": ["horizontal", "vertical"] },
+                  "iconSize": { "type": "number", "minimum": 10, "maximum": 48 },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "required": ["id", "type", "commandId", "icon", "showLabel"],
+                          "properties": {
+                            "id": { "type": "string", "minLength": 1 },
+                            "type": { "const": "command" },
+                            "commandId": { "type": "string", "minLength": 1 },
+                            "icon": { "type": "string", "minLength": 1 },
+                            "iconColor": { "type": "string" },
+                            "label": { "type": "string" },
+                            "showLabel": { "type": "boolean" }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": ["id", "type", "valueId"],
+                          "properties": {
+                            "id": { "type": "string", "minLength": 1 },
+                            "type": { "const": "value" },
+                            "valueId": { "const": "canvasZoom" },
+                            "label": { "type": "string" }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
     "languages": [
       {
         "id": "nui",

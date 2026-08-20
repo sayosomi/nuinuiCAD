@@ -4134,6 +4134,126 @@ textarea {
   white-space: nowrap;
 }
 
+.command-ribbon-item-shell,
+.command-ribbon-value {
+  position: relative;
+}
+
+.command-ribbon-tooltip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* VS Code owns its webview theme; the desktop/Tauri ribbon keeps the legacy
+   palette above. */
+.vscode-canvas-webview {
+  --vscode-canvas-ribbon-foreground: var(--vscode-foreground, #cccccc);
+  --vscode-canvas-ribbon-background: var(--vscode-editorWidget-background, #252526);
+  --vscode-canvas-ribbon-border: var(--vscode-widget-border, #454545);
+  --vscode-canvas-ribbon-hover: var(--vscode-toolbar-hoverBackground, #2a2d2e);
+  --vscode-canvas-ribbon-active: var(--vscode-list-activeSelectionBackground, #094771);
+  --vscode-canvas-ribbon-focus: var(--vscode-focusBorder, #007fd4);
+  --vscode-canvas-ribbon-disabled: var(--vscode-disabledForeground, #858585);
+  --vscode-canvas-ribbon-tooltip: var(--vscode-editorHoverWidget-background, #252526);
+}
+
+.vscode-canvas-webview .command-ribbon {
+  border-color: var(--vscode-canvas-ribbon-border);
+  background: var(--vscode-canvas-ribbon-background);
+  color: var(--vscode-canvas-ribbon-foreground);
+  box-shadow: 0 5px 14px rgb(0 0 0 / 28%);
+}
+
+.vscode-canvas-webview .command-ribbon-handle,
+.vscode-canvas-webview .command-ribbon-button,
+.vscode-canvas-webview .command-ribbon-value {
+  color: var(--vscode-canvas-ribbon-foreground);
+}
+
+.vscode-canvas-webview .command-ribbon-handle {
+  background: color-mix(in srgb, var(--vscode-canvas-ribbon-background) 82%, var(--vscode-canvas-ribbon-foreground));
+}
+
+.vscode-canvas-webview .command-ribbon-handle:hover,
+.vscode-canvas-webview .command-ribbon-button:hover:not(:disabled),
+.vscode-canvas-webview .command-ribbon-button:focus-visible {
+  background: var(--vscode-canvas-ribbon-hover);
+}
+
+.vscode-canvas-webview .command-ribbon-button.is-active,
+.vscode-canvas-webview .command-ribbon-button[aria-pressed="true"] {
+  background: var(--vscode-canvas-ribbon-active);
+}
+
+.vscode-canvas-webview .command-ribbon-button:focus-visible,
+.vscode-canvas-webview .command-ribbon-handle:focus-visible {
+  outline: 2px solid var(--vscode-canvas-ribbon-focus);
+  outline-offset: -2px;
+}
+
+.vscode-canvas-webview .command-ribbon-button[aria-disabled="true"] {
+  color: var(--vscode-canvas-ribbon-disabled);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.vscode-canvas-webview .command-ribbon-item-shell,
+.vscode-canvas-webview .command-ribbon-value {
+  position: relative;
+}
+
+.vscode-canvas-webview .command-ribbon-tooltip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 50%;
+  width: max-content;
+  max-width: min(320px, 80vw);
+  border: 1px solid var(--vscode-canvas-ribbon-border);
+  border-radius: 3px;
+  background: var(--vscode-canvas-ribbon-tooltip);
+  color: var(--vscode-canvas-ribbon-foreground);
+  padding: 4px 7px;
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 80ms ease-in;
+}
+
+.vscode-canvas-webview .command-ribbon-item-shell:hover .command-ribbon-tooltip,
+.vscode-canvas-webview .command-ribbon-button:focus-visible + .command-ribbon-tooltip {
+  opacity: 1;
+}
+
+.vscode-canvas-webview .command-ribbon-value {
+  display: inline-grid;
+  gap: 4px;
+  align-content: center;
+  min-height: 30px;
+  border-left: 1px solid var(--vscode-canvas-ribbon-border);
+  padding: 4px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.vscode-canvas-webview .command-ribbon-value output {
+  font-family: var(--dsl-code-font);
+  font-size: 11px;
+}
+
+.vscode-canvas-webview .command-ribbon-grip {
+  font-size: 14px;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
 .source-ribbon-dock {
   display: grid;
   gap: 0;

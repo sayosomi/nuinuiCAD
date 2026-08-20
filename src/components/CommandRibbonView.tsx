@@ -1,41 +1,70 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
-import {
-  dispatchCommand,
-  type CommandContext,
-  type CommandId
-} from "../commands/commands";
-import type { CommandRibbon } from "../commandRibbons/commandRibbonSettings";
-import {
-  commandRibbonIconColorValues
-} from "../commandRibbons/commandRibbonSettings";
-import {
-  CommandRibbonGripIcon,
-  commandRibbonIconComponents
-} from "../commandRibbons/commandRibbonIcons";
+import type { LucideIcon } from "lucide-react";
 
 export const RIBBON_BUTTON_PADDING = 14;
 export const RIBBON_HANDLE_WIDTH = 24;
 
-type CommandRibbonViewProps = {
-  ribbon: CommandRibbon;
-  className?: string;
-  commandContext?: CommandContext;
-  disabledCommandIds?: ReadonlySet<CommandId>;
+export type CommandRibbonPresentationCommandItem = {
+  id: string;
+  type: "command";
+  commandId: string;
+  icon: string;
+  iconColor?: string;
+  label: string;
+  description: string;
+  showLabel: boolean;
+  available: boolean;
+  nativeDisabled?: boolean;
+  pressed?: boolean;
+};
+
+export type CommandRibbonPresentationValueItem = {
+  id: string;
+  type: "value";
+  label: string;
+  description: string;
+  value: string;
+};
+
+export type CommandRibbonPresentationItem =
+  | CommandRibbonPresentationCommandItem
+  | CommandRibbonPresentationValueItem;
+
+export type CommandRibbonPresentation = {
+  id: string;
+  label: string;
+  x: number | null;
+  y: number;
+  orientation: "horizontal" | "vertical";
+  iconSize: number;
+  items: CommandRibbonPresentationItem[];
   docked?: boolean;
+};
+
+export type CommandRibbonViewProps = {
+  ribbon: CommandRibbonPresentation;
+  className?: string;
   dragging?: boolean;
-  onHandlePointerDown: (event: ReactPointerEvent<HTMLButtonElement>, ribbon: CommandRibbon) => void;
+  iconResolver: (iconName: string) => LucideIcon;
+  onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
+  onHandlePointerDown?: (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    ribbon: CommandRibbonPresentation
+  ) => void;
   onHandlePointerMove?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onHandlePointerUp?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onHandlePointerCancel?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 };
 
+const tooltipIdFor = (ribbonId: string, itemId: string): string =>
+  `command-ribbon-tooltip-${ribbonId}-${itemId}`.replace(/[^a-zA-Z0-9_-]/g, "-");
+
 export const CommandRibbonView = ({
   ribbon,
   className = "",
-  commandContext = {},
-  disabledCommandIds,
-  docked = false,
   dragging = false,
+  iconResolver,
+  onCommand,
   onHandlePointerDown,
   onHandlePointerMove,
   onHandlePointerUp,
@@ -44,10 +73,11 @@ export const CommandRibbonView = ({
   <div
     className={[
       "command-ribbon",
-      docked ? "is-docked" : `is-${ribbon.orientation}`,
+      ribbon.docked ? "is-docked" : `is-${ribbon.orientation}`,
       dragging ? "is-dragging" : "",
       className
     ].filter(Boolean).join(" ")}
+    data-ribbon-id={ribbon.id}
     onPointerDown={(event) => event.stopPropagation()}
     onWheel={(event) => event.stopPropagation()}
   >
@@ -56,43 +86,73 @@ export const CommandRibbonView = ({
       className="command-ribbon-handle"
       aria-label={`${ribbon.label}を移動`}
       title="ドラッグで移動"
-      onPointerDown={(event) => onHandlePointerDown(event, ribbon)}
+      onPointerDown={(event) => onHandlePointerDown?.(event, ribbon)}
       onPointerMove={onHandlePointerMove}
       onPointerUp={onHandlePointerUp}
       onPointerCancel={onHandlePointerCancel}
     >
-      <CommandRibbonGripIcon size={Math.max(14, ribbon.iconSize)} strokeWidth={2} />
+      <span className="command-ribbon-grip" aria-hidden="true">⋮⋮</span>
     </button>
     <div className="command-ribbon-buttons">
-      {ribbon.buttons.map((button) => {
-        const Icon = commandRibbonIconComponents[button.icon];
-        const disabled = disabledCommandIds?.has(button.commandId) ?? false;
+      {ribbon.items.map((item) => {
+        const tooltipId = tooltipIdFor(ribbon.id, item.id);
+        if (item.type === "value") {
+          return (
+            <span
+              key={item.id}
+              className="command-ribbon-value"
+              role="status"
+              aria-label={`${item.label}: ${item.value}`}
+              aria-describedby={tooltipId}
+            >
+              <span className="command-ribbon-value-label">{item.label}</span>
+              <output>{item.value}</output>
+              <span id={tooltipId} className="command-ribbon-tooltip" role="tooltip">
+                {item.label}: {item.description}
+              </span>
+            </span>
+          );
+        }
+
+        const Icon = iconResolver(item.icon);
+        const title = `${item.label}: ${item.description}`;
         return (
-          <button
-            key={button.id}
-            type="button"
-            className={button.showLabel ? "command-ribbon-button has-label" : "command-ribbon-button"}
-            aria-label={button.label}
-            title={button.label}
-            disabled={disabled}
-            style={{
-              minWidth: ribbon.iconSize + RIBBON_BUTTON_PADDING,
-              minHeight: ribbon.iconSize + RIBBON_BUTTON_PADDING
-            }}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (disabled) return;
-              dispatchCommand(button.commandId, commandContext);
-              commandContext.focusCanvas?.();
-            }}
-          >
-            <Icon
-              size={ribbon.iconSize}
-              strokeWidth={2}
-              style={{ color: commandRibbonIconColorValues[button.iconColor] }}
-            />
-            {button.showLabel ? <span>{button.label}</span> : null}
-          </button>
+          <span key={item.id} className="command-ribbon-item-shell">
+            <button
+              type="button"
+              className={[
+                "command-ribbon-button",
+                item.showLabel ? "has-label" : "",
+                item.pressed ? "is-active" : ""
+              ].filter(Boolean).join(" ")}
+              aria-label={item.label}
+              aria-describedby={tooltipId}
+              aria-disabled={item.available ? undefined : "true"}
+              aria-pressed={item.pressed === undefined ? undefined : item.pressed}
+              disabled={item.nativeDisabled}
+              title={title}
+              data-command-id={item.commandId}
+              style={{
+                minWidth: ribbon.iconSize + RIBBON_BUTTON_PADDING,
+                minHeight: ribbon.iconSize + RIBBON_BUTTON_PADDING
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (item.available) onCommand?.(item);
+              }}
+            >
+              <Icon
+                size={ribbon.iconSize}
+                strokeWidth={2}
+                aria-hidden="true"
+                style={{ color: item.iconColor || "currentColor" }}
+              />
+              {item.showLabel ? <span>{item.label}</span> : null}
+            </button>
+            <span id={tooltipId} className="command-ribbon-tooltip" role="tooltip">
+              {title}
+            </span>
+          </span>
         );
       })}
     </div>
