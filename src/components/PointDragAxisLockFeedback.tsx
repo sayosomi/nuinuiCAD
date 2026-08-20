@@ -62,15 +62,16 @@ export const PointDragAxisLockFeedback = ({
         data-point-drag-axis-lock-hint-position="bottom-right"
         style={{ right: 0, bottom: 0 }}
       >
+        {"Press "}
         <span
           className={`point-drag-axis-lock-action ${activeAxis === "x" ? "is-active" : ""}`.trim()}
           data-axis="x"
-        >X: Horizontal</span>
+        >X for Horizontal</span>
         {", "}
         <span
           className={`point-drag-axis-lock-action ${activeAxis === "y" ? "is-active" : ""}`.trim()}
           data-axis="y"
-        >Y: Vertical</span>
+        >Y for Vertical</span>
       </div>
     </div>
   );
