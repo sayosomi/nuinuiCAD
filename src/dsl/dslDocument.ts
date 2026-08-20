@@ -410,9 +410,13 @@ const serializeSourceOutputLines = (data: DslDocumentData): string[] => {
     formatNumericValueForDsl(value, data.elements, undefined, nameContext);
   const lines: string[] = [];
   for (const layout of data.layouts) {
-    lines.push(`layout ${formatDslName(layout.name)}(`);
-    lines.push(`${DSL_INDENT}scale: ${numeric(layout.scale)},`);
-    lines.push(") {");
+    if (layout.scale === 1) {
+      lines.push(`layout ${formatDslName(layout.name)} {`);
+    } else {
+      lines.push(`layout ${formatDslName(layout.name)}(`);
+      lines.push(`${DSL_INDENT}scale: ${numeric(layout.scale)},`);
+      lines.push(") {");
+    }
     for (const placement of layout.placements) {
       const groupToken = resolveGroupToken(data.elements, placement.groupId, nameContext);
       const placeIndent = DSL_INDENT.repeat(2);
@@ -468,17 +472,20 @@ export const planSourceOutputSection = (data: DslDocumentData): {
   const lines = serializeSourceOutputLines(data);
   const blocks: SourceOutputBlock[] = [];
   let cursor = 0;
-  const takeBlock = (prefix: string, id: string, close: string) => {
-    const start = lines.findIndex((line, index) => index >= cursor && line.startsWith(prefix));
+  const takeBlock = (matches: (line: string) => boolean, id: string, close: string) => {
+    const start = lines.findIndex((line, index) => index >= cursor && matches(line));
     if (start < 0) return;
     const end = lines.findIndex((line, index) => index >= start && line.trim() === close);
     if (end < 0) return;
     blocks.push({ layoutId: id, lines: lines.slice(start, end + 1) });
     cursor = end + 1;
   };
-  for (const layout of data.layouts) takeBlock(`layout ${formatDslName(layout.name)}(`, layout.id, "}");
-  for (const output of data.printOutputs) takeBlock(`print ${formatDslName(output.name)}(`, output.id, ")");
-  for (const output of data.svgOutputs) takeBlock(`svg ${formatDslName(output.name)}(`, output.id, ")");
+  for (const layout of data.layouts) {
+    const header = `layout ${formatDslName(layout.name)}`;
+    takeBlock((line) => line === `${header} {` || line === `${header}(`, layout.id, "}");
+  }
+  for (const output of data.printOutputs) takeBlock((line) => line === `print ${formatDslName(output.name)}(`, output.id, ")");
+  for (const output of data.svgOutputs) takeBlock((line) => line === `svg ${formatDslName(output.name)}(`, output.id, ")");
   return { blocks, activeSourceOutputLine: null };
 };
 

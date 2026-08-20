@@ -209,9 +209,7 @@ describe("rename propagation reference-form coverage", () => {
       "    dy: 0,",
       "  )",
       "}",
-      "layout Layout(",
-      "  scale: 1,",
-      ") {",
+      "layout Layout {",
       "  place @G(",
       "    at: (0, 0),",
       "    angle: 0,",
@@ -223,7 +221,7 @@ describe("rename propagation reference-form coverage", () => {
       source,
       targetName: "G",
       newName: "Pattern",
-      changedLineNumbers: [6, 14, 22]
+      changedLineNumbers: [6, 14, 20]
     });
 
     expect(after).toContain("role seam (name: \"Seam\")");

@@ -91,9 +91,7 @@ describe("renameElementWithPropagation", () => {
       "group G {",
       "}",
       "",
-      "layout Layout(",
-      "  scale: 1,",
-      ") {",
+      "layout Layout {",
       "  place @G(",
       "    at: (0, 0),",
       "    angle: 0,",
@@ -110,10 +108,10 @@ describe("renameElementWithPropagation", () => {
     const document = useCadDocumentStore.getState();
     const after = document.sourceText;
     // The layout is patched as one block, although only its place reference changes text.
-    expect(changedLines(before, after)).toEqual([3, 9]);
+    expect(changedLines(before, after)).toEqual([3, 7]);
     expect(document.sourceUpdate).toMatchObject({
       kind: "model-patch",
-      splices: expect.arrayContaining([expect.objectContaining({ startLine: 6, endLine: 14 })])
+      splices: expect.arrayContaining([expect.objectContaining({ startLine: 6, endLine: 12 })])
     });
     expect(after).toContain("// unchanged before group");
     expect(after).toContain("// unchanged after layout");

@@ -167,11 +167,13 @@ const coordinatePair = (value: string) => {
   return match ? { x: match[1].trim(), y: match[2].trim() } : null;
 };
 
-const numericLiteral = (source: string): number | null => {
+type NumericLiteral = { value: number; finite: boolean };
+
+const numericLiteral = (source: string): NumericLiteral | null => {
   const value = source.trim();
   if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)) return null;
   const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+  return { value: number, finite: Number.isFinite(number) };
 };
 
 const normalizedNumeric = (source: string, elements: readonly CadElement[], nameContext: ElementNameContext) =>
@@ -585,7 +587,7 @@ export const buildSourceOutputModel = ({
     const scaleSource = attr(statement.attrs, "scale");
     const scale = normalizedNumeric(scaleSource ?? "1", elements, nameContext);
     const scaleLiteral = numericLiteral(scaleSource ?? "1");
-    if (scaleLiteral !== null && (!Number.isFinite(scaleLiteral) || scaleLiteral <= 0)) {
+    if (scaleLiteral !== null && (!scaleLiteral.finite || scaleLiteral.value <= 0)) {
       diagnostics.push(diagnostic(statement.line, "layout scale は有限の正の値で指定してください。"));
     }
     const placements: LayoutPlacement[] = [];
@@ -612,14 +614,17 @@ export const buildSourceOutputModel = ({
       const angleSource = attr(member.attrs, "angle") ?? "0";
       const angleValue = normalizedNumeric(angleSource, elements, nameContext);
       const angleLiteral = numericLiteral(angleSource);
-      const normalizedAngle = angleLiteral === null
+      const normalizedAngle = angleLiteral === null || !angleLiteral.finite
         ? angleValue
-        : ((angleLiteral % 360) + 360) % 360;
+        : ((angleLiteral.value % 360) + 360) % 360;
       const mirrorValue = booleanValue(attr(member.attrs, "mirror") ?? "false");
       if (mirrorValue === null) diagnostics.push(diagnostic(member.line, "place mirror は true / false で指定してください。"));
       const scaleLiteral = scaleSource === undefined ? null : numericLiteral(scaleSource);
-      if (scaleLiteral !== null && (!Number.isFinite(scaleLiteral) || scaleLiteral <= 0)) {
+      if (scaleLiteral !== null && (!scaleLiteral.finite || scaleLiteral.value <= 0)) {
         diagnostics.push(diagnostic(member.line, "place scale は有限の正の値で指定してください。"));
+      }
+      if (angleLiteral !== null && !angleLiteral.finite) {
+        diagnostics.push(diagnostic(member.line, "place angle は有限の値で指定してください。"));
       }
       if (!target) continue;
       const placementId = sourceIdAt(stableStatementIdByIndex, memberIndex);
@@ -670,14 +675,14 @@ export const buildSourceOutputModel = ({
       const overlapSource = attr(statement.attrs, "overlap") ?? "0";
       const marginLiteral = numericLiteral(marginSource);
       const overlapLiteral = numericLiteral(overlapSource);
-      if (marginLiteral !== null && marginLiteral < 0) diagnostics.push(diagnostic(statement.line, "print margin は 0 以上で指定してください。"));
-      if (overlapLiteral !== null && overlapLiteral < 0) diagnostics.push(diagnostic(statement.line, "print overlap は 0 以上で指定してください。"));
-      if (marginLiteral !== null && overlapLiteral !== null && (paper === "a4" || paper === "a3")) {
+      if (marginLiteral !== null && marginLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "print margin は 0 以上で指定してください。"));
+      if (overlapLiteral !== null && overlapLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "print overlap は 0 以上で指定してください。"));
+      if (marginLiteral !== null && overlapLiteral !== null && marginLiteral.finite && overlapLiteral.finite && (paper === "a4" || paper === "a3")) {
         const base = paperDimensions[paper];
-        const width = (orientationSource === "landscape" ? base.height : base.width) - marginLiteral * 2;
-        const height = (orientationSource === "landscape" ? base.width : base.height) - marginLiteral * 2;
+        const width = (orientationSource === "landscape" ? base.height : base.width) - marginLiteral.value * 2;
+        const height = (orientationSource === "landscape" ? base.width : base.height) - marginLiteral.value * 2;
         if (width <= 0 || height <= 0) diagnostics.push(diagnostic(statement.line, "print の有効な用紙幅・高さは 0 より大きくしてください。"));
-        if (overlapLiteral >= width || overlapLiteral >= height) diagnostics.push(diagnostic(statement.line, "print overlap は有効な幅・高さより小さくしてください。"));
+        if (overlapLiteral.value >= width || overlapLiteral.value >= height) diagnostics.push(diagnostic(statement.line, "print overlap は有効な幅・高さより小さくしてください。"));
       }
       printOutputs.push({
         id: outputId,
@@ -692,7 +697,7 @@ export const buildSourceOutputModel = ({
     } else {
       const marginSource = attr(statement.attrs, "margin") ?? "0";
       const marginLiteral = numericLiteral(marginSource);
-      if (marginLiteral !== null && marginLiteral < 0) diagnostics.push(diagnostic(statement.line, "svg margin は 0 以上で指定してください。"));
+      if (marginLiteral !== null && marginLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "svg margin は 0 以上で指定してください。"));
       svgOutputs.push({
         id: outputId,
         name: statement.name,
