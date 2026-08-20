@@ -100,15 +100,17 @@ const declarationIdentity = (
     declaration.kind === "geometry" ||
     declaration.kind === "conditionalGroup" ||
     declaration.kind === "forGroup" ||
-    declaration.kind === "typedDeclaration" ||
-    declaration.kind === "layout" ||
-    declaration.kind === "print" ||
-    declaration.kind === "svg"
+    declaration.kind === "typedDeclaration"
   ) {
     const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(declaration.statementIndex);
     return statementId ? { kind: "module", target: { kind: "moduleSource", statementId } } : null;
   }
-  if (declaration.kind === "profile") {
+  if (
+    declaration.kind === "profile" ||
+    declaration.kind === "layout" ||
+    declaration.kind === "print" ||
+    declaration.kind === "svg"
+  ) {
     const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(declaration.statementIndex);
     return statementId ? { kind: "source", statementId } : null;
   }
@@ -396,22 +398,20 @@ const addSourceOutputOccurrences = (compiled: CompiledDslDocument, add: AddOccur
   if (!namespace) return;
   for (const [statementIndex, statement] of compiled.statements.entries()) {
     if (statement.kind !== "layout" && statement.kind !== "print" && statement.kind !== "svg" && statement.kind !== "place") continue;
+    const logical = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
+    if (!logical) continue;
     for (const key of ["group", "origin", "layout", "profile"]) {
       const valueSpan = statement.payloadSpans[key];
-      const physical = valueSpan ? physicalRange(compiled, statementIndex, valueSpan) : null;
-      if (!physical) continue;
-      const parsed = parseDslSourceReference(sourceSlice(compiled, physical.from, physical.to));
+      if (!valueSpan) continue;
+      const parsed = parseDslSourceReference(logical.logicalText.slice(valueSpan.start, valueSpan.end));
       if (parsed.kind !== "valid" || parsed.reference.property) continue;
       addQualifiedPathOccurrences(compiled, add, statementIndex, {
-        start: physical.from + parsed.reference.pathRange.start,
-        end: physical.from + parsed.reference.pathRange.end
+        start: valueSpan.start + parsed.reference.pathRange.start,
+        end: valueSpan.start + parsed.reference.pathRange.end
       }, null);
     }
   }
 };
-
-const sourceSlice = (compiled: CompiledDslDocument, from: number, to: number) =>
-  compiled.spans.sourceMap.source.slice(from, to);
 
 /** Build exact, compiler-resolved declaration/reference occurrences in source order. */
 export const createDslSemanticOccurrenceIndex = (

@@ -414,4 +414,105 @@ describe("host-neutral DSL rename query", () => {
       rejection: { reason: "same-scope-collision", conflictingName: "length", conflictingLine: 2 }
     });
   });
+
+  it("renames multiline layout/profile outputs and qualified placement paths", () => {
+    const source = [
+      "nui 4",
+      "profile OutputProfile",
+      "group Outer {",
+      "  group Inner {",
+      "    point Origin = coordinate(x: 0, y: 0)",
+      "  }",
+      "}",
+      "layout Layout {",
+      "  place @Outer::Inner(",
+      "    origin: @Outer::Inner::Origin,",
+      "    at: (0, 0),",
+      "  )",
+      "}",
+      "print PrintOutput(",
+      "  layout: @Layout,",
+      "  profile: @OutputProfile,",
+      "  paper: a4,",
+      "  margin: 0,",
+      "  overlap: 0,",
+      ")",
+      "svg SvgOutput(",
+      "  layout: @Layout,",
+      "  profile: @OutputProfile,",
+      ")"
+    ].join("\n");
+
+    const layoutDeclaration = source.indexOf("Layout") + 1;
+    const layoutReference = source.indexOf("@Layout") + 1;
+    const layoutSvgReference = source.indexOf("@Layout", layoutReference + 1) + 1;
+    const layoutFromDeclaration = planDslRenameEdits(snapshot(source), layoutDeclaration, "RenamedLayout");
+    const layoutFromPrint = planDslRenameEdits(snapshot(source), layoutReference, "RenamedLayout");
+    const layoutFromSvg = planDslRenameEdits(snapshot(source), layoutSvgReference, "RenamedLayout");
+    expect(layoutFromDeclaration).not.toBeNull();
+    expect(layoutFromPrint?.edits).toEqual(layoutFromDeclaration?.edits);
+    expect(layoutFromSvg?.edits).toEqual(layoutFromDeclaration?.edits);
+    expect(layoutFromDeclaration?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual([
+      "Layout",
+      "Layout",
+      "Layout"
+    ]);
+
+    const profileDeclaration = source.indexOf("OutputProfile") + 1;
+    const profileReference = source.indexOf("@OutputProfile") + 1;
+    const profileSvgReference = source.indexOf("@OutputProfile", profileReference + 1) + 1;
+    const profileFromDeclaration = planDslRenameEdits(snapshot(source), profileDeclaration, "RenamedProfile");
+    const profileFromPrint = planDslRenameEdits(snapshot(source), profileReference, "RenamedProfile");
+    const profileFromSvg = planDslRenameEdits(snapshot(source), profileSvgReference, "RenamedProfile");
+    expect(profileFromDeclaration).not.toBeNull();
+    expect(profileFromPrint?.edits).toEqual(profileFromDeclaration?.edits);
+    expect(profileFromSvg?.edits).toEqual(profileFromDeclaration?.edits);
+    expect(profileFromDeclaration?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual([
+      "OutputProfile",
+      "OutputProfile",
+      "OutputProfile"
+    ]);
+
+    const innerDeclaration = source.indexOf("Inner") + 1;
+    const innerReference = source.indexOf("@Outer::Inner") + 1 + "Outer::".length;
+    const innerOriginReference = source.indexOf("@Outer::Inner::Origin") + 1 + "Outer::".length;
+    const innerFromDeclaration = planDslRenameEdits(snapshot(source), innerDeclaration, "RenamedInner");
+    const innerFromTarget = planDslRenameEdits(snapshot(source), innerReference, "RenamedInner");
+    const innerFromOrigin = planDslRenameEdits(snapshot(source), innerOriginReference, "RenamedInner");
+    expect(innerFromDeclaration).not.toBeNull();
+    expect(innerFromTarget?.edits).toEqual(innerFromDeclaration?.edits);
+    expect(innerFromOrigin?.edits).toEqual(innerFromDeclaration?.edits);
+    expect(innerFromDeclaration?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual([
+      "Inner",
+      "Inner",
+      "Inner"
+    ]);
+
+    const originDeclaration = source.indexOf("Origin") + 1;
+    const originReference = source.indexOf("@Outer::Inner::Origin") + 1 + "Outer::Inner::".length;
+    const originFromDeclaration = planDslRenameEdits(snapshot(source), originDeclaration, "RenamedOrigin");
+    const originFromReference = planDslRenameEdits(snapshot(source), originReference, "RenamedOrigin");
+    expect(originFromDeclaration).not.toBeNull();
+    expect(originFromReference?.edits).toEqual(originFromDeclaration?.edits);
+    expect(originFromDeclaration?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["Origin", "Origin"]);
+  });
+
+  it("renames print and SVG declarations and rejects same-scope source collisions", () => {
+    const source = [
+      "nui 4",
+      "group Existing {",
+      "}",
+      "layout Layout {",
+      "  place @Existing(at: (0, 0))",
+      "}",
+      "print PrintOutput(layout: @Layout, paper: a4, margin: 0, overlap: 0)",
+      "svg SvgOutput(layout: @Layout)"
+    ].join("\n");
+
+    const printPlan = planDslRenameEdits(snapshot(source), source.indexOf("PrintOutput") + 1, "RenamedPrint");
+    const svgPlan = planDslRenameEdits(snapshot(source), source.indexOf("SvgOutput") + 1, "RenamedSvg");
+    expect(printPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["PrintOutput"]);
+    expect(svgPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["SvgOutput"]);
+    expect(planDslRenameEdits(snapshot(source), source.indexOf("Layout") + 1, "Existing")).toBeNull();
+  });
 });

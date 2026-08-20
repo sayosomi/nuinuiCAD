@@ -263,4 +263,55 @@ describe("queryDslReferences", () => {
     expect(typedResult!.referenceRanges).toHaveLength(2);
     expect(typedResult!.referenceRanges[0]!.from).toBeLessThan(typedResult!.referenceRanges[1]!.from);
   });
+
+  it("returns multiline output and qualified placement references by source identity", () => {
+    const source = [
+      "nui 4",
+      "profile OutputProfile",
+      "group Outer {",
+      "  group Inner {",
+      "    point Origin = coordinate(x: 0, y: 0)",
+      "  }",
+      "}",
+      "layout Layout {",
+      "  place @Outer::Inner(",
+      "    origin: @Outer::Inner::Origin,",
+      "    at: (0, 0),",
+      "  )",
+      "}",
+      "print PrintOutput(",
+      "  layout: @Layout,",
+      "  profile: @OutputProfile,",
+      "  paper: a4,",
+      "  margin: 0,",
+      "  overlap: 0,",
+      ")",
+      "svg SvgOutput(",
+      "  layout: @Layout,",
+      "  profile: @OutputProfile,",
+      ")"
+    ].join("\n");
+    const layout = queryAt(source, "Layout");
+    const profile = queryAt(source, "OutputProfile");
+    const outer = queryAt(source, "Outer");
+    const inner = queryAt(source, "Inner");
+    const origin = queryAt(source, "Origin");
+
+    expect(layout).not.toBeNull();
+    expect(slices(source, layout!.declarationRange)).toEqual(["Layout"]);
+    expect(slices(source, layout!.referenceRanges)).toEqual(["Layout", "Layout"]);
+
+    expect(profile).not.toBeNull();
+    expect(slices(source, profile!.declarationRange)).toEqual(["OutputProfile"]);
+    expect(slices(source, profile!.referenceRanges)).toEqual(["OutputProfile", "OutputProfile"]);
+
+    expect(outer).not.toBeNull();
+    expect(slices(source, outer!.referenceRanges)).toEqual(["Outer", "Outer"]);
+    expect(inner).not.toBeNull();
+    expect(slices(source, inner!.referenceRanges)).toEqual(["Inner", "Inner"]);
+    expect(origin).not.toBeNull();
+    expect(slices(source, origin!.referenceRanges)).toEqual(["Origin"]);
+    expect(outer!.referenceRanges.every((range) => source.slice(range.from, range.to) !== "Outer::Inner")).toBe(true);
+    expect(inner!.referenceRanges.every((range) => source.slice(range.from, range.to) !== "Outer::Inner")).toBe(true);
+  });
 });
