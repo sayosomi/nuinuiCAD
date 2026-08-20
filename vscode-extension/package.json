@@ -172,7 +172,7 @@
                   "x": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
                   "y": { "type": "number" },
                   "orientation": { "enum": ["horizontal", "vertical"] },
-                  "iconSize": { "type": "number", "minimum": 10, "maximum": 48 },
+                  "iconSize": { "enum": [14, 16, 18, 20, 24] },
                   "items": {
                     "type": "array",
                     "items": {
@@ -185,7 +185,7 @@
                             "type": { "const": "command" },
                             "commandId": { "type": "string", "minLength": 1 },
                             "icon": { "type": "string", "minLength": 1 },
-                            "iconColor": { "type": "string" },
+                            "iconColor": { "enum": ["default", "teal", "blue", "green", "amber", "orange", "red", "pink", "purple", "slate"] },
                             "label": { "type": "string" },
                             "showLabel": { "type": "boolean" }
                           }

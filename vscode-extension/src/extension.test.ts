@@ -1964,11 +1964,32 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
         y: 12,
         orientation: "horizontal",
         iconSize: 16,
-        items: [{ id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: false }]
+        items: [{
+          id: "edit",
+          type: "command",
+          commandId: "editCanvasRibbon",
+          icon: "settings-2",
+          showLabel: false,
+          futureItemField: { keep: "verbatim" }
+        }],
+        futureRibbonField: { keep: true }
       },
       {
         id: "two",
-        label: "Two",
+        items: "malformed",
+        futureMalformedRibbonField: [1, 2, 3]
+      },
+      {
+        id: "one",
+        label: "Later duplicate",
+        x: 7,
+        y: 8,
+        items: [{ id: "later", type: "value", valueId: "canvasZoom" }],
+        futureDuplicateField: "keep"
+      },
+      {
+        id: "three",
+        label: "Three",
         x: 4,
         y: 5,
         orientation: "vertical",
@@ -1985,17 +2006,17 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
       section: "nuinuiCAD.canvasRibbon.ribbons",
       target: 1,
       value: [
-        expect.objectContaining({
-          id: "one",
-          x: 40,
-          y: 52,
-          items: [expect.objectContaining({ id: "edit", iconColor: "currentColor" })]
-        }),
-        expect.objectContaining({ ...configuredRibbons[1], items: [{ id: "zoom", type: "value", valueId: "canvasZoom" }] })
+        { ...configuredRibbons[0], x: 40, y: 52 },
+        configuredRibbons[1],
+        configuredRibbons[2],
+        configuredRibbons[3]
       ]
     }]);
 
     await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: Number.NaN, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: Number.POSITIVE_INFINITY, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "", x: 40, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "missing", x: 40, y: 52 });
     expect(mocks.configurationUpdates).toHaveLength(1);
   });
 

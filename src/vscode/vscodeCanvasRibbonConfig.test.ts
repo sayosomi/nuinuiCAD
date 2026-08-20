@@ -5,6 +5,11 @@ import {
   patchVscodeCanvasRibbonPosition
 } from "./vscodeCanvasRibbonConfig";
 import {
+  commandRibbonIconColors,
+  commandRibbonIconColorValues,
+  commandRibbonIconSizes
+} from "../commandRibbons/commandRibbonVisuals";
+import {
   vscodeCanvasRibbonCommandCatalog,
   vscodeCanvasRibbonCommandIds,
   vscodeCanvasRibbonCommandFor
@@ -90,10 +95,35 @@ describe("VS Code Canvas Ribbon configuration", () => {
     expect(ribbons[0]?.items[0]).toMatchObject({
       commandId: "workbench.action.files.openFile",
       icon: "not-a-lucide-icon",
-      iconColor: "currentColor",
+      iconColor: "default",
       showLabel: true
     });
     expect(ribbons[1]).toMatchObject({ id: "second", x: 10, y: 21, orientation: "vertical", iconSize: 20 });
+  });
+
+  it("accepts only the fixed icon sizes and color names", () => {
+    for (const iconSize of commandRibbonIconSizes) {
+      expect(normalizeVscodeCanvasRibbons([{
+        id: `size-${iconSize}`,
+        items: [],
+        iconSize
+      }])[0]?.iconSize).toBe(iconSize);
+    }
+    expect(normalizeVscodeCanvasRibbons([{ id: "invalid-size", items: [], iconSize: 22 }])[0]?.iconSize).toBe(16);
+
+    for (const iconColor of commandRibbonIconColors) {
+      expect(normalizeVscodeCanvasRibbons([{
+        id: `color-${iconColor}`,
+        items: [{ id: "command", type: "command", commandId: "resetCanvasView", icon: "circle", iconColor, showLabel: false }]
+      }])[0]?.items[0]).toMatchObject({ iconColor });
+    }
+    expect(normalizeVscodeCanvasRibbons([{
+      id: "invalid-color",
+      items: [{ id: "command", type: "command", commandId: "resetCanvasView", icon: "circle", iconColor: "#0f766e", showLabel: false }]
+    }])[0]?.items[0]).toMatchObject({ iconColor: "default" });
+
+    expect(commandRibbonIconColorValues.amber).toBe("#b7791f");
+    expect(commandRibbonIconColorValues.slate).toBe("#475569");
   });
 
   it("keeps the closed Ribbon command catalog separate from shared CommandId", () => {
@@ -116,7 +146,7 @@ describe("VS Code Canvas Ribbon configuration", () => {
     expect(resolveVscodeLucideIconName(42)).toBe("circle");
   });
 
-  it("patches only a finite position and preserves the current Ribbon model", () => {
+  it("patches only the first valid owner and preserves the raw Ribbon model", () => {
     const current = [{
       id: "one",
       label: "One",
@@ -124,7 +154,8 @@ describe("VS Code Canvas Ribbon configuration", () => {
       y: 12,
       orientation: "horizontal",
       iconSize: 16,
-      items: [{ id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", iconColor: "currentColor", showLabel: false }]
+      items: [{ id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: false }],
+      futureRibbonField: { keep: true }
     }, {
       id: "two",
       label: "Two",
@@ -133,11 +164,18 @@ describe("VS Code Canvas Ribbon configuration", () => {
       orientation: "vertical",
       iconSize: 20,
       items: [{ id: "zoom", type: "value", valueId: "canvasZoom" }]
+    }, {
+      id: "one",
+      malformedFutureField: true,
+      items: "not-an-array"
     }];
-    expect(patchVscodeCanvasRibbonPosition(current, "one", 24, 36)).toEqual([
-      { ...current[0], x: 24, y: 36 },
-      current[1]
+    expect(patchVscodeCanvasRibbonPosition(current, "one", 24.5, 36.25)).toEqual([
+      { ...current[0], x: 24.5, y: 36.25 },
+      current[1],
+      current[2]
     ]);
     expect(patchVscodeCanvasRibbonPosition(current, "one", Number.NaN, 36)).toBeNull();
+    expect(patchVscodeCanvasRibbonPosition(current, "one", Number.POSITIVE_INFINITY, 36)).toBeNull();
+    expect(patchVscodeCanvasRibbonPosition(current, "missing", 24, 36)).toBeNull();
   });
 });

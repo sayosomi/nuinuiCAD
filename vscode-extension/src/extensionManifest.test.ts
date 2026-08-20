@@ -38,6 +38,14 @@ type ExtensionManifest = {
   };
 };
 
+type SchemaNode = {
+  const?: unknown;
+  enum?: unknown[];
+  oneOf?: SchemaNode[];
+  properties?: Record<string, SchemaNode>;
+  items?: SchemaNode;
+};
+
 const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
 const commandIds = [
   "nuinuiCAD.openCanvas",
@@ -154,8 +162,15 @@ describe("VS Code Canvas Ribbon configuration contribution", () => {
         properties: expect.objectContaining({ items: expect.anything() })
       })]
     });
-    const schemaText = JSON.stringify(setting?.items);
-    expect(schemaText).toContain("commandId");
-    expect(schemaText).toContain("canvasZoom");
+    const ribbonSchema = (setting?.items as SchemaNode | undefined)?.oneOf?.[0];
+    const itemSchema = ribbonSchema?.properties?.items?.items;
+    const commandSchema = itemSchema?.oneOf?.find((schema) => schema.properties?.type?.const === "command");
+    const valueSchema = itemSchema?.oneOf?.find((schema) => schema.properties?.type?.const === "value");
+    expect(ribbonSchema?.properties?.iconSize).toEqual({ enum: [14, 16, 18, 20, 24] });
+    expect(commandSchema?.properties?.iconColor).toEqual({
+      enum: ["default", "teal", "blue", "green", "amber", "orange", "red", "pink", "purple", "slate"]
+    });
+    expect(commandSchema?.properties?.commandId).toBeDefined();
+    expect(valueSchema?.properties?.valueId).toEqual({ const: "canvasZoom" });
   });
 });

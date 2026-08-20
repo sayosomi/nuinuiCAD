@@ -20,6 +20,7 @@ import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
+import { commandRibbonIconColorValues } from "../commandRibbons/commandRibbonVisuals";
 import { CommandRibbonFloatingOverlay } from "../components/CommandRibbonFloatingOverlay";
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type {
@@ -113,7 +114,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
             type: "command" as const,
             commandId: item.commandId,
             icon: item.icon || definition?.icon || "circle",
-            iconColor: item.iconColor,
+            iconColor: commandRibbonIconColorValues[item.iconColor ?? "default"],
             label: item.label ?? definition?.label ?? item.commandId,
             description: definition?.description ?? "This command is unavailable.",
             showLabel: item.showLabel,

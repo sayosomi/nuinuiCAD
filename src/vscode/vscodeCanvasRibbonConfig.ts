@@ -1,3 +1,9 @@
+import {
+  commandRibbonIconColors,
+  commandRibbonIconSizes
+} from "../commandRibbons/commandRibbonVisuals";
+import type { CommandRibbonIconColor, CommandRibbonIconSize } from "../commandRibbons/commandRibbonVisuals";
+
 export const VSCODE_CANVAS_RIBBON_SETTING = "nuinuiCAD.canvasRibbon.ribbons";
 
 export const VSCODE_CANVAS_RIBBON_DEFAULT_Y = 12;
@@ -10,7 +16,7 @@ export type VscodeCanvasRibbonCommandItem = {
   type: "command";
   commandId: string;
   icon: string;
-  iconColor?: string;
+  iconColor?: CommandRibbonIconColor;
   label?: string;
   showLabel: boolean;
 };
@@ -56,9 +62,7 @@ export const defaultVscodeCanvasRibbons = (): VscodeCanvasRibbon[] => [
   }
 ];
 
-const VSCODE_CANVAS_RIBBON_MIN_ICON_SIZE = 10;
-const VSCODE_CANVAS_RIBBON_MAX_ICON_SIZE = 48;
-export const VSCODE_CANVAS_RIBBON_SAFE_ICON_COLOR = "currentColor";
+export const VSCODE_CANVAS_RIBBON_SAFE_ICON_COLOR: CommandRibbonIconColor = "default";
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -74,25 +78,18 @@ const normalizeCoordinate = (value: unknown, fallback: number | null): number | 
   return coordinate === null ? fallback : Math.round(coordinate);
 };
 
-const normalizeIconSize = (value: unknown): number => {
+const normalizeIconSize = (value: unknown): CommandRibbonIconSize => {
   const size = finiteNumber(value);
-  return size !== null && size >= VSCODE_CANVAS_RIBBON_MIN_ICON_SIZE && size <= VSCODE_CANVAS_RIBBON_MAX_ICON_SIZE
-    ? Math.round(size)
+  return size !== null && (commandRibbonIconSizes as readonly number[]).includes(size)
+    ? size as CommandRibbonIconSize
     : VSCODE_CANVAS_RIBBON_DEFAULT_ICON_SIZE;
 };
 
-const isSafeIconColor = (value: unknown): value is string => {
-  if (typeof value !== "string") return false;
-  const color = value.trim();
-  if (color.length === 0 || color.length > 100) return false;
-  return /^#[0-9a-f]{3,8}$/i.test(color) ||
-    /^(?:rgb|rgba|hsl|hsla)\([^()]{1,80}\)$/i.test(color) ||
-    /^var\(--[a-z0-9-]+\)$/i.test(color) ||
-    /^(?:currentColor|transparent|black|white|red|green|blue|teal|orange|purple|pink|yellow|gray|grey)$/i.test(color);
-};
+const isAllowedIconColor = (value: unknown): value is CommandRibbonIconColor =>
+  typeof value === "string" && (commandRibbonIconColors as readonly string[]).includes(value);
 
-const normalizeIconColor = (value: unknown): string =>
-  isSafeIconColor(value) ? value.trim() : VSCODE_CANVAS_RIBBON_SAFE_ICON_COLOR;
+const normalizeIconColor = (value: unknown): CommandRibbonIconColor =>
+  isAllowedIconColor(value) ? value : VSCODE_CANVAS_RIBBON_SAFE_ICON_COLOR;
 
 const normalizeCommandItem = (value: unknown): VscodeCanvasRibbonCommandItem | null => {
   if (!isObject(value)) return null;
@@ -176,9 +173,21 @@ export const patchVscodeCanvasRibbonPosition = (
   ribbonId: string,
   x: number,
   y: number
-): VscodeCanvasRibbon[] | null => {
-  if (!ribbonId || !Number.isFinite(x) || !Number.isFinite(y)) return null;
-  const ribbons = normalizeVscodeCanvasRibbons(value);
-  if (!ribbons.some((ribbon) => ribbon.id === ribbonId)) return null;
-  return ribbons.map((ribbon) => ribbon.id === ribbonId ? { ...ribbon, x: Math.round(x), y: Math.round(y) } : ribbon);
+): unknown[] | null => {
+  if (typeof ribbonId !== "string" || ribbonId.trim().length === 0 || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  if (!Array.isArray(value)) return null;
+
+  const normalizedRibbonId = ribbonId.trim();
+  const ownerIndex = value.findIndex((ribbon) =>
+    isObject(ribbon) &&
+    Array.isArray(ribbon.items) &&
+    nonEmptyString(ribbon.id) === normalizedRibbonId
+  );
+  if (ownerIndex < 0) return null;
+
+  return value.map((ribbon, index) =>
+    index === ownerIndex && isObject(ribbon)
+      ? { ...ribbon, x, y }
+      : ribbon
+  );
 };
