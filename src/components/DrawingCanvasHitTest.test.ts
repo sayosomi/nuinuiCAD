@@ -73,6 +73,28 @@ describe("Canvas identity hit candidates", () => {
       points: [{ point: point("point-c", "C"), screen: { x: 50, y: 50 } }]
     })).toBe("point-c");
   });
+
+  it("orders every base category from front to back and deduplicates after ordering", () => {
+    const hits = hitTestCanvasGeometryAll({
+      screen: { x: 20, y: 20 },
+      images: [{ image: { elementId: "image", name: "Image" }, corners: [
+        { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 40 }, { x: 0, y: 40 }
+      ] }],
+      lines: [{ line: line("line", "Line"), start: { x: 0, y: 20 }, end: { x: 40, y: 20 } }],
+      texts: [{
+        text: { elementId: "text", name: "Text", text: "Text" },
+        screen: { x: 0, y: 0 },
+        fontSizePx: 20
+      }],
+      points: [
+        { point: point("point", "Point"), screen: { x: 20, y: 20 } },
+        { point: point("line", "Line point"), screen: { x: 20, y: 20 } }
+      ]
+    });
+
+    expect(hits.map(({ elementId }) => elementId)).toEqual(["line", "point", "text", "image"]);
+    expect(hits[0]).toEqual({ elementId: "line", kind: "point", name: "Line point" });
+  });
 });
 
 describe("screen-space identity representative helpers", () => {
@@ -87,6 +109,13 @@ describe("screen-space identity representative helpers", () => {
       { x: 4, y: 5 },
       { x: 4, y: 5 }
     ])).toEqual({ x: 4, y: 5 });
+    expect(screenSpaceCumulativeLengthMidpoint([
+      { x: 8, y: 9 },
+      { x: 8, y: 9 },
+      { x: 8, y: 9 },
+      { x: 8, y: 9 }
+    ])).toEqual({ x: 8, y: 9 });
+    expect(screenSpaceCumulativeLengthMidpoint([], { x: 7, y: 8 })).toEqual({ x: 7, y: 8 });
   });
 
   it("shares text hit bounds for the label representative center", () => {

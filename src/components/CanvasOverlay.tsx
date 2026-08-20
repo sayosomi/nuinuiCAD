@@ -44,7 +44,8 @@ type CanvasOverlayProps = {
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
-  hoveredElementId?: ElementId | null;
+  hoveredElementIds: ReadonlySet<ElementId>;
+  hoverRepresentativeElementId: ElementId | null;
 };
 
 export const CanvasOverlay = ({
@@ -72,7 +73,8 @@ export const CanvasOverlay = ({
   isPointPickActive,
   isNumericReferencePickActive,
   isLinePickActive,
-  hoveredElementId = null
+  hoveredElementIds,
+  hoverRepresentativeElementId
 }: CanvasOverlayProps) => {
   const lineOverlayClass = (elementId: ElementId) =>
     [
@@ -101,9 +103,10 @@ export const CanvasOverlay = ({
   const geometryNamesEnabled = showCanvasGeometryNames ?? false;
   const identityCandidatesById = new Map<ElementId, CanvasIdentityCandidate>();
   for (const candidate of overlayIdentityCandidates) {
-    if (!candidate.name.trim() || identityCandidatesById.has(candidate.elementId)) continue;
+    if (!candidate.name || !candidate.name.trim() || identityCandidatesById.has(candidate.elementId)) continue;
     const persistent = candidate.kind === "point" ? pointNamesEnabled : geometryNamesEnabled;
-    if (persistent || candidate.elementId === hoveredElementId || candidate.elementId === selectedElementId) {
+    const isPrimarySelected = candidate.elementId === selectedElementId;
+    if (persistent || isPrimarySelected || candidate.elementId === hoverRepresentativeElementId) {
       identityCandidatesById.set(candidate.elementId, candidate);
     }
   }
@@ -235,10 +238,14 @@ export const CanvasOverlay = ({
     {[...identityCandidatesById.values()].map((candidate) => (
       <text
         key={`identity-${candidate.elementId}`}
-        className="overlay-element-identity"
+        className={[
+          "overlay-element-identity",
+          candidate.elementId === selectedElementId ? "overlay-element-identity-primary-selected" : "",
+          hoveredElementIds.has(candidate.elementId) ? "overlay-element-identity-hovered" : ""
+        ].filter(Boolean).join(" ")}
         data-element-identity={candidate.elementId}
-        x={candidate.screen.x + 8}
-        y={candidate.screen.y - 8}
+        x={candidate.representativeScreen.x + 8}
+        y={candidate.representativeScreen.y - 8}
         fill="var(--canvas-foreground)"
         style={{ fontSize: 12, pointerEvents: "none" }}
       >

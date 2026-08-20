@@ -19,6 +19,7 @@ const intent = (pointerId = 1) => ({
   sourceRevision: 4,
   compiledDocumentRevision: 7,
   deadlineAt: 999,
+  staleTargetHint: null,
 });
 
 describe("pending canvas pointer state machine", () => {

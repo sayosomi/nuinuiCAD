@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
 import type {
   CanvasOverlapCandidateSession,
+  CanvasHoverIdentityPopup,
   LinePickCandidate,
   LinePickCandidateMenu,
   MeasurementCandidateMenu,
@@ -17,6 +19,7 @@ type CanvasCandidateMenusProps = {
   pointPickCandidateMenu: PointPickCandidateMenu | null;
   linePickCandidateMenu: LinePickCandidateMenu | null;
   overlapCandidateSession: CanvasOverlapCandidateSession | null;
+  hoverIdentityCandidatePopup: CanvasHoverIdentityPopup | null;
   viewportSize: ViewportSize;
   onApplyMeasurementCandidate: (candidate: LineMeasurementCandidate) => void;
   onApplyPointPickCandidate: (candidate: PointPickCandidate) => void;
@@ -25,11 +28,74 @@ type CanvasCandidateMenusProps = {
   onFocusCanvas: () => void;
 };
 
+type MeasuredCanvasPopupProps = {
+  pointer: { x: number; y: number };
+  viewportSize: ViewportSize;
+  className: string;
+  measurementKey: string;
+  role?: string;
+  ariaLabel?: string;
+  ariaActiveDescendant?: string;
+  children: ReactNode;
+};
+
+const MeasuredCanvasPopup = ({
+  pointer,
+  viewportSize,
+  className,
+  measurementKey,
+  role,
+  ariaLabel,
+  ariaActiveDescendant,
+  children
+}: MeasuredCanvasPopupProps) => {
+  const popupRef = useRef<HTMLDivElement>(null);
+  const [measuredSize, setMeasuredSize] = useState<{ width: number; height: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const popup = popupRef.current;
+    if (!popup) return;
+    const measure = () => {
+      const rect = popup.getBoundingClientRect();
+      const next = { width: rect.width, height: rect.height };
+      setMeasuredSize((previous) =>
+        previous?.width === next.width && previous.height === next.height ? previous : next
+      );
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(popup);
+    return () => observer.disconnect();
+  }, [measurementKey, pointer.x, pointer.y, viewportSize.height, viewportSize.width]);
+
+  const placement = measuredSize
+    ? placeCanvasPopup(pointer, measuredSize, viewportSize)
+    : { left: 0, top: 0 };
+  return (
+    <div
+      ref={popupRef}
+      className={className}
+      role={role}
+      aria-label={ariaLabel}
+      aria-activedescendant={ariaActiveDescendant}
+      style={{
+        left: placement.left,
+        top: placement.top,
+        ...(measuredSize ? {} : { visibility: "hidden" as const })
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
 export const CanvasCandidateMenus = ({
   measurementCandidateMenu,
   pointPickCandidateMenu,
   linePickCandidateMenu,
   overlapCandidateSession,
+  hoverIdentityCandidatePopup,
   viewportSize,
   onApplyMeasurementCandidate,
   onApplyPointPickCandidate,
@@ -49,10 +115,6 @@ export const CanvasCandidateMenus = ({
   const popupStyle = (screen: { x: number; y: number }, size: { width: number; height: number }) => {
     const placement = placeCanvasPopup(screen, size, viewportSize);
     return { left: placement.left, top: placement.top };
-  };
-  const overlapPopupSize = {
-    width: 300,
-    height: Math.min(420, 16 + (overlapCandidateSession?.candidates.length ?? 0) * 36)
   };
 
   return (
@@ -122,12 +184,15 @@ export const CanvasCandidateMenus = ({
       </div>
     ) : null}
     {overlapCandidateSession ? (
-      <div
+      <MeasuredCanvasPopup
         className="canvas-overlap-candidate-menu"
-        style={popupStyle(overlapCandidateSession.screen, overlapPopupSize)}
+        pointer={overlapCandidateSession.anchor}
+        measurementKey={overlapCandidateSession.candidates.map(({ elementId, name, kind }) =>
+          `${elementId}:${name ?? ""}:${kind}`).join("|")}
+        viewportSize={viewportSize}
         role="listbox"
-        aria-label="重なった要素の選択候補"
-        aria-activedescendant={`canvas-overlap-candidate-${overlapCandidateSession.candidates[overlapCandidateSession.activeIndex]?.elementId ?? ""}`}
+        ariaLabel="重なった要素の選択候補"
+        ariaActiveDescendant={`canvas-overlap-candidate-${overlapCandidateSession.candidates[overlapCandidateSession.activeIndex]?.elementId ?? ""}`}
       >
         {overlapCandidateSession.candidates.map((candidate, index) => (
           <button
@@ -150,12 +215,30 @@ export const CanvasCandidateMenus = ({
               onFocusCanvas();
               onActivateOverlapCandidate(index);
             }}
-          >
-            <strong>{candidate.name.trim() || "(unnamed)"}</strong>
+            >
+            <strong>{candidate.name?.trim() || "(unnamed)"}</strong>
             <small>{candidate.kind}</small>
           </button>
         ))}
-      </div>
+      </MeasuredCanvasPopup>
+    ) : null}
+    {hoverIdentityCandidatePopup ? (
+      <MeasuredCanvasPopup
+        className="canvas-hover-identity-candidate-menu"
+        pointer={hoverIdentityCandidatePopup.pointer}
+        measurementKey={hoverIdentityCandidatePopup.candidates.map(({ elementId, name, kind }) =>
+          `${elementId}:${name ?? ""}:${kind}`).join("|")}
+        viewportSize={viewportSize}
+        role="listbox"
+        ariaLabel="重なった要素の名前"
+      >
+        {hoverIdentityCandidatePopup.candidates.map((candidate) => (
+          <div key={candidate.elementId} role="option">
+            <strong>{candidate.name}</strong>
+            <small>{candidate.kind}</small>
+          </div>
+        ))}
+      </MeasuredCanvasPopup>
     ) : null}
   </>
   );

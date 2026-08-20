@@ -1,4 +1,5 @@
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
+import type { CanvasSelectionMode } from "../commands/selectionCommands";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type {
@@ -12,11 +13,9 @@ import type {
   ElementId,
   PointAnchor
 } from "../types/geometry";
-import type {
-  CanvasGeometryHitCandidate,
-  LineMeasurementCandidate,
-  ScreenPoint
-} from "./DrawingCanvasHitTest";
+import type { SelectionSnapshot } from "../state/cadDocumentStore";
+import type { LineMeasurementCandidate, ScreenPoint } from "./DrawingCanvasHitTest";
+import type { CanvasIdentityKind } from "./canvasDrawOrder";
 
 export type CanvasOverlayLine = {
   line: ComputedLine;
@@ -63,28 +62,29 @@ export type CanvasOverlayText = {
   fontSizePx: number;
 };
 
-export type CanvasIdentityKind =
-  | "image"
-  | "line"
-  | "arcLine"
-  | "bezierCurve"
-  | "offsetLine"
-  | "text"
-  | "point";
-
 export type CanvasIdentityCandidate = {
   elementId: ElementId;
-  name: string;
+  name: string | null;
   kind: CanvasIdentityKind;
-  screen: ScreenPoint;
+  representativeScreen: ScreenPoint;
 };
 
-export type CanvasOverlapCandidate = CanvasGeometryHitCandidate;
-
 export type CanvasOverlapCandidateSession = {
-  screen: ScreenPoint;
-  candidates: CanvasOverlapCandidate[];
+  anchor: ScreenPoint;
+  candidates: CanvasIdentityCandidate[];
   activeIndex: number;
+  selectionMode: CanvasSelectionMode;
+  selectionBefore: SelectionSnapshot;
+};
+
+export type CanvasHoverIdentityState = {
+  pointer: ScreenPoint;
+  candidates: CanvasIdentityCandidate[];
+} | null;
+
+export type CanvasHoverIdentityPopup = {
+  pointer: ScreenPoint;
+  candidates: CanvasIdentityCandidate[];
 };
 
 export type CanvasNumericReferenceCandidate = {

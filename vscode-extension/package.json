@@ -68,6 +68,10 @@
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
+          "command": "nuinuiCAD.toggleCanvasElementNames",
+          "when": "false"
+        },
+        {
           "command": "nuinuiCAD.toggleCanvasPoints",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -136,11 +140,11 @@
       },
       {
         "command": "nuinuiCAD.toggleCanvasPointNames",
-        "title": "nuinuiCAD: Toggle Canvas Point Names"
+        "title": "nuinuiCAD: Toggle Point Names"
       },
       {
         "command": "nuinuiCAD.toggleCanvasGeometryNames",
-        "title": "nuinuiCAD: Toggle Canvas Geometry Names"
+        "title": "nuinuiCAD: Toggle Geometry Names"
       },
       {
         "command": "nuinuiCAD.toggleCanvasElementNames",

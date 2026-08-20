@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
 import {
+  canvasSelectionSnapshot,
   finalizeCanvasSelectionSession,
   previewCanvasSelection
 } from "../commands/selectionCommands";
@@ -13,7 +14,6 @@ import {
 } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
-import type { SelectionSnapshot } from "../state/cadDocumentStore";
 import { DrawingCanvas } from "../components/DrawingCanvas";
 import type { DrawingCanvasHandle } from "../components/DrawingCanvas";
 import type {
@@ -211,9 +211,10 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
           recordSelectionHistory: recordHistory ?? true
         });
       },
-      previewCanvasSelection: (previousSelection: SelectionSnapshot, elementId, selectionMode) =>
+      getCanvasSelectionSnapshot: () => canvasSelectionSnapshot(),
+      previewCanvasSelection: (previousSelection, elementId, selectionMode) =>
         previewCanvasSelection(previousSelection, elementId, selectionMode),
-      finalizeCanvasSelectionSession: (previousSelection: SelectionSnapshot) =>
+      finalizeCanvasSelectionSession: (previousSelection) =>
         finalizeCanvasSelectionSession(previousSelection),
       clearCanvasSelection: () => dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true }),
       movePointElementByDelta: (action) => action.commitMode === "preview"

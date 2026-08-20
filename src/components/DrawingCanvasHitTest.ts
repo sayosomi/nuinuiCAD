@@ -7,7 +7,10 @@ import type {
   ElementId
 } from "../types/geometry";
 import type { NumericMeasurementKey } from "../geometry/numericExpressions";
-import type { CanvasIdentityKind } from "./DrawingCanvasTypes";
+import {
+  compareCanvasBaseDrawOrder,
+  type CanvasIdentityKind
+} from "./canvasDrawOrder";
 
 export type ScreenPoint = {
   x: number;
@@ -152,7 +155,9 @@ export const screenSpaceCumulativeLengthMidpoint = (
       safePoints[index]!.y - safePoints[index - 1]!.y
     );
   }
-  if (!(totalLength > 0) || !Number.isFinite(totalLength)) return safePoints[0];
+  if (!(totalLength > 0) || !Number.isFinite(totalLength)) {
+    return safePoints[Math.floor(safePoints.length / 2)]!;
+  }
 
   const midpointDistance = totalLength / 2;
   let traversed = 0;
@@ -222,20 +227,6 @@ type CanvasGeometryHitTestInput = {
   points: Array<{ point: ComputedPoint; screen: ScreenPoint }>;
 };
 
-/**
- * The single source of truth for Canvas hit order. Arrays are document-order
- * draw lists, so reversing each category puts later items in front.
- */
-export const CANVAS_DRAW_ORDER: readonly CanvasIdentityKind[] = [
-  "image",
-  "line",
-  "arcLine",
-  "bezierCurve",
-  "offsetLine",
-  "text",
-  "point"
-];
-
 export const hitTestCanvasGeometryAll = ({
   screen,
   lines,
@@ -246,57 +237,64 @@ export const hitTestCanvasGeometryAll = ({
   texts = [],
   points
 }: CanvasGeometryHitTestInput): CanvasGeometryHitCandidate[] => {
-  const candidates: CanvasGeometryHitCandidate[] = [];
-  const seen = new Set<ElementId>();
-  const add = (candidate: CanvasGeometryHitCandidate) => {
-    if (seen.has(candidate.elementId)) return;
-    seen.add(candidate.elementId);
-    candidates.push(candidate);
+  const candidates: Array<CanvasGeometryHitCandidate & { arrayIndex: number }> = [];
+  const add = (candidate: CanvasGeometryHitCandidate, arrayIndex: number) => {
+    candidates.push({ ...candidate, arrayIndex });
   };
 
-  for (let index = points.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < points.length; index += 1) {
     const item = points[index]!;
     if (squaredDistance(screen, item.screen) <= POINT_HIT_RADIUS_PX * POINT_HIT_RADIUS_PX) {
-      add({ elementId: item.point.elementId, kind: "point", name: item.point.name });
+      add({ elementId: item.point.elementId, kind: "point", name: item.point.name }, index);
     }
   }
-  for (let index = texts.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < texts.length; index += 1) {
     const item = texts[index]!;
     if (pointInTextBounds(screen, item)) {
-      add({ elementId: item.text.elementId, kind: "text", name: item.text.name ?? "" });
+      add({ elementId: item.text.elementId, kind: "text", name: item.text.name ?? "" }, index);
     }
   }
-  for (let index = offsetLines.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < offsetLines.length; index += 1) {
     const item = offsetLines[index]!;
     if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
-      add({ elementId: item.line.elementId, kind: "offsetLine", name: item.line.name });
+      add({ elementId: item.line.elementId, kind: "offsetLine", name: item.line.name }, index);
     }
   }
-  for (let index = curves.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < curves.length; index += 1) {
     const item = curves[index]!;
     if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
-      add({ elementId: item.curve.elementId, kind: "bezierCurve", name: item.curve.name });
+      add({ elementId: item.curve.elementId, kind: "bezierCurve", name: item.curve.name }, index);
     }
   }
-  for (let index = arcs.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < arcs.length; index += 1) {
     const item = arcs[index]!;
     if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
-      add({ elementId: item.arc.elementId, kind: "arcLine", name: item.arc.name });
+      add({ elementId: item.arc.elementId, kind: "arcLine", name: item.arc.name }, index);
     }
   }
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < lines.length; index += 1) {
     const item = lines[index]!;
     if (distanceToLineSegment(screen, item.start, item.end) <= LINE_HIT_DISTANCE_PX) {
-      add({ elementId: item.line.elementId, kind: "line", name: item.line.name });
+      add({ elementId: item.line.elementId, kind: "line", name: item.line.name }, index);
     }
   }
-  for (let index = images.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < images.length; index += 1) {
     const item = images[index]!;
     if (pointInPolygon(screen, item.corners)) {
-      add({ elementId: item.image.elementId, kind: "image", name: item.image.name ?? "" });
+      add({ elementId: item.image.elementId, kind: "image", name: item.image.name ?? "" }, index);
     }
   }
-  return candidates;
+  candidates.sort(compareCanvasBaseDrawOrder);
+  const seen = new Set<ElementId>();
+  return candidates.filter((candidate) => {
+    if (seen.has(candidate.elementId)) return false;
+    seen.add(candidate.elementId);
+    return true;
+  }).map((candidate) => {
+    const result = { ...candidate } as CanvasGeometryHitCandidate & { arrayIndex?: number };
+    delete result.arrayIndex;
+    return result;
+  });
 };
 
 export const hitTestCanvasGeometry = ({

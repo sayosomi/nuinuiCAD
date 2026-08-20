@@ -243,6 +243,13 @@ const createFakeCanvasHostAdapter = (
     panCanvasViewport: vi.fn(),
     zoomCanvasViewportAt: vi.fn(),
     selectElement: vi.fn(),
+    getCanvasSelectionSnapshot: () => ({
+      selectedElementId: useCadUiStore.getState().selectedElementId,
+      selectedElementIds: [...useCadUiStore.getState().selectedElementIds],
+      selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId
+    }),
+    previewCanvasSelection: vi.fn(),
+    finalizeCanvasSelectionSession: vi.fn(),
     movePointElementByDelta: vi.fn(),
     moveBezierHandleByDelta: vi.fn(),
     clearCanvasSelection: vi.fn(),
@@ -384,13 +391,102 @@ describe("DrawingCanvas rendering", () => {
 
     expect(viewport.querySelector('[role="listbox"]')).toBeInTheDocument();
     expect(viewport.querySelectorAll('[role="option"]')).toHaveLength(3);
+    expect(viewport.querySelector('[role="listbox"]')).toHaveStyle({ left: "8px", top: "8px" });
     expect(previewCanvasSelection).toHaveBeenCalled();
 
-    fireEvent.keyDown(viewport, { key: "ArrowDown" });
+    const arrowDown = new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true });
+    const arrowPreventDefault = vi.spyOn(arrowDown, "preventDefault");
+    const arrowStopPropagation = vi.spyOn(arrowDown, "stopPropagation");
+    viewport.dispatchEvent(arrowDown);
+    expect(arrowPreventDefault).toHaveBeenCalled();
+    expect(arrowStopPropagation).toHaveBeenCalled();
     expect(previewCanvasSelection.mock.calls.at(-1)?.[1]).toBe("curve-ac");
     fireEvent.keyDown(viewport, { key: "Enter" });
     expect(finalizeCanvasSelectionSession).toHaveBeenCalledTimes(1);
     expect(viewport.querySelector('[role="listbox"]')).toBeNull();
+  });
+
+  it("cycles overlap candidates by wheel remainder without reversing direction", () => {
+    const previewCanvasSelection = vi.fn();
+    const { viewport } = renderWithHostAdapter({ previewCanvasSelection });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    const previewCount = previewCanvasSelection.mock.calls.length;
+
+    fireEvent.wheel(viewport, { deltaY: 20, deltaMode: 0, clientX: 300, clientY: 250 });
+    fireEvent.wheel(viewport, { deltaY: -1, deltaMode: 0, clientX: 300, clientY: 250 });
+    expect(previewCanvasSelection).toHaveBeenCalledTimes(previewCount);
+
+    fireEvent.wheel(viewport, { deltaY: -24, deltaMode: 0, clientX: 300, clientY: 250 });
+    expect(previewCanvasSelection).toHaveBeenCalledTimes(previewCount + 1);
+    expect(previewCanvasSelection.mock.calls.at(-1)?.[1]).toBe("line-ab");
+  });
+
+  it("shows one named hover behind an unnamed front hit without opening a popup", async () => {
+    const elements: CadElement[] = [
+      { id: "unnamed-point", name: "", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      {
+        id: "named-line",
+        name: "Named line",
+        type: "line",
+        activity: "visible",
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 100, y: 0 }
+      }
+    ];
+    const { container, viewport } = renderWithHostAdapter({
+      elements,
+      canonicalElements: elements,
+      selectedElementId: null,
+      selectedElementIds: []
+    });
+
+    fireEvent.pointerMove(viewport, { buttons: 0, clientX: 250, clientY: 200, pointerId: 1 });
+
+    await waitFor(() => expect(container.querySelector("[data-element-identity='named-line']")).toBeInTheDocument());
+    expect(container.querySelector(".canvas-hover-identity-candidate-menu")).toBeNull();
+    expect(container.querySelector("[data-element-identity='unnamed-point']")).toBeNull();
+  });
+
+  it("shows a passive front-to-back popup for multiple named hover hits and emphasizes persistent labels", async () => {
+    const { container, viewport } = renderWithHostAdapter();
+
+    fireEvent.pointerMove(viewport, { buttons: 0, clientX: 300, clientY: 250, pointerId: 1 });
+
+    await waitFor(() => expect(container.querySelector(".canvas-hover-identity-candidate-menu")).toBeInTheDocument());
+    expect(container.querySelectorAll(".canvas-hover-identity-candidate-menu [role='option']")).toHaveLength(2);
+    expect(container.querySelector("[data-element-identity='point-a']")).toHaveClass(
+      "overlay-element-identity-hovered"
+    );
+    expect(container.querySelector(".canvas-hover-identity-candidate-menu")).toHaveClass(
+      "canvas-hover-identity-candidate-menu"
+    );
+  });
+
+  it("suppresses hover identity while point picking is active", async () => {
+    const { container, viewport } = renderWithHostAdapter({
+      activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" }
+    });
+
+    fireEvent.pointerMove(viewport, { buttons: 0, clientX: 300, clientY: 250, pointerId: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(container.querySelector("[data-element-identity='point-a']")).not.toHaveClass(
+      "overlay-element-identity-hovered"
+    );
+    expect(container.querySelector(".canvas-hover-identity-candidate-menu")).toBeNull();
   });
 
   it.each([
@@ -2462,7 +2558,7 @@ describe("DrawingCanvas pending pointer intents", () => {
     fireEvent.pointerUp(viewport, { buttons: 0, clientX: 350, clientY: 200, pointerId: 1 });
 
     await deliverEvaluationState();
-    expect(useCadUiStore.getState().commandErrorMessage).toContain("評価に失敗");
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("削除");
     expect(useCadStore.getState().selectedElementId).not.toBe(bId);
   });
 

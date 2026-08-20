@@ -3,10 +3,10 @@ import { forwardRef, useMemo } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
 import {
+  canvasSelectionSnapshot,
   finalizeCanvasSelectionSession,
   previewCanvasSelection
 } from "../commands/selectionCommands";
-import type { SelectionSnapshot } from "../state/cadDocumentStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -108,9 +108,10 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
         selectionMode,
         ...(recordHistory === undefined ? {} : { recordSelectionHistory: recordHistory })
       }),
-      previewCanvasSelection: (previousSelection: SelectionSnapshot, elementId, selectionMode) =>
+      getCanvasSelectionSnapshot: () => canvasSelectionSnapshot(),
+      previewCanvasSelection: (previousSelection, elementId, selectionMode) =>
         previewCanvasSelection(previousSelection, elementId, selectionMode),
-      finalizeCanvasSelectionSession: (previousSelection: SelectionSnapshot) =>
+      finalizeCanvasSelectionSession: (previousSelection) =>
         finalizeCanvasSelectionSession(previousSelection),
       clearCanvasSelection: () => dispatchCommand("clearCanvasSelection"),
       movePointElementByDelta: (action) => dispatchCommand("movePointElementByDelta", action),

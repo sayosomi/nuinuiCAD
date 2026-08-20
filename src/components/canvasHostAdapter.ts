@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { BezierHandleRole } from "../model/elementDragTransforms";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";
+import type { CanvasSelectionMode } from "../commands/selectionCommands";
 import type {
   ActiveLinePickTarget,
   ActiveNumericReferencePickTarget,
@@ -22,7 +23,7 @@ import type { ViewportSize } from "./canvasViewport";
 import type { CanvasTheme } from "./canvasTheme";
 
 export type CanvasCommitMode = "preview" | "commit";
-export type CanvasSelectionMode = "replace" | "toggle" | "range";
+export type { CanvasSelectionMode };
 
 export type CanvasPointDragAction = {
   elementId: ElementId;
@@ -95,12 +96,13 @@ export type CanvasHostAdapter = {
     anchor?: { x: number; y: number; width: number; height: number }
   ) => void;
   selectElement: (elementId: ElementId, selectionMode: CanvasSelectionMode, recordHistory?: boolean) => unknown;
-  previewCanvasSelection?: (
+  getCanvasSelectionSnapshot: () => SelectionSnapshot;
+  previewCanvasSelection: (
     previousSelection: SelectionSnapshot,
     elementId: ElementId,
     selectionMode: CanvasSelectionMode
   ) => unknown;
-  finalizeCanvasSelectionSession?: (previousSelection: SelectionSnapshot) => unknown;
+  finalizeCanvasSelectionSession: (previousSelection: SelectionSnapshot) => unknown;
   clearCanvasSelection: () => unknown;
   movePointElementByDelta: (action: CanvasPointDragAction) => unknown;
   moveBezierHandleByDelta: (action: CanvasBezierHandleDragAction) => unknown;

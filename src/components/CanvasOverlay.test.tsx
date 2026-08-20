@@ -45,6 +45,8 @@ const renderOverlay = (overlayTexts: CanvasOverlayText[]) => render(
     isPointPickActive={false}
     isNumericReferencePickActive={false}
     isLinePickActive={false}
+    hoveredElementIds={new Set()}
+    hoverRepresentativeElementId={null}
   />
 );
 
@@ -93,6 +95,8 @@ describe("CanvasOverlay text rendering", () => {
         isPointPickActive={false}
         isNumericReferencePickActive={false}
         isLinePickActive={false}
+        hoveredElementIds={new Set()}
+        hoverRepresentativeElementId={null}
       />
     );
 
@@ -130,6 +134,8 @@ describe("CanvasOverlay text rendering", () => {
         isPointPickActive={false}
         isNumericReferencePickActive={false}
         isLinePickActive={false}
+        hoveredElementIds={new Set()}
+        hoverRepresentativeElementId={null}
       />
     );
     const style = container.querySelector(".drawing-overlay")?.getAttribute("style") ?? "";
@@ -180,6 +186,8 @@ describe("CanvasOverlay text rendering", () => {
         isPointPickActive={false}
         isNumericReferencePickActive={true}
         isLinePickActive={true}
+        hoveredElementIds={new Set()}
+        hoverRepresentativeElementId={null}
       />
     );
     const helper = container.querySelector(".overlay-bezier-editing-helper");
@@ -193,11 +201,12 @@ describe("CanvasOverlay text rendering", () => {
 describe("Canvas identity labels", () => {
   it("shows persistent point names, contextual geometry names, and no duplicate or unnamed labels", () => {
     const candidates: CanvasIdentityCandidate[] = [
-      { elementId: "point", name: "Point", kind: "point", screen: { x: 20, y: 30 } },
-      { elementId: "line", name: "Line", kind: "line", screen: { x: 40, y: 50 } },
-      { elementId: "hovered", name: "Hovered", kind: "text", screen: { x: 60, y: 70 } },
-      { elementId: "unnamed", name: "", kind: "image", screen: { x: 80, y: 90 } },
-      { elementId: "line", name: "Line duplicate", kind: "line", screen: { x: 100, y: 110 } }
+      { elementId: "point", name: "Point", kind: "point", representativeScreen: { x: 20, y: 30 } },
+      { elementId: "line", name: "Line", kind: "line", representativeScreen: { x: 40, y: 50 } },
+      { elementId: "hovered", name: "Hovered", kind: "text", representativeScreen: { x: 60, y: 70 } },
+      { elementId: "unnamed", name: null, kind: "image", representativeScreen: { x: 80, y: 90 } },
+      { elementId: "line", name: "Line duplicate", kind: "line", representativeScreen: { x: 100, y: 110 } },
+      { elementId: "secondary", name: "Secondary", kind: "line", representativeScreen: { x: 120, y: 130 } }
     ];
     const { container, rerender } = render(
       <CanvasOverlay
@@ -212,7 +221,7 @@ describe("Canvas identity labels", () => {
         selectedBezierEditingHelper={null}
         selectedBezierHandles={[]}
         overlayPointPickCandidates={[]}
-        selectedElementIdSet={new Set()}
+        selectedElementIdSet={new Set(["secondary"])}
         draftLinePickElementIds={new Set()}
         pickCandidateLineIds={new Set()}
         selectedElementId={null}
@@ -224,6 +233,8 @@ describe("Canvas identity labels", () => {
         isPointPickActive={false}
         isNumericReferencePickActive={false}
         isLinePickActive={false}
+        hoveredElementIds={new Set()}
+        hoverRepresentativeElementId={null}
       />
     );
 
@@ -248,7 +259,6 @@ describe("Canvas identity labels", () => {
         draftLinePickElementIds={new Set()}
         pickCandidateLineIds={new Set()}
         selectedElementId="line"
-        hoveredElementId="hovered"
         canvasTheme={LEGACY_CANVAS_THEME}
         elementColors={new Map()}
         showCanvasPointNames={false}
@@ -257,6 +267,8 @@ describe("Canvas identity labels", () => {
         isPointPickActive={false}
         isNumericReferencePickActive={false}
         isLinePickActive={false}
+        hoveredElementIds={new Set(["line", "hovered"])}
+        hoverRepresentativeElementId="hovered"
       />
     );
     expect(container.querySelectorAll("[data-element-identity]")).toHaveLength(2);
@@ -264,5 +276,13 @@ describe("Canvas identity labels", () => {
     expect(container.querySelector("[data-element-identity='hovered']")).toHaveTextContent("Hovered");
     expect(container.querySelector("[data-element-identity='line']")).toHaveAttribute("x", "48");
     expect(container.querySelector("[data-element-identity='line']")).toHaveAttribute("y", "42");
+    expect(container.querySelector("[data-element-identity='line']")).toHaveClass(
+      "overlay-element-identity-primary-selected",
+      "overlay-element-identity-hovered"
+    );
+    expect(container.querySelector("[data-element-identity='hovered']")).toHaveClass(
+      "overlay-element-identity-hovered"
+    );
+    expect(container.querySelector("[data-element-identity='secondary']")).toBeNull();
   });
 });

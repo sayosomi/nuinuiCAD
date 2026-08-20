@@ -29,6 +29,8 @@ type ExtensionManifest = {
     keybindings?: Keybinding[];
     menus?: {
       commandPalette?: CommandPaletteMenu[];
+      "webview/context"?: CommandPaletteMenu[];
+      "editor/context"?: CommandPaletteMenu[];
     };
     configuration?: {
       properties?: Record<string, {
@@ -101,8 +103,8 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Clear Canvas Selection",
       "nuinuiCAD: Reset Canvas View",
       "nuinuiCAD: Fit Drawing",
-      "nuinuiCAD: Toggle Canvas Point Names",
-      "nuinuiCAD: Toggle Canvas Geometry Names",
+      "nuinuiCAD: Toggle Point Names",
+      "nuinuiCAD: Toggle Geometry Names",
       "nuinuiCAD: Toggle Canvas Element Names (Legacy)",
       "nuinuiCAD: Toggle Canvas Points",
       "nuinuiCAD: Bake Current Shape",
@@ -125,6 +127,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.fitDrawing", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasPointNames", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasGeometryNames", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.toggleCanvasElementNames", when: "false" },
       { command: "nuinuiCAD.toggleCanvasPoints", when: canvasPaletteWhen },
       { command: "nuinuiCAD.bakeCurrentShape", when: bakePaletteWhen },
       { command: "nuinuiCAD.bakeBaseShape", when: bakePaletteWhen },
@@ -139,6 +142,17 @@ describe("VS Code extension manifest command contributions", () => {
       "webview/context": [{ command: "nuinuiCAD.goToSourceDefinition", when: "webviewId == 'nuinuiCAD.canvas'" }],
       "editor/context": [{ command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen }]
     });
+    expect(manifest.contributes?.menus?.commandPalette?.some(({ command }) =>
+      command === "nuinuiCAD.toggleCanvasElementNames")).toBe(true);
+    expect(manifest.contributes?.menus?.commandPalette ?? []).toContainEqual({
+      command: "nuinuiCAD.toggleCanvasElementNames",
+      when: "false"
+    });
+    for (const menuId of ["webview/context", "editor/context"] as const) {
+      const contextCommands = (manifest.contributes?.menus?.[menuId] ?? []).map(({ command }) => command);
+      expect(contextCommands).not.toContain("nuinuiCAD.toggleCanvasPointNames");
+      expect(contextCommands).not.toContain("nuinuiCAD.toggleCanvasGeometryNames");
+    }
   });
 });
 
@@ -162,6 +176,8 @@ describe("VS Code extension manifest keybindings", () => {
     });
     expect(keybindings.some(({ key }) => key === "cmd+z")).toBe(false);
     expect(keybindings.some(({ key }) => key === "cmd+shift+z")).toBe(false);
+    expect(keybindings.some(({ command }) =>
+      command === "nuinuiCAD.toggleCanvasPointNames" || command === "nuinuiCAD.toggleCanvasGeometryNames")).toBe(false);
   });
 });
 

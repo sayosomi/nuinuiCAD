@@ -39,6 +39,11 @@ import type {
   CanvasOverlayData
 } from "./DrawingCanvasTypes";
 
+const normalizedIdentityName = (name: string | null | undefined): string | null => {
+  const trimmed = name?.trim();
+  return trimmed ? trimmed : null;
+};
+
 const isPoint = (geometry: unknown): geometry is ComputedPoint =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "point";
 
@@ -209,41 +214,41 @@ export const useCanvasOverlayData = ({
     () => [
       ...overlayImages.map(({ image, corners }) => ({
         elementId: image.elementId,
-        name: image.name,
+        name: normalizedIdentityName(image.name),
         kind: "image" as const,
-        screen: averageScreenPoints(corners)
+        representativeScreen: averageScreenPoints(corners)
       })),
       ...overlayLines.map(({ line, start, end }) => ({
         elementId: line.elementId,
-        name: line.name,
+        name: normalizedIdentityName(line.name),
         kind: "line" as const,
-        screen: screenSpaceCumulativeLengthMidpoint([start, end], start)
+        representativeScreen: screenSpaceCumulativeLengthMidpoint([start, end], start)
       })),
       ...overlayArcs.map(({ arc, points, start }) => ({
         elementId: arc.elementId,
-        name: arc.name,
+        name: normalizedIdentityName(arc.name),
         kind: "arcLine" as const,
-        screen: screenSpaceCumulativeLengthMidpoint(points, start)
+        representativeScreen: screenSpaceCumulativeLengthMidpoint(points, start)
       })),
       ...overlayCurves.map(({ curve, points }) => ({
         elementId: curve.elementId,
-        name: curve.name,
+        name: normalizedIdentityName(curve.name),
         kind: "bezierCurve" as const,
-        screen: screenSpaceCumulativeLengthMidpoint(points)
+        representativeScreen: screenSpaceCumulativeLengthMidpoint(points, points[0])
       })),
       ...overlayOffsetLines.map(({ line, points }) => ({
         elementId: line.elementId,
-        name: line.name,
+        name: normalizedIdentityName(line.name),
         kind: "offsetLine" as const,
-        screen: screenSpaceCumulativeLengthMidpoint(points)
+        representativeScreen: screenSpaceCumulativeLengthMidpoint(points, points[0])
       })),
       ...overlayTexts.map(({ text, screen, fontSizePx }) => {
         const bounds = textHitBounds({ text: text.text, screen, fontSizePx });
         return {
           elementId: text.elementId,
-          name: text.name,
+          name: normalizedIdentityName(text.name),
           kind: "text" as const,
-          screen: {
+          representativeScreen: {
             x: bounds.left + bounds.width / 2,
             y: bounds.top + bounds.height / 2
           }
@@ -251,9 +256,9 @@ export const useCanvasOverlayData = ({
       }),
       ...overlayPoints.map(({ point, screen }) => ({
         elementId: point.elementId,
-        name: point.name,
+        name: normalizedIdentityName(point.name),
         kind: "point" as const,
-        screen
+        representativeScreen: screen
       }))
     ],
     [overlayArcs, overlayCurves, overlayImages, overlayLines, overlayOffsetLines, overlayPoints, overlayTexts]

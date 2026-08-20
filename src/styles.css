@@ -3940,6 +3940,14 @@ textarea {
   fill: var(--canvas-foreground);
 }
 
+.drawing-overlay .overlay-element-identity-primary-selected {
+  fill: var(--canvas-selection);
+}
+
+.drawing-overlay .overlay-element-identity-hovered {
+  fill: var(--canvas-accent);
+}
+
 .drawing-overlay .overlay-selected-line {
   stroke: color-mix(in srgb, var(--canvas-selection) 30%, transparent);
 }
@@ -4401,7 +4409,8 @@ textarea {
 .measurement-candidate-menu,
 .line-pick-candidate-menu,
 .numeric-reference-candidate-menu,
-.canvas-overlap-candidate-menu {
+.canvas-overlap-candidate-menu,
+.canvas-hover-identity-candidate-menu {
   position: absolute;
   z-index: 5;
   display: grid;
@@ -4463,6 +4472,26 @@ textarea {
 .canvas-overlap-candidate-menu button:focus-visible,
 .canvas-overlap-candidate-menu button.is-active {
   background: color-mix(in srgb, var(--canvas-accent) 12%, var(--canvas-background));
+}
+
+.canvas-hover-identity-candidate-menu {
+  pointer-events: none;
+  min-width: 150px;
+  padding: 6px 0;
+  color: var(--canvas-foreground);
+  background: var(--canvas-background);
+}
+
+.canvas-hover-identity-candidate-menu [role="option"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 5px 10px;
+}
+
+.canvas-hover-identity-candidate-menu small {
+  color: var(--canvas-muted);
+  font-size: 11px;
 }
 
 .numeric-reference-candidate-menu button {
