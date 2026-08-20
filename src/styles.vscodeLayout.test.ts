@@ -81,6 +81,17 @@ describe("shared stylesheet host layout ownership", () => {
     expect(itemShell).not.toMatch(/vertical-align:/);
   });
 
+  it("keeps Canvas status values in fixed presentation columns", () => {
+    const valueFields = ruleBody(".vscode-canvas-webview .command-ribbon-value-fields");
+    expect(valueFields).toMatch(/display:\s*grid/);
+    expect(valueFields).toMatch(/grid-template-columns:\s*5ch\s+8ch\s+8ch/);
+    expect(valueFields).toMatch(/gap:\s*12px/);
+
+    const valueField = ruleBody(".vscode-canvas-webview .command-ribbon-value-field");
+    expect(valueField).toMatch(/min-width:\s*0/);
+    expect(valueField).not.toMatch(/min-width:\s*28px/);
+  });
+
   it("lets VS Code tooltips escape Ribbon clipping while Tauri keeps overflow hidden", () => {
     expect(ruleBody(".command-ribbon")).toMatch(/overflow:\s*hidden/);
     expect(ruleBody(".vscode-canvas-webview .command-ribbon")).toMatch(/overflow:\s*visible/);

@@ -28,6 +28,7 @@ export type CommandRibbonPresentationValueItem = {
   type: "value";
   label: string;
   description: string;
+  estimatedWidth?: number;
   fields: Array<{
     label: string;
     value: string;

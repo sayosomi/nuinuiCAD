@@ -21,7 +21,7 @@ import {
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
 import {
   type VscodeCanvasWorldPoint,
-  vscodeCanvasStatusFields
+  vscodeCanvasStatusPresentationFor
 } from "./vscodeCanvasRibbonStatus";
 
 export type VSCodeCanvasRibbonOverlayProps = {
@@ -73,13 +73,7 @@ const vscodeCanvasRibbonPresentationsFor = (
   iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
   verticalHandlePlacement: ribbon.orientation === "vertical" ? "side" : undefined,
   items: ribbon.items.map((item) => item.type === "value"
-    ? {
-        id: item.id,
-        type: "value" as const,
-        label: "Canvas status",
-        description: "Current Canvas zoom and pointer position.",
-        fields: vscodeCanvasStatusFields(canvasViewport, pointerWorldPoint)
-      }
+    ? vscodeCanvasStatusPresentationFor(item.id, canvasViewport, pointerWorldPoint)
     : commandItemPresentationFor(item, ribbonCommandContext))
 }));
 

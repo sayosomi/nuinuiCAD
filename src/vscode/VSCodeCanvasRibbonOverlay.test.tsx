@@ -2,8 +2,13 @@ import { createRef } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CanvasViewport } from "../state/cadUiStore";
+import { estimatedRibbonSize } from "../components/commandRibbonFloatingGeometry";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
+import {
+  VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH,
+  vscodeCanvasStatusPresentationFor
+} from "./vscodeCanvasRibbonStatus";
 
 const ribbonWithStatus: VscodeCanvasRibbon[] = [{
   id: "ribbon",
@@ -65,6 +70,45 @@ const renderStatus = (canvasViewport: CanvasViewport) => {
 };
 
 describe("VSCodeCanvasRibbonOverlay Canvas status", () => {
+  it("uses a stable presentation width estimate as status values change", () => {
+    const baseViewport: CanvasViewport = { panX: 0, panY: 0, zoom: 1 };
+    const presentationFor = (
+      pointerWorldPoint: { x: number; y: number } | null,
+      zoom = 1
+    ) => ({
+      id: "ribbon",
+      label: "Canvas Ribbon",
+      x: null,
+      y: 12,
+      orientation: "horizontal" as const,
+      iconSize: 16,
+      items: [vscodeCanvasStatusPresentationFor(
+        "status",
+        { ...baseViewport, zoom },
+        pointerWorldPoint
+      )]
+    });
+
+    const unavailable = presentationFor(null);
+    const smallPositive = presentationFor({ x: 2.4, y: 3.5 }, 0.5);
+    const coordinates = presentationFor({ x: 186.1, y: -183.4 });
+    const largerCoordinates = presentationFor({ x: 1234.5, y: -987.6 }, 2.345);
+    const unavailableItem = unavailable.items[0];
+    const coordinatesItem = coordinates.items[0];
+
+    expect(unavailableItem).toMatchObject({
+      type: "value",
+      estimatedWidth: VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH
+    });
+    expect(coordinatesItem).toMatchObject({
+      type: "value",
+      estimatedWidth: VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH
+    });
+    const widths = [unavailable, smallPositive, coordinates, largerCoordinates]
+      .map((presentation) => estimatedRibbonSize(presentation).width);
+    expect(new Set(widths)).toEqual(new Set([widths[0]]));
+  });
+
   it("formats zoom as an integer percent and starts with unavailable coordinates", () => {
     renderStatus({ panX: 20, panY: -10, zoom: 1.234 });
 

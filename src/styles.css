@@ -4295,7 +4295,8 @@ textarea {
 }
 
 .vscode-canvas-webview .command-ribbon-value-fields {
-  display: flex;
+  display: grid;
+  grid-template-columns: 5ch 8ch 8ch;
   align-items: center;
   gap: 12px;
 }
@@ -4303,7 +4304,7 @@ textarea {
 .vscode-canvas-webview .command-ribbon-value-field {
   display: grid;
   gap: 2px;
-  min-width: 28px;
+  min-width: 0;
 }
 
 .vscode-canvas-webview .command-ribbon-value-field-label {

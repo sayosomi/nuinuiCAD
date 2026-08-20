@@ -29,7 +29,7 @@ export const estimatedRibbonSize = (
           ) + 5
         : 0;
     return item.type === "value"
-      ? labelLength + 16
+      ? item.estimatedWidth ?? labelLength + 16
       : ribbon.iconSize + RIBBON_BUTTON_PADDING + labelLength;
   });
   const itemLength = itemLengths.reduce((total, length) => total + length, 0);
