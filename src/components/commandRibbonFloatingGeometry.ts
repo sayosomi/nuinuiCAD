@@ -17,9 +17,20 @@ export const estimatedRibbonSize = (
     const labelLength = item.type === "command" && item.showLabel
       ? Math.min(120, Math.max(20, item.label.length * 7)) + 5
       : item.type === "value"
-        ? Math.min(140, Math.max(32, item.value.length * 7)) + 5
+        ? Math.min(
+            260,
+            Math.max(
+              48,
+              item.fields.reduce(
+                (total, field) => total + Math.max(field.label.length, field.value.length) * 7 + 8,
+                Math.max(0, item.fields.length - 1) * 4
+              )
+            )
+          ) + 5
         : 0;
-    return ribbon.iconSize + RIBBON_BUTTON_PADDING + labelLength;
+    return item.type === "value"
+      ? labelLength + 16
+      : ribbon.iconSize + RIBBON_BUTTON_PADDING + labelLength;
   });
   const itemLength = itemLengths.reduce((total, length) => total + length, 0);
   const itemCount = ribbon.items.length;

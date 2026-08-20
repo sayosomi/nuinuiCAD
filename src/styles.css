@@ -4284,8 +4284,8 @@ textarea {
 }
 
 .vscode-canvas-webview .command-ribbon-value {
-  display: inline-grid;
-  gap: 4px;
+  display: inline-flex;
+  align-items: center;
   align-content: center;
   min-height: 30px;
   border-left: 1px solid var(--vscode-canvas-ribbon-border);
@@ -4294,9 +4294,28 @@ textarea {
   white-space: nowrap;
 }
 
+.vscode-canvas-webview .command-ribbon-value-fields {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vscode-canvas-webview .command-ribbon-value-field {
+  display: grid;
+  gap: 2px;
+  min-width: 28px;
+}
+
+.vscode-canvas-webview .command-ribbon-value-field-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
 .vscode-canvas-webview .command-ribbon-value output {
   font-family: var(--dsl-code-font);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .vscode-canvas-webview .command-ribbon-grip {

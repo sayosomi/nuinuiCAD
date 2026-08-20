@@ -28,7 +28,10 @@ export type CommandRibbonPresentationValueItem = {
   type: "value";
   label: string;
   description: string;
-  value: string;
+  fields: Array<{
+    label: string;
+    value: string;
+  }>;
 };
 
 export type CommandRibbonPresentationItem =
@@ -198,19 +201,26 @@ export const CommandRibbonView = ({
         {ribbon.items.map((item) => {
           const tooltipId = tooltipIdFor(ribbon.id, item.id);
           if (item.type === "value") {
+            const valueText = item.fields.map((field) => `${field.label}: ${field.value}`).join(", ");
             return (
               <span
                 key={item.id}
                 ref={(node) => setTriggerNode(tooltipId, node)}
                 className="command-ribbon-value"
                 role="status"
-                aria-label={`${item.label}: ${item.value}`}
+                aria-label={`${item.label}: ${valueText}`}
                 aria-describedby={tooltipId}
                 onPointerEnter={() => setTooltipSource(tooltipId, "hover", true)}
                 onPointerLeave={() => setTooltipSource(tooltipId, "hover", false)}
               >
-                <span className="command-ribbon-value-label">{item.label}</span>
-                <output>{item.value}</output>
+                <span className="command-ribbon-value-fields">
+                  {item.fields.map((field) => (
+                    <span key={field.label} className="command-ribbon-value-field">
+                      <span className="command-ribbon-value-field-label">{field.label}</span>
+                      <output>{field.value}</output>
+                    </span>
+                  ))}
+                </span>
                 <span
                   ref={(node) => setTooltipNode(tooltipId, node)}
                   id={tooltipId}

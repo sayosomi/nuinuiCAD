@@ -35,9 +35,13 @@ const ribbonFor = (orientation: "horizontal" | "vertical"): CommandRibbonPresent
     {
       id: "zoom",
       type: "value",
-      label: "Zoom",
-      description: "Current Canvas zoom.",
-      value: "1.23 px/mm"
+      label: "Canvas status",
+      description: "Current Canvas zoom and pointer position.",
+      fields: [
+        { label: "ZOOM", value: "123%" },
+        { label: "X", value: "—" },
+        { label: "Y", value: "—" }
+      ]
     }
   ]
 });
@@ -91,7 +95,7 @@ describe("CommandRibbonView", () => {
     expect(onCommand).not.toHaveBeenCalled();
   });
 
-  it("renders orientation, pressed state, value text, and focus-associated tooltip content", () => {
+  it("renders orientation, pressed state, multi-field value text, and focus-associated tooltip content", () => {
     const screenView = render(
       <CommandRibbonView
         ribbon={ribbonFor("vertical")}
@@ -104,7 +108,12 @@ describe("CommandRibbonView", () => {
     expect(screen.getByRole("button", { name: "Names" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Names" }).querySelector("svg")?.getAttribute("style"))
       .toMatch(/color:\s*currentcolor/i);
-    expect(screen.getByRole("status", { name: "Zoom: 1.23 px/mm" })).toBeInTheDocument();
+    const status = screen.getByRole("status", {
+      name: "Canvas status: ZOOM: 123%, X: —, Y: —"
+    });
+    expect(status).toBeInTheDocument();
+    expect(status).not.toBeInstanceOf(HTMLButtonElement);
+    expect(status).toHaveTextContent("ZOOM123%X—Y—");
 
     const names = screen.getByRole("button", { name: "Names" });
     const describedBy = names.getAttribute("aria-describedby");

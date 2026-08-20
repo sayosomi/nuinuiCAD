@@ -18,17 +18,12 @@ import type {
 } from "../components/canvasHostAdapter";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 import {
-  VSCODE_CANVAS_RIBBON_ICON_SIZE,
   type VscodeCanvasRibbon
 } from "./vscodeCanvasRibbonConfig";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
-import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
-import { CommandRibbonFloatingOverlay } from "../components/CommandRibbonFloatingOverlay";
+import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
-import type {
-  CommandRibbonPresentation,
-  CommandRibbonPresentationCommandItem
-} from "../components/CommandRibbonView";
+import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
 
 type VSCodeDrawingCanvasProps = {
@@ -91,44 +86,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       showCanvasElementNames,
       showCanvasPoints
     }), [selectedElementIds.length, showCanvasElementNames, showCanvasPoints]);
-
-    const ribbonPresentations = useMemo<CommandRibbonPresentation[]>(() =>
-      canvasRibbonRibbons.map((ribbon) => ({
-        id: ribbon.id,
-        label: ribbon.label,
-        x: ribbon.x,
-        y: ribbon.y,
-        orientation: ribbon.orientation,
-        iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
-        verticalHandlePlacement: ribbon.orientation === "vertical" ? "side" : undefined,
-        items: ribbon.items.map((item) => {
-          if (item.type === "value") {
-            return {
-              id: item.id,
-              type: "value" as const,
-              label: "Canvas Zoom",
-              description: "Current Canvas zoom.",
-              value: `${canvasViewport.zoom.toFixed(2)} px/mm`
-            };
-          }
-          const definition = vscodeCanvasRibbonCommandFor(item.commandId);
-          return {
-            id: item.id,
-            type: "command" as const,
-            commandId: item.commandId,
-            icon: item.icon || definition?.icon || "circle",
-            label: definition?.label ?? item.commandId,
-            description: definition?.description ?? "This command is unavailable.",
-            showLabel: item.showLabel,
-            available: definition?.isAvailable(ribbonCommandContext) ?? false,
-            ...(definition?.isPressed
-              ? { pressed: definition.isPressed(ribbonCommandContext) }
-              : {})
-          } satisfies CommandRibbonPresentationCommandItem;
-        })
-      })),
-      [canvasRibbonRibbons, canvasViewport.zoom, ribbonCommandContext]
-    );
 
     const executeRibbonCommand = useCallback((item: CommandRibbonPresentationCommandItem) => {
       const definition = vscodeCanvasRibbonCommandFor(item.commandId);
@@ -258,11 +215,12 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       togglePrintPreviewWindow: () => dispatchCommand("togglePrintPreviewWindow"),
       resolveImageSourceUrl: (sourcePath) => sourcePath,
       renderHostOverlay: (viewportSize) => (
-        <CommandRibbonFloatingOverlay
-          ribbons={ribbonPresentations}
+        <VSCodeCanvasRibbonOverlay
+          canvasFocusRef={canvasFocusRef}
+          canvasViewport={canvasViewport}
+          canvasRibbonRibbons={canvasRibbonRibbons}
           viewportSize={viewportSize}
-          iconResolver={resolveVscodeLucideIcon}
-          viewportAwareTooltips
+          ribbonCommandContext={ribbonCommandContext}
           onCommand={executeRibbonCommand}
           onPositionCommit={onCanvasRibbonPositionCommit}
         />
@@ -292,7 +250,9 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       visibilityProfiles,
       executeRibbonCommand,
       onCanvasRibbonPositionCommit,
-      ribbonPresentations
+      canvasRibbonRibbons,
+      ribbonCommandContext,
+      canvasFocusRef
     ]);
 
     return (
