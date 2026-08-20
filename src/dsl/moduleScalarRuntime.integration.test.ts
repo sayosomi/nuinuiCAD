@@ -6,7 +6,6 @@ import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByEleme
 import { evaluateElements } from "../geometry/evaluate";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
-import { isGroupPrintEnabled } from "../geometry/groupPrintEnabledRuntime";
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
 
@@ -1077,21 +1076,4 @@ describe("module scalar runtime integration", () => {
     ]);
   });
 
-  it("applies materialized group.printEnabled per module instance", () => {
-    const compiled = compileWithIds([
-      "nui 4",
-      "module M(enabled: boolean) {",
-      "  group G (printEnabled: @enabled) {",
-      "    point P = coordinate(x: 0, y: 0)",
-      "  }",
-      "}",
-      "instance A = M(enabled: false)",
-      "instance B = M(enabled: true)"
-    ].join("\n"));
-    expectValid(compiled);
-    const result = evaluateCompiled(compiled);
-    const groups = compiled.document!.elements.filter((element): element is Extract<typeof element, { type: "group" }> => element.type === "group");
-    const lookup = { propertyBindings: compiled.propertyBindings, byElementId: compiled.statementMap!.byElementId, materializedPropertyBindings: compiled.materializedPropertyBindings, materializedBindingsByElementId: compiled.materializedGroupPrintEnabledBindings };
-    expect(groups.map((group) => isGroupPrintEnabled(group, lookup, result.computedScalarBindings))).toEqual([false, true]);
-  });
 });

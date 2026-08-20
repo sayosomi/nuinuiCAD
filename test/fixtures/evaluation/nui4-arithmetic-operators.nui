@@ -11,10 +11,7 @@ point Origin = coordinate(
   y: 5 % 3,
 )
 
-group Pattern(
-  printEnabled: true,
-  printAnchor: @Origin,
-) {
+group Pattern {
   point B = coordinate(
     x: 100,
     y: 0,
@@ -37,22 +34,3 @@ group Pattern(
 }
 
 stop
-
-printLayout A4(
-  width: 2 ^ 3,
-  height: 5 % 3,
-  columns: 2 ^ 3,
-  rows: 5 % 3,
-  overlap: 2 ^ -2,
-  scale: 2 ^ -2,
-  canvas: (2 ^ 3, 5 % 3),
-) {
-  const layoutBase: number = 2
-
-  place @Pattern(
-    x: 2 ^ 3,
-    y: 5 % 3,
-    angle: @layoutBase ^ 5,
-    mirrorX: false,
-  )
-}

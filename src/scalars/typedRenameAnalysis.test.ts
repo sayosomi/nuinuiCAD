@@ -77,7 +77,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("allows a safe rename of a property binding reference", () => {
-    const compiled = compile(["nui 4", "let flag: boolean = true", "group G (printEnabled: @flag) {", "}"].join("\n"));
+    const compiled = compile(["nui 4", "let flag: boolean = true", "for i in range(from: 0, count: 1, showGenerated: @flag) {", "}"].join("\n"));
     const analysis = rename(compiled, "flag", "enabled");
     expect(analysis.verdict).toBe("ok");
     if (analysis.verdict !== "ok") return;
@@ -141,12 +141,12 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis).toMatchObject({ verdict: "rejected", reason: "capture" });
   });
 
-  it("allows a safe rename that propagates into a printLayout numeric field (Task 53)", () => {
+  it("allows a safe rename that propagates into a layout numeric field", () => {
     const compiled = compile(
       [
         "nui 4",
         "const printScale: number = 120",
-        "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
+        "layout Main (scale: @printScale) {",
         "}"
       ].join("\n")
     );
@@ -159,7 +159,7 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.occurrences[0].newName).toBe("outputScale");
   });
 
-  it("rejects a rename that would collide with an existing binding, when the only reference is inside a printLayout place @field(Task 53)", () => {
+  it("rejects a rename that would collide with an existing binding, when the only reference is inside a layout place", () => {
     const compiled = compile(
       [
         "nui 4",
@@ -168,7 +168,7 @@ describe("typed binding rename safety analysis", () => {
         "group G {",
         "  point A = coordinate(x: 0, y: 0)",
         "}",
-        "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
+        "layout Main (scale: 1) {",
         "  place @G(at: (0, 0), angle: @angleA)",
         "}"
       ].join("\n")

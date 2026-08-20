@@ -292,24 +292,3 @@ describe("serializeElementStatementLogical with documentDslRefs", () => {
     expect(serializeElementStatementLogical(dangling as never, refs)).toBe("line AB = segment(start: @freePoint-gone, end: @B)");
   });
 });
-
-describe("extended lossless attributes", () => {
-  it("round-trips group printEnabled and printAnchor", () => {
-    const first = compileDslToElements(
-      "group G (id: g1,printEnabled: true,printAnchor: (10, 20)) {\n}",
-      { elements: [] }
-    );
-    expect(first.diagnostics).toEqual([]);
-    const serialized = serializeElementsToDsl(first.elements);
-    expect(serialized).toBe("group G (printEnabled: true, printAnchor: (10, 20), id: g1)");
-  });
-
-  // v1では未知の`key=value`属性が(将来互換のため)診断なしで要素に吸収され、
-  // かつ再出力はされなかった(この挙動自体を検証するテストがここにあった)。
-  // v2はregistry駆動のconstruction引数検証(dslCallParser.ts の validateArgs)
-  // が全ての呼び出しで未知引数を診断エラーにするため、この「未知属性の
-  // サイレント吸収」という機能自体が仕様として廃止されている
-  // (plan.mdの不変条件: 汎用`element type=`エスケープハッチの全廃)。
-  // よってこのテストケースは対応する検証対象を持たないため削除した。
-
-});

@@ -144,17 +144,19 @@ describe("DSL nui 4 settings registry", () => {
     });
     expect(settingsSpecFor("role")?.args.map((arg) => arg.arg)).toEqual(["name"]);
     expect(settingsSpecFor("view")).toMatchObject({ allowsDynamicArgs: true });
-    expect(settingsSpecFor("printLayout")?.args.map((arg) => arg.arg)).toEqual([
-      "output", "view", "paper", "orientation", "width", "height", "columns", "rows", "overlap", "scale", "canvas",
+    expect(settingsSpecFor("layout")?.args.map((arg) => arg.arg)).toEqual(["scale"]);
+    expect(settingsSpecFor("print")?.args.map((arg) => arg.arg)).toEqual([
+      "layout", "profile", "paper", "orientation", "margin", "overlap",
     ]);
+    expect(settingsSpecFor("svg")?.args.map((arg) => arg.arg)).toEqual(["layout", "profile", "margin"]);
     expect(settingsSpecFor("place")).toMatchObject({
       args: [
         { arg: "group", positional: true },
-        { arg: "x" },
-        { arg: "y" },
+        { arg: "origin" },
         { arg: "at" },
+        { arg: "scale" },
         { arg: "angle" },
-        { arg: "mirrorX" },
+        { arg: "mirror" },
       ],
     });
     expect(settingsSpecFor("missing")).toBeNull();

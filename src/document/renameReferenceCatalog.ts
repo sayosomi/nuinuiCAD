@@ -2,15 +2,14 @@ import { getDirectParentIds } from "../model/dependencies";
 import { isElementDslStatement } from "../dsl/dslParser";
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
-import type { CadElement, ElementId, NumericValue, PrintLayout } from "../types/geometry";
+import type { CadElement, ElementId } from "../types/geometry";
 import {
   consumeReference,
   derivedReferenceIds,
-  expressionReferences,
   nestedExpressionReferences
 } from "./renameReferenceValues";
 
-export type RenameReferenceForm = "direct" | "derived" | "expression" | "print-layout-place";
+export type RenameReferenceForm = "direct" | "derived" | "expression";
 
 export type RenameReferenceState =
   | { status: "resolved"; elementId: ElementId }
@@ -19,7 +18,7 @@ export type RenameReferenceState =
 export type RenameReferenceSlot = {
   key: string;
   line: number;
-  owner: { kind: "element"; elementId: ElementId } | { kind: "print-layout"; layoutId: string };
+  owner: { kind: "element"; elementId: ElementId };
   form: RenameReferenceForm;
   state: RenameReferenceState;
 };
@@ -81,83 +80,6 @@ const elementSlots = ({
   return slots;
 };
 
-const numericSlots = ({
-  values,
-  keyPrefix,
-  line,
-  owner,
-  elementIds,
-}: {
-  values: NumericValue[];
-  keyPrefix: string;
-  line: number;
-  owner: RenameReferenceSlot["owner"];
-  elementIds: ReadonlySet<ElementId>;
-}): RenameReferenceSlot[] => values.flatMap((value, valueIndex) =>
-  expressionReferences(value).map((reference, referenceIndex) => ({
-    key: `${keyPrefix}:numeric:${valueIndex}:${referenceIndex}`,
-    line,
-    owner,
-    form: reference.form,
-    state: stateFor(reference.id, elementIds)
-  }))
-);
-
-const layoutSlots = (
-  compiled: CompiledDslDocument,
-  layout: PrintLayout,
-  elementIds: ReadonlySet<ElementId>
-): RenameReferenceCatalog => {
-  const statementMap = compiled.statementMap!;
-  const info = statementMap.byKey.get(`printLayout:${layout.id}`);
-  if (!info) return { complete: false, message: `printLayout ${layout.id} の文位置を特定できません。` };
-  const statement = compiled.statements[info.statementIndex];
-  if (!statement || statement.kind !== "printLayout") {
-    return { complete: false, message: `printLayout ${layout.id} の文を特定できません。` };
-  }
-  const owner = { kind: "print-layout" as const, layoutId: layout.id };
-  const slots = numericSlots({
-    values: [
-      layout.columns,
-      layout.rows,
-      layout.overlapMm,
-      layout.scale,
-      layout.svgCanvasWidthMm,
-      layout.svgCanvasHeightMm
-    ],
-    keyPrefix: `layout:${layout.id}:header`,
-    line: info.line,
-    owner,
-    elementIds
-  });
-  const members = compiled.statements.filter(
-    (member) => member.enclosing?.statementIndex === info.statementIndex
-  );
-  const placeStatements = members.filter((member) => member.kind === "place");
-  if (placeStatements.length !== layout.placements.length) {
-    return { complete: false, message: `printLayout ${layout.id} のメンバー対応を証明できません。` };
-  }
-
-  layout.placements.forEach((placement, index) => {
-    const member = placeStatements[index];
-    slots.push({
-      key: `layout:${layout.id}:place:${index}:group`,
-      line: member.line,
-      owner,
-      form: "print-layout-place",
-      state: stateFor(placement.groupId, elementIds)
-    });
-    slots.push(...numericSlots({
-      values: [placement.x, placement.y, placement.angleDeg],
-      keyPrefix: `layout:${layout.id}:place:${index}`,
-      line: member.line,
-      owner,
-      elementIds
-    }));
-  });
-  return { complete: true, slots };
-};
-
 export const collectRenameReferenceCatalog = (compiled: CompiledDslDocument): RenameReferenceCatalog => {
   if (!compiled.document || !compiled.statementMap) {
     return { complete: false, message: "有効な compiled document / statementMap が必要です。" };
@@ -184,11 +106,6 @@ export const collectRenameReferenceCatalog = (compiled: CompiledDslDocument): Re
       elementIds,
       hasExplicitParent: statement.attrs.some((attribute) => attribute.key === "parent")
     }));
-  }
-  for (const layout of document.printLayouts) {
-    const result = layoutSlots(compiled, layout, elementIds);
-    if (!result.complete) return result;
-    slots.push(...result.slots);
   }
   return { complete: true, slots };
 };

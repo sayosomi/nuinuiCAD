@@ -68,22 +68,6 @@ describe("module source-owned container argument insertion", () => {
     expect(next.elements.filter((element) => element.name === "G").map((element) => element.activity)).toEqual(["visible", "visible"]);
   });
 
-  it("inserts an omitted group literal while preserving the body and both calls", () => {
-    seed(groupModuleSource);
-    const first = elementNamed("First")!;
-    const group = elementNamed("G", first.id)!;
-
-    useCadDocumentStore.getState().updateElement(group.id, { printEnabled: true } as Partial<CadElement>);
-
-    const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("group G (printEnabled: true) {");
-    expect(state.sourceText).toContain("point P = coordinate(x: 0, y: 0)");
-    expect(state.sourceText).toContain("instance First = M()");
-    expect(state.sourceText).toContain("instance Second = M()");
-    expect(state.sourceText.match(/group G/g)).toHaveLength(1);
-    expect(state.elements.filter((element) => element.name === "G").map((element) => (element as Extract<CadElement, { type: "group" }>).printEnabled)).toEqual([true, true]);
-  });
-
   it("adds an omitted for step after the positional variable without changing the body", () => {
     seed(forModuleSource);
     const first = elementNamed("First")!;

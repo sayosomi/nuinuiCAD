@@ -3,8 +3,6 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
-import { printableGroups } from "../src/print/printGeometry";
-import { activePrintLayout, resolvePrintLayout } from "../src/print/printLayout";
 import {
   evaluateWithRustFixture,
   isCurrentReleaseFixture,
@@ -19,16 +17,6 @@ import {
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const runRustParity = import.meta.env.VITE_RUN_RUST_PARITY === "1";
 const fixtureNames = runRustParity ? parityFixtureNames(repoRoot) : [];
-
-const printGroupIdsFor = (fixture: ReturnType<typeof readParityFixture>, payload: ReturnType<typeof evaluateWithRustFixture>) => {
-  const doc = fixture.compiled?.doc;
-  if (!doc) return [];
-  return printableGroups(
-    doc.document.elements,
-    { propertyBindings: doc.propertyBindings, byElementId: doc.statementMap.byElementId, materializedPropertyBindings: doc.materializedPropertyBindings },
-    evaluationPayloadToResult(payload).computedScalarBindings
-  ).map((group) => group.id);
-};
 
 const scalarBindingFor = (
   fixture: ReturnType<typeof readParityFixture>,
@@ -65,7 +53,6 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(runtimeDiagnosticsFor(fixture, rustPayload))).toEqual(
       normalizeParityPayload(runtimeDiagnosticsFor(fixture, tsPayload))
     );
-    expect(printGroupIdsFor(fixture, rustPayload)).toEqual(printGroupIdsFor(fixture, tsPayload));
   }, 30000);
 
   it("evaluates Label and Bare through the Rust-first declarations/templates fixture", () => {
@@ -162,80 +149,6 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(rust.computedGeometry.has(disabled!.id)).toBe(false);
   }, 30000);
 
-  it("materializes printLayout-local bindings after stop through the Rust-first payload", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-print-layout-local-stop.nui");
-    const options = optionsFor(fixture);
-    const tsEvaluation = evaluationPayloadToResult(evaluateElementsReferencePayload(fixture.elements, options));
-    const rustEvaluation = evaluationPayloadToResult(evaluateWithRustFixture(repoRoot, fixture));
-    const compiled = fixture.compiled!.doc!;
-    const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
-    const numericBindingLookup = {
-      numericBindings: compiled.numericBindings ?? new Map(),
-      byKey: compiled.statementMap.byKey,
-      bindingVersions: compiled.bindingVersions
-    };
-    const resolve = (evaluation: typeof tsEvaluation) => resolvePrintLayout({
-      layout,
-      elements: compiled.document.elements,
-      evaluation,
-      numericBindingLookup
-    }).placements[0];
-    const placeBinding = [...(compiled.numericBindings?.values() ?? [])]
-      .find((binding) => binding.parameterKey === "x");
-
-    expect(isRustEligibleFixture(fixture)).toBe(true);
-    expect(placeBinding?.references).toHaveLength(1);
-    expect(rustEvaluation.computedScalarBindings?.get(placeBinding!.references[0].bindingId)).toMatchObject({
-      status: "ok",
-      value: { kind: "number", value: 30 }
-    });
-    expect(resolve(tsEvaluation)).toMatchObject({ x: 30, y: 30 });
-    expect(resolve(rustEvaluation)).toMatchObject({ x: 30, y: 30 });
-  }, 30000);
-
-  it("asserts arithmetic operators and printLayout/place values through both evaluators", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-arithmetic-operators.nui");
-    const options = optionsFor(fixture);
-    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
-    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
-
-    expect(isRustEligibleFixture(fixture)).toBe(true);
-    for (const payload of [tsPayload, rustPayload]) {
-      expect(scalarBindingFor(fixture, payload, "powerBasic")).toMatchObject({ status: "ok", value: { kind: "number", value: 8 } });
-      expect(scalarBindingFor(fixture, payload, "remainderBasic")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
-      expect(scalarBindingFor(fixture, payload, "powerRightAssociative")).toMatchObject({ status: "ok", value: { kind: "number", value: 512 } });
-      expect(scalarBindingFor(fixture, payload, "powerUnaryPrecedence")).toMatchObject({ status: "ok", value: { kind: "number", value: -4 } });
-      expect(scalarBindingFor(fixture, payload, "powerNegativeExponent")).toMatchObject({ status: "ok", value: { kind: "number", value: 0.25 } });
-    }
-
-    const compiled = fixture.compiled!.doc!;
-    const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
-    const numericBindingLookup = {
-      numericBindings: compiled.numericBindings ?? new Map(),
-      byKey: compiled.statementMap.byKey,
-      bindingVersions: compiled.bindingVersions
-    };
-    const resolve = (payload: typeof tsPayload) => resolvePrintLayout({
-      layout,
-      elements: compiled.document.elements,
-      evaluation: evaluationPayloadToResult(payload),
-      numericBindingLookup
-    });
-
-    for (const payload of [tsPayload, rustPayload]) {
-      const resolved = resolve(payload);
-      expect(resolved).toMatchObject({
-        columns: 8,
-        rows: 2,
-        overlapMm: 0.25,
-        scale: 0.25,
-        svgCanvasWidthMm: 8,
-        svgCanvasHeightMm: 2
-      });
-      expect(resolved.placements[0]).toMatchObject({ x: 8, y: 2, angleDeg: 32 });
-    }
-  }, 30000);
-
   it("asserts nui4 builtin scalar values and runtime errors in both evaluators", () => {
     const fixture = readParityFixture(repoRoot, "nui4-builtin-functions.nui");
     const options = optionsFor(fixture);
@@ -291,7 +204,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
-  it("asserts nui4 trigonometric scalar, geometry, module, text, and print values in both evaluators", () => {
+  it("asserts nui4 trigonometric scalar, geometry, module, and text values in both evaluators", () => {
     const fixture = readParityFixture(repoRoot, "nui4-trigonometric-functions.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
@@ -338,27 +251,10 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       if (moduleGeometry?.kind !== "point") throw new Error("ModulePoint must be a computed point");
       expect(moduleGeometry.x).toBeCloseTo(0.5, 10);
 
-      const compiled = fixture.compiled!.doc!;
-      const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
-      const resolved = resolvePrintLayout({
-        layout,
-        elements: compiled.document.elements,
-        evaluation: evaluated,
-        numericBindingLookup: {
-          numericBindings: compiled.numericBindings ?? new Map(),
-          byKey: compiled.statementMap.byKey,
-          bindingVersions: compiled.bindingVersions
-        }
-      });
-      expect(resolved).toMatchObject({ columns: 8, rows: 2 });
-      expect(resolved.overlapMm).toBeCloseTo(0.5, 10);
-      expect(resolved.scale).toBeCloseTo(1, 10);
-      expect(resolved.placements[0]).toMatchObject({ x: 8, y: 2 });
-      expect(resolved.placements[0]?.angleDeg).toBeCloseTo(45, 10);
     }
   }, 30000);
 
-  it("asserts nui4 spreadAngle named arguments, domains, module, text, and print values in both evaluators", () => {
+  it("asserts nui4 spreadAngle named arguments, domains, module, and text values in both evaluators", () => {
     const fixture = readParityFixture(repoRoot, "nui4-spread-angle.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
@@ -396,28 +292,6 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       if (moduleGeometry?.kind !== "point") throw new Error("ModulePoint must be a computed point");
       expect(moduleGeometry.x).toBeCloseTo(expected, 10);
 
-      const compiled = fixture.compiled!.doc!;
-      const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
-      const resolved = resolvePrintLayout({
-        layout,
-        elements: compiled.document.elements,
-        evaluation: evaluated,
-        numericBindingLookup: {
-          numericBindings: compiled.numericBindings ?? new Map(),
-          byKey: compiled.statementMap.byKey,
-          bindingVersions: compiled.bindingVersions
-        }
-      });
-      expect(resolved.columns).toBe(11);
-      expect(resolved.rows).toBe(1);
-      expect(resolved.overlapMm).toBe(0);
-      expect(resolved.scale).toBe(1);
-      expect(resolved.svgCanvasWidthMm).toBeCloseTo(expected, 10);
-      expect(resolved.svgCanvasHeightMm).toBe(20);
-      expect(resolved.placements[0]?.x).toBeCloseTo(expected, 10);
-      expect(resolved.placements[0]?.y).toBe(0);
-      expect(resolved.placements[0]?.angleDeg).toBeCloseTo(expected, 10);
-      expect(resolved.placements[0]?.mirrorX).toBe(false);
     }
 
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));

@@ -16,9 +16,11 @@ const nameBearingKeywords = new Set([
   "group",
   "line",
   "point",
-  "printLayout",
+  "layout",
+  "print",
   "profile",
   "role",
+  "svg",
   "text",
   "view"
 ]);

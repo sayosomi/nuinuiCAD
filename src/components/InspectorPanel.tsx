@@ -10,7 +10,6 @@ import {
   type ElementPresentationStatus,
 } from "../model/elementPresentationStatus";
 import { isRuntimeBindingDisplayFresh } from "../model/runtimeBindingFreshness";
-import type { GroupPrintEnabledLookup } from "../geometry/groupPrintEnabledRuntime";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
@@ -127,19 +126,6 @@ export const InspectorPanel = ({
       element ? getDependencySummary(element, elements, dependencyIndex) : null,
     [dependencyIndex, element, elements],
   );
-  const groupPrintEnabledLookup: GroupPrintEnabledLookup | undefined = useMemo(
-    () =>
-      isRuntimeFresh
-        ? { propertyBindings: doc.propertyBindings, byElementId: doc.statementMap.byElementId, materializedPropertyBindings: doc.materializedPropertyBindings, materializedBindingsByElementId: doc.materializedGroupPrintEnabledBindings }
-        : undefined,
-    [
-      isRuntimeFresh,
-      doc.propertyBindings,
-      doc.statementMap,
-      doc.materializedPropertyBindings,
-      doc.materializedGroupPrintEnabledBindings,
-    ],
-  );
   const presentationStatusIndex = useMemo(
     () =>
       createElementPresentationStatusIndex({
@@ -149,9 +135,8 @@ export const InspectorPanel = ({
         palette,
         visibilityProfiles: profiles,
         activeVisibilityProfileId: activeProfileId,
-        groupPrintEnabledLookup,
       }),
-    [activeProfileId, elements, evaluation, groupFoldById, palette, profiles, groupPrintEnabledLookup],
+    [activeProfileId, elements, evaluation, groupFoldById, palette, profiles],
   );
   const status = element
     ? (presentationStatusIndex.get(element.id) ?? null)

@@ -61,9 +61,7 @@ export const createCadElement = (
         id,
         name: uniqueName(id, `グループ${groupCount + 1}`),
         type,
-        activity: "visible",
-        printEnabled: false,
-        printAnchor: { mode: "coordinate", x: 0, y: 0 }
+        activity: "visible"
       };
     }
     case "conditionalGroup": {

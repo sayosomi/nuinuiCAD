@@ -14,7 +14,9 @@ import type {
 import type {
   CadElement,
   DocumentPalette,
-  PrintLayout,
+  Layout,
+  PrintOutput,
+  SvgOutput,
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
@@ -36,23 +38,31 @@ type ApplyStatement = (
   statementIndex?: number
 ) => CadElement;
 
-type BuildBlockPrintLayouts = (input: {
+type BuildSourceOutputModel = (input: {
   statements: DslStatement[];
-  layouts: PrintLayout[] | undefined;
   elements: CadElement[];
   nameIndex: NameIndex;
-  visibilityProfiles: VisibilityProfile[];
+  sourceNamespace?: import("./sourceLexicalNamespaceIndex").SourceLexicalNamespaceIndex;
+  elementIdByStatementIndex: ReadonlyMap<number, string>;
+  stableStatementIdByIndex?: ReadonlyMap<number, string>;
   diagnostics: DslDiagnostic[];
-  printLayoutIdsByStatementIndex: Map<number, string>;
   includeStatement: (statement: DslStatement, statementIndex: number) => boolean;
-}) => PrintLayout[] | undefined;
+}) => {
+  layouts: Layout[];
+  printOutputs: PrintOutput[];
+  svgOutputs: SvgOutput[];
+  layoutIdsByStatementIndex: Map<number, string>;
+  outputIdsByStatementIndex: Map<number, string>;
+};
 
 type MaterializedVisibilitySettings = {
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId?: string;
   palette?: DocumentPalette;
-  printLayouts?: PrintLayout[];
+  layouts?: Layout[];
+  printOutputs?: PrintOutput[];
+  svgOutputs?: SvgOutput[];
 };
 
 const attr = (attrs: DslAttribute[], key: string) => attrs.find((item) => item.key === key)?.value;
@@ -76,21 +86,19 @@ export const compileMaterializedExecution = ({
   context,
   diagnostics,
   visibilitySettings,
-  printLayoutIdsByStatementIndex,
+  buildSourceOutputModel,
   materialization,
   moduleGeometryRuntime,
-  applyStatement,
-  buildBlockPrintLayouts
+  applyStatement
 }: {
   statements: DslStatement[];
   context: CompileDslContext;
   diagnostics: DslDiagnostic[];
   visibilitySettings: MaterializedVisibilitySettings;
-  printLayoutIdsByStatementIndex: Map<number, string>;
   materialization: ModuleMaterialization;
   moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
   applyStatement: ApplyStatement;
-  buildBlockPrintLayouts: BuildBlockPrintLayouts;
+  buildSourceOutputModel: BuildSourceOutputModel;
 }): CompileDslResult => {
   const documentMode = context.mode === "document";
   const existing = documentMode ? [] : context.elements;
@@ -208,31 +216,16 @@ export const compileMaterializedExecution = ({
         ...existing.slice(insertionIndex)
       ];
   const selectedElementIds = compiledElements.map((element) => element.id);
-  const printLayouts = buildBlockPrintLayouts({
+  const outputModel = buildSourceOutputModel({
     statements,
-    layouts: visibilitySettings.printLayouts ?? (documentMode ? [] : undefined),
     elements,
     nameIndex: rootIndex,
-    visibilityProfiles: visibilitySettings.visibilityProfiles,
+    sourceNamespace: context.sourceLexicalResolution?.sourceNamespace,
+    elementIdByStatementIndex: materialization.elementIdBySourceStatementIndex,
+    stableStatementIdByIndex: context.stableStatementIdByIndex,
     diagnostics,
-    printLayoutIdsByStatementIndex,
     includeStatement: (_statement, statementIndex) => isCompilableDslStatement(statements, statementIndex)
   });
-
-  let activePrintLayoutId = context.activePrintLayoutId;
-  for (const [statementIndex, statement] of statements.entries()) {
-    if (!isCompilableDslStatement(statements, statementIndex)) continue;
-    if (statement.kind !== "activePrintLayout") continue;
-    const target =
-      printLayouts?.find((layout) => layout.name === statement.name) ??
-      printLayouts?.find((layout) => layout.id === statement.name);
-    if (!target) {
-      diagnostics.push(warning(statement.line, `未定義の印刷レイアウトです: ${statement.name}`));
-      activePrintLayoutId = statement.name;
-    } else {
-      activePrintLayoutId = target.id;
-    }
-  }
 
   return {
     elements,
@@ -242,13 +235,15 @@ export const compileMaterializedExecution = ({
     visibilityProfiles: visibilitySettings.visibilityProfiles,
     activeVisibilityProfileId: visibilitySettings.activeVisibilityProfileId,
     palette: visibilitySettings.palette,
-    printLayouts,
-    activePrintLayoutId,
+    layouts: outputModel.layouts,
+    printOutputs: outputModel.printOutputs,
+    svgOutputs: outputModel.svgOutputs,
     evaluationLimitIndex: materialization.evaluationLimitIndex,
     diagnostics,
     changedCount: selectedElementIds.length,
     elementIdsByStatementIndex: new Map(materialization.elementIdBySourceStatementIndex),
-    printLayoutIdsByStatementIndex,
+    layoutIdsByStatementIndex: outputModel.layoutIdsByStatementIndex,
+    outputIdsByStatementIndex: outputModel.outputIdsByStatementIndex,
     moduleMaterialization: materialization,
     moduleGeometryRuntime
   };

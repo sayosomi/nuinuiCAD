@@ -75,9 +75,6 @@ export const getPointAnchor = (element: CadElement, key: string): PointAnchor | 
   if (key === "anchor" && element.type === "text") {
     return element.anchor;
   }
-  if (key === "printAnchor" && element.type === "group") {
-    return element.printAnchor ?? { mode: "coordinate", x: 0, y: 0 };
-  }
   return null;
 };
 
@@ -163,9 +160,6 @@ export const setPointAnchor = (
   }
   if (key === "anchor" && element.type === "text") {
     return { ...element, anchor };
-  }
-  if (key === "printAnchor" && element.type === "group") {
-    return { ...element, printAnchor: anchor };
   }
   return element;
 };

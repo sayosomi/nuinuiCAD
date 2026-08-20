@@ -110,13 +110,8 @@ describe("dslCompletionContextAt", () => {
     });
   });
 
-  it("keeps group-opening attributes eligible through the shared synthetic-close reparse", () => {
-    const line = "group Draft (printEnabled: true) {";
-    // `printEnabled` is one of Task 39's opt-in scalar boolean properties, so
-    // this now resolves to "propertyScalarValue" (offering true/false literal
-    // completion) rather than the inert generic "parameter" shape - the
-    // synthetic-close reparse eligibility this test guards is still exercised
-    // by getting any non-null, correctly-kinded completion context at all.
+  it("keeps for-opening boolean attributes eligible through the shared synthetic-close reparse", () => {
+    const line = "for i in range(from: 0, count: 3, showGenerated: true) {";
     expect(dslCompletionContextAt(line, line.indexOf("true") + 2)).toMatchObject({
       kind: "propertyScalarValue",
       propertyContext: { kind: "expression" }
@@ -223,7 +218,7 @@ describe("dslCompletionContextAt", () => {
     });
   });
 
-  describe("place/printLayout block attributes", () => {
+  describe("place/layout/output attributes", () => {
     it("offers number-kind @-completion for place's angle=", () => {
       const line = "place @Group1(at: (10, 20), angle: 15+@Wi)";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
@@ -246,30 +241,20 @@ describe("dslCompletionContextAt", () => {
       });
     });
 
-    it("offers number-kind @-completion for printLayout's columns=/rows=/overlap=/scale=", () => {
-      const line = "printLayout Layout1 (columns: 2+@Wi) {";
+    it("offers number-kind @-completion for layout scale=", () => {
+      const line = "layout Layout1 (scale: 2+@Wi) {";
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
       expect(context).toMatchObject({
         kind: "parameter",
         from: line.indexOf("@Wi"),
-        parameter: { source: "printLayoutBlock", key: "columns" }
+        parameter: { source: "printLayoutBlock", key: "scale" }
       });
     });
 
-    it("offers coordinate sub-span @-completion for printLayout's canvas=", () => {
-      const line = "printLayout Layout1 (canvas: (210, @Wi)) {";
-      const context = dslCompletionContextAt(line, at(line, "@Wi"));
-      expect(context).toMatchObject({
-        kind: "parameter",
-        from: line.indexOf("@Wi"),
-        parameter: { source: "printLayoutBlock", key: "canvas" }
-      });
-    });
-
-    it("returns null for an unrelated place/printLayout attribute (mirrorX=, paper=)", () => {
-      const line = "place @Group1(at: (0, 0), mirrorX: true)";
+    it("returns null for unrelated place/output attributes", () => {
+      const line = "place @Group1(at: (0, 0), mirror: true)";
       expect(dslCompletionContextAt(line, at(line, "true"))).toBeNull();
-      const layoutLine = "printLayout Layout1 (paper: a4) {";
+      const layoutLine = "print Output(layout: @Layout1, paper: a4, overlap: 0)";
       expect(dslCompletionContextAt(layoutLine, at(layoutLine, "a4"))).toBeNull();
     });
   });

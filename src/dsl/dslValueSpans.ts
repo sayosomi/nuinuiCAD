@@ -50,7 +50,7 @@ const candidateSpans = (statement: DslStatement): DslLabeledValueSpan[] => [
  * can be told apart from that artifact.
  *
  * Non-element statements (palette/view/print/directive lines such as `nui`, `role`,
- * `view`, `color`, `printLayout`, `place`, `atStop`) are never a target,
+ * `view`, `color`, `layout`, `print`, `svg`, `place`, `atStop`) are never a target,
  * even when they carry real attribute/payload values — this is the one shared
  * determination both click-selection && Tab-navigation rely on for "is this line's
  * value clickable/tabbable at all."
@@ -95,7 +95,7 @@ const labeledValueSpansForStatement = (statement: DslStatement | null): DslLabel
 export const dslLineLabeledValueSpans = (lineText: string): DslLabeledValueSpan[] =>
   labeledValueSpansForStatement(dslLineElementStatement(lineText));
 
-type DslPrintLayoutBlockStatement = Extract<DslStatement, { kind: "place" | "printLayout" }>;
+type DslPrintLayoutBlockStatement = Extract<DslStatement, { kind: "place" | "layout" | "print" | "svg" }>;
 
 /**
  * Mirrors dslLineElementStatement for the two printLayout-block-only
@@ -116,22 +116,17 @@ export const dslLinePrintLayoutStatement = (lineText: string): DslPrintLayoutBlo
   const probeStatement = probe.statements.find((candidate) => candidate.line === 1);
   if (!probeStatement) return null;
 
-  if (probeStatement.kind === "printLayout") {
+  if (probeStatement.kind === "layout" || probeStatement.kind === "print" || probeStatement.kind === "svg") {
     const opensBlock = probe.statements.length === 1 && probeStatement.opensBlock;
     const { statements, diagnostics } = opensBlock ? parseDsl(`${lineText}\n}`) : probe;
     const statement = statements.find((candidate) => candidate.line === 1);
-    if (!statement || statement.kind !== "printLayout") return null;
+    if (!statement || statement.kind !== probeStatement.kind) return null;
     if (diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.line === 1)) return null;
     return statement;
   }
 
   if (probeStatement.kind === "place") {
-    // printLayout header requires a call envelope (`printLayout
-    // NAME (...)`, never a bare `printLayout {`), unlike the v1 shape this
-    // synthetic wrapper originally assumed. An empty-but-present `()` plus a
-    // placeholder name keeps this wrapper statement itself diagnostic-free so
-    // it never masks a real diagnostic on the member's own line.
-    const { statements, diagnostics } = parseDsl(`printLayout __synthetic__ () {\n${lineText}\n}`);
+    const { statements, diagnostics } = parseDsl(`layout __synthetic__ {\n${lineText}\n}`);
     const statement = statements.find((candidate) => candidate.line === 2);
     if (!statement || statement.kind !== "place") return null;
     if (diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.line === 2)) return null;

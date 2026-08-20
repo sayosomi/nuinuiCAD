@@ -13,7 +13,9 @@ import type {
   DrawingModifierDefinition,
   DrawingProfile,
   ElementId,
-  PrintLayout,
+  Layout,
+  PrintOutput,
+  SvgOutput,
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
@@ -49,8 +51,9 @@ export type ModelSnapshotForShadow = {
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string;
-  printLayouts: PrintLayout[];
-  activePrintLayoutId: string;
+  layouts: Layout[];
+  printOutputs: PrintOutput[];
+  svgOutputs: SvgOutput[];
   evaluationLimitIndex: number | undefined;
 };
 
@@ -62,8 +65,9 @@ export const snapshotToDslData = (snapshot: ModelSnapshotForShadow): DslDocument
   visibilityRoles: snapshot.visibilityRoles,
   visibilityProfiles: snapshot.visibilityProfiles,
   activeVisibilityProfileId: snapshot.activeVisibilityProfileId,
-  printLayouts: snapshot.printLayouts,
-  activePrintLayoutId: snapshot.activePrintLayoutId,
+  layouts: snapshot.layouts,
+  printOutputs: snapshot.printOutputs,
+  svgOutputs: snapshot.svgOutputs,
   evaluationLimitIndex: snapshot.evaluationLimitIndex
 });
 

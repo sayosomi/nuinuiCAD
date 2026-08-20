@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import { compileDslToElements } from "./dslCompiler";
 import { compileDslDocument } from "./dslDocument";
 import { documentDslRefs, serializeElementsToDsl } from "./dslSerializer";
@@ -443,15 +442,13 @@ describe("DSL compiler", () => {
         "}",
         "group 前身頃縫い代 (parent: @前身頃, roles: [seam]) {",
         "}",
-        "printLayout A4 (output: pdf, view: 印刷) {",
-        "}"
+        "point 印刷対象 = coordinate(x: 0, y: 0)"
       ].join("\n"),
       {
         elements: [],
         visibilityRoles: [],
         visibilityProfiles: [],
-        activeVisibilityProfileId: "",
-        printLayouts: [{ ...DEFAULT_PRINT_LAYOUT, id: "a4", name: "A4" }]
+        activeVisibilityProfileId: ""
       }
     );
 
@@ -479,16 +476,10 @@ describe("DSL compiler", () => {
       type: "group",
       visibilityRoleIds: ["seam"]
     });
-    expect(result.printLayouts?.[0]).toMatchObject({
-      id: "a4",
-      visibilityProfileId: "印刷"
-    });
-
     expect(serializeElementsToDsl(result.elements, {
       visibilityRoles: result.visibilityRoles,
       visibilityProfiles: result.visibilityProfiles,
-      activeVisibilityProfileId: result.activeVisibilityProfileId,
-      printLayouts: result.printLayouts
+      activeVisibilityProfileId: result.activeVisibilityProfileId
     })).toContain("group 前身頃縫い代");
   });
 });
@@ -721,113 +712,6 @@ describe("DSL compiler document settings", () => {
       { elements: [], mode: "document" }
     );
     expect(result.diagnostics.some((item) => item.message.includes("default"))).toBe(true);
-  });
-
-  it("builds full print layouts from blocks", () => {
-    const result = compileDslToElements(
-      [
-        "group 前身頃 {",
-        "  point A = coordinate(x: 0,y: 0)",
-        "}",
-        "printLayout 型紙A (output: svg,paper: a3,orientation: landscape,columns: 3,rows: 4,overlap: 15,scale: 0.5,canvas: (500, 700)) {",
-        "  place @前身頃(at: (10, 20),angle: 90,mirrorX: true)",
-        "}"
-      ].join("\n"),
-      { elements: [], mode: "document" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.printLayouts).toHaveLength(1);
-    const layout = result.printLayouts![0];
-    expect(layout).toMatchObject({
-      name: "型紙A",
-      outputKind: "svg",
-      paperSizeId: "a3",
-      orientation: "landscape",
-      columns: 3,
-      rows: 4,
-      overlapMm: 15,
-      scale: 0.5,
-      svgCanvasWidthMm: 500,
-      svgCanvasHeightMm: 700
-    });
-    expect(layout.placements).toHaveLength(1);
-    const placement = layout.placements[0];
-    expect(placement.groupId).toBe(result.elements[0].id);
-    expect(placement.x).toBe(10);
-    expect(placement.y).toBe(20);
-    expect(placement.mirrorX).toBe(true);
-    expect(placement.angleDeg).toBe(90);
-  });
-
-  it("reports unresolved place references", () => {
-    const result = compileDslToElements(
-      ["printLayout 型紙A () {", "  place @存在しない(at: (0, 0))", "}"].join("\n"),
-      { elements: [], mode: "document" }
-    );
-    expect(result.diagnostics.some((item) => item.message.includes("参照先が見つかりません"))).toBe(true);
-  });
-
-  it("requires strict @ references for place targets and rejects properties", () => {
-    const qualified = compileDslToElements(
-      [
-        "group Outer {",
-        "  group Inner {",
-        "  }",
-        "}",
-        "printLayout 型紙A () {",
-        "  place @Outer::Inner(at: (0, 0))",
-        "}"
-      ].join("\n"),
-      { elements: [], mode: "document" }
-    );
-    expect(qualified.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(qualified.printLayouts?.[0].placements[0].groupId).toBe(
-      qualified.elements.find((element) => element.name === "Inner")?.id
-    );
-
-    const compilePlace = (target: string) => compileDslToElements(
-      [
-        "group G {",
-        "}",
-        "printLayout 型紙A () {",
-        `  place ${target}(at: (0, 0))`,
-        "}"
-      ].join("\n"),
-      { elements: [], mode: "document" }
-    );
-
-    const bare = compilePlace("G");
-    expect(bare.diagnostics.some((item) => item.severity === "error" && item.code === "invalid-source-reference")).toBe(true);
-
-    const malformed = compilePlace("@G::");
-    expect(malformed.diagnostics.some((item) => item.severity === "error" && item.code === "invalid-source-reference")).toBe(true);
-
-    const property = compilePlace("@G.name");
-    expect(property.diagnostics.some((item) => item.severity === "error" && item.code === "invalid-source-reference")).toBe(true);
-    expect(property.diagnostics.some((item) => item.message.includes("property"))).toBe(true);
-  });
-
-  it("resolves activePrintLayout by name", () => {
-    const result = compileDslToElements(
-      [
-        "printLayout 型紙A (output: pdf) {",
-        "}",
-        "printLayout 型紙B (output: pdf) {",
-        "}",
-        "activePrintLayout 型紙B"
-      ].join("\n"),
-      { elements: [], mode: "document" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.printLayouts).toHaveLength(2);
-    expect(result.activePrintLayoutId).toBe(result.printLayouts![1].id);
-  });
-
-  it("reports unknown activePrintLayout names", () => {
-    const result = compileDslToElements("activePrintLayout 未定義", { elements: [], mode: "document" });
-    expect(result.diagnostics.some((item) => item.message.includes("未定義の印刷レイアウト"))).toBe(true);
   });
 
   it("computes evaluationLimitIndex from stop in document mode", () => {

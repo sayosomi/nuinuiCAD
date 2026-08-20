@@ -104,7 +104,7 @@ The following constructs create scopes:
 - `for` bodies
 - module definition bodies
 - module instance/member containers
-- `printLayout` bodies
+- `layout` bodies
 
 A module body is a closed scope. It cannot implicitly capture an outer scalar,
 geometry, group member, or control binding. Values needed by a module must be
@@ -127,7 +127,7 @@ different geometry type.
 
 Scalar initializers, `set` right-hand sides, runtime-ready numeric construction
 fields, module arguments, conditions, property values, array members, and
-`printLayout` / `place` numeric fields all use one typed expression surface
+`layout`, `place`, `print`, and `svg` numeric fields all use one typed expression surface
 model. nui4 does not expose separate historical
 `NumericValue`, numeric-expression, or property-binding opt-in language features.
 
@@ -291,7 +291,7 @@ expressions. The same catalog and signatures are used by source completion.
 
 Task 4 does not add a new evaluator or resolver surface. To use a geometry
 measurement result in a construction numeric parameter, scalar property,
-text-template hole, or `printLayout` numeric parameter, first assign it to a
+text-template hole, or layout/output numeric parameter, first assign it to a
 typed scalar binding and reference that binding instead, for example
 `const measuredAngle: number = lineAngle(@LineA, @LineB)` followed by
 `@measuredAngle`.
@@ -705,30 +705,48 @@ stop
 `@stop` is not a reference and is not part of nui4. This reserves `@` for
 references only.
 
-## printLayout
+## Print layout source model
 
-`printLayout` does not have a separate scalar language. Its body is a normal
-scope and uses ordinary `const` and `let` declarations:
+Print layout declarations are ordinary top-level, non-hoisted source
+declarations. `layout` owns only direct `place` children; `print` and `svg`
+are output declarations without bodies. Their references use the same `@` / `::`
+lexical resolver as geometry and scalar declarations.
 
 ```text
-printLayout A4(
-  width: 210,
-  height: 297,
+layout 型紙(
+  scale: 1,
 ) {
-  const margin: number = 10
-
   place @前身頃(
-    x: @margin,
-    y: @margin,
+    origin: @前身頃::基準点,
+    at: (0, 0),
+    scale: 1,
     angle: 0,
-    mirrorX: false,
+    mirror: false,
   )
 }
+
+print 家庭用A4(
+  layout: @型紙,
+  profile: @印刷用,
+  paper: a4,
+  orientation: portrait,
+  margin: 10,
+  overlap: 10,
+)
+
+svg 型紙SVG(
+  layout: @型紙,
+  profile: @SVG用,
+  margin: 0,
+)
 ```
 
-`layoutVar` is not a nui4 declaration. Layout values participate in the same
-typed-expression and source-order rules as all other values, including `^`
-and `%` in header and `place` numeric fields.
+Defaults are `layout.scale = 1`, target-group local origin, inherited place
+scale, `place.angle = 0`, `place.mirror = false`, portrait orientation,
+10 mm print margin, and 0 mm SVG margin. Literal scales must be finite and
+positive. Print margins and overlap must be non-negative; the effective paper
+width and height must remain positive and overlap must be smaller than both.
+Literal angles are normalized to `[0, 360)`.
 
 ## Choice literals and arrays
 
@@ -912,19 +930,12 @@ group 前身頃 {
   )
 }
 
-printLayout A4(
-  width: 210,
-  height: 297,
-) {
-  const margin: number = 10
-
-  place @front::outline(
-    x: @margin,
-    y: @margin,
-    angle: 0,
-    mirrorX: false,
-  )
+layout A4(scale: 1) {
+  place @front::outline(at: (10, 10), angle: 0, mirror: false)
 }
+
+print 家庭用A4(layout: @A4, paper: a4, orientation: portrait, margin: 10, overlap: 10)
+svg 型紙SVG(layout: @A4, margin: 0)
 
 stop
 ```
@@ -946,7 +957,6 @@ the post-instance mutation targets exported, module-owned geometry.
 | `if Name (@cond)` | `if (@cond)` |
 | `for Name (i, ...)` | `for i in range(...)` |
 | `@stop` | `stop` |
-| `layoutVar` | `const` / `let` |
 | property binding opt-in | all typed arguments |
 | `&&` / `\|\|` / `!` | `and` / `or` / `not` |
 

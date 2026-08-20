@@ -1,6 +1,6 @@
 import {
   layoutElementTree,
-  planPrintLayoutSection,
+  planSourceOutputSection,
   serializePaletteColorLine,
   serializePaletteLines,
   withFallbackParentArgs,
@@ -57,8 +57,8 @@ export type DocumentDiff = {
   elements: ElementChange[];
   palette: boolean;
   visibility: boolean;
-  printLayoutIds: { changed: string[]; removed: string[]; added: string[] };
-  activePrintLayout: boolean;
+  sourceOutputIds: { changed: string[]; removed: string[]; added: string[] };
+  activeSourceOutput: boolean;
   evaluationLimit: boolean;
 };
 
@@ -275,11 +275,11 @@ export const diffDocuments = (oldDoc: DslDocumentData, newDoc: DslDocumentData):
     if (!oldById.has(element.id)) elements.push({ kind: "insert", id: element.id });
   }
 
-  const oldPlan = planPrintLayoutSection(oldDoc);
-  const newPlan = planPrintLayoutSection(newDoc);
+  const oldPlan = planSourceOutputSection(oldDoc);
+  const newPlan = planSourceOutputSection(newDoc);
   const oldBlockById = new Map(oldPlan.blocks.map((block) => [block.layoutId, block]));
   const newBlockById = new Map(newPlan.blocks.map((block) => [block.layoutId, block]));
-  const printLayoutIds = {
+  const sourceOutputIds = {
     changed: newPlan.blocks
       .filter((block) => {
         const oldBlock = oldBlockById.get(block.layoutId);
@@ -308,8 +308,8 @@ export const diffDocuments = (oldDoc: DslDocumentData, newDoc: DslDocumentData):
         ...newDoc.visibilityProfiles.map((profile) => serializeViewLine(profile, newDoc.visibilityRoles)),
         serializeActiveViewLine(newDoc.activeVisibilityProfileId)
       ].join("\n"),
-    printLayoutIds,
-    activePrintLayout: oldPlan.activePrintLayoutLine !== newPlan.activePrintLayoutLine,
+    sourceOutputIds,
+    activeSourceOutput: oldPlan.activeSourceOutputLine !== newPlan.activeSourceOutputLine,
     evaluationLimit: oldDoc.evaluationLimitIndex !== newDoc.evaluationLimitIndex
   };
 };
@@ -886,7 +886,7 @@ const directPrintLayoutSourceChildren = (
   statement.enclosing?.statementIndex === layoutStatementIndex
 );
 
-const patchPrintLayoutWithSourceChildren = ({
+const patchSourceOutputWithSourceChildren = ({
   ops,
   oldLayout,
   newLayout,
@@ -896,8 +896,8 @@ const patchPrintLayoutWithSourceChildren = ({
   oldStatements
 }: {
   ops: PatchOps;
-  oldLayout: DslDocumentData["printLayouts"][number];
-  newLayout: DslDocumentData["printLayouts"][number];
+  oldLayout: DslDocumentData["layouts"][number];
+  newLayout: DslDocumentData["layouts"][number];
   newBlock: { layoutId: string; lines: string[] };
   layoutInfo: StatementInfo;
   statementMap: NonNullable<CompiledDslDocument["statementMap"]>;
@@ -971,14 +971,14 @@ const patchPrintLayoutWithSourceChildren = ({
   }
 };
 
-const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
+const patchSourceOutputs = (input: TextPatchInput, ops: PatchOps) => {
   const { old, newDocument } = input;
   const oldDocument = old.document!;
   const statementMap = old.statementMap!;
-  const oldPlan = planPrintLayoutSection(oldDocument);
-  const newPlan = planPrintLayoutSection(newDocument);
+  const oldPlan = planSourceOutputSection(oldDocument);
+  const newPlan = planSourceOutputSection(newDocument);
   const planEqual =
-    oldPlan.activePrintLayoutLine === newPlan.activePrintLayoutLine &&
+    oldPlan.activeSourceOutputLine === newPlan.activeSourceOutputLine &&
     oldPlan.blocks.length === newPlan.blocks.length &&
     oldPlan.blocks.every(
       (block, index) =>
@@ -990,10 +990,10 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
   const oldBlockById = new Map(oldPlan.blocks.map((block) => [block.layoutId, block]));
   const infoById = new Map(
     oldPlan.blocks
-      .map((block) => [block.layoutId, statementMap.byKey.get(`printLayout:${block.layoutId}`)] as const)
+      .map((block) => [block.layoutId, statementMap.byKey.get(`layout:${block.layoutId}`) ?? statementMap.byKey.get(`print:${block.layoutId}`) ?? statementMap.byKey.get(`svg:${block.layoutId}`)] as const)
       .filter((entry): entry is readonly [string, StatementInfo] => entry[1] !== undefined)
   );
-  const activeInfo = statementMap.byKey.get("activePrintLayout");
+  const activeInfo = statementMap.byKey.get("activeSourceOutput");
   const sourceOnlyLayoutIds = new Set(
     [...infoById.entries()]
       .filter(([, info]) => directPrintLayoutSourceChildren(old.statements, info.statementIndex).length > 0)
@@ -1006,7 +1006,7 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
     const anchor = sectionEnds.elements ?? sectionEnds.visibility ?? sectionEnds.palette ?? sectionEnds.version ?? 0;
     const lines = [
       ...newPlan.blocks.flatMap((block) => block.lines),
-      ...(newPlan.activePrintLayoutLine ? [newPlan.activePrintLayoutLine] : [])
+      ...(newPlan.activeSourceOutputLine ? [newPlan.activeSourceOutputLine] : [])
     ];
     if (lines.length > 0) insertBefore(ops, anchor + 1, anchor > 0 ? ["", ...lines] : lines);
     return;
@@ -1037,7 +1037,7 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
     if (activeInfo) setLineOp(ops, activeInfo.line, null);
     insertBefore(ops, firstLine, [
       ...newPlan.blocks.flatMap((block) => block.lines),
-      ...(newPlan.activePrintLayoutLine ? [newPlan.activePrintLayoutLine] : [])
+      ...(newPlan.activeSourceOutputLine ? [newPlan.activeSourceOutputLine] : [])
     ]);
     return;
   }
@@ -1053,13 +1053,10 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
     if (newBlock.lines.join("\n") === block.lines.join("\n")) continue;
     const info = infoById.get(block.layoutId);
     if (!info) continue;
-    const oldLayout = oldDocument.printLayouts.find((layout) => layout.id === block.layoutId);
-    const newLayout = newDocument.printLayouts.find((layout) => layout.id === block.layoutId);
-    if (!oldLayout || !newLayout) {
-      throw new UnappliedTextPatchError(`printLayout ${block.layoutId} のモデル対応を特定できません。`);
-    }
-    if (sourceOnlyLayoutIds.has(block.layoutId)) {
-      patchPrintLayoutWithSourceChildren({
+    const oldLayout = oldDocument.layouts.find((layout) => layout.id === block.layoutId);
+    const newLayout = newDocument.layouts.find((layout) => layout.id === block.layoutId);
+    if (oldLayout && newLayout && sourceOnlyLayoutIds.has(block.layoutId)) {
+      patchSourceOutputWithSourceChildren({
         ops,
         oldLayout,
         newLayout,
@@ -1091,17 +1088,17 @@ const patchPrintLayouts = (input: TextPatchInput, ops: PatchOps) => {
 
   if (activeInfo) {
     const rawOldLine = old.sourceLines[activeInfo.line - 1] ?? "";
-    if (newPlan.activePrintLayoutLine === null) {
+    if (newPlan.activeSourceOutputLine === null) {
       setLineOp(ops, activeInfo.line, null);
-    } else if (oldPlan.activePrintLayoutLine !== newPlan.activePrintLayoutLine) {
+    } else if (oldPlan.activeSourceOutputLine !== newPlan.activeSourceOutputLine) {
       const replacement = preserveDslLineComments(
-        newPlan.activePrintLayoutLine,
+        newPlan.activeSourceOutputLine,
         sourceLexicalLineAt(old, activeInfo.line)
       );
       if (replacement !== rawOldLine) setLineOp(ops, activeInfo.line, replacement);
     }
-  } else if (newPlan.activePrintLayoutLine !== null && oldPlan.activePrintLayoutLine !== newPlan.activePrintLayoutLine) {
-    insertBefore(ops, lastBlockEnd + 1, [newPlan.activePrintLayoutLine]);
+  } else if (newPlan.activeSourceOutputLine !== null && oldPlan.activeSourceOutputLine !== newPlan.activeSourceOutputLine) {
+    insertBefore(ops, lastBlockEnd + 1, [newPlan.activeSourceOutputLine]);
   }
 };
 
@@ -1143,7 +1140,7 @@ export const buildTextPatch = (input: TextPatchInput): LineSplice[] => {
   if (!input.skipElements) patchElements(input, ops);
   patchPalette(input, ops);
   patchVisibility(input, ops);
-  patchPrintLayouts(input, ops);
+  patchSourceOutputs(input, ops);
   return buildSplicesFromOps(input.old.sourceLines.length, ops);
 };
 

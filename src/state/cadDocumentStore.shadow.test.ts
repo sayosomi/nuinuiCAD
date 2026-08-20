@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { compileDslDocument, serializeDocumentToDsl } from "../dsl/dslDocument";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
-import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import type { CadElement } from "../types/geometry";
 import {
   initialCadDocumentState,
@@ -49,19 +48,7 @@ const seedFromSource = (source: string) => {
   const compiled = compileDslDocument(source);
   expect(compiled.document, `must compile:\n${source}`).not.toBeNull();
   const doc = compiled.document!;
-  const printLayouts = doc.printLayouts.length ? doc.printLayouts : [DEFAULT_PRINT_LAYOUT];
-  const activePrintLayoutId = doc.activePrintLayoutId || printLayouts[0].id;
-  const snapshot = {
-    elements: doc.elements,
-    palette: doc.palette,
-    visibilityRoles: doc.visibilityRoles,
-    visibilityProfiles: doc.visibilityProfiles,
-    activeVisibilityProfileId: doc.activeVisibilityProfileId,
-    printLayouts,
-    activePrintLayoutId,
-    evaluationLimitIndex: doc.evaluationLimitIndex
-  };
-  useCadDocumentStore.getState().replaceDocument(snapshot, null);
+  useCadDocumentStore.getState().replaceDocument(doc, null);
 };
 
 describe("cadDocumentStore 影テキスト: 初期状態", () => {
@@ -124,15 +111,6 @@ describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () 
     const profileId = useCadDocumentStore.getState().visibilityProfiles.at(-1)!.id;
     useCadDocumentStore.getState().setVisibilityProfileRoleVisible(profileId, roleId, false);
     useCadDocumentStore.getState().deleteVisibilityRole(roleId);
-    expectShadowConsistent();
-    expectNoShadowWarnings();
-  });
-
-  it("印刷レイアウト操作(追加・複製・削除)で警告が出ない", () => {
-    useCadDocumentStore.getState().addPrintLayout();
-    useCadDocumentStore.getState().duplicatePrintLayout();
-    const layoutId = useCadDocumentStore.getState().activePrintLayoutId;
-    useCadDocumentStore.getState().deletePrintLayout(layoutId);
     expectShadowConsistent();
     expectNoShadowWarnings();
   });

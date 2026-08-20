@@ -219,7 +219,7 @@ const constructionSpecs: DslConstructionSpec[] = [
       arg("mirrorX"),
     ],
   },
-  { category: "group", construction: "", elementType: "group", args: [arg("printEnabled"), arg("printAnchor"), special("roles", "roles")] },
+  { category: "group", construction: "", elementType: "group", args: [special("roles", "roles")] },
   { category: "if", construction: "", elementType: "conditionalGroup", args: [{ ...positional("condition"), required: true }] },
   {
     category: "for",

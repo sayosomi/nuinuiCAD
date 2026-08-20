@@ -2,7 +2,6 @@ import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { compileDslDocument, serializeDocumentToDsl, type DslDocumentData } from "../dsl/dslDocument";
 import { applyRandomOp, generateDocumentSource, type RandomOp } from "../document/documentTestGenerators";
-import { DEFAULT_PRINT_LAYOUT } from "../print/printLayout";
 import {
   initialCadDocumentState,
   useCadDocumentStore
@@ -24,19 +23,7 @@ afterEach(() => {
 });
 
 const seedFromDocument = (doc: DslDocumentData) => {
-  const printLayouts = doc.printLayouts.length ? doc.printLayouts : [DEFAULT_PRINT_LAYOUT];
-  const activePrintLayoutId = doc.activePrintLayoutId || printLayouts[0].id;
-  const snapshot = {
-    elements: doc.elements,
-    palette: doc.palette,
-    visibilityRoles: doc.visibilityRoles,
-    visibilityProfiles: doc.visibilityProfiles,
-    activeVisibilityProfileId: doc.activeVisibilityProfileId,
-    printLayouts,
-    activePrintLayoutId,
-    evaluationLimitIndex: doc.evaluationLimitIndex
-  };
-  useCadDocumentStore.getState().replaceDocument(snapshot, null);
+  useCadDocumentStore.getState().replaceDocument(doc, null);
 };
 
 const randomOpArbitrary: fc.Arbitrary<RandomOp> = fc.record({
@@ -139,7 +126,9 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
             palette: document.palette,
             visibilityRoles: document.visibilityRoles,
             visibilityProfiles: document.visibilityProfiles,
-            printLayouts: document.printLayouts,
+            layouts: document.layouts,
+            printOutputs: document.printOutputs,
+            svgOutputs: document.svgOutputs,
             evaluationLimitIndex: document.evaluationLimitIndex
           });
           // 次イテレーションはストアが正規化した後の実モデルを基準に進める。

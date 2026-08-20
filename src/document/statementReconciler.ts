@@ -45,7 +45,7 @@ export type ReconcileOptions = {
   createId?: (type: CadElementType) => ElementId;
   /** typed declaration/set/module用のopaque identity生成器。 */
   createStatementId?: (
-    kind: "typedDeclaration" | "set" | "moduleDefinition" | "moduleInstance" | "printLayout" | "profileDeclaration"
+    kind: "typedDeclaration" | "set" | "moduleDefinition" | "moduleInstance" | "layout" | "print" | "svg" | "place" | "profileDeclaration"
   ) => StatementIdentity;
 };
 
@@ -173,14 +173,20 @@ export const reconcileStatements = (
     statement.kind === "set" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
-    statement.kind === "printLayout" ||
+    statement.kind === "layout" ||
+    statement.kind === "print" ||
+    statement.kind === "svg" ||
+    statement.kind === "place" ||
     statement.kind === "profileDeclaration";
   const identityKindOf = (statement: DslStatement) =>
     statement.kind === "typedDeclaration" ||
     statement.kind === "set" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
-    statement.kind === "printLayout" ||
+    statement.kind === "layout" ||
+    statement.kind === "print" ||
+    statement.kind === "svg" ||
+    statement.kind === "place" ||
     statement.kind === "profileDeclaration"
       ? statement.kind
       : statementTypeOf(statement);
@@ -217,7 +223,7 @@ export const reconcileStatements = (
     const oldStatement = oldStatements[oldIndex];
     const newStatement = newStatements[newIndex];
     if (oldStatement.opensBlock && newStatement.opensBlock) {
-      // 非要素ブロック(printLayout)もスコープキーには影響しないが、記録は無害。
+      // 非要素ブロック(layout)もスコープキーには影響しないが、記録は無害。
       matchedOldBlocks.add(oldIndex);
       oldBlockByNewBlock.set(newIndex, oldIndex);
     }
@@ -380,7 +386,10 @@ export const reconcileStatements = (
       statement.kind === "set" ||
       statement.kind === "moduleDefinition" ||
       statement.kind === "moduleInstance" ||
-      statement.kind === "printLayout" ||
+      statement.kind === "layout" ||
+      statement.kind === "print" ||
+      statement.kind === "svg" ||
+      statement.kind === "place" ||
       statement.kind === "profileDeclaration"
       ? createStatementId(statement.kind)
       : createId(statementTypeOf(statement));

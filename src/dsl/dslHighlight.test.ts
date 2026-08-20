@@ -85,13 +85,14 @@ describe("DSL highlighting", () => {
     );
   });
 
-  it("classifies nui, color, place, activePrintLayout, default", () => {
+  it("classifies nui, color, place, layout, and print", () => {
     expect(tokenKinds("nui 2")[0]).toBe("keyword");
     expect(tokenKinds('color pattern-black ("#31322f", name: "基本線",default: true)')).toEqual(
       expect.arrayContaining(["keyword", "string", "attributeKey"])
     );
     expect(tokenKinds("place @G(at: (0, 0))")[0]).toBe("keyword");
-    expect(tokenKinds("activePrintLayout A4")[0]).toBe("keyword");
+    expect(tokenKinds("layout A4 { ")[0]).toBe("keyword");
+    expect(tokenKinds("print A4(layout: @L, paper: a4, overlap: 0)")[0]).toBe("keyword");
   });
 
   it("classifies v2 roles rather than globally coloring construction/category spellings", () => {

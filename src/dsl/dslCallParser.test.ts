@@ -44,7 +44,7 @@ describe("DSL nui 4 call parser", () => {
 
   it("parses container headers with inline and following braces", () => {
     expect(parse("group 前身頃 {").statement).toMatchObject({ category: "group", name: "前身頃", opensBlock: true });
-    expect(parse("group 前身頃 (printEnabled: true) {").statement).toMatchObject({ category: "group", opensBlock: true });
+    expect(parse("group 前身頃 (roles: [seam]) {").statement).toMatchObject({ category: "group", opensBlock: true });
     expect(parse("if (@見返し > 0)", true).statement).toMatchObject({ category: "if", opensBlock: true, payloadSpans: { condition: { start: 4, end: 12 } } });
     expect(parse("for i in range(from: 0, count: 3, step: 1) {").statement).toMatchObject({ category: "for", opensBlock: true });
     expect(messages("if (@x > 0)").join("\n")).toContain("ブロック");

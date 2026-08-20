@@ -8,7 +8,6 @@ import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
 import { dslLinesForElements, dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { parseDsl } from "../dsl/dslParser";
 import {
-  createPrintLayoutRangeIndex,
   createScopeBodyRangeIndex,
   createStatementRangeIndex,
   createTypedDeclarationRangeIndex,
@@ -25,10 +24,8 @@ const identities = (source: string) => {
   const doc = EditorState.create({ doc: source }).doc;
   return {
     elements: compiled.document!.elements,
-    printLayouts: compiled.document!.printLayouts,
     ids: new Map([...compiled.statementMap!.byElementId].map(([elementId, statement]) => [statement.line, elementId])),
     statementRanges: createStatementRangeIndex(doc, compiled.statementMap!),
-    printLayoutRanges: createPrintLayoutRangeIndex(doc, compiled.statementMap!)
   };
 };
 
@@ -38,8 +35,6 @@ describe("createDslCompletionSource", () => {
     const source = createDslCompletionSource({
       elements: () => [],
       statementRanges: () => new Map(),
-      printLayouts: () => [],
-      printLayoutRanges: () => new Map(),
       isComposing: () => true,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -57,8 +52,6 @@ describe("createDslCompletionSource", () => {
     const source = createDslCompletionSource({
       elements: () => [],
       statementRanges: () => new Map(),
-      printLayouts: () => [],
-      printLayoutRanges: () => new Map(),
       isComposing: () => false,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -77,7 +70,7 @@ describe("createDslCompletionSource", () => {
     const source = "let width: number(step: 5, m";
     const state = EditorState.create({ doc: source });
     const completionSource = createDslCompletionSource({
-      elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
+      elements: () => [], statementRanges: () => new Map(),
       isComposing: () => false, computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined, typedDeclarationRanges: () => new Map(), scopeBodyRanges: () => [],
@@ -96,7 +89,7 @@ describe("createDslCompletionSource", () => {
     const source = "const x: cho";
     const state = EditorState.create({ doc: source });
     const completionSource = createDslCompletionSource({
-      elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
+      elements: () => [], statementRanges: () => new Map(),
       isComposing: () => false, computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined, typedDeclarationRanges: () => new Map(), scopeBodyRanges: () => [],
@@ -124,7 +117,7 @@ describe("createDslCompletionSource", () => {
     const source = "point P = co";
     const state = EditorState.create({ doc: source });
     const completionSource = createDslCompletionSource({
-      elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
+      elements: () => [], statementRanges: () => new Map(),
       isComposing: () => false, computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
@@ -143,7 +136,7 @@ describe("createDslCompletionSource", () => {
     const source = ["point P = offset(", "  from: @A", "  d", ")"].join("\n");
     const state = EditorState.create({ doc: source });
     const completionSource = createDslCompletionSource({
-      elements: () => [], statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
+      elements: () => [], statementRanges: () => new Map(),
       isComposing: () => false, computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
       bindingAnalysis: () => undefined,
@@ -171,14 +164,12 @@ describe("createDslCompletionSource", () => {
       ...pointElements,
       { id: "l", name: "L", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "P" }, endPoint: { mode: "reference", pointId: "p0" } }
     ]);
-    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const { elements, statementRanges } = identities(source);
     const state = EditorState.create({ doc: source });
     const pos = source.indexOf("start: @P") + "start: @P".length;
     const completionSource = createDslCompletionSource({
       elements: () => elements,
       statementRanges: () => statementRanges,
-      printLayouts: () => printLayouts,
-      printLayoutRanges: () => printLayoutRanges,
       isComposing: () => false,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -205,15 +196,13 @@ describe("createDslCompletionSource", () => {
       // "Sec"は入力途中のダングリングトークン(Secondの先頭一致)。
       { id: "o", name: "O", type: "offsetLine", activity: "visible", baseLineIds: ["first", "Sec"], offset: 4, side: "left", closed: false }
     ]);
-    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const { elements, statementRanges } = identities(source);
     const state = EditorState.create({ doc: source });
     const tokenStart = source.lastIndexOf("@Sec");
     const pos = tokenStart + 4;
     const completionSource = createDslCompletionSource({
       elements: () => elements,
       statementRanges: () => statementRanges,
-      printLayouts: () => printLayouts,
-      printLayoutRanges: () => printLayoutRanges,
       isComposing: () => false,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -239,15 +228,13 @@ describe("createDslCompletionSource", () => {
       // "Fir"は入力途中のダングリングトークン(Firstの先頭一致)。
       { id: "o", name: "O", type: "offsetLine", activity: "visible", baseLineIds: ["first", "Fir"], offset: 4, side: "left", closed: false }
     ]);
-    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const { elements, statementRanges } = identities(source);
     const state = EditorState.create({ doc: source });
     const tokenStart = source.lastIndexOf("Fir");
     const pos = tokenStart + 3;
     const completionSource = createDslCompletionSource({
       elements: () => elements,
       statementRanges: () => statementRanges,
-      printLayouts: () => printLayouts,
-      printLayoutRanges: () => printLayoutRanges,
       isComposing: () => false,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -285,8 +272,6 @@ describe("createDslCompletionSource", () => {
     const completionSource = createDslCompletionSource({
       elements: () => compiled.document!.elements,
       statementRanges: () => ranges,
-      printLayouts: () => [],
-      printLayoutRanges: () => new Map(),
       isComposing: () => false,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -321,8 +306,6 @@ describe("createDslCompletionSource", () => {
     const completionSource = createDslCompletionSource({
       elements: () => compiled.document!.elements,
       statementRanges: () => ranges,
-      printLayouts: () => [],
-      printLayoutRanges: () => new Map(),
       isComposing: () => false,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -354,8 +337,6 @@ describe("createDslCompletionSource", () => {
     const completionSource = createDslCompletionSource({
       elements: () => [],
       statementRanges: () => new Map(),
-      printLayouts: () => [],
-      printLayoutRanges: () => new Map(),
       isComposing: () => false,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -403,8 +384,6 @@ describe("createDslCompletionSource", () => {
     const completionSource = createDslCompletionSource({
       elements: () => compiled.document!.elements,
       statementRanges: () => ranges,
-      printLayouts: () => [],
-      printLayoutRanges: () => new Map(),
       isComposing: () => false,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -426,184 +405,6 @@ describe("createDslCompletionSource", () => {
     expect(result?.options.some((option) => option.label === "@Width")).toBe(true);
   });
 
-  // Task 53: printLayout/place numeric fields resolve `@name` against
-  // top-level typed const/let number bindings visible at the printLayout
-  // block's own site (root scope, since printLayout has no lexical scope of
-  // its own) - a root-scope const declared before the block is offered, a
-  // const declared inside an unrelated group is not (matches
-  // numericBindingCompiler.ts's own scope resolution for the same block).
-  it("offers visible top-level typed const/let number bindings for a place attribute, not out-of-scope group-local ones", async () => {
-    const source = [
-      "nui 4",
-      "const GlobalW: number = 100",
-      "group G {",
-      "  point A = coordinate(x: 0, y: 0)",
-      "  const GroupW: number = 50",
-      "}",
-      "printLayout Layout1 (columns: 2) {",
-      "  place @G(at: (0, 0), angle: 0+@Gl)",
-      "}"
-    ].join("\n");
-    // "@Gl" is deliberately partial (still-being-typed toward "@GlobalW") -
-    // compile a same-shape baseline with it removed so compileDslDocument
-    // doesn't treat this mid-keystroke text as a genuinely unresolved,
-    // document-fatal reference. `state`/`pos` below still use the real dirty
-    // text.
-    const compileSource = [
-      "nui 4",
-      "const GlobalW: number = 100",
-      "group G {",
-      "  point A = coordinate(x: 0, y: 0)",
-      "  const GroupW: number = 50",
-      "}",
-      "printLayout Layout1 (columns: 2) {",
-      "  place @G(at: (0, 0), angle: 0)",
-      "}"
-    ].join("\n");
-    const statements = parseDsl(compileSource).statements;
-    const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-    const compiled = compileDslDocument(compileSource, { assignedStatementIds });
-    expect(compiled.document).not.toBeNull();
-    expect(compiled.statementMap).not.toBeNull();
-    const state = EditorState.create({ doc: source });
-    const statementRanges = createStatementRangeIndex(state.doc, compiled.statementMap!);
-    const printLayoutRanges = createPrintLayoutRangeIndex(state.doc, compiled.statementMap!);
-    const typedRanges = createTypedDeclarationRangeIndex(state.doc, compiled.statementMap!);
-    const scopeRanges = createScopeBodyRangeIndex(state.doc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex);
-    const pos = source.indexOf("@Gl") + "@Gl".length;
-    const completionSource = createDslCompletionSource({
-      elements: () => compiled.document!.elements,
-      statementRanges: () => statementRanges,
-      printLayouts: () => compiled.document!.printLayouts,
-      printLayoutRanges: () => printLayoutRanges,
-      isComposing: () => false,
-      computedGeometry: () => undefined,
-      effectiveEnabledElementIds: () => undefined,
-      evaluationErrors: () => undefined,
-      bindingAnalysis: () => compiled.bindingAnalysis,
-      typedDeclarationRanges: () => typedRanges,
-      scopeBodyRanges: () => scopeRanges,
-      statementInfoByElementId: () => compiled.statementMap!.byElementId,
-      statementInfoByKey: () => compiled.statementMap!.byKey
-    });
-    const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
-    expect(result).not.toBeNull();
-    const labels = result!.options.map((option) => option.label);
-    expect(labels).toContain("@GlobalW");
-    expect(labels).not.toContain("@GroupW");
-  });
-
-  // Regression: `@AB.` (an element-property reference, not a typed-binding
-  // reference) inside printLayout/place numeric fields must route through the
-  // same shared elementParameter completion branch ordinary element fields
-  // use. printLayout is a BlockFrame scope (dslParser.ts's blockFrameKind)
-  // like group/conditionalGroup/forGroup, but it is never a CadElement -
-  // dslElementParameterCompletionCandidates.ts previously mistook that
-  // missing elementId for an unresolved group scope and suppressed every
-  // candidate for every printLayout/place numeric field.
-  describe("printLayout/place @Element.property completion (regression)", () => {
-    const buildSource = () => [
-      "nui 4",
-      "const GlobalW: number = 100",
-      "const Flag: boolean = true",
-      "point A = coordinate(x: 0, y: 0)",
-      "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "group G {",
-      "  point C = coordinate(x: 0, y: 0)",
-      "}",
-      "printLayout Layout1 (",
-      "  columns: 2,",
-      "  scale: 1+@AB.length",
-      ") {",
-      "  place @G(at: (0, 0), angle: 0+@AB.length)",
-      "}"
-    ].join("\n");
-
-    const setup = () => {
-      const source = buildSource();
-      const statements = parseDsl(source).statements;
-      const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
-      const compiled = compileDslDocument(source, { assignedStatementIds });
-      expect(compiled.document).not.toBeNull();
-      expect(compiled.statementMap).not.toBeNull();
-      const abId = compiled.document!.elements.find((element) => element.type === "line")!.id;
-      const state = EditorState.create({ doc: source });
-      const statementRanges = createStatementRangeIndex(state.doc, compiled.statementMap!);
-      const printLayoutRanges = createPrintLayoutRangeIndex(state.doc, compiled.statementMap!);
-      const typedRanges = createTypedDeclarationRangeIndex(state.doc, compiled.statementMap!);
-      const scopeRanges = createScopeBodyRangeIndex(state.doc, compiled.statementMap!, compiled.bindingAnalysis!.catalog.scopeIndex);
-      const computedGeometry = new Map([[abId, {
-        kind: "line" as const,
-        elementId: abId,
-        name: "AB",
-        startPointId: null,
-        endPointId: null,
-        start: { kind: "point" as const, elementId: "a", name: "a", x: 0, y: 0 },
-        end: { kind: "point" as const, elementId: "b", name: "b", x: 10, y: 0 },
-        length: 10,
-        startAngleDeg: 0,
-        endAngleDeg: 0,
-        startTangentAngleDeg: 0,
-        endTangentAngleDeg: 0
-      }]]);
-      const completionSource = createDslCompletionSource({
-        elements: () => compiled.document!.elements,
-        statementRanges: () => statementRanges,
-        printLayouts: () => compiled.document!.printLayouts,
-        printLayoutRanges: () => printLayoutRanges,
-        isComposing: () => false,
-        computedGeometry: () => computedGeometry,
-        effectiveEnabledElementIds: () => new Set([abId]),
-        evaluationErrors: () => [],
-        bindingAnalysis: () => compiled.bindingAnalysis,
-        typedDeclarationRanges: () => typedRanges,
-        scopeBodyRanges: () => scopeRanges,
-        statementInfoByElementId: () => compiled.statementMap!.byElementId,
-        statementInfoByKey: () => compiled.statementMap!.byKey
-      });
-      return { source, state, completionSource };
-    };
-
-    it("offers AB's referenceable parameters for @AB. inside printLayout's own scale= field", async () => {
-      const { source, state, completionSource } = setup();
-      const pos = source.indexOf("scale: 1+@AB.") + "scale: 1+@AB.".length;
-      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
-      expect(result).not.toBeNull();
-      const labels = result!.options.map((option) => option.label);
-      expect(labels).toContain("length");
-    });
-
-    it("offers AB's referenceable parameters for @AB. inside place's angle= field", async () => {
-      const { source, state, completionSource } = setup();
-      const pos = source.indexOf("angle: 0+@AB.") + "angle: 0+@AB.".length;
-      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
-      expect(result).not.toBeNull();
-      const labels = result!.options.map((option) => option.label);
-      expect(labels).toContain("length");
-    });
-
-    it("still offers only number-typed top-level bindings for a bare @ in the same printLayout block, never element paths or non-number bindings", async () => {
-      const { source, state, completionSource } = setup();
-      const pos = source.indexOf("scale: 1+@") + "scale: 1+@".length;
-      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
-      expect(result).not.toBeNull();
-      const labels = result!.options.map((option) => option.label);
-      expect(labels).toContain("@GlobalW");
-      expect(labels).not.toContain("@Flag");
-      expect(labels).not.toContain("length");
-    });
-
-    it("returns no candidates for a non-existent element token", async () => {
-      const { source, completionSource } = setup();
-      const dirty = source.replace("angle: 0+@AB.length)", "angle: 0+@Nope.length)");
-      const pos = dirty.indexOf("@Nope.") + "@Nope.".length;
-      const dirtyState = EditorState.create({ doc: dirty });
-      const result = await Promise.resolve(completionSource({ state: dirtyState, pos, explicit: true } as never));
-      expect(result === null || result.options.length === 0).toBe(true);
-    });
-  });
-
   describe("elementParameter (ElementName.parameterKey) completion", () => {
     const buildSource = (dotSuffix: string) => dslTextForElements([
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
@@ -614,7 +415,7 @@ describe("createDslCompletionSource", () => {
 
     const setup = () => {
       const source = buildSource("");
-      const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const { elements, statementRanges } = identities(source);
       const abId = elements.find((element) => element.type === "line")!.id;
       const state = EditorState.create({ doc: source });
       const computedGeometry = new Map([[abId, {
@@ -635,8 +436,7 @@ describe("createDslCompletionSource", () => {
       const completionSource = createDslCompletionSource({
         elements: () => elements,
         statementRanges: () => statementRanges,
-        printLayouts: () => printLayouts,
-        printLayoutRanges: () => printLayoutRanges,
+
         isComposing: () => false,
         computedGeometry: () => computedGeometry,
         effectiveEnabledElementIds: () => new Set([abId]),
@@ -661,7 +461,8 @@ describe("createDslCompletionSource", () => {
 
     it("spans only the member token (from/to exclude the ElementName. prefix)", async () => {
       const source = buildSource("le");
-      const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const { elements, statementRanges } = identities(source);
+
       const abId = elements.find((element) => element.type === "line")!.id;
       const state = EditorState.create({ doc: source });
       const computedGeometry = new Map([[abId, {
@@ -682,8 +483,7 @@ describe("createDslCompletionSource", () => {
       const completionSource = createDslCompletionSource({
         elements: () => elements,
         statementRanges: () => statementRanges,
-        printLayouts: () => printLayouts,
-        printLayoutRanges: () => printLayoutRanges,
+
         isComposing: () => false,
         computedGeometry: () => computedGeometry,
         effectiveEnabledElementIds: () => new Set([abId]),
@@ -705,15 +505,14 @@ describe("createDslCompletionSource", () => {
 
     it("is suppressed during IME composition, same as the shared top-level guard", async () => {
       const source = buildSource("");
-      const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const { elements, statementRanges } = identities(source);
+
       const abId = elements.find((element) => element.type === "line")!.id;
       const state = EditorState.create({ doc: source });
       const pos = source.indexOf("直線AB.") + "直線AB.".length;
       const completionSource = createDslCompletionSource({
         elements: () => elements,
         statementRanges: () => statementRanges,
-        printLayouts: () => printLayouts,
-        printLayoutRanges: () => printLayoutRanges,
         isComposing: () => true,
         computedGeometry: () => new Map(),
         effectiveEnabledElementIds: () => new Set([abId]),
@@ -737,7 +536,8 @@ describe("createDslCompletionSource", () => {
       // typedInitializer/propertyScalarValue/templateHole contexts, never to
       // this elementParameter one - characterized here by actually typing).
       const source = buildSource("");
-      const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+      const { elements, statementRanges } = identities(source);
+
       const pos = source.indexOf("直線AB.") + "直線AB.".length;
       const parent = document.createElement("div");
       document.body.append(parent);
@@ -764,8 +564,7 @@ describe("createDslCompletionSource", () => {
             dslAutocompleteExtension({
               elements: () => elements,
               statementRanges: () => statementRanges,
-              printLayouts: () => printLayouts,
-              printLayoutRanges: () => printLayoutRanges,
+
               isComposing: () => false,
               computedGeometry: () => computedGeometry,
               effectiveEnabledElementIds: () => new Set([abId]),
@@ -854,8 +653,6 @@ describe("createDslCompletionSource", () => {
             dslAutocompleteExtension({
               elements: () => elements,
               statementRanges: () => statementRanges,
-              printLayouts: () => [],
-              printLayoutRanges: () => new Map(),
               isComposing: () => false,
               computedGeometry: () => computedGeometry,
               effectiveEnabledElementIds: () => new Set([abId]),
@@ -954,8 +751,7 @@ describe("createDslCompletionSource", () => {
             dslAutocompleteExtension({
               elements: () => elements,
               statementRanges: () => statementRanges,
-              printLayouts: () => [],
-              printLayoutRanges: () => new Map(),
+
               isComposing: () => false,
               computedGeometry: () => new Map(),
               effectiveEnabledElementIds: () => new Set([abId]),
@@ -1007,7 +803,7 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
         "line AB = segment(start: @A, end: @B)",
       "line Off = offset(sources: [@AB], distance: 3, side: right, closed: false)"
     ].join("\n");
-    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const { elements, statementRanges } = identities(source);
     const abId = elements.find((element) => element.type === "line" && element.name === "AB")!.id;
     const parent = document.createElement("div");
     document.body.append(parent);
@@ -1019,8 +815,7 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
           dslAutocompleteExtension({
             elements: () => elements,
             statementRanges: () => statementRanges,
-            printLayouts: () => printLayouts,
-            printLayoutRanges: () => printLayoutRanges,
+
             isComposing: () => false,
             computedGeometry: () => new Map(),
             effectiveEnabledElementIds: () => new Set([abId]),
@@ -1108,7 +903,8 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
       "line AB = segment(start: @A, end: @B)",
       "point C = coordinate(x: 0, y: 0)"
     ].join("\n");
-    const { elements, statementRanges, printLayouts, printLayoutRanges } = identities(source);
+    const { elements, statementRanges } = identities(source);
+
     const abId = elements.find((element) => element.type === "line" && element.name === "AB")!.id;
     const computedGeometry = new Map([[abId, {
       kind: "line" as const,
@@ -1136,8 +932,6 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
           dslAutocompleteExtension({
             elements: () => elements,
             statementRanges: () => statementRanges,
-            printLayouts: () => printLayouts,
-            printLayoutRanges: () => printLayoutRanges,
             isComposing: () => false,
             computedGeometry: () => computedGeometry,
             effectiveEnabledElementIds: () => new Set([abId]),
@@ -1206,8 +1000,7 @@ describe("typed value completion (Task 39)", () => {
   const baseOptions = () => ({
     elements: () => [] as never[],
     statementRanges: () => new Map(),
-    printLayouts: () => [] as never[],
-    printLayoutRanges: () => new Map(),
+
     isComposing: () => false,
     computedGeometry: () => undefined,
     effectiveEnabledElementIds: () => undefined,
@@ -1822,34 +1615,6 @@ describe("typed value completion (Task 39)", () => {
       expect(options.every((option) => option.type === "constant")).toBe(true);
     });
 
-    it("offers true/false literal candidates for an opt-in boolean property with no @ prefix", async () => {
-      // Committed/compiled from a complete, valid document; a bare "t" typed
-      // toward "true" only exists in a separate dirty live state (an empty
-      // required boolean value has no locatable value span at all, let alone
-      // being a compile error, so this exercises the realistic in-progress
-      // shape instead).
-      const committedSource = ["nui 4", "group G (printEnabled: true) {", "}"].join("\n");
-      const compiled = compiledTyped(committedSource);
-      const dirtySource = committedSource.replace("printEnabled: true", "printEnabled: t");
-      const state = EditorState.create({ doc: dirtySource });
-      const statementRanges = createStatementRangeIndex(state.doc, compiled.statementMap!);
-      const completionSource = createDslCompletionSource({
-        ...baseOptions(),
-        elements: () => compiled.document!.elements,
-        statementRanges: () => statementRanges,
-        bindingAnalysis: () => compiled.bindingAnalysis,
-        typedDeclarationRanges: () => new Map(),
-        scopeBodyRanges: () => [],
-        statementInfoByElementId: () => compiled.statementMap!.byElementId
-      });
-      const pos = dirtySource.indexOf("printEnabled: t") + "printEnabled: t".length;
-      const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
-      expect(result).not.toBeNull();
-      expect(result!.options.map((option) => option.label)).toEqual(expect.arrayContaining(["true", "false"]));
-      expect(result!.options).toEqual(expect.arrayContaining([
-        expect.objectContaining({ label: "isClose", type: "function", apply: "isClose(" })
-      ]));
-    });
   });
 
   describe("template hole", () => {
@@ -2032,8 +1797,7 @@ describe("dslAutocompleteExtension candidate navigation", () => {
         extensions: dslAutocompleteExtension({
           elements: () => [],
           statementRanges: () => new Map(),
-          printLayouts: () => [],
-          printLayoutRanges: () => new Map(),
+
           isComposing,
           computedGeometry: () => undefined,
           effectiveEnabledElementIds: () => undefined,
@@ -2132,8 +1896,7 @@ describe("dslAutocompleteExtension candidate navigation", () => {
         extensions: dslAutocompleteExtension({
           elements: () => compiled.document!.elements,
           statementRanges: () => statementRanges,
-          printLayouts: () => compiled.document!.printLayouts,
-          printLayoutRanges: () => new Map(),
+
           isComposing: () => false,
           computedGeometry: () => undefined,
           effectiveEnabledElementIds: () => undefined,
@@ -2171,8 +1934,7 @@ describe("set target/rhs completion (Task 40)", () => {
   const baseOptions = () => ({
     elements: () => [] as never[],
     statementRanges: () => new Map(),
-    printLayouts: () => [] as never[],
-    printLayoutRanges: () => new Map(),
+
     isComposing: () => false,
     computedGeometry: () => undefined,
     effectiveEnabledElementIds: () => undefined,
@@ -2416,8 +2178,7 @@ describe("set target completion via natural typing (Task 51 manual E2E rerun)", 
           dslAutocompleteExtension({
             elements: () => [],
             statementRanges: () => new Map(),
-            printLayouts: () => [],
-            printLayoutRanges: () => new Map(),
+
             isComposing: () => false,
             computedGeometry: () => undefined,
             effectiveEnabledElementIds: () => undefined,
@@ -2545,8 +2306,6 @@ describe("set target completion after a real delete transaction (Task 51 manual 
           dslAutocompleteExtension({
             elements: () => [],
             statementRanges: () => new Map(),
-            printLayouts: () => [],
-            printLayoutRanges: () => new Map(),
             isComposing: () => false,
             computedGeometry: () => undefined,
             effectiveEnabledElementIds: () => undefined,
@@ -2646,8 +2405,7 @@ describe("set target recovery from the current dirty source (Task 51)", () => {
     const source = createDslCompletionSource({
       elements: () => compiled.document!.elements,
       statementRanges: () => new Map(),
-      printLayouts: () => compiled.document!.printLayouts,
-      printLayoutRanges: () => new Map(),
+
       isComposing: () => false,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -2693,8 +2451,6 @@ describe("set target recovery from the current dirty source (Task 51)", () => {
     const source = createDslCompletionSource({
       elements: () => compiled.document!.elements,
       statementRanges: () => new Map(),
-      printLayouts: () => compiled.document!.printLayouts,
-      printLayoutRanges: () => new Map(),
       isComposing: () => false,
       computedGeometry: () => undefined,
       effectiveEnabledElementIds: () => undefined,
@@ -2752,8 +2508,7 @@ describe("set target recovery from the current dirty source (Task 51)", () => {
           dslAutocompleteExtension({
             elements: () => compiled.document!.elements,
             statementRanges: () => new Map(),
-            printLayouts: () => compiled.document!.printLayouts,
-            printLayoutRanges: () => new Map(),
+
             isComposing: () => false,
             computedGeometry: () => undefined,
             effectiveEnabledElementIds: () => undefined,
@@ -2837,8 +2592,6 @@ describe("set target recovery from the current dirty source (Task 51)", () => {
           dslAutocompleteExtension({
             elements: () => compiled.document!.elements,
             statementRanges: () => new Map(),
-            printLayouts: () => compiled.document!.printLayouts,
-            printLayoutRanges: () => new Map(),
             isComposing: () => false,
             computedGeometry: () => undefined,
             effectiveEnabledElementIds: () => undefined,

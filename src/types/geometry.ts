@@ -88,41 +88,58 @@ export type VisibilityProfile = {
   roleVisibility: Record<string, boolean>;
 };
 
-export type PaperSizeId = "a4" | "a3" | "b5" | "b4" | "letter" | "legal";
-
-export type PrintLayoutOutputKind = "pdf" | "svg";
-
-export type PrintLayoutPlacement = {
-  id: string;
-  groupId: ElementId;
-  x: NumericValue;
-  y: NumericValue;
-  angleDeg: NumericValue;
-  mirrorX: boolean;
-};
-
-export type PrintLayout = {
-  id: string;
-  name: string;
-  outputKind: PrintLayoutOutputKind;
-  visibilityProfileId?: string;
-  paperSizeId: PaperSizeId;
-  orientation: "portrait" | "landscape";
-  columns: NumericValue;
-  rows: NumericValue;
-  overlapMm: NumericValue;
-  scale: NumericValue;
-  svgCanvasWidthMm: NumericValue;
-  svgCanvasHeightMm: NumericValue;
-  placements: PrintLayoutPlacement[];
-};
-
 export type NumericExpression = {
   kind: "expression";
   expression: string;
 };
 
 export type NumericValue = number | NumericExpression;
+
+export type PrintPaperSizeId = "a4" | "a3";
+
+export type LayoutOrigin =
+  | { kind: "localOrigin" }
+  | { kind: "point"; pointId: ElementId };
+
+export type LayoutPlacement = {
+  /** Reconciler-owned identity of the source `place` statement. */
+  id: string;
+  groupId: ElementId;
+  origin: LayoutOrigin;
+  at: { x: NumericValue; y: NumericValue };
+  scale?: NumericValue;
+  angleDeg: NumericValue;
+  mirror: boolean;
+};
+
+export type Layout = {
+  /** Reconciler-owned identity of the source `layout` declaration. */
+  id: string;
+  name: string;
+  scale: NumericValue;
+  placements: LayoutPlacement[];
+};
+
+export type PrintOutput = {
+  /** Reconciler-owned identity of the source `print` declaration. */
+  id: string;
+  name: string;
+  layoutId: string;
+  profileId?: string;
+  paper: PrintPaperSizeId;
+  orientation: "portrait" | "landscape";
+  margin: NumericValue;
+  overlap: NumericValue;
+};
+
+export type SvgOutput = {
+  /** Reconciler-owned identity of the source `svg` declaration. */
+  id: string;
+  name: string;
+  layoutId: string;
+  profileId?: string;
+  margin: NumericValue;
+};
 
 export type ConditionalBranch = "then" | "else";
 
@@ -366,8 +383,6 @@ export type TextElement = CadElementBase & {
 
 export type GroupElement = CadElementBase & {
   type: "group";
-  printEnabled?: boolean;
-  printAnchor?: PointAnchor;
   visibilityRoleIds?: string[];
 };
 

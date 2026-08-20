@@ -340,7 +340,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     const internals = controller as unknown as ControllerInternals;
     const element = useCadDocumentStore.getState().elements.find((item) => item.name === "G")!;
 
-    expect(controller.jumpToParameterValue(element.id, "printEnabled")).toBe(false);
+    expect(controller.jumpToParameterValue(element.id, "roles")).toBe(false);
     expect(internals.view.state.selection.main.head).toBe(internals.view.state.doc.line(2).from);
     controller.destroy();
   });

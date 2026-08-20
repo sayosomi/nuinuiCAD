@@ -1,7 +1,7 @@
 import { expect } from "vitest";
 import { defaultDocumentPalette } from "../palette/palette";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
-import type { CadElement, ElementId, PointAnchor, PrintLayout } from "../types/geometry";
+import type { CadElement, ElementId, PointAnchor, Layout } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
 import {
   layoutElementTree,
@@ -26,8 +26,9 @@ export const emptyDocument = (): DslDocumentData => ({
   visibilityRoles: [],
   visibilityProfiles: [defaultVisibilityProfile()],
   activeVisibilityProfileId: defaultVisibilityProfile().id,
-  printLayouts: [],
-  activePrintLayoutId: "",
+  layouts: [],
+  printOutputs: [],
+  svgOutputs: [],
   evaluationLimitIndex: undefined
 });
 
@@ -83,15 +84,20 @@ export const normalizeForComparison = (elements: CadElement[]) => {
   });
 };
 
-// PrintLayoutの実行時IDを除いて意味比較する。placeのgroup参照は要素IDではなく
+// Layoutの実行時IDを除いて意味比較する。placeのgroup参照は要素IDではなく
 // 文書内インデックスへ正規化する。
-export const comparableLayouts = (layouts: readonly PrintLayout[] | undefined, elements: readonly CadElement[]) => {
+export const comparableLayouts = (layouts: readonly Layout[] | undefined, elements: readonly CadElement[]) => {
   const index = new Map(elements.map((element, position) => [element.id, position]));
   return (layouts ?? []).map((layout) => ({
-    name: layout.name, outputKind: layout.outputKind, visibilityProfileId: layout.visibilityProfileId,
-    paperSizeId: layout.paperSizeId, orientation: layout.orientation, columns: layout.columns, rows: layout.rows,
-    overlapMm: layout.overlapMm, scale: layout.scale, svgCanvasWidthMm: layout.svgCanvasWidthMm, svgCanvasHeightMm: layout.svgCanvasHeightMm,
-    placements: layout.placements.map((placement) => ({ x: placement.x, y: placement.y, angleDeg: placement.angleDeg, mirrorX: placement.mirrorX, groupId: index.get(placement.groupId) ?? `unknown:${placement.groupId}` }))
+    name: layout.name, scale: layout.scale,
+    placements: layout.placements.map((placement) => ({
+      origin: placement.origin,
+      at: placement.at,
+      scale: placement.scale,
+      angleDeg: placement.angleDeg,
+      mirror: placement.mirror,
+      groupId: index.get(placement.groupId) ?? `unknown:${placement.groupId}`
+    }))
   }));
 };
 
@@ -102,7 +108,7 @@ export const expectSemanticallyEqualDocuments = (a: DslDocumentData, b: DslDocum
   expect(a.visibilityRoles).toEqual(b.visibilityRoles);
   expect(a.visibilityProfiles).toEqual(b.visibilityProfiles);
   expect(a.evaluationLimitIndex).toBe(b.evaluationLimitIndex);
-  expect(a.printLayouts.length).toBe(b.printLayouts.length);
+  expect(a.layouts.length).toBe(b.layouts.length);
 };
 
 // 要素配列 → DSL本文行(パレット/可視性/印刷レイアウトの定型セクションを含まない、
@@ -154,8 +160,9 @@ export const roundTrip = (source: string) => {
     visibilityRoles: first.visibilityRoles ?? [],
     visibilityProfiles: first.visibilityProfiles?.length ? first.visibilityProfiles : [defaultVisibilityProfile()],
     activeVisibilityProfileId: first.activeVisibilityProfileId ?? defaultVisibilityProfile().id,
-    printLayouts: first.printLayouts ?? [],
-    activePrintLayoutId: first.activePrintLayoutId ?? first.printLayouts?.[0]?.id ?? "",
+    layouts: first.layouts ?? [],
+    printOutputs: first.printOutputs ?? [],
+    svgOutputs: first.svgOutputs ?? [],
     evaluationLimitIndex: first.evaluationLimitIndex
   };
   const text = serializeDocumentToDsl(document, TEST_DEFAULT_DSL_MAJOR_VERSION);

@@ -156,7 +156,7 @@ const typedBindingConsumerRows = (
 
   // All seven opt-in single-`@name` properties (offsetLine.side/closed/
   // suppressTrimWarnings, intersectionPoint.useExtensions, copyLine/move/
-  // image.mirrorX, group.printEnabled, forGroup.showGenerated, text.text bare
+  // image.mirrorX, forGroup.showGenerated, text.text bare
   // binding) live in this one compiled map (compilePropertyBindings
   // opts them all in generically) - one scan covers every one of them.
   if (sources.propertyBindings) {

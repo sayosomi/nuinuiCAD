@@ -19,13 +19,6 @@ import {
   defaultDocumentPalette,
   isValidPaletteColorId
 } from "../palette/palette";
-import {
-  DEFAULT_PRINT_LAYOUT,
-  activePrintLayout,
-  createDefaultPrintLayout,
-  nextPrintLayoutId,
-  normalizePrintLayout
-} from "../print/printLayout";
 import { sampleElements } from "../sampleData";
 import type { LineSplice } from "../document/textPatch";
 import type { SourceUpdate } from "../editor/sourceEditorTypes";
@@ -43,7 +36,9 @@ import type {
   DrawingProfile,
   ElementId,
   PaletteColor,
-  PrintLayout,
+  Layout,
+  PrintOutput,
+  SvgOutput,
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
@@ -109,9 +104,10 @@ export type CadDocumentState = {
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   activeVisibilityProfileId: string;
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
-  printLayouts: PrintLayout[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
-  activePrintLayoutId: string;
+  layouts: Layout[];
+  printOutputs: PrintOutput[];
+  svgOutputs: SvgOutput[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   evaluationLimitIndex: number | undefined;
   previewElements: CadElement[] | null;
@@ -148,8 +144,6 @@ export type CadDocumentState = {
   ) => DocumentMutationResult;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
-  setPrintLayout: (printLayout: PrintLayout) => void;
-  updatePrintLayout: (patch: Partial<PrintLayout>) => void;
   setActiveVisibilityProfileId: (id: string) => void;
   addVisibilityRole: (name?: string) => void;
   updateVisibilityRole: (id: string, patch: Partial<VisibilityRole>) => void;
@@ -158,10 +152,6 @@ export type CadDocumentState = {
   updateVisibilityProfile: (id: string, patch: Partial<VisibilityProfile>) => void;
   deleteVisibilityProfile: (id: string) => void;
   setVisibilityProfileRoleVisible: (profileId: string, roleId: string, visible: boolean) => void;
-  setActivePrintLayoutId: (id: string) => void;
-  addPrintLayout: () => void;
-  duplicatePrintLayout: (id?: string) => void;
-  deletePrintLayout: (id: string) => void;
   setPalette: (palette: DocumentPalette) => void;
   updatePaletteColor: (id: string, patch: Partial<PaletteColor>) => void;
   addPaletteColor: () => void;
@@ -191,8 +181,9 @@ type DocumentCompatibilityView = Pick<
   | "visibilityRoles"
   | "visibilityProfiles"
   | "activeVisibilityProfileId"
-  | "printLayouts"
-  | "activePrintLayoutId"
+  | "layouts"
+  | "printOutputs"
+  | "svgOutputs"
   | "evaluationLimitIndex"
 >;
 
@@ -204,8 +195,9 @@ const documentOf = (state: DocumentCompatibilityView): DslDocumentData => ({
   visibilityRoles: state.visibilityRoles,
   visibilityProfiles: state.visibilityProfiles,
   activeVisibilityProfileId: state.activeVisibilityProfileId,
-  printLayouts: state.printLayouts,
-  activePrintLayoutId: state.activePrintLayoutId,
+  layouts: state.layouts,
+  printOutputs: state.printOutputs,
+  svgOutputs: state.svgOutputs,
   evaluationLimitIndex: state.evaluationLimitIndex
 });
 
@@ -220,8 +212,9 @@ const compatibilityViewMatchesDoc = (state: CadDocumentState) => {
     state.visibilityRoles === document.visibilityRoles &&
     state.visibilityProfiles === document.visibilityProfiles &&
     state.activeVisibilityProfileId === document.activeVisibilityProfileId &&
-    state.printLayouts === document.printLayouts &&
-    state.activePrintLayoutId === document.activePrintLayoutId &&
+    state.layouts === document.layouts &&
+    state.printOutputs === document.printOutputs &&
+    state.svgOutputs === document.svgOutputs &&
     state.evaluationLimitIndex === document.evaluationLimitIndex;
 };
 
@@ -303,8 +296,9 @@ const canonicalFields = (value: CanonicalDocumentValue) => {
     visibilityRoles: document.visibilityRoles,
     visibilityProfiles: document.visibilityProfiles,
     activeVisibilityProfileId: document.activeVisibilityProfileId,
-    printLayouts: document.printLayouts,
-    activePrintLayoutId: document.activePrintLayoutId,
+    layouts: document.layouts,
+    printOutputs: document.printOutputs,
+    svgOutputs: document.svgOutputs,
     evaluationLimitIndex: document.evaluationLimitIndex
   };
 };
@@ -348,8 +342,9 @@ const documentFromChange = (
     visibilityRoles: change.visibilityRoles ?? before.visibilityRoles,
     visibilityProfiles: change.visibilityProfiles ?? before.visibilityProfiles,
     activeVisibilityProfileId: change.activeVisibilityProfileId ?? before.activeVisibilityProfileId,
-    printLayouts: change.printLayouts ?? before.printLayouts,
-    activePrintLayoutId: change.activePrintLayoutId ?? before.activePrintLayoutId,
+    layouts: change.layouts ?? before.layouts,
+    printOutputs: change.printOutputs ?? before.printOutputs,
+    svgOutputs: change.svgOutputs ?? before.svgOutputs,
     evaluationLimitIndex: Object.hasOwn(change, "evaluationLimitIndex")
       ? change.evaluationLimitIndex
       : before.evaluationLimitIndex
@@ -478,8 +473,9 @@ const initialSnapshot = (): DslDocumentData => ({
   visibilityRoles: [],
   visibilityProfiles: [defaultVisibilityProfile()],
   activeVisibilityProfileId: defaultVisibilityProfile().id,
-  printLayouts: [DEFAULT_PRINT_LAYOUT],
-  activePrintLayoutId: DEFAULT_PRINT_LAYOUT.id,
+  layouts: [],
+  printOutputs: [],
+  svgOutputs: [],
   evaluationLimitIndex: undefined
 });
 
@@ -512,8 +508,6 @@ type CadDocumentActions = Pick<
   | "commitLineSplices"
   | "setElements"
   | "updateElement"
-  | "setPrintLayout"
-  | "updatePrintLayout"
   | "setActiveVisibilityProfileId"
   | "addVisibilityRole"
   | "updateVisibilityRole"
@@ -522,10 +516,6 @@ type CadDocumentActions = Pick<
   | "updateVisibilityProfile"
   | "deleteVisibilityProfile"
   | "setVisibilityProfileRoleVisible"
-  | "setActivePrintLayoutId"
-  | "addPrintLayout"
-  | "duplicatePrintLayout"
-  | "deletePrintLayout"
   | "setPalette"
   | "updatePaletteColor"
   | "addPaletteColor"
@@ -735,21 +725,6 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       )
     });
   },
-  setPrintLayout: (printLayout) => {
-    const document = documentOf(get());
-    get().commitDocumentChange({
-      printLayouts: document.printLayouts.map((layout) =>
-        layout.id === document.activePrintLayoutId
-          ? normalizePrintLayout(printLayout, document.elements, document.visibilityProfiles)
-          : layout
-      )
-    });
-  },
-  updatePrintLayout: (patch) => {
-    const document = documentOf(get());
-    const layout = activePrintLayout(document.printLayouts, document.activePrintLayoutId);
-    get().setPrintLayout({ ...layout, ...patch });
-  },
   setActiveVisibilityProfileId: (activeVisibilityProfileId) =>
     get().commitDocumentChange({ activeVisibilityProfileId }),
   addVisibilityRole: (name) => {
@@ -817,11 +792,6 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         document.activeVisibilityProfileId === id
           ? visibilityProfiles[0].id
           : document.activeVisibilityProfileId,
-      printLayouts: document.printLayouts.map((layout) =>
-        layout.visibilityProfileId === id
-          ? { ...layout, visibilityProfileId: visibilityProfiles[0].id }
-          : layout
-      )
     });
   },
   setVisibilityProfileRoleVisible: (profileId, roleId, visible) => {
@@ -834,41 +804,6 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
           ? { ...profile, roleVisibility: { ...profile.roleVisibility, [roleId]: visible } }
           : profile
       )
-    });
-  },
-  setActivePrintLayoutId: (activePrintLayoutId) =>
-    get().commitDocumentChange({ activePrintLayoutId }),
-  addPrintLayout: () => {
-    const document = documentOf(get());
-    const layout = createDefaultPrintLayout(document.printLayouts);
-    get().commitDocumentChange({
-      printLayouts: [...document.printLayouts, layout],
-      activePrintLayoutId: layout.id
-    });
-  },
-  duplicatePrintLayout: (id) => {
-    const document = documentOf(get());
-    const source = document.printLayouts.find((layout) => layout.id === (id ?? document.activePrintLayoutId));
-    if (!source) return;
-    const copy = {
-      ...source,
-      id: nextPrintLayoutId(document.printLayouts),
-      name: source.name.trim().length > 0 ? `${source.name.trim()} コピー` : "",
-      placements: source.placements.map((placement) => ({ ...placement }))
-    };
-    get().commitDocumentChange({
-      printLayouts: [...document.printLayouts, copy],
-      activePrintLayoutId: copy.id
-    });
-  },
-  deletePrintLayout: (id) => {
-    const document = documentOf(get());
-    if (document.printLayouts.length <= 1 || !document.printLayouts.some((layout) => layout.id === id)) return;
-    const printLayouts = document.printLayouts.filter((layout) => layout.id !== id);
-    get().commitDocumentChange({
-      printLayouts,
-      activePrintLayoutId:
-        document.activePrintLayoutId === id ? printLayouts[0].id : document.activePrintLayoutId
     });
   },
   setPalette: (palette) => get().commitDocumentChange({ palette }),

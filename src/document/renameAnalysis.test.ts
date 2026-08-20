@@ -1,8 +1,8 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, serializeDocumentToDsl, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
-import { dslFlatTextForElements, dslTextForElements, emptyDocument } from "../dsl/dslDocumentTestUtils";
+import { dslFlatTextForElements, dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { reconcileStatements } from "./statementReconciler";
 import { applyLineSplices, buildTextPatch } from "./textPatch";
 import {
@@ -26,11 +26,6 @@ const renameDocument = (document: DslDocumentData, id: string, name: string): Ds
   ...document,
   elements: document.elements.map((element) => element.id === id ? { ...element, name } : element)
 });
-
-const touchedLines = (compiled: CompiledDslDocument, document: DslDocumentData) =>
-  [...new Set(buildTextPatch({ old: compiled, newDocument: document }).flatMap((splice) =>
-    Array.from({ length: Math.max(0, splice.endLine - splice.startLine + 1) }, (_, index) => splice.startLine + index)
-  ))].sort((a, b) => a - b);
 
 const compileWithInheritedIds = (before: ReturnType<typeof complete>, source: string) => {
   const parsed = parseDsl(source);
@@ -162,49 +157,6 @@ describe("renameAnalysis", () => {
       "derived",
       "expression"
     ]));
-  });
-
-  it("lists direct, derived, expression, qualified, and print-layout references", () => {
-    const elements: DslDocumentData["elements"] = [
-      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
-      { id: "b", name: "B", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: 1, dy: 0 },
-      { id: "l", name: "L", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
-      { id: "g", name: "G", type: "group", activity: "visible" },
-      { id: "p", name: "P", type: "freePoint", activity: "visible", x: 2, y: 0, parentGroupId: "g" },
-      { id: "qualifieduser", name: "QualifiedUser", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "p" }, dx: 1, dy: 0 }
-    ];
-    const source = serializeDocumentToDsl({
-      ...emptyDocument(),
-      elements,
-      palette: { colors: [], defaultColorId: "" },
-      printLayouts: [{
-        id: "layout",
-        name: "Layout",
-        outputKind: "pdf",
-        paperSizeId: "a4",
-        orientation: "portrait",
-        columns: 1,
-        rows: 1,
-        overlapMm: 0,
-        scale: 1,
-        svgCanvasWidthMm: 100,
-        svgCanvasHeightMm: 100,
-        placements: [{ id: "place-g", groupId: "g", x: 0, y: 0, angleDeg: 0, mirrorX: false }]
-      }],
-      activePrintLayoutId: "layout"
-    }, 4);
-    const compiled = complete(source);
-    const group = compiled.document.elements.find((element) => element.name === "G")!;
-    const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: group.id, newName: "H" });
-
-    expect(analysis).toMatchObject({ verdict: "ok", newName: "H" });
-    if (analysis.verdict !== "ok") return;
-    expect(analysis.occurrences).toEqual(expect.arrayContaining([
-      expect.objectContaining({ referencedElementId: group.id, form: "print-layout-place" }),
-      expect.objectContaining({ form: "direct" })
-    ]));
-    const after = renameDocument(compiled.document, group.id, "H");
-    expect(analysis.expectedPatchedLines).toEqual(touchedLines(compiled, after));
   });
 
   it("accepts quoted Japanese names and follows the existing trim rule", () => {

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { defaultDocumentPalette } from "../palette/palette";
-import { createDefaultPrintLayout } from "../print/printLayout";
 import type { CadElement } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
 import {
@@ -11,8 +10,6 @@ import {
   type DslDocumentData
 } from "./dslDocument";
 import {
-  PROPERTY_BINDING_TYPE_MISMATCH_CODE,
-  PROPERTY_BINDING_UNRESOLVED_CODE,
   propertyBindingOccurrenceKey
 } from "../scalars/propertyBindingCompiler";
 import { TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE } from "../scalars/textTemplate";
@@ -333,114 +330,7 @@ describe("dslDocument palette", () => {
   });
 });
 
-describe("dslDocument printLayout and activePrintLayout", () => {
-  it("round-trips a full print layout block", () => {
-    const source = [
-      "nui 4",
-      "",
-      'role seam (name: "縫い代")',
-      "view 印刷 (default: true, seam: true)",
-      "",
-      "group 前身頃 {",
-      "  point A = coordinate(x: 0, y: 0)",
-      "}",
-      "",
-      "printLayout A4 (",
-      "  output: svg,",
-      "  view: 印刷,",
-      "  paper: a3,",
-      "  orientation: landscape,",
-      "  columns: 3,",
-      "  rows: 4,",
-      "  overlap: 15,",
-      "  scale: 0.5,",
-      "  canvas: (500, 700)",
-      ") {",
-      "  place @前身頃(at: (10, 20), angle: 90, mirrorX: true)",
-      "}"
-    ].join("\n");
-    const parsed = parseDslDocument(source);
-    expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    const layout = parsed.document!.printLayouts[0];
-    expect(layout).toMatchObject({
-      name: "A4",
-      outputKind: "svg",
-      paperSizeId: "a3",
-      orientation: "landscape",
-      columns: 3,
-      rows: 4,
-      overlapMm: 15,
-      scale: 0.5,
-      svgCanvasWidthMm: 500,
-      svgCanvasHeightMm: 700
-    });
-    expect(layout.placements).toHaveLength(1);
-
-    const reserialized = serializeDocumentToDsl(parsed.document!, 4);
-    const reparsed = parseDslDocument(reserialized);
-    expect(reparsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(reparsed.document!.printLayouts[0]).toMatchObject({
-      name: "A4",
-      outputKind: "svg",
-      paperSizeId: "a3",
-      orientation: "landscape"
-    });
-  });
-
-  it("omits the activePrintLayout statement when the active layout is first", () => {
-    const document: DslDocumentData = {
-      ...emptyDocument(),
-      printLayouts: [createDefaultPrintLayout([]), createDefaultPrintLayout([{ id: "print-layout-1" }])].map((layout, index) => ({
-        ...layout,
-        name: `layout-${index}`
-      })),
-      activePrintLayoutId: undefined as unknown as string
-    };
-    document.activePrintLayoutId = document.printLayouts[0].id;
-    const text = serializeDocumentToDsl(document, 4);
-    expect(text).not.toContain("activePrintLayout");
-  });
-
-  it("promotes a deterministic name for an unnamed non-first active print layout", () => {
-    const first = { ...createDefaultPrintLayout([]), id: "layout-1", name: "先頭" };
-    const second = { ...createDefaultPrintLayout([first]), id: "layout-2", name: "" };
-    const document: DslDocumentData = {
-      ...emptyDocument(),
-      printLayouts: [first, second],
-      activePrintLayoutId: second.id
-    };
-    const text = serializeDocumentToDsl(document, 4);
-    expect(text).toContain("activePrintLayout レイアウト1");
-    expect(text).toContain("printLayout レイアウト1");
-
-    const reparsed = parseDslDocument(text);
-    expect(reparsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(reparsed.document!.printLayouts[1].name).toBe("レイアウト1");
-    expect(reparsed.document!.activePrintLayoutId).toBe(reparsed.document!.printLayouts[1].id);
-  });
-});
-
-describe("printLayout is the canonical document-end sink", () => {
-  it("accepts stop before the final printLayout section", () => {
-    const compiled = compileDslDocument([
-      "nui 4",
-      "group 前身頃 {",
-      "}",
-      "stop",
-      "printLayout A4(",
-      "  width: 210,",
-      "  height: 297,",
-      ") {",
-      "  const margin: number = 10",
-      "  place @前身頃(x: @margin, y: @margin, angle: 0, mirrorX: false)",
-      "}"
-    ].join("\n"), {
-      assignedStatementIds: new Map([[5, "test:print-layout-margin"]])
-    });
-    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(compiled.document?.printLayouts[0].placements).toHaveLength(1);
-  });
-
+describe("dslDocument canonical blocks", () => {
   it("adds a trailing comma to every argument in canonical multi-line calls", () => {
     const compiled = compileDslDocument("nui 4\npoint A = coordinate(\n  x: 0,\n  y: 0\n)");
     expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
@@ -449,94 +339,6 @@ describe("printLayout is the canonical document-end sink", () => {
     );
   });
 
-  it("serializes the printLayout section after the elements section", () => {
-    const compiled = compileDslDocument([
-      "nui 4",
-      "point A = coordinate(x: 0, y: 0)",
-      "printLayout レイアウト1 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "}"
-    ].join("\n"));
-    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    const text = serializeDocumentToDsl(compiled.document!, 4);
-    const elementIndex = text.indexOf("point A");
-    const printLayoutIndex = text.indexOf("printLayout");
-    expect(elementIndex).toBeGreaterThanOrEqual(0);
-    expect(printLayoutIndex).toBeGreaterThan(elementIndex);
-  });
-
-  const bodyStatementAfterPrintLayout = (trailingStatement: string) =>
-    [
-      "nui 4",
-      "point A = coordinate(x: 0, y: 0)",
-      "printLayout レイアウト1 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "}",
-      trailingStatement
-    ].join("\n");
-
-  it("rejects a set statement placed after a printLayout block", () => {
-    const compiled = compileDslDocument([
-      "nui 4",
-      "let v: number = 1",
-      "printLayout レイアウト1 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "}",
-      "set v = 2"
-    ].join("\n"));
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);
-  });
-
-  it("rejects a typed declaration placed after a printLayout block", () => {
-    const compiled = compileDslDocument(bodyStatementAfterPrintLayout("let v: number = 2"));
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);
-  });
-
-  it("rejects an element placed after a printLayout block", () => {
-    const compiled = compileDslDocument(bodyStatementAfterPrintLayout("point B = coordinate(x: 1, y: 1)"));
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);
-  });
-
-  it("rejects a group placed after a printLayout block", () => {
-    const compiled = compileDslDocument(
-      bodyStatementAfterPrintLayout(["group G {", "  point C = coordinate(x: 2, y: 2)", "}"].join("\n"))
-    );
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);
-  });
-
-  it("rejects a reverse statement placed after a printLayout block", () => {
-    const compiled = compileDslDocument([
-      "nui 4",
-      "line AB = segment(start: @A, end: @B)",
-      "point A = coordinate(x: 0, y: 0)",
-      "point B = coordinate(x: 1, y: 1)",
-      "printLayout レイアウト1 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "}",
-      "reverse(target: AB)"
-    ].join("\n"));
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics.some((item) => item.severity === "error" && item.message.includes("printLayout"))).toBe(true);
-  });
-
-  it("allows a further printLayout block (and its place statements) after the first one", () => {
-    const compiled = compileDslDocument([
-      "nui 4",
-      "group G {",
-      "  point A = coordinate(x: 0, y: 0)",
-      "}",
-      "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "  place @G(at: (0, 0), angle: 0, mirrorX: false)",
-      "}",
-      "printLayout 二枚目 (output: pdf, paper: a4, orientation: portrait, columns: 1, rows: 1, overlap: 0, scale: 1, canvas: (410, 584)) {",
-      "  place @G(at: (0, 0), angle: 0, mirrorX: false)",
-      "}",
-      "activePrintLayout 二枚目"
-    ].join("\n"));
-    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(compiled.document).not.toBeNull();
-    expect(compiled.document!.printLayouts).toHaveLength(2);
-  });
 });
 
 describe("dslDocument stop / evaluationLimitIndex", () => {
@@ -712,9 +514,6 @@ describe("compileDslDocument facade", () => {
     const compiled = compileDslDocument(sampleFixture);
     const parsed = parseDslDocument(sampleFixture);
     expectSemanticallyEqualDocuments(parsed.document!, compiled.document!);
-    expect(parsed.document!.printLayouts.map((layout) => layout.name)).toEqual(
-      compiled.document!.printLayouts.map((layout) => layout.name)
-    );
     expect(parsed.diagnostics).toEqual(compiled.diagnostics);
   });
 
@@ -773,19 +572,18 @@ describe("compileDslDocument facade", () => {
     expect(map.byKey.get("view:通常")).toMatchObject({ line: 8 });
     expect(map.byKey.get("view:印刷")).toMatchObject({ line: 9 });
     expect(map.byKey.get("activeView")).toMatchObject({ line: 10 });
-    expect(map.byKey.get("printLayout:A4")).toMatchObject({ range: { startLine: 59, endLine: 71 } });
     expect(map.byKey.get("atStop")).toMatchObject({ line: 52 });
 
-    expect(map.sectionEnds).toEqual({ version: 1, palette: 5, visibility: 10, elements: 57, printLayouts: 71 });
+    expect(map.sectionEnds).toEqual({ version: 1, palette: 5, visibility: 10, elements: 57 });
   });
 
-  it("counts a trailing stop (with no printLayout yet) as the end of the elements section, not the statement before it", () => {
+  it("counts a trailing stop as the end of the elements section, not the statement before it", () => {
     const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop"].join("\n");
     const compiled = compileDslDocument(source);
     const map = compiled.statementMap!;
     // Line 2 is "point A = ..."; line 3 is "stop" - sectionEnds.elements must
     // point at stop's own line (the true end of the section) so a
-    // newly-inserted printLayout is anchored after it, not before it.
+    // A newly-inserted source-output declaration is anchored after it, not before it.
     expect(map.byKey.get("atStop")).toMatchObject({ line: 3 });
     expect(map.sectionEnds.elements).toBe(3);
   });
@@ -816,8 +614,6 @@ describe("dslDocument golden fixture", () => {
     expect(document.palette.colors.map((color) => color.id)).toEqual(["pattern-black", "cut-red"]);
     expect(document.palette.defaultColorId).toBe("pattern-black");
     expect(document.visibilityRoles).toEqual([{ id: "seam", name: "縫い代" }]);
-    expect(document.printLayouts).toHaveLength(1);
-    expect(document.printLayouts[0].placements).toHaveLength(1);
     expect(document.elements.some((element) => element.name === "前身頃" && element.type === "group")).toBe(true);
     expect(document.evaluationLimitIndex).toBeLessThan(document.elements.length);
   });
@@ -872,17 +668,6 @@ describe("nui 4 typed declaration wiring", () => {
 });
 
 describe("Task 22 property binding wiring", () => {
-  it("stores a resolved binding source on compiled.propertyBindings, alongside a clean diagnostics list", () => {
-    const compiled = compileDslDocument(
-      ["nui 4", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"),
-      { assignedStatementIds: new Map([[1, "test:printEnabled"]]) }
-    );
-    expect(compiled.diagnostics).toEqual([]);
-    expect(compiled.document).not.toBeNull();
-    const entry = compiled.propertyBindings?.get(propertyBindingOccurrenceKey(2, "printEnabled"));
-    expect(entry).toMatchObject({ kind: "binding", type: { kind: "boolean" }, name: "印刷" });
-  });
-
   it("accepts schema-typed property bindings without a property-name allowlist", () => {
     const compiled = compileDslDocument(
       [
@@ -899,45 +684,6 @@ describe("Task 22 property binding wiring", () => {
     });
   });
 
-  it("keeps the last-good document (null) and surfaces property-binding-unresolved for an undefined name", () => {
-    const compiled = compileDslDocument(
-      ["nui 4", "let 印刷: boolean = true", "group G (printEnabled: @Missing) {", "}"].join("\n"),
-      { assignedStatementIds: new Map([[1, "test:printEnabled"]]) }
-    );
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ severity: "error", code: PROPERTY_BINDING_UNRESOLVED_CODE })])
-    );
-  });
-
-  it("keeps the last-good document (null) and surfaces property-binding-type-mismatch for invalid typed property expressions", () => {
-    const compiled = compileDslDocument(
-      ["nui 4", "let 印刷: boolean = true", "group G (printEnabled: @印刷 + 1) {", "}"].join("\n"),
-      { assignedStatementIds: new Map([[1, "test:printEnabled"]]) }
-    );
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ severity: "error", code: PROPERTY_BINDING_TYPE_MISMATCH_CODE })])
-    );
-  });
-
-  it("keeps the last-good document (null) and surfaces property-binding-type-mismatch for a wrongly-typed binding", () => {
-    const compiled = compileDslDocument(
-      ["nui 4", "const n: number = 1", "group G (printEnabled: @n) {", "}"].join("\n"),
-      { assignedStatementIds: new Map([[1, "test:n"]]) }
-    );
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ severity: "error", code: PROPERTY_BINDING_TYPE_MISMATCH_CODE })])
-    );
-  });
-
-  it("leaves propertyBindings undefined for a document with no typed declarations at all", () => {
-    const compiled = compileDslDocument(["nui 4", "group G (printEnabled: false) {", "}"].join("\n"));
-    expect(compiled.diagnostics).toEqual([]);
-    expect(compiled.document).not.toBeNull();
-    expect(compiled.propertyBindings).toBeUndefined();
-  });
 });
 
 describe("Task 26 text template wiring", () => {
@@ -1057,13 +803,13 @@ describe("Task 29 set statement wiring", () => {
 });
 
 describe("Task 36 typed dependency graph wiring", () => {
-  it("keeps static missing and late initializer navigation on a fatal compile", () => {
+  it("keeps static missing and late initializer navigation on the compiled document", () => {
     const compiled = compileDslDocument(
-      ["nui 4", "const missing: number = @unknown", "const late: number = @later", "const later: number = 1", "group G (printEnabled: @unknown) {", "}"].join("\n"),
+      ["nui 4", "const missing: number = @unknown", "const late: number = @later", "const later: number = 1"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:missing"], [2, "test:late"], [3, "test:later"]]) }
     );
 
-    expect(compiled.document).toBeNull();
+    expect(compiled.document).not.toBeNull();
     expect(compiled.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "initializer", reason: "missing", span: expect.any(Object) }),
       expect.objectContaining({ kind: "initializer", reason: "late", span: expect.any(Object) })

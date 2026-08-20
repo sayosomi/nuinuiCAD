@@ -18,7 +18,7 @@ const completionFor = async (source: string, cursor: number, fresh = true, mappe
   const state = EditorState.create({ doc: source, selection: { anchor: cursor } });
   const sourceFn = createDslCompletionSource({
     elements: () => compiled.document?.elements ?? [],
-    statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
+    statementRanges: () => new Map(),
     isComposing: () => false, computedGeometry: () => undefined,
     effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
     bindingAnalysis: () => compiled.bindingAnalysis,
@@ -39,7 +39,7 @@ const completionForWithLastGoodMetadata = async (
   const state = EditorState.create({ doc: liveSource, selection: { anchor: cursor } });
   const sourceFn = createDslCompletionSource({
     elements: () => compiled.document?.elements ?? [],
-    statementRanges: () => new Map(), printLayouts: () => [], printLayoutRanges: () => new Map(),
+    statementRanges: () => new Map(),
     isComposing: () => false, computedGeometry: () => undefined,
     effectiveEnabledElementIds: () => undefined, evaluationErrors: () => undefined,
     bindingAnalysis: () => compiled.bindingAnalysis,
@@ -434,11 +434,11 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "module M2() {",
       "  export const second: number = 2",
       "}",
-      "group A (printEnabled: true) {",
+      "group A {",
       "  instance foo = M1()",
       "  const resultA: number = @foo::first",
       "}",
-      "group B (printEnabled: true) {",
+      "group B {",
       "  instance foo = M2()",
       "  const resultB: number = @foo::second",
       "}"
@@ -616,7 +616,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "nui 4",
       "module First() {",
       "}",
-      "group G (printEnabled: true) {",
+      "group G {",
       "}",
       "module Forward() {",
       "}"

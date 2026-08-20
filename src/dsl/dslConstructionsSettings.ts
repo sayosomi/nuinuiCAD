@@ -1,23 +1,25 @@
 import type { DslArgSpec } from "./dslConstructions";
 
 export type DslSettingsSpec = {
-  keyword: "color" | "role" | "view" | "printLayout" | "place";
+  keyword: "color" | "role" | "view" | "layout" | "print" | "svg" | "place";
   args: DslArgSpec[];
   allowsDynamicArgs?: boolean;
 };
 
 const positional = (arg: string): DslArgSpec => ({ arg, positional: true });
-const arg = (argName: string): DslArgSpec => ({ arg: argName });
+const arg = (argName: string, required = false): DslArgSpec => ({
+  arg: argName,
+  ...(required ? { required: true } : {})
+});
 
 const settingsSpecs: DslSettingsSpec[] = [
   { keyword: "color", args: [positional("hex"), arg("name"), arg("default")] },
   { keyword: "role", args: [arg("name")] },
   { keyword: "view", args: [arg("default")], allowsDynamicArgs: true },
-  {
-    keyword: "printLayout",
-    args: [arg("output"), arg("view"), arg("paper"), arg("orientation"), arg("width"), arg("height"), arg("columns"), arg("rows"), arg("overlap"), arg("scale"), arg("canvas")],
-  },
-  { keyword: "place", args: [positional("group"), arg("x"), arg("y"), arg("at"), arg("angle"), arg("mirrorX")] },
+  { keyword: "layout", args: [arg("scale")] },
+  { keyword: "print", args: [arg("layout", true), arg("profile"), arg("paper", true), arg("orientation"), arg("margin"), arg("overlap", true)] },
+  { keyword: "svg", args: [arg("layout", true), arg("profile"), arg("margin")] },
+  { keyword: "place", args: [positional("group"), arg("origin"), arg("at", true), arg("scale"), arg("angle"), arg("mirror")] },
 ];
 
 const specsByKeyword = new Map(settingsSpecs.map((spec) => [spec.keyword, spec]));

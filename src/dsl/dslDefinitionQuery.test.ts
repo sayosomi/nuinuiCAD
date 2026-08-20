@@ -393,4 +393,76 @@ describe("queryDslDefinition", () => {
     expect(result!.referenceRange.from).toBe(source.indexOf("@前身頃") + 1);
     expect(result!.referenceRange.to).toBe(result!.referenceRange.from + "前身頃".length);
   });
+
+  it("resolves multiline print, SVG, and qualified place source references", () => {
+    const source = [
+      "nui 4",
+      "profile OutputProfile",
+      "group Outer {",
+      "  group Inner {",
+      "    point Origin = coordinate(x: 0, y: 0)",
+      "  }",
+      "}",
+      "layout Layout {",
+      "  place @Outer::Inner(",
+      "    origin: @Outer::Inner::Origin,",
+      "    at: (0, 0),",
+      "  )",
+      "}",
+      "print PrintOutput(",
+      "  layout: @Layout,",
+      "  profile: @OutputProfile,",
+      "  paper: a4,",
+      "  margin: 0,",
+      "  overlap: 0,",
+      ")",
+      "svg SvgOutput(",
+      "  layout: @Layout,",
+      "  profile: @OutputProfile,",
+      ")"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const query = (offset: number) => queryDslDefinition({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position: offset,
+      semantic: { sourceRevision: 7, compiled }
+    });
+    const reference = (token: string, occurrence = 0) => {
+      let offset = -1;
+      for (let index = 0; index <= occurrence; index += 1) offset = source.indexOf(token, offset + 1);
+      if (offset < 0) throw new Error(`missing token ${token} occurrence ${occurrence}`);
+      return offset;
+    };
+    const resolved = (referenceStart: number, referenceName: string, declarationName: string) => {
+      const result = query(referenceStart + 1);
+      expect(result).not.toBeNull();
+      expect(sourceSlice(source, result!.referenceRange)).toBe(referenceName);
+      expect(sourceSlice(source, result!.declarationRange)).toBe(declarationName);
+      return result!;
+    };
+
+    resolved(reference("@Layout", 0), "Layout", "Layout");
+    resolved(reference("@Layout", 1), "Layout", "Layout");
+    resolved(reference("@OutputProfile", 0), "OutputProfile", "OutputProfile");
+    resolved(reference("@OutputProfile", 1), "OutputProfile", "OutputProfile");
+
+    const targetPath = reference("@Outer::Inner");
+    const targetOuter = query(targetPath + 1);
+    const targetInner = query(targetPath + 1 + "Outer::".length);
+    expect(targetOuter && sourceSlice(source, targetOuter.referenceRange)).toBe("Outer");
+    expect(targetOuter && sourceSlice(source, targetOuter.declarationRange)).toBe("Outer");
+    expect(targetInner && sourceSlice(source, targetInner.referenceRange)).toBe("Inner");
+    expect(targetInner && sourceSlice(source, targetInner.declarationRange)).toBe("Inner");
+
+    const originPath = reference("@Outer::Inner::Origin");
+    const originOuter = query(originPath + 1);
+    const originInner = query(originPath + 1 + "Outer::".length);
+    const originPoint = query(originPath + 1 + "Outer::Inner::".length);
+    expect(originOuter && sourceSlice(source, originOuter.referenceRange)).toBe("Outer");
+    expect(originOuter && sourceSlice(source, originOuter.declarationRange)).toBe("Outer");
+    expect(originInner && sourceSlice(source, originInner.referenceRange)).toBe("Inner");
+    expect(originInner && sourceSlice(source, originInner.declarationRange)).toBe("Inner");
+    expect(originPoint && sourceSlice(source, originPoint.referenceRange)).toBe("Origin");
+    expect(originPoint && sourceSlice(source, originPoint.declarationRange)).toBe("Origin");
+  });
 });

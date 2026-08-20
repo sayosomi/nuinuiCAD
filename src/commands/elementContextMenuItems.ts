@@ -36,22 +36,17 @@ const offerableActivities = (element: CadElement): ElementActivity[] => {
   );
 };
 
-const printLabel = (element: CadElement) =>
-  element.type === "group" && element.printEnabled === true ? "印刷しない" : "印刷する";
-
 /** Builds the per-element command menu shown by SourceEditorContextMenu. */
 export const menuItemsForElement = ({
   commandContext,
   element,
   selectedElements,
-  showPrintControls,
   targetEvaluationLimitIndex,
   groupFoldById
 }: {
   commandContext: CommandContext;
   element: CadElement;
   selectedElements: CadElement[];
-  showPrintControls: boolean;
   targetEvaluationLimitIndex: number;
   groupFoldById: GroupFoldById;
 }): MenuItem[] => {
@@ -73,14 +68,6 @@ export const menuItemsForElement = ({
     label: "ここまで評価",
     context: { evaluationLimitIndex: targetEvaluationLimitIndex }
   });
-  if (showPrintControls && element.type === "group") {
-    items.push({
-      kind: "command",
-      commandId: "toggleGroupPrintEnabled",
-      label: printLabel(element),
-      context: { elementId: element.id }
-    });
-  }
   if (isGroupElement(element)) {
     items.push({
       kind: "command",

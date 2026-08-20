@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { defaultDocumentPalette } from "../palette/palette";
-import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
+import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import { CommandPalette } from "./CommandPalette";
 
 const resetStore = () => {
@@ -15,14 +15,10 @@ const resetStore = () => {
     shortcutSettingsError: null,
     showShortcutHelp: false,
     showCommandPalette: true,
-    showPrintLayout: false,
-    showPrintPreviewWindow: false,
     showCanvasPointNames: true,
     showCanvasGeometryNames: false,
     showCanvasPoints: true,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-    printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
-    printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
   });
 };
 

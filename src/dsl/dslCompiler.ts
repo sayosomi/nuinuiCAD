@@ -1,7 +1,7 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
 import { createCadElement } from "../model/elementFactory";
+import { isPointElement } from "../model/pointAnchors";
 import type { ElementNameContext } from "../model/elementNames";
-import { nextPrintLayoutId, normalizePrintLayout } from "../print/printLayout";
 import type {
   CadElement,
   CadElementType,
@@ -12,8 +12,12 @@ import type {
   DrawingProfile,
   ElementId,
   PaletteColor,
-  PrintLayout,
-  PrintLayoutPlacement,
+  Layout,
+  LayoutOrigin,
+  LayoutPlacement,
+  PrintOutput,
+  PrintPaperSizeId,
+  SvgOutput,
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
@@ -23,8 +27,8 @@ import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isCompilableDslStatement, type DslStatementInclusion } from "./dslCompilationGuard";
 import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
-import { parseDslReferenceToken } from "./dslReferenceTokens";
-import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
+import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
+import { resolveSourceLexicalPath, resolveSourceLexicalPathSegments, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import type {
   CompileDslContext,
   CompileDslResult,
@@ -38,27 +42,12 @@ import type { DslMajorVersion } from "./dslVersion";
 import { materializeModuleExecution } from "./moduleMaterialization";
 import { buildModuleGeometryRuntime } from "./moduleGeometryRuntime";
 import { compileMaterializedExecution } from "./moduleExecutionCompiler";
-import {
-  placeAngleAttrKey,
-  placeAtAttrKey,
-  placeXAttrKey,
-  placeYAttrKey,
-  printLayoutCanvasAttrKey,
-  printLayoutColumnsAttrKey,
-  printLayoutHeightAttrKey,
-  printLayoutOverlapAttrKey,
-  printLayoutPaperAttrKey,
-  printLayoutRowsAttrKey,
-  printLayoutScaleAttrKey,
-  printLayoutViewAttrKey,
-  printLayoutWidthAttrKey
-} from "./dslPrintLayoutAttributes";
 
 const attr = (attrs: DslAttribute[], key: string) =>
   attrs.find((item) => item.key === key)?.value;
 
 // name: 引数の生値は(P2/P3のscanCallArgsが)quoteを含んだ生スライスで返るため、
-// 設定文(color/role/view/printLayout)の name 属性はここで明示的に unquote する
+// 設定文(color/role/view/layout/print/svg)の name 属性はここで明示的に unquote する
 // (要素側の text kind パラメータは dslApplyArgs.ts 側で既に unquote 済み)。
 const unquoteName = (value: string | undefined) => value === undefined ? undefined : unquoteDslString(value);
 
@@ -178,25 +167,64 @@ const coordinatePair = (value: string) => {
   return match ? { x: match[1].trim(), y: match[2].trim() } : null;
 };
 
-const paperSizeIds = new Set(["a4", "a3", "b5", "b4", "letter", "legal"]);
+type NumericLiteral = { value: number; finite: boolean };
+
+const numericLiteral = (source: string): NumericLiteral | null => {
+  const value = source.trim();
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)) return null;
+  const number = Number(value);
+  return { value: number, finite: Number.isFinite(number) };
+};
+
+const normalizedNumeric = (source: string, elements: readonly CadElement[], nameContext: ElementNameContext) =>
+  makeNumericExpression(normalizeNumericExpressionInput(source, [...elements], undefined, nameContext));
 
 const roleIdByToken = (roles: VisibilityRole[], token: string) => {
   const normalized = unquoteDslString(token);
   return roles.find((role) => role.id === normalized || role.name === normalized)?.id ?? normalized;
 };
 
-const profileIdByToken = (profiles: VisibilityProfile[], token: string) => {
+const visibilityProfileIdByToken = (profiles: VisibilityProfile[], token: string) => {
   const normalized = unquoteDslString(token);
   return profiles.find((profile) => profile.id === normalized || profile.name === normalized)?.id ?? normalized;
 };
 
-const outputKind = (value: string) => value === "svg" ? "svg" : "pdf";
+const sourceReferencePath = (token: string, line: number, diagnostics: DslDiagnostic[]) => {
+  const parsed = parseDslSourceReference(token);
+  if (parsed.kind !== "valid" || parsed.reference.property) {
+    diagnostics.push(diagnostic(line, `参照が不正です: ${token}`));
+    return null;
+  }
+  return parseDslReferenceToken(parsed.reference.pathText);
+};
 
-// printLayout/place uses the same strict source-reference resolver as ordinary
-// geometry references. In particular, do not strip `@` here: every geometry
-// reference must pass through parseDslSourceReference via resolveId.
-const resolvePrintGroupId = (token: string, index: NameIndex, line: number, diagnostics: DslDiagnostic[]) => {
-  return resolveId(token, index, line, diagnostics);
+const sourceDeclarationFor = (
+  token: string,
+  statementIndex: number,
+  expected: readonly string[],
+  sourceNamespace: SourceLexicalNamespaceIndex | undefined,
+  line: number,
+  diagnostics: DslDiagnostic[]
+) => {
+  const path = sourceReferencePath(token, line, diagnostics);
+  if (!path || !sourceNamespace) return null;
+  const resolved = resolveSourceLexicalPathSegments(sourceNamespace, statementIndex, path);
+  if (resolved.lookup.kind !== "resolved") {
+    const message = resolved.lookup.kind === "forward"
+      ? `参照先「${token}」はこの位置より後で宣言されています。`
+      : resolved.lookup.kind === "ambiguous"
+        ? `参照が曖昧です: ${token}`
+        : resolved.lookup.kind === "invalidTraversal"
+          ? `参照先「${token}」はこの種類の宣言を辿れません。`
+          : `未定義の参照です: ${token}`;
+    diagnostics.push(diagnostic(line, message));
+    return null;
+  }
+  if (!expected.includes(resolved.lookup.declaration.kind)) {
+    diagnostics.push(diagnostic(line, `参照先「${token}」は ${expected.join(" / ")} ではありません。`));
+    return null;
+  }
+  return { ...resolved, declaration: resolved.segments.at(-1)! };
 };
 
 // P6 applyArgs は ScannedArg[] を要求するが DslStatement は DslAttribute[] を運ぶ。
@@ -314,19 +342,16 @@ export const applyVisibilitySettings = ({
   statements,
   context,
   diagnostics,
-  printLayoutIdsByStatementIndex,
   includeStatement
 }: {
   statements: DslStatement[];
   context: CompileDslContext;
   diagnostics: DslDiagnostic[];
-  printLayoutIdsByStatementIndex?: Map<number, string>;
   includeStatement: DslStatementInclusion;
 }) => {
   let visibilityRoles = [...(context.visibilityRoles ?? [])];
   let visibilityProfiles = [...(context.visibilityProfiles ?? [])];
   let activeVisibilityProfileId = context.activeVisibilityProfileId;
-  let printLayouts = context.printLayouts?.map((layout) => ({ ...layout })) ?? undefined;
 
   const upsertRole = (statement: Extract<DslStatement, { kind: "role" }>) => {
     const id = attr(statement.attrs, "id") ?? statement.name;
@@ -384,34 +409,13 @@ export const applyVisibilitySettings = ({
     const statement = statements[statementIndex];
     if (!includeStatement(statement, statementIndex)) continue;
     if (statement.kind === "activeView") {
-      const profileId = profileIdByToken(visibilityProfiles, statement.name);
+      const profileId = visibilityProfileIdByToken(visibilityProfiles, statement.name);
       if (visibilityProfiles.some((profile) => profile.id === profileId)) {
         activeVisibilityProfileId = profileId;
       } else {
         diagnostics.push(warning(statement.line, `未定義の表示プロファイルです: ${statement.name}`));
         activeVisibilityProfileId = profileId;
       }
-    }
-    if (statement.kind === "printLayout" && !statement.opensBlock && printLayouts) {
-      const profileToken = attr(statement.attrs, printLayoutViewAttrKey);
-      const profileId = profileToken ? profileIdByToken(visibilityProfiles, profileToken) : undefined;
-      if (profileToken && !visibilityProfiles.some((profile) => profile.id === profileId)) {
-        diagnostics.push(warning(statement.line, `未定義の表示プロファイルです: ${profileToken}`));
-      }
-      const existing = printLayouts.find((layout) => layout.id === statement.name || layout.name === statement.name);
-      const nextLayout = normalizePrintLayout({
-        ...(existing ?? {}),
-        id: existing?.id ?? attr(statement.attrs, "id") ?? statement.name,
-        name: unquoteName(attr(statement.attrs, "name")) ?? existing?.name ?? statement.name,
-        outputKind: attr(statement.attrs, "output")
-          ? outputKind(attr(statement.attrs, "output") ?? "pdf")
-          : existing?.outputKind,
-        visibilityProfileId: profileId ?? existing?.visibilityProfileId
-      }, context.elements, visibilityProfiles, { preserveDanglingReferences: true });
-      printLayouts = existing
-        ? printLayouts.map((layout) => layout.id === existing.id ? nextLayout : layout)
-        : [...printLayouts, nextLayout];
-      printLayoutIdsByStatementIndex?.set(statementIndex, nextLayout.id);
     }
   }
 
@@ -421,137 +425,290 @@ export const applyVisibilitySettings = ({
     visibilityRoles,
     visibilityProfiles,
     activeVisibilityProfileId,
-    printLayouts,
     palette
   };
 };
 
-export const buildBlockPrintLayouts = ({
+type SourceOutputModel = {
+  layouts: Layout[];
+  printOutputs: PrintOutput[];
+  svgOutputs: SvgOutput[];
+  layoutIdsByStatementIndex: Map<number, string>;
+  outputIdsByStatementIndex: Map<number, string>;
+};
+
+const sourceIdAt = (stableStatementIdByIndex: ReadonlyMap<number, string> | undefined, statementIndex: number) =>
+  stableStatementIdByIndex?.get(statementIndex) ?? "";
+
+const isDescendantOf = (element: CadElement, ancestorId: ElementId, elementsById: ReadonlyMap<ElementId, CadElement>) => {
+  let current: CadElement | undefined = element;
+  while (current?.parentGroupId) {
+    if (current.parentGroupId === ancestorId) return true;
+    current = elementsById.get(current.parentGroupId);
+  }
+  return false;
+};
+
+const resolveSourceGroup = ({
+  token,
+  statementIndex,
+  sourceNamespace,
+  elements,
+  elementIdByStatementIndex,
+  nameIndex,
+  line,
+  diagnostics
+}: {
+  token: string;
+  statementIndex: number;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+  elements: readonly CadElement[];
+  elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  nameIndex: NameIndex;
+  line: number;
+  diagnostics: DslDiagnostic[];
+}) => {
+  if (sourceNamespace) {
+    const resolved = sourceDeclarationFor(token, statementIndex, ["group"], sourceNamespace, line, diagnostics);
+    if (!resolved) return null;
+    const groupId = elementIdByStatementIndex.get(resolved.declaration.statementIndex);
+    const group = groupId ? elements.find((element) => element.id === groupId) : undefined;
+    if (!group || group.type !== "group") {
+      diagnostics.push(diagnostic(line, `place の参照先はグループではありません: ${token}`));
+      return null;
+    }
+    return { declaration: resolved.declaration, group };
+  }
+  const groupId = resolveId(token, nameIndex, line, diagnostics);
+  const group = elements.find((element) => element.id === groupId);
+  if (!group || group.type !== "group") {
+    diagnostics.push(diagnostic(line, `place の参照先はグループではありません: ${token}`));
+    return null;
+  }
+  return { declaration: null, group };
+};
+
+const resolveLayoutOrigin = ({
+  token,
+  statementIndex,
+  target,
+  targetDeclaration,
+  sourceNamespace,
+  elements,
+  elementIdByStatementIndex,
+  line,
+  diagnostics
+}: {
+  token: string | undefined;
+  statementIndex: number;
+  target: CadElement;
+  targetDeclaration: { statementId: string } | null;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+  elements: readonly CadElement[];
+  elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  line: number;
+  diagnostics: DslDiagnostic[];
+}): LayoutOrigin => {
+  if (!token) return { kind: "localOrigin" };
+  if (!sourceNamespace) {
+    diagnostics.push(diagnostic(line, `place origin は source lexical namespace で解決できません: ${token}`));
+    return { kind: "localOrigin" };
+  }
+  const path = sourceReferencePath(token, line, diagnostics);
+  if (!path) return { kind: "localOrigin" };
+  const resolved = resolveSourceLexicalPathSegments(sourceNamespace, statementIndex, path);
+  if (resolved.lookup.kind !== "resolved") {
+    diagnostics.push(diagnostic(line, `origin の参照先を解決できません: ${token}`));
+    return { kind: "localOrigin" };
+  }
+  const originDeclaration = resolved.segments.at(-1);
+  if (!originDeclaration) return { kind: "localOrigin" };
+  if (targetDeclaration && originDeclaration.statementId === targetDeclaration.statementId) {
+    return { kind: "localOrigin" };
+  }
+  if (originDeclaration.kind !== "geometry") {
+    diagnostics.push(diagnostic(line, `origin の参照先は点ではありません: ${token}`));
+    return { kind: "localOrigin" };
+  }
+  const pointId = elementIdByStatementIndex.get(originDeclaration.statementIndex);
+  const point = pointId ? elements.find((element) => element.id === pointId) : undefined;
+  if (!point || !isPointElement(point)) {
+    diagnostics.push(diagnostic(line, `origin の参照先は点ではありません: ${token}`));
+    return { kind: "localOrigin" };
+  }
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  if (!isDescendantOf(point, target.id, elementsById)) {
+    diagnostics.push(diagnostic(line, `origin の点は配置対象グループの内部にありません: ${token}`));
+    return { kind: "localOrigin" };
+  }
+  return { kind: "point", pointId: point.id };
+};
+
+const resolveOutputDeclaration = (
+  token: string | undefined,
+  statementIndex: number,
+  expected: readonly string[],
+  sourceNamespace: SourceLexicalNamespaceIndex | undefined,
+  line: number,
+  diagnostics: DslDiagnostic[]
+) => token && sourceNamespace
+  ? sourceDeclarationFor(token, statementIndex, expected, sourceNamespace, line, diagnostics)
+  : null;
+
+export const buildSourceOutputModel = ({
   statements,
-  layouts,
   elements,
   nameIndex,
-  visibilityProfiles,
+  sourceNamespace,
+  elementIdByStatementIndex,
+  stableStatementIdByIndex,
   diagnostics,
-  printLayoutIdsByStatementIndex,
   includeStatement
 }: {
   statements: DslStatement[];
-  layouts: PrintLayout[] | undefined;
   elements: CadElement[];
   nameIndex: NameIndex;
-  visibilityProfiles: VisibilityProfile[];
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+  elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  stableStatementIdByIndex?: ReadonlyMap<number, string>;
   diagnostics: DslDiagnostic[];
-  printLayoutIdsByStatementIndex?: Map<number, string>;
   includeStatement: DslStatementInclusion;
-}): PrintLayout[] | undefined => {
-  const blockStatements = statements
-    .map((statement, index) => ({ statement, index }))
-    .filter((item) =>
-      includeStatement(item.statement, item.index) &&
-      item.statement.kind === "printLayout" &&
-      item.statement.opensBlock
-    );
-  if (blockStatements.length === 0) return layouts;
+}): SourceOutputModel => {
+  const layouts: Layout[] = [];
+  const printOutputs: PrintOutput[] = [];
+  const svgOutputs: SvgOutput[] = [];
+  const layoutIdsByStatementIndex = new Map<number, string>();
+  const outputIdsByStatementIndex = new Map<number, string>();
+  const nameContext = nameIndex.nameContext;
 
-  let next = layouts ? [...layouts] : [];
-  for (const { statement, index } of blockStatements) {
-    if (statement.kind !== "printLayout") continue;
-    const members = statements.filter(
-      (member, memberIndex) =>
-        includeStatement(member, memberIndex) &&
-        member.kind === "place" &&
-        member.enclosing?.statementIndex === index
-    );
-    const placements: PrintLayoutPlacement[] = [];
-    const numeric = (source: string) =>
-      makeNumericExpression(
-        normalizeNumericExpressionInput(source, elements, undefined, nameIndex.nameContext)
-      );
-
-    for (const member of members) {
-      if (member.kind !== "place") continue;
-      const groupId = resolvePrintGroupId(member.group, nameIndex, member.line, diagnostics);
-      const target = nameIndex.elementsById.get(groupId);
-      if (target && target.type !== "group") {
-        diagnostics.push(diagnostic(member.line, `place の参照先はグループではありません: ${member.group}`));
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (!includeStatement(statement, statementIndex) || statement.kind !== "layout" || !statement.name) continue;
+    const layoutId = sourceIdAt(stableStatementIdByIndex, statementIndex);
+    const scaleSource = attr(statement.attrs, "scale");
+    const scale = normalizedNumeric(scaleSource ?? "1", elements, nameContext);
+    const scaleLiteral = numericLiteral(scaleSource ?? "1");
+    if (scaleLiteral !== null && (!scaleLiteral.finite || scaleLiteral.value <= 0)) {
+      diagnostics.push(diagnostic(statement.line, "layout scale は有限の正の値で指定してください。"));
+    }
+    const placements: LayoutPlacement[] = [];
+    for (const [memberIndex, member] of statements.entries()) {
+      if (!includeStatement(member, memberIndex) || member.kind !== "place" || member.enclosing?.statementIndex !== statementIndex) continue;
+      const target = resolveSourceGroup({
+        token: member.group,
+        statementIndex: memberIndex,
+        sourceNamespace,
+        elements,
+        elementIdByStatementIndex,
+        nameIndex,
+        line: member.line,
+        diagnostics
+      });
+      const atSource = attr(member.attrs, "at");
+      const at = atSource ? coordinatePair(atSource) : null;
+      if (!at) {
+        diagnostics.push(diagnostic(member.line, "place には `at: (x, y)` が必要です。"));
       }
-      const at = attr(member.attrs, placeAtAttrKey);
-      const pair = at ? coordinatePair(at) : null;
-      if (at && !pair) {
-        diagnostics.push(diagnostic(member.line, "place の位置は `at=(x, y)` で指定してください。"));
+      const atX = normalizedNumeric(at?.x ?? "0", elements, nameContext);
+      const atY = normalizedNumeric(at?.y ?? "0", elements, nameContext);
+      const scaleSource = attr(member.attrs, "scale");
+      const angleSource = attr(member.attrs, "angle") ?? "0";
+      const angleValue = normalizedNumeric(angleSource, elements, nameContext);
+      const angleLiteral = numericLiteral(angleSource);
+      const normalizedAngle = angleLiteral === null || !angleLiteral.finite
+        ? angleValue
+        : ((angleLiteral.value % 360) + 360) % 360;
+      const mirrorValue = booleanValue(attr(member.attrs, "mirror") ?? "false");
+      if (mirrorValue === null) diagnostics.push(diagnostic(member.line, "place mirror は true / false で指定してください。"));
+      const scaleLiteral = scaleSource === undefined ? null : numericLiteral(scaleSource);
+      if (scaleLiteral !== null && (!scaleLiteral.finite || scaleLiteral.value <= 0)) {
+        diagnostics.push(diagnostic(member.line, "place scale は有限の正の値で指定してください。"));
       }
+      if (angleLiteral !== null && !angleLiteral.finite) {
+        diagnostics.push(diagnostic(member.line, "place angle は有限の値で指定してください。"));
+      }
+      if (!target) continue;
+      const placementId = sourceIdAt(stableStatementIdByIndex, memberIndex);
       placements.push({
-        id: `placement-${placements.length + 1}`,
-        groupId,
-        x: attr(member.attrs, placeXAttrKey) === undefined
-          ? pair ? numeric(pair.x) : 0
-          : numeric(attr(member.attrs, placeXAttrKey)!),
-        y: attr(member.attrs, placeYAttrKey) === undefined
-          ? pair ? numeric(pair.y) : 0
-          : numeric(attr(member.attrs, placeYAttrKey)!),
-        angleDeg: numeric(attr(member.attrs, placeAngleAttrKey) ?? "0"),
-        mirrorX: booleanValue(attr(member.attrs, "mirrorX") ?? "false") ?? false
+        id: placementId,
+        groupId: target.group.id,
+        origin: resolveLayoutOrigin({
+          token: attr(member.attrs, "origin"),
+          statementIndex: memberIndex,
+          target: target.group,
+          targetDeclaration: target.declaration,
+          sourceNamespace,
+          elements,
+          elementIdByStatementIndex,
+          line: member.line,
+          diagnostics
+        }),
+        at: { x: atX, y: atY },
+        ...(scaleSource !== undefined ? { scale: normalizedNumeric(scaleSource, elements, nameContext) } : {}),
+        angleDeg: normalizedAngle,
+        mirror: mirrorValue ?? false
       });
     }
-
-    const profileToken = attr(statement.attrs, printLayoutViewAttrKey);
-    const profileId = profileToken ? profileIdByToken(visibilityProfiles, profileToken) : undefined;
-    if (profileToken && !visibilityProfiles.some((profile) => profile.id === profileId)) {
-      diagnostics.push(warning(statement.line, `未定義の表示プロファイルです: ${profileToken}`));
-    }
-    const paper = attr(statement.attrs, printLayoutPaperAttrKey);
-    if (paper && !paperSizeIds.has(paper)) {
-      diagnostics.push(diagnostic(statement.line, `未対応の用紙サイズです: ${paper}`));
-    }
-    const orientation = attr(statement.attrs, "orientation");
-    if (orientation && orientation !== "portrait" && orientation !== "landscape") {
-      diagnostics.push(diagnostic(statement.line, "orientation は portrait / landscape で指定してください。"));
-    }
-    const output = attr(statement.attrs, "output");
-    if (output && output !== "pdf" && output !== "svg") {
-      diagnostics.push(diagnostic(statement.line, "output は pdf / svg で指定してください。"));
-    }
-    const canvas = attr(statement.attrs, printLayoutCanvasAttrKey);
-    const canvasPair = canvas ? coordinatePair(canvas) : null;
-    if (canvas && !canvasPair) {
-      diagnostics.push(diagnostic(statement.line, "canvas は `canvas=(幅, 高さ)` で指定してください。"));
-    }
-
-    const existing = statement.name
-      ? next.find((layout) => layout.name === statement.name || layout.id === statement.name)
-      : undefined;
-    const columns = attr(statement.attrs, printLayoutColumnsAttrKey);
-    const rows = attr(statement.attrs, printLayoutRowsAttrKey);
-    const width = attr(statement.attrs, printLayoutWidthAttrKey);
-    const height = attr(statement.attrs, printLayoutHeightAttrKey);
-    const overlap = attr(statement.attrs, printLayoutOverlapAttrKey);
-    const scale = attr(statement.attrs, printLayoutScaleAttrKey);
-    const layout = normalizePrintLayout({
-      id: existing?.id ?? attr(statement.attrs, "id") ?? (statement.name || nextPrintLayoutId(next)),
-      name: unquoteName(attr(statement.attrs, "name")) ?? statement.name,
-      outputKind: output ? outputKind(output) : existing?.outputKind,
-      visibilityProfileId: profileId ?? existing?.visibilityProfileId,
-      paperSizeId: paper ?? (paperSizeIds.has(statement.name.toLowerCase()) ? statement.name.toLowerCase() : existing?.paperSizeId),
-      orientation: orientation ?? existing?.orientation,
-      columns: columns === undefined ? existing?.columns : numeric(columns),
-      rows: rows === undefined ? existing?.rows : numeric(rows),
-      overlapMm: overlap === undefined ? existing?.overlapMm : numeric(overlap),
-      scale: scale === undefined ? existing?.scale : numeric(scale),
-      svgCanvasWidthMm: width === undefined
-        ? canvasPair ? numeric(canvasPair.x) : existing?.svgCanvasWidthMm
-        : numeric(width),
-      svgCanvasHeightMm: height === undefined
-        ? canvasPair ? numeric(canvasPair.y) : existing?.svgCanvasHeightMm
-        : numeric(height),
-      placements
-    }, elements, visibilityProfiles, { preserveDanglingReferences: true });
-    next = existing
-      ? next.map((item) => (item.id === existing.id ? layout : item))
-      : [...next, layout];
-    printLayoutIdsByStatementIndex?.set(index, layout.id);
+    layouts.push({ id: layoutId, name: statement.name, scale, placements });
+    layoutIdsByStatementIndex.set(statementIndex, layoutId);
   }
-  return next;
+
+  const layoutById = new Map(layouts.map((layout) => [layout.id, layout]));
+  const paperDimensions: Record<PrintPaperSizeId, { width: number; height: number }> = {
+    a4: { width: 210, height: 297 },
+    a3: { width: 297, height: 420 }
+  };
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (!includeStatement(statement, statementIndex) || (statement.kind !== "print" && statement.kind !== "svg")) continue;
+    const outputId = sourceIdAt(stableStatementIdByIndex, statementIndex);
+    const layoutReference = resolveOutputDeclaration(attr(statement.attrs, "layout"), statementIndex, ["layout"], sourceNamespace, statement.line, diagnostics);
+    const layoutId = layoutReference?.declaration.statementId ?? "";
+    if (layoutId && !layoutById.has(layoutId)) diagnostics.push(diagnostic(statement.line, "print/svg layout の宣言を取得できません。"));
+    const profileReference = resolveOutputDeclaration(attr(statement.attrs, "profile"), statementIndex, ["profile"], sourceNamespace, statement.line, diagnostics);
+    const profileId = profileReference?.declaration.statementId;
+    if (statement.kind === "print") {
+      const paperSource = attr(statement.attrs, "paper") ?? "a4";
+      const paper = paperSource as PrintPaperSizeId;
+      if (paper !== "a4" && paper !== "a3") diagnostics.push(diagnostic(statement.line, "print paper は a4 または a3 で指定してください。"));
+      const orientationSource = attr(statement.attrs, "orientation") ?? "portrait";
+      if (orientationSource !== "portrait" && orientationSource !== "landscape") diagnostics.push(diagnostic(statement.line, "orientation は portrait / landscape で指定してください。"));
+      const marginSource = attr(statement.attrs, "margin") ?? "10";
+      const overlapSource = attr(statement.attrs, "overlap") ?? "0";
+      const marginLiteral = numericLiteral(marginSource);
+      const overlapLiteral = numericLiteral(overlapSource);
+      if (marginLiteral !== null && marginLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "print margin は 0 以上で指定してください。"));
+      if (overlapLiteral !== null && overlapLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "print overlap は 0 以上で指定してください。"));
+      if (marginLiteral !== null && overlapLiteral !== null && marginLiteral.finite && overlapLiteral.finite && (paper === "a4" || paper === "a3")) {
+        const base = paperDimensions[paper];
+        const width = (orientationSource === "landscape" ? base.height : base.width) - marginLiteral.value * 2;
+        const height = (orientationSource === "landscape" ? base.width : base.height) - marginLiteral.value * 2;
+        if (width <= 0 || height <= 0) diagnostics.push(diagnostic(statement.line, "print の有効な用紙幅・高さは 0 より大きくしてください。"));
+        if (overlapLiteral.value >= width || overlapLiteral.value >= height) diagnostics.push(diagnostic(statement.line, "print overlap は有効な幅・高さより小さくしてください。"));
+      }
+      printOutputs.push({
+        id: outputId,
+        name: statement.name,
+        layoutId,
+        ...(profileId ? { profileId } : {}),
+        paper: paper === "a3" ? "a3" : "a4",
+        orientation: orientationSource === "landscape" ? "landscape" : "portrait",
+        margin: normalizedNumeric(marginSource, elements, nameContext),
+        overlap: normalizedNumeric(overlapSource, elements, nameContext)
+      });
+    } else {
+      const marginSource = attr(statement.attrs, "margin") ?? "0";
+      const marginLiteral = numericLiteral(marginSource);
+      if (marginLiteral !== null && marginLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "svg margin は 0 以上で指定してください。"));
+      svgOutputs.push({
+        id: outputId,
+        name: statement.name,
+        layoutId,
+        ...(profileId ? { profileId } : {}),
+        margin: normalizedNumeric(marginSource, elements, nameContext)
+      });
+    }
+    outputIdsByStatementIndex.set(statementIndex, outputId);
+  }
+  return { layouts, printOutputs, svgOutputs, layoutIdsByStatementIndex, outputIdsByStatementIndex };
 };
 
 export const compileDslToElements = (source: string, context: CompileDslContext): CompileDslResult => {
@@ -573,9 +730,10 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       visibilityRoles: context.visibilityRoles,
       visibilityProfiles: context.visibilityProfiles,
       activeVisibilityProfileId: context.activeVisibilityProfileId,
-      printLayouts: context.printLayouts,
+      layouts: context.layouts,
+      printOutputs: context.printOutputs,
+      svgOutputs: context.svgOutputs,
       palette: context.palette,
-      activePrintLayoutId: context.activePrintLayoutId,
       diagnostics,
       changedCount: 0
     };
@@ -583,12 +741,10 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
 
   const includeStatement: DslStatementInclusion = (_statement, statementIndex) =>
     isCompilableDslStatement(parsed.statements, statementIndex);
-  const printLayoutIdsByStatementIndex = new Map<number, string>();
   const visibilitySettings = applyVisibilitySettings({
     statements: parsed.statements,
     context,
     diagnostics,
-    printLayoutIdsByStatementIndex,
     includeStatement
   });
   const documentMode = context.mode === "document";
@@ -631,11 +787,10 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       context,
       diagnostics,
       visibilitySettings,
-      printLayoutIdsByStatementIndex,
       materialization: moduleMaterialization,
       moduleGeometryRuntime,
       applyStatement,
-      buildBlockPrintLayouts
+      buildSourceOutputModel
       }),
       modifiers,
       drawingProfiles
@@ -760,31 +915,21 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   ];
   const selectedElementIds = [...updates.keys(), ...insertions.map((element) => element.id)];
 
-  const printLayouts = buildBlockPrintLayouts({
+  const elementIdBySourceStatement = new Map<number, ElementId>();
+  for (const [sourceStatement, elementId] of createdIds) {
+    const sourceIndex = statementIndexOf.get(sourceStatement);
+    if (sourceIndex !== undefined) elementIdBySourceStatement.set(sourceIndex, elementId);
+  }
+  const outputModel = buildSourceOutputModel({
     statements: parsed.statements,
-    layouts: visibilitySettings.printLayouts ?? (documentMode ? [] : undefined),
     elements,
     nameIndex: createNameIndex(elements, context.sourceLexicalResolution),
-    visibilityProfiles: visibilitySettings.visibilityProfiles,
+    sourceNamespace,
+    elementIdByStatementIndex: elementIdBySourceStatement,
+    stableStatementIdByIndex: context.stableStatementIdByIndex,
     diagnostics,
-    printLayoutIdsByStatementIndex,
     includeStatement
   });
-
-  let activePrintLayoutId = context.activePrintLayoutId;
-  for (const [statementIndex, statement] of parsed.statements.entries()) {
-    if (!includeStatement(statement, statementIndex)) continue;
-    if (statement.kind !== "activePrintLayout") continue;
-    const target =
-      printLayouts?.find((layout) => layout.name === statement.name) ??
-      printLayouts?.find((layout) => layout.id === statement.name);
-    if (!target) {
-      diagnostics.push(warning(statement.line, `未定義の印刷レイアウトです: ${statement.name}`));
-      activePrintLayoutId = statement.name;
-    } else {
-      activePrintLayoutId = target.id;
-    }
-  }
 
   let evaluationLimitIndex: number | undefined;
   const atStopIndex = parsed.statements.findIndex(
@@ -820,12 +965,14 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     visibilityProfiles: visibilitySettings.visibilityProfiles,
     activeVisibilityProfileId: visibilitySettings.activeVisibilityProfileId,
     palette: visibilitySettings.palette,
-    printLayouts,
-    activePrintLayoutId,
+    layouts: outputModel.layouts,
+    printOutputs: outputModel.printOutputs,
+    svgOutputs: outputModel.svgOutputs,
     evaluationLimitIndex,
     diagnostics,
     changedCount: selectedElementIds.length,
     elementIdsByStatementIndex,
-    printLayoutIdsByStatementIndex
+    layoutIdsByStatementIndex: outputModel.layoutIdsByStatementIndex,
+    outputIdsByStatementIndex: outputModel.outputIdsByStatementIndex
   };
 };

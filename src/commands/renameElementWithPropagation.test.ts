@@ -84,29 +84,19 @@ describe("renameElementWithPropagation", () => {
     });
   });
 
-  it("patches a print layout block with a group rename while preserving unrelated lines", () => {
-    // printLayout's own canonical header is always vertical (one arg per
-    // line, per dslDocument.ts's printLayoutBlockLines), unlike place
-    // member lines which stay single-line - matching that shape here for the
-    // same in-place-patch reason as the test above.
+  it("patches a layout block with a group rename while preserving unrelated lines", () => {
     const source = [
       "nui 4",
       "// unchanged before group",
       "group G {",
       "}",
       "",
-      "printLayout Layout(",
-      "  output: pdf,",
-      "  paper: a4,",
-      "  orientation: portrait,",
-      "  width: 100,",
-      "  height: 100,",
-      "  columns: 1,",
-      "  rows: 1,",
-      "  overlap: 0,",
-      "  scale: 1,",
-      ") {",
-      "  place @G(x: 0, y: 0, angle: 0, mirrorX: false)",
+      "layout Layout {",
+      "  place @G(",
+      "    at: (0, 0),",
+      "    angle: 0,",
+      "    mirror: false,",
+      "    )",
       "}",
       "// unchanged after layout"
     ].join("\n");
@@ -117,11 +107,11 @@ describe("renameElementWithPropagation", () => {
 
     const document = useCadDocumentStore.getState();
     const after = document.sourceText;
-    // printLayout is patched as one block, although only its place line changes text.
-    expect(changedLines(before, after)).toEqual([3, 17]);
+    // The layout is patched as one block, although only its place reference changes text.
+    expect(changedLines(before, after)).toEqual([3, 7]);
     expect(document.sourceUpdate).toMatchObject({
       kind: "model-patch",
-      splices: expect.arrayContaining([expect.objectContaining({ startLine: 6, endLine: 18 })])
+      splices: expect.arrayContaining([expect.objectContaining({ startLine: 6, endLine: 12 })])
     });
     expect(after).toContain("// unchanged before group");
     expect(after).toContain("// unchanged after layout");

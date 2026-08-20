@@ -15,8 +15,9 @@ import { coordinateComponent, recordField, recordSpans, splitDslTopLevelSpans } 
 import {
   placeCoordinateAttrKeys,
   placeNumericAttrKeys,
-  printLayoutCoordinateAttrKeys,
-  printLayoutNumericAttrKeys
+  layoutNumericAttrKeys,
+  printNumericAttrKeys,
+  svgNumericAttrKeys
 } from "./dslPrintLayoutAttributes";
 import { typedDeclarationInitializerCompletionContext } from "./dslTypedDeclarationCompletionContext";
 import { declaredTypeCompletionContextAt } from "./dslDeclaredTypeCompletionContext";
@@ -180,8 +181,14 @@ const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: 
   const statement = dslLinePrintLayoutStatement(lineText);
   if (!statement) return null;
 
-  const numericKeys = statement.kind === "place" ? placeNumericAttrKeys : printLayoutNumericAttrKeys;
-  const coordinateKeys = statement.kind === "place" ? placeCoordinateAttrKeys : printLayoutCoordinateAttrKeys;
+  const numericKeys = statement.kind === "place"
+    ? placeNumericAttrKeys
+    : statement.kind === "layout"
+      ? layoutNumericAttrKeys
+      : statement.kind === "print"
+        ? printNumericAttrKeys
+        : svgNumericAttrKeys;
+  const coordinateKeys = statement.kind === "place" ? placeCoordinateAttrKeys : [];
   const span = dslLinePrintLayoutValueSpans(lineText).find((item) => pos >= item.start && pos <= item.end);
   if (!span || span.source !== "attr") return null;
 

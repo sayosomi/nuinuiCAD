@@ -99,19 +99,6 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     expect(rows[0].jump.kind).toBe("property");
   });
 
-  it("group.printEnabled", () => {
-    const compiled = compileCanonical([
-      "nui 4",
-      "let 印刷: boolean = true",
-      "group G (printEnabled: @印刷) {",
-      "}"
-    ].join("\n"));
-    const bindingId = bindingIdByName(compiled, "印刷");
-    const rows = consumerRowsFor(compiled, bindingId);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ label: "G", detail: "グループ・印刷" });
-  });
-
   it("forGroup.showGenerated", () => {
     const compiled = compileCanonical([
       "nui 4",
@@ -186,33 +173,4 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     expect(consumerRowsFor(compiled, bindingId)).toEqual([]);
   });
 
-  it("one binding consumed by two different properties produces two rows", () => {
-    const compiled = compileCanonical([
-      "nui 4",
-      "let 印刷: boolean = true",
-      "group G1 (printEnabled: @印刷) {",
-      "}",
-      "group G2 (printEnabled: @印刷) {",
-      "}"
-    ].join("\n"));
-    const bindingId = bindingIdByName(compiled, "印刷");
-    const rows = consumerRowsFor(compiled, bindingId);
-    expect(rows.map((row) => row.label).sort()).toEqual(["G1", "G2"]);
-  });
-
-  it("does not include a different binding's consumers", () => {
-    const compiled = compileCanonical([
-      "nui 4",
-      "let 印刷A: boolean = true",
-      "let 印刷B: boolean = false",
-      "group G1 (printEnabled: @印刷A) {",
-      "}",
-      "group G2 (printEnabled: @印刷B) {",
-      "}"
-    ].join("\n"));
-    const bindingIdA = bindingIdByName(compiled, "印刷A");
-    const rows = consumerRowsFor(compiled, bindingIdA);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].label).toBe("G1");
-  });
 });

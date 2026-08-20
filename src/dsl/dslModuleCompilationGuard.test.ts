@@ -138,8 +138,6 @@ describe("module definition compilation guard", () => {
       "module M() {",
       "  const inner: number = 10",
       "  set inner = 20",
-      "  printLayout innerLayout (output: pdf) {",
-      "  }",
       "}"
     ].join("\n");
     const compiled = compileDslDocument(source);
@@ -148,7 +146,6 @@ describe("module definition compilation guard", () => {
     expect(compiled.bindingAnalysis).toBeUndefined();
     expect(compiled.scalarProgram).toBeUndefined();
     expect(compiled.setStatements).toBeUndefined();
-    expect(compiled.document?.printLayouts).toEqual([]);
   });
 
   it("uses the first compilable stop and keeps module-body stop inert", () => {
@@ -177,9 +174,6 @@ describe("module definition compilation guard", () => {
       "  role inner (name: \"Inner\")",
       "  view hiddenView (default: false)",
       "  activeView hiddenView",
-      "  printLayout hiddenLayout (output: pdf) {",
-      "  }",
-      "  activePrintLayout hiddenLayout",
       "}",
       "point Root = coordinate(x: 0, y: 0)"
     ].join("\n");
@@ -191,8 +185,6 @@ describe("module definition compilation guard", () => {
     expect(compiled.document?.palette.defaultColorId).toBe("pattern-black");
     expect(compiled.document?.visibilityRoles).toEqual([]);
     expect(compiled.document?.visibilityProfiles).toHaveLength(1);
-    expect(compiled.document?.printLayouts).toEqual([]);
-    expect(compiled.document?.activePrintLayoutId).toBe("");
   });
 
   it("does not leak module text-template or property-reference errors into runtime compilation", () => {

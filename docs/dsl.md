@@ -112,7 +112,7 @@ point P = coordinate(x: @measuredAngle, y: 0)
 ```
 
 construction numeric parameter、scalar property、text-template hole、
-`printLayout` の numeric parameter で geometry measurement result を使う場合も、
+layout / print / svg の numeric parameter で geometry measurement result を使う場合も、
 このように `@measuredAngle` のような binding を参照します。Task 4 では、これらの
 surface に geometry builtin 専用の evaluator / resolver 経路を追加していません。
 
@@ -358,7 +358,7 @@ reverse(
 
 モジュールは外側の値を暗黙 capture しません。必要な値は signature の parameter として渡します。`export` された値は `@front::name` で参照できます。
 
-## 文字列、停止、printLayout
+## 文字列、停止、layout / print / svg
 
 文字列の補間は `${...}` です。中の式も通常の nui4 参照・型付き式として評価されます。
 
@@ -372,28 +372,30 @@ text note = label(
 
 文書末尾の terminator は裸の `stop` です。
 
-`printLayout` の body は通常の scope です。layout 専用の `layoutVar` はなく、ローカル `const` / `let` / `set` と `place @...` を使います。
-
-`printLayout` は文書末尾の section です。`stop` を使う場合は `printLayout` より前に置きます。
-header と `place` の numeric value は通常の typed number expression なので、`^` と
-`%` も利用できます。
+`layout` は通常の top-level named declaration で、body には直接の `place` だけを書きます。
+`print` と `svg` は body を持たない output declaration です。名前と `@` / `::` の参照は
+通常の非 hoist lexical namespace に従います。numeric value は通常の typed number expression なので、
+`^` と `%` も利用できます。
 
 ```text
-stop
-
-printLayout A4(
-  width: 210,
-  height: 297,
-) {
-  const margin: number = 10
-
+layout 型紙(scale: 1) {
   place @前身頃(
-    x: @margin,
-    y: @margin,
+    origin: @前身頃::基準点,
+    at: (0, 0),
     angle: 0,
-    mirrorX: false,
+    mirror: false,
   )
 }
+
+print 家庭用A4(
+  layout: @型紙,
+  paper: a4,
+  orientation: portrait,
+  margin: 10,
+  overlap: 10,
+)
+
+svg 型紙SVG(layout: @型紙, margin: 0)
 ```
 
 ## 編集と診断

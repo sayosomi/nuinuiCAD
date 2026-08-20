@@ -188,8 +188,8 @@ describe("rename propagation reference-form coverage", () => {
   });
 
   it("propagates qualified group references and place while leaving role/view records unchanged", () => {
-    // role/view/group(roles:)/place stay single-line canonically (only
-    // printLayout's own header goes vertical), matching serializeDocumentToDsl.
+    // role/view/group(roles:)/place stay in their canonical source shapes,
+    // matching serializeDocumentToDsl.
     const source = [
       "nui 4",
       "role seam (name: \"Seam\")",
@@ -200,7 +200,7 @@ describe("rename propagation reference-form coverage", () => {
       "  point P = coordinate(",
       "    x: 0,",
       "    y: 0,",
-      "  )",
+      "    )",
       "}",
       "group Consumer {",
       "  point User = offset(",
@@ -209,32 +209,26 @@ describe("rename propagation reference-form coverage", () => {
       "    dy: 0,",
       "  )",
       "}",
-      "printLayout Layout(",
-      "  output: pdf,",
-      "  paper: a4,",
-      "  orientation: portrait,",
-      "  width: 100,",
-      "  height: 100,",
-      "  columns: 1,",
-      "  rows: 1,",
-      "  overlap: 0,",
-      "  scale: 1,",
-      ") {",
-      "  place @G(x: 0, y: 0, angle: 0, mirrorX: false)",
+      "layout Layout {",
+      "  place @G(",
+      "    at: (0, 0),",
+      "    angle: 0,",
+      "    mirror: false,",
+      "    )",
       "}"
     ].join("\n");
     const after = expectSuccessfulRename({
       source,
       targetName: "G",
       newName: "Pattern",
-      changedLineNumbers: [6, 14, 30]
+      changedLineNumbers: [6, 14, 20]
     });
 
     expect(after).toContain("role seam (name: \"Seam\")");
     expect(after).toContain("view Draft (default: true, seam: true)");
     expect(after).toContain("activeView Draft");
     expect(after).toContain("from: @Pattern::P");
-    expect(after).toContain("place @Pattern(x: 0, y: 0, angle: 0, mirrorX: false)");
+    expect(after).toContain("place @Pattern(");
   });
 
   it("names an explicit-id unnamed element, propagates its raw reference, and reloads cleanly", () => {

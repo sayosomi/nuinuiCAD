@@ -74,7 +74,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("patches a typed property-binding reference", () => {
-    const source = ["nui 4", "let flag: boolean = true", "group G (printEnabled: @flag) {", "}"].join("\n");
+    const source = ["nui 4", "let flag: boolean = true", "for i in range(from: 0, count: 1, showGenerated: @flag) {", "}"].join("\n");
     seed(source);
     const id = typedBindingId("flag");
 
@@ -82,7 +82,7 @@ describe("renameTypedBindingWithPropagation", () => {
 
     const state = useCadDocumentStore.getState();
     expect(state.sourceText).toContain("let enabled: boolean = true");
-    expect(state.sourceText).toContain("printEnabled: @enabled");
+    expect(state.sourceText).toContain("showGenerated: @enabled");
   });
 
   it("treats an already canonical same-name rename as a successful no-op", () => {

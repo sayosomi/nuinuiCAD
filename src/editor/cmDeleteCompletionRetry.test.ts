@@ -26,8 +26,6 @@ import {
 const baseOptions = () => ({
   elements: () => [] as never[],
   statementRanges: () => new Map(),
-  printLayouts: () => [] as never[],
-  printLayoutRanges: () => new Map(),
   computedVariables: () => undefined,
   computedGeometry: () => undefined,
   effectiveEnabledElementIds: () => undefined,

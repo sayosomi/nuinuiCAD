@@ -114,10 +114,6 @@ export const viewModeCommandDefinitions = {
     run: (context) => {
       const state = useCadUiStore.getState();
       const anchor = canvasZoomAnchor(context);
-      if (state.showPrintLayout) {
-        state.zoomPrintCanvasViewportAt(1.1, anchor);
-        return;
-      }
       state.zoomCanvasViewportAt(1.1, anchor);
     }
   },
@@ -129,10 +125,6 @@ export const viewModeCommandDefinitions = {
     run: (context) => {
       const state = useCadUiStore.getState();
       const anchor = canvasZoomAnchor(context);
-      if (state.showPrintLayout) {
-        state.zoomPrintCanvasViewportAt(1 / 1.1, anchor);
-        return;
-      }
       state.zoomCanvasViewportAt(1 / 1.1, anchor);
     }
   },
@@ -143,10 +135,6 @@ export const viewModeCommandDefinitions = {
     shortcuts: [{ keys: "0" }],
     run: () => {
       const state = useCadUiStore.getState();
-      if (state.showPrintLayout) {
-        state.resetPrintCanvasViewport();
-        return;
-      }
       state.resetCanvasViewport();
     }
   },
@@ -155,35 +143,6 @@ export const viewModeCommandDefinitions = {
     label: "描画全体を表示",
     palette: { order: 23.5, keywords: ["fit", "drawing", "zoom", "canvas", "全体", "描画"] },
     run: (context) => fitDrawing(context)
-  },
-  openPrintLayout: {
-    id: "openPrintLayout",
-    label: "印刷レイアウトを開く",
-    palette: { order: 28.2, keywords: ["print", "pdf", "layout", "印刷", "PDF", "レイアウト"] },
-    run: () => {
-      useCadUiStore.setState({
-        showPrintLayout: true,
-        showCommandPalette: false
-      });
-    }
-  },
-  closePrintLayout: {
-    id: "closePrintLayout",
-    label: "CAD編集に戻る",
-    palette: { order: 28.3, keywords: ["canvas", "edit", "戻る", "編集", "CAD"] },
-    run: () => useCadUiStore.getState().setShowPrintLayout(false)
-  },
-  togglePrintPreviewWindow: {
-    id: "togglePrintPreviewWindow",
-    label: "印刷プレビューを表示/非表示",
-    palette: { order: 28.25, keywords: ["print", "preview", "layout", "印刷", "プレビュー", "レイアウト"] },
-    run: () => {
-      const { showPrintPreviewWindow } = useCadUiStore.getState();
-      useCadUiStore.setState({
-        showPrintPreviewWindow: !showPrintPreviewWindow,
-        showCommandPalette: false
-      });
-    }
   },
   toggleCanvasPointNames: {
     id: "toggleCanvasPointNames",

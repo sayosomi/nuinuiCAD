@@ -14,7 +14,10 @@ export type SourceLexicalDeclarationKind =
   | "geometry"
   | "conditionalGroup"
   | "forGroup"
-  | "typedDeclaration";
+  | "typedDeclaration"
+  | "layout"
+  | "print"
+  | "svg";
 
 export type SourceLexicalDeclaration = {
   scopeId: ScopeId;
@@ -69,6 +72,9 @@ const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKin
   if (statement.kind === "moduleInstance") return "moduleInstance";
   if (statement.kind === "group") return "group";
   if (statement.kind === "typedDeclaration") return "typedDeclaration";
+  if (statement.kind === "layout") return "layout";
+  if (statement.kind === "print") return "print";
+  if (statement.kind === "svg") return "svg";
   if (statement.kind === "element") {
     if (statement.type === "conditionalGroup") return "conditionalGroup";
     if (statement.type === "forGroup") return "forGroup";

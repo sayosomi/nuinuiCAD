@@ -82,33 +82,6 @@ export const setElementsActivity = (activity: ElementActivity) => {
   useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
 };
 
-export const toggleGroupPrintEnabled = (elementId: ElementId | undefined) => {
-  if (!elementId) return;
-  const { elements } = useCadDocumentStore.getState();
-  if (!elements.some((element) => element.id === elementId && element.type === "group")) return;
-
-  useCadDocumentStore.getState().commitDocumentChange({
-    elements: elements.map((element) =>
-      element.id === elementId && element.type === "group"
-        ? { ...element, printEnabled: element.printEnabled !== true }
-        : element
-    )
-  });
-};
-
-export const toggleSelectedGroupPrintEnabled = () => {
-  const { elements } = useCadDocumentStore.getState();
-  const selected = new Set(getSelectedElementIds());
-  if (selected.size === 0) return;
-  useCadDocumentStore.getState().commitDocumentChange({
-    elements: elements.map((element) =>
-      selected.has(element.id) && element.type === "group"
-        ? { ...element, printEnabled: element.printEnabled !== true }
-        : element
-    )
-  });
-};
-
 const elementWithoutColorId = (element: CadElement): CadElement => {
   const rest = { ...element };
   delete rest.colorId;

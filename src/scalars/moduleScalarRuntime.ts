@@ -69,7 +69,6 @@ export type ModuleScalarRuntimeCompilation = {
   scalarExecutionPositionByRuntimeElementId: ReadonlyMap<ElementId, number>;
   scalarExecutionPositionByStatementIndex: ReadonlyMap<number, number>;
   materializedPropertyBindings: readonly MaterializedPropertyBindingSource[];
-  materializedGroupPrintEnabledBindings: ReadonlyMap<ElementId, ScalarValueSource>;
   materializedNumericBindings: readonly MaterializedNumericBindingSource[];
   materializedTextTemplates: readonly MaterializedTextTemplateSource[];
   materializedConditionalGroupConditions: readonly { elementId: ElementId; expression: TypedScalarExpression }[];
@@ -884,7 +883,6 @@ export const compileModuleScalarRuntime = ({
 
   const moduleSets: SetStatementAnalysis[] = [];
   const materializedPropertyBindings: MaterializedPropertyBindingSource[] = [];
-  const materializedGroupPrintEnabledBindings = new Map<ElementId, ScalarValueSource>();
   const materializedNumericBindings: MaterializedNumericBindingSource[] = [];
   const materializedTextTemplates: MaterializedTextTemplateSource[] = [];
   const materializedConditionalGroupConditions: { elementId: ElementId; expression: TypedScalarExpression }[] = [];
@@ -1001,7 +999,6 @@ export const compileModuleScalarRuntime = ({
         const property = propertySourceFor(element, site.parameterKey, site.expression, loweredSiteExpression.expression);
         if (property) {
           materializedPropertyBindings.push({ elementId: runtime.elementId, parameterKey: site.parameterKey, source: property });
-          if (site.parameterKey === "printEnabled") materializedGroupPrintEnabledBindings.set(runtime.elementId, property);
         }
         const numeric = numericSourceForModuleSite(
           element,
@@ -1205,7 +1202,6 @@ export const compileModuleScalarRuntime = ({
     scalarExecutionPositionByRuntimeElementId: elementOrderById,
     scalarExecutionPositionByStatementIndex: sourceOrderByStatementIndex,
     materializedPropertyBindings,
-    materializedGroupPrintEnabledBindings,
     materializedNumericBindings,
     materializedTextTemplates,
     materializedConditionalGroupConditions,

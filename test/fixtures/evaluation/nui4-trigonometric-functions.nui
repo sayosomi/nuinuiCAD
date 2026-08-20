@@ -72,10 +72,7 @@ instance TrigInstance = TrigModule(
   value: 30,
 )
 
-group Pattern(
-  printEnabled: true,
-  printAnchor: @Origin,
-) {
+group Pattern {
   point P2 = coordinate(
     x: 8,
     y: 2,
@@ -88,20 +85,3 @@ group Pattern(
 }
 
 stop
-
-printLayout A4(
-  width: sin(90) * 8,
-  height: cos(0) * 2,
-  columns: round(sin(90) * 8),
-  rows: round(cos(0) * 2),
-  overlap: sin(30),
-  scale: cos(60) * 2,
-  canvas: (sin(90) * 8, cos(0) * 2),
-) {
-  place @Pattern(
-    x: sin(90) * 8,
-    y: cos(0) * 2,
-    angle: atan2(1, 1),
-    mirrorX: false,
-  )
-}

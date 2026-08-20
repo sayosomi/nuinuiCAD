@@ -3,9 +3,6 @@ import { compileDslDocument, type DslDocumentData } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import { expectSemanticallyEqualDocuments } from "../dsl/dslDocumentTestUtils";
 import type { CadElement } from "../types/geometry";
-import { evaluateElements } from "../geometry/evaluate";
-import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
-import { activePrintLayout, resolvePrintLayout } from "../print/printLayout";
 import {
   applyLineSplices,
   buildTextPatch,
@@ -74,43 +71,6 @@ const canonicalFrom = (source: string): CanonicalDocumentValue => {
     bindingIssueDiagnostics: compiled.bindingIssueDiagnostics ?? [],
     typedDependencyGraph: compiled.typedDependencyGraph
   };
-};
-
-const evaluatePrintLayout = (compiled: LastGoodDslDocument) => {
-  const evaluation = evaluateElements(compiled.document.elements, {
-    scalarProgram: compiled.scalarProgram,
-    bindingVersions: compiled.bindingVersions,
-    statementInfoByElementId: compiled.statementMap.byElementId,
-    statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
-    numericBindingEntries: buildNumericBindingRuntimeEntries({
-      numericBindings: compiled.numericBindings ?? new Map(),
-      elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex
-    }, compiled.document.elements)
-  });
-  const layout = activePrintLayout(compiled.document.printLayouts, compiled.document.activePrintLayoutId);
-  return resolvePrintLayout({
-    layout,
-    elements: compiled.document.elements,
-    evaluation,
-    numericBindingLookup: {
-      numericBindings: compiled.numericBindings ?? new Map(),
-      byKey: compiled.statementMap.byKey,
-      bindingVersions: compiled.bindingVersions
-    }
-  });
-};
-
-const commitPrintLayoutModelEdit = (
-  current: CanonicalDocumentValue,
-  edit: (layout: DslDocumentData["printLayouts"][number]) => DslDocumentData["printLayouts"][number]
-) => {
-  const afterDocument = {
-    ...current.doc.document,
-    printLayouts: current.doc.document.printLayouts.map((layout) =>
-      layout.id === current.doc.document.activePrintLayoutId ? edit(layout) : layout
-    )
-  };
-  return commitModelBridge(current, afterDocument);
 };
 
 const BASE_SOURCE = [
@@ -255,28 +215,6 @@ describe("textPatch 要素の更新", () => {
     expect(patched.match(/\/\* keep close note/g)).toHaveLength(1);
   });
 
-  it("モデルの別フィールドを編集してもsource-authored typed property expressionを保持する", () => {
-    const source = [
-      "nui 4",
-      "let 印刷: boolean = true",
-      "let 下書き: boolean = false",
-      "group G (printEnabled: @印刷  and  not @下書き) {",
-      "}"
-    ].join("\n");
-    const current = canonicalFrom(source);
-    const group = elementByName(current.doc.document, "G");
-    const result = commitModelBridge(current, {
-      ...current.doc.document,
-      elements: current.doc.document.elements.map((element) =>
-        element.id === group.id ? { ...element, activity: "hidden" } as CadElement : element
-      )
-    });
-    expect(result.status).toBe("committed");
-    if (result.status !== "committed") return;
-    expect(result.value.sourceText).toContain("printEnabled: @印刷  and  not @下書き");
-    expect(result.value.sourceText).toContain("state: hidden");
-  });
-
   it.each([
     "true and false",
     "not false",
@@ -303,25 +241,6 @@ describe("textPatch 要素の更新", () => {
     expect(result.value.sourceText).toContain(`closed: ${expression}`);
     expect(result.value.sourceText).toContain("state: hidden");
     expect(result.value.sourceText).toContain("point A = coordinate(x: 0, y: 0)");
-  });
-
-  it("serializes a directly edited authored parameter instead of preserving its old expression", () => {
-    const current = canonicalFrom([
-      "nui 4",
-      "group G (printEnabled: true and false) {",
-      "}"
-    ].join("\n"));
-    const group = elementByName(current.doc.document, "G");
-    const result = commitModelBridge(current, {
-      ...current.doc.document,
-      elements: current.doc.document.elements.map((element) =>
-        element.id === group.id ? { ...element, printEnabled: true } as CadElement : element
-      )
-    });
-    expect(result.status).toBe("committed");
-    if (result.status !== "committed") return;
-    expect(result.value.sourceText).toContain("printEnabled: true");
-    expect(result.value.sourceText).not.toContain("printEnabled: true and false");
   });
 
   it("属性編集はstatementの行群だけを書き換え、隣接行と行末コメントを保存する", () => {
@@ -710,36 +629,6 @@ describe("textPatch リネーム伝播", () => {
     expectLinesUntouched(splices, [1, 2, 5]);
   });
 
-  it("配置済みグループのリネームで printLayout ブロックが書き換わる", () => {
-    const source = [
-      "nui 4",
-      "group 前身頃 {",
-      "  point A = coordinate(x: 0, y: 0)",
-      "}",
-      "",
-      "printLayout A4(",
-      "  output: pdf,",
-      "  paper: a4,",
-      "  orientation: portrait,",
-      "  width: 410,",
-      "  height: 584,",
-      "  columns: 2,",
-      "  rows: 2,",
-      "  overlap: 10,",
-      "  scale: 1,",
-      ") {",
-      "  place @前身頃(x: 0, y: 0, angle: 0, mirrorX: false)",
-      "}"
-    ].join("\n");
-    const { patched } = applyChange(source, (document) => ({
-      ...document,
-      elements: document.elements.map((element) =>
-        element.name === "前身頃" ? ({ ...element, name: "後身頃" } as CadElement) : element
-      )
-    }));
-    expect(patched).toContain("place @後身頃(");
-    expect(patched.split("\n").some((line) => line.startsWith("group 後身頃") && line.endsWith("{"))).toBe(true);
-  });
 });
 
 describe("textPatch 非要素セクション", () => {
@@ -777,25 +666,6 @@ describe("textPatch 非要素セクション", () => {
     }));
 
     expect(patched).toContain("/* keep active-view note\n*/ activeView 印刷");
-  });
-
-  it("activePrintLayout line rewrites keep a full-source block-comment close before code", () => {
-    const source = [
-      "nui 4",
-      "point A = coordinate(x: 0, y: 0)",
-      "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "}",
-      "printLayout 二枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "}",
-      "/* keep active-print note",
-      "*/ activePrintLayout 一枚目"
-    ].join("\n");
-    const { patched } = applyChange(source, (document) => ({
-      ...document,
-      activePrintLayoutId: "二枚目"
-    }));
-
-    expect(patched).toContain("/* keep active-print note\n*/ activePrintLayout 二枚目");
   });
 
   it("色の追加・編集・default移動・削除", () => {
@@ -867,257 +737,6 @@ describe("textPatch 非要素セクション", () => {
     expect(splices).toHaveLength(1);
     expect(splices[0]).toMatchObject({ startLine: 5, endLine: 5 });
     expect(patched).toContain("activeView 印刷");
-  });
-
-  it("printLayout の属性変更はブロック単位で置換される", () => {
-    const source = [
-      "nui 4",
-      "group G {",
-      "  point A = coordinate(x: 0, y: 0)",
-      "}",
-      "printLayout A4(",
-      "  output: pdf,",
-      "  paper: a4,",
-      "  orientation: portrait,",
-      "  width: 410,",
-      "  height: 584,",
-      "  columns: 2,",
-      "  rows: 2,",
-      "  overlap: 10,",
-      "  scale: 1,",
-      ") {",
-      "  place @G(x: 0, y: 15, angle: 0, mirrorX: false)",
-      "}"
-    ].join("\n");
-    const { patched } = applyChange(source, (document) => ({
-      ...document,
-      printLayouts: document.printLayouts.map((layout) => ({ ...layout, columns: 5 }))
-    }));
-    expect(patched).toContain("columns: 5");
-    expect(patched).toContain("place @G(");
-  });
-
-  it("commitModelBridge のprintLayout property editはbody-local let/set/placeを保持する", () => {
-    const current = canonicalFrom([
-      "nui 4",
-      "group G {",
-      "}",
-      "printLayout A4(",
-      "  width: 210,",
-      "  height: 297,",
-      "  columns: 1,",
-      ") {",
-      "  let margin: number = 10",
-      "  set margin = 20",
-      "",
-      "  place @G(",
-      "    x: @margin,",
-      "    y: 0,",
-      "    angle: 0,",
-      "    mirrorX: false,",
-      "  )",
-      "}"
-    ].join("\n"));
-    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
-    expect(result.status).toBe("committed");
-    if (result.status !== "committed") return;
-    const letIndex = result.value.sourceText.indexOf("let margin: number = 10");
-    const setIndex = result.value.sourceText.indexOf("set margin = 20");
-    const placeIndex = result.value.sourceText.indexOf("place @G");
-    expect(result.value.sourceText).toContain("columns: 3");
-    expect(letIndex).toBeGreaterThanOrEqual(0);
-    expect(setIndex).toBeGreaterThan(letIndex);
-    expect(placeIndex).toBeGreaterThan(setIndex);
-    expect(result.value.doc.document.printLayouts[0].columns).toBe(3);
-  });
-
-  it("commitModelBridge後もprintLayout local setのruntime valueを評価する", () => {
-    const current = canonicalFrom([
-      "nui 4",
-      "group G {",
-      "}",
-      "printLayout A4(width: 210, height: 297, columns: 1) {",
-      "  let margin: number = 10",
-      "  set margin = 20",
-      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
-      "}"
-    ].join("\n"));
-    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
-    expect(result.status).toBe("committed");
-    if (result.status !== "committed") return;
-    expect(evaluatePrintLayout(result.value.doc).placements[0]?.x).toBe(20);
-  });
-
-  it("commitModelBridgeはplace/set/placeのsource orderを保持する", () => {
-    const current = canonicalFrom([
-      "nui 4",
-      "group G {",
-      "}",
-      "printLayout A4(width: 210, height: 297, columns: 1) {",
-      "  let margin: number = 10",
-      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
-      "  set margin = 20",
-      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
-      "}"
-    ].join("\n"));
-    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
-    expect(result.status).toBe("committed");
-    if (result.status !== "committed") return;
-    const firstPlaceIndex = result.value.sourceText.indexOf("place @G");
-    const setIndex = result.value.sourceText.indexOf("set margin = 20");
-    const secondPlaceIndex = result.value.sourceText.indexOf("place @G", firstPlaceIndex + 1);
-    expect(firstPlaceIndex).toBeLessThan(setIndex);
-    expect(setIndex).toBeLessThan(secondPlaceIndex);
-    expect(evaluatePrintLayout(result.value.doc).placements.map((placement) => placement.x)).toEqual([10, 20]);
-  });
-
-  it("commitModelBridgeはprintLayout body-local constを保持する", () => {
-    const current = canonicalFrom([
-      "nui 4",
-      "group G {",
-      "}",
-      "printLayout A4(width: 210, height: 297) {",
-      "  const margin: number = 10",
-      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
-      "}"
-    ].join("\n"));
-    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 3 }));
-    expect(result.status).toBe("committed");
-    if (result.status !== "committed") return;
-    expect(result.value.sourceText).toContain("const margin: number = 10");
-    expect(evaluatePrintLayout(result.value.doc).placements[0]?.x).toBe(10);
-  });
-
-  it("複数printLayoutのmodel editは対象外layoutのsource-only bodyを変更しない", () => {
-    const current = canonicalFrom([
-      "nui 4",
-      "group G {",
-      "}",
-      "printLayout A4(width: 210, height: 297, columns: 1) {",
-      "  const margin: number = 10",
-      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
-      "}",
-      "printLayout A3(width: 297, height: 420, columns: 1) {",
-      "  const margin: number = 20",
-      "  place @G(x: @margin, y: 0, angle: 0, mirrorX: false)",
-      "}"
-    ].join("\n"));
-    const secondLayoutSource = current.sourceText.slice(current.sourceText.indexOf("printLayout A3"));
-    const result = commitPrintLayoutModelEdit(current, (layout) => ({ ...layout, columns: 2 }));
-    expect(result.status).toBe("committed");
-    if (result.status !== "committed") return;
-    const secondLayoutStart = result.value.sourceText.indexOf("printLayout A3");
-    expect(secondLayoutStart).toBeGreaterThanOrEqual(0);
-    expect(result.value.sourceText.slice(secondLayoutStart)).toBe(secondLayoutSource);
-    expect(result.value.sourceText).toContain("const margin: number = 10");
-    expect(result.value.sourceText).toContain("const margin: number = 20");
-  });
-
-  it("printLayout の追加と activePrintLayout の切替", () => {
-    const source = [
-      "nui 4",
-      "point A = coordinate(x: 0, y: 0)",
-      "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "}"
-    ].join("\n");
-    const { patched } = applyChange(source, (document) => {
-      const added = {
-        ...document.printLayouts[0],
-        id: "二枚目",
-        name: "二枚目",
-        placements: [],
-      };
-      return {
-        ...document,
-        printLayouts: [...document.printLayouts, added],
-        activePrintLayoutId: "二枚目"
-      };
-    });
-    expect(patched).toContain("printLayout 二枚目(");
-    expect(patched).toContain("activePrintLayout 二枚目");
-  });
-
-  it("printLayoutが存在しない文書に新規追加すると、既存elementsセクションより後に挿入される", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
-    const { patched } = applyChange(source, (document) => ({
-      ...document,
-      printLayouts: [
-        {
-          id: "レイアウト1",
-          name: "レイアウト1",
-          outputKind: "pdf",
-          visibilityProfileId: undefined,
-          paperSizeId: "a4",
-          orientation: "portrait",
-          columns: 2,
-          rows: 2,
-          overlapMm: 10,
-          scale: 1,
-          svgCanvasWidthMm: 410,
-          svgCanvasHeightMm: 584,
-          placements: []
-        }
-      ],
-      activePrintLayoutId: "レイアウト1"
-    }));
-    const lines = patched.split("\n");
-    const pointBLine = lines.findIndex((line) => line.startsWith("point B"));
-    const printLayoutLine = lines.findIndex((line) => line.startsWith("printLayout"));
-    expect(pointBLine).toBeGreaterThanOrEqual(0);
-    expect(printLayoutLine).toBeGreaterThan(pointBLine);
-  });
-
-  it("末尾にstopがある文書に新規printLayoutを追加すると、stopより後に挿入される", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop"].join("\n");
-    // applyChange itself already asserts the patched text reparses with zero
-    // error diagnostics - if printLayout landed before stop, that assertion
-    // would fail on validatePrintLayoutPlacement's structural diagnostic
-    // ("printLayoutブロック以降には...") before this test body even runs.
-    const { patched } = applyChange(source, (document) => ({
-      ...document,
-      printLayouts: [
-        {
-          id: "レイアウト1",
-          name: "レイアウト1",
-          outputKind: "pdf",
-          visibilityProfileId: undefined,
-          paperSizeId: "a4",
-          orientation: "portrait",
-          columns: 2,
-          rows: 2,
-          overlapMm: 10,
-          scale: 1,
-          svgCanvasWidthMm: 410,
-          svgCanvasHeightMm: 584,
-          placements: []
-        }
-      ],
-      activePrintLayoutId: "レイアウト1"
-    }));
-    const lines = patched.split("\n");
-    const atStopLine = lines.findIndex((line) => line.startsWith("stop"));
-    const printLayoutLine = lines.findIndex((line) => line.startsWith("printLayout"));
-    expect(atStopLine).toBeGreaterThanOrEqual(0);
-    expect(printLayoutLine).toBeGreaterThan(atStopLine);
-  });
-
-  it("printLayoutが既に存在する文書へ新規elementを追加すると、printLayoutセクションより前に挿入される", () => {
-    const source = [
-      "nui 4",
-      "point A = coordinate(x: 0, y: 0)",
-      "printLayout 一枚目 (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: 1, canvas: (410, 584)) {",
-      "}"
-    ].join("\n");
-    const newElement = makeElement("point B = coordinate(x: 5, y: 5)");
-    const { patched } = applyChange(source, (document) => ({
-      ...document,
-      elements: [...document.elements, newElement]
-    }));
-    const lines = patched.split("\n");
-    const pointBLine = lines.findIndex((line) => line.startsWith("point B"));
-    const printLayoutLine = lines.findIndex((line) => line.startsWith("printLayout"));
-    expect(pointBLine).toBeGreaterThanOrEqual(0);
-    expect(printLayoutLine).toBeGreaterThan(pointBLine);
   });
 
   it("stop の移動は削除+挿入", () => {

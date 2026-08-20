@@ -66,7 +66,6 @@ import type { ModuleSemanticCursorResolution, SourceEditorControllerOptions, Sou
 import {
   elementIdAtCursor,
   createAtStopRange,
-  createPrintLayoutRangeIndex,
   createPropertyBindingRangeIndex,
   createScopeBodyRangeIndex,
   createSetStatementFieldRangeIndex,
@@ -76,7 +75,6 @@ import {
   createTypedDeclarationFieldRangeIndex,
   createTypedDeclarationRangeIndex,
   mapAtStopRange,
-  mapPrintLayoutRangeIndex,
   mapPropertyBindingRangeIndex,
   mapModuleSemanticRangeIndex,
   mapScopeBodyRangeIndex,
@@ -91,7 +89,6 @@ import {
   templateHoleAtPosition,
   typedDeclarationBindingIdAtCursor,
   type AtStopRange,
-  type PrintLayoutRangeIndex,
   type PropertyBindingRangeIndex,
   type ScopeBodyRangeIndex,
   type SetStatementFieldRangeIndex,
@@ -235,7 +232,6 @@ export class SourceEditorController implements SourceEditorHandle {
   private flushAfterComposition = false;
   private burstStartCursorLine: number | null = null;
   private statementRanges: StatementRangeIndex = new Map();
-  private printLayoutRanges: PrintLayoutRangeIndex = new Map();
   private typedDeclarationRanges: TypedDeclarationRangeIndex = new Map();
   private typedDeclarationFieldRanges: TypedDeclarationFieldRangeIndex = new Map();
   private setStatementRanges: SetStatementRangeIndex = new Map();
@@ -280,8 +276,6 @@ export class SourceEditorController implements SourceEditorHandle {
   private autocompleteOptions = (): DslAutocompleteOptions => ({
     elements: () => this.store.getState().elements,
     statementRanges: () => this.statementRanges,
-    printLayouts: () => this.store.getState().printLayouts,
-    printLayoutRanges: () => this.printLayoutRanges,
     isComposing: () => this.protocol.composing,
     computedGeometry: () => this.appliedEvaluation?.evaluation.computedGeometry,
     forGroupGeneratedRows: () => this.appliedEvaluation?.evaluation.forGroupGeneratedRows,
@@ -1674,7 +1668,6 @@ export class SourceEditorController implements SourceEditorHandle {
       this.moduleSemanticRanges = mapModuleSemanticRangeIndex(this.moduleSemanticRanges, update.changes);
       if (!this.applyingTypedInitializerStep) this.repeatingTypedInitializerStep = null;
       this.statementRanges = mapStatementRangeIndex(this.statementRanges, update.changes);
-      this.printLayoutRanges = mapPrintLayoutRangeIndex(this.printLayoutRanges, update.changes);
       this.typedDeclarationRanges = mapTypedDeclarationRangeIndex(this.typedDeclarationRanges, update.changes);
       this.typedDeclarationFieldRanges = mapTypedDeclarationFieldRangeIndex(this.typedDeclarationFieldRanges, update.changes);
       this.setStatementRanges = mapSetStatementRangeIndex(this.setStatementRanges, update.changes);
@@ -1932,7 +1925,6 @@ export class SourceEditorController implements SourceEditorHandle {
       // Never project a stale committed statement/span into another CM state.
       this.statementRanges = new Map();
       this.moduleSemanticRanges = { tokens: [], declarationByTarget: new Map() };
-      this.printLayoutRanges = new Map();
       this.typedDeclarationRanges = new Map();
       this.typedDeclarationFieldRanges = new Map();
       this.setStatementRanges = new Map();
@@ -1950,7 +1942,6 @@ export class SourceEditorController implements SourceEditorHandle {
       state.doc.statementMap,
       sourceOwnerByRuntimeElementId(state.doc)
     );
-    this.printLayoutRanges = createPrintLayoutRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.typedDeclarationRanges = createTypedDeclarationRangeIndex(this.view.state.doc, state.doc.statementMap);
     this.typedDeclarationFieldRanges = createTypedDeclarationFieldRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.statements);
     this.setStatementRanges = createSetStatementRangeIndex(this.view.state.doc, state.doc.statementMap);
@@ -2085,10 +2076,7 @@ export class SourceEditorController implements SourceEditorHandle {
       palette: state.palette,
       visibilityProfiles: state.visibilityProfiles,
       activeVisibilityProfileId: state.activeVisibilityProfileId,
-      pickCandidates: this.currentPickCandidates(),
-      groupPrintEnabledLookup: this.isRuntimeBindingDisplayFreshForGutter()
-        ? { propertyBindings: state.doc.propertyBindings, byElementId: state.doc.statementMap.byElementId }
-        : undefined
+      pickCandidates: this.currentPickCandidates()
     });
     if (!this.destroyed && !this.protocol.composing) this.view.dispatch({ effects: evaluationChanged.of(null) });
     else this.pendingDecorationRefresh = true;

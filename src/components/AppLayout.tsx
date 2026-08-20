@@ -64,17 +64,6 @@ const VisibilityProfileSettingsDialog = lazy(() =>
     default: module.VisibilityProfileSettingsDialog
   }))
 );
-const PrintLayoutCanvas = lazy(() =>
-  import("./PrintLayoutView").then((module) => ({ default: module.PrintLayoutCanvas }))
-);
-const PrintLayoutPanel = lazy(() =>
-  import("./PrintLayoutView").then((module) => ({ default: module.PrintLayoutPanel }))
-);
-const PrintLayoutPreviewWindow = lazy(() =>
-  import("./PrintLayoutPreviewWindow").then((module) => ({
-    default: module.PrintLayoutPreviewWindow
-  }))
-);
 const ShortcutSettingsDialog = lazy(() =>
   import("./ShortcutSettingsDialog").then((module) => ({
     default: module.ShortcutSettingsDialog
@@ -117,8 +106,6 @@ export const AppLayout = () => {
   // join their materialized conditionalGroup element IDs at the Rust boundary.
   const evaluationDocument = useCadDocumentStore(effectiveCompiledDocument);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
-  const showPrintLayout = useCadUiStore((state) => state.showPrintLayout);
-  const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
   const showPaletteSettings = useCadUiStore((state) => state.showPaletteSettings);
   const showVisibilityProfileSettings = useCadUiStore(
     (state) => state.showVisibilityProfileSettings
@@ -132,7 +119,6 @@ export const AppLayout = () => {
   const pendingImageImport = useCadUiStore((state) => state.pendingImageImport);
   const imageImportError = useCadUiStore((state) => state.imageImportError);
   const [bakeSettings, setBakeSettings] = useState(defaultBakeSettings);
-  const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const commandLineSession = useCadUiStore((state) => state.commandLineSession);
   const isPickMode = useCadUiStore(
@@ -281,7 +267,6 @@ export const AppLayout = () => {
       .then((settings) => {
         if (!cancelled) {
           setSavedLeftPanelWidth(settings.leftPanelWidth);
-          setPrintPreviewWindow(settings.printPreviewWindow);
         }
       })
       .catch((error: unknown) => {
@@ -290,7 +275,7 @@ export const AppLayout = () => {
     return () => {
       cancelled = true;
     };
-  }, [setPrintPreviewWindow, setSavedLeftPanelWidth]);
+  }, [setSavedLeftPanelWidth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -505,40 +490,25 @@ export const AppLayout = () => {
           }
         }}
       />
-      {showPrintLayout ? (
-        <Suspense fallback={null}>
-          <PrintLayoutCanvas evaluation={evaluation} canvasFocusRef={canvasFocusRef} />
-          <PrintLayoutPanel evaluation={evaluation} />
-        </Suspense>
-      ) : (
-        <>
-          <div className="canvas-workspace" ref={canvasWorkspaceRef}>
-            <TauriDrawingCanvas
-              ref={drawingCanvasRef}
-              evaluation={evaluation}
-              evaluationState={evaluationState}
-              canvasFocusRef={canvasFocusRef}
-              commandContext={commandContext}
-              leftPanelDockRef={commandRibbonDockRef}
-            />
-            <CommandLineBar commandContext={commandContext} evaluation={evaluation} evaluationIsCurrent={evaluationIsCurrent} />
-            {showPrintPreviewWindow ? (
-              <Suspense fallback={null}>
-                <PrintLayoutPreviewWindow
-                  evaluation={evaluation}
-                  workspaceRef={canvasWorkspaceRef}
-                />
-              </Suspense>
-            ) : null}
-          </div>
-          <RightPanel
+      <>
+        <div className="canvas-workspace" ref={canvasWorkspaceRef}>
+          <TauriDrawingCanvas
+            ref={drawingCanvasRef}
             evaluation={evaluation}
             evaluationState={evaluationState}
-            sourceEditorRef={sourceEditorRef}
-            inert={isMultiLinePicking}
+            canvasFocusRef={canvasFocusRef}
+            commandContext={commandContext}
+            leftPanelDockRef={commandRibbonDockRef}
           />
-        </>
-      )}
+          <CommandLineBar commandContext={commandContext} evaluation={evaluation} evaluationIsCurrent={evaluationIsCurrent} />
+        </div>
+        <RightPanel
+          evaluation={evaluation}
+          evaluationState={evaluationState}
+          sourceEditorRef={sourceEditorRef}
+          inert={isMultiLinePicking}
+        />
+      </>
       <CommandPalette commandContext={commandContext} />
       <PickModeStatus />
       <ShortcutHelpOverlay isPickMode={isPickMode} />

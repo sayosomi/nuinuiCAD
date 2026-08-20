@@ -236,14 +236,14 @@ export const analyzeTypedDeclarations = ({
     .filter((entry): entry is { statement: Extract<DslStatement, { kind: "typedDeclaration" }>; statementIndex: number } =>
       entry.statement.kind === "typedDeclaration" && includeStatement(entry.statement, entry.statementIndex)
     );
-  // printLayout/place numeric fields resolve `@name` against this same
+  // layout/place/output numeric fields resolve `@name` against this same
   // bindingAnalysis/catalog (Task 53) even when the document declares no
   // typed const/let of its own - an unresolved `@name` there (e.g.
   // `scale: @nope`) still needs a populated .analysis so
   // compileNumericBindings can run && diagnose it, not the bare
   // `{diagnostics: []}` shortcut below.
-  const hasPrintLayoutStatements = statements.some((statement, statementIndex) =>
-    statement.kind === "printLayout" && includeStatement(statement, statementIndex)
+  const hasSourceOutputStatements = statements.some((statement, statementIndex) =>
+    (statement.kind === "layout" || statement.kind === "print" || statement.kind === "svg") && includeStatement(statement, statementIndex)
   );
   // The shared frontend also owns reference-free property expressions,
   // conditional conditions, && for-group iteration expressions. Build the
@@ -273,7 +273,7 @@ export const analyzeTypedDeclarations = ({
       return scanExpressionReferences(attr.value).some((match) => match.kind === "elementProperty" && match.sigil);
     });
   });
-  if (typedStatements.length === 0 && !hasPrintLayoutStatements && !hasScalarExpressionConsumers) return { diagnostics: [] };
+  if (typedStatements.length === 0 && !hasSourceOutputStatements && !hasScalarExpressionConsumers) return { diagnostics: [] };
 
   const missingIdentity = typedStatements.flatMap(({ statement, statementIndex }) =>
     stableStatementIdByIndex.has(statementIndex)

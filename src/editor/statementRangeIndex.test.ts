@@ -5,7 +5,6 @@ import { compileDslDocument } from "../dsl/dslDocument";
 import { createModuleSemanticRangeIndex } from "../dsl/moduleSemanticEditor";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import {
-  createPrintLayoutRangeIndex,
   createPropertyBindingRangeIndex,
   createScopeBodyRangeIndex,
   createSetStatementFieldRangeIndex,
@@ -16,7 +15,6 @@ import {
   createTypedDeclarationRangeIndex,
   deepestContainingScopeId,
   elementIdAtCursor,
-  mapPrintLayoutRangeIndex,
   mapPropertyBindingRangeIndex,
   mapScopeBodyRangeIndex,
   mapSetStatementFieldRangeIndex,
@@ -57,7 +55,7 @@ describe("statementRangeIndex", () => {
   it("anchors an inline brace on the final row of a handwritten multiline header", () => {
     const source = [
       "nui 4",
-      "group Multi (printEnabled: true",
+      "group Multi (state: visible",
       ") {",
       "  point A = coordinate(x: 0, y: 0)",
       "}"
@@ -265,46 +263,6 @@ describe("module definition fold range mapping", () => {
     );
     expect(dirty.moduleDefinitionParameterFoldRanges?.size).toBe(0);
     expect(dirty.moduleDefinitionFoldRanges?.has(definition.statementId)).toBe(true);
-  });
-});
-
-describe("printLayoutRangeIndex", () => {
-  const printLayoutSource = ["nui 4", "printLayout Layout1 () {", "  place @G(at: (0, 0), angle: 0)", "}"].join("\n");
-
-  it("builds one entry per printLayout:<id> statementMap key, at the block-opening line", () => {
-    const result = compiled(printLayoutSource);
-    const doc = Text.of(printLayoutSource.split("\n"));
-    const printLayoutId = result.document!.printLayouts[0].id;
-    const index = createPrintLayoutRangeIndex(doc, result.statementMap!);
-
-    expect(index.size).toBe(1);
-    const range = index.get(printLayoutId)!;
-    expect(range).toBeDefined();
-    expect(doc.sliceString(range.from, range.to)).toBe("printLayout Layout1 () {");
-  });
-
-  it("tracks an insertion above the block, shifting the line but preserving printLayoutId identity", () => {
-    const result = compiled(printLayoutSource);
-    const doc = Text.of(printLayoutSource.split("\n"));
-    const printLayoutId = result.document!.printLayouts[0].id;
-    const original = createPrintLayoutRangeIndex(doc, result.statementMap!);
-    const changes = ChangeSet.of({ from: 0, insert: "// dirty\n" }, doc.length);
-    const mapped = mapPrintLayoutRangeIndex(original, changes);
-
-    const range = mapped.get(printLayoutId)!;
-    expect(range).toBeDefined();
-    expect(range.from).toBeGreaterThan(original.get(printLayoutId)!.from);
-  });
-
-  it("drops an entry whose block-opening line is fully replaced", () => {
-    const result = compiled(printLayoutSource);
-    const doc = Text.of(printLayoutSource.split("\n"));
-    const printLayoutId = result.document!.printLayouts[0].id;
-    const original = createPrintLayoutRangeIndex(doc, result.statementMap!);
-    const range = original.get(printLayoutId)!;
-    const changes = ChangeSet.of({ from: range.from, to: Math.min(doc.length, range.to + 1), insert: "" }, doc.length);
-
-    expect(mapPrintLayoutRangeIndex(original, changes).has(printLayoutId)).toBe(false);
   });
 });
 
@@ -768,8 +726,10 @@ describe("propertyBindingRangeIndex (Task 43)", () => {
   const source = [
     "nui 4",
     "let flag: boolean = true",
-    "group G (printEnabled: @flag) {",
-    "}"
+    "point A = coordinate(x: 0, y: 0)",
+    "point B = coordinate(x: 10, y: 0)",
+    "line AB = segment(start: @A, end: @B)",
+    "line Off = offset(sources: [@AB], distance: 1, side: right, closed: @flag, suppressTrimWarnings: false)"
   ].join("\n");
 
   it("resolves the exact @name token span for a bound property, keyed by the same occurrence key as Task 22's propertyBindings", () => {
@@ -819,7 +779,13 @@ describe("propertyBindingRangeIndex (Task 43)", () => {
   });
 
   it("only indexes bound (kind: \"binding\") occurrences, skipping literal property values", () => {
-    const literalOnlySource = ["nui 4", "group G (printEnabled: true) {", "}"].join("\n");
+    const literalOnlySource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@AB], distance: 1, side: right, closed: true, suppressTrimWarnings: false)"
+    ].join("\n");
     const result = compiledWithStableIds(literalOnlySource);
     const doc = Text.of(literalOnlySource.split("\n"));
     const index = createPropertyBindingRangeIndex(doc, result.statementMap!, result.statements, result.propertyBindings);

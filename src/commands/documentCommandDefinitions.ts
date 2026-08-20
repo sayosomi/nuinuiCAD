@@ -4,8 +4,6 @@ import {
   saveDocument,
   saveDocumentAs
 } from "../document/documentFile";
-import { exportPrintPdf } from "../document/printPdfExport";
-import { exportPrintSvg } from "../document/printSvgExport";
 import type { Command, CommandId } from "./commandTypes";
 
 const runFileCommand = (operation: () => Promise<void>) => {
@@ -44,16 +42,4 @@ export const documentCommandDefinitions = {
     shortcuts: [{ keys: "Mod+Shift+S" }],
     run: () => runFileCommand(saveDocumentAs)
   },
-  exportPrintSvg: {
-    id: "exportPrintSvg",
-    label: "SVGを書き出す",
-    palette: { order: 32.5, keywords: ["svg", "export", "書き出し", "SVG", "Affinity", "Inkscape"] },
-    run: (context) => runFileCommand(() => exportPrintSvg(context?.evaluation))
-  },
-  exportPrintPdf: {
-    id: "exportPrintPdf",
-    label: "印刷用PDFを書き出す",
-    palette: { order: 33, keywords: ["pdf", "print", "export", "印刷", "書き出し", "PDF"] },
-    run: (context) => runFileCommand(() => exportPrintPdf(context?.evaluation))
-  }
 } satisfies Partial<Record<CommandId, Command>>;

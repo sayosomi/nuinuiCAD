@@ -80,13 +80,13 @@ describe("DSL parser unnamed statements", () => {
   // always require a block, so the closest equivalent is an unnamed group
   // header carrying an argument before its (mandatory) block.
   it("parses unnamed statements when the keyword is followed by attributes", () => {
-    const parsed = parseDsl(["group (printEnabled: true) {", "}"].join("\n"));
+    const parsed = parseDsl(["group (roles: [seam]) {", "}"].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements[0]).toMatchObject({ kind: "group", name: "" });
   });
 
   it("keeps named statements named", () => {
-    const parsed = parseDsl(["group 前身頃 (printEnabled: true) {", "}"].join("\n"));
+    const parsed = parseDsl(["group 前身頃 (roles: [seam]) {", "}"].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements[0]).toMatchObject({ kind: "group", name: "前身頃" });
   });
@@ -95,7 +95,7 @@ describe("DSL parser unnamed statements", () => {
 describe("DSL parser blocks", () => {
   it("accepts a multi-line block header followed by its own opening-brace line", () => {
     const parsed = parseDsl([
-      "group A (printEnabled: true",
+      "group A (roles: [seam]",
       ")",
       "{",
       "  point P = coordinate(x: 0, y: 0)",
@@ -236,31 +236,26 @@ describe("DSL parser new document statements", () => {
     expect(result[0].message).toContain("1つだけ");
   });
 
-  it("parses activePrintLayout", () => {
-    const statement = single("activePrintLayout 型紙A");
-    expect(statement).toMatchObject({ kind: "activePrintLayout", name: "型紙A" });
-  });
-
-  it("parses printLayout blocks with place members", () => {
+  it("parses layout blocks with place members", () => {
     const parsed = parseDsl([
-      "printLayout 型紙A (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 3, overlap: 10, scale: 1) {",
-      "  place @前身頃(at: (0, 20), angle: 0, mirrorX: false)",
+      "layout 型紙A(scale: 1) {",
+      "  place @前身頃(at: (0, 20), angle: 0, mirror: false)",
       "}"
     ].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     const [layout, place] = parsed.statements;
-    expect(layout).toMatchObject({ kind: "printLayout", name: "型紙A", opensBlock: true });
+    expect(layout).toMatchObject({ kind: "layout", name: "型紙A", opensBlock: true });
     expect(place).toMatchObject({ kind: "place", group: "@前身頃" });
     expect(place.enclosing).toEqual({ statementIndex: 0, branch: "then" });
   });
 
-  it("rejects place outside printLayout blocks", () => {
-    expect(errors("place @前身頃(at: (0,0))")[0].message).toContain("printLayout");
+  it("rejects place outside layout blocks", () => {
+    expect(errors("place @前身頃(at: (0,0))")[0].message).toContain("layout");
   });
 
-  it("rejects element statements inside printLayout blocks", () => {
+  it("rejects element statements inside layout blocks", () => {
     const parsed = errors([
-      "printLayout 型紙A () {",
+      "layout 型紙A {",
       "  point A = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
@@ -423,11 +418,6 @@ describe("DSL typed declarations", () => {
     expect(decls[2].enclosing).toMatchObject({ branch: "else" });
   });
 
-  it("allows ordinary typed declarations inside printLayout blocks", () => {
-    const result = errors(["printLayout 型紙A () {", "  const x: number = 1", "}"].join("\n"));
-    expect(result).toEqual([]);
-  });
-
   it("parses correctly when sandwiched between multi-line vertical element statements", () => {
     const parsed = parseDsl([
       "point A = coordinate(",
@@ -506,11 +496,6 @@ describe("DSL set statements", () => {
     expect(sets[0].enclosing).toEqual({ statementIndex: 0, branch: "then" });
     expect(sets[1].enclosing).toMatchObject({ branch: "then" });
     expect(sets[2].enclosing).toMatchObject({ branch: "else" });
-  });
-
-  it("allows set inside printLayout blocks", () => {
-    const result = errors(["printLayout 型紙A () {", "  set x = 1", "}"].join("\n"));
-    expect(result).toEqual([]);
   });
 
   it("reports a missing target name", () => {

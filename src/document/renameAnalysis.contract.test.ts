@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, serializeDocumentToDsl, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
+import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
-import { dslFlatTextForElements, dslTextForElements, emptyDocument } from "../dsl/dslDocumentTestUtils";
+import { dslFlatTextForElements, dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { getDirectParentIds } from "../model/dependencies";
 import type { RenameAnalysis } from "./renameAnalysis";
 import { analyzeRename } from "./renameAnalysis";
@@ -225,120 +225,6 @@ describe("renameAnalysis contract", () => {
     expect(analysis.expectedPatchedLines).toContain(groupLine);
     expect(analysis.expectedPatchedLines).not.toContain(sLine);
     expect(analysis.occurrences.some((occurrence) => occurrence.line === sLine)).toBe(false);
-  });
-
-  it("only includes target-resolving slots from a changed print-layout block", () => {
-    const elements: DslDocumentData["elements"] = [
-      { id: "g", name: "G", type: "group", activity: "visible" },
-      { id: "gp", name: "P", type: "freePoint", activity: "visible", x: 0, y: 0, parentGroupId: "g" },
-      { id: "x", name: "X", type: "group", activity: "visible" },
-      { id: "xp", name: "P", type: "freePoint", activity: "visible", x: 1, y: 0, parentGroupId: "x" }
-    ];
-    const source = serializeDocumentToDsl({
-      ...emptyDocument(),
-      elements,
-      palette: { colors: [], defaultColorId: "" },
-      printLayouts: [{
-        id: "layout",
-        name: "Layout",
-        outputKind: "pdf",
-        paperSizeId: "a4",
-        orientation: "portrait",
-        columns: 1,
-        rows: 1,
-        overlapMm: 0,
-        scale: 1,
-        svgCanvasWidthMm: 100,
-        svgCanvasHeightMm: 100,
-        placements: [
-          { id: "place-g", groupId: "g", x: 0, y: 0, angleDeg: 0, mirrorX: false },
-          { id: "place-x", groupId: "x", x: 20, y: 0, angleDeg: 0, mirrorX: false }
-        ]
-      }],
-      activePrintLayoutId: "layout"
-    }, 4);
-    const compiled = complete(source);
-    const target = compiled.document.elements.find((element) => element.name === "G")!;
-    const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "H" });
-
-    expect(analysis).toMatchObject({ verdict: "ok" });
-    if (analysis.verdict !== "ok") return;
-    const placeGLine = lineOf(source, "place @G");
-    const placeXLine = lineOf(source, "place @X");
-    expect(analysis.occurrences).toEqual(expect.arrayContaining([
-      expect.objectContaining({ line: placeGLine, referencedElementId: target.id, form: "print-layout-place" })
-    ]));
-    expect(analysis.occurrences.some((occurrence) => occurrence.line === placeXLine)).toBe(false);
-  });
-
-  // The printLayout header's exact canonical line shape (one arg per physical
-  // line, matching dslDocument.ts's printLayoutBlockLines) is load-bearing
-  // here: serializerChangedStatementLines's "exact mapping" proof requires the
-  // source range's physical line count to equal the generated plan's line
-  // count, so a single-line header would always fall back to block granularity.
-  const printLayoutHeaderLines = [
-    "printLayout L(",
-    "  output: pdf,",
-    "  paper: a4,",
-    "  orientation: portrait,",
-    "  width: 100,",
-    "  height: 100,",
-    "  columns: 1,",
-    "  rows: 1,",
-    "  overlap: 0,",
-    "  scale: 1,",
-    ") {"
-  ];
-
-  it("excludes an unchanged raw-id descendant place when print-layout line mapping is exact", () => {
-    const source = [
-      "nui 4",
-      "group Parent {",
-      "  group (id: child) {",
-      "  }",
-      "}",
-      ...printLayoutHeaderLines,
-      "  place @Parent(x: 0, y: 0, angle: 0, mirrorX: false)",
-      "  place @child(x: 20, y: 0, angle: 0, mirrorX: false)",
-      "}"
-    ].join("\n");
-    const compiled = complete(source);
-    const target = compiled.document.elements.find((element) => element.name === "Parent")!;
-    const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" });
-
-    const placeParentLine = lineOf(source, "place @Parent");
-    expect(analysis).toMatchObject({ verdict: "ok" });
-    if (analysis.verdict !== "ok") return;
-    expect(analysis.occurrences).toEqual([
-      expect.objectContaining({ line: placeParentLine, referencedElementId: target.id, form: "print-layout-place" })
-    ]);
-  });
-
-  it("keeps block-granularity occurrences when source-only print-layout lines prevent an exact mapping", () => {
-    const source = [
-      "nui 4",
-      "group Parent {",
-      "  group (id: child) {",
-      "  }",
-      "}",
-      ...printLayoutHeaderLines,
-      "  place @Parent(x: 0, y: 0, angle: 0, mirrorX: false)",
-      "  // source-only comment prevents a line-for-line plan proof",
-      "  place @child(x: 20, y: 0, angle: 0, mirrorX: false)",
-      "}"
-    ].join("\n");
-    const compiled = complete(source);
-    const target = compiled.document.elements.find((element) => element.name === "Parent")!;
-    const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Renamed" });
-
-    const placeParentLine = lineOf(source, "place @Parent");
-    const placeChildLine = lineOf(source, "place @child");
-    expect(analysis).toMatchObject({ verdict: "ok" });
-    if (analysis.verdict !== "ok") return;
-    expect(analysis.occurrences).toEqual(expect.arrayContaining([
-      expect.objectContaining({ line: placeParentLine, referencedElementId: target.id }),
-      expect.objectContaining({ line: placeChildLine, referencedElementId: "child" })
-    ]));
   });
 
   it("exposes reason-specific rejected detail types", () => {
