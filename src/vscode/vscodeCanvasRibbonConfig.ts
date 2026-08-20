@@ -57,6 +57,9 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const nonEmptyString = (value: unknown): string | null =>
   typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 
+const normalizeCanvasRibbonCommandId = (commandId: string): string =>
+  commandId === "toggleCanvasElementNames" ? "toggleCanvasPointNames" : commandId;
+
 const finiteNumber = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
@@ -70,11 +73,12 @@ const normalizeCommandItem = (value: unknown): VscodeCanvasRibbonCommandItem | n
   const id = nonEmptyString(value.id);
   const commandId = nonEmptyString(value.commandId);
   if (id === null || commandId === null || value.type !== "command") return null;
+  const normalizedCommandId = normalizeCanvasRibbonCommandId(commandId);
   const icon = nonEmptyString(value.icon) ?? "circle";
   return {
-    id,
+    id: id === commandId && commandId === "toggleCanvasElementNames" ? normalizedCommandId : id,
     type: "command",
-    commandId,
+    commandId: normalizedCommandId,
     icon,
     showLabel: value.showLabel === true
   };

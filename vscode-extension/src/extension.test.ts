@@ -639,6 +639,8 @@ describe("VS Code production document lifecycle", () => {
       "nuinuiCAD.clearCanvasSelection",
       "nuinuiCAD.resetCanvasView",
       "nuinuiCAD.fitDrawing",
+      "nuinuiCAD.toggleCanvasPointNames",
+      "nuinuiCAD.toggleCanvasGeometryNames",
       "nuinuiCAD.toggleCanvasElementNames",
       "nuinuiCAD.toggleCanvasPoints"
     ]) {
@@ -648,6 +650,8 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "clearCanvasSelection" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "resetCanvasView" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "fitDrawing" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPointNames" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasGeometryNames" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasElementNames" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPoints" });
   });

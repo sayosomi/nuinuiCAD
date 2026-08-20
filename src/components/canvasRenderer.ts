@@ -14,6 +14,7 @@ import {
   type CanvasTheme
 } from "./canvasTheme";
 import type { CanvasOverlayImage } from "./DrawingCanvasTypes";
+import { CANVAS_BASE_DRAW_ORDER } from "./canvasDrawOrder";
 import { imageAssetForSource } from "./imageAssetCache";
 import type { ViewportSize } from "./canvasViewport";
 import {
@@ -240,7 +241,7 @@ export const renderCanvasGeometry = ({
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  for (const item of images) {
+  const drawImages = () => { for (const item of images) {
     if (!visibleElementIds.has(item.image.elementId)) continue;
     const isSelected = selectedElementIdSet.has(item.image.elementId);
     const isPrimarySelected = item.image.elementId === selectedElementId;
@@ -277,9 +278,9 @@ export const renderCanvasGeometry = ({
       ctx.stroke();
       ctx.setLineDash([]);
     }
-  }
+  }};
 
-  for (const line of lines) {
+  const drawLines = () => { for (const line of lines) {
     if (!visibleElementIds.has(line.elementId)) continue;
     const isSelected = selectedElementIdSet.has(line.elementId);
     const isPrimarySelected = line.elementId === selectedElementId;
@@ -301,9 +302,9 @@ export const renderCanvasGeometry = ({
       canvasTheme
     });
     ctx.stroke();
-  }
+  }};
 
-  for (const arc of arcs) {
+  const drawArcs = () => { for (const arc of arcs) {
     if (!visibleElementIds.has(arc.elementId)) continue;
     const isSelected = selectedElementIdSet.has(arc.elementId);
     const isPrimarySelected = arc.elementId === selectedElementId;
@@ -331,9 +332,9 @@ export const renderCanvasGeometry = ({
       canvasTheme
     });
     ctx.stroke();
-  }
+  }};
 
-  for (const curve of curves) {
+  const drawCurves = () => { for (const curve of curves) {
     if (!visibleElementIds.has(curve.elementId)) continue;
     const isSelected = selectedElementIdSet.has(curve.elementId);
     const isPrimarySelected = curve.elementId === selectedElementId;
@@ -359,9 +360,9 @@ export const renderCanvasGeometry = ({
       canvasTheme
     });
     ctx.stroke();
-  }
+  }};
 
-  for (const line of offsetLines) {
+  const drawOffsetLines = () => { for (const line of offsetLines) {
     if (!visibleElementIds.has(line.elementId)) continue;
     const isSelected = selectedElementIdSet.has(line.elementId);
     const isPrimarySelected = line.elementId === selectedElementId;
@@ -404,9 +405,9 @@ export const renderCanvasGeometry = ({
       canvasTheme
     });
     ctx.stroke();
-  }
+  }};
 
-  for (const point of points) {
+  const drawPoints = () => { for (const point of points) {
     if (!visibleElementIds.has(point.elementId)) continue;
     const isSelected = selectedElementIdSet.has(point.elementId);
     const isPrimarySelected = point.elementId === selectedElementId;
@@ -460,5 +461,15 @@ export const renderCanvasGeometry = ({
     ctx.setLineDash(pointStroke ? drawingModifierDash(pointStroke.style) : []);
     ctx.fill();
     ctx.stroke();
+  }};
+
+  for (const kind of CANVAS_BASE_DRAW_ORDER) {
+    if (kind === "image") drawImages();
+    else if (kind === "line") drawLines();
+    else if (kind === "arcLine") drawArcs();
+    else if (kind === "bezierCurve") drawCurves();
+    else if (kind === "offsetLine") drawOffsetLines();
+    else if (kind === "text") continue;
+    else drawPoints();
   }
 };

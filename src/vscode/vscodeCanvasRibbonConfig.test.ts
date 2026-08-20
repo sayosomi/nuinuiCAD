@@ -139,18 +139,42 @@ describe("VS Code Canvas Ribbon configuration", () => {
     expect(normalized[0]?.items[1]).not.toHaveProperty("label");
   });
 
+  it("migrates the retired Element Names command in saved Ribbons", () => {
+    const normalized = normalizeVscodeCanvasRibbons([{
+      id: "legacy-labels",
+      items: [{
+        id: "toggleCanvasElementNames",
+        type: "command",
+        commandId: "toggleCanvasElementNames",
+        icon: "tags",
+        showLabel: false
+      }]
+    }]);
+
+    expect(normalized[0]?.items[0]).toMatchObject({
+      id: "toggleCanvasPointNames",
+      commandId: "toggleCanvasPointNames"
+    });
+  });
+
   it("keeps the closed Ribbon command catalog separate from shared CommandId", () => {
     expect(vscodeCanvasRibbonCommandIds).toEqual([
       "clearCanvasSelection",
       "resetCanvasView",
       "fitDrawing",
-      "toggleCanvasElementNames",
+      "toggleCanvasPointNames",
+      "toggleCanvasGeometryNames",
       "toggleCanvasPoints",
       "editCanvasRibbon"
     ]);
     expect(Object.keys(vscodeCanvasRibbonCommandCatalog)).toEqual(vscodeCanvasRibbonCommandIds);
     expect(vscodeCanvasRibbonCommandFor("workbench.action.files.openFile")).toBeNull();
     expect(vscodeCanvasRibbonCommandFor("editCanvasRibbon")?.hostAction).toBe("editCanvasRibbon");
+  });
+
+  it("uses the exact shared English labels for Canvas identity commands", () => {
+    expect(vscodeCanvasRibbonCommandFor("toggleCanvasPointNames")?.label).toBe("Toggle Point Names");
+    expect(vscodeCanvasRibbonCommandFor("toggleCanvasGeometryNames")?.label).toBe("Toggle Geometry Names");
   });
 
   it("resolves known Lucide names and uses a deterministic fallback", () => {

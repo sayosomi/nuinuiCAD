@@ -1,5 +1,6 @@
 import {
   elementIdByOffset,
+  selectionRangeIds,
   toggleSelectionIds
 } from "../model/documentSelection";
 import { moveElementsToInsertionIndex as moveDocumentElementsToInsertionIndex } from "../model/documentOrder";
@@ -24,7 +25,7 @@ import {
 } from "../model/groups";
 import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import { isValidPaletteColorId } from "../palette/palette";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadDocumentStore, type SelectionSnapshot } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
@@ -133,6 +134,8 @@ const clearTransientSelectionUi = () => {
   useCadUiStore.getState().clearPickMode();
 };
 
+export type CanvasSelectionMode = "replace" | "toggle" | "range";
+
 const mutateCanvasSelection = (recordHistory: boolean, mutate: () => void) => {
   const before = {
     selectedElementId: useCadUiStore.getState().selectedElementId,
@@ -141,6 +144,73 @@ const mutateCanvasSelection = (recordHistory: boolean, mutate: () => void) => {
   };
   mutate();
   if (recordHistory) useCadDocumentStore.getState().recordCanvasSelection(before);
+};
+
+/** Snapshot used by ephemeral Canvas candidate sessions before their first preview. */
+export const canvasSelectionSnapshot = (): SelectionSnapshot => {
+  const state = useCadUiStore.getState();
+  return {
+    selectedElementId: state.selectedElementId,
+    selectedElementIds: [...state.selectedElementIds],
+    selectionAnchorElementId: state.selectionAnchorElementId
+  };
+};
+
+export const canvasSelectionForElement = (
+  elements: readonly CadElement[],
+  selectionBefore: SelectionSnapshot,
+  elementId: ElementId,
+  selectionMode: CanvasSelectionMode
+): SelectionSnapshot | null => {
+  if (!elements.some((element) => element.id === elementId)) return null;
+
+  if (selectionMode === "replace") {
+    return {
+      selectedElementId: elementId,
+      selectedElementIds: [elementId],
+      selectionAnchorElementId: elementId
+    };
+  }
+
+  if (selectionMode === "toggle") {
+    const selection = toggleSelectionIds([...elements], selectionBefore.selectedElementIds, elementId);
+    if (!selection) return null;
+    return {
+      selectedElementId: selection.selectedElementId,
+      selectedElementIds: selection.selectedElementIds,
+      selectionAnchorElementId: selection.selectedElementId
+    };
+  }
+
+  const anchorId = selectionBefore.selectionAnchorElementId ?? elementId;
+  const selectedElementIds = selectionRangeIds([...elements], anchorId, elementId);
+  if (selectedElementIds.length === 0) return null;
+  return {
+    selectedElementId: elementId,
+    selectedElementIds,
+    selectionAnchorElementId: anchorId
+  };
+};
+
+/**
+ * Applies one overlap candidate from the session baseline through the normal
+ * selection command semantics, without creating a history entry.
+ */
+export const previewCanvasSelection = (
+  previousSelection: SelectionSnapshot,
+  elementId: ElementId,
+  selectionMode: CanvasSelectionMode = "replace"
+) => {
+  const elements = useCadDocumentStore.getState().elements;
+  const selection = canvasSelectionForElement(elements, previousSelection, elementId, selectionMode);
+  if (!selection) return;
+  useCadUiStore.getState().applySelection(elements, selection);
+  clearTransientSelectionUi();
+};
+
+/** Commits exactly one ephemeral candidate-session transition to the shared history owner. */
+export const finalizeCanvasSelectionSession = (previousSelection: SelectionSnapshot) => {
+  useCadDocumentStore.getState().recordCanvasSelection(previousSelection);
 };
 
 /** Replace Canvas selection in document order through the shared history owner. */
@@ -211,34 +281,15 @@ export const extendSelectionByOffset = (offset: number, recordHistory = false) =
 
 export const selectElement = (
   elementId: ElementId,
-  selectionMode: CommandContext["selectionMode"] = "replace",
+  selectionMode: CanvasSelectionMode = "replace",
   recordHistory = false
 ) => {
   const { elements } = useCadDocumentStore.getState();
-  const { selectedElementIds, selectionAnchorElementId } = useCadUiStore.getState();
-  const element = elements.find((item) => item.id === elementId);
-  if (!element) return;
-
-  if (selectionMode === "range") {
-    mutateCanvasSelection(recordHistory, () =>
-      useCadUiStore.getState().setSelectedElementRange(selectionAnchorElementId ?? elementId, elementId)
-    );
-    clearTransientSelectionUi();
-    return;
-  }
-
-  if (selectionMode === "toggle") {
-    const selection = toggleSelectionIds(elements, selectedElementIds, elementId);
-    if (!selection) return;
-    mutateCanvasSelection(recordHistory, () => useCadUiStore.getState().setSelectedElementIds(
-      selection.selectedElementIds,
-      selection.selectedElementId
-    ));
-    clearTransientSelectionUi();
-    return;
-  }
-
-  mutateCanvasSelection(recordHistory, () => useCadUiStore.getState().setSelectedElementId(elementId));
+  const previousSelection = canvasSelectionSnapshot();
+  const selection = canvasSelectionForElement(elements, previousSelection, elementId, selectionMode);
+  if (!selection) return;
+  useCadUiStore.getState().applySelection(elements, selection);
+  if (recordHistory) useCadDocumentStore.getState().recordCanvasSelection(previousSelection);
   clearTransientSelectionUi();
 };
 

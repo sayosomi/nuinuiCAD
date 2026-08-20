@@ -9,6 +9,7 @@ import type {
   BezierHandleOverlay,
   CanvasOverlayArc,
   CanvasOverlayCurve,
+  CanvasIdentityCandidate,
   CanvasOverlayLine,
   CanvasOverlayOffsetLine,
   CanvasOverlayPoint,
@@ -24,6 +25,7 @@ type CanvasOverlayProps = {
   overlayOffsetLines: CanvasOverlayOffsetLine[];
   overlayPoints: CanvasOverlayPoint[];
   overlayTexts: CanvasOverlayText[];
+  overlayIdentityCandidates?: CanvasIdentityCandidate[];
   selectedBezierEditingHelper: BezierEditingHelperOverlay | null;
   selectedBezierHandles: BezierHandleOverlay[];
   overlayPointPickCandidates: PointPickCandidate[];
@@ -34,11 +36,14 @@ type CanvasOverlayProps = {
   selectedElementId: ElementId | null;
   canvasTheme: CanvasTheme;
   elementColors: Map<ElementId, string>;
-  showCanvasElementNames: boolean;
+  showCanvasPointNames: boolean;
+  showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
+  hoveredElementIds: ReadonlySet<ElementId>;
+  hoverRepresentativeElementId: ElementId | null;
 };
 
 export const CanvasOverlay = ({
@@ -49,6 +54,7 @@ export const CanvasOverlay = ({
   overlayOffsetLines,
   overlayPoints,
   overlayTexts,
+  overlayIdentityCandidates = [],
   selectedBezierEditingHelper,
   selectedBezierHandles,
   overlayPointPickCandidates,
@@ -58,11 +64,14 @@ export const CanvasOverlay = ({
   selectedElementId,
   canvasTheme,
   elementColors,
-  showCanvasElementNames,
+  showCanvasPointNames,
+  showCanvasGeometryNames,
   showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
-  isLinePickActive
+  isLinePickActive,
+  hoveredElementIds,
+  hoverRepresentativeElementId
 }: CanvasOverlayProps) => {
   const lineOverlayClass = (elementId: ElementId) =>
     [
@@ -87,6 +96,17 @@ export const CanvasOverlay = ({
     "data-line-pick-candidate":
       isLinePickActive && pickCandidateLineIds.has(elementId) ? "true" : undefined
   });
+  const pointNamesEnabled = showCanvasPointNames;
+  const geometryNamesEnabled = showCanvasGeometryNames;
+  const identityCandidatesById = new Map<ElementId, CanvasIdentityCandidate>();
+  for (const candidate of overlayIdentityCandidates) {
+    if (!candidate.name || !candidate.name.trim() || identityCandidatesById.has(candidate.elementId)) continue;
+    const persistent = candidate.kind === "point" ? pointNamesEnabled : geometryNamesEnabled;
+    const isPrimarySelected = candidate.elementId === selectedElementId;
+    if (persistent || isPrimarySelected || candidate.elementId === hoverRepresentativeElementId) {
+      identityCandidatesById.set(candidate.elementId, candidate);
+    }
+  }
 
   return (
   <svg
@@ -209,14 +229,26 @@ export const CanvasOverlay = ({
               />
             </>
           ) : null}
-          {showCanvasElementNames ? (
-            <text className="overlay-element-name" x={screen.x + 8} y={screen.y - 8}>
-              {point.name}
-            </text>
-          ) : null}
         </g>
       );
     })}
+    {[...identityCandidatesById.values()].map((candidate) => (
+      <text
+        key={`identity-${candidate.elementId}`}
+        className={[
+          "overlay-element-identity",
+          candidate.elementId === selectedElementId ? "overlay-element-identity-primary-selected" : "",
+          hoveredElementIds.has(candidate.elementId) ? "overlay-element-identity-hovered" : ""
+        ].filter(Boolean).join(" ")}
+        data-element-identity={candidate.elementId}
+        x={candidate.representativeScreen.x + 8}
+        y={candidate.representativeScreen.y - 8}
+        fill="var(--canvas-foreground)"
+        style={{ fontSize: 12, pointerEvents: "none" }}
+      >
+        {candidate.name}
+      </text>
+    ))}
     {isPointPickActive
       ? overlayPointPickCandidates.map((candidate, index) => (
           <circle

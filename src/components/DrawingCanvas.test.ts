@@ -141,7 +141,8 @@ const resetStore = () => {
     elementSearchQuery: "",
     elementSearchCursorId: null,
     elementSearchPickableOnly: false,
-    showCanvasElementNames: true,
+    showCanvasPointNames: true,
+    showCanvasGeometryNames: false,
     showCanvasPoints: true,
     showShortcutHelp: false,
     showShortcutSettings: false,
@@ -221,7 +222,8 @@ const createFakeCanvasHostAdapter = (
     selectedElementId: useCadStore.getState().selectedElementId,
     selectedElementIds: useCadStore.getState().selectedElementIds,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-    showCanvasElementNames: true,
+    showCanvasPointNames: true,
+    showCanvasGeometryNames: false,
     showCanvasPoints: true,
     showPrintPreviewWindow: false,
     activePointPickTarget: null,
@@ -241,6 +243,13 @@ const createFakeCanvasHostAdapter = (
     panCanvasViewport: vi.fn(),
     zoomCanvasViewportAt: vi.fn(),
     selectElement: vi.fn(),
+    getCanvasSelectionSnapshot: () => ({
+      selectedElementId: useCadUiStore.getState().selectedElementId,
+      selectedElementIds: [...useCadUiStore.getState().selectedElementIds],
+      selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId
+    }),
+    previewCanvasSelection: vi.fn(),
+    finalizeCanvasSelectionSession: vi.fn(),
     movePointElementByDelta: vi.fn(),
     moveBezierHandleByDelta: vi.fn(),
     clearCanvasSelection: vi.fn(),
@@ -248,7 +257,8 @@ const createFakeCanvasHostAdapter = (
     applyNumericExpressionReference: vi.fn(),
     applyPickedLine: vi.fn(),
     applyPickedPoint: vi.fn(),
-    toggleCanvasElementNames: vi.fn(),
+    toggleCanvasPointNames: vi.fn(),
+    toggleCanvasGeometryNames: vi.fn(),
     toggleCanvasPoints: vi.fn(),
     togglePrintPreviewWindow: vi.fn(),
     resolveImageSourceUrl: (sourcePath) => sourcePath,
@@ -358,6 +368,128 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("opens an overlap candidate session for a short multi-hit point click and commits one final selection transition", () => {
+    const previewCanvasSelection = vi.fn();
+    const finalizeCanvasSelectionSession = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      previewCanvasSelection,
+      finalizeCanvasSelectionSession
+    });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    expect(viewport.querySelector('[role="listbox"]')).toBeInTheDocument();
+    expect(viewport.querySelectorAll('[role="option"]')).toHaveLength(3);
+    expect(viewport.querySelector('[role="listbox"]')).toHaveStyle({ left: "8px", top: "8px" });
+    expect(previewCanvasSelection).toHaveBeenCalled();
+
+    const arrowDown = new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true });
+    const arrowPreventDefault = vi.spyOn(arrowDown, "preventDefault");
+    const arrowStopPropagation = vi.spyOn(arrowDown, "stopPropagation");
+    viewport.dispatchEvent(arrowDown);
+    expect(arrowPreventDefault).toHaveBeenCalled();
+    expect(arrowStopPropagation).toHaveBeenCalled();
+    expect(previewCanvasSelection.mock.calls.at(-1)?.[1]).toBe("curve-ac");
+    fireEvent.keyDown(viewport, { key: "Enter" });
+    expect(finalizeCanvasSelectionSession).toHaveBeenCalledTimes(1);
+    expect(viewport.querySelector('[role="listbox"]')).toBeNull();
+  });
+
+  it("cycles overlap candidates by wheel remainder without reversing direction", () => {
+    const previewCanvasSelection = vi.fn();
+    const { viewport } = renderWithHostAdapter({ previewCanvasSelection });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    const previewCount = previewCanvasSelection.mock.calls.length;
+
+    fireEvent.wheel(viewport, { deltaY: 20, deltaMode: 0, clientX: 300, clientY: 250 });
+    fireEvent.wheel(viewport, { deltaY: -1, deltaMode: 0, clientX: 300, clientY: 250 });
+    expect(previewCanvasSelection).toHaveBeenCalledTimes(previewCount);
+
+    fireEvent.wheel(viewport, { deltaY: -24, deltaMode: 0, clientX: 300, clientY: 250 });
+    expect(previewCanvasSelection).toHaveBeenCalledTimes(previewCount + 1);
+    expect(previewCanvasSelection.mock.calls.at(-1)?.[1]).toBe("line-ab");
+  });
+
+  it("shows one named hover behind an unnamed front hit without opening a popup", async () => {
+    const elements: CadElement[] = [
+      { id: "unnamed-point", name: "", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      {
+        id: "named-line",
+        name: "Named line",
+        type: "line",
+        activity: "visible",
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 100, y: 0 }
+      }
+    ];
+    const { container, viewport } = renderWithHostAdapter({
+      elements,
+      canonicalElements: elements,
+      selectedElementId: null,
+      selectedElementIds: []
+    });
+
+    fireEvent.pointerMove(viewport, { buttons: 0, clientX: 250, clientY: 200, pointerId: 1 });
+
+    await waitFor(() => expect(container.querySelector("[data-element-identity='named-line']")).toBeInTheDocument());
+    expect(container.querySelector(".canvas-hover-identity-candidate-menu")).toBeNull();
+    expect(container.querySelector("[data-element-identity='unnamed-point']")).toBeNull();
+  });
+
+  it("shows a passive front-to-back popup for multiple named hover hits and emphasizes persistent labels", async () => {
+    const { container, viewport } = renderWithHostAdapter();
+
+    fireEvent.pointerMove(viewport, { buttons: 0, clientX: 300, clientY: 250, pointerId: 1 });
+
+    await waitFor(() => expect(container.querySelector(".canvas-hover-identity-candidate-menu")).toBeInTheDocument());
+    expect(container.querySelectorAll(".canvas-hover-identity-candidate-menu [role='option']")).toHaveLength(2);
+    expect(container.querySelector("[data-element-identity='point-a']")).toHaveClass(
+      "overlay-element-identity-hovered"
+    );
+    expect(container.querySelector(".canvas-hover-identity-candidate-menu")).toHaveClass(
+      "canvas-hover-identity-candidate-menu"
+    );
+  });
+
+  it("suppresses hover identity while point picking is active", async () => {
+    const { container, viewport } = renderWithHostAdapter({
+      activePointPickTarget: { elementId: "line-ab", parameterKey: "startPoint" }
+    });
+
+    fireEvent.pointerMove(viewport, { buttons: 0, clientX: 300, clientY: 250, pointerId: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(container.querySelector("[data-element-identity='point-a']")).not.toHaveClass(
+      "overlay-element-identity-hovered"
+    );
+    expect(container.querySelector(".canvas-hover-identity-candidate-menu")).toBeNull();
+  });
+
   it.each([
     ["no modifier", {}],
     ["Meta", { metaKey: true }],
@@ -625,10 +757,10 @@ describe("DrawingCanvas rendering", () => {
 
     expect(container.querySelector("text")?.textContent).toBe("点A");
 
-    fireEvent.click(getByRole("button", { name: "要素名" }));
+    fireEvent.click(getByRole("button", { name: "点名" }));
 
-    expect(container.querySelector("text")).toBeNull();
-    expect(useCadStore.getState().showCanvasElementNames).toBe(false);
+    expect(container.querySelectorAll("[data-element-identity]")).toHaveLength(1);
+    expect(useCadStore.getState().showCanvasPointNames).toBe(false);
   });
 
   it("uses the semantic Canvas selection color for selected line overlays", () => {

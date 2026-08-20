@@ -24,16 +24,25 @@ import {
 } from "../model/pickCandidates";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
 import {
+  averageScreenPoints,
   sampleArcLineScreenPoints,
   sampleBezierCurveScreenPoints,
-  sampleOffsetLineScreenPoints
+  sampleOffsetLineScreenPoints,
+  screenSpaceCumulativeLengthMidpoint,
+  textHitBounds
 } from "./DrawingCanvasHitTest";
 import { type ViewportSize, worldToScreen } from "./canvasViewport";
 import type {
   BezierEditingHelperOverlay,
   BezierHandleOverlay,
+  CanvasIdentityCandidate,
   CanvasOverlayData
 } from "./DrawingCanvasTypes";
+
+const normalizedIdentityName = (name: string | null | undefined): string | null => {
+  const trimmed = name?.trim();
+  return trimmed ? trimmed : null;
+};
 
 const isPoint = (geometry: unknown): geometry is ComputedPoint =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "point";
@@ -201,6 +210,59 @@ export const useCanvasOverlayData = ({
         })),
     [canvasViewport, texts, viewportSize, visibleElementIds]
   );
+  const overlayIdentityCandidates = useMemo<CanvasIdentityCandidate[]>(
+    () => [
+      ...overlayImages.map(({ image, corners }) => ({
+        elementId: image.elementId,
+        name: normalizedIdentityName(image.name),
+        kind: "image" as const,
+        representativeScreen: averageScreenPoints(corners)
+      })),
+      ...overlayLines.map(({ line, start, end }) => ({
+        elementId: line.elementId,
+        name: normalizedIdentityName(line.name),
+        kind: "line" as const,
+        representativeScreen: screenSpaceCumulativeLengthMidpoint([start, end], start)
+      })),
+      ...overlayArcs.map(({ arc, points, start }) => ({
+        elementId: arc.elementId,
+        name: normalizedIdentityName(arc.name),
+        kind: "arcLine" as const,
+        representativeScreen: screenSpaceCumulativeLengthMidpoint(points, start)
+      })),
+      ...overlayCurves.map(({ curve, points }) => ({
+        elementId: curve.elementId,
+        name: normalizedIdentityName(curve.name),
+        kind: "bezierCurve" as const,
+        representativeScreen: screenSpaceCumulativeLengthMidpoint(points, points[0])
+      })),
+      ...overlayOffsetLines.map(({ line, points }) => ({
+        elementId: line.elementId,
+        name: normalizedIdentityName(line.name),
+        kind: "offsetLine" as const,
+        representativeScreen: screenSpaceCumulativeLengthMidpoint(points, points[0])
+      })),
+      ...overlayTexts.map(({ text, screen, fontSizePx }) => {
+        const bounds = textHitBounds({ text: text.text, screen, fontSizePx });
+        return {
+          elementId: text.elementId,
+          name: normalizedIdentityName(text.name),
+          kind: "text" as const,
+          representativeScreen: {
+            x: bounds.left + bounds.width / 2,
+            y: bounds.top + bounds.height / 2
+          }
+        };
+      }),
+      ...overlayPoints.map(({ point, screen }) => ({
+        elementId: point.elementId,
+        name: normalizedIdentityName(point.name),
+        kind: "point" as const,
+        representativeScreen: screen
+      }))
+    ],
+    [overlayArcs, overlayCurves, overlayImages, overlayLines, overlayOffsetLines, overlayPoints, overlayTexts]
+  );
   const overlayPointPickCandidates = useMemo(() => {
     const elementsById = new Map(elements.map((element) => [element.id, element]));
     const acceptedPickRefs = new Set(pointPickCandidates.flatMap((candidate) =>
@@ -358,6 +420,7 @@ export const useCanvasOverlayData = ({
     overlayOffsetLines,
     overlayImages,
     overlayTexts,
+    overlayIdentityCandidates,
     selectedBezierEditingHelper,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,

@@ -24,10 +24,10 @@ const ribbonFor = (orientation: "horizontal" | "vertical"): CommandRibbonPresent
     {
       id: "names",
       type: "command",
-      commandId: "toggleCanvasElementNames",
+      commandId: "toggleCanvasPointNames",
       icon: "circle",
-      label: "Names",
-      description: "Toggle element names.",
+      label: "Toggle Point Names",
+      description: "Show or hide Canvas point names.",
       showLabel: true,
       available: true,
       pressed: true
@@ -105,8 +105,8 @@ describe("CommandRibbonView", () => {
     );
     const ribbon = screenView.container.querySelector(".command-ribbon");
     expect(ribbon).toHaveClass("is-vertical");
-    expect(screen.getByRole("button", { name: "Names" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Names" }).querySelector("svg")?.getAttribute("style"))
+    expect(screen.getByRole("button", { name: "Toggle Point Names" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Toggle Point Names" }).querySelector("svg")?.getAttribute("style"))
       .toMatch(/color:\s*currentcolor/i);
     const status = screen.getByRole("status", {
       name: "Canvas status: ZOOM: 123%, X: —, Y: —"
@@ -115,11 +115,13 @@ describe("CommandRibbonView", () => {
     expect(status).not.toBeInstanceOf(HTMLButtonElement);
     expect(status).toHaveTextContent("ZOOM123%X—Y—");
 
-    const names = screen.getByRole("button", { name: "Names" });
+    const names = screen.getByRole("button", { name: "Toggle Point Names" });
     const describedBy = names.getAttribute("aria-describedby");
     expect(describedBy).toBeTruthy();
-    expect(document.getElementById(describedBy!)).toHaveTextContent("Names: Toggle element names.");
-    expect(names.querySelector(".command-ribbon-button > span")).toHaveTextContent("Names");
+    expect(document.getElementById(describedBy!)).toHaveTextContent(
+      "Toggle Point Names: Show or hide Canvas point names."
+    );
+    expect(names.querySelector(".command-ribbon-button > span")).toHaveTextContent("Toggle Point Names");
     fireEvent.focus(names);
     expect(document.getElementById(describedBy!)).toBeInTheDocument();
   });
@@ -165,7 +167,7 @@ describe("CommandRibbonView", () => {
     const boundary = boundaryRef.current!;
     vi.spyOn(boundary, "getBoundingClientRect").mockReturnValue(domRectFor(20, 10, 320, 200));
 
-    const names = screen.getByRole("button", { name: "Names" });
+    const names = screen.getByRole("button", { name: "Toggle Point Names" });
     const unavailable = screen.getByRole("button", { name: "Unavailable" });
     const namesTooltip = document.getElementById(names.getAttribute("aria-describedby")!);
     const unavailableTooltip = document.getElementById(unavailable.getAttribute("aria-describedby")!);

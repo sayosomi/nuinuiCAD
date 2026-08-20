@@ -3930,8 +3930,22 @@ textarea {
   stroke-width: 3px;
 }
 
-.drawing-overlay .overlay-element-name {
+.drawing-overlay .overlay-element-name,
+.drawing-overlay .overlay-element-identity {
   font-size: 12px;
+  pointer-events: none;
+}
+
+.drawing-overlay .overlay-element-identity {
+  fill: var(--canvas-foreground);
+}
+
+.drawing-overlay .overlay-element-identity-primary-selected {
+  fill: var(--canvas-selection);
+}
+
+.drawing-overlay .overlay-element-identity-hovered {
+  fill: var(--canvas-accent);
 }
 
 .drawing-overlay .overlay-selected-line {
@@ -4394,7 +4408,9 @@ textarea {
 
 .measurement-candidate-menu,
 .line-pick-candidate-menu,
-.numeric-reference-candidate-menu {
+.numeric-reference-candidate-menu,
+.canvas-overlap-candidate-menu,
+.canvas-hover-identity-candidate-menu {
   position: absolute;
   z-index: 5;
   display: grid;
@@ -4403,7 +4419,6 @@ textarea {
   border-radius: 6px;
   background: #ffffff;
   box-shadow: 0 10px 28px rgb(37 38 34 / 18%);
-  transform: translate(8px, 8px);
 }
 
 .measurement-candidate-menu,
@@ -4415,6 +4430,19 @@ textarea {
   min-width: 230px;
 }
 
+.canvas-overlap-candidate-menu,
+.canvas-hover-identity-candidate-menu {
+  min-width: 150px;
+}
+
+.canvas-overlap-candidate-menu {
+  box-sizing: border-box;
+  max-height: min(420px, calc(100vh - 16px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .measurement-candidate-menu button,
 .line-pick-candidate-menu button,
 .numeric-reference-candidate-menu button {
@@ -4424,6 +4452,57 @@ textarea {
   background: transparent;
   padding: 8px 10px;
   text-align: left;
+}
+
+.canvas-overlap-candidate-menu button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 10px;
+  color: var(--canvas-foreground);
+  text-align: left;
+}
+
+.canvas-overlap-candidate-menu button small {
+  color: var(--canvas-muted);
+  font-size: 11px;
+}
+
+.canvas-overlap-candidate-menu button:hover,
+.canvas-overlap-candidate-menu button:focus-visible {
+  background: color-mix(in srgb, var(--canvas-accent) 10%, var(--canvas-background));
+}
+
+.canvas-overlap-candidate-menu button.is-active {
+  background: color-mix(in srgb, var(--canvas-accent) 18%, var(--canvas-background));
+  box-shadow: inset 3px 0 0 var(--canvas-accent);
+}
+
+.canvas-overlap-candidate-menu button.is-active small {
+  color: var(--canvas-foreground);
+}
+
+.canvas-hover-identity-candidate-menu {
+  pointer-events: none;
+  padding: 6px 0;
+  color: var(--canvas-foreground);
+  background: var(--canvas-background);
+}
+
+.canvas-hover-identity-candidate-menu [role="option"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 5px 10px;
+}
+
+.canvas-hover-identity-candidate-menu small {
+  color: var(--canvas-muted);
+  font-size: 11px;
 }
 
 .numeric-reference-candidate-menu button {

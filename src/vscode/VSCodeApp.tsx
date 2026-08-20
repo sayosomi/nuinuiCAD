@@ -10,6 +10,7 @@ import {
 } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
+import type { DrawingCanvasHandle } from "../components/DrawingCanvas";
 import { dispatchCommand } from "../commands/commands";
 import { VSCodeBenchmarkCaptureRunner } from "./VSCodeBenchmarkCaptureRunner";
 import { VscodeRustTransport } from "./vscodeRustTransport";
@@ -57,6 +58,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const canvasHistoryInFlightRef = useRef<CanvasHistoryDirection | null>(null);
   const pendingCanvasHistoryRef = useRef<CanvasHistoryDirection[]>([]);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
+  const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
   const measureCanvasTextWidth = useMemo(
     () => createCanvasTextWidthMeasurer(() =>
       document.querySelector<HTMLElement>('[data-canvas-viewport="true"]')
@@ -107,6 +109,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [api]);
 
   const requestCanvasHistory = useCallback((direction: CanvasHistoryDirection) => {
+    drawingCanvasRef.current?.finalizeCanvasInteraction();
     pendingCanvasHistoryRef.current.push(direction);
     pumpCanvasHistory();
   }, [pumpCanvasHistory]);
@@ -195,6 +198,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
           measureCanvasTextWidth,
           recordSelectionHistory: true,
+          finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
           canvasHistory: requestCanvasHistory
         });
         if (typeof result === "object" && result !== null && "status" in result && result.status === "applied") {
@@ -341,6 +345,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
           measureCanvasTextWidth,
           recordSelectionHistory: true,
+          finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
           canvasHistory: requestCanvasHistory
         });
       } else if (message.type === "bakeSourceRequest") {
@@ -433,6 +438,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "ready" });
       } else if (message.type === "focusCanvas") {
         if (latestCanvasNavigationRequestRef.current !== message.requestId) return;
+        drawingCanvasRef.current?.finalizeCanvasInteraction();
         canvasFocusRef.current?.focus();
         api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "focused" });
       } else if (message.type === "replaceTextDocument") {
@@ -484,6 +490,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   return (
     <main className="canvas-workspace" style={surfaceStyle}>
       <VSCodeDrawingCanvas
+        ref={drawingCanvasRef}
         evaluation={evaluationState.evaluation}
         evaluationState={evaluationState}
         canvasFocusRef={canvasFocusRef}
