@@ -3749,6 +3749,77 @@ textarea {
   height: 100%;
 }
 
+.point-drag-axis-lock-feedback {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+}
+
+.point-drag-axis-lock-guides {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.point-drag-axis-lock-guides line {
+  stroke: var(--canvas-accent);
+  stroke-dasharray: 7 5;
+  stroke-width: 1;
+  opacity: 0.78;
+  vector-effect: non-scaling-stroke;
+}
+
+.point-drag-axis-lock-hint {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 118px;
+  height: 28px;
+  overflow: hidden;
+  border: 1px solid var(--canvas-muted);
+  border-radius: 5px;
+  background: var(--canvas-background);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--canvas-foreground) 22%, transparent);
+  color: var(--canvas-foreground);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.point-drag-axis-lock-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--canvas-muted);
+}
+
+.point-drag-axis-lock-action kbd {
+  border: 1px solid var(--canvas-muted);
+  border-radius: 3px;
+  background: var(--canvas-background);
+  color: var(--canvas-foreground);
+  font: inherit;
+  padding: 2px 3px;
+}
+
+.point-drag-axis-lock-action.is-active {
+  color: var(--canvas-accent);
+  font-weight: 700;
+}
+
+.point-drag-axis-lock-action.is-active kbd {
+  border-color: var(--canvas-accent);
+  background: var(--canvas-accent);
+  color: var(--canvas-background);
+}
+
 .canvas-viewport.is-panning {
   cursor: grabbing;
 }

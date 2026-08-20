@@ -21,6 +21,10 @@ import type {
 import { CanvasCandidateMenus } from "./CanvasCandidateMenus";
 import { CanvasOverlay } from "./CanvasOverlay";
 import {
+  PointDragAxisLockFeedback
+} from "./PointDragAxisLockFeedback";
+import type { PointDragAxisLockFeedbackState } from "./pointDragAxisHintGeometry";
+import {
   hitTestCanvasGeometry,
   hitTestLineCandidates,
   hitTestLineMeasurementCandidates
@@ -137,6 +141,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isPointDragging, setIsPointDragging] = useState(false);
+  const [pointDragFeedback, setPointDragFeedback] = useState<PointDragAxisLockFeedbackState | null>(null);
   const [isBezierHandleDragging, setIsBezierHandleDragging] = useState(false);
   const [measurementCandidateMenu, setMeasurementCandidateMenu] =
     useState<MeasurementCandidateMenu | null>(null);
@@ -407,10 +412,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         event.stopImmediatePropagation();
       }
       if (key === "x" || key === "y") {
-        axisLockKeysRef.current = {
+        const nextAxisLockKeys = {
           ...axisLockKeysRef.current,
           [key]: isPressed
         };
+        axisLockKeysRef.current = nextAxisLockKeys;
+        setPointDragFeedback((feedback) => feedback
+          ? { ...feedback, axisLockKeys: nextAxisLockKeys }
+          : feedback);
       }
       if (key === "r") {
         polarLockKeysRef.current = {
@@ -429,6 +438,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const clearDragLockKeys = () => {
       axisLockKeysRef.current = { x: false, y: false };
       polarLockKeysRef.current = { angle: false, distance: false };
+      setPointDragFeedback((feedback) => feedback
+        ? { ...feedback, axisLockKeys: { x: false, y: false } }
+        : feedback);
     };
 
     const onKeyDown = (event: KeyboardEvent) => setDragLockKey(event, true);
@@ -645,6 +657,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       x: intent.start.clientX - rect.left - viewport.clientLeft,
       y: intent.start.clientY - rect.top - viewport.clientTop
     };
+    const latestScreen = {
+      x: intent.latest.clientX - rect.left - viewport.clientLeft,
+      y: intent.latest.clientY - rect.top - viewport.clientTop
+    };
     const movement = pendingCanvasPointerDistance(intent);
     const beginCapture = () => {
       if (intent.pointerReleased) return;
@@ -793,6 +809,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       zoom: canvasViewport.zoom,
       ...dragBase
     };
+    setPointDragFeedback({
+      origin: screen,
+      cursor: latestScreen,
+      axisLockKeys: { ...axisLockKeysRef.current }
+    });
     setIsPointDragging(true);
   }, [
     activeLinePickTarget,
@@ -943,6 +964,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     });
 
     pointDragRef.current = null;
+    setPointDragFeedback(null);
     setIsPointDragging(false);
   };
 
@@ -1082,6 +1104,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
       claimPointerMoveEntry(pointerMoveEntry, "point");
       event.preventDefault();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const cursor = {
+        x: event.clientX - rect.left - event.currentTarget.clientLeft,
+        y: event.clientY - rect.top - event.currentTarget.clientTop
+      };
+      setPointDragFeedback((feedback) => feedback
+        ? {
+            ...feedback,
+            cursor
+          }
+        : feedback);
       const screenDx = event.clientX - pointDrag.startClientX;
       const screenDy = event.clientY - pointDrag.startClientY;
       const worldDelta = constrainedWorldDelta({
@@ -1104,6 +1137,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       if (isRejectedDocumentMutation(result)) {
         captureLedger.release(event.pointerId);
         pointDragRef.current = null;
+        setPointDragFeedback(null);
         setIsPointDragging(false);
       }
       return;
@@ -1197,6 +1231,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           isNumericReferencePickActive={Boolean(activeNumericReferencePickTarget)}
           isLinePickActive={Boolean(activeLinePickTarget)}
         />
+        {pointDragFeedback ? (
+          <PointDragAxisLockFeedback
+            feedback={pointDragFeedback}
+            viewportSize={viewportSize}
+            canvasTheme={canvasTheme}
+          />
+        ) : null}
         {hostAdapter.renderHostOverlay?.(viewportSize)}
         {renderFixedCanvasChrome ? (
           <div className="canvas-display-controls" aria-label="キャンバス表示設定">
