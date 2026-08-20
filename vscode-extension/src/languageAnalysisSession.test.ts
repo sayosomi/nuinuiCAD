@@ -143,6 +143,59 @@ describe("VS Code document-scoped language analysis session", () => {
     expect(symbols[0]?.range.from).toBe(currentSource.indexOf("point Current"));
   });
 
+  it("keeps document symbols on the exact current revision after repairing and refailing", () => {
+    const initialSource = "nui 4\nconst old: number = 1\n";
+    const firstFatalSource = "nui 4\npoint First = coordinate(";
+    const repairedSource = "nui 4\npoint Repaired = coordinate(x: 0, y: 0)\n";
+    const laterFatalSource = `${repairedSource}group Scratch {\npoint live = coordinate(x: 1, y: 1)\n`;
+    const session = createLanguageAnalysisSession(initialSource);
+
+    session.replaceSource(firstFatalSource);
+    const firstFatalRevision = session.getSourceRevision();
+    const firstFatalSnapshot = session.documentSymbolSyntaxSnapshot(
+      sourceSnapshotFor(firstFatalSource, firstFatalRevision)
+    );
+    expect(firstFatalSnapshot).toMatchObject({
+      sourceText: firstFatalSource,
+      sourceMap: expect.objectContaining({
+        source: firstFatalSource,
+        sourceRevision: firstFatalRevision
+      })
+    });
+    expect(firstFatalSnapshot?.statements ?? []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "old" })])
+    );
+
+    session.replaceSource(repairedSource);
+    session.replaceSource(laterFatalSource);
+
+    const currentSourceRevision = session.getSourceRevision();
+    const snapshot = session.documentSymbolSyntaxSnapshot(
+      sourceSnapshotFor(laterFatalSource, currentSourceRevision)
+    );
+
+    expect(snapshot).toBeDefined();
+    expect(currentSourceRevision).toBe(snapshot?.sourceMap.sourceRevision);
+    expect(snapshot?.sourceMap.source).toBe(laterFatalSource);
+    expect(snapshot?.statements ?? []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "old" })])
+    );
+
+    const symbols = snapshot
+      ? queryDslDocumentSymbols({
+          source: sourceSnapshotFor(laterFatalSource, currentSourceRevision),
+          statements: snapshot.statements,
+          sourceMap: snapshot.sourceMap
+        })
+      : [];
+    expect(symbols).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: "Scratch",
+        children: expect.arrayContaining([expect.objectContaining({ name: "live" })])
+      })
+    ]));
+  });
+
   it("normalizes CRLF source for the document symbol snapshot", () => {
     const rawSource = validSource.replace(/\n/g, "\r\n");
     const session = createLanguageAnalysisSession(rawSource);

@@ -59,12 +59,8 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
   const document = AutomationDocument.fromSource(sourceText);
   let diagnostics = compilerDiagnosticsForState(document.getSource(), document.getState());
 
-  const currentSourceRevision = (): number => {
-    const state = document.getState();
-    return state.status === "fatal"
-      ? state.revision + 1
-      : state.doc.statementMap?.sourceRevision ?? state.revision;
-  };
+  const currentSourceRevision = (): number =>
+    document.getState().currentCompiled.spans.sourceMap.sourceRevision;
 
   const semanticSnapshotFor = (
     source: SourceSnapshot
