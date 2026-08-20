@@ -172,6 +172,7 @@ const targetForRuntimeElement = (
   const owner = sourceOwnerForTarget(compiled, runtimeElementId);
   if (!owner) return null;
   const element = elementsById.get(runtimeElementId);
+  if (!element || elementTypesWithoutOwnDrawableGeometry.has(element.type)) return null;
   const sourceOwner = owner.kind === "moduleBody" ? rootInstanceOwner(compiled, runtimeElementId) : owner;
   if (!sourceOwner) return null;
   const snapshot = compiled.moduleMaterialization?.instanceBaseGeometrySnapshots.find(
@@ -241,6 +242,79 @@ export const resolveSourceBakeTargets = (
     const target = targetForRuntimeElement(compiled, elementsById, id, element.type === "moduleInstance");
     return target ? [target] : [];
   });
+};
+
+const resolveTargetsForInvocation = ({
+  compiled,
+  elements,
+  selectedElementIds,
+  sourceStatementIndex
+}: {
+  compiled: LastGoodDslDocument;
+  elements: readonly CadElement[];
+  selectedElementIds?: readonly ElementId[];
+  sourceStatementIndex?: number;
+}): ResolvedBakeTarget[] | null => sourceStatementIndex === undefined
+  ? resolveCanvasTargets(compiled, elements, selectedElementIds ?? [])
+  : resolveSourceBakeTargets(compiled, elements, sourceStatementIndex);
+
+const bakeTargetsForResolvedTargets = (
+  targets: readonly ResolvedBakeTarget[],
+  elementsById: ReadonlyMap<ElementId, CadElement>
+): ResolvedBakeTarget[] => targets.flatMap((target) => {
+  if (!target.wholeInstance) return [target];
+  return target.runtimeElementIds.flatMap((runtimeElementId) => {
+    const element = elementsById.get(runtimeElementId);
+    if (!element || elementTypesWithoutOwnDrawableGeometry.has(element.type)) return [];
+    return [{
+      ...target,
+      targetId: runtimeElementId,
+      runtimeElementIds: [runtimeElementId],
+      sourceElementId: runtimeElementId,
+      instanceBaseId: target.targetId,
+      sourceLabel: sourceTargetLabel(element),
+      wholeInstance: false
+    }];
+  });
+});
+
+const disabledTargetIdsFor = (
+  targets: readonly ResolvedBakeTarget[],
+  elementsById: ReadonlyMap<ElementId, CadElement>,
+  effectiveActivities: ReadonlyMap<ElementId, ReturnType<typeof effectiveElementActivity>>
+) => targets.flatMap((target) => {
+  const element = elementsById.get(target.targetId);
+  return element && effectiveElementActivity(element, effectiveActivities).activity === "disabled"
+    ? [target.targetId]
+    : [];
+});
+
+/** Resolve only the disabled runtime targets this Bake invocation will attempt. */
+export const resolveDisabledBakeTargetIds = ({
+  compiled,
+  elements,
+  selectedElementIds,
+  sourceStatementIndex
+}: {
+  compiled: LastGoodDslDocument;
+  elements: readonly CadElement[];
+  selectedElementIds?: readonly ElementId[];
+  sourceStatementIndex?: number;
+}): ElementId[] => {
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const targets = resolveTargetsForInvocation({
+    compiled,
+    elements,
+    selectedElementIds,
+    sourceStatementIndex
+  });
+  if (!targets) return [];
+  const effectiveActivities = effectiveElementActivityById(elements, compiled.document.modifiers ?? []);
+  return disabledTargetIdsFor(
+    bakeTargetsForResolvedTargets(targets, elementsById),
+    elementsById,
+    effectiveActivities
+  );
 };
 
 const sourceElementForRuntimeId = (elementsById: ReadonlyMap<ElementId, CadElement>, id: ElementId) =>
@@ -351,10 +425,17 @@ export const planBakeGeometry = ({
   if (!evaluation.evaluatedElementIds || !evaluation.effectiveEnabledElementIds) return null;
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const effectiveActivities = effectiveElementActivityById(elements, compiled.document.modifiers ?? []);
-  const targets = sourceStatementIndex === undefined
-    ? resolveCanvasTargets(compiled, elements, selectedElementIds ?? [])
-    : resolveSourceBakeTargets(compiled, elements, sourceStatementIndex);
+  const targets = resolveTargetsForInvocation({
+    compiled,
+    elements,
+    selectedElementIds,
+    sourceStatementIndex
+  });
   if (!targets || targets.length === 0) return null;
+
+  const bakeTargets = bakeTargetsForResolvedTargets(targets, elementsById);
+  const disabledTargetIds = disabledTargetIdsFor(bakeTargets, elementsById, effectiveActivities);
+  if (includeDisabledGeometry && disabledTargetIds.length > 0 && !bakeDisabledEvaluation) return null;
 
   const linesByInsertion = new Map<number, string[]>();
   const plannedElements: CadElement[] = [...elements];
@@ -363,18 +444,6 @@ export const planBakeGeometry = ({
   let skippedTargetCount = 0;
   let skippedComments = 0;
   const emittedNameState = new Map<string, { nextSuffix: number; usedBaseName: boolean }>();
-
-  const bakeTargets = targets.flatMap((target) => target.wholeInstance
-    ? target.runtimeElementIds.map((runtimeElementId) => ({
-        ...target,
-        targetId: runtimeElementId,
-        runtimeElementIds: [runtimeElementId],
-        sourceElementId: runtimeElementId,
-        instanceBaseId: target.targetId,
-        sourceLabel: sourceTargetLabel(elementsById.get(runtimeElementId)),
-        wholeInstance: false
-      }))
-    : [target]);
 
   for (const target of bakeTargets) {
     const sourceElement = sourceElementForRuntimeId(elementsById, target.targetId);

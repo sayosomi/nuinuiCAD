@@ -3,7 +3,7 @@ import { compileFreshCanonicalText } from "../document/canonicalDocument";
 import { applyLineSplices } from "../document/textPatch";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
-import { planBakeGeometry } from "./bakeGeometry";
+import { planBakeGeometry, resolveDisabledBakeTargetIds } from "./bakeGeometry";
 
 const compile = (source: string) => {
   const result = compileFreshCanonicalText(source);
@@ -330,6 +330,34 @@ describe("Bake geometry", () => {
       emitSkippedComments: false
     });
     expect(withoutComment?.splices).toEqual([]);
+  });
+
+  it("resolves only attempted disabled targets and fails closed without their sandbox", () => {
+    const compiled = compile([
+      "nui 4",
+      "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
+      "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
+    ].join("\n"));
+    const dependency = compiled.doc.document.elements.find((element) => element.name === "Dependency")!;
+    const broken = compiled.doc.document.elements.find((element) => element.name === "Broken")!;
+    expect(resolveDisabledBakeTargetIds({
+      compiled: compiled.doc,
+      elements: compiled.doc.document.elements,
+      selectedElementIds: [broken.id]
+    })).toEqual([broken.id]);
+
+    const normalEvaluation = evaluate(compiled);
+    const plan = planBakeGeometry({
+      mode: "current",
+      elements: compiled.doc.document.elements,
+      evaluation: normalEvaluation,
+      compiled: compiled.doc,
+      selectedElementIds: [broken.id],
+      includeDisabledGeometry: true,
+      emitSkippedComments: true
+    });
+    expect(plan).toBeNull();
+    expect(dependency.id).not.toBe(broken.id);
   });
 
   it("can succeed with skipped comments only, and leaves source unchanged when disabled", () => {

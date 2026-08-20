@@ -9,11 +9,21 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
 
 const drawingCanvasProps = vi.hoisted(() => ({
-  postCanonicalSourceText: null as ((sourceText: string) => void) | null
+  postCanonicalSourceText: null as ((sourceText: string) => void) | null,
+  bakeSandboxTargetIds: null as string[] | null,
+  bakeSandboxPromise: null as Promise<unknown> | null
 }));
 
 vi.mock("../geometry/productionEvaluationContext", () => ({
   buildEvaluationOptions: () => ({})
+}));
+
+vi.mock("../geometry/evaluationEngine", () => ({
+  evaluateElementsWithRust: vi.fn(async (_elements: unknown, options: { allowDisabledElementIds?: ReadonlySet<string> }) => {
+    drawingCanvasProps.bakeSandboxTargetIds = [...(options.allowDisabledElementIds ?? [])];
+    if (drawingCanvasProps.bakeSandboxPromise) return drawingCanvasProps.bakeSandboxPromise;
+    return {};
+  })
 }));
 
 vi.mock("../geometry/useEvaluationEngine", () => ({
@@ -51,6 +61,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     drawingCanvasProps.postCanonicalSourceText = null;
+    drawingCanvasProps.bakeSandboxTargetIds = null;
+    drawingCanvasProps.bakeSandboxPromise = null;
   });
 
   it("queues Canvas history until the authoritative result and restores focus after completion", async () => {
@@ -462,5 +474,129 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadDocumentStore.getState().visibilityProfiles).toEqual(beforeVisibilityProfiles);
     expect(useCadDocumentStore.getState().activeVisibilityProfileId).toBe(beforeActiveVisibilityProfileId);
     expect(useCadUiStore.getState().canvasViewport).toEqual(beforeViewport);
+  });
+
+  it("uses the captured Canvas selection for a target-scoped Bake sandbox", async () => {
+    const source = [
+      "nui 4",
+      "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
+      "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+    });
+    const broken = useCadDocumentStore.getState().elements.find((element) => element.name === "Broken")!;
+    const dependency = useCadDocumentStore.getState().elements.find((element) => element.name === "Dependency")!;
+    useCadUiStore.getState().setSelectedElementId(broken.id);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasCommand",
+          commandId: "bakeCurrentShape",
+          emitSkippedComments: true,
+          includeHiddenGeometry: false,
+          includeDisabledGeometry: true
+        }
+      }));
+      await Promise.resolve();
+    });
+
+    expect(drawingCanvasProps.bakeSandboxTargetIds).toEqual([broken.id]);
+    expect(drawingCanvasProps.bakeSandboxTargetIds).not.toContain(dependency.id);
+  });
+
+  it("uses the resolved Source Bake target for a target-scoped sandbox", async () => {
+    const source = [
+      "nui 4",
+      "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
+      "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+    });
+    const broken = useCadDocumentStore.getState().elements.find((element) => element.name === "Broken")!;
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "bakeSourceRequest",
+          requestId: 20,
+          documentVersion: 1,
+          normalizedSourceOffset: source.indexOf("Broken"),
+          mode: "current",
+          emitSkippedComments: true,
+          includeHiddenGeometry: false,
+          includeDisabledGeometry: true
+        }
+      }));
+      await Promise.resolve();
+    });
+
+    expect(drawingCanvasProps.bakeSandboxTargetIds).toEqual([broken.id]);
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "bakeSourceResult",
+      requestId: 20,
+      status: "nothing"
+    });
+  });
+
+  it("rejects a stale Source Bake sandbox without mutating the newer document", async () => {
+    const source = [
+      "nui 4",
+      "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
+      "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
+    ].join("\n");
+    let resolveSandbox!: (value: unknown) => void;
+    drawingCanvasProps.bakeSandboxPromise = new Promise((resolve) => {
+      resolveSandbox = resolve;
+    });
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+    });
+    const newerSource = `${source}\n// newer authoritative text`;
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "bakeSourceRequest",
+          requestId: 21,
+          documentVersion: 1,
+          normalizedSourceOffset: source.indexOf("Broken"),
+          mode: "current",
+          emitSkippedComments: true,
+          includeHiddenGeometry: false,
+          includeDisabledGeometry: true
+        }
+      }));
+      await Promise.resolve();
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: newerSource, documentVersion: 2, reason: "edit" }
+      }));
+      resolveSandbox({});
+      await Promise.resolve();
+    });
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(newerSource);
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("Bake skipped:");
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "bakeSourceResult",
+      requestId: 21,
+      status: "stale"
+    });
   });
 });

@@ -17,6 +17,12 @@ import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCa
 
 export type { BezierHandleRole };
 
+export type BakeSandboxEvaluation = {
+  evaluation: EvaluationResult;
+  targetIds: readonly ElementId[];
+  compiledDocumentRevision: number;
+};
+
 export type CommandId =
   | "newDocument"
   | "openDocument"
@@ -199,11 +205,17 @@ export type CommandContext = {
   evaluationIsCurrent?: boolean;
   /** Source statement selected by a host-side source cursor query. */
   sourceStatementIndex?: number;
+  /** Bake-only selection captured before an asynchronous sandbox evaluation. */
+  bakeSelectedElementIds?: readonly ElementId[];
   emitSkippedComments?: boolean;
   includeHiddenGeometry?: boolean;
   includeDisabledGeometry?: boolean;
-  /** Bake-only sandbox evaluation; canonical evaluation remains disabled-aware. */
+  /** Bake-only sandbox evaluation; accepted only with explicit target/current metadata. */
   bakeDisabledEvaluation?: EvaluationResult;
+  bakeDisabledEvaluationTargetIds?: readonly ElementId[];
+  bakeDisabledEvaluationIsCurrent?: boolean;
+  /** Tauri-only on-demand Bake sandbox provider. */
+  prepareBakeSandbox?: (targetIds: readonly ElementId[]) => Promise<BakeSandboxEvaluation | null>;
   selectionMode?: "replace" | "toggle" | "range";
   /** Source Editor folded-block move: use elementId alone instead of the current multi-selection. */
   moveCursorElementOnly?: boolean;
@@ -255,5 +267,9 @@ export type Command = {
   }[];
   /** Most commands flush pending editor text before running. Editor-native text commands own that boundary. */
   flushPolicy?: "before-run" | "editor-owned";
-  run: (context?: CommandContext) => void | boolean | DocumentMutationResult;
+  run: (context?: CommandContext) =>
+    | void
+    | boolean
+    | DocumentMutationResult
+    | Promise<void | boolean | DocumentMutationResult>;
 };

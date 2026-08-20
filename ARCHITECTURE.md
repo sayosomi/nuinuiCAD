@@ -49,6 +49,13 @@ DrawingCanvas
 canvasRenderer + CanvasOverlay
 ```
 
+Bake uses the same host-neutral target resolver and conversion planner. When
+disabled geometry is explicitly included, Tauri Canvas and the VS Code Canvas /
+Source routes run one on-demand Rust evaluation with only the resolved disabled
+Bake target IDs allowed; the result is accepted only if the captured document
+revision is still current. The normal document evaluation remains disabled-aware
+and is never replaced by this sandbox.
+
 Tauri production evaluation follows:
 
 ```text
@@ -239,6 +246,11 @@ Rust request preparation / transport contractであり、既存の
 `evaluationEngine.ts` はTauri transport adapterとreference / parity integrationを
 担当する。`buildRustEvaluationInput` は引き続きsole JSON-shaped Rust projection
 ownerである。将来のheadless hostはこのtransport実装だけを差し替えられる。
+
+`src/commands/bakeSettingsStorage.ts` and `src-tauri/src/bake_settings.rs` own
+the three Canvas Bake settings as a separate JSON persistence boundary. Hosts
+resolve plain Bake options before invoking the shared command; the shared core
+does not read VS Code or Tauri settings APIs.
 
 `EvaluationResult.effectiveDrawingModifierStrokes` is the resolved, element-id keyed
 stroke presentation data crossing the evaluation boundary. The TS reference and

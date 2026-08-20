@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { evaluationStateIsCurrentFor, useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import {
@@ -20,8 +21,9 @@ import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../d
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
 import { minimumCanvasPanForBounds } from "../geometry/canvasViewportReveal";
+import { getSelectedElementIds } from "../commands/commandRuntime";
+import { resolveDisabledBakeTargetIds } from "../commands/bakeGeometry";
 import { replaceCanvasSelection } from "../commands/selectionCommands";
-import { effectiveElementActivityById } from "../model/elementActivity";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -61,40 +63,18 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     () => buildEvaluationOptions({ compiledDocument: evaluationDocument, evaluationLimitIndex }),
     [evaluationDocument, evaluationLimitIndex]
   );
-  const disabledElementIdsForBake = useMemo(
-    () => new Set(
-      [...effectiveElementActivityById(elements, evaluationDocument.document.modifiers ?? [])]
-        .filter(([, activity]) => activity.activity === "disabled")
-        .map(([elementId]) => elementId)
-    ),
-    [elements, evaluationDocument]
-  );
-  const bakeSandboxEvaluationOptions = useMemo(
-    () => ({ ...evaluationOptions, allowDisabledElementIds: disabledElementIdsForBake }),
-    [evaluationOptions, disabledElementIdsForBake]
-  );
   const evaluationState = useEvaluationEngine(
     elements,
     evaluationOptions,
     compiledDocumentRevision,
     rustTransport.transport
   );
-  const bakeSandboxEvaluationState = useEvaluationEngine(
-    elements,
-    bakeSandboxEvaluationOptions,
-    compiledDocumentRevision,
-    rustTransport.transport
-  );
   const evaluationRef = useRef(evaluationState.evaluation);
   const evaluationStateRef = useRef(evaluationState);
-  const bakeSandboxEvaluationRef = useRef(bakeSandboxEvaluationState.evaluation);
-  const bakeSandboxEvaluationStateRef = useRef(bakeSandboxEvaluationState);
   useEffect(() => {
     evaluationRef.current = evaluationState.evaluation;
     evaluationStateRef.current = evaluationState;
-    bakeSandboxEvaluationRef.current = bakeSandboxEvaluationState.evaluation;
-    bakeSandboxEvaluationStateRef.current = bakeSandboxEvaluationState;
-  }, [evaluationState, bakeSandboxEvaluationState]);
+  }, [evaluationState]);
 
   const restoreCanvasFocus = useCallback((afterFocus?: () => void) => {
     queueMicrotask(() => {
@@ -166,68 +146,199 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   useEffect(() => {
     const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
     refreshCanvasTheme();
+    const runCanvasBake = async (
+      message: Extract<ExtensionToVscodeMessage, { type: "canvasCommand" }>
+    ) => {
+      if (message.commandId !== "bakeCurrentShape" && message.commandId !== "bakeBaseShape") return;
+      const expectedDocumentVersion = latestHostDocumentVersionRef.current;
+      if (expectedDocumentVersion === null) return;
+      const initialState = useCadDocumentStore.getState();
+      const initialCompiled = effectiveCompiledDocument(initialState);
+      const initialElements = effectiveElements(initialState);
+      const initialCompiledDocumentRevision = initialState.compiledDocumentRevision;
+      const selectedElementIds = getSelectedElementIds();
+      const disabledTargetIds = message.includeDisabledGeometry
+        ? resolveDisabledBakeTargetIds({
+            compiled: initialCompiled,
+            elements: initialElements,
+            selectedElementIds
+          })
+        : [];
+      const capturedEvaluation = evaluationRef.current;
+      const commandId = message.commandId;
+      const dispatchBake = (sandbox?: {
+        evaluation: typeof capturedEvaluation;
+        targetIds: readonly string[];
+        compiledDocumentRevision: number;
+      }) => {
+        const result = dispatchCommand(commandId, {
+          evaluation: capturedEvaluation,
+          baseEvaluation: capturedEvaluation,
+          evaluationIsCurrent: evaluationStateIsCurrentFor(
+            evaluationStateRef.current,
+            initialCompiledDocumentRevision
+          ),
+          bakeSelectedElementIds: selectedElementIds,
+          includeHiddenGeometry: message.includeHiddenGeometry,
+          includeDisabledGeometry: message.includeDisabledGeometry,
+          emitSkippedComments: message.emitSkippedComments,
+          ...(sandbox ? {
+            bakeDisabledEvaluation: sandbox.evaluation,
+            bakeDisabledEvaluationTargetIds: sandbox.targetIds,
+            bakeDisabledEvaluationIsCurrent: true
+          } : {}),
+          getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
+          measureCanvasTextWidth,
+          recordSelectionHistory: true,
+          canvasHistory: requestCanvasHistory
+        });
+        if (typeof result === "object" && result !== null && "status" in result && result.status === "applied") {
+          postCanvasCommit();
+        }
+      };
+
+      if (disabledTargetIds.length === 0) {
+        dispatchBake();
+        return;
+      }
+
+      let sandboxEvaluation;
+      try {
+        sandboxEvaluation = await evaluateElementsWithRust(initialElements, {
+          ...buildEvaluationOptions({
+            compiledDocument: initialCompiled,
+            evaluationLimitIndex: effectiveEvaluationLimitIndex(initialState)
+          }),
+          allowDisabledElementIds: new Set(disabledTargetIds)
+        }, rustTransport.transport);
+      } catch {
+        return;
+      }
+      const current = currentAuthoritativeDocument(expectedDocumentVersion);
+      if (
+        !current ||
+        current.state.compiledDocumentRevision !== initialCompiledDocumentRevision ||
+        !evaluationStateIsCurrentFor(evaluationStateRef.current, initialCompiledDocumentRevision)
+      ) return;
+      dispatchBake({
+        evaluation: sandboxEvaluation,
+        targetIds: disabledTargetIds,
+        compiledDocumentRevision: initialCompiledDocumentRevision
+      });
+    };
+
+    const runSourceBake = async (
+      message: Extract<ExtensionToVscodeMessage, { type: "bakeSourceRequest" }>
+    ) => {
+      const current = currentAuthoritativeDocument(message.documentVersion);
+      const currentEvaluation = evaluationRef.current;
+      const currentEvaluationIsCurrent = current && evaluationStateIsCurrentFor(
+        evaluationStateRef.current,
+        current.state.compiledDocumentRevision
+      );
+      const target = current
+        ? queryDslCanvasSourceTarget({
+            source: current.source,
+            compiled: current.compiled,
+            position: message.normalizedSourceOffset
+          })
+        : null;
+      if (!current || !currentEvaluationIsCurrent || !target) {
+        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: !current || !currentEvaluationIsCurrent ? "stale" : "rejected" });
+        return;
+      }
+      const initialCompiledDocumentRevision = current.state.compiledDocumentRevision;
+      const initialElements = effectiveElements(current.state);
+      const disabledTargetIds = message.includeDisabledGeometry
+        ? resolveDisabledBakeTargetIds({
+            compiled: current.compiled,
+            elements: initialElements,
+            sourceStatementIndex: target.sourceStatementIndex
+          })
+        : [];
+      const dispatchBake = (sandbox?: {
+        evaluation: typeof currentEvaluation;
+        targetIds: readonly string[];
+        compiledDocumentRevision: number;
+      }) => {
+        const result = dispatchCommand(message.mode === "current" ? "bakeCurrentShape" : "bakeBaseShape", {
+          evaluation: currentEvaluation,
+          baseEvaluation: currentEvaluation,
+          evaluationIsCurrent: true,
+          sourceStatementIndex: target.sourceStatementIndex,
+          emitSkippedComments: message.emitSkippedComments,
+          includeHiddenGeometry: message.includeHiddenGeometry,
+          includeDisabledGeometry: message.includeDisabledGeometry,
+          ...(sandbox ? {
+            bakeDisabledEvaluation: sandbox.evaluation,
+            bakeDisabledEvaluationTargetIds: sandbox.targetIds,
+            bakeDisabledEvaluationIsCurrent: true
+          } : {})
+        });
+        const applied = typeof result === "object" && result !== null && "status" in result && result.status === "applied";
+        if (applied) postCanvasCommit();
+        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: applied ? "applied" : "nothing" });
+      };
+
+      if (disabledTargetIds.length === 0) {
+        dispatchBake();
+        return;
+      }
+
+      let sandboxEvaluation;
+      try {
+        sandboxEvaluation = await evaluateElementsWithRust(initialElements, {
+          ...buildEvaluationOptions({
+            compiledDocument: current.compiled,
+            evaluationLimitIndex: effectiveEvaluationLimitIndex(current.state)
+          }),
+          allowDisabledElementIds: new Set(disabledTargetIds)
+        }, rustTransport.transport);
+      } catch {
+        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: "rejected" });
+        return;
+      }
+      const revalidated = currentAuthoritativeDocument(message.documentVersion);
+      if (
+        !revalidated ||
+        revalidated.state.compiledDocumentRevision !== initialCompiledDocumentRevision ||
+        !evaluationStateIsCurrentFor(evaluationStateRef.current, initialCompiledDocumentRevision)
+      ) {
+        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: "stale" });
+        return;
+      }
+      dispatchBake({
+        evaluation: sandboxEvaluation,
+        targetIds: disabledTargetIds,
+        compiledDocumentRevision: initialCompiledDocumentRevision
+      });
+    };
+
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
       if (message.type === "canvasThemeChanged") {
         refreshCanvasTheme();
       } else if (message.type === "canvasCommand") {
-        const result = dispatchCommand(message.commandId, {
+        if (message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") {
+          void runCanvasBake(message);
+          return;
+        }
+        dispatchCommand(message.commandId, {
           evaluation: evaluationRef.current,
           baseEvaluation: evaluationRef.current,
           evaluationIsCurrent: evaluationStateIsCurrentFor(
             evaluationStateRef.current,
             useCadDocumentStore.getState().compiledDocumentRevision
           ),
-          includeHiddenGeometry: message.includeHiddenGeometry,
-          includeDisabledGeometry: message.includeDisabledGeometry,
-          bakeDisabledEvaluation: evaluationStateIsCurrentFor(
-            bakeSandboxEvaluationStateRef.current,
-            useCadDocumentStore.getState().compiledDocumentRevision
-          ) ? bakeSandboxEvaluationRef.current : undefined,
-          emitSkippedComments: message.emitSkippedComments,
           getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
           measureCanvasTextWidth,
           recordSelectionHistory: true,
           canvasHistory: requestCanvasHistory
         });
-        if ((message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") &&
-          typeof result === "object" && result !== null && "status" in result && result.status === "applied") {
-          postCanvasCommit();
-        }
       } else if (message.type === "bakeSourceRequest") {
-        const current = currentAuthoritativeDocument(message.documentVersion);
-        const evaluation = evaluationRef.current;
-        const currentEvaluation = evaluation && evaluationStateIsCurrentFor(
-          evaluationStateRef.current,
-          current?.state.compiledDocumentRevision ?? -1
-        ) ? evaluation : null;
-        const target = current
-          ? queryDslCanvasSourceTarget({
-              source: current.source,
-              compiled: current.compiled,
-              position: message.normalizedSourceOffset
-            })
-          : null;
-        if (!current || !currentEvaluation || !target) {
-          api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: !current || !currentEvaluation ? "stale" : "rejected" });
-          return;
-        }
-        const result = dispatchCommand(message.mode === "current" ? "bakeCurrentShape" : "bakeBaseShape", {
-          evaluation: currentEvaluation,
-          baseEvaluation: currentEvaluation,
-          sourceStatementIndex: target.sourceStatementIndex,
-          emitSkippedComments: message.emitSkippedComments,
-          includeHiddenGeometry: message.includeHiddenGeometry,
-          includeDisabledGeometry: message.includeDisabledGeometry,
-          bakeDisabledEvaluation: evaluationStateIsCurrentFor(
-            bakeSandboxEvaluationStateRef.current,
-            current.state.compiledDocumentRevision
-          ) ? bakeSandboxEvaluationRef.current : undefined
-        });
-        const applied = typeof result === "object" && result !== null && "status" in result && result.status === "applied";
-        if (applied) postCanvasCommit();
-        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: applied ? "applied" : "nothing" });
+        void runSourceBake(message);
+        return;
       } else if (message.type === "canvasHistoryResult") {
         if (canvasHistoryInFlightRef.current !== message.direction) return;
         canvasHistoryInFlightRef.current = null;

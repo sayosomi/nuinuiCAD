@@ -152,6 +152,44 @@ fn bake_sandbox_can_evaluate_disabled_geometry_without_changing_normal_evaluatio
 }
 
 #[test]
+fn bake_sandbox_does_not_enable_a_disabled_dependency_that_is_not_a_target() {
+    let elements = vec![
+        json!({
+            "id": "dependency", "name": "Dependency", "type": "freePoint",
+            "activity": "disabled", "x": 0, "y": 0
+        }),
+        json!({
+            "id": "target", "name": "Target", "type": "line", "activity": "disabled",
+            "startPoint": { "mode": "reference", "pointId": "dependency" },
+            "endPoint": { "mode": "coordinate", "x": 10, "y": 0 }
+        }),
+    ];
+    let result = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
+        elements,
+        evaluation_limit_index: None,
+        allow_disabled_element_ids: Some(vec!["target".to_owned()]),
+        drawing_modifiers: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+    });
+
+    assert!(result.computed_geometry.is_empty());
+    let error = result
+        .errors
+        .iter()
+        .find(|error| error.element_id == "target")
+        .expect("target should retain the unavailable dependency error");
+    assert_eq!(error.missing_dependency_id, "dependency");
+}
+
+#[test]
 fn drawing_modifiers_resolve_outer_to_inner_to_element_with_last_wins() {
     let modifiers = json!([
         { "name": "Hide", "state": "hidden" },
