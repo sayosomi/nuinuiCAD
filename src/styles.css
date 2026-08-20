@@ -3786,7 +3786,6 @@ textarea {
   user-select: none;
 }
 
-.point-drag-axis-lock-separator,
 .point-drag-axis-lock-action {
   color: var(--canvas-muted);
 }

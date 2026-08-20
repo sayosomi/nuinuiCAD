@@ -827,7 +827,7 @@ describe("DrawingCanvas point dragging", () => {
     });
 
     expect(feedback()).not.toBeNull();
-    expect(hint()).toHaveTextContent("Move · X Horizontal · Y Vertical");
+    expect(hint()).toHaveTextContent(/^X: Horizontal, Y: Vertical$/);
     expect(hint()).toHaveAttribute("data-point-drag-axis-lock-hint-position", "bottom-right");
     expect(hint()).toHaveStyle({ right: "0px", bottom: "0px" });
     expect(feedback()).toHaveStyle({ pointerEvents: "none" });
