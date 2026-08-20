@@ -1418,7 +1418,8 @@ export const compileDslDocument = (
   if (
     moduleSemanticCompilation &&
     !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
-    stableStatementIdByIndex
+    stableStatementIdByIndex &&
+    sourceLexicalNamespace
   ) {
     compiled = compileDslToElements(normalized, {
       elements: [],
@@ -1426,6 +1427,10 @@ export const compileDslDocument = (
       preparsed: parsed,
       assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds ?? compiled.elementIdsByStatementIndex,
       stableStatementIdByIndex,
+      sourceLexicalResolution: {
+        sourceNamespace: sourceLexicalNamespace,
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map()
+      },
       moduleSemanticAnalysis: moduleSemanticCompilation,
       majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
     });

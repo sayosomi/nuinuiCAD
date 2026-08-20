@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { LastGoodDslDocument } from "../document/canonicalDocument";
+import { evaluateElementsReference } from "../geometry/evaluationEngine";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { compileDslDocument, serializeDocumentToDsl } from "./dslDocument";
 import { parseDsl } from "./dslParser";
 
@@ -8,6 +11,13 @@ const compileWithIds = (source: string) => {
   const parsed = parseDsl(source);
   const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `statement:test:${index}`]));
   return compileDslDocument(source, { preparsed: parsed, assignedStatementIds });
+};
+
+const asLastGoodDocument = (compiled: ReturnType<typeof compileDslDocument>): LastGoodDslDocument => {
+  if (!compiled.document || !compiled.statementMap || compiled.majorVersion === null) {
+    throw new Error(`expected valid document: ${JSON.stringify(compiled.diagnostics)}`);
+  }
+  return compiled as LastGoodDslDocument;
 };
 
 describe("nui4 drawing modifier source model", () => {
@@ -147,6 +157,54 @@ describe("nui4 drawing modifier source model", () => {
 
     expect(compiled.moduleMaterialization).toBeDefined();
     expect(compiled.diagnostics.filter((item) => item.message.includes("未定義の modifier"))).toEqual([]);
+  });
+
+  it("preserves resolved Drawing Profile identity through Module compilation and evaluation", () => {
+    const compiled = asLastGoodDocument(compileWithIds(sourceLines(
+      "nui 4",
+      "profile Print",
+      "modifier Guide {",
+      "  width: 1px,",
+      "  for @Print {",
+      "    width: 0.5px,",
+      "    style: dashed,",
+      "    color: warning,",
+      "  }",
+      "}",
+      "module M() {",
+      "  point Internal [Guide] = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Use = M()"
+    )));
+    const profileStatementIndex = compiled.statements.findIndex(
+      (statement) => statement.kind === "profileDeclaration" && statement.name === "Print"
+    );
+    const profile = compiled.document.drawingProfiles?.find((candidate) => candidate.name === "Print");
+    const modifier = (compiled.document.modifiers ?? []).find((candidate) => candidate.name === "Guide");
+    const delta = modifier?.profileDeltas?.[0];
+    const reconciledProfileId = compiled.statementMap.statementIdByStatementIndex?.get(profileStatementIndex);
+    const internal = compiled.document.elements.find((element) => element.name === "Internal");
+
+    expect(profile).toBeDefined();
+    expect(reconciledProfileId).toBeDefined();
+    expect(profile?.id).toBe(reconciledProfileId);
+    expect(profile?.id).not.toBe("Print");
+    expect(delta?.profileId).toBe(profile?.id);
+    expect(delta?.profileName).toBe("Print");
+    expect(internal).toBeDefined();
+
+    const evaluation = evaluateElementsReference(compiled.document.elements, buildEvaluationOptions({
+      compiledDocument: compiled,
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex,
+      selectedDrawingProfileId: profile!.id
+    }));
+    expect(evaluation.errors.filter((error) => error.elementId === internal?.id)).toEqual([]);
+    expect(evaluation.computedGeometry.get(internal!.id)).toMatchObject({ kind: "point", x: 0, y: 0 });
+    expect(evaluation.effectiveDrawingModifierStrokes?.get(internal!.id)).toEqual({
+      widthPx: 0.5,
+      style: "dashed",
+      color: { kind: "themeRole", role: "warning" }
+    });
   });
 
   it("validates modifier references on geometry declarations inside Module bodies", () => {
@@ -340,6 +398,42 @@ describe("nui4 drawing modifier source model", () => {
     expect(second.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(second.document?.modifiers).toEqual(first.document?.modifiers);
     expect(second.document?.elements.at(-1)?.modifierNames).toEqual(["基本線", "元袖ぐり"]);
+  });
+
+  it("round-trips canonical Drawing Profile declarations and modifier deltas", () => {
+    const source = sourceLines(
+      "nui 4",
+      "profile Print",
+      "modifier Guide {",
+      "  width: 1px,",
+      "  for @Print {",
+      "    width: 0.5px,",
+      "    style: dashed,",
+      "    color: warning,",
+      "  }",
+      "}"
+    );
+    const first = compileDslDocument(source);
+    expect(first.document).not.toBeNull();
+    const canonical = serializeDocumentToDsl(first.document!, first.majorVersion!);
+    expect(canonical).toContain("profile Print");
+    expect(canonical).toContain("for @Print {");
+    expect(canonical).toContain("width: 0.5px,");
+    expect(canonical).toContain("style: dashed,");
+    expect(canonical).toContain("color: warning,");
+
+    const second = compileDslDocument(canonical);
+    expect(second.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    const secondProfile = second.document?.drawingProfiles?.find((profile) => profile.name === "Print");
+    const secondDelta = second.document?.modifiers?.find((modifier) => modifier.name === "Guide")?.profileDeltas?.[0];
+    expect(secondProfile).toBeDefined();
+    expect(secondDelta).toMatchObject({
+      profileName: "Print",
+      widthPx: 0.5,
+      style: "dashed",
+      color: { kind: "themeRole", role: "warning" }
+    });
+    expect(secondDelta?.profileId).toBe(secondProfile?.id);
   });
 
   it("serializes modifier properties in canonical order and lowercases fixed colors", () => {

@@ -172,6 +172,7 @@ export const buildSourceLexicalNamespaceIndex = (
             candidate.kind !== declaration.kind ||
             isModuleKind(candidate.kind) ||
             isModuleKind(declaration.kind) ||
+            (candidate.kind === "profile" && declaration.kind === "profile") ||
             (isSourceOnlyDeclaration(candidate) && isSourceOnlyDeclaration(declaration))
         );
         if (!conflicting) {

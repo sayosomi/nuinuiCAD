@@ -174,6 +174,11 @@ Primary:
 `docs/dsl.md` は current implemented language documentation。Current
 saved-document language は nui4 only。
 
+Drawing Profile declarations are compiler-resolved source declarations in the
+ordinary source lexical namespace. Drawing Modifier `width`, `style`, `color`,
+and `state` contributions merge independently: the common modifier contribution
+is applied first, followed by the matching selected profile delta.
+
 ### Lexical / name resolution
 
 Representative owners:
@@ -237,6 +242,13 @@ runtime entries、text/control metadata、source/Module mutation ownersを一度
 element-id keyed runtime metadataへlowerする。TypeScript evaluator は reference /
 parity / test path。`useEvaluationEngine` は`evaluationRevision` /
 `evaluationRequestRevision`を管理し、revision/request/stale semanticsをownerとする。
+
+`productionEvaluationContext.ts` accepts an optional resolved
+`selectedDrawingProfileId`. An omitted profile means common-only modifier
+semantics and is the context used by Canvas; selected profiles add their
+compiler-resolved deltas at evaluation time. The TypeScript reference evaluator
+and Rust production evaluator use this same profile-aware modifier merge and
+activity behavior.
 
 `rustEvaluationEligibility.ts` はRust supported element/reference types、compiled
 reference validation、binding mutation、conditional / forGroup ownerのRust eligibility

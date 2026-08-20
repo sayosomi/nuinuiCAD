@@ -128,6 +128,40 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches TS/Rust for selected Drawing Profile modifier deltas and disabled state", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-drawing-modifier-profiles.nui");
+    const profile = fixture.compiled?.doc.document.drawingProfiles?.find((candidate) => candidate.name === "Print");
+    if (!profile) throw new Error("Print Drawing Profile was not compiled");
+    const options = optionsFor(fixture, profile.id);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture, profile.id);
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const styled = fixture.elements.find((element) => element.name === "Styled");
+    const disabled = fixture.elements.find((element) => element.name === "Disabled");
+    const dependent = fixture.elements.find((element) => element.name === "Dependent");
+
+    expect(isRustEligibleFixture(fixture, profile.id)).toBe(true);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expect(ts.effectiveDrawingModifierStrokes?.get(styled!.id)).toEqual({
+      widthPx: 0.5,
+      style: "dashed",
+      color: { kind: "themeRole", role: "warning" }
+    });
+    expect(rust.effectiveDrawingModifierStrokes?.get(styled!.id)).toEqual(
+      ts.effectiveDrawingModifierStrokes?.get(styled!.id)
+    );
+    expect(ts.effectiveVisibleElementIds).not.toContain(disabled!.id);
+    expect(ts.effectiveEnabledElementIds).not.toContain(disabled!.id);
+    expect(ts.computedGeometry.has(disabled!.id)).toBe(false);
+    expect(ts.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ elementId: dependent!.id, missingDependencyId: disabled!.id })
+    ]));
+    expect(rust.effectiveVisibleElementIds).not.toContain(disabled!.id);
+    expect(rust.effectiveEnabledElementIds).not.toContain(disabled!.id);
+    expect(rust.computedGeometry.has(disabled!.id)).toBe(false);
+  }, 30000);
+
   it("materializes printLayout-local bindings after stop through the Rust-first payload", () => {
     const fixture = readParityFixture(repoRoot, "nui4-print-layout-local-stop.nui");
     const options = optionsFor(fixture);
