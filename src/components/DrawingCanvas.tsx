@@ -241,6 +241,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     overlayTexts,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
+    selectedBezierEditingHelper,
     selectedBezierHandles
   } = useCanvasOverlayData({
     evaluation,
@@ -302,6 +303,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       baseEvaluation: reusableDragEvaluation(state.elements)
     };
   }, [hostAdapter, reusableDragEvaluation]);
+  const currentBezierHandleDragBase = useCallback((elementId: ElementId) => {
+    const documentState = hostAdapter.getCurrentCanonicalDocument();
+    if (!evaluationStateIsCurrentFor(evaluationState, documentState.compiledDocumentRevision)) return null;
+    if (evaluationState && evaluationState.evaluation !== evaluation) return null;
+    if (!evaluation.preMutationBezierGeometry?.has(elementId)) return null;
+    return {
+      baseElements: documentState.elements,
+      baseEvaluation: evaluation
+    };
+  }, [evaluation, evaluationState, hostAdapter]);
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;
@@ -688,7 +699,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (handle) {
       focusCanvas();
       hostAdapter.selectElement(handle.curveId, selectionModeFor(intent));
-      const dragBase = currentDocumentDragBase();
+      const dragBase = currentBezierHandleDragBase(handle.curveId);
+      if (!dragBase) {
+        scheduleEditorFocus(intent.pointerId, intent.pointerReleased);
+        return;
+      }
       if (intent.pointerReleased) {
         if (movement >= DEFERRED_DRAG_THRESHOLD_PX) {
           hostAdapter.moveBezierHandleByDelta({
@@ -787,6 +802,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     applyPointPickCandidate,
     canvasViewport.zoom,
     capturePointer,
+    currentBezierHandleDragBase,
     currentDocumentDragBase,
     hasCommandLineGhost,
     linePickCandidatesAt,
@@ -1167,6 +1183,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           overlayPoints={overlayPoints}
           overlayTexts={overlayTexts}
           selectedBezierHandles={selectedBezierHandles}
+          selectedBezierEditingHelper={selectedBezierEditingHelper}
           overlayPointPickCandidates={overlayPointPickCandidates}
           selectedElementIdSet={selectedElementIdSet}
           draftLinePickElementIds={draftLinePickElementIds}

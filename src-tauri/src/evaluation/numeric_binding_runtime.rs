@@ -580,6 +580,7 @@ mod tests {
                 ),
             ]),
             computed_geometry_order: vec![String::from("baseline"), String::from("p")],
+            pre_mutation_bezier_geometry: HashMap::new(),
             errors: Vec::new(),
             warnings: Vec::new(),
         }
@@ -593,6 +594,7 @@ mod tests {
             group_states: HashMap::new(),
             computed_geometry: HashMap::new(),
             computed_geometry_order: Vec::new(),
+            pre_mutation_bezier_geometry: HashMap::new(),
             errors: Vec::new(),
             warnings: Vec::new(),
         }

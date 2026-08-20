@@ -466,6 +466,95 @@ describe("DrawingCanvas rendering", () => {
     expect(hostAdapter.canonicalElements).toBe(useCadStore.getState().elements);
   });
 
+  it("uses a current partial evaluation snapshot as the Bezier drag baseline", () => {
+    const elements: CadElement[] = [
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 100, y: 0 },
+      {
+        id: "curve",
+        name: "Curve",
+        type: "bezierCurve",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 30,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "b" },
+        endHandleAngleDeg: 180,
+        endHandleLength: 30
+      },
+      {
+        id: "later-point",
+        name: "Later point",
+        type: "freePoint",
+        activity: "visible",
+        x: 10,
+        y: 10
+      }
+    ];
+    const evaluation = evaluateElements(elements, { evaluationLimitIndex: 3 });
+    const hostAdapter = createFakeCanvasHostAdapter({
+      elements,
+      canonicalElements: elements,
+      evaluationLimitIndex: 3,
+      selectedElementId: "curve",
+      selectedElementIds: ["curve"],
+      getCurrentCanonicalDocument: () => ({
+        elements,
+        sourceRevision: 0,
+        compiledDocumentRevision: 0,
+        sourceText: "",
+        docText: ""
+      })
+    });
+    const evaluationState: EvaluationEngineState = {
+      evaluation,
+      evaluationRevision: 0,
+      evaluationRequestRevision: 0,
+      mode: "reference",
+      source: "reference",
+      status: "ready",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    const view = render(createElement(DrawingCanvas, {
+      evaluation,
+      evaluationState,
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter
+    }));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Missing canvas viewport");
+    const control = worldToScreen({ x: 30, y: 0 }, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: control.x,
+      clientY: control.y,
+      pointerId: 1
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: control.x + 10,
+      clientY: control.y,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: control.x + 10,
+      clientY: control.y,
+      pointerId: 1
+    });
+
+    const actions = vi.mocked(hostAdapter.moveBezierHandleByDelta).mock.calls;
+    expect(actions).toHaveLength(2);
+    expect(actions.map(([action]) => action.commitMode)).toEqual(["preview", "commit"]);
+    expect(actions.every(([action]) => action.baseEvaluation === evaluation)).toBe(true);
+    expect(actions.every(([action]) => action.baseElements === elements)).toBe(true);
+  });
+
   it("notifies the passive frame observer after the current production draw", async () => {
     const revision = useCadStore.getState().compiledDocumentRevision;
     const wait = waitForCurrentDrawAndFrame(revision);

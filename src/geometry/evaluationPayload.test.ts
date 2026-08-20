@@ -19,6 +19,7 @@ describe("evaluation payload conversion", () => {
     expect(Array.from(roundTrip.computedGeometry.values())).toEqual(
       Array.from(evaluation.computedGeometry.values())
     );
+    expect(roundTrip.preMutationBezierGeometry).toEqual(evaluation.preMutationBezierGeometry);
     expect(roundTrip.errors).toEqual(evaluation.errors);
     expect(roundTrip.warnings).toEqual(evaluation.warnings);
     expect(roundTrip.evaluatedElementIds).toEqual(evaluation.evaluatedElementIds);

@@ -29,7 +29,11 @@ import {
   sampleOffsetLineScreenPoints
 } from "./DrawingCanvasHitTest";
 import { type ViewportSize, worldToScreen } from "./canvasViewport";
-import type { BezierHandleOverlay, CanvasOverlayData } from "./DrawingCanvasTypes";
+import type {
+  BezierEditingHelperOverlay,
+  BezierHandleOverlay,
+  CanvasOverlayData
+} from "./DrawingCanvasTypes";
 
 const isPoint = (geometry: unknown): geometry is ComputedPoint =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "point";
@@ -260,13 +264,31 @@ export const useCanvasOverlayData = ({
     ],
     [overlayArcs, overlayCurves, overlayLines, overlayOffsetLines]
   );
+  const selectedBezierEditingHelper = useMemo<BezierEditingHelperOverlay | null>(() => {
+    const curveElement = elements.find((element) => element.id === selectedElementId);
+    if (!curveElement || curveElement.type !== "bezierCurve" || !visibleElementIds.has(curveElement.id)) {
+      return null;
+    }
+
+    const preMutationCurve = evaluation.preMutationBezierGeometry?.get(curveElement.id);
+    const finalCurve = evaluation.computedGeometry.get(curveElement.id);
+    if (!preMutationCurve || finalCurve?.kind !== "bezierCurve") return null;
+    if (JSON.stringify(preMutationCurve) === JSON.stringify(finalCurve)) return null;
+
+    return {
+      curve: preMutationCurve,
+      points: sampleBezierCurveScreenPoints(preMutationCurve, (point) =>
+        worldToScreen(point, viewportSize, canvasViewport)
+      )
+    };
+  }, [canvasViewport, elements, evaluation, selectedElementId, viewportSize, visibleElementIds]);
   const selectedBezierHandles = useMemo(() => {
     const curveElement = elements.find((element) => element.id === selectedElementId);
     if (!curveElement || curveElement.type !== "bezierCurve" || !visibleElementIds.has(curveElement.id)) {
       return [];
     }
 
-    const curve = curves.find((item) => item.elementId === curveElement.id);
+    const curve = evaluation.preMutationBezierGeometry?.get(curveElement.id);
     if (!curve || curve.segments.length === 0) return [];
 
     const handles: BezierHandleOverlay[] = [];
@@ -316,7 +338,7 @@ export const useCanvasOverlayData = ({
     }
 
     return handles;
-  }, [canvasViewport, curves, elements, selectedElementId, viewportSize, visibleElementIds]);
+  }, [canvasViewport, elements, evaluation.preMutationBezierGeometry, selectedElementId, viewportSize, visibleElementIds]);
 
   return {
     lines,
@@ -334,6 +356,7 @@ export const useCanvasOverlayData = ({
     overlayOffsetLines,
     overlayImages,
     overlayTexts,
+    selectedBezierEditingHelper,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
     selectedBezierHandles

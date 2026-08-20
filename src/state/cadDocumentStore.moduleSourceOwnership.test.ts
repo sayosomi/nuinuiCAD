@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { moveBezierHandleByDelta } from "../commands/geometryEditCommands";
 import type { CadElement } from "../types/geometry";
 import { effectiveElementActivityById } from "../model/elementActivity";
 import { setParameterValue } from "../parameters/parameterAccess";
@@ -82,6 +83,15 @@ const placementModuleSource = [
   "instance Second = M()"
 ].join("\n");
 
+const bezierModuleSource = [
+  "nui 4",
+  "module M(origin: point) {",
+  "  curve Curve = bezier(start: @origin, end: (100, 0), startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)",
+  "}",
+  "instance First = M(origin: (0, 0))",
+  "instance Second = M(origin: (40, 20))"
+].join("\n");
+
 const seed = (source: string) => {
   useCadDocumentStore.getState().commitText(source, "test");
   useCadDocumentStore.setState({ past: [], future: [] });
@@ -114,6 +124,34 @@ describe("module source-owned model mutation", () => {
       (element): element is Extract<CadElement, { type: "freePoint" }> => element.name === "P" && element.type === "freePoint"
     );
     expect(points.map((element) => element.x)).toEqual([7, 7]);
+  });
+
+  it("routes a materialized Bezier handle drag through the authored Module body", () => {
+    seed(bezierModuleSource);
+    const first = elementNamed("First")!;
+    const firstCurve = elementNamed("Curve", first.id)!;
+    const second = elementNamed("Second")!;
+    const secondCurve = elementNamed("Curve", second.id)!;
+    expect(firstCurve.id).not.toBe(secondCurve.id);
+
+    const result = moveBezierHandleByDelta({
+      elementId: firstCurve.id,
+      dx: 0,
+      dy: 20,
+      bezierHandleRole: "start"
+    });
+
+    expect(result).toEqual({ status: "applied" });
+    const state = useCadDocumentStore.getState();
+    expect(state.sourceText.match(/curve Curve/g)).toHaveLength(1);
+    expect(state.sourceText).not.toContain(firstCurve.id);
+    expect(state.sourceText).not.toContain(secondCurve.id);
+    const firstAfter = elementNamed("Curve", elementNamed("First")!.id)!;
+    const secondAfter = elementNamed("Curve", elementNamed("Second")!.id)!;
+    expect(firstAfter).toMatchObject({ startHandleAngleDeg: 45 });
+    expect(secondAfter).toMatchObject({ startHandleAngleDeg: 45 });
+    expect((firstAfter as Extract<CadElement, { type: "bezierCurve" }>).startHandleLength).toBeCloseTo(Math.sqrt(800));
+    expect((secondAfter as Extract<CadElement, { type: "bezierCurve" }>).startHandleLength).toBeCloseTo(Math.sqrt(800));
   });
 
   it("patches only a literal line parameter while preserving a lowered geometry parameter reference", () => {

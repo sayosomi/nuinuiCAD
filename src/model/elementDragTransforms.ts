@@ -395,7 +395,7 @@ const bezierHandleTarget = ({
   role: BezierHandleRole;
   intermediatePointId?: string;
 }): BezierHandleTarget | null => {
-  const curve = context.evaluation.computedGeometry.get(element.id);
+  const curve = context.evaluation.preMutationBezierGeometry?.get(element.id);
   if (!isComputedBezierCurve(curve) || curve.segments.length === 0) return null;
 
   if (role === "start") {

@@ -9,6 +9,7 @@ import { DEFAULT_CANVAS_VIEWPORT } from "../state/cadUiStore";
 import type { CadElement, ComputedLine, ComputedPoint, EvaluationResult } from "../types/geometry";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
+import { worldToScreen } from "./canvasViewport";
 
 describe("useCanvasOverlayData", () => {
   it("keeps a planned group's first child in the virtual command-line point overlay", () => {
@@ -251,5 +252,58 @@ describe("useCanvasOverlayData", () => {
       zoom: 2,
     });
     expect(result.current.overlayTexts.find((item) => item.text.elementId === "small")).toMatchObject({ fontSizePx: 12 });
+  });
+
+  it("uses only the pre-mutation Bezier for selected handles and keeps the helper separate", () => {
+    const elements: CadElement[] = [
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 100, y: 0 },
+      { id: "target", name: "Target", type: "freePoint", activity: "visible", x: -20, y: 0 },
+      {
+        id: "curve",
+        name: "Curve",
+        type: "bezierCurve",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 30,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "b" },
+        endHandleAngleDeg: 180,
+        endHandleLength: 30
+      },
+      {
+        id: "extend",
+        name: "Extend",
+        type: "extendTrim",
+        activity: "visible",
+        endpoint: { lineId: "curve", endpointKey: "start" },
+        point: { mode: "reference", pointId: "target" }
+      }
+    ];
+    const evaluation = evaluateElements(elements);
+    const finalCurve = evaluation.computedGeometry.get("curve");
+    const preMutationCurve = evaluation.preMutationBezierGeometry?.get("curve");
+    if (finalCurve?.kind !== "bezierCurve" || !preMutationCurve) throw new Error("Expected Bezier curves");
+    const { result } = renderHook(() => useCanvasOverlayData({
+      evaluation,
+      elements,
+      selectedElementId: "curve",
+      pointPickCandidates: [],
+      viewportSize: { width: 500, height: 400 },
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
+    }));
+
+    expect(result.current.selectedBezierHandles[0].control).toEqual(
+      worldToScreen(preMutationCurve.segments[0].control1, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT)
+    );
+    expect(result.current.selectedBezierHandles[0].control).not.toEqual(
+      worldToScreen(finalCurve.segments[0].control1, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT)
+    );
+    expect(result.current.selectedBezierEditingHelper?.curve).toEqual(preMutationCurve);
+    expect(result.current.overlayNumericReferenceCandidates.some(({ line }) => line.elementId === "curve")).toBe(true);
   });
 });
