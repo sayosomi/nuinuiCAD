@@ -485,6 +485,48 @@ An invalid dependency is not drawn as normal valid geometry. The application
 reports the dependency error and either omits the geometry or displays a clear
 warning marker.
 
+## Drawing modifier profiles and style properties
+
+Drawing Profiles are top-level, source-ordered declarations in the ordinary
+lexical namespace. A profile is referenced with `@name`; references are not
+hoisted, so a declaration must appear before its use.
+
+```text
+profile 印刷用
+profile SVG用
+
+modifier 型紙線 {
+  state: visible,
+  width: 1px,
+  style: solid,
+  color: foreground,
+
+  for @印刷用 {
+    width: 0.5px,
+  }
+}
+```
+
+The supported modifier properties are independent: `state` is `visible`,
+`hidden`, or `disabled`; `width` is a positive finite decimal pixel literal;
+`style` is `solid`, `dashed`, or `dotted`; and `color` is a theme role
+(`foreground`, `muted`, `accent`, `info`, `warning`, or `error`) or `#RRGGBB`.
+The former compound `stroke:` property is invalid. A modifier may contain only
+these properties and `for @profile { ... }` blocks; profile blocks may contain
+only the same four properties. A modifier may be profile-only. Duplicate
+properties and duplicate overrides for the same resolved profile are errors.
+
+Effective properties cascade from outer group to inner group to element. Within
+each owner, modifier lists are applied left to right. The cascade merges each
+property independently and starts from `1px solid foreground`. A selected
+Drawing Profile overlays the common properties with its matching delta.
+
+Direct element activity is a hard gate: modifier state is applied only after
+direct and ancestor activity resolves to `visible`. `hidden` elements still
+evaluate and may be referenced; `disabled` elements do not evaluate and cannot
+be referenced by later elements. Canvas evaluation omits a selected Drawing
+Profile unless a host explicitly supplies one.
+
 ## Conditional and iteration control
 
 The formal nui4 conditional form is:

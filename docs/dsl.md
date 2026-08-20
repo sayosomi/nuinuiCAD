@@ -200,6 +200,42 @@ for i in range(
 
 `if Name (...)`、`for Name (...)`、`{@name}`、`@stop` は廃止されています。
 
+### Drawing Modifier とプロファイル
+
+`profile` はトップレベルの Drawing Profile 宣言です。通常の source lexical
+namespace に属し、宣言より前の参照は解決されません。modifier の `for` は
+`@profile` を受け取り、共通プロパティに対する profile 別の差分を定義します。
+
+```text
+profile 印刷用
+profile SVG用
+
+modifier 型紙線 {
+  state: visible,
+  width: 1px,
+  style: solid,
+  color: foreground,
+
+  for @印刷用 {
+    width: 0.5px,
+  }
+}
+```
+
+modifier のプロパティは独立しており、`state`（`visible` / `hidden` /
+`disabled`）、正の有限な `width`（px）、`style`（`solid` / `dashed` /
+`dotted`）、`color`（テーマロールまたは `#RRGGBB`）を指定できます。旧形式の
+`stroke: 1px solid foreground` は受け付けません。modifier は profile 差分だけ
+でも定義できますが、`for @profile` ブロックの中には4つのプロパティ以外を
+書けません。重複プロパティと、同じ解決済み profile への重複差分は診断になります。
+
+実効値は外側の group、内側の group、要素の順に継承し、各 owner 内の modifier
+リストは左から右へ適用します。値はプロパティ単位でマージされ、未指定値は
+`1px solid foreground` です。選択した Drawing Profile がある場合は、共通値へ
+その profile の差分を上書きします。直接指定または祖先の activity が visible
+のときだけ modifier の state を適用し、hidden は評価するが描画せず、disabled
+は評価も参照もできません。
+
 ### tangentOffset の曲率側
 
 `tangentOffset` は、接線からの角度で方向を指定する既存の angle mode に加えて、

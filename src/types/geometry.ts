@@ -27,10 +27,30 @@ export type DrawingModifierStroke = {
   color: DrawingModifierStrokeColor;
 };
 
+export type DrawingProfile = {
+  /** Compiler/reconciler-owned identity for a top-level `profile` declaration. */
+  id: string;
+  name: string;
+};
+
+export type DrawingModifierProperties = {
+  state?: DrawingModifierState;
+  widthPx?: number;
+  style?: DrawingModifierStrokeStyle;
+  color?: DrawingModifierStrokeColor;
+};
+
+export type DrawingModifierProfileDelta = DrawingModifierProperties & {
+  /** Resolved identity of the referenced top-level Drawing Profile. */
+  profileId: string;
+  /** Source name retained for canonical serialization and editor presentation. */
+  profileName: string;
+};
+
 export type DrawingModifierDefinition = {
   name: string;
-  state?: DrawingModifierState;
-  stroke?: DrawingModifierStroke;
+} & DrawingModifierProperties & {
+  profileDeltas?: DrawingModifierProfileDelta[];
 };
 
 export type CadElementBase = {

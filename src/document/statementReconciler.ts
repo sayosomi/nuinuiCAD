@@ -45,7 +45,7 @@ export type ReconcileOptions = {
   createId?: (type: CadElementType) => ElementId;
   /** typed declaration/set/module用のopaque identity生成器。 */
   createStatementId?: (
-    kind: "typedDeclaration" | "set" | "moduleDefinition" | "moduleInstance" | "printLayout"
+    kind: "typedDeclaration" | "set" | "moduleDefinition" | "moduleInstance" | "printLayout" | "profileDeclaration"
   ) => StatementIdentity;
 };
 
@@ -173,13 +173,15 @@ export const reconcileStatements = (
     statement.kind === "set" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
-    statement.kind === "printLayout";
+    statement.kind === "printLayout" ||
+    statement.kind === "profileDeclaration";
   const identityKindOf = (statement: DslStatement) =>
     statement.kind === "typedDeclaration" ||
     statement.kind === "set" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
-    statement.kind === "printLayout"
+    statement.kind === "printLayout" ||
+    statement.kind === "profileDeclaration"
       ? statement.kind
       : statementTypeOf(statement);
 
@@ -378,7 +380,8 @@ export const reconcileStatements = (
       statement.kind === "set" ||
       statement.kind === "moduleDefinition" ||
       statement.kind === "moduleInstance" ||
-      statement.kind === "printLayout"
+      statement.kind === "printLayout" ||
+      statement.kind === "profileDeclaration"
       ? createStatementId(statement.kind)
       : createId(statementTypeOf(statement));
     assignedIds.set(index, id);

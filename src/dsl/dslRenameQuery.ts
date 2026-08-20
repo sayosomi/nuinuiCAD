@@ -344,6 +344,59 @@ const projectModuleElementRenameEdits = (
   };
 };
 
+const projectSourceRenameEdits = (
+  sourceText: string,
+  compiled: CompiledDslDocument,
+  statementId: string,
+  newName: string
+): { ok: true; edits: readonly DslRenameEdit[] } | { ok: false; rejection: DslRenameRejection } => {
+  if (!newName.trim() || /[\r\n]/.test(newName)) {
+    return { ok: false, rejection: { reason: "invalid-name", message: "名前は空行や改行を含めずに指定してください。" } };
+  }
+  const declaration = compiled.sourceLexicalNamespace?.allDeclarations.find(
+    (candidate) => candidate.statementId === statementId && candidate.kind === "profile"
+  );
+  const beforeStatementMap = compiled.statementMap;
+  if (!declaration || !beforeStatementMap) return { ok: false, rejection: unavailableRenameRejection() };
+  const occurrenceIndex = createDslSemanticOccurrenceIndex(compiled);
+  const identityKey = dslSemanticIdentityKey({ kind: "source", statementId });
+  const occurrences = occurrenceIndex.occurrences.filter(
+    (occurrence) => dslSemanticIdentityKey(occurrence.identity) === identityKey
+  );
+  const declarationRange = declaration.nameSpan
+    ? physicalRange(compiled, declaration.statementIndex, declaration.nameSpan)
+    : null;
+  if (!declarationRange || !occurrences.some(
+    (occurrence) => occurrence.kind === "declaration" && occurrence.from === declarationRange.from && occurrence.to === declarationRange.to
+  )) return { ok: false, rejection: unavailableRenameRejection() };
+
+  const replacementIdentifier = formatDslName(newName);
+  const edits = occurrences.map((occurrence) => ({
+    from: occurrence.from,
+    to: occurrence.to,
+    expectedText: sourceText.slice(occurrence.from, occurrence.to),
+    newText: replacementIdentifier
+  }));
+  if (!editsAreSafe(edits)) return { ok: false, rejection: unavailableRenameRejection() };
+  const candidateSource = [...edits]
+    .sort((left, right) => right.from - left.from || right.to - left.to)
+    .reduce((source, edit) => `${source.slice(0, edit.from)}${edit.newText}${source.slice(edit.to)}`, sourceText);
+  const after = compileDslDocument(candidateSource, {
+    assignedElementIds: beforeStatementMap.elementIdByStatementIndex,
+    assignedStatementIds: beforeStatementMap.statementIdByStatementIndex
+  });
+  if (
+    after.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    !after.document ||
+    !after.statementMap ||
+    !after.sourceLexicalNamespace ||
+    (beforeStatementMap.statementIdByStatementIndex !== undefined &&
+      (!after.statementMap.statementIdByStatementIndex ||
+        !mapsMatch(beforeStatementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex)))
+  ) return { ok: false, rejection: unavailableRenameRejection() };
+  return { ok: true, edits };
+};
+
 export const queryDslRenameTarget = (snapshot: DslRenameSnapshot, sourceOffset: number): DslRenameTarget | null => {
   const exact = exactSnapshot(snapshot);
   if (!exact || sourceOffset < 0 || sourceOffset >= exact.source.normalizedSource.length) return null;
@@ -383,6 +436,15 @@ export const planDslRenameEditsResult = (
     const projection = projectTypedRenameEdits(exact.source.normalizedSource, exact.compiled, analysis.entries);
     if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
     edits = projection.edits.map((edit) => ({ ...edit }));
+  } else if (identity.kind === "source") {
+    const projected = projectSourceRenameEdits(
+      exact.source.normalizedSource,
+      exact.compiled,
+      identity.statementId,
+      newName
+    );
+    if (!projected.ok) return { status: "rejected", rejection: projected.rejection };
+    edits = projected.edits;
   } else {
     const owner = sourceOwnerForRuntimeElementId({ ...exact.compiled, statementMap: exact.compiled.statementMap! }, identity.elementId);
     if (!owner || owner.kind !== "ordinary") return { status: "rejected", rejection: unavailableRenameRejection() };

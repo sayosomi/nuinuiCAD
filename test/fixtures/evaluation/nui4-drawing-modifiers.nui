@@ -1,17 +1,23 @@
 nui 4
 modifier Hide {
   state: hidden,
-  stroke: 1px dashed #aa0000,
+  width: 1px,
+  style: dashed,
+  color: #aa0000,
 }
 modifier Disable {
   state: disabled,
-  stroke: 2px solid #0000aa,
+  width: 2px,
+  style: solid,
+  color: #0000aa,
 }
 modifier Show {
   state: visible,
 }
 modifier Guide {
-  stroke: 1.5px dotted accent,
+  width: 1.5px,
+  style: dotted,
+  color: accent,
 }
 module M() {
   group Inner [Disable] {

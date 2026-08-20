@@ -123,11 +123,11 @@ describe("evaluateElements", () => {
       { id: "point", name: "Point", type: "freePoint", activity: "visible", parentGroupId: "inner", modifierNames: ["element", "stateOnly", "elementLater"], x: 0, y: 0 }
     ], {
       drawingModifiers: [
-        { name: "outer", stroke: outerStroke },
-        { name: "inner", stroke: innerStroke },
-        { name: "element", stroke: { widthPx: 4, style: "solid", color: { kind: "fixed", hex: "#444444" } } },
+        { name: "outer", ...outerStroke },
+        { name: "inner", ...innerStroke },
+        { name: "element", widthPx: 4, style: "solid", color: { kind: "fixed", hex: "#444444" } },
         { name: "stateOnly", state: "hidden" },
-        { name: "elementLater", stroke: elementStroke }
+        { name: "elementLater", ...elementStroke }
       ]
     });
 
@@ -142,7 +142,9 @@ describe("evaluateElements", () => {
     const source = [
       "nui 4",
       "modifier Guide {",
-      "  stroke: 1.5px dashed #abcdef,",
+      "  width: 1.5px,",
+      "  style: dashed,",
+      "  color: #abcdef,",
       "}",
       "module M() {",
       "  point Internal [Guide] = coordinate(x: 1, y: 2)",
@@ -663,7 +665,7 @@ describe("evaluateElements", () => {
         x: 0,
         y: 0
       }
-    ], { drawingModifiers: [{ name: "Guide", stroke }] });
+    ], { drawingModifiers: [{ name: "Guide", ...stroke }] });
 
     expect(result.forGroupGeneratedRows).toHaveLength(2);
     expect(result.effectiveDrawingModifierStrokes?.get("p@loop:0")).toEqual(stroke);

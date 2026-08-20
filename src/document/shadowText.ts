@@ -11,6 +11,7 @@ import type {
   CadElement,
   DocumentPalette,
   DrawingModifierDefinition,
+  DrawingProfile,
   ElementId,
   PrintLayout,
   VisibilityProfile,
@@ -43,6 +44,7 @@ export type ShadowState = {
 export type ModelSnapshotForShadow = {
   elements: CadElement[];
   modifiers?: DrawingModifierDefinition[];
+  drawingProfiles?: DrawingProfile[];
   palette: DocumentPalette;
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
@@ -55,6 +57,7 @@ export type ModelSnapshotForShadow = {
 export const snapshotToDslData = (snapshot: ModelSnapshotForShadow): DslDocumentData => ({
   elements: snapshot.elements,
   modifiers: snapshot.modifiers ?? [],
+  ...(snapshot.drawingProfiles?.length ? { drawingProfiles: snapshot.drawingProfiles } : {}),
   palette: snapshot.palette,
   visibilityRoles: snapshot.visibilityRoles,
   visibilityProfiles: snapshot.visibilityProfiles,

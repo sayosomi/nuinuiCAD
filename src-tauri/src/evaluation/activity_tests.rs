@@ -2,8 +2,9 @@ use serde_json::json;
 
 use super::activity::{
     activity_allows_drawing, activity_allows_evaluation, activity_from_element,
-    effective_activity_by_element_id, effective_drawing_modifier_stroke_by_element_id,
-    ElementActivity,
+    effective_activity_by_element_id, effective_activity_by_element_id_with_profile,
+    effective_drawing_modifier_stroke_by_element_id,
+    effective_drawing_modifier_stroke_by_element_id_with_profile, ElementActivity,
 };
 use super::evaluate_document_input;
 use super::groups::group_state_by_element_id;
@@ -63,6 +64,7 @@ fn module_instance_is_an_activity_container_and_a_geometry_noop() {
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: None,
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,
@@ -114,6 +116,7 @@ fn bake_sandbox_can_evaluate_disabled_geometry_without_changing_normal_evaluatio
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: None,
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,
@@ -129,6 +132,7 @@ fn bake_sandbox_can_evaluate_disabled_geometry_without_changing_normal_evaluatio
         evaluation_limit_index: None,
         allow_disabled_element_ids: Some(vec!["disabled".to_owned()]),
         drawing_modifiers: None,
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,
@@ -170,6 +174,7 @@ fn bake_sandbox_does_not_enable_a_disabled_dependency_that_is_not_a_target() {
         evaluation_limit_index: None,
         allow_disabled_element_ids: Some(vec!["target".to_owned()]),
         drawing_modifiers: None,
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,
@@ -227,12 +232,57 @@ fn drawing_modifiers_resolve_outer_to_inner_to_element_with_last_wins() {
 }
 
 #[test]
-fn drawing_modifier_strokes_resolve_atomically_and_independently_from_state() {
+fn selected_drawing_profile_overlays_common_properties_by_field() {
     let modifiers = json!([
-        { "name": "Outer", "stroke": { "widthPx": 1.0, "style": "solid", "color": { "kind": "fixed", "hex": "#111111" } } },
-        { "name": "Inner", "stroke": { "widthPx": 2.0, "style": "dashed", "color": { "kind": "fixed", "hex": "#222222" } } },
+        {
+            "name": "Guide",
+            "widthPx": 2.0,
+            "style": "solid",
+            "profileDeltas": [{
+                "profileId": "print-id",
+                "profileName": "Print",
+                "color": { "kind": "fixed", "hex": "#123456" },
+                "state": "disabled"
+            }]
+        }
+    ]);
+    let elements = vec![json!({
+        "id": "point",
+        "type": "freePoint",
+        "activity": "visible",
+        "modifierNames": ["Guide"]
+    })];
+
+    assert_eq!(
+        effective_activity_by_element_id_with_profile(
+            &elements,
+            Some(&modifiers),
+            Some("print-id")
+        )["point"]
+            .activity,
+        ElementActivity::Disabled
+    );
+    assert_eq!(
+        effective_drawing_modifier_stroke_by_element_id_with_profile(
+            &elements,
+            Some(&modifiers),
+            Some("print-id")
+        )["point"],
+        json!({
+            "widthPx": 2.0,
+            "style": "solid",
+            "color": { "kind": "fixed", "hex": "#123456" }
+        })
+    );
+}
+
+#[test]
+fn drawing_modifier_strokes_resolve_properties_and_defaults_independently_from_state() {
+    let modifiers = json!([
+        { "name": "Outer", "widthPx": 1.0, "style": "solid", "color": { "kind": "fixed", "hex": "#111111" } },
+        { "name": "Inner", "widthPx": 2.0, "style": "dashed", "color": { "kind": "fixed", "hex": "#222222" } },
         { "name": "StateOnly", "state": "hidden" },
-        { "name": "Later", "stroke": { "widthPx": 3.0, "style": "dotted", "color": { "kind": "themeRole", "role": "accent" } } }
+        { "name": "Later", "widthPx": 3.0, "style": "dotted", "color": { "kind": "themeRole", "role": "accent" } }
     ]);
     let elements = vec![
         json!({ "id": "outer", "type": "group", "activity": "visible", "modifierNames": ["Outer"] }),
@@ -277,8 +327,9 @@ fn generated_rows_receive_the_template_stroke_without_id_parsing() {
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: Some(json!([
-            { "name": "Guide", "stroke": { "widthPx": 1.25, "style": "dashed", "color": { "kind": "themeRole", "role": "info" } } }
+            { "name": "Guide", "widthPx": 1.25, "style": "dashed", "color": { "kind": "themeRole", "role": "info" } }
         ])),
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,
@@ -318,6 +369,7 @@ fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
             { "name": "Disable", "state": "disabled" },
             { "name": "Show", "state": "visible" }
         ])),
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,
@@ -370,6 +422,7 @@ fn directly_disabled_dependency_reports_evaluation_off() {
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: None,
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,

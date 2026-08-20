@@ -89,6 +89,7 @@ export const useEvaluationEngine = (
   const evaluationLimitIndex = options.evaluationLimitIndex;
   const allowDisabledElementIds = options.allowDisabledElementIds;
   const drawingModifiers = options.drawingModifiers;
+  const selectedDrawingProfileId = options.selectedDrawingProfileId;
   const scalarProgram = options.scalarProgram;
   const bindingVersions = options.bindingVersions;
   const statementInfoByElementId = options.statementInfoByElementId;
@@ -111,6 +112,7 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       ...(allowDisabledElementIds?.size ? { allowDisabledElementIds } : {}),
       ...(drawingModifiers?.length ? { drawingModifiers } : {}),
+      ...(selectedDrawingProfileId ? { selectedDrawingProfileId } : {}),
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(bindingVersions ? {
         bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, scalarExecutionPositionByElementId, statementIdByStatementIndex,
@@ -129,6 +131,7 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       allowDisabledElementIds,
       drawingModifiers,
+      selectedDrawingProfileId,
       scalarProgram,
       bindingVersions,
       statementInfoByElementId,
@@ -159,6 +162,7 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       allowDisabledElementIds: allowDisabledElementIds ? Array.from(allowDisabledElementIds) : undefined,
       drawingModifiers,
+      selectedDrawingProfileId,
       scalarProgram,
       bindingVersions,
       statementIdByStatementIndex: statementIdByStatementIndex ? Array.from(statementIdByStatementIndex) : undefined,
@@ -186,6 +190,7 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       allowDisabledElementIds,
       drawingModifiers,
+      selectedDrawingProfileId,
       scalarProgram,
       bindingVersions,
       statementIdByStatementIndex,

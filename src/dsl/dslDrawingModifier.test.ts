@@ -174,7 +174,7 @@ describe("nui4 drawing modifier source model", () => {
       ["duplicate state", ["state: visible,", "state: hidden,"], "state プロパティは1つだけ"],
       ["invalid state", ["state: maybe,"], "visible / hidden / disabled"],
       ["missing comma", ["state: hidden"], "末尾の「,」"],
-      ["unknown property", ["color: red,"], "未知のプロパティ"]
+      ["invalid color", ["color: red,"], "color は foreground"]
     ] as const;
     for (const [, properties, message] of cases) {
       const source = sourceLines("nui 4", "modifier A {", ...properties.map((property) => `  ${property}`), "}");
@@ -193,18 +193,24 @@ describe("nui4 drawing modifier source model", () => {
     expect(errors("nui 4\nmodifier A (state: hidden) {").some((item) => item.message.includes("名前が不正"))).toBe(true);
   });
 
-  it("compiles stroke-only and combined modifiers into structured typed values", () => {
+  it("compiles independent modifier properties and profile deltas", () => {
     const source = sourceLines(
       "nui 4",
+      "profile 印刷用",
       "modifier Basic {",
-      "  stroke: 1px solid foreground,",
+      "  width: 1px,",
+      "  style: solid,",
+      "  color: foreground,",
       "}",
       "modifier Guide {",
       "  state: hidden,",
-      "  stroke: 1px dashed info,",
+      "  for @印刷用 {",
+      "    width: 0.5px,",
+      "    color: info,",
+      "  }",
       "}",
       "modifier Custom {",
-      "  stroke: 1.5px dotted #FF3355,",
+      "  color: #FF3355,",
       "}"
     );
     const compiled = compileDslDocument(source);
@@ -212,51 +218,104 @@ describe("nui4 drawing modifier source model", () => {
     expect(compiled.document?.modifiers).toEqual([
       {
         name: "Basic",
-        stroke: { widthPx: 1, style: "solid", color: { kind: "themeRole", role: "foreground" } }
+        widthPx: 1,
+        style: "solid",
+        color: { kind: "themeRole", role: "foreground" }
       },
       {
         name: "Guide",
         state: "hidden",
-        stroke: { widthPx: 1, style: "dashed", color: { kind: "themeRole", role: "info" } }
+        profileDeltas: [{
+          profileId: expect.any(String),
+          profileName: "印刷用",
+          widthPx: 0.5,
+          color: { kind: "themeRole", role: "info" }
+        }]
       },
       {
         name: "Custom",
-        stroke: { widthPx: 1.5, style: "dotted", color: { kind: "fixed", hex: "#ff3355" } }
+        color: { kind: "fixed", hex: "#ff3355" }
       }
     ]);
   });
 
-  it("accepts every theme role and rejects malformed stroke values", () => {
+  it("accepts every theme role and rejects malformed independent values", () => {
     const roles = ["foreground", "muted", "accent", "info", "warning", "error"];
     for (const [index, role] of roles.entries()) {
-      const source = sourceLines("nui 4", `modifier M${index} {`, `  stroke: 1px solid ${role},`, "}");
+      const source = sourceLines("nui 4", `modifier M${index} {`, `  color: ${role},`, "}");
       expect(errors(source)).toEqual([]);
     }
     const invalidCases = [
-      ["0px solid foreground", "正の有限な10進数"],
-      ["Infinitypx solid foreground", "正の有限な10進数"],
-      ["1em solid foreground", "正の有限な10進数"],
-      ["1px zigzag foreground", "solid / dashed / dotted"],
-      ["1px solid primary", "foreground / muted / accent"],
-      ["1px solid #fff", "#RRGGBB"],
-      ["1px solid #gg3355", "#RRGGBB"]
+      ["width: 0px,", "正の有限な10進数"],
+      ["width: Infinitypx,", "正の有限な10進数"],
+      ["width: 1em,", "正の有限な10進数"],
+      ["style: zigzag,", "solid / dashed / dotted"],
+      ["color: primary,", "foreground / muted / accent"],
+      ["color: #fff,", "#RRGGBB"],
+      ["color: #gg3355,", "#RRGGBB"]
     ] as const;
-    for (const [stroke, message] of invalidCases) {
-      const source = sourceLines("nui 4", "modifier Broken {", `  stroke: ${stroke},`, "}");
+    for (const [property, message] of invalidCases) {
+      const source = sourceLines("nui 4", "modifier Broken {", `  ${property}`, "}");
       expect(errors(source).some((item) => item.message.includes(message))).toBe(true);
     }
   });
 
-  it("rejects duplicate stroke properties and modifiers without supported properties", () => {
+  it("rejects duplicate independent properties, old stroke syntax, and empty modifiers", () => {
     const duplicate = errors(sourceLines(
       "nui 4",
       "modifier A {",
-      "  stroke: 1px solid foreground,",
-      "  stroke: 2px dotted #123456,",
+      "  width: 1px,",
+      "  width: 2px,",
       "}"
     ));
-    expect(duplicate.some((item) => item.message.includes("stroke プロパティは1つだけ"))).toBe(true);
-    expect(errors(sourceLines("nui 4", "modifier Empty {", "}")).some((item) => item.message.includes("state または stroke"))).toBe(true);
+    expect(duplicate.some((item) => item.message.includes("width プロパティは1つだけ"))).toBe(true);
+    expect(errors(sourceLines("nui 4", "modifier Old {", "  stroke: 1px solid foreground,", "}")).some((item) => item.message.includes("未知のプロパティ"))).toBe(true);
+    expect(errors(sourceLines("nui 4", "modifier Empty {", "}")).some((item) => item.message.includes("state / width / style / color"))).toBe(true);
+  });
+
+  it("resolves profile references by source order and reports profile collisions", () => {
+    const forward = errors(sourceLines(
+      "nui 4",
+      "modifier Guide {",
+      "  for @Print {",
+      "    width: 0.5px,",
+      "  }",
+      "}",
+      "profile Print"
+    ));
+    expect(forward.some((item) => item.message.includes("後で宣言"))).toBe(true);
+
+    const undefinedProfile = errors(sourceLines(
+      "nui 4",
+      "profile Print",
+      "modifier Guide {",
+      "  for @SVG {",
+      "    width: 0.5px,",
+      "  }",
+      "}"
+    ));
+    expect(undefinedProfile.some((item) => item.message.includes("未定義の Drawing Profile"))).toBe(true);
+
+    const duplicateOverride = errors(sourceLines(
+      "nui 4",
+      "profile Print",
+      "modifier Guide {",
+      "  for @Print {",
+      "    width: 0.5px,",
+      "  }",
+      "  for @Print {",
+      "    style: dashed,",
+      "  }",
+      "}"
+    ));
+    expect(duplicateOverride.some((item) => item.message.includes("1つだけ指定"))).toBe(true);
+
+    const collision = errors(sourceLines(
+      "nui 4",
+      "profile Print",
+      "point Print = coordinate(x: 0, y: 0)"
+    ));
+    expect(collision.some((item) => item.message.includes("profile") && item.message.includes("衝突"))).toBe(true);
   });
 
   it("round-trips definitions and ordered references through canonical serialization", () => {
@@ -287,32 +346,32 @@ describe("nui4 drawing modifier source model", () => {
     const compiled = compileDslDocument(sourceLines(
       "nui 4",
       "modifier Combined {",
-      "  stroke: 1.5px dotted #FF3355,",
+      "  color: #FF3355,",
       "  state: hidden,",
       "}"
     ));
     const canonical = serializeDocumentToDsl(compiled.document!, compiled.majorVersion!);
-    expect(canonical).toContain("modifier Combined {\n  state: hidden,\n  stroke: 1.5px dotted #ff3355,\n}");
+    expect(canonical).toContain("modifier Combined {\n  state: hidden,\n  color: #ff3355,\n}");
     expect(compileDslDocument(canonical).diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   });
 
-  it("serializes a stroke-only modifier in canonical source form", () => {
+  it("serializes a property-only modifier in canonical source form", () => {
     const compiled = compileDslDocument(sourceLines(
       "nui 4",
       "modifier Guide {",
-      "  stroke: 1px solid foreground,",
+      "  width: 1px,",
       "}"
     ));
     expect(serializeDocumentToDsl(compiled.document!, compiled.majorVersion!)).toContain(
-      "modifier Guide {\n  stroke: 1px solid foreground,\n}"
+      "modifier Guide {\n  width: 1px,\n}"
     );
   });
 
-  it("keeps stroke-only modifiers out of Task 12 activity resolution", () => {
+  it("keeps property-only modifiers visible while preserving their style metadata", () => {
     const compiled = compileDslDocument(sourceLines(
       "nui 4",
       "modifier StrokeOnly {",
-      "  stroke: 1px dashed foreground,",
+      "  style: dashed,",
       "}",
       "point A [StrokeOnly] = coordinate(x: 0, y: 0)"
     ));
@@ -320,7 +379,7 @@ describe("nui4 drawing modifier source model", () => {
     expect(compiled.document?.modifiers).toEqual([
       {
         name: "StrokeOnly",
-        stroke: { widthPx: 1, style: "dashed", color: { kind: "themeRole", role: "foreground" } }
+        style: "dashed"
       }
     ]);
   });

@@ -27,7 +27,8 @@ import type { ElementId } from "../types/geometry";
 export type DslSemanticIdentity =
   | { kind: "typed"; bindingId: BindingId }
   | { kind: "module"; target: ModuleSemanticTarget }
-  | { kind: "element"; elementId: ElementId };
+  | { kind: "element"; elementId: ElementId }
+  | { kind: "source"; statementId: string };
 
 export type DslSemanticOccurrence = {
   from: number;
@@ -57,6 +58,7 @@ const physicalRange = (
 export const dslSemanticIdentityKey = (identity: DslSemanticIdentity): string => {
   if (identity.kind === "typed") return `typed:${identity.bindingId}`;
   if (identity.kind === "element") return `element:${identity.elementId}`;
+  if (identity.kind === "source") return `source:${identity.statementId}`;
   return `module:${moduleSemanticTargetKey(identity.target)}`;
 };
 
@@ -102,6 +104,10 @@ const declarationIdentity = (
   ) {
     const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(declaration.statementIndex);
     return statementId ? { kind: "module", target: { kind: "moduleSource", statementId } } : null;
+  }
+  if (declaration.kind === "profile") {
+    const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(declaration.statementIndex);
+    return statementId ? { kind: "source", statementId } : null;
   }
   return null;
 };
@@ -358,6 +364,7 @@ const addRootDeclarations = (compiled: CompiledDslDocument, add: AddOccurrence) 
   if (!namespace) return;
   for (const declaration of namespace.allDeclarations) {
     if (
+      declaration.kind !== "profile" &&
       declaration.kind !== "group" &&
       declaration.kind !== "geometry" &&
       declaration.kind !== "conditionalGroup" &&
@@ -366,6 +373,15 @@ const addRootDeclarations = (compiled: CompiledDslDocument, add: AddOccurrence) 
     const identity = declarationIdentity(compiled, declaration);
     if (!identity || !declaration.nameSpan) continue;
     addPhysicalOccurrence(add, compiled, declaration.statementIndex, declaration.nameSpan, identity, "declaration");
+  }
+};
+
+const addDrawingProfileOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace) return;
+  for (const [statementIndex, statement] of compiled.statements.entries()) {
+    if (statement.kind !== "modifierProfileBlock") continue;
+    addQualifiedPathOccurrences(compiled, add, statementIndex, statement.profileNameSpan, null);
   }
 };
 
@@ -421,6 +437,7 @@ export const createDslSemanticOccurrenceIndex = (
   addRootDeclarations(compiled, add);
   addModuleOccurrences(compiled, add);
   addPrintLayoutOccurrences(compiled, add);
+  addDrawingProfileOccurrences(compiled, add);
 
   const occurrences = [...byKey.values()].sort((left, right) =>
     left.from - right.from || left.to - right.to || (left.kind === "declaration" ? -1 : 1) ||
