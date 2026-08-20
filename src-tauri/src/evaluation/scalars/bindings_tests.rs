@@ -64,6 +64,7 @@ fn empty_state() -> EvaluationState {
         group_states: HashMap::new(),
         computed_geometry: HashMap::new(),
         computed_geometry_order: Vec::new(),
+        pre_mutation_bezier_geometry: HashMap::new(),
         errors: Vec::new(),
         warnings: Vec::new(),
     }

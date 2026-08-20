@@ -1,5 +1,6 @@
 import type {
   CadElement,
+  ComputedBezierCurve,
   ComputedGeometry,
   DependencyError,
   DrawingModifierDefinition,
@@ -170,6 +171,7 @@ export const evaluateElements = (
   const evaluatedElements = elements.slice(0, evaluationLimitIndex);
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
+  const preMutationBezierGeometry = new Map<ElementId, ComputedBezierCurve>();
   const errors: DependencyError[] = [];
   const warnings: EvaluationWarning[] = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -657,6 +659,12 @@ export const evaluateElements = (
         ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText }
         : {})
     });
+    if (elementToEvaluate.type === "bezierCurve" && !preMutationBezierGeometry.has(elementToEvaluate.id)) {
+      const geometry = computedGeometry.get(elementToEvaluate.id);
+      if (geometry?.kind === "bezierCurve") {
+        preMutationBezierGeometry.set(elementToEvaluate.id, structuredClone(geometry));
+      }
+    }
   };
 
   for (const element of evaluatedElements) {
@@ -687,6 +695,7 @@ export const evaluateElements = (
 
   return {
     computedGeometry,
+    preMutationBezierGeometry,
     errors,
     warnings,
     evaluatedElementIds,

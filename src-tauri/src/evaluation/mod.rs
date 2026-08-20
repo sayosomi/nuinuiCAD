@@ -497,6 +497,7 @@ fn evaluate_element_by_type(
     text_context: TextTemplateContext,
     state: &mut EvaluationState,
 ) {
+    let capture_id = id.clone();
     match element_type(&element) {
         Some("conditionalGroup") => {
             let active_branch = match condition_context
@@ -563,6 +564,17 @@ fn evaluate_element_by_type(
         Some("image") => evaluate_image(&element, &local_variables, state),
         Some("text") => evaluate_text(&element, &local_variables, text_context, state),
         _ => {}
+    }
+    if element_type(&element) == Some("bezierCurve")
+        && !state.pre_mutation_bezier_geometry.contains_key(&capture_id)
+    {
+        if let Some(geometry) = state.computed_geometry.get(&capture_id) {
+            if geometry.get("kind").and_then(Value::as_str) == Some("bezierCurve") {
+                state
+                    .pre_mutation_bezier_geometry
+                    .insert(capture_id, geometry.clone());
+            }
+        }
     }
 }
 
@@ -667,6 +679,7 @@ fn evaluate_document_input_with_scalar_program(
         drawing_modifiers,
         computed_geometry: HashMap::new(),
         computed_geometry_order: Vec::new(),
+        pre_mutation_bezier_geometry: HashMap::new(),
         errors: Vec::new(),
         warnings: Vec::new(),
     };
@@ -1065,6 +1078,11 @@ fn evaluate_document_input_with_scalar_program(
             .computed_geometry_order
             .iter()
             .filter_map(|id| state.computed_geometry.get(id).cloned())
+            .collect(),
+        pre_mutation_bezier_geometry: state
+            .computed_geometry_order
+            .iter()
+            .filter_map(|id| state.pre_mutation_bezier_geometry.get(id).cloned())
             .collect(),
         errors: state.errors,
         warnings: state.warnings,

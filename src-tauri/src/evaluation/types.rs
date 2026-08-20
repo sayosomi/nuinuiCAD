@@ -112,6 +112,8 @@ pub(crate) struct EffectiveDrawingModifierStroke {
 #[serde(rename_all = "camelCase")]
 pub struct EvaluationPayload {
     pub(crate) computed_geometry: Vec<Value>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) pre_mutation_bezier_geometry: Vec<Value>,
     pub(crate) errors: Vec<DependencyError>,
     pub(crate) warnings: Vec<EvaluationWarning>,
     pub(crate) evaluated_element_ids: Vec<ElementId>,
@@ -180,6 +182,7 @@ pub(crate) struct EvaluationState {
     pub(crate) group_states: HashMap<ElementId, GroupState>,
     pub(crate) computed_geometry: HashMap<ElementId, Value>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
+    pub(crate) pre_mutation_bezier_geometry: HashMap<ElementId, Value>,
     pub(crate) errors: Vec<DependencyError>,
     pub(crate) warnings: Vec<EvaluationWarning>,
 }

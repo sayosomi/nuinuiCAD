@@ -32,6 +32,11 @@ export type CanvasOverlayCurve = {
   points: ScreenPoint[];
 };
 
+export type BezierEditingHelperOverlay = {
+  curve: ComputedBezierCurve;
+  points: ScreenPoint[];
+};
+
 export type CanvasOverlayOffsetLine = {
   line: ComputedOffsetLine;
   points: ScreenPoint[];
@@ -115,6 +120,7 @@ export type CanvasOverlayData = {
   overlayOffsetLines: CanvasOverlayOffsetLine[];
   overlayImages: CanvasOverlayImage[];
   overlayTexts: CanvasOverlayText[];
+  selectedBezierEditingHelper: BezierEditingHelperOverlay | null;
   overlayPointPickCandidates: PointPickCandidate[];
   overlayNumericReferenceCandidates: CanvasNumericReferenceCandidate[];
   selectedBezierHandles: BezierHandleOverlay[];

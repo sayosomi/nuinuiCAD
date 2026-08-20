@@ -574,6 +574,8 @@ export type ForGroupGeneratedRow = {
 
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
+  /** Bezier geometry captured before later runtime line mutations. */
+  preMutationBezierGeometry?: Map<ElementId, ComputedBezierCurve>;
   errors: DependencyError[];
   warnings: EvaluationWarning[];
   evaluatedElementIds?: Set<ElementId>;

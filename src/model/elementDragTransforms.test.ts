@@ -271,6 +271,47 @@ describe("elementDragTransforms", () => {
     expect(curve.startHandleLength).toBeCloseTo(63.63961030678928);
   });
 
+  it("uses the pre-mutation Bezier snapshot as the handle drag baseline", () => {
+    const elements: CadElement[] = [
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 100, y: 0 },
+      { id: "target", name: "Target", type: "freePoint", activity: "visible", x: -20, y: 0 },
+      {
+        id: "curve",
+        name: "Curve",
+        type: "bezierCurve",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 30,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "b" },
+        endHandleAngleDeg: 180,
+        endHandleLength: 30
+      },
+      {
+        id: "extend",
+        name: "Extend",
+        type: "extendTrim",
+        activity: "visible",
+        endpoint: { lineId: "curve", endpointKey: "start" },
+        point: { mode: "reference", pointId: "target" }
+      }
+    ];
+    const baseEvaluation = evaluateElements(elements);
+    const moved = moveBezierHandleByDeltaInElements(elements, "curve", {
+      role: "start",
+      dx: 10,
+      dy: 0,
+      baseEvaluation
+    });
+    const movedCurve = elementById(moved ?? [], "curve");
+
+    if (movedCurve.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(movedCurve.startHandleAngleDeg).toBe(0);
+    expect(movedCurve.startHandleLength).toBe(40);
+  });
+
   it("respects Bezier angle and distance locks", () => {
     const angleLocked = moveBezierHandleByDeltaInElements(sampleElements, "curve-ac", {
       role: "start",
@@ -356,6 +397,18 @@ describe("elementDragTransforms", () => {
         intermediatePointId: "missing",
         dx: 1,
         dy: 1
+      })
+    ).toBeNull();
+    const evaluationWithoutSnapshot = {
+      ...evaluateElements(sampleElements),
+      preMutationBezierGeometry: undefined
+    };
+    expect(
+      moveBezierHandleByDeltaInElements(sampleElements, "curve-ac", {
+        role: "start",
+        dx: 1,
+        dy: 1,
+        baseEvaluation: evaluationWithoutSnapshot
       })
     ).toBeNull();
   });
