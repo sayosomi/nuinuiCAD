@@ -2,6 +2,7 @@ import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixt
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
 import type { LineSplice } from "../document/textPatch";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
+import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 
 export type VscodeRustEvaluationRequest = {
   type: "rustEvaluationRequest";
@@ -13,6 +14,8 @@ export type VscodeDocumentChangeReason = "edit" | "undo" | "redo";
 
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
+  | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
+  | { type: "editCanvasRibbon" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
   | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "stale" | "focused" }
@@ -72,6 +75,7 @@ export type ExtensionToVscodeMessage =
       documentVersion: number;
     }
   | { type: "canvasThemeChanged" }
+  | { type: "canvasRibbonConfiguration"; ribbons: VscodeCanvasRibbon[] }
   | {
       type: "canvasCommand";
       commandId: VscodeCanvasCommandId;

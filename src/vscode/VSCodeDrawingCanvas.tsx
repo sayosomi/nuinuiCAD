@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
-import { forwardRef, useEffect, useMemo } from "react";
+import { forwardRef, useCallback, useEffect, useMemo } from "react";
 import { dispatchCommand } from "../commands/commands";
+import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import {
   effectiveElements,
@@ -16,6 +17,13 @@ import type {
   CanvasBezierHandleDragAction
 } from "../components/canvasHostAdapter";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
+import {
+  type VscodeCanvasRibbon
+} from "./vscodeCanvasRibbonConfig";
+import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
+import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
+import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
+import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
 
 type VSCodeDrawingCanvasProps = {
@@ -24,6 +32,10 @@ type VSCodeDrawingCanvasProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   postCanonicalSourceText: (sourceText: string) => void;
   canvasTheme?: CanvasTheme;
+  canvasRibbonRibbons?: VscodeCanvasRibbon[];
+  onCanvasRibbonPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
+  onEditCanvasRibbon?: () => void;
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer;
 };
 
 const mutationWasApplied = (value: unknown): boolean =>
@@ -35,7 +47,11 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     evaluationState,
     canvasFocusRef,
     postCanonicalSourceText,
-    canvasTheme = LEGACY_CANVAS_THEME
+    canvasTheme = LEGACY_CANVAS_THEME,
+    canvasRibbonRibbons = [],
+    onCanvasRibbonPositionCommit,
+    onEditCanvasRibbon,
+    measureCanvasTextWidth
   }, ref) {
     const elements = useCadDocumentStore(effectiveElements);
     const canonicalElements = useCadDocumentStore((state) => state.elements);
@@ -64,6 +80,34 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       sourceLexicalNamespace,
       statementInfoByElementId
     }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
+
+    const ribbonCommandContext = useMemo(() => ({
+      hasSelection: selectedElementIds.length > 0,
+      showCanvasElementNames,
+      showCanvasPoints
+    }), [selectedElementIds.length, showCanvasElementNames, showCanvasPoints]);
+
+    const executeRibbonCommand = useCallback((item: CommandRibbonPresentationCommandItem) => {
+      const definition = vscodeCanvasRibbonCommandFor(item.commandId);
+      if (!definition || !definition.isAvailable({
+        hasSelection: useCadUiStore.getState().selectedElementIds.length > 0,
+        showCanvasElementNames: useCadUiStore.getState().showCanvasElementNames,
+        showCanvasPoints: useCadUiStore.getState().showCanvasPoints
+      })) return;
+      if (definition.hostAction === "editCanvasRibbon") {
+        onEditCanvasRibbon?.();
+        return;
+      }
+      if (!definition.sharedCommandId) return;
+      dispatchCommand(definition.sharedCommandId, {
+        evaluation,
+        getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
+        measureCanvasTextWidth,
+        recordSelectionHistory: true,
+        focusCanvas: () => canvasFocusRef.current?.focus()
+      });
+      canvasFocusRef.current?.focus();
+    }, [canvasFocusRef, evaluation, measureCanvasTextWidth, onEditCanvasRibbon]);
 
     const dispatchGeometryAction = useMemo(
       () => (action: CanvasPointDragAction | CanvasBezierHandleDragAction) => {
@@ -169,7 +213,18 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       toggleCanvasElementNames: () => dispatchCommand("toggleCanvasElementNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
       togglePrintPreviewWindow: () => dispatchCommand("togglePrintPreviewWindow"),
-      resolveImageSourceUrl: (sourcePath) => sourcePath
+      resolveImageSourceUrl: (sourcePath) => sourcePath,
+      renderHostOverlay: (viewportSize) => (
+        <VSCodeCanvasRibbonOverlay
+          canvasFocusRef={canvasFocusRef}
+          canvasViewport={canvasViewport}
+          canvasRibbonRibbons={canvasRibbonRibbons}
+          viewportSize={viewportSize}
+          ribbonCommandContext={ribbonCommandContext}
+          onCommand={executeRibbonCommand}
+          onPositionCommit={onCanvasRibbonPositionCommit}
+        />
+      )
     }), [
       activeLinePickTarget,
       activeNumericReferencePickTarget,
@@ -192,7 +247,12 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       showCanvasElementNames,
       showCanvasPoints,
       showPrintPreviewWindow,
-      visibilityProfiles
+      visibilityProfiles,
+      executeRibbonCommand,
+      onCanvasRibbonPositionCommit,
+      canvasRibbonRibbons,
+      ribbonCommandContext,
+      canvasFocusRef
     ]);
 
     return (

@@ -30,7 +30,23 @@ type ExtensionManifest = {
     menus?: {
       commandPalette?: CommandPaletteMenu[];
     };
+    configuration?: {
+      properties?: Record<string, {
+        scope?: string;
+        type?: string;
+        default?: unknown;
+        items?: unknown;
+      }>;
+    };
   };
+};
+
+type SchemaNode = {
+  const?: unknown;
+  enum?: unknown[];
+  oneOf?: SchemaNode[];
+  properties?: Record<string, SchemaNode>;
+  items?: SchemaNode;
 };
 
 const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
@@ -46,7 +62,8 @@ const commandIds = [
   "nuinuiCAD.toggleCanvasElementNames",
   "nuinuiCAD.toggleCanvasPoints",
   "nuinuiCAD.bakeCurrentShape",
-  "nuinuiCAD.bakeBaseShape"
+  "nuinuiCAD.bakeBaseShape",
+  "nuinuiCAD.editCanvasRibbon"
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
@@ -85,7 +102,8 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Toggle Canvas Element Names",
       "nuinuiCAD: Toggle Canvas Points",
       "nuinuiCAD: Bake Current Shape",
-      "nuinuiCAD: Bake Base Shape"
+      "nuinuiCAD: Bake Base Shape",
+      "nuinuiCAD: Edit Canvas Ribbon"
     ]);
   });
 
@@ -95,6 +113,7 @@ describe("VS Code extension manifest command contributions", () => {
 
     expect(commandPalette).toEqual([
       { command: "nuinuiCAD.openCanvas", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.editCanvasRibbon", when: "true" },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.clearCanvasSelection", when: canvasPaletteWhen },
@@ -138,5 +157,40 @@ describe("VS Code extension manifest keybindings", () => {
     });
     expect(keybindings.some(({ key }) => key === "cmd+z")).toBe(false);
     expect(keybindings.some(({ key }) => key === "cmd+shift+z")).toBe(false);
+  });
+});
+
+describe("VS Code Canvas Ribbon configuration contribution", () => {
+  it("declares application scope, the edit-only default, and command/value item schema", async () => {
+    const manifest = await readManifest();
+    const setting = manifest.contributes?.configuration?.properties?.["nuinuiCAD.canvasRibbon.ribbons"];
+    expect(setting).toMatchObject({
+      type: "array",
+      scope: "application",
+      default: [{
+        id: "canvas-ribbon",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        items: [{ commandId: "editCanvasRibbon", type: "command" }]
+      }]
+    });
+    expect(setting?.items).toMatchObject({
+      oneOf: [expect.objectContaining({
+        required: expect.arrayContaining(["id", "items"]),
+        properties: expect.objectContaining({ items: expect.anything() })
+      })]
+    });
+    const ribbonSchema = (setting?.items as SchemaNode | undefined)?.oneOf?.[0];
+    const itemSchema = ribbonSchema?.properties?.items?.items;
+    const commandSchema = itemSchema?.oneOf?.find((schema) => schema.properties?.type?.const === "command");
+    const valueSchema = itemSchema?.oneOf?.find((schema) => schema.properties?.type?.const === "value");
+    expect(ribbonSchema?.required).not.toContain("iconSize");
+    expect(ribbonSchema?.properties?.iconSize).toBeUndefined();
+    expect(commandSchema?.properties?.iconColor).toBeUndefined();
+    expect(commandSchema?.properties?.label).toBeUndefined();
+    expect(commandSchema?.properties?.commandId).toBeDefined();
+    expect(valueSchema?.properties?.valueId).toEqual({ const: "canvasZoom" });
+    expect(valueSchema?.properties?.label).toBeUndefined();
   });
 });

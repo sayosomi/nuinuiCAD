@@ -20,6 +20,10 @@ import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasureme
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
+import {
+  normalizeVscodeCanvasRibbons,
+  type VscodeCanvasRibbon
+} from "./vscodeCanvasRibbonConfig";
 import { minimumCanvasPanForBounds } from "../geometry/canvasViewportReveal";
 import { getSelectedElementIds } from "../commands/commandRuntime";
 import { resolveDisabledBakeTargetIds } from "../commands/bakeGeometry";
@@ -46,6 +50,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
+  const [canvasRibbonRibbons, setCanvasRibbonRibbons] = useState<VscodeCanvasRibbon[]>([]);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const lastAuthoritativeHostSourceSnapshotRef = useRef<AuthoritativeHostSourceSnapshot | null>(null);
   const latestCanvasNavigationRequestRef = useRef<number | null>(null);
@@ -319,6 +324,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (rustTransport.handleMessage(message)) return;
       if (message.type === "canvasThemeChanged") {
         refreshCanvasTheme();
+      } else if (message.type === "canvasRibbonConfiguration") {
+        setCanvasRibbonRibbons(normalizeVscodeCanvasRibbons(message.ribbons));
       } else if (message.type === "canvasCommand") {
         if (message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") {
           void runCanvasBake(message);
@@ -481,7 +488,31 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         evaluationState={evaluationState}
         canvasFocusRef={canvasFocusRef}
         canvasTheme={canvasTheme}
-        postCanonicalSourceText={() => postCanvasCommit()}
+        canvasRibbonRibbons={canvasRibbonRibbons}
+        measureCanvasTextWidth={measureCanvasTextWidth}
+        onCanvasRibbonPositionCommit={(ribbonId, position) => {
+          api.postMessage({
+            type: "canvasRibbonPositionCommit",
+            ribbonId,
+            x: position.x,
+            y: position.y
+          });
+        }}
+        onEditCanvasRibbon={() => api.postMessage({ type: "editCanvasRibbon" })}
+        postCanonicalSourceText={(sourceText) => {
+          if (benchmarkConfig) return;
+          const expectedDocumentVersion = latestHostDocumentVersionRef.current;
+          if (expectedDocumentVersion === null) return;
+          const sourceUpdate = useCadDocumentStore.getState().sourceUpdate;
+          const mutationKind = sourceUpdate.kind === "model-patch" ? "model-patch" : "reset";
+          api.postMessage({
+            type: "canvasCommit",
+            sourceText,
+            expectedDocumentVersion,
+            mutationKind,
+            ...(sourceUpdate.kind === "model-patch" ? { splices: sourceUpdate.splices } : {})
+          });
+        }}
       />
       <VSCodeBenchmarkCaptureRunner
         config={benchmarkConfig}

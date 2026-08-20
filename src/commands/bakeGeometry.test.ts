@@ -123,6 +123,43 @@ describe("Bake geometry", () => {
     expect(patched).toContain("start: (0, 0), end: (100, 0)");
   });
 
+  it("treats a reusable module body as a hard Source Bake boundary", () => {
+    const compiled = compile([
+      "nui 4",
+      "modifier Guide {",
+      "  state: visible,",
+      "}",
+      "module Reusable() {",
+      "  point P0 = coordinate(x: 0, y: 0)",
+      "  point P1 = coordinate(x: 100, y: 0)",
+      "  export line PublicEdge [Guide] = segment(start: @P0, end: @P1)",
+      "}",
+      "instance InstanceOne = Reusable()"
+    ].join("\n"));
+    const bodyEntry = compiled.doc.moduleMaterialization?.executionStatements.find(
+      (entry) => entry.origin?.kind === "moduleBody" && entry.sourceStatementIndex !== undefined
+    );
+    expect(bodyEntry).toBeDefined();
+    const sourceStatementIndex = bodyEntry!.sourceStatementIndex;
+    const evaluation = evaluate(compiled);
+
+    expect(resolveSourceBakeTargets(
+      compiled.doc,
+      compiled.doc.document.elements,
+      sourceStatementIndex
+    )).toBeNull();
+    const plan = planBakeGeometry({
+      mode: "current",
+      elements: compiled.doc.document.elements,
+      evaluation,
+      compiled: compiled.doc,
+      sourceStatementIndex,
+      emitSkippedComments: true
+    });
+    expect(plan).toBeNull();
+    expect(applyLineSplices(compiled.sourceText, plan?.splices ?? [])).toBe(compiled.sourceText);
+  });
+
   it("rejects reversed arcs without inserting an approximation", () => {
     const current = compile([
       "nui 4",

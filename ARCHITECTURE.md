@@ -347,6 +347,17 @@ Current invariants:
 - Runtime `CadElement[]` identityはadapterでcloneしない。
 - Performance instrumentationはproduction DrawingCanvas/evaluation/render pathを引き続き測る。
 
+Command Ribbon presentation is host-neutral. `CommandRibbonView` owns only the
+accessible visual surface, command/value item rendering, icon injection, and
+pointer/wheel isolation. `CommandRibbonFloatingOverlay` owns measured
+floating-position drag and viewport clamping, including label-aware rendered
+dimensions; pointer moves remain presentation-local and a host decides what a
+pointerup commit means. `TauriDrawingCanvas` adapts the existing persisted
+`buttons` settings, Tauri icon catalog, dock behavior, and command execution
+through that boundary. `VSCodeDrawingCanvas` adapts the separate
+`nuinuiCAD.canvasRibbon.ribbons` model, the closed Ribbon command catalog, and
+dynamic Lucide icon resolution through the same boundary.
+
 ### Commands / keyboard / parameters
 
 Primary:
@@ -502,6 +513,15 @@ evaluator remain reused from the performance PoC path.
 Canvas adapter, app, and benchmark result handoff. `vscode-extension/` owns the
 desktop-local extension host, Canvas session registry, persistent Rust stdio
 relay, TextDocument edit bridge, and URI-scoped language analysis sessions.
+
+The Extension Host is authoritative for VS Code Canvas Ribbon configuration. It
+normalizes `nuinuiCAD.canvasRibbon.ribbons`, sends the current normalized value
+to each Webview session, broadcasts configuration changes, and applies only
+validated `{ ribbonId, x, y }` position patches back to User Settings. The
+Webview keeps presentation state local during a drag and sends one position
+commit on pointerup. The `nuinuiCAD.editCanvasRibbon` command routes both
+Command Palette and Ribbon host-action invocations to the normal VS Code
+Settings surface.
 
 The extension keeps one `NuiLanguageAnalysisSession` and one production
 `AutomationDocument` per supported document URI. Diagnostics, native

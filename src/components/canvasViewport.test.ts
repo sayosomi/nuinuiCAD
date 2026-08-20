@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   constrainedWorldDelta,
+  screenToWorld,
   visibleGridStep,
   visibleWorldBounds,
   worldToScreen
@@ -14,6 +15,18 @@ describe("canvasViewport", () => {
     expect(worldToScreen({ x: 10, y: -5 }, size, viewport)).toEqual({
       x: 290,
       y: 200
+    });
+  });
+
+  it("converts screen coordinates back to world coordinates with the inverse Y-up transform", () => {
+    const worldPoint = { x: 10, y: -5 };
+    const screenPoint = worldToScreen(worldPoint, size, viewport);
+
+    expect(screenToWorld(screenPoint, size, viewport)).toEqual(worldPoint);
+    expect(screenToWorld({ x: 290, y: 200 }, size, viewport)).toEqual({ x: 10, y: -5 });
+    expect(screenToWorld(worldToScreen({ x: -12.5, y: 27.25 }, size, viewport), size, viewport)).toEqual({
+      x: -12.5,
+      y: 27.25
     });
   });
 

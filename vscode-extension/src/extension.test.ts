@@ -76,7 +76,7 @@ const mocks = vi.hoisted(() => ({
   visibleTextEditors: [] as TestEditor[],
   textDocuments: [] as TestDocument[],
   commandHandlers: new Map<string, (...args: unknown[]) => unknown>(),
-  activeEditorListeners: [] as Array<() => void>,
+  activeEditorListeners: [] as Array<(editor?: TestEditor) => void>,
   activeColorThemeListeners: [] as Array<() => void>,
   documentOpenListeners: [] as Array<(document: TestDocument) => void>,
   documentChangeListeners: [] as Array<(event: TestDocumentChangeEvent) => void>,
@@ -91,6 +91,9 @@ const mocks = vi.hoisted(() => ({
   referenceRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
   foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
+  canvasRibbonSetting: undefined as unknown,
+  configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
+  configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   showErrorMessage: vi.fn(),
   bakeSettings: {} as Record<string, boolean>,
   showTextDocument: vi.fn(),
@@ -109,14 +112,16 @@ const mocks = vi.hoisted(() => ({
   onDidOpenTextDocument: vi.fn(),
   onDidChangeTextDocument: vi.fn(),
   onDidCloseTextDocument: vi.fn(),
-  asRelativePath: vi.fn(),
   activeTabInput: null as unknown,
   TabInputText: class {
     constructor(public readonly uri: unknown) {}
   },
   TabInputWebview: class {
     constructor(public readonly viewType: string) {}
-  }
+  },
+  getConfiguration: vi.fn(),
+  onDidChangeConfiguration: vi.fn(),
+  asRelativePath: vi.fn()
 }));
 
 vi.mock("vscode", () => {
@@ -191,17 +196,11 @@ vi.mock("vscode", () => {
       get textDocuments() {
         return mocks.textDocuments;
       },
-      getConfiguration: (section: string) => ({
-        get: <T>(key: string, defaultValue: T) => {
-          const fullKey = `${section}.${key}`;
-          return Object.hasOwn(mocks.bakeSettings, fullKey)
-            ? mocks.bakeSettings[fullKey] as T
-            : defaultValue;
-        }
-      }),
       onDidOpenTextDocument: mocks.onDidOpenTextDocument,
       onDidChangeTextDocument: mocks.onDidChangeTextDocument,
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
+      getConfiguration: mocks.getConfiguration,
+      onDidChangeConfiguration: mocks.onDidChangeConfiguration,
       asRelativePath: mocks.asRelativePath
     },
     commands: { registerCommand: mocks.registerCommand, executeCommand: mocks.executeCommand },
@@ -229,6 +228,7 @@ vi.mock("vscode", () => {
     },
     CodeActionKind: { QuickFix: "quickfix" },
     FoldingRangeKind: { Comment: "comment" },
+    ConfigurationTarget: { Global: 1 },
     TextDocumentChangeReason: { Undo: 1, Redo: 2 },
     TabInputText: mocks.TabInputText,
     TabInputWebview: mocks.TabInputWebview,
@@ -401,7 +401,7 @@ const setup = (
     return disposable();
   });
   mocks.createWebviewPanel.mockImplementation(() => panelFor());
-  mocks.onDidChangeActiveTextEditor.mockImplementation((listener: () => void) => {
+  mocks.onDidChangeActiveTextEditor.mockImplementation((listener: (editor?: TestEditor) => void) => {
     mocks.activeEditorListeners.push(listener);
     return disposable();
   });
@@ -471,6 +471,26 @@ const setup = (
     mocks.documentCloseListeners.push(listener);
     return disposable();
   });
+  mocks.getConfiguration.mockImplementation((section?: string) => ({
+    get: <T>(key: string, defaultValue?: T) => {
+      const fullKey = section ? `${section}.${key}` : key;
+      if (fullKey === "nuinuiCAD.canvasRibbon.ribbons") {
+        return (mocks.canvasRibbonSetting ?? defaultValue) as T;
+      }
+      return Object.hasOwn(mocks.bakeSettings, fullKey)
+        ? mocks.bakeSettings[fullKey] as T
+        : defaultValue as T;
+    },
+    update: (section: string, value: unknown, target: unknown) => {
+      mocks.configurationUpdates.push({ section, value, target });
+      if (section === "nuinuiCAD.canvasRibbon.ribbons") mocks.canvasRibbonSetting = value;
+      return Promise.resolve();
+    }
+  }));
+  mocks.onDidChangeConfiguration.mockImplementation((listener: (event: { affectsConfiguration: (section: string) => boolean }) => void) => {
+    mocks.configurationChangeListeners.push(listener);
+    return disposable();
+  });
   activate(context as unknown as Parameters<typeof activate>[0]);
   return context;
 };
@@ -489,6 +509,10 @@ const emitDocumentOpen = (document: TestDocument): void => {
 
 const emitDocumentClose = (document: TestDocument): void => {
   for (const listener of mocks.documentCloseListeners) listener(document);
+};
+
+const emitActiveEditorChange = (editor?: TestEditor): void => {
+  for (const listener of mocks.activeEditorListeners) listener(editor);
 };
 
 const openPanelFor = (editor = mocks.activeTextEditor!): TestPanel => {
@@ -512,6 +536,9 @@ afterEach(() => {
   mocks.documentOpenListeners.length = 0;
   mocks.documentChangeListeners.length = 0;
   mocks.documentCloseListeners.length = 0;
+  mocks.canvasRibbonSetting = undefined;
+  mocks.configurationUpdates.length = 0;
+  mocks.configurationChangeListeners.length = 0;
   mocks.panels.length = 0;
   mocks.rustProcesses.length = 0;
   mocks.diagnosticCollections.length = 0;
@@ -540,6 +567,8 @@ afterEach(() => {
   mocks.onDidOpenTextDocument.mockReset();
   mocks.onDidChangeTextDocument.mockReset();
   mocks.onDidCloseTextDocument.mockReset();
+  mocks.getConfiguration.mockReset();
+  mocks.onDidChangeConfiguration.mockReset();
   mocks.asRelativePath.mockReset();
 });
 
@@ -723,6 +752,50 @@ describe("VS Code production document lifecycle", () => {
       commandId: "bakeCurrentShape"
     }));
     expect(panel.canvasSelection).toBe("NormalArc");
+  });
+
+  it("routes Case K through Source when Palette focus leaves a stale Canvas tab input", async () => {
+    const source = [
+      "nui 4",
+      "modifier Guide {",
+      "  state: visible,",
+      "}",
+      "module Reusable() {",
+      "  point P0 = coordinate(x: 0, y: 0)",
+      "  point P1 = coordinate(x: 100, y: 0)",
+      "  export line PublicEdge [Guide] = segment(",
+      "    start: @P0,",
+      "    end: @P1,",
+      "  )",
+      "}",
+      "instance InstanceOne = Reusable()"
+    ].join("\n");
+    const document = documentFor("/tmp/case-k.nui", "file:///tmp/case-k.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("start: @P0"));
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    panel.canvasSelection = "InstanceOne::PublicEdge";
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    panel.active = false;
+    mocks.activeTextEditor = editor;
+    mocks.visibleTextEditors = [editor];
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    emitActiveEditorChange(editor);
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "bakeSourceRequest"
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(document.getText()).toBe(source);
   });
 
   it("routes Canvas Undo/Redo to the active Canvas webview", () => {
@@ -2070,5 +2143,140 @@ describe("VS Code native choice Quick Fix lifecycle", () => {
     );
     expect(commandHandlerFor("nuinuiCAD.applyChoiceQuickFix")).toEqual(expect.any(Function));
     expect(commandHandlerFor("nuinuiCAD.openCanvas")).toEqual(expect.any(Function));
+  });
+});
+
+describe("VS Code Canvas Ribbon lifecycle", () => {
+  it("registers the global edit command and targets the normal Settings surface", () => {
+    setup(false, null, []);
+
+    expect(mocks.registerCommand).toHaveBeenCalledWith(
+      "nuinuiCAD.editCanvasRibbon",
+      expect.any(Function)
+    );
+    commandHandlerFor("nuinuiCAD.editCanvasRibbon")?.();
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "workbench.action.openSettings",
+      "nuinuiCAD.canvasRibbon.ribbons"
+    );
+  });
+
+  it("patches only a validated Ribbon position in authoritative User Settings", async () => {
+    mocks.canvasRibbonSetting = [
+      {
+        id: "one",
+        label: "One",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        iconSize: 16,
+        items: [{
+          id: "edit",
+          type: "command",
+          commandId: "editCanvasRibbon",
+          icon: "settings-2",
+          label: "Legacy edit",
+          showLabel: false,
+          futureItemField: { keep: "verbatim" }
+        }],
+        futureRibbonField: { keep: true }
+      },
+      {
+        id: "two",
+        items: "malformed",
+        futureMalformedRibbonField: [1, 2, 3]
+      },
+      {
+        id: "one",
+        label: "Later duplicate",
+        x: 7,
+        y: 8,
+        items: [{ id: "later", type: "value", valueId: "canvasZoom" }],
+        futureDuplicateField: "keep"
+      },
+      {
+        id: "three",
+        label: "Three",
+        x: 4,
+        y: 5,
+        orientation: "vertical",
+        iconSize: 20,
+        items: [{ id: "zoom", type: "value", valueId: "canvasZoom" }]
+      }
+    ];
+    const configuredRibbons = mocks.canvasRibbonSetting as Array<Record<string, unknown>>;
+    setup();
+    const panel = openPanelFor();
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: 40, y: 52 });
+
+    expect(mocks.configurationUpdates).toEqual([{
+      section: "nuinuiCAD.canvasRibbon.ribbons",
+      target: 1,
+      value: [
+        { ...configuredRibbons[0], x: 40, y: 52 },
+        configuredRibbons[1],
+        configuredRibbons[2],
+        configuredRibbons[3]
+      ]
+    }]);
+
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: Number.NaN, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: Number.POSITIVE_INFINITY, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "", x: 40, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "missing", x: 40, y: 52 });
+    expect(mocks.configurationUpdates).toHaveLength(1);
+  });
+
+  it("broadcasts normalized configuration changes to every open Canvas session", () => {
+    mocks.canvasRibbonSetting = [];
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA, [documentA]);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorB];
+    mocks.textDocuments = [documentA, documentB];
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels.at(-1)!;
+    panelA.webview.postMessage.mockClear();
+    panelB.webview.postMessage.mockClear();
+
+    mocks.canvasRibbonSetting = [{
+      id: "new",
+      label: "New",
+      x: null,
+      y: 12,
+      orientation: "horizontal",
+      iconSize: 16,
+      items: []
+    }];
+    mocks.configurationChangeListeners[0]?.({
+      affectsConfiguration: (section) => section === "nuinuiCAD.canvasRibbon.ribbons"
+    });
+
+    expect(panelA.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasRibbonConfiguration",
+      ribbons: [{
+        id: "new",
+        label: "New",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        items: []
+      }]
+    });
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasRibbonConfiguration",
+      ribbons: [{
+        id: "new",
+        label: "New",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        items: []
+      }]
+    });
   });
 });
