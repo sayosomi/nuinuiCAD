@@ -4157,6 +4157,7 @@ textarea {
   --vscode-canvas-ribbon-border: var(--vscode-widget-border, #454545);
   --vscode-canvas-ribbon-hover: var(--vscode-toolbar-hoverBackground, #2a2d2e);
   --vscode-canvas-ribbon-active: var(--vscode-list-activeSelectionBackground, #094771);
+  --vscode-canvas-ribbon-active-foreground: var(--vscode-list-activeSelectionForeground, var(--vscode-canvas-ribbon-foreground));
   --vscode-canvas-ribbon-focus: var(--vscode-focusBorder, #007fd4);
   --vscode-canvas-ribbon-disabled: var(--vscode-disabledForeground, #858585);
   --vscode-canvas-ribbon-tooltip: var(--vscode-editorHoverWidget-background, #252526);
@@ -4200,6 +4201,7 @@ textarea {
 .vscode-canvas-webview .command-ribbon-button.is-active,
 .vscode-canvas-webview .command-ribbon-button[aria-pressed="true"] {
   background: var(--vscode-canvas-ribbon-active);
+  color: var(--vscode-canvas-ribbon-active-foreground);
 }
 
 .vscode-canvas-webview .command-ribbon-button:focus-visible,

@@ -30,9 +30,12 @@ describe("shared stylesheet host layout ownership", () => {
     expect(vscodeCanvasWebviewBody).toMatch(/overflow:\s*hidden/);
   });
 
-  it("uses inherited VS Code Ribbon colors, disabled foreground, and a side handle", () => {
+  it("uses inherited VS Code Ribbon colors, active contrast, disabled foreground, and a side handle", () => {
     const vscodeWebview = ruleBody(".vscode-canvas-webview");
     expect(vscodeWebview).toContain("--vscode-canvas-ribbon-foreground:");
+    expect(vscodeWebview).toContain(
+      "--vscode-canvas-ribbon-active-foreground: var(--vscode-list-activeSelectionForeground, var(--vscode-canvas-ribbon-foreground));"
+    );
     expect(stylesheet).not.toContain("--vscode-canvas-ribbon-icon-");
     expect(stylesheet).not.toContain("--vscode-charts-");
     expect(stylesheet).not.toContain("--vscode-terminal-ansi");
@@ -40,8 +43,30 @@ describe("shared stylesheet host layout ownership", () => {
       /\.vscode-canvas-webview \.command-ribbon-handle,\s*\.vscode-canvas-webview \.command-ribbon-button,\s*\.vscode-canvas-webview \.command-ribbon-value\s*\{\s*color:\s*var\(--vscode-canvas-ribbon-foreground\)/
     );
 
+    const activeCommand = ruleBody(
+      ".vscode-canvas-webview .command-ribbon-button.is-active,\n.vscode-canvas-webview .command-ribbon-button[aria-pressed=\"true\"]"
+    );
+    expect(activeCommand).toMatch(/background:\s*var\(--vscode-canvas-ribbon-active\)/);
+    expect(activeCommand).toMatch(/color:\s*var\(--vscode-canvas-ribbon-active-foreground\)/);
+
+    const normalRibbon = ruleBody(".command-ribbon");
+    expect(normalRibbon).toMatch(/background:\s*#ffffff/);
+    expect(normalRibbon).toMatch(/color:\s*#252622/);
+
     const disabledCommand = ruleBody('.vscode-canvas-webview .command-ribbon-button[aria-disabled="true"]');
     expect(disabledCommand).toMatch(/color:\s*var\(--vscode-canvas-ribbon-disabled\)/);
+
+    const focusableCommand = ruleBody(
+      ".vscode-canvas-webview .command-ribbon-button:focus-visible,\n.vscode-canvas-webview .command-ribbon-handle:focus-visible"
+    );
+    expect(focusableCommand).toMatch(/outline:\s*2px solid var\(--vscode-canvas-ribbon-focus\)/);
+
+    const tauriRibbonStyles = stylesheet.slice(
+      stylesheet.indexOf(".command-ribbon-layer"),
+      stylesheet.indexOf("/* VS Code owns its webview theme;")
+    );
+    expect(tauriRibbonStyles).not.toContain("--vscode-canvas-ribbon-active-foreground");
+    expect(tauriRibbonStyles).not.toContain("--vscode-list-activeSelectionForeground");
 
     const sideHandleRibbon = ruleBody(".vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle");
     expect(sideHandleRibbon).toMatch(/flex-direction:\s*row/);
