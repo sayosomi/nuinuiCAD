@@ -565,15 +565,11 @@ fn evaluate_element_by_type(
         Some("text") => evaluate_text(&element, &local_variables, text_context, state),
         _ => {}
     }
-    if element_type(&element) == Some("bezierCurve")
-        && !state.pre_mutation_bezier_geometry.contains_key(&capture_id)
-    {
+    if !state.pre_mutation_geometry.contains_key(&capture_id) {
         if let Some(geometry) = state.computed_geometry.get(&capture_id) {
-            if geometry.get("kind").and_then(Value::as_str) == Some("bezierCurve") {
-                state
-                    .pre_mutation_bezier_geometry
-                    .insert(capture_id, geometry.clone());
-            }
+            state
+                .pre_mutation_geometry
+                .insert(capture_id, geometry.clone());
         }
     }
 }
@@ -653,6 +649,11 @@ fn evaluate_document_input_with_scalar_program(
         .drawing_modifiers
         .unwrap_or_else(|| Value::Array(Vec::new()));
     let evaluated_elements = input.elements[..evaluation_limit_index].to_vec();
+    let instance_snapshots = input
+        .module_materialization
+        .as_ref()
+        .map(|materialization| materialization.instances.clone())
+        .unwrap_or_default();
     let evaluated_ids: HashSet<ElementId> =
         evaluated_elements.iter().filter_map(element_id).collect();
     let activities = effective_activity_by_element_id(&input.elements, Some(&drawing_modifiers));
@@ -662,10 +663,19 @@ fn evaluate_document_input_with_scalar_program(
             .into_iter()
             .filter(|id| evaluated_ids.contains(id))
             .collect::<Vec<_>>();
-    let base_effective_enabled_ids = effective_element_ids(&input.elements, &activities, false)
+    let mut base_effective_enabled_ids = effective_element_ids(&input.elements, &activities, false)
         .into_iter()
         .filter(|id| evaluated_ids.contains(id))
         .collect::<HashSet<_>>();
+    base_effective_enabled_ids.extend(
+        input
+            .allow_disabled_element_ids
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .filter(|id| evaluated_ids.contains(*id))
+            .cloned(),
+    );
 
     let mut state = EvaluationState {
         elements_by_id: input
@@ -679,7 +689,8 @@ fn evaluate_document_input_with_scalar_program(
         drawing_modifiers,
         computed_geometry: HashMap::new(),
         computed_geometry_order: Vec::new(),
-        pre_mutation_bezier_geometry: HashMap::new(),
+        pre_mutation_geometry: HashMap::new(),
+        instance_base_geometry: HashMap::new(),
         errors: Vec::new(),
         warnings: Vec::new(),
     };
@@ -695,6 +706,21 @@ fn evaluate_document_input_with_scalar_program(
     );
     let mut for_group_generated_rows = Vec::new();
     let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
+    let capture_completed_instances = |completed_index: usize, state: &mut EvaluationState| {
+        for snapshot in instance_snapshots
+            .iter()
+            .filter(|snapshot| snapshot.end_runtime_index == completed_index)
+        {
+            let geometry = snapshot
+                .descendant_ids
+                .iter()
+                .filter_map(|id| state.computed_geometry.get(id).cloned())
+                .collect::<Vec<_>>();
+            state
+                .instance_base_geometry
+                .insert(snapshot.instance_id.clone(), geometry);
+        }
+    };
 
     // Built whenever a scalar_program is present, independent of whether
     // any property bindings exist - computed_scalar_bindings is Task 21's
@@ -739,6 +765,9 @@ fn evaluate_document_input_with_scalar_program(
         .collect();
 
     'elements: for index in 0..evaluation_limit_index {
+        if index > 0 {
+            capture_completed_instances(index - 1, &mut state);
+        }
         let mut element = state.elements[index].clone();
         let id = match element_id(&element) {
             Some(id) => id,
@@ -1033,6 +1062,9 @@ fn evaluate_document_input_with_scalar_program(
             ),
         }
     }
+    if evaluation_limit_index > 0 {
+        capture_completed_instances(evaluation_limit_index - 1, &mut state);
+    }
 
     let (computed_scalar_bindings, computed_scalar_binding_versions) =
         if let Some(resolver) = scalar_mutation_resolver.as_mut() {
@@ -1079,10 +1111,18 @@ fn evaluate_document_input_with_scalar_program(
             .iter()
             .filter_map(|id| state.computed_geometry.get(id).cloned())
             .collect(),
-        pre_mutation_bezier_geometry: state
+        pre_mutation_geometry: state
             .computed_geometry_order
             .iter()
-            .filter_map(|id| state.pre_mutation_bezier_geometry.get(id).cloned())
+            .filter_map(|id| state.pre_mutation_geometry.get(id).cloned())
+            .collect(),
+        instance_base_geometry: instance_snapshots
+            .iter()
+            .filter_map(|snapshot| {
+                state.instance_base_geometry.get(&snapshot.instance_id).map(|geometry| {
+                    serde_json::json!({ "instanceId": snapshot.instance_id, "geometry": geometry })
+                })
+            })
             .collect(),
         errors: state.errors,
         warnings: state.warnings,

@@ -58,8 +58,10 @@ fn module_instance_is_an_activity_container_and_a_geometry_noop() {
     assert_eq!(activities["child"].activity, ElementActivity::Hidden);
 
     let result = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
         elements,
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -94,6 +96,97 @@ fn module_instance_is_preserved_as_the_disabled_activity_source() {
         states["child"].disabled_by_group_id.as_deref(),
         Some("module")
     );
+}
+
+#[test]
+fn bake_sandbox_can_evaluate_disabled_geometry_without_changing_normal_evaluation() {
+    let elements = vec![json!({
+        "id": "disabled",
+        "name": "Disabled",
+        "type": "freePoint",
+        "activity": "disabled",
+        "x": 3,
+        "y": 4
+    })];
+    let normal = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
+        elements: elements.clone(),
+        evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
+        drawing_modifiers: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+    });
+    let sandbox = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
+        elements,
+        evaluation_limit_index: None,
+        allow_disabled_element_ids: Some(vec!["disabled".to_owned()]),
+        drawing_modifiers: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+    });
+
+    assert!(normal.computed_geometry.is_empty());
+    assert!(!normal
+        .effective_enabled_element_ids
+        .iter()
+        .any(|id| id == "disabled"));
+    assert_eq!(sandbox.computed_geometry.len(), 1);
+    assert!(sandbox
+        .effective_enabled_element_ids
+        .iter()
+        .any(|id| id == "disabled"));
+}
+
+#[test]
+fn bake_sandbox_does_not_enable_a_disabled_dependency_that_is_not_a_target() {
+    let elements = vec![
+        json!({
+            "id": "dependency", "name": "Dependency", "type": "freePoint",
+            "activity": "disabled", "x": 0, "y": 0
+        }),
+        json!({
+            "id": "target", "name": "Target", "type": "line", "activity": "disabled",
+            "startPoint": { "mode": "reference", "pointId": "dependency" },
+            "endPoint": { "mode": "coordinate", "x": 10, "y": 0 }
+        }),
+    ];
+    let result = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
+        elements,
+        evaluation_limit_index: None,
+        allow_disabled_element_ids: Some(vec!["target".to_owned()]),
+        drawing_modifiers: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+    });
+
+    assert!(result.computed_geometry.is_empty());
+    let error = result
+        .errors
+        .iter()
+        .find(|error| error.element_id == "target")
+        .expect("target should retain the unavailable dependency error");
+    assert_eq!(error.missing_dependency_id, "dependency");
 }
 
 #[test]
@@ -169,6 +262,7 @@ fn drawing_modifier_strokes_resolve_atomically_and_independently_from_state() {
 #[test]
 fn generated_rows_receive_the_template_stroke_without_id_parsing() {
     let result = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
         elements: vec![
             json!({
                 "id": "loop", "name": "Loop", "type": "forGroup", "activity": "visible",
@@ -181,6 +275,7 @@ fn generated_rows_receive_the_template_stroke_without_id_parsing() {
             }),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: Some(json!([
             { "name": "Guide", "stroke": { "widthPx": 1.25, "style": "dashed", "color": { "kind": "themeRole", "role": "info" } } }
         ])),
@@ -210,12 +305,14 @@ fn generated_rows_receive_the_template_stroke_without_id_parsing() {
 #[test]
 fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
     let result = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
         elements: vec![
             json!({ "id": "hidden", "type": "freePoint", "activity": "visible", "modifierNames": ["Hide"], "x": 0, "y": 0 }),
             json!({ "id": "disabled", "type": "freePoint", "activity": "visible", "modifierNames": ["Disable"], "x": 1, "y": 0 }),
             json!({ "id": "shown", "type": "freePoint", "activity": "visible", "modifierNames": ["Show"], "x": 2, "y": 0 }),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: Some(json!([
             { "name": "Hide", "state": "hidden" },
             { "name": "Disable", "state": "disabled" },
@@ -257,6 +354,7 @@ fn drawing_modifier_activity_uses_compiled_definitions_for_evaluation() {
 #[test]
 fn directly_disabled_dependency_reports_evaluation_off() {
     let result = evaluate_document_input(super::types::EvaluationInput {
+        module_materialization: None,
         elements: vec![
             json!({
                 "id": "source", "name": "無効点", "type": "freePoint",
@@ -270,6 +368,7 @@ fn directly_disabled_dependency_reports_evaluation_off() {
             }),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,

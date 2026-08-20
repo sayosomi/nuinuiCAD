@@ -30,6 +30,7 @@ fn scalar_program(binding_count: usize) -> Value {
 
 fn evaluate(program: Value) -> EvaluationPayload {
     evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -37,6 +38,7 @@ fn evaluate(program: Value) -> EvaluationPayload {
         text_property_bindings: None,
         elements: vec![],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: Some(program),

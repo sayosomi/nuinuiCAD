@@ -270,7 +270,8 @@ export const useCanvasOverlayData = ({
       return null;
     }
 
-    const preMutationCurve = evaluation.preMutationBezierGeometry?.get(curveElement.id);
+    const preMutationCurve = evaluation.preMutationGeometry?.get(curveElement.id);
+    if (preMutationCurve?.kind !== "bezierCurve") return null;
     const finalCurve = evaluation.computedGeometry.get(curveElement.id);
     if (!preMutationCurve || finalCurve?.kind !== "bezierCurve") return null;
     if (JSON.stringify(preMutationCurve) === JSON.stringify(finalCurve)) return null;
@@ -288,7 +289,8 @@ export const useCanvasOverlayData = ({
       return [];
     }
 
-    const curve = evaluation.preMutationBezierGeometry?.get(curveElement.id);
+    const curve = evaluation.preMutationGeometry?.get(curveElement.id);
+    if (curve?.kind !== "bezierCurve") return [];
     if (!curve || curve.segments.length === 0) return [];
 
     const handles: BezierHandleOverlay[] = [];
@@ -338,7 +340,7 @@ export const useCanvasOverlayData = ({
     }
 
     return handles;
-  }, [canvasViewport, elements, evaluation.preMutationBezierGeometry, selectedElementId, viewportSize, visibleElementIds]);
+  }, [canvasViewport, elements, evaluation.preMutationGeometry, selectedElementId, viewportSize, visibleElementIds]);
 
   return {
     lines,

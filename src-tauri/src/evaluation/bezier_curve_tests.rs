@@ -44,6 +44,7 @@ fn simple_bezier() -> Value {
 #[test]
 fn evaluates_single_segment_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -55,6 +56,7 @@ fn evaluates_single_segment_bezier_curve() {
             simple_bezier(),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -75,6 +77,7 @@ fn evaluates_single_segment_bezier_curve() {
 #[test]
 fn evaluates_multi_segment_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -107,6 +110,7 @@ fn evaluates_multi_segment_bezier_curve() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -122,6 +126,7 @@ fn evaluates_multi_segment_bezier_curve() {
 #[test]
 fn evaluates_bezier_curve_from_coordinate_anchors() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -149,6 +154,7 @@ fn evaluates_bezier_curve_from_coordinate_anchors() {
             "endHandleLength": 10
         }))],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -166,6 +172,7 @@ fn evaluates_bezier_curve_from_coordinate_anchors() {
 #[test]
 fn reports_bezier_curve_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -177,6 +184,7 @@ fn reports_bezier_curve_dependency_that_appears_too_late() {
             free_point("b", "点B", 40.0, 25.0),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -194,6 +202,7 @@ fn reports_bezier_curve_dependency_that_appears_too_late() {
 #[test]
 fn evaluates_bezier_curve_numeric_parameters() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -217,6 +226,7 @@ fn evaluates_bezier_curve_numeric_parameters() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -234,6 +244,7 @@ fn evaluates_bezier_curve_numeric_parameters() {
 #[test]
 fn evaluates_bezier_curve_with_hyphenated_element_ids() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -271,6 +282,7 @@ fn evaluates_bezier_curve_with_hyphenated_element_ids() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -289,6 +301,7 @@ fn evaluates_bezier_curve_with_hyphenated_element_ids() {
 #[test]
 fn resolves_bezier_derived_points() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -330,6 +343,7 @@ fn resolves_bezier_derived_points() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -345,6 +359,7 @@ fn resolves_bezier_derived_points() {
 #[test]
 fn allows_supported_point_elements_to_reference_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -408,6 +423,7 @@ fn allows_supported_point_elements_to_reference_bezier_curve() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,

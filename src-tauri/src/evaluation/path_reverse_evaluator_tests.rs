@@ -15,6 +15,7 @@ fn path_reverse(id: &str, name: &str, target_line_id: &str) -> serde_json::Value
 #[test]
 fn path_reverse_flips_target_line_in_place_without_own_geometry() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -27,6 +28,7 @@ fn path_reverse_flips_target_line_in_place_without_own_geometry() {
             path_reverse("reverse", "", "line"),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -43,6 +45,7 @@ fn path_reverse_flips_target_line_in_place_without_own_geometry() {
 #[test]
 fn path_reverse_reports_dependency_error_for_missing_target() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -50,6 +53,7 @@ fn path_reverse_reports_dependency_error_for_missing_target() {
         text_property_bindings: None,
         elements: vec![path_reverse("reverse", "", "missing-line")],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -73,6 +77,7 @@ fn path_reverse_reports_dependency_error_for_missing_target() {
 #[test]
 fn path_reverse_does_not_apply_inside_a_disabled_group() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -89,6 +94,7 @@ fn path_reverse_does_not_apply_inside_a_disabled_group() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -116,6 +122,7 @@ fn path_reverse_only_applies_in_the_active_conditional_branch() {
         ]
     };
     let inactive = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -123,6 +130,7 @@ fn path_reverse_only_applies_in_the_active_conditional_branch() {
         text_property_bindings: None,
         elements: elements_for(1, "else"),
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -134,6 +142,7 @@ fn path_reverse_only_applies_in_the_active_conditional_branch() {
     assert_close(inactive_geometry["end"]["x"].as_f64().unwrap(), 100.0);
 
     let active = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -141,6 +150,7 @@ fn path_reverse_only_applies_in_the_active_conditional_branch() {
         text_property_bindings: None,
         elements: elements_for(1, "then"),
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -166,6 +176,7 @@ fn for_group(id: &str, name: &str, count: i64, parent_group_id: Option<&str>) ->
 #[test]
 fn path_reverse_allows_target_declared_in_the_same_for_loop() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -187,6 +198,7 @@ fn path_reverse_allows_target_declared_in_the_same_for_loop() {
             }),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -199,6 +211,7 @@ fn path_reverse_allows_target_declared_in_the_same_for_loop() {
 #[test]
 fn path_reverse_generated_clone_keeps_model_name_empty_but_reports_display_name_fallback() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -220,6 +233,7 @@ fn path_reverse_generated_clone_keeps_model_name_empty_but_reports_display_name_
             }),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -248,6 +262,7 @@ fn path_reverse_generated_clone_keeps_model_name_empty_but_reports_display_name_
 #[test]
 fn path_reverse_rejects_target_declared_outside_its_for_loop() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -264,6 +279,7 @@ fn path_reverse_rejects_target_declared_outside_its_for_loop() {
             }),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -283,6 +299,7 @@ fn path_reverse_rejects_target_declared_outside_its_for_loop() {
 #[test]
 fn path_reverse_rejects_nested_inner_loop_reverse_targeting_outer_loop_only_element() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -305,6 +322,7 @@ fn path_reverse_rejects_nested_inner_loop_reverse_targeting_outer_loop_only_elem
             }),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -321,6 +339,7 @@ fn path_reverse_rejects_nested_inner_loop_reverse_targeting_outer_loop_only_elem
 #[test]
 fn path_reverse_allows_nested_inner_loop_reverse_targeting_same_inner_loop_element() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -343,6 +362,7 @@ fn path_reverse_allows_nested_inner_loop_reverse_targeting_same_inner_loop_eleme
             }),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -355,6 +375,7 @@ fn path_reverse_allows_nested_inner_loop_reverse_targeting_same_inner_loop_eleme
 #[test]
 fn path_reverse_reports_geometry_error_for_non_line_target() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -365,6 +386,7 @@ fn path_reverse_reports_geometry_error_for_non_line_target() {
             path_reverse("reverse", "", "a"),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,

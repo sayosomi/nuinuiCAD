@@ -1,5 +1,4 @@
 import type {
-  ComputedBezierCurve,
   ComputedGeometry,
   DependencyError,
   DrawingModifierStroke,
@@ -86,7 +85,8 @@ const parseComputedScalarBindingVersions = (value: unknown): Map<BindingVersionI
 
 export type EvaluationPayload = {
   computedGeometry: ComputedGeometry[];
-  preMutationBezierGeometry?: ComputedBezierCurve[];
+  preMutationGeometry?: ComputedGeometry[];
+  instanceBaseGeometry?: Array<{ instanceId: ElementId; geometry: ComputedGeometry[] }>;
   errors: DependencyError[];
   warnings: EvaluationWarning[];
   evaluatedElementIds: ElementId[];
@@ -105,8 +105,11 @@ export type EvaluationPayload = {
 
 export const evaluationResultToPayload = (result: EvaluationResult): EvaluationPayload => ({
   computedGeometry: Array.from(result.computedGeometry.values()),
-  preMutationBezierGeometry: result.preMutationBezierGeometry?.size
-    ? Array.from(result.preMutationBezierGeometry.values())
+  preMutationGeometry: result.preMutationGeometry?.size
+    ? Array.from(result.preMutationGeometry.values())
+    : undefined,
+  instanceBaseGeometry: result.instanceBaseGeometry?.size
+    ? Array.from(result.instanceBaseGeometry, ([instanceId, geometry]) => ({ instanceId, geometry }))
     : undefined,
   errors: result.errors,
   warnings: result.warnings,
@@ -132,8 +135,11 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
 
 export const evaluationPayloadToResult = (payload: EvaluationPayload): EvaluationResult => ({
   computedGeometry: new Map(payload.computedGeometry.map((geometry) => [geometry.elementId, geometry])),
-  preMutationBezierGeometry: new Map(
-    (payload.preMutationBezierGeometry ?? []).map((geometry) => [geometry.elementId, geometry])
+  preMutationGeometry: new Map(
+    (payload.preMutationGeometry ?? []).map((geometry) => [geometry.elementId, geometry])
+  ),
+  instanceBaseGeometry: new Map(
+    (payload.instanceBaseGeometry ?? []).map(({ instanceId, geometry }) => [instanceId, geometry])
   ),
   errors: payload.errors,
   warnings: payload.warnings,

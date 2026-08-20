@@ -5,6 +5,7 @@ use serde_json::json;
 #[test]
 fn extend_trim_extends_line_and_supports_coordinate_target() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -24,6 +25,7 @@ fn extend_trim_extends_line_and_supports_coordinate_target() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -42,6 +44,7 @@ fn extend_trim_extends_line_and_supports_coordinate_target() {
 #[test]
 fn extend_trim_reports_line_target_error_and_dependency_error() {
     let target_error = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -62,6 +65,7 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -72,6 +76,7 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
         .contains("直線上または延長線上"));
 
     let dependency_error = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -86,6 +91,7 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
             "point": { "mode": "reference", "pointId": "target" }
         }))],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -97,6 +103,7 @@ fn extend_trim_reports_line_target_error_and_dependency_error() {
 #[test]
 fn extend_trim_moves_arc_endpoint() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -125,6 +132,7 @@ fn extend_trim_moves_arc_endpoint() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -141,6 +149,7 @@ fn extend_trim_moves_arc_endpoint() {
 #[test]
 fn extend_trim_moves_bezier_endpoint_on_tangent() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -173,6 +182,7 @@ fn extend_trim_moves_bezier_endpoint_on_tangent() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -187,7 +197,7 @@ fn extend_trim_moves_bezier_endpoint_on_tangent() {
         10.0,
     );
     let pre_mutation = result
-        .pre_mutation_bezier_geometry
+        .pre_mutation_geometry
         .iter()
         .find(|geometry| geometry["elementId"] == json!("curve"))
         .expect("Bezier pre-mutation snapshot");
@@ -206,6 +216,7 @@ fn extend_trim_moves_bezier_endpoint_on_tangent() {
 #[test]
 fn extend_trim_shortens_bezier_to_division_point_on_body() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -233,6 +244,7 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -259,6 +271,7 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
     // The retained portion must be a true de Casteljau sub-curve: sampling it at t=0.5
     // must land on the same point as sampling the original curve at half the split's t.
     let original = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -270,6 +283,7 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
             arch_curve("curve", "曲線", "start", "end"),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -305,6 +319,7 @@ fn extend_trim_shortens_bezier_to_division_point_on_body() {
 #[test]
 fn extend_trim_shortens_bezier_start_to_division_point_on_body() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -332,6 +347,7 @@ fn extend_trim_shortens_bezier_start_to_division_point_on_body() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -361,6 +377,7 @@ fn extend_trim_shortens_bezier_start_to_division_point_on_body() {
 #[test]
 fn extend_trim_shortens_multi_segment_bezier_and_keeps_untouched_segments() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -409,6 +426,7 @@ fn extend_trim_shortens_multi_segment_bezier_and_keeps_untouched_segments() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -435,6 +453,7 @@ fn extend_trim_bezier_to_opposite_anchor_reports_zero_length_error() {
     // curve's start anchor instead) must produce the zero-length error, not the
     // misleading "not on the endpoint-angle line" error.
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -454,6 +473,7 @@ fn extend_trim_bezier_to_opposite_anchor_reports_zero_length_error() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -467,6 +487,7 @@ fn extend_trim_bezier_to_opposite_anchor_reports_zero_length_error() {
 #[test]
 fn extend_trim_shortens_bezier_to_intersection_point_on_body() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -499,6 +520,7 @@ fn extend_trim_shortens_bezier_to_intersection_point_on_body() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -522,6 +544,7 @@ fn extend_trim_shortens_bezier_to_intersection_point_on_body() {
 #[test]
 fn extend_trim_shortens_arc_to_division_point_on_circle() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -557,6 +580,7 @@ fn extend_trim_shortens_arc_to_division_point_on_circle() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -578,6 +602,7 @@ fn extend_trim_shortens_arc_to_division_point_on_circle() {
 #[test]
 fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -608,6 +633,7 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -630,6 +656,7 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
     );
 
     let closed = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -660,6 +687,7 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -671,6 +699,7 @@ fn extend_trim_moves_open_offset_line_and_rejects_closed_offset_line() {
 #[test]
 fn updated_line_can_feed_downstream_rust_elements() {
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -699,6 +728,7 @@ fn updated_line_can_feed_downstream_rust_elements() {
             })),
         ],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -758,6 +788,7 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
     // whole offset line was flattened into an all-"line" polyline.
     let elements = offset_bezier_elements();
     let baseline = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -765,6 +796,7 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
         text_property_bindings: None,
         elements: elements.clone(),
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -791,6 +823,7 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
         "point": { "mode": "reference", "pointId": "target" }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -798,6 +831,7 @@ fn extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic() {
         text_property_bindings: None,
         elements: extended_elements,
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -828,6 +862,7 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
     // a new "line" segment rather than flattening the existing bezier chain.
     let elements = offset_bezier_elements();
     let probe = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -835,6 +870,7 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
         text_property_bindings: None,
         elements: elements.clone(),
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,
@@ -860,6 +896,7 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
         "point": { "mode": "reference", "pointId": "target" }
     })));
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -867,6 +904,7 @@ fn extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment() {
         text_property_bindings: None,
         elements: extended_elements,
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,

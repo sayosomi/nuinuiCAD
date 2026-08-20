@@ -6,6 +6,7 @@ import type { EvaluateElementsOptions } from "./evaluate";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 import type { NumericBindingRuntimeEntry } from "./numericBindingRuntime";
 import { toRustTextTemplateSegments, type RustTextTemplateSegment } from "./textTemplateRuntime";
+import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 
 type ConditionExpressionInput = { elementId: ElementId; expression: TypedScalarExpression };
 type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemplateSegment[] };
@@ -13,6 +14,7 @@ type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemp
 export type EvaluateDocumentInput = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
+  allowDisabledElementIds?: readonly ElementId[];
   drawingModifiers?: readonly DrawingModifierDefinition[];
   scalarProgram?: EvaluateElementsOptions["scalarProgram"];
   scalarExpressionPayload?: { numericBindings: readonly NumericBindingRuntimeEntry[] };
@@ -23,6 +25,9 @@ export type EvaluateDocumentInput = {
   conditionExpressions?: readonly ConditionExpressionInput[];
   textTemplates?: readonly TextTemplateInput[];
   textPropertyBindings?: readonly PropertyBindingRuntimeEntry[];
+  moduleMaterialization?: {
+    instances: readonly ModuleMaterialization["instanceBaseGeometrySnapshots"][number][];
+  };
 };
 
 /** The sole JSON-shaped projection sent to Rust, shared by Tauri && parity. */
@@ -48,6 +53,9 @@ export const buildRustEvaluationInput = (
   return {
     elements,
     evaluationLimitIndex: options.evaluationLimitIndex,
+    ...(options.allowDisabledElementIds?.size
+      ? { allowDisabledElementIds: Array.from(options.allowDisabledElementIds) }
+      : {}),
     drawingModifiers: options.drawingModifiers ?? [],
     ...(mutationPayload
       ? { bindingVersions: mutationPayload }
@@ -61,6 +69,9 @@ export const buildRustEvaluationInput = (
     ...(options.textTemplateEntriesByElementId?.size
       ? { textTemplates: Array.from(options.textTemplateEntriesByElementId, ([elementId, ast]) => ({ elementId, segments: toRustTextTemplateSegments(ast) })) }
       : {}),
-    ...(options.textPropertyBindingEntries?.length ? { textPropertyBindings: options.textPropertyBindingEntries } : {})
+    ...(options.textPropertyBindingEntries?.length ? { textPropertyBindings: options.textPropertyBindingEntries } : {}),
+    ...(options.moduleMaterialization?.instanceBaseGeometrySnapshots.length
+      ? { moduleMaterialization: { instances: options.moduleMaterialization.instanceBaseGeometrySnapshots } }
+      : {})
   };
 };

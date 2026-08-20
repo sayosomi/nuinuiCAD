@@ -29,6 +29,7 @@ fn line(id: &str, start_point_id: &str, end_point_id: &str) -> Value {
 fn run_performance_case(name: &str, elements: Vec<Value>) -> EvaluationPayload {
     let started = Instant::now();
     let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
         condition_expressions: None,
@@ -36,6 +37,7 @@ fn run_performance_case(name: &str, elements: Vec<Value>) -> EvaluationPayload {
         text_property_bindings: None,
         elements,
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,

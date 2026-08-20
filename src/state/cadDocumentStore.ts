@@ -139,7 +139,10 @@ export type CadDocumentState = {
    * "model-patch" so the Source Editor maps existing selection through the
    * change instead of resetting to a line-only cursor restore. Used by
    * non-element text mutations such as the typed binding rename command. */
-  commitLineSplices: (splices: readonly LineSplice[]) => DocumentMutationResult;
+  commitLineSplices: (
+    splices: readonly LineSplice[],
+    options?: { createdElementIds?: readonly ElementId[] }
+  ) => DocumentMutationResult;
   setElements: (elements: CadElement[]) => void;
   updateElement: (id: ElementId, patch: Partial<CadElement>) => void;
   setPrintLayout: (printLayout: PrintLayout) => void;
@@ -674,7 +677,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     });
     return result;
   },
-  commitLineSplices: (splices) => {
+  commitLineSplices: (splices, options) => {
     const guarded = guardDocumentMutation();
     if (guarded) {
       set(clearedPreviewState());
@@ -683,7 +686,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     let result: DocumentMutationResult = { status: "noop" };
     set((state) => {
       const previousSelection = useCadUiStore.getState();
-      const outcome = commitLineSplicePatch(state, splices);
+      const outcome = commitLineSplicePatch(state, splices, options);
       if (outcome.status === "noop") {
         result = { status: "noop" };
         return { ...canonicalFields(state), ...clearedPreviewState() };

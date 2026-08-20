@@ -307,7 +307,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const documentState = hostAdapter.getCurrentCanonicalDocument();
     if (!evaluationStateIsCurrentFor(evaluationState, documentState.compiledDocumentRevision)) return null;
     if (evaluationState && evaluationState.evaluation !== evaluation) return null;
-    if (!evaluation.preMutationBezierGeometry?.has(elementId)) return null;
+    if (evaluation.preMutationGeometry?.get(elementId)?.kind !== "bezierCurve") return null;
     return {
       baseElements: documentState.elements,
       baseEvaluation: evaluation

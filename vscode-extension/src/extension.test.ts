@@ -43,6 +43,8 @@ type TestEditor = {
 type TestPanel = {
   title: string;
   active: boolean;
+  visible: boolean;
+  canvasSelection?: string;
   webview: {
     cspSource: string;
     html: string;
@@ -74,7 +76,7 @@ const mocks = vi.hoisted(() => ({
   visibleTextEditors: [] as TestEditor[],
   textDocuments: [] as TestDocument[],
   commandHandlers: new Map<string, (...args: unknown[]) => unknown>(),
-  activeEditorListeners: [] as Array<() => void>,
+  activeEditorListeners: [] as Array<(editor?: TestEditor) => void>,
   activeColorThemeListeners: [] as Array<() => void>,
   documentOpenListeners: [] as Array<(document: TestDocument) => void>,
   documentChangeListeners: [] as Array<(event: TestDocumentChangeEvent) => void>,
@@ -93,6 +95,7 @@ const mocks = vi.hoisted(() => ({
   configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
   configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   showErrorMessage: vi.fn(),
+  bakeSettings: {} as Record<string, boolean>,
   showTextDocument: vi.fn(),
   executeCommand: vi.fn(),
   createWebviewPanel: vi.fn(),
@@ -109,6 +112,13 @@ const mocks = vi.hoisted(() => ({
   onDidOpenTextDocument: vi.fn(),
   onDidChangeTextDocument: vi.fn(),
   onDidCloseTextDocument: vi.fn(),
+  activeTabInput: null as unknown,
+  TabInputText: class {
+    constructor(public readonly uri: unknown) {}
+  },
+  TabInputWebview: class {
+    constructor(public readonly viewType: string) {}
+  },
   getConfiguration: vi.fn(),
   onDidChangeConfiguration: vi.fn(),
   asRelativePath: vi.fn()
@@ -171,7 +181,16 @@ vi.mock("vscode", () => {
       onDidChangeActiveTextEditor: mocks.onDidChangeActiveTextEditor,
       onDidChangeActiveColorTheme: mocks.onDidChangeActiveColorTheme,
       showErrorMessage: mocks.showErrorMessage,
-      showTextDocument: mocks.showTextDocument
+      showTextDocument: mocks.showTextDocument,
+      tabGroups: {
+        get activeTabGroup() {
+          return {
+            activeTab: mocks.activeTabInput === null
+              ? undefined
+              : { input: mocks.activeTabInput }
+          };
+        }
+      }
     },
     workspace: {
       get textDocuments() {
@@ -211,6 +230,8 @@ vi.mock("vscode", () => {
     FoldingRangeKind: { Comment: "comment" },
     ConfigurationTarget: { Global: 1 },
     TextDocumentChangeReason: { Undo: 1, Redo: 2 },
+    TabInputText: mocks.TabInputText,
+    TabInputWebview: mocks.TabInputWebview,
     Position,
     Range,
     Selection,
@@ -324,6 +345,7 @@ const panelFor = (): TestPanel => {
   const panel = {
     title: "",
     active: true,
+    visible: true,
     webview: {
       cspSource: "csp",
       html: "",
@@ -371,6 +393,7 @@ const setup = (
   mocks.activeTextEditor = activeEditor;
   mocks.visibleTextEditors = activeEditor ? [activeEditor] : [];
   mocks.textDocuments = openDocuments ?? (activeEditor ? [activeEditor.document] : []);
+  mocks.activeTabInput = activeEditor ? new mocks.TabInputText(activeEditor.document.uri) : null;
   const context = contextFor();
   mocks.contexts.push(context);
   mocks.registerCommand.mockImplementation((name: string, handler: (...args: unknown[]) => unknown) => {
@@ -378,7 +401,7 @@ const setup = (
     return disposable();
   });
   mocks.createWebviewPanel.mockImplementation(() => panelFor());
-  mocks.onDidChangeActiveTextEditor.mockImplementation((listener: () => void) => {
+  mocks.onDidChangeActiveTextEditor.mockImplementation((listener: (editor?: TestEditor) => void) => {
     mocks.activeEditorListeners.push(listener);
     return disposable();
   });
@@ -448,10 +471,16 @@ const setup = (
     mocks.documentCloseListeners.push(listener);
     return disposable();
   });
-  mocks.getConfiguration.mockImplementation(() => ({
-    get: <T>(section: string) => section === "nuinuiCAD.canvasRibbon.ribbons"
-      ? mocks.canvasRibbonSetting as T
-      : undefined,
+  mocks.getConfiguration.mockImplementation((section?: string) => ({
+    get: <T>(key: string, defaultValue?: T) => {
+      const fullKey = section ? `${section}.${key}` : key;
+      if (fullKey === "nuinuiCAD.canvasRibbon.ribbons") {
+        return (mocks.canvasRibbonSetting ?? defaultValue) as T;
+      }
+      return Object.hasOwn(mocks.bakeSettings, fullKey)
+        ? mocks.bakeSettings[fullKey] as T
+        : defaultValue as T;
+    },
     update: (section: string, value: unknown, target: unknown) => {
       mocks.configurationUpdates.push({ section, value, target });
       if (section === "nuinuiCAD.canvasRibbon.ribbons") mocks.canvasRibbonSetting = value;
@@ -482,17 +511,23 @@ const emitDocumentClose = (document: TestDocument): void => {
   for (const listener of mocks.documentCloseListeners) listener(document);
 };
 
+const emitActiveEditorChange = (editor?: TestEditor): void => {
+  for (const listener of mocks.activeEditorListeners) listener(editor);
+};
+
 const openPanelFor = (editor = mocks.activeTextEditor!): TestPanel => {
   mocks.activeTextEditor = editor;
   mocks.visibleTextEditors = [editor];
   mocks.textDocuments = [editor.document];
   commandHandlerFor("nuinuiCAD.openCanvas")?.();
+  mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.canvas");
   return mocks.panels.at(-1)!;
 };
 
 afterEach(() => {
   delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   mocks.activeTextEditor = null;
+  mocks.activeTabInput = null;
   mocks.visibleTextEditors.length = 0;
   mocks.textDocuments.length = 0;
   mocks.commandHandlers.clear();
@@ -515,6 +550,7 @@ afterEach(() => {
   mocks.codeActionRegistrations.length = 0;
   mocks.foldingRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
+  mocks.bakeSettings = {};
   mocks.showTextDocument.mockReset();
   mocks.executeCommand.mockReset();
   mocks.createWebviewPanel.mockReset();
@@ -574,6 +610,7 @@ describe("VS Code production document lifecycle", () => {
   it("routes Canvas command palette commands to the active Canvas webview", () => {
     setup();
     const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
 
     for (const command of [
       "nuinuiCAD.clearCanvasSelection",
@@ -590,6 +627,188 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "fitDrawing" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasElementNames" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPoints" });
+  });
+
+  it("accepts the direct Canvas TabInputWebview representation", () => {
+    setup();
+    const panel = openPanelFor();
+
+    commandHandlerFor("nuinuiCAD.clearCanvasSelection")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommand",
+      commandId: "clearCanvasSelection"
+    });
+  });
+
+  it("routes Bake Current Shape from a dynamic Canvas tab to Canvas", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it("routes Go to Source Definition from a dynamic Canvas tab to Canvas", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasSourceDefinitionRequest"
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it("resolves the Canvas context command through a dynamic Canvas tab", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    // The webview/context contribution invokes this same registered command.
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasSourceDefinitionRequest"
+    }));
+  });
+
+  it("resolves all Bake settings in the Extension Host before Canvas routing", () => {
+    mocks.bakeSettings = {
+      "nuinuiCAD.bake.emitSkippedComments": false,
+      "nuinuiCAD.bake.includeHiddenGeometry": true,
+      "nuinuiCAD.bake.includeDisabledGeometry": true
+    };
+    setup();
+    const panel = openPanelFor();
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape",
+      emitSkippedComments: false,
+      includeHiddenGeometry: true,
+      includeDisabledGeometry: true
+    });
+  });
+
+  it("keeps Bake routed to the last active Canvas while the Command Palette owns focus", () => {
+    setup();
+    const sourceEditor = mocks.activeTextEditor!;
+    const panel = openPanelFor(sourceEditor);
+    const viewStateHandler = (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler;
+    viewStateHandler();
+    panel.canvasSelection = "NormalArc";
+
+    mocks.activeTextEditor = sourceEditor;
+    mocks.visibleTextEditors = [sourceEditor];
+    panel.active = false;
+    viewStateHandler();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "bakeSourceRequest"
+    }));
+    expect(panel.canvasSelection).toBe("NormalArc");
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it("routes Bake through Source after switching from Canvas while the Canvas remains visible", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "point Derived = between(",
+      "  start: @A,",
+      "  end: @B,",
+      "  ratio: 0.25,",
+      ")"
+    ].join("\n");
+    const document = documentFor("/tmp/routing.nui", "file:///tmp/routing.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("Derived"));
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    panel.active = false;
+    panel.canvasSelection = "NormalArc";
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "bakeSourceRequest",
+      normalizedSourceOffset: source.indexOf("Derived")
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(panel.canvasSelection).toBe("NormalArc");
+  });
+
+  it("routes Case K through Source when Palette focus leaves a stale Canvas tab input", async () => {
+    const source = [
+      "nui 4",
+      "modifier Guide {",
+      "  state: visible,",
+      "}",
+      "module Reusable() {",
+      "  point P0 = coordinate(x: 0, y: 0)",
+      "  point P1 = coordinate(x: 100, y: 0)",
+      "  export line PublicEdge [Guide] = segment(",
+      "    start: @P0,",
+      "    end: @P1,",
+      "  )",
+      "}",
+      "instance InstanceOne = Reusable()"
+    ].join("\n");
+    const document = documentFor("/tmp/case-k.nui", "file:///tmp/case-k.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("start: @P0"));
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    panel.canvasSelection = "InstanceOne::PublicEdge";
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    panel.active = true;
+    mocks.activeTextEditor = editor;
+    mocks.visibleTextEditors = [editor];
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    emitActiveEditorChange(editor);
+    panel.active = false;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "bakeSourceRequest"
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(document.getText()).toBe(source);
   });
 
   it("routes Canvas Undo/Redo to the active Canvas webview", () => {

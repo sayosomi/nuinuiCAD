@@ -22,6 +22,9 @@ type CommandPaletteMenu = {
 
 type ExtensionManifest = {
   contributes?: {
+    configuration?: {
+      properties?: Record<string, { type: string; default: unknown }>;
+    };
     commands?: Command[];
     keybindings?: Keybinding[];
     menus?: {
@@ -58,10 +61,13 @@ const commandIds = [
   "nuinuiCAD.fitDrawing",
   "nuinuiCAD.toggleCanvasElementNames",
   "nuinuiCAD.toggleCanvasPoints",
+  "nuinuiCAD.bakeCurrentShape",
+  "nuinuiCAD.bakeBaseShape",
   "nuinuiCAD.editCanvasRibbon"
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
+const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
 
 async function readManifest(): Promise<ExtensionManifest> {
@@ -69,6 +75,16 @@ async function readManifest(): Promise<ExtensionManifest> {
 }
 
 describe("VS Code extension manifest command contributions", () => {
+  it("declares the Bake activity settings with their current defaults", async () => {
+    const manifest = await readManifest();
+    const properties = manifest.contributes?.configuration?.properties ?? {};
+    expect(properties).toMatchObject({
+      "nuinuiCAD.bake.emitSkippedComments": { type: "boolean", default: true },
+      "nuinuiCAD.bake.includeHiddenGeometry": { type: "boolean", default: false },
+      "nuinuiCAD.bake.includeDisabledGeometry": { type: "boolean", default: false }
+    });
+  });
+
   it("registers the current command set", async () => {
     const manifest = await readManifest();
     const commands = manifest.contributes?.commands ?? [];
@@ -85,6 +101,8 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Fit Drawing",
       "nuinuiCAD: Toggle Canvas Element Names",
       "nuinuiCAD: Toggle Canvas Points",
+      "nuinuiCAD: Bake Current Shape",
+      "nuinuiCAD: Bake Base Shape",
       "nuinuiCAD: Edit Canvas Ribbon"
     ]);
   });
@@ -103,6 +121,8 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.fitDrawing", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasElementNames", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasPoints", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.bakeCurrentShape", when: bakePaletteWhen },
+      { command: "nuinuiCAD.bakeBaseShape", when: bakePaletteWhen },
       { command: "nuinuiCAD.canvasUndo", when: "false" },
       { command: "nuinuiCAD.canvasRedo", when: "false" }
     ]);

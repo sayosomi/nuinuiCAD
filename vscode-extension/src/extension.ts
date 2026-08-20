@@ -74,12 +74,25 @@ type DocumentSession = {
     documentVersion: number;
     normalizedSourceOffset: number;
   } | null;
+  pendingBake: {
+    requestId: number;
+    documentVersion: number;
+    normalizedSourceOffset: number;
+    mode: "current" | "base";
+    emitSkippedComments: boolean;
+    includeHiddenGeometry: boolean;
+    includeDisabledGeometry: boolean;
+  } | null;
   inFlightCanvasNavigation: {
     requestId: number;
     documentVersion: number;
   } | null;
   pendingSourceDefinitionRequest: { requestId: number } | null;
 };
+
+type LastBakeSurface =
+  | { kind: "canvas"; session: DocumentSession }
+  | { kind: "source"; document: vscode.TextDocument };
 
 const benchmarkConfigFromEnvironment = (): VscodeBenchmarkConfig | null => {
   const raw = process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
@@ -205,6 +218,25 @@ const activeNuiEditor = (): vscode.TextEditor | undefined => {
   return editor && isSupportedNuiDocument(editor.document) ? editor : undefined;
 };
 
+const activeEditorTabInput = (): vscode.Tab["input"] | undefined =>
+  vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+
+const nuiCanvasViewType = "nuinuiCAD.canvas";
+const dynamicNuiCanvasViewType = `mainThreadWebview-${nuiCanvasViewType}`;
+
+const providerViewTypeForTabInput = (viewType: string): string =>
+  viewType === dynamicNuiCanvasViewType ? nuiCanvasViewType : viewType;
+
+const isNuiCanvasTab = (input: vscode.Tab["input"] | undefined): input is vscode.TabInputWebview =>
+  input instanceof vscode.TabInputWebview && providerViewTypeForTabInput(input.viewType) === nuiCanvasViewType;
+
+const activeNuiTextEditorForCommand = (): vscode.TextEditor | undefined => {
+  const input = activeEditorTabInput();
+  if (!(input instanceof vscode.TabInputText)) return undefined;
+  const editor = activeNuiEditor();
+  return editor && editor.document.uri.toString() === input.uri.toString() ? editor : undefined;
+};
+
 const isOpenDocument = (document: vscode.TextDocument): boolean =>
   vscode.workspace.textDocuments.some((candidate) => sameDocument(candidate, document));
 
@@ -282,8 +314,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let benchmarkEditorListener: vscode.Disposable | null = null;
   const canvasHistoryHandoffContextKey = "nuinuiCAD.canvasHistoryHandoff";
   let canvasHistoryHandoffSession: DocumentSession | null = null;
+  let lastActiveCanvasSession: DocumentSession | null = null;
+  let lastBakeSurface: LastBakeSurface | null = null;
   let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
   let nextNavigationRequestId = 1;
+  let nextBakeRequestId = 1;
 
   const editCanvasRibbon = (): void => {
     void vscode.commands.executeCommand("workbench.action.openSettings", VSCODE_CANVAS_RIBBON_SETTING);
@@ -310,6 +345,72 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const clearCanvasHistoryHandoffIfReady = (session: DocumentSession): void => {
     if (session.panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
+  };
+
+  const canvasSessionForCommand = (): DocumentSession | null => {
+    if (!isNuiCanvasTab(activeEditorTabInput())) return null;
+    const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    if (activeSession) {
+      lastActiveCanvasSession = activeSession;
+      return activeSession;
+    }
+    const remembered = lastActiveCanvasSession;
+    return remembered && sessions.get(remembered.key) === remembered && remembered.panel.visible
+      ? remembered
+      : null;
+  };
+
+  const rememberBakeCanvas = (session: DocumentSession): void => {
+    lastBakeSurface = { kind: "canvas", session };
+  };
+
+  const rememberBakeSource = (document: vscode.TextDocument): void => {
+    if (isSupportedNuiDocument(document)) lastBakeSurface = { kind: "source", document };
+  };
+
+  const activeCanvasSessionForBake = (): DocumentSession | null => {
+    const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    if (!activeSession) return null;
+    lastActiveCanvasSession = activeSession;
+    rememberBakeCanvas(activeSession);
+    return activeSession;
+  };
+
+  const sourceEditorForBakeDocument = (document: vscode.TextDocument): vscode.TextEditor | undefined => {
+    const visibleEditor = visibleEditorFor(document);
+    if (visibleEditor && isSupportedNuiDocument(visibleEditor.document)) return visibleEditor;
+    const activeEditor = activeNuiEditor();
+    return activeEditor && sameDocument(activeEditor.document, document) ? activeEditor : undefined;
+  };
+
+  const bakeSurfaceForCommand = ():
+    | { kind: "canvas"; session: DocumentSession }
+    | { kind: "source"; editor: vscode.TextEditor }
+    | null => {
+    const activeCanvas = activeCanvasSessionForBake();
+    if (activeCanvas) return { kind: "canvas", session: activeCanvas };
+
+    const activeSource = activeNuiTextEditorForCommand();
+    if (activeSource) {
+      rememberBakeSource(activeSource.document);
+      return { kind: "source", editor: activeSource };
+    }
+
+    if (lastBakeSurface?.kind === "canvas") {
+      const session = lastBakeSurface.session;
+      if (sessions.get(session.key) === session && session.panel.visible) return { kind: "canvas", session };
+      lastBakeSurface = null;
+    } else if (lastBakeSurface?.kind === "source") {
+      const document = lastBakeSurface.document;
+      if (isOpenDocument(document)) {
+        const editor = sourceEditorForBakeDocument(document);
+        if (editor) return { kind: "source", editor };
+      } else {
+        lastBakeSurface = null;
+      }
+    }
+
+    return null;
   };
 
   const publishCompilerDiagnostics = (document: vscode.TextDocument): void => {
@@ -426,6 +527,21 @@ export const activate = (context: vscode.ExtensionContext): void => {
       requestId: pending.requestId,
       documentVersion: pending.documentVersion,
       normalizedSourceOffset: pending.normalizedSourceOffset
+    } satisfies ExtensionToVscodeMessage);
+  };
+
+  const deliverPendingBake = (session: DocumentSession): void => {
+    const pending = session.pendingBake;
+    if (
+      !pending ||
+      !session.webviewReady ||
+      session.authoritativeDocumentVersion !== session.document.version ||
+      session.inFlightCanvasHistory !== null ||
+      canvasHistoryHandoffSession !== null
+    ) return;
+    void session.panel.webview.postMessage({
+      type: "bakeSourceRequest",
+      ...pending
     } satisfies ExtensionToVscodeMessage);
   };
 
@@ -680,6 +796,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const disposeSession = (session: DocumentSession): void => {
     if (sessions.get(session.key) !== session) return;
+    if (lastActiveCanvasSession === session) lastActiveCanvasSession = null;
+    if (lastBakeSurface?.kind === "canvas" && lastBakeSurface.session === session) lastBakeSurface = null;
     session.inFlightCanvasHistory = null;
     clearCanvasHistoryHandoff(session);
     sessions.delete(session.key);
@@ -714,7 +832,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const key = documentKey(document);
     const existing = sessions.get(key);
     if (existing) {
-      existing.panel.reveal(vscode.ViewColumn.Beside);
+      if (preserveFocus) existing.panel.reveal(vscode.ViewColumn.Beside, true);
+      else existing.panel.reveal(vscode.ViewColumn.Beside);
       return existing;
     }
 
@@ -739,10 +858,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
       webviewReady: false,
       authoritativeDocumentVersion: null,
       pendingCanvasNavigation: null,
+      pendingBake: null,
       inFlightCanvasNavigation: null,
       pendingSourceDefinitionRequest: null
     };
     sessions.set(key, session);
+    if (panel.active) rememberBakeCanvas(session);
     updatePanelTitles();
 
     const post = (message: ExtensionToVscodeMessage) => void panel.webview.postMessage(message);
@@ -753,6 +874,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
           session.authoritativeDocumentVersion = null;
           session.pendingCanvasNavigation = null;
+          session.pendingBake = null;
           session.inFlightCanvasNavigation = null;
           session.pendingSourceDefinitionRequest = null;
 
@@ -781,6 +903,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
 
     session.disposables.push(panel.onDidChangeViewState(() => {
+      if (panel.active) {
+        lastActiveCanvasSession = session;
+        rememberBakeCanvas(session);
+      }
       if (panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
     }));
 
@@ -820,6 +946,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         if (message.documentVersion !== session.document.version) return;
         session.authoritativeDocumentVersion = message.documentVersion;
         deliverPendingCanvasNavigation(session);
+        deliverPendingBake(session);
         return;
       }
       if (message.type === "canvasSourceDefinitionResult") {
@@ -828,6 +955,13 @@ export const activate = (context: vscode.ExtensionContext): void => {
       }
       if (message.type === "canvasNavigationResult") {
         handleCanvasNavigationResult(session, message);
+        return;
+      }
+      if (message.type === "bakeSourceResult") {
+        if (!session.pendingBake || session.pendingBake.requestId !== message.requestId) return;
+        session.pendingBake = null;
+        if (message.status === "nothing") void vscode.window.showErrorMessage("nuinuiCAD: Bakeできるジオメトリがありません。");
+        if (message.status === "stale") resync(session);
         return;
       }
       if (message.type === "canvasCommit") {
@@ -871,7 +1005,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const executeCanvasCommand = (commandId: VscodeCanvasCommandId): void => {
-    const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const activeSession = canvasSessionForCommand();
     const session = activeSession ?? (
       commandId === "undo" || commandId === "redo"
         ? canvasHistoryHandoffSession
@@ -884,8 +1018,71 @@ export const activate = (context: vscode.ExtensionContext): void => {
     void session.panel.webview.postMessage({ type: "canvasCommand", commandId } satisfies ExtensionToVscodeMessage);
   };
 
+  const bakeSettings = () => {
+    const configuration = vscode.workspace.getConfiguration("nuinuiCAD");
+    return {
+      emitSkippedComments: configuration.get<boolean>("bake.emitSkippedComments", true),
+      includeHiddenGeometry: configuration.get<boolean>("bake.includeHiddenGeometry", false),
+      includeDisabledGeometry: configuration.get<boolean>("bake.includeDisabledGeometry", false)
+    };
+  };
+
+  const executeBakeCommand = (mode: "current" | "base"): void => {
+    const settings = bakeSettings();
+    const surface = bakeSurfaceForCommand();
+    if (surface?.kind === "canvas") {
+      const canvasSession = surface.session;
+      void canvasSession.panel.webview.postMessage({
+        type: "canvasCommand",
+        commandId: mode === "current" ? "bakeCurrentShape" : "bakeBaseShape",
+        ...settings
+      } satisfies ExtensionToVscodeMessage);
+      return;
+    }
+    if (surface?.kind !== "source") {
+      void vscode.window.showErrorMessage("nuinuiCAD: .nuiのSource EditorまたはCanvasをアクティブにしてください。");
+      return;
+    }
+    const editor = surface.editor;
+    const document = editor.document;
+    const analysis = languageAnalysisSessionFor(document);
+    const rawSource = document.getText();
+    if (analysis.getSource() !== rawSource) analysis.replaceSource(rawSource);
+    const source = {
+      normalizedSource: normalizedSourceFor(rawSource),
+      sourceRevision: analysis.getSourceRevision()
+    };
+    const normalizedSourceOffset = normalizedOffsetFromRaw(rawSource, document.offsetAt(editor.selection.active));
+    const semantic = analysis.definitionSemanticSnapshot(source);
+    const target = semantic?.compiled
+      ? queryDslCanvasSourceTarget({
+          source,
+          compiled: semantic.compiled,
+          position: normalizedSourceOffset
+        })
+      : null;
+    if (!target) {
+      void vscode.window.showErrorMessage("nuinuiCAD: Source Editorのカーソル位置にBake対象がありません。");
+      return;
+    }
+    const key = documentKey(document);
+    let session = sessions.get(key);
+    if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) return;
+    if (!session) session = createCanvasPanel(editor, true);
+    if (!session) return;
+    session.pendingBake = {
+      requestId: nextBakeRequestId++,
+      documentVersion: document.version,
+      normalizedSourceOffset,
+      mode,
+      ...settings
+    };
+    session.panel.reveal(vscode.ViewColumn.Beside, true);
+    deliverPendingBake(session);
+  };
+
   const goToSourceDefinition = (): void => {
-    const session = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const session = canvasSessionForCommand();
     if (
       !session ||
       session.inFlightCanvasHistory !== null ||
@@ -978,8 +1175,19 @@ export const activate = (context: vscode.ExtensionContext): void => {
   ].map(([command, commandId]) => vscode.commands.registerCommand(command, () => {
     executeCanvasCommand(commandId as VscodeCanvasCommandId);
   }));
+  const bakeCurrentShapeCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.bakeCurrentShape",
+    () => executeBakeCommand("current")
+  );
+  const bakeBaseShapeCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.bakeBaseShape",
+    () => executeBakeCommand("base")
+  );
 
   const closeDocumentListener = vscode.workspace.onDidCloseTextDocument((document) => {
+    if (lastBakeSurface?.kind === "source" && sameDocument(lastBakeSurface.document, document)) {
+      lastBakeSurface = null;
+    }
     const session = sessions.get(documentKey(document));
     if (session && sameDocument(session.document, document)) session.panel.dispose();
   });
@@ -987,6 +1195,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     dispose: () => {
       for (const session of [...sessions.values()]) disposeSession(session);
       sessions.clear();
+      lastBakeSurface = null;
     }
   };
   const disposeRustProcess = {
@@ -999,6 +1208,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     choiceQuickFixApplyCommand,
     editCanvasRibbonCommand,
     ...canvasCommandDisposables,
+    bakeCurrentShapeCommand,
+    bakeBaseShapeCommand,
     closeDocumentListener,
     disposeAllSessions,
     disposeRustProcess
@@ -1016,6 +1227,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
       context.subscriptions.push(benchmarkEditorListener);
     }
   }
+
+  const activeBakeSourceListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
+    if (!editor || !isSupportedNuiDocument(editor.document)) return;
+    rememberBakeSource(editor.document);
+  });
+  context.subscriptions.push(activeBakeSourceListener);
 };
 
 export const deactivate = (): void => undefined;

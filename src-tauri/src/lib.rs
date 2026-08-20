@@ -1,4 +1,5 @@
 pub mod app_menu;
+pub mod bake_settings;
 pub mod command_ribbon_settings;
 pub mod document_file;
 pub mod evaluation;
@@ -29,6 +30,8 @@ pub fn run() {
             document_file::write_document_file,
             print_pdf::export_print_pdf,
             print_svg::export_print_svg,
+            bake_settings::load_bake_settings,
+            bake_settings::save_bake_settings,
             command_ribbon_settings::load_command_ribbon_settings,
             command_ribbon_settings::save_command_ribbon_settings,
             layout_settings::load_layout_settings,

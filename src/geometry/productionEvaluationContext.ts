@@ -134,6 +134,7 @@ export const buildEvaluationOptions = ({
       moduleConditionalOwnerStatementIdByElementId,
       moduleForGroupMutationOwnerByElementId
     } : {}),
+    ...(compiledDocument.moduleMaterialization ? { moduleMaterialization: compiledDocument.moduleMaterialization } : {}),
     ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
     ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
     ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),

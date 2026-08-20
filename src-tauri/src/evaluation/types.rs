@@ -10,6 +10,9 @@ pub type ElementId = String;
 pub struct EvaluationInput {
     pub(crate) elements: Vec<Value>,
     pub(crate) evaluation_limit_index: Option<usize>,
+    /// Bake-only evaluation escape hatch; normal evaluation leaves disabled elements unevaluated.
+    #[serde(default)]
+    pub(crate) allow_disabled_element_ids: Option<Vec<ElementId>>,
     /// Compiled document-level drawing modifier definitions. Rust consumes
     /// this metadata only; source names are resolved by the DSL compiler.
     #[serde(default)]
@@ -52,6 +55,22 @@ pub struct EvaluationInput {
     /// Validated text-property sources. Kept separate from common property
     /// bindings only while the text runtime physical route remains in place.
     pub(crate) text_property_bindings: Option<Value>,
+    /// Existing module materialization boundaries projected as JSON arrays.
+    pub(crate) module_materialization: Option<ModuleMaterializationInput>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ModuleMaterializationInput {
+    pub(crate) instances: Vec<ModuleMaterializationSnapshotInput>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ModuleMaterializationSnapshotInput {
+    pub(crate) instance_id: ElementId,
+    pub(crate) end_runtime_index: usize,
+    pub(crate) descendant_ids: Vec<ElementId>,
 }
 
 #[derive(Debug, Serialize)]
@@ -113,7 +132,9 @@ pub(crate) struct EffectiveDrawingModifierStroke {
 pub struct EvaluationPayload {
     pub(crate) computed_geometry: Vec<Value>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub(crate) pre_mutation_bezier_geometry: Vec<Value>,
+    pub(crate) pre_mutation_geometry: Vec<Value>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) instance_base_geometry: Vec<Value>,
     pub(crate) errors: Vec<DependencyError>,
     pub(crate) warnings: Vec<EvaluationWarning>,
     pub(crate) evaluated_element_ids: Vec<ElementId>,
@@ -182,7 +203,8 @@ pub(crate) struct EvaluationState {
     pub(crate) group_states: HashMap<ElementId, GroupState>,
     pub(crate) computed_geometry: HashMap<ElementId, Value>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
-    pub(crate) pre_mutation_bezier_geometry: HashMap<ElementId, Value>,
+    pub(crate) pre_mutation_geometry: HashMap<ElementId, Value>,
+    pub(crate) instance_base_geometry: HashMap<ElementId, Vec<Value>>,
     pub(crate) errors: Vec<DependencyError>,
     pub(crate) warnings: Vec<EvaluationWarning>,
 }

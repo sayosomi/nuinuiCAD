@@ -295,7 +295,8 @@ export type LineSplicePatchResult =
  */
 export const commitLineSplicePatch = (
   current: CanonicalDocumentValue,
-  splices: readonly LineSplice[]
+  splices: readonly LineSplice[],
+  options: { createdElementIds?: readonly ElementId[] } = {}
 ): LineSplicePatchResult => {
   if (current.docText !== current.sourceText) {
     return { status: "failed", reason: "fatalな編集中テキストがあるため適用できません。" };
@@ -308,7 +309,7 @@ export const commitLineSplicePatch = (
   }
   if (patchedText === current.sourceText) return { status: "noop" };
 
-  const compiled = compileCanonicalText(current, patchedText);
+  const compiled = compileCanonicalText(current, patchedText, options);
   if (compiled.status === "fatal") {
     return { status: "failed", reason: "パッチ後のテキストをコンパイルできませんでした。" };
   }

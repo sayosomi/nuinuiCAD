@@ -1,8 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { dispatchCommand } from "../commands/commands";
 import { loadCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
 import { registerUnsavedChangesGuard } from "../document/unsavedChangesGuard";
+import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { evaluationStateIsCurrentFor, useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { createCanvasTextWidthMeasurer } from "./canvasTextMeasurement";
@@ -13,6 +14,11 @@ import {
   isSourceEditorSearchKeyboardTarget,
   keyboardCommandForEvent
 } from "../keyboard/shortcuts";
+import {
+  bakeCommandOptionsFromSettings,
+  defaultBakeSettings,
+  loadBakeSettings
+} from "../commands/bakeSettingsStorage";
 import { loadLayoutSettings, saveLayoutSettings } from "../layout/layoutSettingsStorage";
 import { MIN_LEFT_PANEL_WIDTH, useLeftPanelResize } from "../layout/leftPanelWidth";
 import {
@@ -125,6 +131,7 @@ export const AppLayout = () => {
   const renameModuleSemanticPromptTarget = useCadUiStore((state) => state.renameModuleSemanticPromptTarget);
   const pendingImageImport = useCadUiStore((state) => state.pendingImageImport);
   const imageImportError = useCadUiStore((state) => state.imageImportError);
+  const [bakeSettings, setBakeSettings] = useState(defaultBakeSettings);
   const setPrintPreviewWindow = useCadUiStore((state) => state.setPrintPreviewWindow);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const commandLineSession = useCadUiStore((state) => state.commandLineSession);
@@ -162,6 +169,38 @@ export const AppLayout = () => {
   // element by a render || two (see elementParameterCandidateState). Reuse
   // the engine's own currency check rather than re-deriving it ad hoc.
   const evaluationIsCurrent = evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision);
+  const prepareBakeSandbox = useCallback(async (targetIds: readonly ElementId[]) => {
+    const initial = useCadDocumentStore.getState();
+    const initialCompiled = effectiveCompiledDocument(initial);
+    const initialElements = effectiveElements(initial);
+    const initialCompiledDocumentRevision = initial.compiledDocumentRevision;
+    const initialSourceRevision = initial.sourceRevision;
+    const initialSourceText = initial.sourceText;
+    const initialDocText = initial.docText;
+    try {
+      const evaluation = await evaluateElementsWithRust(initialElements, {
+        ...buildEvaluationOptions({
+          compiledDocument: initialCompiled,
+          evaluationLimitIndex: effectiveEvaluationLimitIndex(initial)
+        }),
+        allowDisabledElementIds: new Set(targetIds)
+      });
+      const current = useCadDocumentStore.getState();
+      if (
+        current.compiledDocumentRevision !== initialCompiledDocumentRevision ||
+        current.sourceRevision !== initialSourceRevision ||
+        current.sourceText !== initialSourceText ||
+        current.docText !== initialDocText
+      ) return null;
+      return {
+        evaluation,
+        targetIds: [...targetIds],
+        compiledDocumentRevision: initialCompiledDocumentRevision
+      };
+    } catch {
+      return null;
+    }
+  }, []);
   const measureCanvasTextWidth = useMemo(
     () => createCanvasTextWidthMeasurer(() =>
       document.querySelector<HTMLElement>('[data-canvas-viewport="true"]')
@@ -211,8 +250,11 @@ export const AppLayout = () => {
     clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
     getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
     measureCanvasTextWidth,
-    evaluation
-  }), [evaluation, measureCanvasTextWidth]);
+    evaluation,
+    evaluationIsCurrent,
+    ...bakeCommandOptionsFromSettings(bakeSettings),
+    prepareBakeSandbox
+  }), [bakeSettings, evaluation, evaluationIsCurrent, measureCanvasTextWidth, prepareBakeSandbox]);
   const handleRenameElementConfirmed = useCallback((elementId: ElementId) => {
     sourceEditorRef.current?.jumpToElement(elementId);
     commandContext.focusSourceEditor?.();
@@ -242,6 +284,20 @@ export const AppLayout = () => {
       cancelled = true;
     };
   }, [setPrintPreviewWindow, setSavedLeftPanelWidth]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadBakeSettings()
+      .then((settings) => {
+        if (!cancelled) setBakeSettings(settings);
+      })
+      .catch((error: unknown) => {
+        console.error("failed to load Bake settings", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     return registerUnsavedChangesGuard();
