@@ -29,6 +29,21 @@ const source = [
   ")"
 ].join("\n");
 
+const baseSource = [
+  "nui 4",
+  "point BC0 = coordinate(x: 0, y: 140)",
+  "point BC1 = coordinate(x: 100, y: 140)",
+  "line BaseCurrent = segment(",
+  "  start: @BC0,",
+  "  end: @BC1,",
+  ")",
+  "move(",
+  "  targets: [@BaseCurrent],",
+  "  from: (0, 140),",
+  "  to: (20, 170),",
+  ")"
+].join("\n");
+
 const rustBinary = process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(
   process.cwd(),
   "src-tauri/target/debug/evaluation_stdio"
@@ -60,23 +75,36 @@ const expectBakedSource = () => {
   expect(lines[derivedEndLine + 1]).toBe("point Derived_bake [Guide] = coordinate(x: 25, y: 0)");
 };
 
+const expectBaseBakedSource = () => {
+  const lines = useCadDocumentStore.getState().sourceText.split("\n");
+  const baseStartLine = lines.findIndex((line) => line === "line BaseCurrent = segment(");
+  const baseEndLine = lines.findIndex((line, index) => index > baseStartLine && line === ")");
+  expect(baseEndLine).toBeGreaterThanOrEqual(0);
+  expect(lines[baseEndLine + 1]).toBe("line BaseCurrent_bake = segment(start: (0, 140), end: (100, 140))");
+  expect(lines[baseEndLine + 2]).toBe("move(");
+};
+
 describe.skipIf(!existsSync(rustBinary))("VS Code production Bake path", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
   });
 
-  const replaceSource = async (api: ReturnType<typeof productionApi>) => {
+  const replaceSource = async (
+    api: ReturnType<typeof productionApi>,
+    sourceText = source,
+    expectedElementName = "Derived"
+  ) => {
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
       }));
       await Promise.resolve();
     });
     await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "rustEvaluationRequest"
     })));
-    await waitFor(() => expect(useCadDocumentStore.getState().elements.some((element) => element.name === "Derived")).toBe(true));
+    await waitFor(() => expect(useCadDocumentStore.getState().elements.some((element) => element.name === expectedElementName)).toBe(true));
   };
 
   it("bakes the selected Derived point through Canvas using the production Rust response", async () => {
@@ -114,5 +142,26 @@ describe.skipIf(!existsSync(rustBinary))("VS Code production Bake path", () => {
     });
 
     expectBakedSource();
+  }, 30_000);
+
+  it("bakes the BaseCurrent pre-move snapshot through Source using the production Rust response", async () => {
+    const api = productionApi();
+    render(<VSCodeApp api={api} />);
+    await replaceSource(api, baseSource, "BaseCurrent");
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "bakeSourceRequest",
+          requestId: 1,
+          documentVersion: 1,
+          normalizedSourceOffset: baseSource.indexOf("BaseCurrent"),
+          mode: "base"
+        }
+      }));
+      await Promise.resolve();
+    });
+
+    expectBaseBakedSource();
   }, 30_000);
 });

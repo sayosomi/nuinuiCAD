@@ -175,6 +175,19 @@ const activeNuiEditor = (): vscode.TextEditor | undefined => {
   return editor && isSupportedNuiDocument(editor.document) ? editor : undefined;
 };
 
+const activeEditorTabInput = (): vscode.Tab["input"] | undefined =>
+  vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+
+const isNuiCanvasTab = (input: vscode.Tab["input"] | undefined): input is vscode.TabInputWebview =>
+  input instanceof vscode.TabInputWebview && input.viewType === "nuinuiCAD.canvas";
+
+const activeNuiTextEditorForCommand = (): vscode.TextEditor | undefined => {
+  const input = activeEditorTabInput();
+  if (!(input instanceof vscode.TabInputText)) return undefined;
+  const editor = activeNuiEditor();
+  return editor && editor.document.uri.toString() === input.uri.toString() ? editor : undefined;
+};
+
 const isOpenDocument = (document: vscode.TextDocument): boolean =>
   vscode.workspace.textDocuments.some((candidate) => sameDocument(candidate, document));
 
@@ -276,6 +289,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const canvasSessionForCommand = (): DocumentSession | null => {
+    if (!isNuiCanvasTab(activeEditorTabInput())) return null;
     const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
     if (activeSession) {
       lastActiveCanvasSession = activeSession;
@@ -876,7 +890,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       } satisfies ExtensionToVscodeMessage);
       return;
     }
-    const editor = activeNuiEditor();
+    const editor = activeNuiTextEditorForCommand();
     if (!editor) {
       void vscode.window.showErrorMessage("nuinuiCAD: .nuiのSource EditorまたはCanvasをアクティブにしてください。");
       return;
@@ -1055,10 +1069,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
       context.subscriptions.push(benchmarkEditorListener);
     }
   }
-  const activeEditorListener = vscode.window.onDidChangeActiveTextEditor(() => {
-    lastActiveCanvasSession = [...sessions.values()].find((candidate) => candidate.panel.active) ?? null;
-  });
-  context.subscriptions.push(activeEditorListener);
 };
 
 export const deactivate = (): void => undefined;
