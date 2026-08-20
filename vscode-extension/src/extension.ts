@@ -40,6 +40,10 @@ import {
   createNuiFoldingProvider,
   nuiFoldingSelector
 } from "./foldingProvider";
+import {
+  createNuiDocumentSymbolProvider,
+  nuiDocumentSymbolSelector
+} from "./documentSymbolProvider";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
@@ -487,6 +491,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     nuiFoldingSelector,
     createNuiFoldingProvider(languageAnalysisSessionFor)
   );
+  const documentSymbolProvider = vscode.languages.registerDocumentSymbolProvider(
+    nuiDocumentSymbolSelector,
+    createNuiDocumentSymbolProvider(languageAnalysisSessionFor)
+  );
   context.subscriptions.push(
     compilerDiagnosticCollection,
     compilerDiagnosticOpenListener,
@@ -498,7 +506,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     renameProvider,
     referenceProvider,
     choiceQuickFixProvider,
-    foldingProvider
+    foldingProvider,
+    documentSymbolProvider
   );
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 

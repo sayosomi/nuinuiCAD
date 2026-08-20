@@ -91,6 +91,7 @@ const mocks = vi.hoisted(() => ({
   referenceRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
   foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
+  documentSymbolRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   canvasRibbonSetting: undefined as unknown,
   configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
   configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
@@ -106,6 +107,7 @@ const mocks = vi.hoisted(() => ({
   registerReferenceProvider: vi.fn(),
   registerCodeActionsProvider: vi.fn(),
   registerFoldingRangeProvider: vi.fn(),
+  registerDocumentSymbolProvider: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
   onDidChangeActiveColorTheme: vi.fn(),
@@ -211,11 +213,25 @@ vi.mock("vscode", () => {
       registerRenameProvider: mocks.registerRenameProvider,
       registerReferenceProvider: mocks.registerReferenceProvider,
       registerCodeActionsProvider: mocks.registerCodeActionsProvider,
-      registerFoldingRangeProvider: mocks.registerFoldingRangeProvider
+      registerFoldingRangeProvider: mocks.registerFoldingRangeProvider,
+      registerDocumentSymbolProvider: mocks.registerDocumentSymbolProvider
     },
     Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
     ViewColumn: { Beside: 2 },
     DiagnosticSeverity: { Error: 0, Warning: 1 },
+    SymbolKind: {
+      Module: 1,
+      Object: 2,
+      Namespace: 3,
+      Constant: 4,
+      Variable: 5,
+      Enum: 6,
+      Struct: 7,
+      Property: 8,
+      Field: 9,
+      String: 10,
+      File: 11
+    },
     CompletionItemKind: {
       Keyword: 1,
       Function: 2,
@@ -459,6 +475,11 @@ const setup = (
     mocks.foldingRegistrations.push({ selector, provider, disposable: registration });
     return registration;
   });
+  mocks.registerDocumentSymbolProvider.mockImplementation((selector: unknown, provider: unknown) => {
+    const registration = disposable();
+    mocks.documentSymbolRegistrations.push({ selector, provider, disposable: registration });
+    return registration;
+  });
   mocks.onDidOpenTextDocument.mockImplementation((listener: (document: TestDocument) => void) => {
     mocks.documentOpenListeners.push(listener);
     return disposable();
@@ -549,6 +570,7 @@ afterEach(() => {
   mocks.referenceRegistrations.length = 0;
   mocks.codeActionRegistrations.length = 0;
   mocks.foldingRegistrations.length = 0;
+  mocks.documentSymbolRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.bakeSettings = {};
   mocks.showTextDocument.mockReset();
@@ -561,6 +583,7 @@ afterEach(() => {
   mocks.registerReferenceProvider.mockReset();
   mocks.registerCodeActionsProvider.mockReset();
   mocks.registerFoldingRangeProvider.mockReset();
+  mocks.registerDocumentSymbolProvider.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
   mocks.onDidChangeActiveColorTheme.mockReset();
@@ -2044,6 +2067,18 @@ describe("VS Code native structural folding lifecycle", () => {
     ]);
     expect(fromSource).toHaveBeenCalledTimes(3);
     fromSource.mockRestore();
+  });
+});
+
+describe("VS Code native document symbol lifecycle", () => {
+  it("registers one nui/file document symbol provider with the session lifecycle", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.documentSymbolRegistrations[0]!;
+
+    expect(mocks.documentSymbolRegistrations).toHaveLength(1);
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.provider).toEqual(expect.objectContaining({ provideDocumentSymbols: expect.any(Function) }));
+    expect(context.subscriptions).toContain(registration.disposable);
   });
 });
 

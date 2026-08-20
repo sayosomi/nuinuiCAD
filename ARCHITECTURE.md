@@ -435,6 +435,7 @@ Primary:
 - `vscode-extension/src/completionProvider.ts`
 - `vscode-extension/src/definitionProvider.ts`
 - `vscode-extension/src/referenceProvider.ts`
+- `vscode-extension/src/documentSymbolProvider.ts`
 - `vscode-extension/src/renameProvider.ts`
 - `vscode-extension/src/choiceQuickFixProvider.ts`
 - `vscode-extension/src/rustEvaluationProcessOwner.ts`
@@ -537,7 +538,8 @@ Settings surface.
 
 The extension keeps one `NuiLanguageAnalysisSession` and one production
 `AutomationDocument` per supported document URI. Diagnostics, native
-completion, definition navigation, rename, and references share that session:
+completion, definition navigation, document symbols, rename, and references
+share that session:
 
 ```text
 VS Code TextDocument
@@ -546,14 +548,15 @@ VS Code TextDocument
 ├→ queryDslCompletion → CompletionItemProvider
 ├→ queryDslDefinition → DefinitionProvider
 ├→ queryDslReferences → ReferenceProvider
+├→ queryDslDocumentSymbols → DocumentSymbolProvider
 ├→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
 └→ current invalid-choice diagnostic → typedVariableQuickFixes choice-replacement subset
    → CodeActionProvider → guarded internal apply command → WorkspaceEdit
 ```
 
 `languageAnalysisSession.ts` owns current raw source, source replacement,
-current compiler diagnostics, source revision, and fail-closed semantic
-snapshot access. `compilerDiagnostics.ts` remains the diagnostic DTO and range
+current compiler diagnostics, source revision, and fail-closed semantic / exact
+current source-structure snapshot access. `compilerDiagnostics.ts` remains the diagnostic DTO and range
 conversion adapter. `completionProvider.ts` only normalizes VS Code positions,
 projects `queryDslCompletion` candidates to `CompletionItem`s, and supplies
 host insertion behavior; completion semantics, filtering, ranking, and
@@ -563,10 +566,13 @@ UTF-16 raw offsets across CRLF normalization, delegates semantic resolution to
 `queryDslDefinition`, and projects its exact ranges to a same-document
 `DefinitionLink`. `referenceProvider.ts` uses the same session/current-source
 flow and delegates to `queryDslReferences`, returning deterministic
-same-document `Location`s. Rename target and edit-plan projection similarly
+same-document `Location`s. `documentSymbolProvider.ts` delegates to the
+host-neutral `queryDslDocumentSymbols` projection and recursively converts its
+normalized source ranges and symbol kinds to VS Code `DocumentSymbol`s. Rename target and edit-plan projection similarly
 remain host-neutral; VS Code `RenameProvider` and `ReferenceProvider`
 registrations are adapter boundaries, not second resolvers. Neither diagnostics,
-completion, definition navigation, references, rename planning, nor choice Quick Fix generation performs runtime
+completion, definition navigation, references, document symbols, rename planning,
+nor choice Quick Fix generation performs runtime
 evaluation or starts the Rust process. Choice Quick Fix reuses the current
 compiler invalid-choice diagnostic and the existing `typedVariableQuickFixes`
 choice-replacement descriptors; it does not use the CodeMirror adapter. The
