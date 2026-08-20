@@ -49,5 +49,10 @@ describe("shared stylesheet host layout ownership", () => {
       ".vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle .command-ribbon-buttons"
     );
     expect(sideHandleButtons).toMatch(/flex-direction:\s*column/);
+
+    const itemShell = ruleBody(".vscode-canvas-webview .command-ribbon-item-shell");
+    expect(itemShell).toMatch(/display:\s*grid/);
+    expect(itemShell).not.toMatch(/display:\s*inline/);
+    expect(itemShell).not.toMatch(/vertical-align:/);
   });
 });

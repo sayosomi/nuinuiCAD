@@ -5,9 +5,6 @@ import {
   patchVscodeCanvasRibbonPosition
 } from "./vscodeCanvasRibbonConfig";
 import {
-  commandRibbonIconSizes
-} from "../commandRibbons/commandRibbonVisuals";
-import {
   vscodeCanvasRibbonCommandCatalog,
   vscodeCanvasRibbonCommandIds,
   vscodeCanvasRibbonCommandFor
@@ -23,7 +20,6 @@ describe("VS Code Canvas Ribbon configuration", () => {
         x: null,
         y: 12,
         orientation: "horizontal",
-        iconSize: 16,
         items: [{
           id: "editCanvasRibbon",
           type: "command",
@@ -53,6 +49,7 @@ describe("VS Code Canvas Ribbon configuration", () => {
             commandId: "workbench.action.files.openFile",
             icon: "not-a-lucide-icon",
             iconColor: "legacy-amber",
+            label: "Legacy command",
             showLabel: true
           },
           {
@@ -62,7 +59,7 @@ describe("VS Code Canvas Ribbon configuration", () => {
             icon: "circle",
             showLabel: false
           },
-          { id: "zoom", type: "value", valueId: "canvasZoom" },
+          { id: "zoom", type: "value", valueId: "canvasZoom", label: "Legacy zoom" },
           { id: "bad-value", type: "value", valueId: "other" }
         ]
       },
@@ -86,8 +83,7 @@ describe("VS Code Canvas Ribbon configuration", () => {
       id: "first",
       x: null,
       y: 12,
-      orientation: "horizontal",
-      iconSize: 16
+      orientation: "horizontal"
     });
     expect(ribbons[0]?.items).toHaveLength(2);
     expect(ribbons[0]?.items[0]).toMatchObject({
@@ -96,38 +92,51 @@ describe("VS Code Canvas Ribbon configuration", () => {
       showLabel: true
     });
     expect(ribbons[0]?.items[0]).not.toHaveProperty("iconColor");
-    expect(ribbons[1]).toMatchObject({ id: "second", x: 10, y: 21, orientation: "vertical", iconSize: 20 });
+    expect(ribbons[1]).toMatchObject({ id: "second", x: 10, y: 21, orientation: "vertical" });
+    expect(ribbons[1]).not.toHaveProperty("iconSize");
   });
 
-  it("accepts only the fixed icon sizes and ignores legacy iconColor input", () => {
-    for (const iconSize of commandRibbonIconSizes) {
-      expect(normalizeVscodeCanvasRibbons([{
-        id: `size-${iconSize}`,
-        items: [],
-        iconSize
-      }])[0]?.iconSize).toBe(iconSize);
-    }
-    expect(normalizeVscodeCanvasRibbons([{ id: "invalid-size", items: [], iconSize: 22 }])[0]?.iconSize).toBe(16);
-
+  it("ignores legacy iconSize, iconColor, and item label input during normalization", () => {
     const normalized = normalizeVscodeCanvasRibbons([{
-      id: "legacy-color",
+      id: "legacy-settings",
+      iconSize: 24,
       items: [{
         id: "command",
         type: "command",
         commandId: "resetCanvasView",
         icon: "circle",
         iconColor: "#0f766e",
+        label: "Legacy command",
         showLabel: false
+      }, {
+        id: "zoom",
+        type: "value",
+        valueId: "canvasZoom",
+        label: "Legacy zoom"
       }]
     }]);
-    expect(normalized[0]?.items[0]).toEqual({
-      id: "command",
-      type: "command",
-      commandId: "resetCanvasView",
-      icon: "circle",
-      showLabel: false
+    expect(normalized[0]).toEqual({
+      id: "legacy-settings",
+      label: "legacy-settings",
+      x: null,
+      y: 12,
+      orientation: "horizontal",
+      items: [{
+        id: "command",
+        type: "command",
+        commandId: "resetCanvasView",
+        icon: "circle",
+        showLabel: false
+      }, {
+        id: "zoom",
+        type: "value",
+        valueId: "canvasZoom"
+      }]
     });
+    expect(normalized[0]).not.toHaveProperty("iconSize");
     expect(normalized[0]?.items[0]).not.toHaveProperty("iconColor");
+    expect(normalized[0]?.items[0]).not.toHaveProperty("label");
+    expect(normalized[0]?.items[1]).not.toHaveProperty("label");
   });
 
   it("keeps the closed Ribbon command catalog separate from shared CommandId", () => {
@@ -163,6 +172,7 @@ describe("VS Code Canvas Ribbon configuration", () => {
         type: "command",
         commandId: "editCanvasRibbon",
         icon: "settings-2",
+        label: "Legacy edit",
         iconColor: "legacy-amber",
         showLabel: false
       }],
@@ -174,7 +184,7 @@ describe("VS Code Canvas Ribbon configuration", () => {
       y: 4,
       orientation: "vertical",
       iconSize: 20,
-      items: [{ id: "zoom", type: "value", valueId: "canvasZoom" }]
+      items: [{ id: "zoom", type: "value", valueId: "canvasZoom", label: "Legacy zoom" }]
     }, {
       id: "one",
       malformedFutureField: true,
@@ -186,6 +196,8 @@ describe("VS Code Canvas Ribbon configuration", () => {
       current[1],
       current[2]
     ]);
+    expect(patched?.[0]).toMatchObject({ iconSize: 16, items: [{ label: "Legacy edit" }] });
+    expect(patched?.[1]).toMatchObject({ items: [{ label: "Legacy zoom" }] });
     expect((patched?.[0] as { items: Array<Record<string, unknown>> }).items[0]?.iconColor).toBe("legacy-amber");
     expect(patchVscodeCanvasRibbonPosition(current, "one", Number.NaN, 36)).toBeNull();
     expect(patchVscodeCanvasRibbonPosition(current, "one", Number.POSITIVE_INFINITY, 36)).toBeNull();

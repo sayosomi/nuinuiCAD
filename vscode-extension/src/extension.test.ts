@@ -1969,6 +1969,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
           type: "command",
           commandId: "editCanvasRibbon",
           icon: "settings-2",
+          label: "Legacy edit",
           showLabel: false,
           futureItemField: { keep: "verbatim" }
         }],
@@ -2051,11 +2052,25 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
 
     expect(panelA.webview.postMessage).toHaveBeenCalledWith({
       type: "canvasRibbonConfiguration",
-      ribbons: mocks.canvasRibbonSetting
+      ribbons: [{
+        id: "new",
+        label: "New",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        items: []
+      }]
     });
     expect(panelB.webview.postMessage).toHaveBeenCalledWith({
       type: "canvasRibbonConfiguration",
-      ribbons: mocks.canvasRibbonSetting
+      ribbons: [{
+        id: "new",
+        label: "New",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        items: []
+      }]
     });
   });
 });

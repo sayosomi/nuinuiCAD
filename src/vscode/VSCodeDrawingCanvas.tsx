@@ -17,7 +17,10 @@ import type {
   CanvasBezierHandleDragAction
 } from "../components/canvasHostAdapter";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
-import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
+import {
+  VSCODE_CANVAS_RIBBON_ICON_SIZE,
+  type VscodeCanvasRibbon
+} from "./vscodeCanvasRibbonConfig";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
 import { CommandRibbonFloatingOverlay } from "../components/CommandRibbonFloatingOverlay";
@@ -96,14 +99,14 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
         x: ribbon.x,
         y: ribbon.y,
         orientation: ribbon.orientation,
-        iconSize: ribbon.iconSize,
+        iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
         verticalHandlePlacement: ribbon.orientation === "vertical" ? "side" : undefined,
         items: ribbon.items.map((item) => {
           if (item.type === "value") {
             return {
               id: item.id,
               type: "value" as const,
-              label: item.label ?? "Canvas Zoom",
+              label: "Canvas Zoom",
               description: "Current Canvas zoom.",
               value: `${canvasViewport.zoom.toFixed(2)} px/mm`
             };
@@ -114,7 +117,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
             type: "command" as const,
             commandId: item.commandId,
             icon: item.icon || definition?.icon || "circle",
-            label: item.label ?? definition?.label ?? item.commandId,
+            label: definition?.label ?? item.commandId,
             description: definition?.description ?? "This command is unavailable.",
             showLabel: item.showLabel,
             available: definition?.isAvailable(ribbonCommandContext) ?? false,

@@ -1,10 +1,7 @@
-import { commandRibbonIconSizes } from "../commandRibbons/commandRibbonVisuals";
-import type { CommandRibbonIconSize } from "../commandRibbons/commandRibbonVisuals";
-
 export const VSCODE_CANVAS_RIBBON_SETTING = "nuinuiCAD.canvasRibbon.ribbons";
 
 export const VSCODE_CANVAS_RIBBON_DEFAULT_Y = 12;
-export const VSCODE_CANVAS_RIBBON_DEFAULT_ICON_SIZE = 16;
+export const VSCODE_CANVAS_RIBBON_ICON_SIZE = 16;
 
 export type VscodeCanvasRibbonOrientation = "horizontal" | "vertical";
 
@@ -13,7 +10,6 @@ export type VscodeCanvasRibbonCommandItem = {
   type: "command";
   commandId: string;
   icon: string;
-  label?: string;
   showLabel: boolean;
 };
 
@@ -21,7 +17,6 @@ export type VscodeCanvasRibbonValueItem = {
   id: string;
   type: "value";
   valueId: "canvasZoom";
-  label?: string;
 };
 
 export type VscodeCanvasRibbonItem =
@@ -34,7 +29,6 @@ export type VscodeCanvasRibbon = {
   x: number | null;
   y: number;
   orientation: VscodeCanvasRibbonOrientation;
-  iconSize: number;
   items: VscodeCanvasRibbonItem[];
 };
 
@@ -45,7 +39,6 @@ export const defaultVscodeCanvasRibbons = (): VscodeCanvasRibbon[] => [
     x: null,
     y: VSCODE_CANVAS_RIBBON_DEFAULT_Y,
     orientation: "horizontal",
-    iconSize: VSCODE_CANVAS_RIBBON_DEFAULT_ICON_SIZE,
     items: [
       {
         id: "editCanvasRibbon",
@@ -72,26 +65,17 @@ const normalizeCoordinate = (value: unknown, fallback: number | null): number | 
   return coordinate === null ? fallback : Math.round(coordinate);
 };
 
-const normalizeIconSize = (value: unknown): CommandRibbonIconSize => {
-  const size = finiteNumber(value);
-  return size !== null && (commandRibbonIconSizes as readonly number[]).includes(size)
-    ? size as CommandRibbonIconSize
-    : VSCODE_CANVAS_RIBBON_DEFAULT_ICON_SIZE;
-};
-
 const normalizeCommandItem = (value: unknown): VscodeCanvasRibbonCommandItem | null => {
   if (!isObject(value)) return null;
   const id = nonEmptyString(value.id);
   const commandId = nonEmptyString(value.commandId);
   if (id === null || commandId === null || value.type !== "command") return null;
   const icon = nonEmptyString(value.icon) ?? "circle";
-  const label = nonEmptyString(value.label);
   return {
     id,
     type: "command",
     commandId,
     icon,
-    ...(label ? { label } : {}),
     showLabel: value.showLabel === true
   };
 };
@@ -100,12 +84,10 @@ const normalizeValueItem = (value: unknown): VscodeCanvasRibbonValueItem | null 
   if (!isObject(value)) return null;
   const id = nonEmptyString(value.id);
   if (id === null || value.type !== "value" || value.valueId !== "canvasZoom") return null;
-  const label = nonEmptyString(value.label);
   return {
     id,
     type: "value",
-    valueId: "canvasZoom",
-    ...(label ? { label } : {})
+    valueId: "canvasZoom"
   };
 };
 
@@ -133,7 +115,6 @@ const normalizeRibbon = (value: unknown): VscodeCanvasRibbon | null => {
     x: normalizeCoordinate(value.x, null),
     y: normalizeCoordinate(value.y, VSCODE_CANVAS_RIBBON_DEFAULT_Y) ?? VSCODE_CANVAS_RIBBON_DEFAULT_Y,
     orientation: value.orientation === "vertical" ? "vertical" : "horizontal",
-    iconSize: normalizeIconSize(value.iconSize),
     items
   };
 };

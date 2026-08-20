@@ -4177,6 +4177,10 @@ textarea {
   flex-direction: column;
 }
 
+.vscode-canvas-webview .command-ribbon-item-shell {
+  display: grid;
+}
+
 .vscode-canvas-webview .command-ribbon-handle,
 .vscode-canvas-webview .command-ribbon-button,
 .vscode-canvas-webview .command-ribbon-value {

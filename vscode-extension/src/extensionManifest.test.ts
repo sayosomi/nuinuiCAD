@@ -152,7 +152,6 @@ describe("VS Code Canvas Ribbon configuration contribution", () => {
         x: null,
         y: 12,
         orientation: "horizontal",
-        iconSize: 16,
         items: [{ commandId: "editCanvasRibbon", type: "command" }]
       }]
     });
@@ -166,9 +165,12 @@ describe("VS Code Canvas Ribbon configuration contribution", () => {
     const itemSchema = ribbonSchema?.properties?.items?.items;
     const commandSchema = itemSchema?.oneOf?.find((schema) => schema.properties?.type?.const === "command");
     const valueSchema = itemSchema?.oneOf?.find((schema) => schema.properties?.type?.const === "value");
-    expect(ribbonSchema?.properties?.iconSize).toEqual({ enum: [14, 16, 18, 20, 24] });
+    expect(ribbonSchema?.required).not.toContain("iconSize");
+    expect(ribbonSchema?.properties?.iconSize).toBeUndefined();
     expect(commandSchema?.properties?.iconColor).toBeUndefined();
+    expect(commandSchema?.properties?.label).toBeUndefined();
     expect(commandSchema?.properties?.commandId).toBeDefined();
     expect(valueSchema?.properties?.valueId).toEqual({ const: "canvasZoom" });
+    expect(valueSchema?.properties?.label).toBeUndefined();
   });
 });

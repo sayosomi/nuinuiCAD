@@ -88,13 +88,12 @@ describe("VSCodeDrawingCanvas adapter", () => {
       x: null,
       y: 12,
       orientation: "vertical",
-      iconSize: 16,
       items: [
         { id: "clear", type: "command", commandId: "clearCanvasSelection", icon: "x", showLabel: true },
         { id: "names", type: "command", commandId: "toggleCanvasElementNames", icon: "tags", showLabel: false },
         { id: "points", type: "command", commandId: "toggleCanvasPoints", icon: "dot", showLabel: false },
         { id: "unknown", type: "command", commandId: "workbench.action.files.openFile", icon: "circle", showLabel: false },
-        { id: "zoom", type: "value", valueId: "canvasZoom", label: "Zoom" },
+        { id: "zoom", type: "value", valueId: "canvasZoom" },
         { id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: false }
       ]
     }];
@@ -110,6 +109,8 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(mocks.dispatchCommand).not.toHaveBeenCalledWith("workbench.action.files.openFile", expect.anything());
     expect(screen.getByRole("button", { name: "キャンバス要素名を表示/非表示" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "キャンバス点を表示/非表示" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "キャンバス選択を解除" })).toHaveTextContent("キャンバス選択を解除");
+    expect(screen.getByRole("button", { name: "キャンバス要素名を表示/非表示" })).not.toHaveTextContent("キャンバス要素名を表示/非表示");
     expect(screen.getByRole("status", { name: /Zoom: .* px\/mm/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Edit Canvas Ribbon" }));
     expect(onEditCanvasRibbon).toHaveBeenCalledTimes(1);
@@ -123,7 +124,6 @@ describe("VSCodeDrawingCanvas adapter", () => {
       x: 12,
       y: 12,
       orientation: "vertical",
-      iconSize: 16,
       items: [{
         id: "edit",
         type: "command",
@@ -141,6 +141,8 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(view.container.querySelector(".command-ribbon")?.children).toHaveLength(2);
     expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(1);
     expect(view.container.querySelector("svg")?.getAttribute("style")).toMatch(/color:\s*currentcolor/i);
+    expect(view.container.querySelector("svg")).toHaveAttribute("width", "16");
+    expect(view.container.querySelector("svg")).toHaveAttribute("height", "16");
   });
 
   it("keeps preview mutations in the Webview and sends one canonical source after each commit", () => {

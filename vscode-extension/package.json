@@ -149,7 +149,6 @@
               "x": null,
               "y": 12,
               "orientation": "horizontal",
-              "iconSize": 16,
               "items": [
                 {
                   "id": "editCanvasRibbon",
@@ -165,14 +164,13 @@
             "oneOf": [
               {
                 "type": "object",
-                "required": ["id", "label", "x", "y", "orientation", "iconSize", "items"],
+                "required": ["id", "label", "x", "y", "orientation", "items"],
                 "properties": {
                   "id": { "type": "string", "minLength": 1 },
                   "label": { "type": "string" },
                   "x": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
                   "y": { "type": "number" },
                   "orientation": { "enum": ["horizontal", "vertical"] },
-                  "iconSize": { "enum": [14, 16, 18, 20, 24] },
                   "items": {
                     "type": "array",
                     "items": {
@@ -185,7 +183,6 @@
                             "type": { "const": "command" },
                             "commandId": { "type": "string", "minLength": 1 },
                             "icon": { "type": "string", "minLength": 1 },
-                            "label": { "type": "string" },
                             "showLabel": { "type": "boolean" }
                           }
                         },
@@ -195,8 +192,7 @@
                           "properties": {
                             "id": { "type": "string", "minLength": 1 },
                             "type": { "const": "value" },
-                            "valueId": { "const": "canvasZoom" },
-                            "label": { "type": "string" }
+                            "valueId": { "const": "canvasZoom" }
                           }
                         }
                       ]
