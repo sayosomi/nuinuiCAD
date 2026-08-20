@@ -28,7 +28,7 @@ const sourceWithAllDanglingKinds = [
   'extend(end: @"Outer group"::"Missing line#1".end, to: @A, id: EndpointUser)',
   'extend(end: @"Missing.Line".end, to: @A, id: EndpointDotUser)',
   'point NormalRefUser = intersection(line1: @MissingLine, line2: @"Missing line 2", index: 0, extensions: false)',
-  'line ListRefUser = copy(startPoint: @A, endPoint: @A, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@MissingLine, @"Missing line 2", @"Outer group"::"Missing#line"])',
+  'line ListRefUser = transformCopy(startPoint: @A, endPoint: @A, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@MissingLine, @"Missing line 2", @"Outer group"::"Missing#line"])',
   'point ParentUser = coordinate(x: 1, y: 1, parent: @"Outer group"::"Missing parent#1")',
   'printLayout Sheet (output: pdf, view: "Missing View", paper: a4, orientation: portrait, columns: 1, rows: 1, overlap: 0, scale: 1, canvas: (210, 297)) {',
   '  place @"Missing Group" (at: (10, 0), angle: 0, mirrorX: false)',

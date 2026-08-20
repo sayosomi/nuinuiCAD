@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { evaluateElements } from "../geometry/evaluate";
+import { sourceOwnerForRuntimeElementId } from "./sourceOwnership";
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
 
@@ -340,6 +341,54 @@ describe("module geometry runtime", () => {
     expect(result.computedGeometry.get(named(compiled, "Result").id)).toMatchObject({ x: 7, y: 6 });
   });
 
+  it("captures distinct pre-mutation Bezier snapshots for materialized Module occurrences", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(origin: point) {",
+      "  curve Curve = bezier(start: @origin, end: (100, 0), startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)",
+      "}",
+      "instance First = M(origin: (0, 0))",
+      "instance Second = M(origin: (40, 20))"
+    ].join("\n"));
+    expectValid(compiled);
+    if (!compiled.document || !compiled.statementMap) throw new Error("expected a compiled document");
+
+    const result = evaluateCompiled(compiled);
+    const elements = compiled.document.elements;
+    const first = named(compiled, "First");
+    const second = named(compiled, "Second");
+    const firstCurve = elements.find((element) => element.name === "Curve" && element.parentGroupId === first.id);
+    const secondCurve = elements.find((element) => element.name === "Curve" && element.parentGroupId === second.id);
+    if (!firstCurve || !secondCurve) throw new Error("expected materialized Bezier occurrences");
+
+    const firstSnapshot = result.preMutationBezierGeometry?.get(firstCurve.id);
+    const secondSnapshot = result.preMutationBezierGeometry?.get(secondCurve.id);
+    expect(firstCurve.id).not.toBe(secondCurve.id);
+    expect(result.errors).toEqual([]);
+    expect(firstSnapshot).toMatchObject({
+      elementId: firstCurve.id,
+      segments: [{ start: { x: 0, y: 0 }, control1: { x: 20, y: 0 } }]
+    });
+    expect(secondSnapshot).toMatchObject({
+      elementId: secondCurve.id,
+      segments: [{ start: { x: 40, y: 20 }, control1: { x: 60, y: 20 } }]
+    });
+    expect(firstSnapshot).not.toEqual(secondSnapshot);
+    expect([...result.preMutationBezierGeometry?.keys() ?? []]).toEqual([firstCurve.id, secondCurve.id]);
+
+    const ownershipDocument = { ...compiled, statementMap: compiled.statementMap };
+    expect(sourceOwnerForRuntimeElementId(ownershipDocument, firstCurve.id)).toMatchObject({
+      kind: "moduleBody",
+      sourceStatementId: "task7:2",
+      sourceStatementIndex: 2
+    });
+    expect(sourceOwnerForRuntimeElementId(ownershipDocument, secondCurve.id)).toMatchObject({
+      kind: "moduleBody",
+      sourceStatementId: "task7:2",
+      sourceStatementIndex: 2
+    });
+  });
+
   it("reports private, undefined, and geometry-kind export diagnostics", () => {
     const privateMember = compileWithIds([
       "nui 4",
@@ -404,7 +453,7 @@ describe("module geometry runtime", () => {
     const allowed = compileWithIds([
       "nui 4",
       "module M(path: line) {",
-      "  line Copy = copy(startPoint: @path.start, endPoint: @path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@path])",
+      "  line Copy = transformCopy(startPoint: @path.start, endPoint: @path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@path])",
       "  reverse(target: @Copy)",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",

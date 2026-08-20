@@ -18,7 +18,7 @@ const calls = [
   ["line", "polar", "line L = polar(start: A, angle: 0, length: 1)"],
   ["line", "offset", "line L = offset(sources: [AB], distance: 1)"],
   ["line", "split", "line L = split(source: AB, at: A)"],
-  ["line", "copy", "line L = copy(startPoint: A, endPoint: B, baseLines: [AB])"],
+  ["line", "transformCopy", "line L = transformCopy(startPoint: A, endPoint: B, baseLines: [AB])"],
   ["line", "mirrorCopy", "line L = mirrorCopy(axis1: A, axis2: B, baseLines: [AB])"],
   ["mutation", "edge", "edge(end1: AB.end, end2: CD.start)"],
   ["mutation", "extend", "extend(end: AB.end, to: A)"],
@@ -82,6 +82,14 @@ describe("DSL nui 4 call parser", () => {
     expect(messages("use N = notch(at: A)").join("\n")).toEqual("use は予約済みですが、まだ実装されていません。");
   });
 
+  it("rejects the removed copy construction and recommends only the new spelling", () => {
+    const result = parse("line L = copy(startPoint: A, endPoint: B, baseLines: [AB])");
+    expect(result.statement).toMatchObject({ category: "line", construction: "copy", elementType: null });
+    const diagnostic = result.diagnostics.map((item) => item.message).join("\n");
+    expect(diagnostic).toContain("transformCopy");
+    expect(diagnostic).not.toContain("候補: copy");
+  });
+
   it("returns a degraded statement (not null) with an UNCLOSED_CALL_CODE diagnostic when a call's `(` never closes", () => {
     // Mid-edit, shape: an unterminated string swallows the rest of the line,
     // so `matchingClose` can never find `)`. Unlike a genuinely unparseable
@@ -130,6 +138,8 @@ describe("DSL nui 4 construction registry parser queries", () => {
   it("keeps parser candidates sourced from the registry", () => {
     expect(constructionCandidatesFor("point").map((spec) => spec.construction)).toContain("coordinate");
     expect(constructionCandidatesFor("line").map((spec) => spec.construction)).toContain("offset");
+    expect(constructionCandidatesFor("line").map((spec) => spec.construction)).toContain("transformCopy");
+    expect(constructionCandidatesFor("line").map((spec) => spec.construction)).not.toContain("copy");
     expect(categoriesForConstruction("offset")).toEqual(["point", "line"]);
   });
 });

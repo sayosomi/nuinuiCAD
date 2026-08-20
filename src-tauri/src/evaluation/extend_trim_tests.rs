@@ -186,6 +186,21 @@ fn extend_trim_moves_bezier_endpoint_on_tangent() {
         curve["segments"][0]["control1"]["x"].as_f64().unwrap(),
         10.0,
     );
+    let pre_mutation = result
+        .pre_mutation_bezier_geometry
+        .iter()
+        .find(|geometry| geometry["elementId"] == json!("curve"))
+        .expect("Bezier pre-mutation snapshot");
+    assert_close(
+        pre_mutation["segments"][0]["start"]["x"].as_f64().unwrap(),
+        0.0,
+    );
+    assert_close(
+        pre_mutation["segments"][0]["control1"]["x"]
+            .as_f64()
+            .unwrap(),
+        30.0,
+    );
 }
 
 #[test]

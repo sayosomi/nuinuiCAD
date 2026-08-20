@@ -23,7 +23,7 @@ const standardPropertiesSource = [
   "line CD = segment(start: @C, end: @D)",
   "line Off = offset(sources: [@AB], distance: 3, side: @side, closed: @enabled, suppressTrimWarnings: @enabled)",
   "point Cross = intersection(line1: @AB, line2: @CD, index: 0, extensions: @enabled)",
-  "line Copy = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored, baseLines: [@AB])",
+  "line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored, baseLines: [@AB])",
   "move(targets: [@AB], from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored)",
   "image Guide = image(source: \"guide.png\", origin: (0, 0), scale: 1, angleDeg: 0, mirrorX: @mirrored)"
 ].join("\n");
@@ -59,7 +59,7 @@ const controlMutationSource = [
   "for i in range(from: 0, count: 2, step: 1, showGenerated: @show) {",
   "  set total = @total + 1",
   "  text T = label(text: \"${@total}\", anchor: none, size: 3)",
-  "  line Copy = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @flag, baseLines: [@AB])",
+  "  line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @flag, baseLines: [@AB])",
   "}",
   "text Final = label(text: \"${@total}\", anchor: none, size: 3)"
 ].join("\n");

@@ -169,7 +169,7 @@ describe("creationRecipes", () => {
       extendTrim: "extend(end: @AB.start, to: @A)",
       bezierCurve: "curve 作成bezierCurve = bezier(start: @A, end: @A, startAngle: 12, startLength: 12, endAngle: 12, endLength: 12)",
       offsetLine: "line 作成offsetLine = offset(sources: [@AB], distance: 12, side: right, closed: false, suppressTrimWarnings: false)",
-      copyLine: "line 作成copyLine = copy(startPoint: @A, endPoint: @A, scale: 12, angleDeg: 12, mirrorX: false, baseLines: [@AB])",
+      copyLine: "line 作成copyLine = transformCopy(startPoint: @A, endPoint: @A, scale: 12, angleDeg: 12, mirrorX: false, baseLines: [@AB])",
       symmetricCopyLine: "line 作成symmetricCopyLine = mirrorCopy(axis1: @A, axis2: @A, baseLines: [@AB])",
       move: "move(targets: [@AB], from: @A, to: @A, scale: 12, angleDeg: 12, mirrorX: false)",
       symmetricMove: "mirrorMove(targets: [@AB], axis1: @A, axis2: @A)",

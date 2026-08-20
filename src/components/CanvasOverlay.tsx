@@ -5,6 +5,7 @@ import {
   type CanvasTheme
 } from "./canvasTheme";
 import type {
+  BezierEditingHelperOverlay,
   BezierHandleOverlay,
   CanvasOverlayArc,
   CanvasOverlayCurve,
@@ -23,6 +24,7 @@ type CanvasOverlayProps = {
   overlayOffsetLines: CanvasOverlayOffsetLine[];
   overlayPoints: CanvasOverlayPoint[];
   overlayTexts: CanvasOverlayText[];
+  selectedBezierEditingHelper: BezierEditingHelperOverlay | null;
   selectedBezierHandles: BezierHandleOverlay[];
   overlayPointPickCandidates: PointPickCandidate[];
   selectedElementIdSet: Set<ElementId>;
@@ -47,6 +49,7 @@ export const CanvasOverlay = ({
   overlayOffsetLines,
   overlayPoints,
   overlayTexts,
+  selectedBezierEditingHelper,
   selectedBezierHandles,
   overlayPointPickCandidates,
   selectedElementIdSet,
@@ -135,6 +138,12 @@ export const CanvasOverlay = ({
         {draftLinePickMarker(line.elementId, centerOf(points))}
       </g>
     ))}
+    {selectedBezierEditingHelper ? (
+      <polyline
+        points={selectedBezierEditingHelper.points.map((point) => `${point.x},${point.y}`).join(" ")}
+        className="overlay-bezier-editing-helper"
+      />
+    ) : null}
     {selectedBezierHandles.map((handle) => (
       <g key={handle.id} className="overlay-bezier-handle">
         <line

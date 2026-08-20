@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CanvasOverlayText } from "./DrawingCanvasTypes";
 import { CanvasOverlay } from "./CanvasOverlay";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
+import type { ComputedBezierCurve } from "../types/geometry";
 
 const overlayText = (
   elementId: string,
@@ -30,6 +31,7 @@ const renderOverlay = (overlayTexts: CanvasOverlayText[]) => render(
     overlayOffsetLines={[]}
     overlayPoints={[]}
     overlayTexts={overlayTexts}
+    selectedBezierEditingHelper={null}
     selectedBezierHandles={[]}
     overlayPointPickCandidates={[]}
     selectedElementIdSet={new Set()}
@@ -77,6 +79,7 @@ describe("CanvasOverlay text rendering", () => {
         overlayOffsetLines={[]}
         overlayPoints={[]}
         overlayTexts={[overlayText("label", "text", 6)]}
+        selectedBezierEditingHelper={null}
         selectedBezierHandles={[]}
         overlayPointPickCandidates={[]}
         selectedElementIdSet={new Set()}
@@ -113,6 +116,7 @@ describe("CanvasOverlay text rendering", () => {
         overlayOffsetLines={[]}
         overlayPoints={[]}
         overlayTexts={[]}
+        selectedBezierEditingHelper={null}
         selectedBezierHandles={[]}
         overlayPointPickCandidates={[]}
         selectedElementIdSet={new Set()}
@@ -134,5 +138,54 @@ describe("CanvasOverlay text rendering", () => {
     expect(style).toContain("--canvas-pick-candidate: #pick");
     expect(style).toContain("--canvas-bezier-handle-line: #handle-line");
     expect(style).toContain("--canvas-bezier-handle-point: #handle-point");
+  });
+
+  it("renders the pre-mutation helper without making it a pick candidate", () => {
+    const helperCurve: ComputedBezierCurve = {
+      kind: "bezierCurve",
+      elementId: "curve",
+      name: "Curve",
+      startPointId: null,
+      endPointId: null,
+      intermediatePointIds: [],
+      segments: [],
+      length: 0,
+      startTangentAngleDeg: null,
+      endTangentAngleDeg: null,
+      startHandleAngleDeg: 0,
+      startHandleLength: 0,
+      endHandleAngleDeg: 0,
+      endHandleLength: 0
+    };
+    const { container } = render(
+      <CanvasOverlay
+        viewportSize={{ width: 500, height: 400 }}
+        overlayLines={[]}
+        overlayArcs={[]}
+        overlayCurves={[]}
+        overlayOffsetLines={[]}
+        overlayPoints={[]}
+        overlayTexts={[]}
+        selectedBezierEditingHelper={{ curve: helperCurve, points: [{ x: 10, y: 20 }, { x: 30, y: 40 }] }}
+        selectedBezierHandles={[]}
+        overlayPointPickCandidates={[]}
+        selectedElementIdSet={new Set()}
+        draftLinePickElementIds={new Set()}
+        pickCandidateLineIds={new Set(["curve"])}
+        selectedElementId={null}
+        canvasTheme={LEGACY_CANVAS_THEME}
+        elementColors={new Map()}
+        showCanvasElementNames={false}
+        showCanvasPoints={false}
+        isPointPickActive={false}
+        isNumericReferencePickActive={true}
+        isLinePickActive={true}
+      />
+    );
+    const helper = container.querySelector(".overlay-bezier-editing-helper");
+
+    expect(helper).not.toBeNull();
+    expect(helper).not.toHaveAttribute("data-line-pick-candidate");
+    expect(helper).not.toHaveAttribute("data-numeric-reference-candidate");
   });
 });

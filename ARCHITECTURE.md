@@ -247,6 +247,15 @@ use `{ elementId, stroke }` entries and retain semantic theme-role colors. For
 `forGroup` runtime geometry, generated entries are propagated from the evaluator's
 structured `forGroupGeneratedRows.templateElementId` relation.
 
+`EvaluationResult.preMutationBezierGeometry` is evaluation-owned, runtime
+ElementId-keyed editing data. The shared TypeScript and Rust evaluators capture a
+deep snapshot immediately after a Bezier has successfully been constructed or
+materialized, before later extend/trim/split/move/pathReverse mutations alter the
+final `computedGeometry`. `computedGeometry` remains authoritative for normal
+Canvas drawing, picking, measurement, and Fit Drawing. The shared host-neutral
+Canvas uses the snapshot only for the selected Bezier's transient editing helper,
+handles, and drag baseline; Tauri and VS Code therefore share the same behavior.
+
 ### Rust evaluation
 
 Primary:

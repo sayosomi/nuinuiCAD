@@ -1,4 +1,5 @@
 import type {
+  ComputedBezierCurve,
   ComputedGeometry,
   DependencyError,
   DrawingModifierStroke,
@@ -85,6 +86,7 @@ const parseComputedScalarBindingVersions = (value: unknown): Map<BindingVersionI
 
 export type EvaluationPayload = {
   computedGeometry: ComputedGeometry[];
+  preMutationBezierGeometry?: ComputedBezierCurve[];
   errors: DependencyError[];
   warnings: EvaluationWarning[];
   evaluatedElementIds: ElementId[];
@@ -103,6 +105,9 @@ export type EvaluationPayload = {
 
 export const evaluationResultToPayload = (result: EvaluationResult): EvaluationPayload => ({
   computedGeometry: Array.from(result.computedGeometry.values()),
+  preMutationBezierGeometry: result.preMutationBezierGeometry?.size
+    ? Array.from(result.preMutationBezierGeometry.values())
+    : undefined,
   errors: result.errors,
   warnings: result.warnings,
   evaluatedElementIds: Array.from(result.evaluatedElementIds ?? []),
@@ -127,6 +132,9 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
 
 export const evaluationPayloadToResult = (payload: EvaluationPayload): EvaluationResult => ({
   computedGeometry: new Map(payload.computedGeometry.map((geometry) => [geometry.elementId, geometry])),
+  preMutationBezierGeometry: new Map(
+    (payload.preMutationBezierGeometry ?? []).map((geometry) => [geometry.elementId, geometry])
+  ),
   errors: payload.errors,
   warnings: payload.warnings,
   evaluatedElementIds: new Set(payload.evaluatedElementIds),

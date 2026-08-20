@@ -3930,6 +3930,15 @@ textarea {
   stroke-dasharray: 4 4;
 }
 
+.drawing-overlay .overlay-bezier-editing-helper {
+  fill: none;
+  stroke: var(--canvas-selection);
+  stroke-width: 1.5;
+  stroke-dasharray: 7 4;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 .drawing-overlay .overlay-bezier-handle-point {
   fill: var(--canvas-background);
   stroke: var(--canvas-bezier-handle-point);
