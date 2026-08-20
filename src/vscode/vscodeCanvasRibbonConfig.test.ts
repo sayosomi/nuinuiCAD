@@ -172,6 +172,11 @@ describe("VS Code Canvas Ribbon configuration", () => {
     expect(vscodeCanvasRibbonCommandFor("editCanvasRibbon")?.hostAction).toBe("editCanvasRibbon");
   });
 
+  it("uses the exact shared English labels for Canvas identity commands", () => {
+    expect(vscodeCanvasRibbonCommandFor("toggleCanvasPointNames")?.label).toBe("Toggle Point Names");
+    expect(vscodeCanvasRibbonCommandFor("toggleCanvasGeometryNames")?.label).toBe("Toggle Geometry Names");
+  });
+
   it("resolves known Lucide names and uses a deterministic fallback", () => {
     expect(resolveVscodeLucideIconName("circle")).toBe("circle");
     expect(resolveVscodeLucideIconName("not-a-lucide-icon")).toBe("circle");

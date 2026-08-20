@@ -231,7 +231,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       applyPickedPoint: (action) => dispatchCommand("applyPickedPoint", action),
       toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
-      toggleCanvasElementNames: () => dispatchCommand("toggleCanvasElementNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
       togglePrintPreviewWindow: () => dispatchCommand("togglePrintPreviewWindow"),
       resolveImageSourceUrl: (sourcePath) => sourcePath,

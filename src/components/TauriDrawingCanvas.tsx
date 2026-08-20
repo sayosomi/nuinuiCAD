@@ -124,7 +124,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       applyPickedPoint: (action) => dispatchCommand("applyPickedPoint", action),
       toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
-      toggleCanvasElementNames: () => dispatchCommand("toggleCanvasElementNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
       togglePrintPreviewWindow: () => dispatchCommand("togglePrintPreviewWindow"),
       resolveImageSourceUrl: (sourcePath) => imageSourceUrl(sourcePath, currentFilePath),

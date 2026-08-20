@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CadElement, ComputedGeometry, EvaluationResult } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -46,6 +46,24 @@ const evaluationFor = (geometry: ComputedGeometry[], visibleIds: string[]): Eval
   warnings: [],
   effectiveVisibleElementIds: new Set(visibleIds)
 });
+
+const emptySelection = {
+  selectedElementId: null,
+  selectedElementIds: [],
+  selectionAnchorElementId: null
+};
+
+const prepareDocumentHistory = () => {
+  const beforeSourceText = useCadDocumentStore.getState().sourceText;
+  useCadDocumentStore.getState().commitText(`${beforeSourceText}\n// document history`, "test");
+  const secondElement = useCadDocumentStore.getState().elements[1];
+  if (!secondElement) throw new Error("Expected the fixture document to contain two elements");
+  return {
+    beforeSourceText,
+    changedSourceText: useCadDocumentStore.getState().sourceText,
+    secondElementId: secondElement.id
+  };
+};
 
 describe("fitDrawing", () => {
   beforeEach(() => {
@@ -144,7 +162,6 @@ describe("Canvas identity-label visibility commands", () => {
     expect(useCadUiStore.getState().showCanvasPointNames).toBe(true);
     expect(useCadUiStore.getState().showCanvasGeometryNames).toBe(false);
     expect(useCadUiStore.getState().showCanvasPoints).toBe(true);
-    expect(useCadUiStore.getState()).not.toHaveProperty("showCanvasElementNames");
 
     viewModeCommandDefinitions.toggleCanvasGeometryNames.run();
     expect(useCadUiStore.getState().showCanvasGeometryNames).toBe(true);
@@ -154,5 +171,59 @@ describe("Canvas identity-label visibility commands", () => {
     expect(useCadUiStore.getState().showCanvasPointNames).toBe(false);
     expect(useCadUiStore.getState().showCanvasGeometryNames).toBe(true);
     expect(useCadUiStore.getState().showCanvasPoints).toBe(true);
+  });
+
+  it("uses the exact English labels shared with the VS Code Ribbon", () => {
+    expect(viewModeCommandDefinitions.toggleCanvasPointNames.label).toBe("Toggle Point Names");
+    expect(viewModeCommandDefinitions.toggleCanvasGeometryNames.label).toBe("Toggle Geometry Names");
+    expect(viewModeCommandDefinitions.toggleCanvasElementNames.label)
+      .toBe("Toggle Canvas Element Names (Legacy)");
+  });
+});
+
+describe("Canvas history fallback commands", () => {
+  beforeEach(() => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+  });
+
+  it("consumes local Canvas selection history before document history for Undo", () => {
+    const { beforeSourceText, changedSourceText, secondElementId } = prepareDocumentHistory();
+    useCadUiStore.getState().setSelectedElementId(secondElementId);
+    useCadDocumentStore.getState().recordCanvasSelection(emptySelection);
+    const finalizeCanvasInteraction = vi.fn();
+
+    viewModeCommandDefinitions.undo.run({ finalizeCanvasInteraction });
+
+    expect(finalizeCanvasInteraction).toHaveBeenCalledOnce();
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(changedSourceText);
+    expect(useCadDocumentStore.getState().past).toHaveLength(1);
+
+    viewModeCommandDefinitions.undo.run(undefined);
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(beforeSourceText);
+  });
+
+  it("consumes local Canvas selection history before document history for Redo", () => {
+    const { beforeSourceText, changedSourceText, secondElementId } = prepareDocumentHistory();
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(beforeSourceText);
+
+    useCadUiStore.getState().setSelectedElementId(secondElementId);
+    useCadDocumentStore.getState().recordCanvasSelection(emptySelection);
+    expect(useCadDocumentStore.getState().undoCanvasSelection()).toBe(true);
+    const finalizeCanvasInteraction = vi.fn();
+
+    viewModeCommandDefinitions.redo.run({ finalizeCanvasInteraction });
+
+    expect(finalizeCanvasInteraction).toHaveBeenCalledOnce();
+    expect(useCadUiStore.getState().selectedElementId).toBe(secondElementId);
+    expect(useCadDocumentStore.getState().sourceText).toBe(beforeSourceText);
+    expect(useCadDocumentStore.getState().future).toHaveLength(1);
+
+    viewModeCommandDefinitions.redo.run(undefined);
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(changedSourceText);
   });
 });

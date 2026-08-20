@@ -87,6 +87,7 @@ export const viewModeCommandDefinitions = {
         context.canvasHistory("undo");
         return;
       }
+      if (useCadDocumentStore.getState().undoCanvasSelection()) return;
       useCadDocumentStore.getState().undo();
     }
   },
@@ -101,6 +102,7 @@ export const viewModeCommandDefinitions = {
         context.canvasHistory("redo");
         return;
       }
+      if (useCadDocumentStore.getState().redoCanvasSelection()) return;
       useCadDocumentStore.getState().redo();
     }
   },
@@ -185,7 +187,7 @@ export const viewModeCommandDefinitions = {
   },
   toggleCanvasPointNames: {
     id: "toggleCanvasPointNames",
-    label: "キャンバス点名を表示/非表示",
+    label: "Toggle Point Names",
     palette: { order: 26, keywords: ["canvas", "point", "label", "name", "点名", "ラベル", "表示", "非表示"] },
     run: () => {
       const { showCanvasPointNames } = useCadUiStore.getState();
@@ -194,7 +196,7 @@ export const viewModeCommandDefinitions = {
   },
   toggleCanvasGeometryNames: {
     id: "toggleCanvasGeometryNames",
-    label: "キャンバス図形名を表示/非表示",
+    label: "Toggle Geometry Names",
     palette: { order: 26.5, keywords: ["canvas", "geometry", "label", "name", "図形名", "ラベル", "表示", "非表示"] },
     run: () => {
       const { showCanvasGeometryNames } = useCadUiStore.getState();
@@ -204,7 +206,7 @@ export const viewModeCommandDefinitions = {
   /** Compatibility alias retained for existing host dispatchers and saved commands. */
   toggleCanvasElementNames: {
     id: "toggleCanvasElementNames",
-    label: "キャンバス要素名を表示/非表示",
+    label: "Toggle Canvas Element Names (Legacy)",
     run: () => {
       const { showCanvasPointNames } = useCadUiStore.getState();
       useCadUiStore.getState().setShowCanvasPointNames(!showCanvasPointNames);

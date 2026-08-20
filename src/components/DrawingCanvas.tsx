@@ -194,9 +194,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     selectedElementId,
     selectedElementIds,
     canvasViewport,
-    showCanvasPointNames: hostShowCanvasPointNames,
-    showCanvasGeometryNames: hostShowCanvasGeometryNames,
-    showCanvasElementNames: legacyShowCanvasElementNames,
+    showCanvasPointNames,
+    showCanvasGeometryNames,
     showCanvasPoints,
     showPrintPreviewWindow,
     activePointPickTarget,
@@ -204,8 +203,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activeLinePickTarget,
     commandLineSession
   } = hostAdapter;
-  const showCanvasPointNames = hostShowCanvasPointNames ?? legacyShowCanvasElementNames ?? false;
-  const showCanvasGeometryNames = hostShowCanvasGeometryNames ?? false;
   const renderFixedCanvasChrome = hostAdapter.renderFixedCanvasChrome ?? true;
   const previewElementIds = useMemo(() => {
     const documentElementIds = new Set(documentElements.map((element) => element.id));
@@ -1613,7 +1610,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
               type="button"
               className={showCanvasPointNames ? "active-toggle" : ""}
               aria-pressed={showCanvasPointNames}
-              onClick={() => (hostAdapter.toggleCanvasPointNames ?? hostAdapter.toggleCanvasElementNames)()}
+              onClick={() => hostAdapter.toggleCanvasPointNames?.()}
             >
               点名
             </button>

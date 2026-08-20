@@ -73,10 +73,8 @@ export type CanvasHostAdapter = {
   selectedElementIds: ElementId[];
   selectionAnchorElementId?: ElementId | null;
   canvasViewport: CanvasViewport;
-  showCanvasPointNames?: boolean;
-  showCanvasGeometryNames?: boolean;
-  /** @deprecated Compatibility payload field; Point Names is canonical. */
-  showCanvasElementNames?: boolean;
+  showCanvasPointNames: boolean;
+  showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
   showPrintPreviewWindow: boolean;
   /** Whether the host wants the shared fixed Canvas controls/status chrome. */
@@ -122,8 +120,6 @@ export type CanvasHostAdapter = {
   }) => unknown;
   toggleCanvasPointNames?: () => unknown;
   toggleCanvasGeometryNames?: () => unknown;
-  /** @deprecated Compatibility alias. */
-  toggleCanvasElementNames: () => unknown;
   toggleCanvasPoints: () => unknown;
   togglePrintPreviewWindow: () => unknown;
   resolveImageSourceUrl: (sourcePath: string) => string;

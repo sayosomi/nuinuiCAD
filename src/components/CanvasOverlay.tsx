@@ -36,10 +36,8 @@ type CanvasOverlayProps = {
   selectedElementId: ElementId | null;
   canvasTheme: CanvasTheme;
   elementColors: Map<ElementId, string>;
-  showCanvasPointNames?: boolean;
-  showCanvasGeometryNames?: boolean;
-  /** @deprecated Compatibility prop for older embedders. */
-  showCanvasElementNames?: boolean;
+  showCanvasPointNames: boolean;
+  showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
@@ -68,7 +66,6 @@ export const CanvasOverlay = ({
   elementColors,
   showCanvasPointNames,
   showCanvasGeometryNames,
-  showCanvasElementNames,
   showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
@@ -99,8 +96,8 @@ export const CanvasOverlay = ({
     "data-line-pick-candidate":
       isLinePickActive && pickCandidateLineIds.has(elementId) ? "true" : undefined
   });
-  const pointNamesEnabled = showCanvasPointNames ?? showCanvasElementNames ?? false;
-  const geometryNamesEnabled = showCanvasGeometryNames ?? false;
+  const pointNamesEnabled = showCanvasPointNames;
+  const geometryNamesEnabled = showCanvasGeometryNames;
   const identityCandidatesById = new Map<ElementId, CanvasIdentityCandidate>();
   for (const candidate of overlayIdentityCandidates) {
     if (!candidate.name || !candidate.name.trim() || identityCandidatesById.has(candidate.elementId)) continue;

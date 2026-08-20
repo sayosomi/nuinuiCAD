@@ -110,10 +110,10 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(unavailable).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(unavailable);
     expect(mocks.dispatchCommand).not.toHaveBeenCalledWith("workbench.action.files.openFile", expect.anything());
-    expect(screen.getByRole("button", { name: "キャンバス点名を表示/非表示" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Toggle Point Names" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "キャンバス点を表示/非表示" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "キャンバス選択を解除" })).toHaveTextContent("キャンバス選択を解除");
-    expect(screen.queryByRole("button", { name: "キャンバス要素名を表示/非表示" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Toggle Canvas Element Names (Legacy)" })).toBeNull();
     expect(screen.getByRole("status", { name: /Canvas status: ZOOM: \d+%, X: —, Y: —/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Edit Canvas Ribbon" }));
     expect(onEditCanvasRibbon).toHaveBeenCalledTimes(1);
