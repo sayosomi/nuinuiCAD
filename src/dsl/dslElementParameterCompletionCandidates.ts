@@ -51,12 +51,12 @@ export const dslElementParameterCompletionOptions = ({
   const scopeStatement = scope ? parsed.statements[scope.statementIndex] : null;
   // Only an element-backed group scope (group/conditionalGroup/forGroup - reusing
   // dslParser.ts's own blockFrameKind, the authority dslScopeBeforeParsedLine's stack
-  // is built from) requires resolving a parentGroupId here. printLayout is also a
+  // is built from) requires resolving a parentGroupId here. Source outputs are also a
   // BlockFrame kind (its stack treats it identically to a group for line-range
   // purposes) but it is never a CadElement && has no entry in statementElementIds,
-  // && has no lexical scope of its own (mirrors printLayoutTypedBindingSite's
+  // && has no lexical scope of its own (mirrors the source-output binding site's
   // root-scope treatment) - allowlist the real group kinds explicitly rather than
-  // excluding printLayout by name, so a future non-element-backed block kind doesn't
+  // excluding source outputs by name, so a future non-element-backed block kind doesn't
   // silently fall into this same bug.
   const scopeFrameKind = scopeStatement ? blockFrameKind(scopeStatement) : null;
   const groupScopeStatement =

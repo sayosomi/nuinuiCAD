@@ -9,7 +9,6 @@ import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
-import * as dslValueSpansModule from "../dsl/dslValueSpans";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";
@@ -266,87 +265,6 @@ describe("SourceEditorController Task 43: text template hole click precision", (
   });
 });
 
-describe("SourceEditorController Task 43: typed property click/jump is reparse-free", () => {
-  beforeEach(setUp);
-  afterEach(() => vi.restoreAllMocks());
-
-  const source = ["nui 4", "let flag: boolean = true", "group G (printEnabled: @flag) {", "}"].join("\n");
-
-  it("resolves a bound property click via the PropertyBindingRangeIndex alone, never calling the legacy re-parsing span lookup", () => {
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const text = internals.view.state.doc.toString();
-    const spy = vi.spyOn(dslValueSpansModule, "dslDocumentValueSpansAt");
-
-    expect(clickAt(internals, text.indexOf("@flag") + 1)).toBe(true);
-
-    expect(selectedText(internals)).toBe("@flag");
-    expect(spy).not.toHaveBeenCalled();
-    controller.destroy();
-  });
-
-  it("a click on the statement's own name (not a property binding) still resolves through the legacy path, untouched", () => {
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const text = internals.view.state.doc.toString();
-    const namePos = text.indexOf("group G") + "group ".length;
-    const spy = vi.spyOn(dslValueSpansModule, "dslDocumentValueSpansAt");
-
-    // Same non-value-position outcome the existing legacy test suite already
-    // documents for an element's own name - unaffected by the property short-circuit.
-    expect(clickAt(internals, namePos)).toBe(false);
-
-    expect(spy).toHaveBeenCalled();
-    controller.destroy();
-  });
-
-  it("falls through (still correctly) to the live legacy path once an edit anywhere in the owning statement drops the property index entry - never a stale/wrong span", () => {
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const initialText = internals.view.state.doc.toString();
-    // Edits the group's own name, not the bound value - the whole statement (and so
-    // every property binding span it owns) is dropped from the compile-time index,
-    // per Task 43's fail-closed contract, well before the next compile.
-    const nameEnd = initialText.indexOf("group G") + "group G".length;
-    internals.view.dispatch({ changes: { from: nameEnd, insert: "X" } });
-    const text = internals.view.state.doc.toString();
-    expect(text).toContain("group GX");
-    const spy = vi.spyOn(dslValueSpansModule, "dslDocumentValueSpansAt");
-
-    expect(clickAt(internals, text.indexOf("@flag") + 1)).toBe(true);
-
-    // Correct (live-reparsed), not stale - the token itself never moved.
-    expect(selectedText(internals)).toBe("@flag");
-    expect(spy).toHaveBeenCalled();
-    controller.destroy();
-  });
-
-  it("a partial edit inside the bound value itself also drops the index entry, so the click resolves through the live legacy path", () => {
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const initialText = internals.view.state.doc.toString();
-    const flagEnd = initialText.indexOf("@flag") + "@flag".length;
-    internals.view.dispatch({ changes: { from: flagEnd, insert: "x" } });
-    const text = internals.view.state.doc.toString();
-    expect(text).toContain("@flagx");
-    const spy = vi.spyOn(dslValueSpansModule, "dslDocumentValueSpansAt");
-
-    expect(clickAt(internals, text.indexOf("@flagx") + 1)).toBe(true);
-
-    expect(selectedText(internals)).toBe("@flagx");
-    expect(spy).toHaveBeenCalled();
-    controller.destroy();
-  });
-});
-
 describe("SourceEditorController Task 43: dirty-source fail-closed semantics for field/hole entries", () => {
   beforeEach(setUp);
   afterEach(() => vi.restoreAllMocks());
@@ -418,69 +336,6 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
     // The live re-parse still finds the whole (unmoved) string correctly - not a
     // guessed, wrong, || otherwise stale position.
     expect(selectedText(internals)).toBe('"prefix ${@label} suffix"');
-    controller.destroy();
-  });
-});
-
-describe("SourceEditorController Task 45: jumpToPropertyBindingValue", () => {
-  beforeEach(setUp);
-  afterEach(() => vi.restoreAllMocks());
-
-  const source = ["nui 4", "let flag: boolean = true", "group G (printEnabled: @flag) {", "}"].join("\n");
-
-  it("selects the exact `@name` value span for the occurrence's own key", () => {
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const occurrenceKey = propertyBindingOccurrenceKey(statementIndexOfElement("G"), "printEnabled");
-
-    expect(controller.jumpToPropertyBindingValue(occurrenceKey)).toBe(true);
-
-    expect(selectedText(internals)).toBe("@flag");
-    controller.destroy();
-  });
-
-  it("no-ops (does not move the cursor) for an occurrence key that does not resolve", () => {
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const before = internals.view.state.selection.main.head;
-
-    expect(controller.jumpToPropertyBindingValue("999:printEnabled")).toBe(false);
-
-    expect(internals.view.state.selection.main.head).toBe(before);
-    controller.destroy();
-  });
-
-  it("no-ops once an edit anywhere in the owning statement drops the entry - never a wrong position", () => {
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const internals = controller as unknown as ControllerInternals;
-    const occurrenceKey = propertyBindingOccurrenceKey(statementIndexOfElement("G"), "printEnabled");
-    const before = internals.view.state.selection.main.head;
-    const nameEnd = internals.view.state.doc.toString().indexOf("group G") + "group G".length;
-    internals.view.dispatch({ changes: { from: nameEnd, insert: "X" } });
-
-    expect(controller.jumpToPropertyBindingValue(occurrenceKey)).toBe(false);
-
-    expect(internals.view.state.selection.main.head).toBe(before);
-    controller.destroy();
-  });
-
-  it("does not jump while composing", () => {
-    useCadDocumentStore.getState().commitText(source, "test");
-    const parent = document.createElement("div");
-    const controller = new SourceEditorController(parent);
-    const content = parent.querySelector(".cm-content")!;
-    const occurrenceKey = propertyBindingOccurrenceKey(statementIndexOfElement("G"), "printEnabled");
-    fireEvent.compositionStart(content);
-
-    expect(controller.jumpToPropertyBindingValue(occurrenceKey)).toBe(false);
-
-    fireEvent.compositionEnd(content);
     controller.destroy();
   });
 });

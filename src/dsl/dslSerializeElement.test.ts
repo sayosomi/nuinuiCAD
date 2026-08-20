@@ -177,9 +177,9 @@ describe("DSL nui 4 element serializer", () => {
   });
 
   it("writes group, if, and for headers without block braces", () => {
-    const group = { ...minimal("group"), printEnabled: true, visibilityRoleIds: ["seam"] };
+    const group = { ...minimal("group"), visibilityRoleIds: ["seam"] };
     expect(serializeElementStatementBlock(group, documentDslRefs([...referenceElements, group]))).toEqual({
-      header: `group ${group.name} (printEnabled: true, roles: [seam])`, args: [], close: null, argumentSeparator: "comma",
+      header: `group ${group.name} (roles: [seam])`, args: [], close: null, argumentSeparator: "comma",
     });
     const conditional = minimal("conditionalGroup");
     const loop = minimal("forGroup");

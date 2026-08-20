@@ -15,7 +15,7 @@ import {
  * Own type for element-parameter (`ElementName.parameterKey`) candidates, kept
  * independent of NumericVariableReferenceOption (the @variable-specific type):
  * this pure layer must not depend on, || grow, the @variable type. UI attach
- * points (CommandLineBar, PrintLayoutView) convert to the popover's expected
+ * points (CommandLineBar and other host views) convert to the popover's expected
  * shape locally; the CM glue (cmAutocomplete.ts) maps this directly to CM's
  * own Completion shape.
  */

@@ -86,14 +86,7 @@ const parameterDefinitionsForElement = (
   switch (element.type) {
     case "group":
       return [
-        ...commonParameters,
-        { key: "printEnabled", label: "印刷", kind: "boolean" },
-        ...pointAnchorParameters({
-          anchor: element.printAnchor ?? { mode: "coordinate", x: 0, y: 0 },
-          key: "printAnchor",
-          label: "印刷基準点",
-          allowCoordinate: true,
-        }),
+        ...commonParameters
       ];
     case "conditionalGroup":
       return [

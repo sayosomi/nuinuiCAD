@@ -74,16 +74,12 @@ describe("normalizeNumericExpressionInput", () => {
         name: "前身頃",
         type: "group",
         activity: "visible",
-        printEnabled: false,
-        printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
       {
         id: "back",
         name: "後身頃",
         type: "group",
         activity: "visible",
-        printEnabled: false,
-        printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
       {
         id: "front-line",
@@ -360,8 +356,6 @@ describe("normalizeNumericExpressionInput", () => {
         name: "前身頃",
         type: "group",
         activity: "visible",
-        printEnabled: false,
-        printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
       {
         id: "line-front",
@@ -409,8 +403,6 @@ describe("normalizeNumericExpressionInput", () => {
         name: "前身頃",
         type: "group",
         activity: "visible",
-        printEnabled: false,
-        printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
       {
         id: "point-a",

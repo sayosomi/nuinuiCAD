@@ -40,8 +40,6 @@ describe("parameterDefinitions", () => {
       name: "group",
       type: "group",
       activity: "visible",
-      printEnabled: true,
-      printAnchor: { mode: "coordinate", x: 0, y: 0 }
     };
     expect(scalarTypeForParameterDefinition(getParameterDefinitions(group).find((definition) => definition.key === key))).toEqual(expected);
   });

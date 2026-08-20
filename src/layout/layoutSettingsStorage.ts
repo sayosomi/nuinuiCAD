@@ -1,13 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
 import {
-  DEFAULT_PRINT_PREVIEW_WINDOW,
-  MIN_PRINT_PREVIEW_HEIGHT,
-  MIN_PRINT_PREVIEW_WIDTH,
-  clampPrintPreviewZoom
-} from "../state/cadUiStore";
-import type { PrintPreviewWindow } from "../state/cadUiStore";
-import {
   DEFAULT_LEFT_PANEL_WIDTH,
   clampStoredLeftPanelWidth
 } from "./leftPanelWidth";
@@ -15,15 +8,9 @@ import {
 export { DEFAULT_LEFT_PANEL_WIDTH, MAX_LEFT_PANEL_WIDTH, MIN_LEFT_PANEL_WIDTH } from "./leftPanelWidth";
 
 const STORAGE_KEY = "nuinuiCAD.layoutSettings.v1";
-export const PRINT_PANEL_SECTION_IDS = ["output", "groups", "placements"] as const;
-
-export type PrintPanelSectionId = (typeof PRINT_PANEL_SECTION_IDS)[number];
-
 export type LayoutSettings = {
   version: 1;
   leftPanelWidth: number;
-  collapsedPrintPanelSections: PrintPanelSectionId[];
-  printPreviewWindow: PrintPreviewWindow;
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -31,50 +18,18 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 export const clampLeftPanelWidth = clampStoredLeftPanelWidth;
 
-const finiteNumber = (value: unknown, fallback: number) =>
-  typeof value === "number" && Number.isFinite(value) ? value : fallback;
-
-const normalizePrintPreviewWindowSettings = (value: unknown): PrintPreviewWindow => {
-  if (!isObject(value)) return DEFAULT_PRINT_PREVIEW_WINDOW;
-  return {
-    x: Math.round(finiteNumber(value.x, DEFAULT_PRINT_PREVIEW_WINDOW.x)),
-    y: Math.round(finiteNumber(value.y, DEFAULT_PRINT_PREVIEW_WINDOW.y)),
-    width: Math.max(
-      Math.round(finiteNumber(value.width, DEFAULT_PRINT_PREVIEW_WINDOW.width)),
-      MIN_PRINT_PREVIEW_WIDTH
-    ),
-    height: Math.max(
-      Math.round(finiteNumber(value.height, DEFAULT_PRINT_PREVIEW_WINDOW.height)),
-      MIN_PRINT_PREVIEW_HEIGHT
-    ),
-    zoom: clampPrintPreviewZoom(finiteNumber(value.zoom, DEFAULT_PRINT_PREVIEW_WINDOW.zoom)),
-    layoutId: typeof value.layoutId === "string" ? value.layoutId : null
-  };
-};
-
 export const defaultLayoutSettings = (): LayoutSettings => ({
   version: 1,
-  leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
-  collapsedPrintPanelSections: [],
-  printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
+  leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH
 });
 
 export const normalizeLayoutSettings = (value: unknown): LayoutSettings => {
   if (!isObject(value) || typeof value.leftPanelWidth !== "number" || !Number.isFinite(value.leftPanelWidth)) {
     return defaultLayoutSettings();
   }
-  const sectionIds = new Set(PRINT_PANEL_SECTION_IDS);
-  const collapsedPrintPanelSections = Array.isArray(value.collapsedPrintPanelSections)
-    ? value.collapsedPrintPanelSections.filter(
-        (section): section is PrintPanelSectionId =>
-          typeof section === "string" && sectionIds.has(section as PrintPanelSectionId)
-      )
-    : defaultLayoutSettings().collapsedPrintPanelSections;
   return {
     version: 1,
-    leftPanelWidth: clampLeftPanelWidth(value.leftPanelWidth),
-    collapsedPrintPanelSections,
-    printPreviewWindow: normalizePrintPreviewWindowSettings(value.printPreviewWindow)
+    leftPanelWidth: clampLeftPanelWidth(value.leftPanelWidth)
   };
 };
 

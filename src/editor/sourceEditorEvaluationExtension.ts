@@ -27,7 +27,6 @@ const lineClassFor = (status: IndexedLineStatus, isLastGood: boolean) => {
   if (status.disabledByGroup) classes.push("cm-eval-disabled-by-group");
   if (status.conditionInactive) classes.push("cm-eval-condition-inactive");
   if (!status.isEvaluated) classes.push("cm-eval-unevaluated");
-  if (status.printEnabled) classes.push("cm-eval-print-enabled");
   if (isLastGood) classes.push("cm-eval-last-good");
   return classes.join(" ");
 };

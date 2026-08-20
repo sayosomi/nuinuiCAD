@@ -100,23 +100,20 @@ describe("buildPropertyBindingRuntimeEntries", () => {
     ]);
   });
 
-  it("emits entries for schema-typed text and group properties", () => {
+  it("emits entries for schema-typed text properties", () => {
     const text = textElement();
     const group = groupElement();
     const source = bindingSource(
       [
-        { statementIndex: 0, parameterKey: "text", source: bindingSourceValue("binding:t", { kind: "string" }) },
-        { statementIndex: 1, parameterKey: "printEnabled", source: bindingSourceValue("binding:p", { kind: "boolean" }) }
+        { statementIndex: 0, parameterKey: "text", source: bindingSourceValue("binding:t", { kind: "string" }) }
       ],
       new Map([
-        [0, text.id],
-        [1, group.id]
+        [0, text.id]
       ])
     );
     const entries = buildPropertyBindingRuntimeEntries(source, [text, group]);
     expect(entries).toEqual([
-      { elementId: "label", parameterKey: "text", bindingId: "binding:t", expectedType: { kind: "string" } },
-      { elementId: "grp", parameterKey: "printEnabled", bindingId: "binding:p", expectedType: { kind: "boolean" } }
+      { elementId: "label", parameterKey: "text", bindingId: "binding:t", expectedType: { kind: "string" } }
     ]);
   });
 

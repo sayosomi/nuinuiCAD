@@ -47,7 +47,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
     const canvasViewport = useCadUiStore((state) => state.canvasViewport);
     const showCanvasElementNames = useCadUiStore((state) => state.showCanvasElementNames);
     const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
-    const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
     const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
@@ -73,7 +72,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       canvasViewport,
       showCanvasElementNames,
       showCanvasPoints,
-      showPrintPreviewWindow,
       renderFixedCanvasChrome: true,
       activePointPickTarget,
       activeNumericReferencePickTarget,
@@ -106,7 +104,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       applyPickedPoint: (action) => dispatchCommand("applyPickedPoint", action),
       toggleCanvasElementNames: () => dispatchCommand("toggleCanvasElementNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
-      togglePrintPreviewWindow: () => dispatchCommand("togglePrintPreviewWindow"),
       resolveImageSourceUrl: (sourcePath) => imageSourceUrl(sourcePath, currentFilePath),
       renderHostOverlay: (viewportSize) => (
         <CommandRibbonOverlay
@@ -135,7 +132,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       selectedElementIds,
       showCanvasElementNames,
       showCanvasPoints,
-      showPrintPreviewWindow,
       visibilityProfiles
     ]);
 

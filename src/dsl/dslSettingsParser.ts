@@ -12,8 +12,9 @@ export type DslSettingsKind =
   | "role"
   | "view"
   | "activeView"
-  | "activePrintLayout"
-  | "printLayout"
+  | "layout"
+  | "print"
+  | "svg"
   | "place"
   | "atStop";
 
@@ -38,8 +39,8 @@ export type ParseDslSettingsOptions = { opensBlock?: boolean };
 
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 const whitespace = /\s/;
-const callKeywords = new Set(["color", "role", "view", "printLayout", "place"]);
-const namedCallKeywords = new Set(["color", "role", "view", "printLayout"]);
+const callKeywords = new Set(["color", "role", "view", "layout", "print", "svg", "place"]);
+const namedCallKeywords = new Set(["color", "role", "view", "layout", "print", "svg"]);
 
 const trimSpan = (source: string, start: number, end: number): DslSpan => {
   while (start < end && whitespace.test(source[start])) start += 1;
@@ -209,18 +210,38 @@ export const parseDslSettingsStatement = (
       diagnostics,
     };
   }
-  if (keyword === "activeView" || keyword === "activePrintLayout") {
+  if (keyword === "activeView") {
     return { statement: simpleStatement(logicalText, keyword, keywordSpan, rest, diagnostics), diagnostics };
   }
   if (!callKeywords.has(keyword)) return { statement: null, diagnostics };
 
+  const trimmedEnd = logicalText.trimEnd().length;
+  const inlineBlock = logicalText[trimmedEnd - 1] === "{";
+  const bodyEnd = inlineBlock ? trimmedEnd - 1 : logicalText.length;
   const open = topLevelIndex(logicalText, "(", rest.start);
-  const beforeCall = trimSpan(logicalText, rest.start, open >= 0 ? open : rest.end);
+  const beforeCall = trimSpan(logicalText, rest.start, open >= 0 ? open : bodyEnd);
   const parsedName = parseName(logicalText, beforeCall);
   const name = keyword === "place"
     ? { name: "", nameSpan: null }
     : parsedName;
   if (namedCallKeywords.has(keyword) && !name.nameSpan) addDiagnostic(diagnostics, `${keyword}には名前が必要です。`, keywordSpan);
+  if (open < 0 && keyword === "layout" && (inlineBlock || options.opensBlock)) {
+    const payloadSpans: Record<string, DslSpan> = {};
+    const spec = settingsSpecFor(keyword)!;
+    validateArgs(keyword, spec, [], diagnostics, payloadSpans);
+    return {
+      statement: {
+        kind: keyword,
+        ...name,
+        keywordSpan,
+        args: [],
+        attrs: [],
+        payloadSpans,
+        opensBlock: true
+      },
+      diagnostics
+    };
+  }
   if (open < 0) {
     addDiagnostic(diagnostics, `${keyword}文には「(」が必要です。`, { start: rest.end, end: rest.end });
     return { statement: null, diagnostics };
@@ -231,11 +252,11 @@ export const parseDslSettingsStatement = (
     return { statement: null, diagnostics };
   }
   const tail = trimSpan(logicalText, close + 1, logicalText.length);
-  const inlineBlock = logicalText.slice(tail.start, tail.end) === "{";
-  const opensBlock = keyword === "printLayout" && (inlineBlock || Boolean(options.opensBlock));
-  if (tail.start < tail.end && !inlineBlock) addDiagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail);
-  if (inlineBlock && keyword !== "printLayout") addDiagnostic(diagnostics, `${keyword}文はブロックを開けません。`, tail);
-  if (keyword === "printLayout" && !opensBlock) addDiagnostic(diagnostics, "printLayout にはブロックが必要です。", keywordSpan);
+  const hasInlineBlock = logicalText.slice(tail.start, tail.end) === "{";
+  const opensBlock = keyword === "layout" && (hasInlineBlock || Boolean(options.opensBlock));
+  if (tail.start < tail.end && !hasInlineBlock) addDiagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail);
+  if (hasInlineBlock && keyword !== "layout") addDiagnostic(diagnostics, `${keyword}文はブロックを開けません。`, tail);
+  if (keyword === "layout" && !opensBlock) addDiagnostic(diagnostics, "layout にはブロックが必要です。", keywordSpan);
 
   const scanned = scanCallArgs(logicalText, { start: open + 1, end: close });
   diagnostics.push(...scanned.errors);
@@ -252,7 +273,7 @@ export const parseDslSettingsStatement = (
   validateArgs(keyword, spec, scanned.args, diagnostics, payloadSpans);
   return {
     statement: {
-      kind: keyword as Extract<DslSettingsKind, "color" | "role" | "view" | "printLayout" | "place">,
+      kind: keyword as Extract<DslSettingsKind, "color" | "role" | "view" | "layout" | "print" | "svg" | "place">,
       ...name,
       keywordSpan,
       args: scanned.args,

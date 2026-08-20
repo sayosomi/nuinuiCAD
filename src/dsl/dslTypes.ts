@@ -8,7 +8,9 @@ import type {
   DrawingModifierState,
   DrawingProfile,
   ElementId,
-  PrintLayout,
+  Layout,
+  PrintOutput,
+  SvgOutput,
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
@@ -193,7 +195,9 @@ export type DslStatement =
   | (DslStatementBase & { kind: "profileDeclaration" })
   | (DslStatementBase & { kind: "view" })
   | (DslStatementBase & { kind: "activeView" })
-  | (DslStatementBase & { kind: "printLayout" })
+  | (DslStatementBase & { kind: "layout" })
+  | (DslStatementBase & { kind: "print" })
+  | (DslStatementBase & { kind: "svg" })
   | (DslStatementBase & {
       kind: "moduleDefinition";
       parameters: readonly DslModuleParameter[];
@@ -239,7 +243,6 @@ export type DslStatement =
   | (DslStatementBase & { kind: "version"; value: string })
   | (DslStatementBase & { kind: "color"; hex: string; isDefault: boolean })
   | (DslStatementBase & { kind: "atStop" })
-  | (DslStatementBase & { kind: "activePrintLayout" })
   | (DslStatementBase & { kind: "place"; group: string })
   | (DslStatementBase & {
       kind: "typedDeclaration";
@@ -289,9 +292,10 @@ export type CompileDslContext = {
   visibilityRoles?: VisibilityRole[];
   visibilityProfiles?: VisibilityProfile[];
   activeVisibilityProfileId?: string;
-  printLayouts?: PrintLayout[];
+  layouts?: Layout[];
+  printOutputs?: PrintOutput[];
+  svgOutputs?: SvgOutput[];
   palette?: DocumentPalette;
-  activePrintLayoutId?: string;
   insertionIndex?: number;
   mode?: "edit" | "document";
   selectedElementIds?: ElementId[];
@@ -323,16 +327,19 @@ export type CompileDslResult = {
   visibilityRoles?: VisibilityRole[];
   visibilityProfiles?: VisibilityProfile[];
   activeVisibilityProfileId?: string;
-  printLayouts?: PrintLayout[];
+  layouts?: Layout[];
+  printOutputs?: PrintOutput[];
+  svgOutputs?: SvgOutput[];
   palette?: DocumentPalette;
-  activePrintLayoutId?: string;
   evaluationLimitIndex?: number;
   diagnostics: DslDiagnostic[];
   changedCount: number;
   /** 文index(全文配列基準)→ コンパイルされた要素のID。パースエラーの早期returnでは付与されない。 */
   elementIdsByStatementIndex?: Map<number, ElementId>;
-  /** printLayout文のindex(全文配列基準)→ 解決後の PrintLayout.id。 */
-  printLayoutIdsByStatementIndex?: Map<number, string>;
+  /** layout文のindex(全文配列基準)→ reconciler-owned Layout.id。 */
+  layoutIdsByStatementIndex?: Map<number, string>;
+  /** print/svg文のindex(全文配列基準)→ reconciler-owned declaration id。 */
+  outputIdsByStatementIndex?: Map<number, string>;
   /** Runtime-only module expansion && source-origin mapping. */
   moduleMaterialization?: ModuleMaterialization;
   /** Compile-time lowered geometry aliases && export resolvers. */
@@ -343,7 +350,6 @@ export type SerializeDslOptions = {
   visibilityRoles?: VisibilityRole[];
   visibilityProfiles?: VisibilityProfile[];
   activeVisibilityProfileId?: string;
-  printLayouts?: PrintLayout[];
 };
 
 export type DslTokenKind =

@@ -67,8 +67,6 @@ describe("elementNames", () => {
         name: "前身頃",
         type: "group",
         activity: "visible",
-        printEnabled: false,
-        printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
       {
         ...elements[0],
@@ -232,8 +230,6 @@ describe("elementNames", () => {
         name: "前身頃",
         type: "group",
         activity: "visible",
-        printEnabled: false,
-        printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
       {
         id: "point-b",
@@ -280,8 +276,6 @@ describe("elementNames", () => {
         name: "外側",
         type: "group",
         activity: "visible",
-        printEnabled: false,
-        printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
       {
         id: "outer-point",
@@ -298,8 +292,6 @@ describe("elementNames", () => {
         type: "group",
         activity: "visible",
         parentGroupId: "outer",
-        printEnabled: false,
-        printAnchor: { mode: "coordinate", x: 0, y: 0 }
       },
       {
         id: "inner-point-dup-a",

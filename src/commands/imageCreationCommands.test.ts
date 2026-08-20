@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addImage, commitPendingImageImport } from "./imageCreationCommands";
 import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
-import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadStore } from "../state/useCadStore";
+import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 
 const tauriCoreMock = vi.hoisted(() => ({
   invoke: vi.fn()
@@ -52,14 +52,10 @@ const resetStore = () => {
     showShortcutSettings: false,
     showPaletteSettings: false,
     showSelectionColorPicker: false,
-    showPrintLayout: false,
-    showPrintPreviewWindow: false,
     pendingImageImport: null,
     imageImportError: null,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-    printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
-    printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW
   });
 };
 

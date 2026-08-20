@@ -74,8 +74,8 @@ describe("DSL document symbol query", () => {
       "role Draft",
       "view Main",
       "activeView Main",
-      "printLayout Paper {",
-      "  place @Draft",
+      "layout Paper {",
+      "  place @Draft(at: (0, 0))",
       "}",
       "point Named = coordinate(x: 0, y: 0)"
     ].join("\n");

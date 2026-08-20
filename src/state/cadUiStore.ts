@@ -76,15 +76,6 @@ export type CanvasViewport = {
   zoom: number;
 };
 
-export type PrintPreviewWindow = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  zoom: number;
-  layoutId: string | null;
-};
-
 export type ReferenceHelperPosition = {
   x: number;
   y: number;
@@ -110,20 +101,6 @@ export const DEFAULT_CANVAS_VIEWPORT: CanvasViewport = {
 
 export const MIN_CANVAS_ZOOM = 0.1;
 export const MAX_CANVAS_ZOOM = 20;
-export const MIN_PRINT_PREVIEW_ZOOM = 0.15;
-export const MAX_PRINT_PREVIEW_ZOOM = 4;
-export const MIN_PRINT_PREVIEW_WIDTH = 260;
-export const MIN_PRINT_PREVIEW_HEIGHT = 180;
-
-export const DEFAULT_PRINT_PREVIEW_WINDOW: PrintPreviewWindow = {
-  x: 24,
-  y: 24,
-  width: 380,
-  height: 300,
-  zoom: 0.55,
-  layoutId: null
-};
-
 export const DEFAULT_REFERENCE_HELPER_POSITION: ReferenceHelperPosition = {
   x: 24,
   y: 72
@@ -204,8 +181,6 @@ export type CadUiState = CadElementSelection & {
   renameElementPromptTargetId: ElementId | null;
   renameTypedBindingPromptTargetId: BindingId | null;
   renameModuleSemanticPromptTarget: ModuleSemanticTarget | null;
-  showPrintLayout: boolean;
-  showPrintPreviewWindow: boolean;
   commandErrorMessage: string | null;
   pendingImageImport: PendingImageImport | null;
   imageImportError: string | null;
@@ -216,10 +191,7 @@ export type CadUiState = CadElementSelection & {
   commandRibbonSettingsLoading: boolean;
   commandRibbonSettingsError: string | null;
   showCommandPalette: boolean;
-  selectedPrintPlacementId: string | null;
   canvasViewport: CanvasViewport;
-  printCanvasViewport: CanvasViewport;
-  printPreviewWindow: PrintPreviewWindow;
   referenceHelperPosition: ReferenceHelperPosition | null;
   setInspectorExpanded: (isInspectorExpanded: boolean) => void;
   setActivePointPickTarget: (activePointPickTarget: ActivePointPickTarget | null) => void;
@@ -254,8 +226,6 @@ export type CadUiState = CadElementSelection & {
   setRenameElementPromptTargetId: (renameElementPromptTargetId: ElementId | null) => void;
   setRenameTypedBindingPromptTargetId: (renameTypedBindingPromptTargetId: BindingId | null) => void;
   setRenameModuleSemanticPromptTarget: (target: ModuleSemanticTarget | null) => void;
-  setShowPrintLayout: (showPrintLayout: boolean) => void;
-  setShowPrintPreviewWindow: (showPrintPreviewWindow: boolean) => void;
   setCommandErrorMessage: (commandErrorMessage: string | null) => void;
   setPendingImageImport: (pendingImageImport: PendingImageImport | null) => void;
   setImageImportError: (imageImportError: string | null) => void;
@@ -266,7 +236,6 @@ export type CadUiState = CadElementSelection & {
   setCommandRibbonSettingsLoading: (commandRibbonSettingsLoading: boolean) => void;
   setCommandRibbonSettingsError: (commandRibbonSettingsError: string | null) => void;
   setShowCommandPalette: (showCommandPalette: boolean) => void;
-  setSelectedPrintPlacementId: (selectedPrintPlacementId: string | null) => void;
   setCanvasViewport: (canvasViewport: CanvasViewport) => void;
   panCanvasViewport: (dx: number, dy: number) => void;
   zoomCanvasViewportAt: (
@@ -274,15 +243,6 @@ export type CadUiState = CadElementSelection & {
     anchor?: { x: number; y: number; width: number; height: number }
   ) => void;
   resetCanvasViewport: () => void;
-  setPrintCanvasViewport: (printCanvasViewport: CanvasViewport) => void;
-  panPrintCanvasViewport: (dx: number, dy: number) => void;
-  zoomPrintCanvasViewportAt: (
-    zoomFactor: number,
-    anchor?: { x: number; y: number; width: number; height: number }
-  ) => void;
-  resetPrintCanvasViewport: () => void;
-  setPrintPreviewWindow: (printPreviewWindow: PrintPreviewWindow) => void;
-  updatePrintPreviewWindow: (patch: Partial<PrintPreviewWindow>) => void;
   setReferenceHelperPosition: (referenceHelperPosition: ReferenceHelperPosition) => void;
   /** Updates one presentation branch without changing document semantics. */
   setFoldTargetExpanded: (target: FoldTarget, expanded: boolean) => void;
@@ -333,8 +293,6 @@ export const initialCadUiState = (): Omit<
   | "setRenameElementPromptTargetId"
   | "setRenameTypedBindingPromptTargetId"
   | "setRenameModuleSemanticPromptTarget"
-  | "setShowPrintLayout"
-  | "setShowPrintPreviewWindow"
   | "setCommandErrorMessage"
   | "setPendingImageImport"
   | "setImageImportError"
@@ -345,17 +303,10 @@ export const initialCadUiState = (): Omit<
   | "setCommandRibbonSettingsLoading"
   | "setCommandRibbonSettingsError"
   | "setShowCommandPalette"
-  | "setSelectedPrintPlacementId"
   | "setCanvasViewport"
   | "panCanvasViewport"
   | "zoomCanvasViewportAt"
   | "resetCanvasViewport"
-  | "setPrintCanvasViewport"
-  | "panPrintCanvasViewport"
-  | "zoomPrintCanvasViewportAt"
-  | "resetPrintCanvasViewport"
-  | "setPrintPreviewWindow"
-  | "updatePrintPreviewWindow"
   | "setReferenceHelperPosition"
   | "setFoldTargetExpanded"
   | "setFoldTargetsExpanded"
@@ -401,8 +352,6 @@ export const initialCadUiState = (): Omit<
   renameElementPromptTargetId: null,
   renameTypedBindingPromptTargetId: null,
   renameModuleSemanticPromptTarget: null,
-  showPrintLayout: false,
-  showPrintPreviewWindow: false,
   commandErrorMessage: null,
   pendingImageImport: null,
   imageImportError: null,
@@ -413,10 +362,7 @@ export const initialCadUiState = (): Omit<
   commandRibbonSettingsLoading: false,
   commandRibbonSettingsError: null,
   showCommandPalette: false,
-  selectedPrintPlacementId: null,
   canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-  printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
-  printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
   referenceHelperPosition: null,
 });
 
@@ -424,21 +370,6 @@ const isFinitePositive = (value: number): boolean => Number.isFinite(value) && v
 
 const normalizeCanvasZoom = (zoom: number): number | null =>
   isFinitePositive(zoom) ? zoom : null;
-
-const clampPrintCanvasZoom = (zoom: number) =>
-  Math.min(Math.max(Number.isFinite(zoom) ? zoom : DEFAULT_CANVAS_VIEWPORT.zoom, MIN_CANVAS_ZOOM), MAX_CANVAS_ZOOM);
-
-export const clampPrintPreviewZoom = (zoom: number) =>
-  Math.min(Math.max(Number.isFinite(zoom) ? zoom : DEFAULT_PRINT_PREVIEW_WINDOW.zoom, MIN_PRINT_PREVIEW_ZOOM), MAX_PRINT_PREVIEW_ZOOM);
-
-export const normalizePrintPreviewWindow = (window: PrintPreviewWindow): PrintPreviewWindow => ({
-  x: Number.isFinite(window.x) ? Math.round(window.x) : DEFAULT_PRINT_PREVIEW_WINDOW.x,
-  y: Number.isFinite(window.y) ? Math.round(window.y) : DEFAULT_PRINT_PREVIEW_WINDOW.y,
-  width: Math.max(Math.round(window.width), MIN_PRINT_PREVIEW_WIDTH),
-  height: Math.max(Math.round(window.height), MIN_PRINT_PREVIEW_HEIGHT),
-  zoom: clampPrintPreviewZoom(window.zoom),
-  layoutId: window.layoutId
-});
 
 const zoomViewportAt = (
   current: CanvasViewport,
@@ -533,8 +464,6 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   setRenameElementPromptTargetId: (renameElementPromptTargetId) => set({ renameElementPromptTargetId }),
   setRenameTypedBindingPromptTargetId: (renameTypedBindingPromptTargetId) => set({ renameTypedBindingPromptTargetId }),
   setRenameModuleSemanticPromptTarget: (renameModuleSemanticPromptTarget) => set({ renameModuleSemanticPromptTarget }),
-  setShowPrintLayout: (showPrintLayout) => set({ showPrintLayout }),
-  setShowPrintPreviewWindow: (showPrintPreviewWindow) => set({ showPrintPreviewWindow }),
   setCommandErrorMessage: (commandErrorMessage) => set({ commandErrorMessage }),
   setPendingImageImport: (pendingImageImport) => set({ pendingImageImport }),
   setImageImportError: (imageImportError) => set({ imageImportError }),
@@ -547,7 +476,6 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   setCommandRibbonSettingsError: (commandRibbonSettingsError) =>
     set({ commandRibbonSettingsError }),
   setShowCommandPalette: (showCommandPalette) => set({ showCommandPalette }),
-  setSelectedPrintPlacementId: (selectedPrintPlacementId) => set({ selectedPrintPlacementId }),
   setCanvasViewport: (canvasViewport) =>
     set(() => {
       if (!isFinitePositive(canvasViewport.zoom) || !Number.isFinite(canvasViewport.panX) || !Number.isFinite(canvasViewport.panY)) {
@@ -569,36 +497,6 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       return canvasViewport === state.canvasViewport ? {} : { canvasViewport };
     }),
   resetCanvasViewport: () => set({ canvasViewport: DEFAULT_CANVAS_VIEWPORT }),
-  setPrintCanvasViewport: (printCanvasViewport) =>
-    set({
-      printCanvasViewport: {
-        ...printCanvasViewport,
-        zoom: clampPrintCanvasZoom(printCanvasViewport.zoom)
-      }
-    }),
-  panPrintCanvasViewport: (dx, dy) =>
-    set((state) => ({
-      printCanvasViewport: {
-        ...state.printCanvasViewport,
-        panX: state.printCanvasViewport.panX + dx,
-        panY: state.printCanvasViewport.panY + dy
-      }
-    })),
-  zoomPrintCanvasViewportAt: (zoomFactor, anchor) =>
-    set((state) => {
-      const printCanvasViewport = zoomViewportAt(state.printCanvasViewport, zoomFactor, anchor, clampPrintCanvasZoom);
-      return printCanvasViewport === state.printCanvasViewport ? {} : { printCanvasViewport };
-    }),
-  resetPrintCanvasViewport: () => set({ printCanvasViewport: DEFAULT_CANVAS_VIEWPORT }),
-  setPrintPreviewWindow: (printPreviewWindow) =>
-    set({ printPreviewWindow: normalizePrintPreviewWindow(printPreviewWindow) }),
-  updatePrintPreviewWindow: (patch) =>
-    set((state) => ({
-      printPreviewWindow: normalizePrintPreviewWindow({
-        ...state.printPreviewWindow,
-        ...patch
-      })
-    })),
   setReferenceHelperPosition: (referenceHelperPosition) =>
     set({
       referenceHelperPosition: {

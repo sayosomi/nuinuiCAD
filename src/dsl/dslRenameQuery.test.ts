@@ -212,7 +212,7 @@ describe("host-neutral DSL rename query", () => {
     expect(plan?.edits.map((edit) => edit.expectedText)).toEqual(["AB", "AB"]);
   });
 
-  it("starts rename from printLayout and place numeric geometry properties", () => {
+  it("starts rename from layout and place numeric geometry properties", () => {
     const source = [
       "nui 4",
       "point A = coordinate(",
@@ -221,18 +221,14 @@ describe("host-neutral DSL rename query", () => {
       ")",
       "group G {",
       "}",
-      "printLayout Sheet(",
-      "  output: pdf,",
-      "  paper: a4,",
-      "  orientation: portrait,",
-      "  width: 210+@A.x,",
-      "  height: 297,",
-      "  columns: 2,",
-      "  rows: 2,",
-      "  overlap: 10,",
+      "layout Sheet(",
       "  scale: 1+@A.x,",
       ") {",
-      "  place @G(x: 3+@A.x, y: 4+@A.x, angle: 5+@A.x, mirrorX: false)",
+      "  place @G(",
+      "    at: (3+@A.x, 4+@A.x),",
+      "    angle: 5+@A.x,",
+      "    mirror: false,",
+      "  )",
       "}"
     ].join("\n");
     const scaleReference = source.indexOf("@A.x", source.indexOf("scale:"));

@@ -72,7 +72,6 @@ export type CanvasHostAdapter = {
   canvasViewport: CanvasViewport;
   showCanvasElementNames: boolean;
   showCanvasPoints: boolean;
-  showPrintPreviewWindow: boolean;
   /** Whether the host wants the shared fixed Canvas controls/status chrome. */
   renderFixedCanvasChrome?: boolean;
   activePointPickTarget: ActivePointPickTarget | null;
@@ -109,7 +108,6 @@ export type CanvasHostAdapter = {
   }) => unknown;
   toggleCanvasElementNames: () => unknown;
   toggleCanvasPoints: () => unknown;
-  togglePrintPreviewWindow: () => unknown;
   resolveImageSourceUrl: (sourcePath: string) => string;
   renderHostOverlay?: (viewportSize: ViewportSize) => ReactNode;
 };

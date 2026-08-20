@@ -50,7 +50,7 @@ export const buildCadContainerIndex = ({
     // printLayout is a lexical scalar scope, not a CAD geometry container.
     // Its declarations still participate in the shared binding catalog, but
     // they must not be forced through the element/container identity lane.
-    if (scope.kind === "printLayout") continue;
+    if (scope.kind === "layout") continue;
     const containerId = reconciled.elementIdByStatementIndex.get(scope.openingStatementIndex);
     if (!containerId) {
       throw new Error(`containerIndex: no reconciled container id for scope ${scopeId}`);

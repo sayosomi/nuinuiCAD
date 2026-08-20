@@ -1,6 +1,6 @@
 import {
   compileDslDocument,
-  planPrintLayoutSection,
+  planSourceOutputSection,
   type CompiledDslDocument,
   type DslDocumentData
 } from "../dsl/dslDocument";
@@ -22,13 +22,13 @@ export const completeCompiled = (compiled: CompiledDslDocument): compiled is Com
 export type SerializerChangedStatements = {
   expectedPatchedLines: number[];
   changedElementIds: Set<ElementId>;
-  changedPrintLayoutIds: Set<string>;
+  changedSourceOutputIds: Set<string>;
   /**
-   * Present only when the printLayout plan && the source statement range
+   * Present only when the sourceOutput plan && the source statement range
    * prove an exact line-for-line correspondence. Callers must retain block
    * granularity when a layout is absent from this map.
    */
-  preciselyChangedPrintLayoutLinesById: Map<string, Set<number>>;
+  preciselyChangedSourceOutputLinesById: Map<string, Set<number>>;
 };
 
 // This intentionally does not call buildTextPatch. The expected set is an
@@ -45,8 +45,8 @@ export const serializerChangedStatementLines = (
   const afterElementsById = new Map(afterDocument.elements.map((element) => [element.id, element]));
   const lines = new Set<number>();
   const changedElementIds = new Set<ElementId>();
-  const changedPrintLayoutIds = new Set<string>();
-  const preciselyChangedPrintLayoutLinesById = new Map<string, Set<number>>();
+  const changedSourceOutputIds = new Set<string>();
+  const preciselyChangedSourceOutputLinesById = new Map<string, Set<number>>();
 
   for (const element of before.document.elements) {
     const next = afterElementsById.get(element.id);
@@ -62,18 +62,20 @@ export const serializerChangedStatementLines = (
     }
   }
 
-  const beforePlan = planPrintLayoutSection(before.document);
-  const afterPlan = planPrintLayoutSection(afterDocument);
+  const beforePlan = planSourceOutputSection(before.document);
+  const afterPlan = planSourceOutputSection(afterDocument);
   const afterBlocks = new Map(afterPlan.blocks.map((block) => [block.layoutId, block]));
   for (const block of beforePlan.blocks) {
     const next = afterBlocks.get(block.layoutId);
-    const info = before.statementMap.byKey.get(`printLayout:${block.layoutId}`);
+    const info = before.statementMap.byKey.get(`layout:${block.layoutId}`) ??
+      before.statementMap.byKey.get(`print:${block.layoutId}`) ??
+      before.statementMap.byKey.get(`svg:${block.layoutId}`);
     if (!next || !info) return null;
     if (block.lines.join("\n") !== next.lines.join("\n")) {
-      changedPrintLayoutIds.add(block.layoutId);
+      changedSourceOutputIds.add(block.layoutId);
       for (let line = info.range.startLine; line <= info.range.endLine; line += 1) lines.add(line);
 
-      // printLayout is patched as one block. We may nevertheless narrow
+      // sourceOutput is patched as one block. We may nevertheless narrow
       // occurrence metadata when (and only when) the generated plan has the
       // exact same number of lines as the source statement range. This is a
       // structural proof, not a best-effort alignment across comments ||
@@ -84,7 +86,7 @@ export const serializerChangedStatementLines = (
         block.lines.forEach((line, index) => {
           if (line !== next.lines[index]) changedLines.add(info.range.startLine + index);
         });
-        preciselyChangedPrintLayoutLinesById.set(block.layoutId, changedLines);
+        preciselyChangedSourceOutputLinesById.set(block.layoutId, changedLines);
       }
     }
   }
@@ -92,8 +94,8 @@ export const serializerChangedStatementLines = (
     ? {
         expectedPatchedLines: [...lines].sort((a, b) => a - b),
         changedElementIds,
-        changedPrintLayoutIds,
-        preciselyChangedPrintLayoutLinesById
+        changedSourceOutputIds,
+        preciselyChangedSourceOutputLinesById
       }
     : null;
 };

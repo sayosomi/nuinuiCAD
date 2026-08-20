@@ -41,8 +41,6 @@ import {
   cycleElementActivity,
   setElementActivity,
   setElementsActivity,
-  toggleGroupPrintEnabled,
-  toggleSelectedGroupPrintEnabled,
   toggleGroupExpanded,
   ungroupSelectedGroup
 } from "./selectionCommands";
@@ -517,17 +515,6 @@ export const selectionCommandDefinitions = {
       if (!context?.activity) return;
       setElementActivity(context.elementId, context.activity);
     }
-  },
-  toggleGroupPrintEnabled: {
-    id: "toggleGroupPrintEnabled",
-    label: "グループの印刷する/しないを切替",
-    run: (context) => toggleGroupPrintEnabled(context?.elementId)
-  },
-  toggleSelectedGroupPrintEnabled: {
-    id: "toggleSelectedGroupPrintEnabled",
-    label: "選択グループの印刷する/しないを切替",
-    palette: { order: 41.75, keywords: ["print", "印刷", "group", "グループ"] },
-    run: () => toggleSelectedGroupPrintEnabled()
   },
   setSelectedElementsVisible: {
     id: "setSelectedElementsVisible",

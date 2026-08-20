@@ -16,7 +16,7 @@ const source = [
   "let counter: number = 0",
   "set counter = @derived + 1",
   "let flag: boolean = true",
-  "group G (printEnabled: @flag) {",
+  "for i in range(from: 0, count: 1, showGenerated: @flag) {",
   "}",
   'text T = label(text: "${@base}", anchor: none, size: 3)'
 ].join("\n");

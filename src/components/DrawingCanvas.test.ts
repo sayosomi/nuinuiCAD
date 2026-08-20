@@ -12,7 +12,7 @@ import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { defaultDocumentPalette } from "../palette/palette";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 import { sampleElements } from "../sampleData";
-import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadDocumentStore, useCadStore } from "../state/useCadStore";
+import { DEFAULT_CANVAS_VIEWPORT, useCadDocumentStore, useCadStore } from "../state/useCadStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { TauriDrawingCanvas } from "./TauriDrawingCanvas";
@@ -147,15 +147,11 @@ const resetStore = () => {
     showShortcutSettings: false,
     showPaletteSettings: false,
     showSelectionColorPicker: false,
-    showPrintLayout: false,
-    showPrintPreviewWindow: false,
     shortcutSettings: { version: 1, overrides: [] },
     shortcutSettingsLoading: false,
     shortcutSettingsError: null,
     showCommandPalette: false,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-    printCanvasViewport: DEFAULT_CANVAS_VIEWPORT,
-    printPreviewWindow: DEFAULT_PRINT_PREVIEW_WINDOW,
     past: [],
     future: [],
     currentFilePath: null,
@@ -223,7 +219,6 @@ const createFakeCanvasHostAdapter = (
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
     showCanvasElementNames: true,
     showCanvasPoints: true,
-    showPrintPreviewWindow: false,
     activePointPickTarget: null,
     activeNumericReferencePickTarget: null,
     activeLinePickTarget: null,
@@ -250,7 +245,6 @@ const createFakeCanvasHostAdapter = (
     applyPickedPoint: vi.fn(),
     toggleCanvasElementNames: vi.fn(),
     toggleCanvasPoints: vi.fn(),
-    togglePrintPreviewWindow: vi.fn(),
     resolveImageSourceUrl: (sourcePath) => sourcePath,
     ...overrides
   };

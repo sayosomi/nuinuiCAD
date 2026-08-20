@@ -165,12 +165,12 @@ describe("dslLineValueSpans", () => {
     expect(spans.map((span) => textOf(source, span))).toEqual(["0", "10"]);
   });
 
-  it("excludes non-element (palette/view/print/directive) statements even with real values", () => {
+  it("excludes non-element (palette/view/output/directive) statements even with real values", () => {
     expect(dslLineValueSpans("nui 2")).toEqual([]);
     expect(dslLineValueSpans('role R (name: "縫い代")')).toEqual([]);
     expect(dslLineValueSpans("view V (default: true)")).toEqual([]);
     expect(dslLineValueSpans('color X ("#336699", name: "基本線")')).toEqual([]);
-    expect(dslLineValueSpans("printLayout P (scale: 2) {")).toEqual([]);
+    expect(dslLineValueSpans("layout P (scale: 2) {")).toEqual([]);
   });
 });
 
@@ -223,7 +223,7 @@ describe("adjacentDslValueSpan", () => {
   });
 
   it("cycles to itself when there is only one editable value", () => {
-    const spans = dslLineValueSpans("group G (printAnchor: A) {");
+    const spans = dslLineValueSpans("group G (roles: [seam]) {");
     expect(spans).toHaveLength(1);
     expect(adjacentDslValueSpan(spans, spans[0].start, "next")).toEqual(spans[0]);
     expect(adjacentDslValueSpan(spans, spans[0].start, "previous")).toEqual(spans[0]);
@@ -265,9 +265,9 @@ describe("findDslValueSpanAt", () => {
 });
 
 describe("dslLinePrintLayoutStatement / dslLinePrintLayoutValueSpans", () => {
-  it("recognizes a printLayout block-opening line and rejects an element-statement line", () => {
-    const line = "printLayout Layout1 (columns: 2, canvas: (210, 297)) {";
-    expect(dslLinePrintLayoutStatement(line)?.kind).toBe("printLayout");
+  it("recognizes a layout block-opening line and rejects an element-statement line", () => {
+    const line = "layout Layout1 (scale: 1) {";
+    expect(dslLinePrintLayoutStatement(line)?.kind).toBe("layout");
     expect(dslLinePrintLayoutStatement("point A = coordinate(x: 0, y: 0)")).toBeNull();
   });
 
@@ -297,17 +297,17 @@ describe("dslLinePrintLayoutStatement / dslLinePrintLayoutValueSpans", () => {
     expect(angle.start).toBe(line.indexOf("angle: 15") + "angle: ".length);
   });
 
-  it("keeps returned span offsets relative to the original lineText — printLayout", () => {
-    // printLayout uses the same synthetic-closing-`}` strategy as
+  it("keeps returned span offsets relative to the original lineText — print", () => {
+    // print uses the same source-line span strategy as
     // dslLineElementStatement (append, not prepend), so this is the same
     // no-shift guarantee already relied on elsewhere, re-asserted explicitly here.
-    const line = "printLayout Layout1 (columns: 2, canvas: (210, 297)) {";
+    const line = "print Output(layout: @Layout1, paper: a4, margin: 10, overlap: 2)";
     const spans = dslLinePrintLayoutValueSpans(line);
-    const columns = spans.find((span) => span.key === "columns")!;
-    const canvas = spans.find((span) => span.key === "canvas")!;
-    expect(line.slice(columns.start, columns.end)).toBe("2");
-    expect(columns.start).toBe(line.indexOf("columns: 2") + "columns: ".length);
-    expect(line.slice(canvas.start, canvas.end)).toBe("(210, 297)");
-    expect(canvas.start).toBe(line.indexOf("(210, 297)"));
+    const margin = spans.find((span) => span.key === "margin")!;
+    const overlap = spans.find((span) => span.key === "overlap")!;
+    expect(line.slice(margin.start, margin.end)).toBe("10");
+    expect(margin.start).toBe(line.indexOf("margin: 10") + "margin: ".length);
+    expect(line.slice(overlap.start, overlap.end)).toBe("2");
+    expect(overlap.start).toBe(line.indexOf("overlap: 2") + "overlap: ".length);
   });
 });

@@ -20,9 +20,6 @@ export type SerializedStatement = {
   argumentSeparator?: "comma";
 };
 
-const defaultGroupAnchor = (value: PointAnchor | null | undefined) =>
-  !value || (value.mode === "coordinate" && value.x === 0 && value.y === 0);
-
 const constructionForElement = (element: CadElement): DslConstructionSpec =>
   constructionForElementType(element.type);
 
@@ -103,8 +100,6 @@ const ordinaryArgText = (element: CadElement, parameterKey: string, refs: DslSer
 const shouldSerializeConstructionArg = (element: CadElement, arg: DslArgSpec) => {
   if (arg.special) return true;
   const key = arg.parameterKey ?? arg.arg;
-  if (element.type === "group" && key === "printEnabled") return element.printEnabled === true;
-  if (element.type === "group" && key === "printAnchor") return !defaultGroupAnchor(element.printAnchor);
   if (element.type === "lineTangentOffsetPoint" && (key === "tangentAngleDeg" || key === "curveSide")) {
     return key === "curveSide" ? element.curveSide !== undefined : element.curveSide === undefined;
   }

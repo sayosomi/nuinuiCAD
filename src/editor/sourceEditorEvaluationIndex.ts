@@ -8,7 +8,6 @@ import {
   createElementPresentationStatusIndex,
   type ElementPresentationStatus
 } from "../model/elementPresentationStatus";
-import type { GroupPrintEnabledLookup } from "../geometry/groupPrintEnabledRuntime";
 import type { PickCandidate } from "../model/pickCandidates";
 import type { CadElement, DocumentPalette, ElementId, EvaluationResult, ForGroupGeneratedRow, VisibilityProfile } from "../types/geometry";
 import type { StatementRange, StatementRangeIndex } from "./statementRangeIndex";
@@ -75,8 +74,7 @@ export const createEvaluationDecorationIndex = ({
   palette,
   visibilityProfiles,
   activeVisibilityProfileId,
-  pickCandidates,
-  groupPrintEnabledLookup
+  pickCandidates
 }: {
   ranges: StatementRangeIndex;
   elements: readonly CadElement[];
@@ -86,10 +84,6 @@ export const createEvaluationDecorationIndex = ({
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string;
   pickCandidates: readonly PickCandidate[];
-  /** Task 45: see elementPresentationStatus.ts - only pass a lookup when the
-   * caller has already proven the compiled document/evaluation pairing is
-   * fresh for the live source; omit to keep the literal-only fallback. */
-  groupPrintEnabledLookup?: GroupPrintEnabledLookup;
 }): EvaluationDecorationIndex => {
   if (!evaluation) return { statuses: [], statusByLineFrom: new Map(), generatedWidgets: [], pickLines: [] };
   const statusesByElementId = createElementPresentationStatusIndex({
@@ -99,7 +93,6 @@ export const createEvaluationDecorationIndex = ({
     palette,
     visibilityProfiles,
     activeVisibilityProfileId,
-    groupPrintEnabledLookup
   });
   const byId = new Map(elements.map((element) => [element.id, element]));
   const statuses: IndexedLineStatus[] = [];

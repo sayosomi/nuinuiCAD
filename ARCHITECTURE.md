@@ -179,6 +179,14 @@ ordinary source lexical namespace. Drawing Modifier `width`, `style`, `color`,
 and `state` contributions merge independently: the common modifier contribution
 is applied first, followed by the matching selected profile delta.
 
+Print layout source declarations are also owned by the nui4 parser/compiler
+facade: `layout` contains ordered direct `place` statements, while `print` and
+`svg` contain resolved output references and physical-unit settings. Their
+statement identities come from `statementReconciler`; lexical target/origin and
+profile resolution comes from `sourceLexicalNamespaceIndex`; numeric fields use
+the shared scalar binding compiler. `DslDocumentData` stores these three source
+models and does not own an active output selection or an export/preview runtime.
+
 ### Lexical / name resolution
 
 Representative owners:
@@ -208,7 +216,7 @@ Primary:
 dependency/runtime infrastructure を owner とする。同じ scalar semantics の
 parallel implementation を作らない。
 
-Runtime-ready な numeric element / Module / printLayout-place expression は
+Runtime-ready な numeric element / Module / layout-place / print / svg expression は
 `TypedScalarExpression` として lowering され、TS/Rust の runtime payload を
 経由して shared typed scalar evaluator まで運ぶ。legacy-only / runtime-unready
 numeric expression は既存 legacy numeric evaluator path に残し、typed numeric

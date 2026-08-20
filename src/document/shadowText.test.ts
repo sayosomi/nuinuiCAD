@@ -183,8 +183,9 @@ describe("safeGenerateShadowFromModel", () => {
       visibilityRoles: [],
       visibilityProfiles: [{ id: "default", name: "通常", defaultRoleVisible: true, roleVisibility: {} }],
       activeVisibilityProfileId: "default",
-      printLayouts: [],
-      activePrintLayoutId: "",
+      layouts: [],
+      printOutputs: [],
+      svgOutputs: [],
       evaluationLimitIndex: 1
     };
     const onFailure = vi.fn();

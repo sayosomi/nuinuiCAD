@@ -27,7 +27,6 @@ const viewportPadding = 8;
 export const SourceEditorContextMenu = ({ commandContext, state, onClose }: SourceEditorContextMenuProps) => {
   const elements = useCadDocumentStore(effectiveElements);
   const selectedElementIds = useCadUiStore((ui) => ui.selectedElementIds);
-  const showPrintLayout = useCadUiStore((ui) => ui.showPrintLayout);
   const groupFoldById = useCadUiStore((ui) => ui.groupFoldById);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState({ x: state.x, y: state.y });
@@ -45,11 +44,10 @@ export const SourceEditorContextMenu = ({ commandContext, state, onClose }: Sour
       commandContext,
       element,
       selectedElements,
-      showPrintControls: showPrintLayout,
       targetEvaluationLimitIndex,
       groupFoldById
     });
-  }, [commandContext, element, elements, selectedElementIdSet, showPrintLayout, targetEvaluationLimitIndex, groupFoldById]);
+  }, [commandContext, element, elements, selectedElementIdSet, targetEvaluationLimitIndex, groupFoldById]);
 
   useLayoutEffect(() => {
     const menu = menuRef.current;

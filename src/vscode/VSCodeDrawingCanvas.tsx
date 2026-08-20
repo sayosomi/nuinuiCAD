@@ -69,7 +69,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const canvasViewport = useCadUiStore((state) => state.canvasViewport);
     const showCanvasElementNames = useCadUiStore((state) => state.showCanvasElementNames);
     const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
-    const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
     const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
@@ -169,7 +168,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       canvasViewport,
       showCanvasElementNames,
       showCanvasPoints,
-      showPrintPreviewWindow,
       renderFixedCanvasChrome: false,
       activePointPickTarget,
       activeNumericReferencePickTarget,
@@ -212,7 +210,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       applyPickedPoint: (action) => dispatchCommand("applyPickedPoint", action),
       toggleCanvasElementNames: () => dispatchCommand("toggleCanvasElementNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
-      togglePrintPreviewWindow: () => dispatchCommand("togglePrintPreviewWindow"),
       resolveImageSourceUrl: (sourcePath) => sourcePath,
       renderHostOverlay: (viewportSize) => (
         <VSCodeCanvasRibbonOverlay
@@ -246,7 +243,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       selectedElementIds,
       showCanvasElementNames,
       showCanvasPoints,
-      showPrintPreviewWindow,
       visibilityProfiles,
       executeRibbonCommand,
       onCanvasRibbonPositionCommit,

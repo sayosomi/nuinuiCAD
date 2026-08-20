@@ -43,7 +43,7 @@ const valueFor = (element: CadElement, parameterKey: string) => {
   switch (definition.kind) {
     case "number": return "12";
     case "boolean": return "true";
-    case "reference": return parameterKey === "printAnchor" ? "(1, 2)" : "@A";
+    case "reference": return "@A";
     case "lineEndpointReference": return "@AB.end";
     case "lineReference": return "@AB";
     case "lineReferenceList": return "[@AB, @CD]";

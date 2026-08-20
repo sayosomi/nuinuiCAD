@@ -619,28 +619,4 @@ describe("InspectorPanel runtime values (Task 45)", () => {
     expect(screen.getByText("実行時値").closest(".dependency-group")!.querySelector(".inspector-diagnostic.error")).not.toBeNull();
   });
 
-  it("shows unknown instead of the last value when the evaluation is stale, and hides consumer rows", () => {
-    renderInspectorForRuntimeBinding(
-      ["nui 4", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"),
-      "印刷",
-      { isEvaluationStale: true }
-    );
-
-    expect(within(screen.getByText("最終値").closest(".inspector-row")!).getByText("不明(評価待ち)")).toBeInTheDocument();
-    expect(screen.queryByText("参照元")).not.toBeInTheDocument();
-  });
-
-  it("lists a consumer row and jumps to its exact property value span when clicked", () => {
-    const { handle } = renderInspectorForRuntimeBinding(
-      ["nui 4", "let 印刷: boolean = true", "group G (printEnabled: @印刷) {", "}"].join("\n"),
-      "印刷"
-    );
-
-    expect(screen.getByText("参照元")).toBeInTheDocument();
-    const row = screen.getByText("G").closest(".inspector-row")!;
-    fireEvent.click(row);
-
-    expect(useCadUiStore.getState().selectedElementId).not.toBeNull();
-    expect(handle.jumpToPropertyBindingValue).toHaveBeenCalled();
-  });
 });

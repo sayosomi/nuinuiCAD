@@ -2,7 +2,7 @@
 // Geometry measurements && runtime iteration bindings remain in that
 // language; only a resolved typed `@name` occurrence is replaced by
 // its stable BindingId at runtime.
-import type { CadElement, ElementId, NumericValue, PrintLayout } from "../types/geometry";
+import type { CadElement, ElementId, Layout, NumericValue } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
@@ -14,22 +14,15 @@ import {
   placeAtAttrKey,
   placeCoordinateAttrKeys,
   placeNumericAttrKeys,
-  placeXAttrKey,
-  placeYAttrKey,
-  printLayoutCanvasAttrKey,
-  printLayoutColumnsAttrKey,
-  printLayoutCoordinateAttrKeys,
-  printLayoutHeightAttrKey,
-  printLayoutNumericAttrKeys,
-  printLayoutOverlapAttrKey,
-  printLayoutRowsAttrKey,
-  printLayoutScaleAttrKey,
-  printLayoutWidthAttrKey
+  placeScaleAttrKey,
+  layoutNumericAttrKeys,
+  printNumericAttrKeys,
+  svgNumericAttrKeys
 } from "../dsl/dslPrintLayoutAttributes";
 import { buildPlacementRefsByStatementIndex } from "../dsl/dslPrintLayoutPlacementIndex";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
-import { isNumericExpression } from "../geometry/numericExpressions";
+import { isNumericExpression, makeNumericExpression } from "../geometry/numericExpressions";
 import { tokenize } from "../geometry/numericExpressionParser";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
@@ -85,7 +78,7 @@ type Candidate = {
   source: string;
   valueSpan: DslSpan;
   references: readonly CandidateReference[];
-  /** Absent for printLayout/place occurrences. */
+  /** Absent for layout/output/place occurrences. */
   elementId?: ElementId;
 };
 
@@ -122,25 +115,23 @@ const attributeValueSpan = (statement: DslStatement, attrKey: string): DslSpan |
 
 export const compileNumericBindings = ({
   statements, elementIdByStatementIndex, elements, bindingAnalysis, spans,
-  printLayouts, printLayoutIdsByStatementIndex, includeStatement
+  layouts, layoutIdsByStatementIndex, includeStatement
 }: {
   statements: readonly DslStatement[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   elements: readonly CadElement[];
   bindingAnalysis: BindingAnalysis;
   spans: DiagnosticSpanContext;
-  /** Task 53: needed to resolve printLayout/place `@name` occurrences to
-   * typed bindings - absent (or without any printLayouts) leaves those
-   * statements untouched by this compiler, same as before Task 53. */
-  printLayouts?: readonly PrintLayout[];
-  printLayoutIdsByStatementIndex?: ReadonlyMap<number, string>;
+  /** Source layouts are the only output-time numeric model in SAY-63. */
+  layouts?: readonly Layout[];
+  layoutIdsByStatementIndex?: ReadonlyMap<number, string>;
   includeStatement?: DslStatementInclusion;
 }): NumericBindingCompilation => {
   const byId = new Map(elements.map((element) => [element.id, element]));
   const sourceOrderByElementId = new Map<ElementId, number>();
   for (const [sourceOrder, elementId] of elementIdByStatementIndex) sourceOrderByElementId.set(elementId, sourceOrder);
   const nameContext = createElementNameContext([...elements]);
-  const printLayoutById = new Map((printLayouts ?? []).map((layout) => [layout.id, layout]));
+  const layoutById = new Map((layouts ?? []).map((layout) => [layout.id, layout]));
   const candidates: Candidate[] = [];
   const requests: SiteReferenceRequest[] = [];
 
@@ -182,7 +173,7 @@ export const compileNumericBindings = ({
     }));
   };
 
-  const placementRefByStatementIndex = buildPlacementRefsByStatementIndex(statements, printLayoutIdsByStatementIndex);
+  const placementRefByStatementIndex = buildPlacementRefsByStatementIndex(statements, layoutIdsByStatementIndex);
 
   statements.forEach((statement, statementIndex) => {
     if (includeStatement && !includeStatement(statement, statementIndex)) return;
@@ -205,56 +196,33 @@ export const compileNumericBindings = ({
       return;
     }
 
-    if (statement.kind === "printLayout") {
-      const layoutId = printLayoutIdsByStatementIndex?.get(statementIndex);
-      const layout = layoutId ? printLayoutById.get(layoutId) : undefined;
+    if (statement.kind === "layout" || statement.kind === "print" || statement.kind === "svg") {
       const logical = spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
-      if (!layout || !logical) return;
-      const numericFieldByAttr: Record<string, NumericValue | undefined> = {
-        [printLayoutWidthAttrKey]: layout.svgCanvasWidthMm,
-        [printLayoutHeightAttrKey]: layout.svgCanvasHeightMm,
-        [printLayoutColumnsAttrKey]: layout.columns,
-        [printLayoutRowsAttrKey]: layout.rows,
-        [printLayoutOverlapAttrKey]: layout.overlapMm,
-        [printLayoutScaleAttrKey]: layout.scale
-      };
-      for (const attrKey of printLayoutNumericAttrKeys) {
+      if (!logical) return;
+      const keys = statement.kind === "layout" ? layoutNumericAttrKeys : statement.kind === "print" ? printNumericAttrKeys : svgNumericAttrKeys;
+      for (const attrKey of keys) {
+        const source = attributeValueSpan(statement, attrKey);
+        if (!source) continue;
         pushCandidate(
           propertyBindingOccurrenceKey(statementIndex, attrKey),
-          statement, statementIndex, attrKey, numericFieldByAttr[attrKey], logical.logicalText, attributeValueSpan(statement, attrKey)
+          statement, statementIndex, attrKey, makeNumericExpression(logical.logicalText.slice(source.start, source.end)), logical.logicalText, source
         );
-      }
-      for (const attrKey of printLayoutCoordinateAttrKeys) {
-        const outer = attributeValueSpan(statement, attrKey);
-        (["x", "y"] as const).forEach((component) => {
-          const componentSpan = outer ? coordinateComponent(logical.logicalText, outer, component) : null;
-          const value = attrKey === printLayoutCanvasAttrKey
-            ? (component === "x" ? layout.svgCanvasWidthMm : layout.svgCanvasHeightMm)
-            : undefined;
-          const parameterKey = `${attrKey}:${component}`;
-          pushCandidate(
-            propertyBindingOccurrenceKey(statementIndex, parameterKey),
-            statement, statementIndex, parameterKey, value, logical.logicalText, componentSpan
-          );
-        });
       }
       return;
     }
 
     if (statement.kind === "place") {
       const ref = placementRefByStatementIndex.get(statementIndex);
-      const layout = ref ? printLayoutById.get(ref.layoutId) : undefined;
+      const layout = ref ? layoutById.get(ref.layoutId) : undefined;
       const placement = layout?.placements[ref!.placementIndex];
       const logical = spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
       if (!ref || !layout || !placement || !logical) return;
       for (const attrKey of placeNumericAttrKeys) {
         const value = attrKey === placeAngleAttrKey
           ? placement.angleDeg
-          : attrKey === placeXAttrKey
-            ? placement.x
-            : attrKey === placeYAttrKey
-              ? placement.y
-              : undefined;
+          : attrKey === placeScaleAttrKey
+            ? placement.scale
+            : undefined;
         pushCandidate(
           propertyBindingOccurrenceKey(statementIndex, attrKey),
           statement, statementIndex, attrKey, value, logical.logicalText, attributeValueSpan(statement, attrKey)
@@ -264,7 +232,7 @@ export const compileNumericBindings = ({
         const outer = attributeValueSpan(statement, attrKey);
         (["x", "y"] as const).forEach((component) => {
           const componentSpan = outer ? coordinateComponent(logical.logicalText, outer, component) : null;
-          const value = attrKey === placeAtAttrKey ? (component === "x" ? placement.x : placement.y) : undefined;
+          const value = attrKey === placeAtAttrKey ? (component === "x" ? placement.at.x : placement.at.y) : undefined;
           const parameterKey = `${attrKey}:${component}`;
           pushCandidate(
             propertyBindingOccurrenceKey(statementIndex, parameterKey),

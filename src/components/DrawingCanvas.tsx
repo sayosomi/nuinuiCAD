@@ -164,7 +164,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvasViewport,
     showCanvasElementNames,
     showCanvasPoints,
-    showPrintPreviewWindow,
     activePointPickTarget,
     activeNumericReferencePickTarget,
     activeLinePickTarget,
@@ -1239,14 +1238,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
               onClick={() => hostAdapter.toggleCanvasPoints()}
             >
               点
-            </button>
-            <button
-              type="button"
-              className={showPrintPreviewWindow ? "active-toggle" : ""}
-              aria-pressed={showPrintPreviewWindow}
-              onClick={() => hostAdapter.togglePrintPreviewWindow()}
-            >
-              印刷
             </button>
           </div>
         ) : null}

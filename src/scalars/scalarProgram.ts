@@ -24,7 +24,7 @@ export type ScalarProgram = {
   statements: readonly ScalarProgramStatement[];
   /** Statement-stream position of stop, not an elements-array index. */
   evaluationLimitSourceOrder?: number;
-  /** Resolved lexical bindings in printLayout scopes remain evaluable after stop. */
+  /** Reserved for future output-time scalar evaluation; SAY-63 has no local bindings. */
   postStopBindingIds?: readonly BindingId[];
 };
 
@@ -44,7 +44,6 @@ export const lowerScalarProgram = ({
   evaluationLimitSourceOrder?: number;
 }): ScalarProgram => {
   const statements: ScalarProgramStatement[] = [];
-  const postStopBindingIds: BindingId[] = [];
   for (const bindingId of selectCompiledProgramBindings(bindingAnalysis).bindingIds) {
     const binding = bindingAnalysis.catalog.bindingsById.get(bindingId);
     // Program eligibility has one shared owner (Task 13R). This type filter
@@ -56,9 +55,6 @@ export const lowerScalarProgram = ({
     }
     const initializer = typedInitializerByBindingId.get(bindingId);
     if (!initializer) throw new Error(`scalarProgram: eligible binding ${bindingId} lacks a typed initializer`);
-    if (bindingAnalysis.catalog.scopeIndex.scopes.get(binding.effectiveScopeId)?.kind === "printLayout") {
-      postStopBindingIds.push(bindingId);
-    }
     statements.push({
       kind: "declare",
       bindingId,
@@ -73,7 +69,6 @@ export const lowerScalarProgram = ({
   }
   return {
     statements,
-    ...(postStopBindingIds.length > 0 ? { postStopBindingIds } : {}),
     ...(evaluationLimitSourceOrder !== undefined
       ? { evaluationLimitSourceOrder }
       : positionMap.evaluationLimit

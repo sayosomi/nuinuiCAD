@@ -16,7 +16,7 @@ const choiceCapabilityDefinition: ParameterDefinition = {
 };
 
 const booleanCapabilityDefinition: ParameterDefinition = {
-  key: "printEnabled",
+  key: "activity",
   label: "印刷",
   kind: "boolean"
 };
@@ -48,8 +48,8 @@ describe("propertyScalarValueCompletionContext", () => {
   });
 
   it("offers a boolean literal context for a boolean property with no @ prefix", () => {
-    const line = "printEnabled: ";
-    const span = { start: "printEnabled: ".length, end: line.length };
+    const line = "activity: ";
+    const span = { start: "activity: ".length, end: line.length };
     const context = propertyScalarValueCompletionContext(line, span, line.length, booleanCapabilityDefinition);
     expect(context).toEqual({ kind: "booleanLiteral", from: span.start, to: line.length });
   });
@@ -69,8 +69,8 @@ describe("propertyScalarValueCompletionContext", () => {
   });
 
   it("enters the shared expression lane for a boolean builtin call", () => {
-    const line = "printEnabled: isClose(1, ";
-    const span = { start: "printEnabled: ".length, end: line.length };
+    const line = "activity: isClose(1, ";
+    const span = { start: "activity: ".length, end: line.length };
     expect(propertyScalarValueCompletionContext(line, span, line.length, booleanCapabilityDefinition)).toMatchObject({
       kind: "expression",
       positionContext: { kind: "operand", expectedType: { kind: "number" } }

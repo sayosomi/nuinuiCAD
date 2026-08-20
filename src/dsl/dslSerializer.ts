@@ -165,7 +165,6 @@ export const serializeVisibilitySettingsLines = (
 ];
 
 const visibilitySettingsDsl = (options: SerializeDslOptions) => {
-  const printLayouts = options.printLayouts ?? [];
   const lines: string[] = [
     ...serializeVisibilitySettingsLines(
       options.visibilityRoles ?? [],
@@ -173,11 +172,5 @@ const visibilitySettingsDsl = (options: SerializeDslOptions) => {
       options.activeVisibilityProfileId
     )
   ];
-  for (const layout of printLayouts) {
-    if (!layout.visibilityProfileId) continue;
-    lines.push(
-      `printLayout ${formatDslName(layout.name.trim() || layout.id)} (output: ${layout.outputKind}, view: ${formatDslName(layout.visibilityProfileId)})`
-    );
-  }
   return lines.length > 0 ? [...lines, ""] : [];
 };

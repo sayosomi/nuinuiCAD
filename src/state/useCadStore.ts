@@ -15,18 +15,12 @@ export type {
   ActiveNumericReferencePickTarget,
   ActivePickCursor,
   ActivePointPickTarget,
-  CanvasViewport,
-  PrintPreviewWindow
+  CanvasViewport
 } from "./cadUiStore";
 export {
   DEFAULT_CANVAS_VIEWPORT,
-  DEFAULT_PRINT_PREVIEW_WINDOW,
   MAX_CANVAS_ZOOM,
-  MAX_PRINT_PREVIEW_ZOOM,
   MIN_CANVAS_ZOOM,
-  MIN_PRINT_PREVIEW_HEIGHT,
-  MIN_PRINT_PREVIEW_WIDTH,
-  MIN_PRINT_PREVIEW_ZOOM,
   useCadUiStore
 } from "./cadUiStore";
 export type { CadDocumentState } from "./cadDocumentStore";

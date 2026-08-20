@@ -55,17 +55,3 @@ point after = coordinate(
   x: 99,
   y: 99
 )
-
-printLayout A4 (
-  output: pdf,
-  view: 印刷,
-  paper: a4,
-  orientation: portrait,
-  columns: 2,
-  rows: 2,
-  overlap: 10,
-  scale: 1,
-  canvas: (410, 584)
-) {
-  place @前身頃(at: (0, 15), angle: 0, mirrorX: false)
-}

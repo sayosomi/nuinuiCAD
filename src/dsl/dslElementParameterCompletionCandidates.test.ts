@@ -144,7 +144,7 @@ describe("dslElementParameterCompletionOptions", () => {
     expect(inside.map((option) => option.path)).toContain("length");
   });
 
-  it("resolves element-property candidates for a printLayout header attribute (scale=), even though printLayout is a BlockFrame scope with no elementId", () => {
+  it("resolves element-property candidates for a layout header attribute (scale=), even though layout is a BlockFrame scope with no elementId", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -153,23 +153,22 @@ describe("dslElementParameterCompletionOptions", () => {
       "group G {",
       "  point C = coordinate(x: 0, y: 0)",
       "}",
-      "printLayout Layout1 (",
-      "  columns: 2,",
+      "layout Layout1 (",
       "  scale: 1+@AB.length",
       ") {",
-      "  place @G(at: (0, 0), angle: 0+@AB.length)",
+      "  place @G(at: (0, 0), angle: 0+@AB.length, mirror: false)",
       "}"
     ].join("\n");
     const { elements, ids } = identities(source);
     const abId = ids.get(4)!;
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
-    // Line 10: "  scale: 1+@AB.length" - physically after printLayout's own
+    // Line 9: "  scale: 1+@AB.length" - physically after layout's own
     // opening line (8) but still part of the same statement's continuation,
     // which is exactly the shape dslScopeBeforeParsedLine reports as an
-    // enclosing printLayout BlockFrame.
+    // enclosing layout BlockFrame.
     const options = dslElementParameterCompletionOptions({
       source,
-      cursorLine: 10,
+      cursorLine: 9,
       statementElementIds: ids,
       elements,
       elementToken: "AB",
@@ -180,7 +179,7 @@ describe("dslElementParameterCompletionOptions", () => {
     expect(options.map((option) => option.path)).toContain("length");
   });
 
-  it("resolves element-property candidates for a place @attribute(angle=) inside a printLayout block", () => {
+  it("resolves element-property candidates for a place @attribute(angle=) inside a layout block", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -189,11 +188,10 @@ describe("dslElementParameterCompletionOptions", () => {
       "group G {",
       "  point C = coordinate(x: 0, y: 0)",
       "}",
-      "printLayout Layout1 (",
-      "  columns: 2,",
+      "layout Layout1 (",
       "  scale: 1",
       ") {",
-      "  place @G(at: (0, 0), angle: 0+@AB.length)",
+      "  place @G(at: (0, 0), angle: 0+@AB.length, mirror: false)",
       "}"
     ].join("\n");
     const { elements, ids } = identities(source);
@@ -201,7 +199,7 @@ describe("dslElementParameterCompletionOptions", () => {
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
     const options = dslElementParameterCompletionOptions({
       source,
-      cursorLine: 12, // "  place @G(at: (0, 0), angle: 0+@AB.length)"
+      cursorLine: 11, // "  place @G(at: (0, 0), angle: 0+@AB.length, mirror: false)"
       statementElementIds: ids,
       elements,
       elementToken: "AB",

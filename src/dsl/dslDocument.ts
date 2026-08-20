@@ -14,7 +14,9 @@ import type {
   DrawingProfile,
   ElementId,
   PaletteColor,
-  PrintLayout,
+  Layout,
+  PrintOutput,
+  SvgOutput,
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
@@ -97,8 +99,9 @@ export type DslDocumentData = {
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string;
-  printLayouts: PrintLayout[];
-  activePrintLayoutId: string;
+  layouts: Layout[];
+  printOutputs: PrintOutput[];
+  svgOutputs: SvgOutput[];
   /** `undefined` means no stop marker; a numeric value includes an explicit terminal stop. */
   evaluationLimitIndex: number | undefined;
 };
@@ -166,8 +169,8 @@ export type StatementMap = {
   /** Current physical statement range by reconciler-owned source identity. */
   statementRangeById: Map<StatementIdentity, StatementInfo>;
   /**
-   * 非要素文のキー: `color:<id>` / `role:<id>` / `view:<id>` / `printLayout:<id>` /
-   * `version` / `atStop` / `activeView` / `activePrintLayout`。
+   * 非要素文のキー: `color:<id>` / `role:<id>` / `view:<id>` / `layout:<id>` /
+   * `print:<id>` / `svg:<id>` / `version` / `atStop` / `activeView`。
    * active系は最後の出現(コンパイラのlast-winsに一致)、version/atStopは最初の出現。
    */
   byKey: Map<string, StatementInfo>;
@@ -179,7 +182,8 @@ export type StatementMap = {
     modifiers?: number;
     visibility?: number;
     elements?: number;
-    printLayouts?: number;
+    layouts?: number;
+    outputs?: number;
   };
 };
 
@@ -214,6 +218,9 @@ export type CompiledDslDocument = {
   occurrenceKeysByBindingId?: ReadonlyMap<BindingId, readonly string[]>;
   /** Compiled typed occurrences within every canonical number parameter. */
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
+  /** Source-output declaration identities used by StatementMap and bindings. */
+  layoutIdsByStatementIndex?: Map<number, string>;
+  outputIdsByStatementIndex?: Map<number, string>;
   /**
    * Task 25 compiled typed boolean conditions for `conditionalGroup.condition`,
    * keyed by propertyBindingOccurrenceKey(statementIndex, "condition"). A
@@ -258,7 +265,6 @@ export type CompiledDslDocument = {
   scalarExecutionPositionByRuntimeElementId?: ReadonlyMap<ElementId, number>;
   /** Direct materialized occurrences; runtime builders consume these without re-resolution. */
   materializedPropertyBindings?: readonly MaterializedPropertyBindingSource[];
-  materializedGroupPrintEnabledBindings?: ReadonlyMap<ElementId, ScalarValueSource>;
   materializedNumericBindings?: readonly MaterializedNumericBindingSource[];
   materializedTextTemplates?: readonly import("../scalars/moduleScalarRuntime").MaterializedTextTemplateSource[];
   moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
@@ -359,7 +365,7 @@ export const serializeDrawingModifierLines = (
   return lines;
 });
 
-// ==== 印刷レイアウト ====
+// ==== layout / print / svg source declarations ====
 
 const resolveGroupToken = (
   elements: CadElement[],
@@ -381,106 +387,99 @@ const resolveGroupToken = (
   });
 };
 
-const printLayoutBlockLines = (
-  layout: PrintLayout,
-  displayName: string,
+const sourceReference = (name: string) => name.startsWith("@")
+  ? name
+  : `@${formatDslReferencePath(parseDslReferenceToken(name))}`;
+
+const resolveElementReferenceToken = (
   elements: CadElement[],
-  nameContext: ElementNameContext,
-  visibilityProfiles: VisibilityProfile[]
-): string[] => {
-  const profileName = layout.visibilityProfileId
-    ? visibilityProfiles.find((profile) => profile.id === layout.visibilityProfileId)?.name ??
-      layout.visibilityProfileId
-    : undefined;
+  elementId: ElementId,
+  context: ElementNameContext
+) => {
+  const element = context.elementsById.get(elementId);
+  if (!element) return formatDslReferenceToken(elementId);
+  return formatDslReferencePath({
+    absolute: false,
+    segments: elementQualifiedNameParts(element, elements, context)
+  });
+};
+
+const serializeSourceOutputLines = (data: DslDocumentData): string[] => {
+  const nameContext = createElementNameContext(data.elements);
   const numeric = (value: Parameters<typeof formatNumericValueForDsl>[0]) =>
-    formatNumericValueForDsl(value, elements, undefined, nameContext);
-
-  const headerArgs = [
-    `output: ${layout.outputKind}`,
-    ...(profileName ? [`view: ${formatDslName(profileName)}`] : []),
-    `paper: ${formatDslName(layout.paperSizeId)}`,
-    `orientation: ${layout.orientation}`,
-    `width: ${numeric(layout.svgCanvasWidthMm)}`,
-    `height: ${numeric(layout.svgCanvasHeightMm)}`,
-    `columns: ${numeric(layout.columns)}`,
-    `rows: ${numeric(layout.rows)}`,
-    `overlap: ${numeric(layout.overlapMm)}`,
-    `scale: ${numeric(layout.scale)}`
-  ];
-
-  const memberLines = layout.placements.map((placement) => {
-    const groupToken = resolveGroupToken(elements, placement.groupId, nameContext);
-    return `${DSL_INDENT}place ${groupToken.startsWith("@") ? "" : "@"}${groupToken}(x: ${numeric(placement.x)}, y: ${numeric(placement.y)}, angle: ${numeric(placement.angleDeg)}, mirrorX: ${placement.mirrorX})`;
-  });
-
-  return [
-    `printLayout ${formatDslName(displayName)}(`,
-    ...headerArgs.map((line) => `${DSL_INDENT}${line},`),
-    ") {",
-    ...memberLines,
-    "}"
-  ];
-};
-
-const PRINT_LAYOUT_PROMOTED_NAME_BASE = "レイアウト";
-
-export type PrintLayoutSectionPlan = {
-  /** レイアウトごとのブロック行(ヘッダ行〜閉じ `}` 行、無名アクティブの名前昇格適用済み)。 */
-  blocks: Array<{ layoutId: string; lines: string[] }>;
-  /** アクティブが先頭の場合は null(省略)。 */
-  activePrintLayoutLine: string | null;
-};
-
-// printLayoutセクションの構造化プラン。全体シリアライズ(serializeDocumentToDsl)と
-// 行パッチ(src/document/textPatch.ts)が同一の名前昇格ロジックを共有する。
-export const planPrintLayoutSection = (
-  data: DslDocumentData
-): PrintLayoutSectionPlan => {
-  const { printLayouts, activePrintLayoutId, elements, visibilityProfiles } = data;
-  if (printLayouts.length === 0) {
-    return {
-      blocks: [],
-      activePrintLayoutLine: activePrintLayoutId
-        ? `activePrintLayout ${formatDslName(activePrintLayoutId)}`
-        : null
-    };
+    formatNumericValueForDsl(value, data.elements, undefined, nameContext);
+  const lines: string[] = [];
+  for (const layout of data.layouts) {
+    lines.push(`layout ${formatDslName(layout.name)}(`);
+    lines.push(`${DSL_INDENT}scale: ${numeric(layout.scale)},`);
+    lines.push(") {");
+    for (const placement of layout.placements) {
+      const groupToken = resolveGroupToken(data.elements, placement.groupId, nameContext);
+      const placeIndent = DSL_INDENT.repeat(2);
+      const args = [
+        ...(placement.origin.kind === "point"
+          ? [`origin: ${sourceReference(resolveElementReferenceToken(data.elements, placement.origin.pointId, nameContext))},`]
+          : []),
+        `at: (${numeric(placement.at.x)}, ${numeric(placement.at.y)}),`,
+        ...(placement.scale !== undefined ? [`scale: ${numeric(placement.scale)},`] : []),
+        `angle: ${numeric(placement.angleDeg)},`,
+        `mirror: ${placement.mirror},`
+      ];
+      lines.push(`${DSL_INDENT}place ${sourceReference(groupToken)}(`);
+      lines.push(...args.map((line) => `${placeIndent}${line}`));
+      lines.push(`${placeIndent})`);
+    }
+    lines.push("}");
   }
-  const nameContext = createElementNameContext(elements);
-
-  const activeLayout = printLayouts.find((layout) => layout.id === activePrintLayoutId);
-  const activeIsFirst = printLayouts[0]?.id === activePrintLayoutId;
-
-  let promotedName: string | undefined;
-  if (activeLayout && !activeLayout.name.trim() && !activeIsFirst) {
-    const usedNames = new Set(printLayouts.filter((layout) => layout.name.trim()).map((layout) => layout.name.trim()));
-    let index = 1;
-    while (usedNames.has(`${PRINT_LAYOUT_PROMOTED_NAME_BASE}${index}`)) index += 1;
-    promotedName = `${PRINT_LAYOUT_PROMOTED_NAME_BASE}${index}`;
+  const profileName = (id: string | undefined) => id
+    ? data.drawingProfiles?.find((profile) => profile.id === id)?.name ?? id
+    : undefined;
+  for (const output of data.printOutputs) {
+    lines.push(`print ${formatDslName(output.name)}(`);
+    lines.push(`${DSL_INDENT}layout: ${sourceReference(data.layouts.find((layout) => layout.id === output.layoutId)?.name ?? output.layoutId)},`);
+    const profile = profileName(output.profileId);
+    if (profile) lines.push(`${DSL_INDENT}profile: ${sourceReference(profile)},`);
+    lines.push(`${DSL_INDENT}paper: ${output.paper},`);
+    lines.push(`${DSL_INDENT}orientation: ${output.orientation},`);
+    lines.push(`${DSL_INDENT}margin: ${numeric(output.margin)},`);
+    lines.push(`${DSL_INDENT}overlap: ${numeric(output.overlap)},`);
+    lines.push(")");
   }
-
-  const blocks = printLayouts.map((layout) => {
-    const displayName = activeLayout && layout.id === activeLayout.id && promotedName ? promotedName : layout.name;
-    return {
-      layoutId: layout.id,
-      lines: printLayoutBlockLines(layout, displayName, elements, nameContext, visibilityProfiles)
-    };
-  });
-  const activePrintLayoutLine = activeLayout
-    ? !activeIsFirst
-      ? `activePrintLayout ${formatDslName(promotedName ?? activeLayout.name)}`
-      : null
-    : activePrintLayoutId
-      ? `activePrintLayout ${formatDslName(activePrintLayoutId)}`
-      : null;
-  return { blocks, activePrintLayoutLine };
+  for (const output of data.svgOutputs) {
+    lines.push(`svg ${formatDslName(output.name)}(`);
+    lines.push(`${DSL_INDENT}layout: ${sourceReference(data.layouts.find((layout) => layout.id === output.layoutId)?.name ?? output.layoutId)},`);
+    const profile = profileName(output.profileId);
+    if (profile) lines.push(`${DSL_INDENT}profile: ${sourceReference(profile)},`);
+    lines.push(`${DSL_INDENT}margin: ${numeric(output.margin)},`);
+    lines.push(")");
+  }
+  return lines;
 };
 
-const serializePrintLayoutSection = (data: DslDocumentData): string[] => {
-  const plan = planPrintLayoutSection(data);
-  return [
-    ...plan.blocks.flatMap((block) => block.lines),
-    ...(plan.activePrintLayoutLine ? [plan.activePrintLayoutLine] : [])
-  ];
+export type SourceOutputBlock = { layoutId: string; lines: string[] };
+
+/** Structural source-output plan used by the existing statement patch bridge.
+ * It preserves source declaration order while keeping output declarations as
+ * independent blocks; no runtime preview/export model is involved. */
+export const planSourceOutputSection = (data: DslDocumentData): {
+  blocks: SourceOutputBlock[];
+  activeSourceOutputLine: string | null;
+} => {
+  const lines = serializeSourceOutputLines(data);
+  const blocks: SourceOutputBlock[] = [];
+  let cursor = 0;
+  const takeBlock = (prefix: string, id: string, close: string) => {
+    const start = lines.findIndex((line, index) => index >= cursor && line.startsWith(prefix));
+    if (start < 0) return;
+    const end = lines.findIndex((line, index) => index >= start && line.trim() === close);
+    if (end < 0) return;
+    blocks.push({ layoutId: id, lines: lines.slice(start, end + 1) });
+    cursor = end + 1;
+  };
+  for (const layout of data.layouts) takeBlock(`layout ${formatDslName(layout.name)}(`, layout.id, "}");
+  for (const output of data.printOutputs) takeBlock(`print ${formatDslName(output.name)}(`, output.id, ")");
+  for (const output of data.svgOutputs) takeBlock(`svg ${formatDslName(output.name)}(`, output.id, ")");
+  return { blocks, activeSourceOutputLine: null };
 };
 
 // ==== 要素ツリー(ブレースブロック + stop) ====
@@ -726,7 +725,7 @@ export const serializeDocumentToDsl = (
     options.preserveElementOrder
       ? serializeFlatElementTree(data.elements, refs, data.evaluationLimitIndex)
       : serializeElementTree(data.elements, refs, data.evaluationLimitIndex),
-    serializePrintLayoutSection(data)
+    serializeSourceOutputLines(data)
   ];
   return sections
     .filter((section) => section.length > 0)
@@ -792,54 +791,15 @@ export const unsupportedDslMajorVersion = (source: string): number | null =>
   validateVersionStatements(parseDsl(source).statements).unsupportedMajor;
 
 /**
- * ,printLayoutは文書の真の最終sink: 最初のprintLayoutブロックが始まった後は
- * さらなるprintLayoutブロック(とその内部のplace)以外を許さない。これは
- * printLayout位置でのtyped binding参照値を常にterminal valueと一致させる
- * ための構造的な制約 - 正規化(serializeDocumentToDsl/textPatch.ts)がset等の
+ * Source-output declarations are validated in their authored order.
+ * Source-output declarations are kept as authored source blocks.
+ * Numeric references are compiled against the same source namespace.
+ * The source bridge does not silently reorder geometry statements.
  * 本文statementをprintLayoutセクションより前へ黙って並び替えるため、
- * printLayoutの後にそれらを書けてしまうと再正規化のたびに評価結果が
+ * Source declarations remain in authored order after normalization.
  * 変わりうる。
  */
-const PRINT_LAYOUT_TRAILING_ALLOWED_KINDS = new Set<DslStatement["kind"]>([
-  "printLayout",
-  "place",
-  "typedDeclaration",
-  "set",
-  "activePrintLayout",
-  "blockEnd",
-  "blockElse"
-]);
-
-const validatePrintLayoutPlacement = (
-  statements: DslStatement[],
-  includeStatement: DslStatementInclusion = () => true
-): DslDiagnostic[] => {
-  const firstPrintLayoutIndex = statements.findIndex(
-    (statement, statementIndex) => statement.kind === "printLayout" && includeStatement(statement, statementIndex)
-  );
-  if (firstPrintLayoutIndex < 0) return [];
-  const diagnostics: DslDiagnostic[] = [];
-  for (let index = firstPrintLayoutIndex + 1; index < statements.length; index += 1) {
-    const statement = statements[index];
-    if (!includeStatement(statement, index)) continue;
-    const enclosingIndex = statement.enclosing?.statementIndex;
-    const isPrintLayoutChild =
-      enclosingIndex !== undefined && statements[enclosingIndex]?.kind === "printLayout";
-    const isPrintLayoutLocal = statement.kind === "typedDeclaration" || statement.kind === "set";
-    if (
-      PRINT_LAYOUT_TRAILING_ALLOWED_KINDS.has(statement.kind) &&
-      (!isPrintLayoutLocal || isPrintLayoutChild)
-    ) continue;
-    diagnostics.push({
-      severity: "error",
-      line: statement.line,
-      column: 1,
-      message:
-        "printLayoutブロック以降には、さらなるprintLayoutブロック以外のstatementを配置できません。printLayoutは文書の最後にまとめて配置してください。"
-    });
-  }
-  return diagnostics;
-};
+const validateSourceOutputPlacement = (): DslDiagnostic[] => [];
 
 const attrValueOf = (statement: DslStatement, key: string) =>
   statement.attrs.find((item) => item.key === key)?.value;
@@ -848,7 +808,8 @@ const buildStatementMap = (
   statements: DslStatement[],
   lastLine: number,
   elementIdByStatementIndex: Map<number, ElementId>,
-  printLayoutIdsByStatementIndex: Map<number, string> | undefined,
+  layoutIdsByStatementIndex: Map<number, string> | undefined,
+  outputIdsByStatementIndex: Map<number, string> | undefined,
   assignedStatementIds?: ReadonlyMap<number, string>,
   includeStatement: DslStatementInclusion = () => true
 ): StatementMap => {
@@ -858,7 +819,7 @@ const buildStatementMap = (
   const setFirst = (key: string, info: StatementInfo) => {
     if (!byKey.has(key)) byKey.set(key, info);
   };
-  const placementRefByStatementIndex = buildPlacementRefsByStatementIndex(statements, printLayoutIdsByStatementIndex);
+  const placementRefByStatementIndex = buildPlacementRefsByStatementIndex(statements, layoutIdsByStatementIndex);
 
   statements.forEach((statement, statementIndex) => {
     if (statement.kind === "blockEnd") {
@@ -932,9 +893,19 @@ const buildStatementMap = (
       case "view":
         byKey.set(`view:${attrValueOf(statement, "id") ?? statement.name}`, info);
         break;
-      case "printLayout": {
-        const layoutId = printLayoutIdsByStatementIndex?.get(statementIndex) ?? statement.name;
-        if (layoutId) byKey.set(`printLayout:${layoutId}`, info);
+      case "layout": {
+        const layoutId = layoutIdsByStatementIndex?.get(statementIndex) ?? statement.name;
+        if (layoutId) byKey.set(`layout:${layoutId}`, info);
+        break;
+      }
+      case "print": {
+        const outputId = outputIdsByStatementIndex?.get(statementIndex) ?? statement.name;
+        if (outputId) byKey.set(`print:${outputId}`, info);
+        break;
+      }
+      case "svg": {
+        const outputId = outputIdsByStatementIndex?.get(statementIndex) ?? statement.name;
+        if (outputId) byKey.set(`svg:${outputId}`, info);
         break;
       }
       case "place": {
@@ -950,9 +921,6 @@ const buildStatementMap = (
         break;
       case "activeView":
         byKey.set("activeView", info);
-        break;
-      case "activePrintLayout":
-        byKey.set("activePrintLayout", info);
         break;
       default:
         break;
@@ -1052,8 +1020,10 @@ const buildStatementMap = (
       // range.endLineは更新されない - info.endLine(文自体の最終物理行)との
       // maxを取る。
       sectionEnds.elements = Math.max(sectionEnds.elements ?? 0, info.range.endLine, info.endLine);
-    } else if (statement.kind === "printLayout" || statement.kind === "activePrintLayout") {
-      sectionEnds.printLayouts = Math.max(sectionEnds.printLayouts ?? 0, info.range.endLine);
+    } else if (statement.kind === "layout") {
+      sectionEnds.layouts = Math.max(sectionEnds.layouts ?? 0, info.range.endLine);
+    } else if (statement.kind === "print" || statement.kind === "svg") {
+      sectionEnds.outputs = Math.max(sectionEnds.outputs ?? 0, info.range.endLine);
     }
   }
 
@@ -1087,7 +1057,7 @@ export const compileDslDocument = (
   const includeStatement: DslStatementInclusion = (_statement, statementIndex) =>
     isCompilableDslStatement(parsed.statements, statementIndex);
   const versionValidation = validateVersionStatements(parsed.statements, includeStatement);
-  const printLayoutPlacementDiagnostics = validatePrintLayoutPlacement(parsed.statements, includeStatement);
+  const sourceOutputPlacementDiagnostics = validateSourceOutputPlacement();
 
   let compiled = compileDslToElements(normalized, {
     elements: [],
@@ -1107,16 +1077,14 @@ export const compileDslDocument = (
   const hasSetStatements = parsed.statements.some(
     (statement, statementIndex) => statement.kind === "set" && includeStatement(statement, statementIndex)
   );
-  // printLayout/place numeric fields resolve `@name` against typed const/let
+  // layout/place/output numeric fields resolve `@name` against typed const/let
   // bindings the same way element fields do (Task 53), so a document with a
-  // printLayout block but zero typedDeclaration/set statements of its own
+  // layout/output declarations but zero typedDeclaration/set statements of its own
   // must still run scalar analysis - otherwise an unresolved `@name` inside
-  // printLayout (e.g. `scale: @nope`) never reaches compileNumericBindings
-  // at all && silently produces no diagnostic. `place` never appears
-  // outside an enclosing `printLayout` block, so checking `printLayout`
-  // alone covers both.
-  const hasPrintLayoutStatements = parsed.statements.some(
-    (statement, statementIndex) => statement.kind === "printLayout" && includeStatement(statement, statementIndex)
+  // at all && silently produces no diagnostic. `place` is covered by its
+  // enclosing layout declaration.
+  const hasSourceOutputStatements = parsed.statements.some(
+    (statement, statementIndex) => (statement.kind === "layout" || statement.kind === "print" || statement.kind === "svg") && includeStatement(statement, statementIndex)
   );
   const hasModuleStatements = parsed.statements.some(
     (statement) => statement.kind === "moduleDefinition" || statement.kind === "moduleInstance"
@@ -1132,6 +1100,9 @@ export const compileDslDocument = (
         statement.kind === "moduleDefinition" ||
         statement.kind === "moduleInstance" ||
         statement.kind === "profileDeclaration" ||
+        statement.kind === "layout" ||
+        statement.kind === "print" ||
+        statement.kind === "svg" ||
         statement.kind === "typedDeclaration" ||
         (statement.kind === "element" &&
           (isGeometryDeclarationCategory(statement.category) ||
@@ -1143,7 +1114,7 @@ export const compileDslDocument = (
     (statement, statementIndex) => statement.kind === "profileDeclaration" && includeStatement(statement, statementIndex)
   );
   const stableStatementIdByIndex =
-    (hasTypedDeclarations || hasSetStatements || hasPrintLayoutStatements || hasModuleStatements || hasSourceNamespaceStatements)
+    (hasTypedDeclarations || hasSetStatements || hasSourceOutputStatements || hasModuleStatements || hasSourceNamespaceStatements)
     ? new Map<number, string>(options.assignedStatementIds ?? options.assignedElementIds ?? [])
     : undefined;
   if (stableStatementIdByIndex) {
@@ -1151,13 +1122,13 @@ export const compileDslDocument = (
       stableStatementIdByIndex.set(statementIndex, elementId);
     }
     // Standalone parse/compile callers do not have a prior reconciled
-    // snapshot. Allocate an opaque internal identity for a printLayout scope;
+    // snapshot. Allocate opaque internal identities for source declarations;
     // canonicalDocument supplies the reconciler-owned identity on the normal
     // edit path, so this fallback never becomes a user-visible name || source
     // namespace.
     parsed.statements.forEach((statement, statementIndex) => {
-      if (statement.kind === "printLayout" && !stableStatementIdByIndex.has(statementIndex)) {
-        stableStatementIdByIndex.set(statementIndex, createStatementIdentity("printLayout"));
+      if ((statement.kind === "layout" || statement.kind === "print" || statement.kind === "svg" || statement.kind === "place") && !stableStatementIdByIndex.has(statementIndex)) {
+        stableStatementIdByIndex.set(statementIndex, createStatementIdentity(statement.kind));
       }
       if (statement.kind === "profileDeclaration" && !stableStatementIdByIndex.has(statementIndex)) {
         stableStatementIdByIndex.set(statementIndex, createStatementIdentity("profile"));
@@ -1169,7 +1140,6 @@ export const compileDslDocument = (
           statement.kind === "moduleDefinition" ||
           statement.kind === "moduleInstance" ||
           statement.kind === "group" ||
-          statement.kind === "typedDeclaration" ||
           (statement.kind === "element" && (
             isGeometryDeclarationCategory(statement.category) ||
             statement.type === "conditionalGroup" ||
@@ -1188,6 +1158,9 @@ export const compileDslDocument = (
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
     statement.kind === "profileDeclaration" ||
+    statement.kind === "layout" ||
+    statement.kind === "print" ||
+    statement.kind === "svg" ||
     statement.kind === "group" ||
     statement.kind === "typedDeclaration" ||
     (statement.kind === "element" &&
@@ -1196,7 +1169,7 @@ export const compileDslDocument = (
         statement.type === "forGroup"));
   const sourceNamespaceHasCompleteIdentity =
     stableStatementIdByIndex !== undefined &&
-    ((options.assignedStatementIds !== undefined || options.assignedElementIds !== undefined) || hasDrawingProfileStatements) &&
+    (options.assignedStatementIds !== undefined || options.assignedElementIds !== undefined || stableStatementIdByIndex?.size !== 0) &&
     parsed.statements.every(
       (statement, statementIndex) => !sourceNamespaceRequiresIdentity(statement) || stableStatementIdByIndex.has(statementIndex)
     );
@@ -1214,6 +1187,7 @@ export const compileDslDocument = (
       mode: "document",
       preparsed: parsed,
       assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds ?? compiled.elementIdsByStatementIndex,
+      stableStatementIdByIndex,
       majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION,
       sourceLexicalResolution: {
         sourceNamespace: sourceLexicalNamespace,
@@ -1241,7 +1215,7 @@ export const compileDslDocument = (
   });
   const baseDiagnostics = [
     ...versionValidation.diagnostics,
-    ...printLayoutPlacementDiagnostics,
+    ...sourceOutputPlacementDiagnostics,
     ...projectedCompilerDiagnostics,
     ...(sourceLexicalNamespace?.diagnostics ?? [])
   ];
@@ -1490,7 +1464,7 @@ export const compileDslDocument = (
   }
   const allDiagnostics = [
     ...versionValidation.diagnostics,
-    ...printLayoutPlacementDiagnostics,
+    ...sourceOutputPlacementDiagnostics,
     ...compiled.diagnostics,
     ...(sourceLexicalNamespace?.diagnostics ?? []),
     ...scalarAnalysisCompilation.diagnostics,
@@ -1523,8 +1497,8 @@ export const compileDslDocument = (
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         spans,
         includeStatement,
-        printLayouts: compiled.printLayouts,
-        printLayoutIdsByStatementIndex: compiled.printLayoutIdsByStatementIndex
+        layouts: compiled.layouts,
+        layoutIdsByStatementIndex: compiled.layoutIdsByStatementIndex
       })
     : undefined;
   // Task 25: conditionalGroup.condition typed-boolean compile/typecheck.
@@ -1677,9 +1651,6 @@ export const compileDslDocument = (
       ...(moduleScalarCompilation?.materializedPropertyBindings.length
         ? { materializedPropertyBindings: moduleScalarCompilation.materializedPropertyBindings }
         : {}),
-      ...(moduleScalarCompilation?.materializedGroupPrintEnabledBindings.size
-        ? { materializedGroupPrintEnabledBindings: moduleScalarCompilation.materializedGroupPrintEnabledBindings }
-        : {}),
       ...(moduleScalarCompilation?.materializedNumericBindings.length
         ? { materializedNumericBindings: moduleScalarCompilation.materializedNumericBindings }
         : {}),
@@ -1702,7 +1673,9 @@ export const compileDslDocument = (
   const visibilityProfiles = compiled.visibilityProfiles?.length
     ? compiled.visibilityProfiles
     : [defaultVisibilityProfile()];
-  const printLayouts = compiled.printLayouts ?? [];
+  const layouts = compiled.layouts ?? [];
+  const printOutputs = compiled.printOutputs ?? [];
+  const svgOutputs = compiled.svgOutputs ?? [];
 
   const document: DslDocumentData = {
     elements: compiled.elements,
@@ -1713,8 +1686,9 @@ export const compileDslDocument = (
     visibilityProfiles,
     activeVisibilityProfileId:
       compiled.activeVisibilityProfileId ?? visibilityProfiles[0]?.id ?? DEFAULT_VISIBILITY_PROFILE_ID,
-    printLayouts,
-    activePrintLayoutId: compiled.activePrintLayoutId ?? printLayouts[0]?.id ?? "",
+    layouts,
+    printOutputs,
+    svgOutputs,
     evaluationLimitIndex: compiled.evaluationLimitIndex
   };
 
@@ -1722,7 +1696,8 @@ export const compileDslDocument = (
     parsed.statements,
     sourceLines.length,
     compiled.elementIdsByStatementIndex ?? new Map(),
-    compiled.printLayoutIdsByStatementIndex,
+    compiled.layoutIdsByStatementIndex,
+    compiled.outputIdsByStatementIndex,
     stableStatementIdByIndex,
     includeStatement
   );
@@ -1761,9 +1736,6 @@ export const compileDslDocument = (
       : {}),
     ...(moduleScalarCompilation?.materializedPropertyBindings.length
       ? { materializedPropertyBindings: moduleScalarCompilation.materializedPropertyBindings }
-      : {}),
-    ...(moduleScalarCompilation?.materializedGroupPrintEnabledBindings.size
-      ? { materializedGroupPrintEnabledBindings: moduleScalarCompilation.materializedGroupPrintEnabledBindings }
       : {}),
     ...(moduleScalarCompilation?.materializedNumericBindings.length
       ? { materializedNumericBindings: moduleScalarCompilation.materializedNumericBindings }

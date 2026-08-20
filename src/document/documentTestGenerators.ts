@@ -89,20 +89,12 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
   sections.push(elementLines);
 
   if (params.withLayout && params.groupCount > 0) {
-    // printLayoutはcanonicalに文書の最後尾(全elementより後)に置く。
+    // Source outputs are canonicalized after the element section.
     sections.push([
-      "printLayout L0 (",
-      "  output: pdf,",
-      "  paper: a4,",
-      "  orientation: portrait,",
-      "  columns: 2,",
-      "  rows: 2,",
-      "  overlap: 10,",
-      "  scale: 1,",
-      "  canvas: (410, 584)",
-      ") {",
-      "  place @G0(at: (0, 15), angle: 0, mirrorX: false)",
-      "}"
+      "layout L0(scale: 1) {",
+      "  place @G0(origin: @G0, at: (0, 15), angle: 0, mirror: false)",
+      "}",
+      "print A4(layout: @L0, paper: a4, orientation: portrait, margin: 10, overlap: 10)"
     ]);
   }
 
@@ -258,7 +250,7 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
   const referenced = referencedElementIds(document.elements);
   // printLayout の配置先グループも「参照されている」扱いにする(消すと
   // モデル自体が dangling になり、パッチではなく生成器の問題になる)。
-  for (const layout of document.printLayouts) {
+  for (const layout of document.layouts) {
     for (const placement of layout.placements) referenced.add(placement.groupId);
   }
   const named = document.elements.filter((element) => element.name !== "");
@@ -493,13 +485,13 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
     }
 
     case "layoutEdit": {
-      const layout = pick(document.printLayouts, op.a);
+      const layout = pick(document.layouts, op.a);
       if (!layout) return fallbackUpdate();
       return {
         document: {
           ...document,
-          printLayouts: document.printLayouts.map((item) =>
-            item.id === layout.id ? { ...item, columns: (op.b % 6) + 1 } : item
+          layouts: document.layouts.map((item) =>
+            item.id === layout.id ? { ...item, scale: (op.b % 6) + 1 } : item
           )
         },
         insertedIds: [],

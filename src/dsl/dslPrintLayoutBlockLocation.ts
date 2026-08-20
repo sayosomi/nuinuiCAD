@@ -16,8 +16,8 @@ export const dslEnclosingPrintLayoutLine = (
 ): DslPrintLayoutBlockLocation | null => {
   const ownIndex = parsed.statements.findIndex((statement) => statement.line === cursorLine);
   const own = ownIndex >= 0 ? parsed.statements[ownIndex] : null;
-  if (own?.kind === "printLayout") return { line: own.line, statementIndex: ownIndex };
+  if (own?.kind === "layout") return { line: own.line, statementIndex: ownIndex };
   const scope = dslScopeBeforeParsedLine(parsed, cursorLine);
   const scopeStatement = scope ? parsed.statements[scope.statementIndex] : null;
-  return scopeStatement?.kind === "printLayout" ? { line: scopeStatement.line, statementIndex: scope!.statementIndex } : null;
+  return scopeStatement?.kind === "layout" ? { line: scopeStatement.line, statementIndex: scope!.statementIndex } : null;
 };

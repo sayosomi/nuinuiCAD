@@ -16,7 +16,7 @@
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { ScalarType } from "./types";
 
-export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module" | "printLayout";
+export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module" | "layout";
 export type ScopeId = string;
 
 export type LexicalScope = {
@@ -126,8 +126,8 @@ export const buildLexicalScopeIndex = (
         scopeId = `if:${resolveStatementId(enclosing.statementIndex, parent)}:${enclosing.branch}`;
       } else if (parent.kind === "moduleDefinition") {
         scopeId = `module:${resolveStatementId(enclosing.statementIndex, parent)}`;
-      } else if (parent.kind === "printLayout") {
-        scopeId = `printLayout:${resolveStatementId(enclosing.statementIndex, parent)}`;
+      } else if (parent.kind === "layout") {
+        scopeId = `layout:${resolveStatementId(enclosing.statementIndex, parent)}`;
       } else {
         // Any other block-opening kind not tracked as a lexical scope here
         // transparently delegates to the parent's own containing scope.
@@ -175,8 +175,8 @@ export const buildLexicalScopeIndex = (
       if (conditionalGroupsWithElse.has(index)) registerScope(`if:${stableId}:else`, "else", parentId, index);
     } else if (statement.kind === "moduleDefinition") {
       registerScope(`module:${resolveStatementId(index, statement)}`, "module", parentId, index);
-    } else if (statement.kind === "printLayout") {
-      registerScope(`printLayout:${resolveStatementId(index, statement)}`, "printLayout", parentId, index);
+    } else if (statement.kind === "layout") {
+      registerScope(`layout:${resolveStatementId(index, statement)}`, "layout", parentId, index);
     }
     // Any other opensBlock kind (for example a malformed statement the real
     // parser also refused to push a frame for) intentionally creates no scope.

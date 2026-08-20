@@ -306,11 +306,11 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     controller.destroy();
   });
 
-  it("propagates a declaration rename into a printLayout numeric field (Task 53)", () => {
+  it("propagates a declaration rename into a layout numeric field", () => {
     const source = [
       "nui 4",
       "const printScale: number = 120",
-      "printLayout Main (output: pdf, paper: a4, orientation: portrait, columns: 2, rows: 2, overlap: 10, scale: @printScale, canvas: (410, 584)) {",
+      "layout Main (scale: @printScale) {",
       "}"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");

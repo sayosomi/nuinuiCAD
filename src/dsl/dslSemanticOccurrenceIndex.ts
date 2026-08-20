@@ -100,7 +100,10 @@ const declarationIdentity = (
     declaration.kind === "geometry" ||
     declaration.kind === "conditionalGroup" ||
     declaration.kind === "forGroup" ||
-    declaration.kind === "typedDeclaration"
+    declaration.kind === "typedDeclaration" ||
+    declaration.kind === "layout" ||
+    declaration.kind === "print" ||
+    declaration.kind === "svg"
   ) {
     const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(declaration.statementIndex);
     return statementId ? { kind: "module", target: { kind: "moduleSource", statementId } } : null;
@@ -148,7 +151,7 @@ const numericValueSpan = (
     return element ? resolveParameterValueSpan(logical.logicalText, element, parameterKey) : null;
   }
 
-  if (statement.kind !== "printLayout" && statement.kind !== "place") return null;
+  if (statement.kind !== "layout" && statement.kind !== "print" && statement.kind !== "svg" && statement.kind !== "place") return null;
   const coordinate = parameterKey.match(/^(.+):(x|y)$/);
   const attributeKey = coordinate?.[1] ?? parameterKey;
   const outer = statement.payloadSpans[attributeKey];
@@ -368,7 +371,10 @@ const addRootDeclarations = (compiled: CompiledDslDocument, add: AddOccurrence) 
       declaration.kind !== "group" &&
       declaration.kind !== "geometry" &&
       declaration.kind !== "conditionalGroup" &&
-      declaration.kind !== "forGroup"
+      declaration.kind !== "forGroup" &&
+      declaration.kind !== "layout" &&
+      declaration.kind !== "print" &&
+      declaration.kind !== "svg"
     ) continue;
     const identity = declarationIdentity(compiled, declaration);
     if (!identity || !declaration.nameSpan) continue;
@@ -385,27 +391,22 @@ const addDrawingProfileOccurrences = (compiled: CompiledDslDocument, add: AddOcc
   }
 };
 
-const addPrintLayoutOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
+const addSourceOutputOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
   const namespace = compiled.sourceLexicalNamespace;
   if (!namespace) return;
   for (const [statementIndex, statement] of compiled.statements.entries()) {
-    if (statement.kind !== "place") continue;
-    const valueSpan = statement.payloadSpans.group;
-    const physical = valueSpan ? physicalRange(compiled, statementIndex, valueSpan) : null;
-    if (!physical) continue;
-    const parsed = parseDslSourceReference(sourceSlice(compiled, physical.from, physical.to));
-    if (parsed.kind !== "valid" || parsed.reference.property) continue;
-    const path = parseDslReferenceToken(parsed.reference.pathText);
-    const resolved = resolveSourceLexicalPathSegments(namespace, statementIndex, path);
-    const ranges = readDslReferencePathSegments(
-      compiled.spans.sourceMap.source,
-      physical.from + parsed.reference.pathRange.start,
-      physical.from + parsed.reference.pathRange.end
-    );
-    if (resolved.segments.length !== 1 || ranges.kind !== "valid" || ranges.segments.length !== 1) continue;
-    const identity = declarationIdentity(compiled, resolved.segments[0]);
-    const range = ranges.segments[0];
-    if (range) add("reference", range.start, range.end, identity);
+    if (statement.kind !== "layout" && statement.kind !== "print" && statement.kind !== "svg" && statement.kind !== "place") continue;
+    for (const key of ["group", "origin", "layout", "profile"]) {
+      const valueSpan = statement.payloadSpans[key];
+      const physical = valueSpan ? physicalRange(compiled, statementIndex, valueSpan) : null;
+      if (!physical) continue;
+      const parsed = parseDslSourceReference(sourceSlice(compiled, physical.from, physical.to));
+      if (parsed.kind !== "valid" || parsed.reference.property) continue;
+      addQualifiedPathOccurrences(compiled, add, statementIndex, {
+        start: physical.from + parsed.reference.pathRange.start,
+        end: physical.from + parsed.reference.pathRange.end
+      }, null);
+    }
   }
 };
 
@@ -436,7 +437,7 @@ export const createDslSemanticOccurrenceIndex = (
   addTypedOccurrences(compiled, bindingAnalysis, add, addQualifiedPath);
   addRootDeclarations(compiled, add);
   addModuleOccurrences(compiled, add);
-  addPrintLayoutOccurrences(compiled, add);
+  addSourceOutputOccurrences(compiled, add);
   addDrawingProfileOccurrences(compiled, add);
 
   const occurrences = [...byKey.values()].sort((left, right) =>

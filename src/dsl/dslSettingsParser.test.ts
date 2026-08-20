@@ -8,7 +8,7 @@ describe("nui4 settings parser", () => {
   it("parses every short-form settings statement", () => {
     expect(parse("nui 2").statement).toMatchObject({ kind: "version", value: "2", payloadSpans: { value: { start: 4, end: 5 } } });
     expect(parse("activeView 通常").statement).toMatchObject({ kind: "activeView", name: "通常" });
-    expect(parse("activePrintLayout A4").statement).toMatchObject({ kind: "activePrintLayout", name: "A4" });
+    expect(parse("layout A4 {", true).statement).toMatchObject({ kind: "layout", name: "A4", opensBlock: true });
     expect(parse("stop").statement).toMatchObject({ kind: "atStop" });
   });
 
@@ -21,11 +21,11 @@ describe("nui4 settings parser", () => {
     expect(parse("place @前身頃(at: (0, margin),angle: 0,mirrorX: false)").statement).toMatchObject({ kind: "place", name: "", payloadSpans: { group: { start: 6, end: 10 } } });
   });
 
-  it("parses one-line and projected multiline printLayout headers", () => {
-    const inline = parse("printLayout A4 (output: pdf,view: 印刷,paper: a4,columns: 2) {").statement!;
-    expect(inline).toMatchObject({ kind: "printLayout", name: "A4", opensBlock: true });
-    expect(inline.attrs.map((attr) => attr.key)).toEqual(["output", "view", "paper", "columns"]);
-    expect(parse("printLayout A4 ( output: pdf,view: 印刷,paper: a4 )", true).statement).toMatchObject({ opensBlock: true });
+  it("parses one-line print and SVG outputs", () => {
+    const print = parse("print A4 (layout: @L,paper: a4,overlap: 10)").statement!;
+    expect(print).toMatchObject({ kind: "print", name: "A4", opensBlock: false });
+    expect(print.attrs.map((attr) => attr.key)).toEqual(["layout", "paper", "overlap"]);
+    expect(parse("svg A4 (layout: @L)").statement).toMatchObject({ kind: "svg", name: "A4" });
   });
 
   it("requires commas for settings calls", () => {
@@ -45,7 +45,7 @@ describe("nui4 settings parser", () => {
     expect(messages("color c (#fff, unknown: true)").join("\n")).toContain("引数「unknown」");
     expect(messages("role seam (name: a ,name: b)").join("\n")).toContain("重複");
     expect(messages("view 通常 (default: )").join("\n")).toContain("値がありません");
-    expect(messages("printLayout A4 (output: pdf)").join("\n")).toContain("ブロック");
+    expect(messages("print A4 (paper: a4, overlap: 10)").join("\n")).toContain("必須引数「layout」");
     expect(messages("stop extra").join("\n")).toContain("単独");
   });
 });

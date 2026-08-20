@@ -314,10 +314,7 @@ export const analyzeRename = (input: RenameAnalysisInput): RenameAnalysis => {
   const occurrences = catalog.slots.flatMap((slot) =>
     slot.state.status === "resolved" &&
     affectedIds.has(slot.state.elementId) &&
-    (slot.owner.kind === "element"
-      ? changedStatements.changedElementIds.has(slot.owner.elementId)
-      : changedStatements.changedPrintLayoutIds.has(slot.owner.layoutId) &&
-        (changedStatements.preciselyChangedPrintLayoutLinesById.get(slot.owner.layoutId)?.has(slot.line) ?? true))
+    changedStatements.changedElementIds.has(slot.owner.elementId)
       ? [{
           line: slot.line,
           owner: slot.owner,

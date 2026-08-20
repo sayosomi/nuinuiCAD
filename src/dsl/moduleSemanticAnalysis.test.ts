@@ -308,7 +308,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 4",
       "module M() {",
-      "  group G (printEnabled: true, printAnchor: (0, 0)) {",
+      "  group G (roles: [seam]) {",
       "    for i in range(from: 0, count: 3) {",
       "      point P = coordinate(x: i * 10, y: 0)",
       "    }",
@@ -324,7 +324,7 @@ describe("module semantic analysis", () => {
       "nui 4",
       "module Target() {",
       "}",
-      "group G (printEnabled: true) {",
+      "group G {",
       "  instance x = Target()",
       "  module Target() {",
       "  }",
@@ -341,7 +341,7 @@ describe("module semantic analysis", () => {
       "nui 4",
       "module Target() {",
       "}",
-      "group G (printEnabled: true) {",
+      "group G {",
       "  point Target = coordinate(x: 0, y: 0)",
       "  instance x = Target()",
       "}"
@@ -366,7 +366,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 4",
       "module M(x: number) {",
-      "  group G (printEnabled: true) {",
+      "  group G {",
       "    const x: number = 1",
       "    const y: number = @x",
       "  }",
@@ -464,7 +464,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 4",
       "module Outer(x: number) {",
-      "  group G (printEnabled: true) {",
+      "  group G {",
       "    const x: number = 20",
       "    module Inner(value: number = @x) {",
       "    }",

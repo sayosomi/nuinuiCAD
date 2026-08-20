@@ -12,15 +12,15 @@ import type { DslStatement } from "./dslTypes";
  */
 export const buildPlacementRefsByStatementIndex = (
   statements: readonly DslStatement[],
-  printLayoutIdsByStatementIndex: ReadonlyMap<number, string> | undefined
+  layoutIdsByStatementIndex: ReadonlyMap<number, string> | undefined
 ): ReadonlyMap<number, { layoutId: string; placementIndex: number }> => {
   const result = new Map<number, { layoutId: string; placementIndex: number }>();
-  if (!printLayoutIdsByStatementIndex) return result;
+  if (!layoutIdsByStatementIndex) return result;
   const placeCountByLayoutStatementIndex = new Map<number, number>();
   statements.forEach((statement, statementIndex) => {
     if (statement.kind !== "place" || statement.enclosing === null) return;
     const layoutStatementIndex = statement.enclosing.statementIndex;
-    const layoutId = printLayoutIdsByStatementIndex.get(layoutStatementIndex);
+    const layoutId = layoutIdsByStatementIndex.get(layoutStatementIndex);
     if (!layoutId) return;
     const placementIndex = placeCountByLayoutStatementIndex.get(layoutStatementIndex) ?? 0;
     placeCountByLayoutStatementIndex.set(layoutStatementIndex, placementIndex + 1);

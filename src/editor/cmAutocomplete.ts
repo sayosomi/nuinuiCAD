@@ -15,8 +15,6 @@ import { scanDslSource } from "../dsl/dslTokens";
 import { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "../dsl/dslDeclarationParser";
 import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
-import { dslEnclosingPrintLayoutLine } from "../dsl/dslPrintLayoutBlockLocation";
-import { parseDslSnapshot } from "../dsl/dslParser";
 import {
   createLogicalStatementSourceMap,
   logicalOffsetToPhysical,
@@ -25,9 +23,8 @@ import {
   type LogicalStatement,
   type LogicalStatementSourceMap
 } from "../dsl/logicalStatementSourceMap";
-import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
-import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationResult, PrintLayout } from "../types/geometry";
-import type { PrintLayoutRangeIndex, ScopeBodyRangeIndex, StatementRangeIndex, TypedDeclarationRangeIndex } from "./statementRangeIndex";
+import type { CadElement, ComputedGeometry, DependencyError, ElementId, EvaluationResult } from "../types/geometry";
+import type { ScopeBodyRangeIndex, StatementRangeIndex, TypedDeclarationRangeIndex } from "./statementRangeIndex";
 import { deepestContainingScopeId, typedDeclarationBindingIdAtCursor } from "./statementRangeIndex";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { StatementInfo } from "../dsl/dslDocument";
@@ -45,7 +42,6 @@ import {
 import type { ScalarType } from "../scalars/types";
 import type { ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps, type SetTargetCandidate } from "../scalars/setCompletionCandidates";
-import { printLayoutTypedBindingReferenceOptions } from "../scalars/printLayoutTypedBindingCandidates";
 import { mergeSetTargetCandidates, recoverLiveSetTargetCandidates, type SetTargetCompletionCandidate } from "../scalars/setTargetRecoveryCandidates";
 import { visibleTypedBindingsAtLivePosition } from "../scalars/liveTypedBindingVisibility";
 import { cmCompositionCompletionRetry } from "./cmCompositionCompletionRetry";
@@ -73,8 +69,6 @@ export type DslAutocompleteDocumentInput = {
 export type DslAutocompleteOptions = {
   elements: () => readonly CadElement[];
   statementRanges: () => StatementRangeIndex;
-  printLayouts: () => readonly PrintLayout[];
-  printLayoutRanges: () => PrintLayoutRangeIndex;
   isComposing: () => boolean;
   /** Last-applied evaluation's computedGeometry/effectiveEnabledElementIds/errors,
    * used for dslElementParameterCompletionOptions's disabled/invalid gating. */
@@ -181,22 +175,6 @@ const statementElementIdsByLiveLine = (doc: Text, ranges: StatementRangeIndex) =
   }
   return result;
 };
-
-const printLayoutIdsByLiveLine = (doc: Text, ranges: PrintLayoutRangeIndex): Map<number, string> => {
-  const result = new Map<number, string>();
-  for (const range of ranges.values()) {
-    const line = doc.lineAt(range.from);
-    if (line.from === range.from) result.set(line.number, range.printLayoutId);
-  }
-  return result;
-};
-
-/** The compiled element for the cursor's own line, only when its type still
- * matches what the live line currently says it is (same "don't trust a stale
- * cross-reference past a structural edit" guard dslReferenceCompletionOptions
- * already applies elsewhere). */
-const asVariableCompletions = (options: readonly NumericReferenceOption[]): Completion[] =>
-  options.map((option) => ({ label: option.displayExpression, apply: option.expression, detail: option.detail, type: "constant" }));
 
 /** Task 39: maps the pure `ScalarCompletionCandidate` union to CM's
  * `Completion` shape - the one place that translates candidate `kind` into a
@@ -1062,16 +1040,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     // Intermediates use the shared typed numeric source; do not offer
     // element-specific completion candidates here.
     completions = [];
-  } else if (completionContext.parameter.source === "printLayoutBlock") {
-    const bindingAnalysis = options.bindingAnalysis();
-    const parsed = parseDslSnapshot({ normalizedSource: input.source, sourceRevision: 0 });
-    const block = bindingAnalysis ? dslEnclosingPrintLayoutLine(parsed, input.cursorLineNumber) : null;
-    const layoutId = block ? printLayoutIdsByLiveLine(input.doc, options.printLayoutRanges()).get(block.line) : undefined;
-    const ownStatement = parsed.statements.find((statement) => statement.line === input.cursorLineNumber);
-    const siteStatementIndex = ownStatement?.kind === "place" ? parsed.statements.indexOf(ownStatement) : block?.statementIndex;
-    completions = asVariableCompletions(
-      printLayoutTypedBindingReferenceOptions(layoutId, options.statementInfoByKey?.(), bindingAnalysis, siteStatementIndex)
-    );
   } else if (completionContext.parameter.definition.kind === "number") {
     if (neutralQuery && neutralCompletions.length > 0 &&
       (!semanticInput.semantic || neutralSemanticIsCurrent || neutralHasSourceCandidates)) {

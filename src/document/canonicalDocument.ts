@@ -351,8 +351,9 @@ const emptyFileSnapshot = (): DslDocumentData => ({
   visibilityRoles: [],
   visibilityProfiles: [defaultVisibilityProfile()],
   activeVisibilityProfileId: defaultVisibilityProfile().id,
-  printLayouts: [],
-  activePrintLayoutId: "",
+  layouts: [],
+  printOutputs: [],
+  svgOutputs: [],
   evaluationLimitIndex: undefined
 });
 

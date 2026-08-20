@@ -53,8 +53,9 @@ export const dslStatementKeywords = {
   profile: "profile",
   view: "view",
   activeView: "activeView",
-  activePrintLayout: "activePrintLayout",
-  printLayout: "printLayout",
+  layout: "layout",
+  print: "print",
+  svg: "svg",
   color: "color",
   conditional: "if",
   constDeclaration: "const",
@@ -100,8 +101,9 @@ const settingsKeywords = new Set<string>([
   dslStatementKeywords.role,
   dslStatementKeywords.view,
   dslStatementKeywords.activeView,
-  dslStatementKeywords.activePrintLayout,
-  dslStatementKeywords.printLayout,
+  dslStatementKeywords.layout,
+  dslStatementKeywords.print,
+  dslStatementKeywords.svg,
   dslStatementKeywords.place
 ]);
 
@@ -130,11 +132,12 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "profileDeclaration",
   "view",
   "activeView",
-  "printLayout",
+  "layout",
+  "print",
+  "svg",
   "version",
   "color",
   "atStop",
-  "activePrintLayout",
   "place",
   "moduleDefinition",
   "modifierDefinition",
@@ -282,10 +285,12 @@ const settingsStatementToDslStatement = (settings: DslSettingsStatement, line: n
       return { ...base, kind: "view" };
     case "activeView":
       return { ...base, kind: "activeView" };
-    case "activePrintLayout":
-      return { ...base, kind: "activePrintLayout" };
-    case "printLayout":
-      return { ...base, kind: "printLayout" };
+    case "layout":
+      return { ...base, kind: "layout" };
+    case "print":
+      return { ...base, kind: "print" };
+    case "svg":
+      return { ...base, kind: "svg" };
     case "atStop":
       return { ...base, kind: "atStop" };
   }
@@ -799,7 +804,7 @@ const parseLine = (
 
 type BlockFrame = {
   statementIndex: number;
-  kind: "group" | "conditionalGroup" | "forGroup" | "printLayout" | "moduleDefinition" | "modifier" | "modifierProfile";
+  kind: "group" | "conditionalGroup" | "forGroup" | "layout" | "moduleDefinition" | "modifier" | "modifierProfile";
   branch: "then" | "else";
   line: number;
 };
@@ -809,7 +814,7 @@ export const blockFrameKind = (statement: DslStatement): BlockFrame["kind"] | nu
   if (statement.kind === "modifierDefinition") return "modifier";
   if (statement.kind === "modifierProfileBlock") return "modifierProfile";
   if (statement.kind === "group") return "group";
-  if (statement.kind === "printLayout") return "printLayout";
+  if (statement.kind === "layout") return "layout";
   if (statement.kind === "element") {
     if (statement.type === "conditionalGroup") return "conditionalGroup";
     if (statement.type === "forGroup") return "forGroup";
@@ -845,6 +850,9 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
     }
     const top = stack.at(-1);
     const modifierAncestor = stack.some((frame) => frame.kind === "modifier");
+    if ((statement.kind === "layout" || statement.kind === "print" || statement.kind === "svg") && statement.enclosing) {
+      diagnostics.push(diagnostic(statement.line, `${statement.kind} は文書のトップレベルにのみ書けます。`));
+    }
     if (statement.kind === "profileDeclaration" && statement.enclosing) {
       diagnostics.push(diagnostic(statement.line, "profile 定義は文書のトップレベルにのみ書けます。"));
     }
@@ -861,15 +869,13 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
       diagnostics.push(diagnostic(statement.line, "modifier ブロック内には state / width / style / color または for @profile だけを書けます。"));
     }
     if (
-      top?.kind === "printLayout" &&
-      statement.kind !== "place" &&
-      statement.kind !== "typedDeclaration" &&
-      statement.kind !== "set"
+      top?.kind === "layout" &&
+      statement.kind !== "place"
     ) {
-      diagnostics.push(diagnostic(statement.line, "printLayout ブロック内には const / let / set と place のみ書けます。"));
+      diagnostics.push(diagnostic(statement.line, "layout ブロック内には place のみ書けます。"));
     }
-    if (statement.kind === "place" && top?.kind !== "printLayout") {
-      diagnostics.push(diagnostic(statement.line, `${statement.kind} は printLayout ブロック内にのみ書けます。`));
+    if (statement.kind === "place" && top?.kind !== "layout") {
+      diagnostics.push(diagnostic(statement.line, `${statement.kind} は layout ブロック内にのみ書けます。`));
     }
     if (statement.opensBlock) {
       const frameKind = blockFrameKind(statement);

@@ -115,7 +115,8 @@ describe("AutomationDocument", () => {
     const fatal = [
       "nui 4",
       "const missing: number = @unknown",
-      "group G (printEnabled: @unknown) {",
+      "set unknown = 1",
+      "group G {",
       "}"
     ].join("\n");
 

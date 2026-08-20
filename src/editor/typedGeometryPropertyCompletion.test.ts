@@ -4,7 +4,6 @@ import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import type { DependencyError } from "../types/geometry";
 import {
-  createPrintLayoutRangeIndex,
   createScopeBodyRangeIndex,
   createStatementRangeIndex,
   createTypedDeclarationRangeIndex
@@ -48,7 +47,6 @@ const compiledFixture = (source = baseSource) => {
     compiled,
     lineIds,
     statementRanges: createStatementRangeIndex(doc, compiled.statementMap!),
-    printLayoutRanges: createPrintLayoutRangeIndex(doc, compiled.statementMap!),
     typedRanges: createTypedDeclarationRangeIndex(doc, compiled.statementMap!),
     scopeRanges: compiled.bindingAnalysis
       ? createScopeBodyRangeIndex(doc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
@@ -79,8 +77,6 @@ const completionAt = async ({
   const completion = createDslCompletionSource({
     elements: () => fixture.compiled.document!.elements,
     statementRanges: () => fixture.statementRanges,
-    printLayouts: () => [],
-    printLayoutRanges: () => fixture.printLayoutRanges,
     isComposing: () => false,
     computedGeometry: () => geometry,
     effectiveEnabledElementIds: () => enabled,
