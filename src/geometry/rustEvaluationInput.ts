@@ -14,6 +14,7 @@ type TextTemplateInput = { elementId: ElementId; segments: readonly RustTextTemp
 export type EvaluateDocumentInput = {
   elements: CadElement[];
   evaluationLimitIndex?: number;
+  allowDisabledElementIds?: readonly ElementId[];
   drawingModifiers?: readonly DrawingModifierDefinition[];
   scalarProgram?: EvaluateElementsOptions["scalarProgram"];
   scalarExpressionPayload?: { numericBindings: readonly NumericBindingRuntimeEntry[] };
@@ -52,6 +53,9 @@ export const buildRustEvaluationInput = (
   return {
     elements,
     evaluationLimitIndex: options.evaluationLimitIndex,
+    ...(options.allowDisabledElementIds?.size
+      ? { allowDisabledElementIds: Array.from(options.allowDisabledElementIds) }
+      : {}),
     drawingModifiers: options.drawingModifiers ?? [],
     ...(mutationPayload
       ? { bindingVersions: mutationPayload }

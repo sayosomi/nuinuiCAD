@@ -72,7 +72,13 @@ export type ExtensionToVscodeMessage =
       documentVersion: number;
     }
   | { type: "canvasThemeChanged" }
-  | { type: "canvasCommand"; commandId: VscodeCanvasCommandId; emitSkippedComments?: boolean }
+  | {
+      type: "canvasCommand";
+      commandId: VscodeCanvasCommandId;
+      emitSkippedComments?: boolean;
+      includeHiddenGeometry?: boolean;
+      includeDisabledGeometry?: boolean;
+    }
   | {
       type: "bakeSourceRequest";
       requestId: number;
@@ -80,6 +86,8 @@ export type ExtensionToVscodeMessage =
       normalizedSourceOffset: number;
       mode: "current" | "base";
       emitSkippedComments: boolean;
+      includeHiddenGeometry: boolean;
+      includeDisabledGeometry: boolean;
     }
   | { type: "rustEvaluationResponse"; id: number; payload: unknown }
   | { type: "rustEvaluationError"; id: number; error: string }

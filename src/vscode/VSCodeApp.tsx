@@ -21,6 +21,7 @@ import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
 import { minimumCanvasPanForBounds } from "../geometry/canvasViewportReveal";
 import { replaceCanvasSelection } from "../commands/selectionCommands";
+import { effectiveElementActivityById } from "../model/elementActivity";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -60,18 +61,40 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     () => buildEvaluationOptions({ compiledDocument: evaluationDocument, evaluationLimitIndex }),
     [evaluationDocument, evaluationLimitIndex]
   );
+  const disabledElementIdsForBake = useMemo(
+    () => new Set(
+      [...effectiveElementActivityById(elements, evaluationDocument.document.modifiers ?? [])]
+        .filter(([, activity]) => activity.activity === "disabled")
+        .map(([elementId]) => elementId)
+    ),
+    [elements, evaluationDocument]
+  );
+  const bakeSandboxEvaluationOptions = useMemo(
+    () => ({ ...evaluationOptions, allowDisabledElementIds: disabledElementIdsForBake }),
+    [evaluationOptions, disabledElementIdsForBake]
+  );
   const evaluationState = useEvaluationEngine(
     elements,
     evaluationOptions,
     compiledDocumentRevision,
     rustTransport.transport
   );
+  const bakeSandboxEvaluationState = useEvaluationEngine(
+    elements,
+    bakeSandboxEvaluationOptions,
+    compiledDocumentRevision,
+    rustTransport.transport
+  );
   const evaluationRef = useRef(evaluationState.evaluation);
   const evaluationStateRef = useRef(evaluationState);
+  const bakeSandboxEvaluationRef = useRef(bakeSandboxEvaluationState.evaluation);
+  const bakeSandboxEvaluationStateRef = useRef(bakeSandboxEvaluationState);
   useEffect(() => {
     evaluationRef.current = evaluationState.evaluation;
     evaluationStateRef.current = evaluationState;
-  }, [evaluationState]);
+    bakeSandboxEvaluationRef.current = bakeSandboxEvaluationState.evaluation;
+    bakeSandboxEvaluationStateRef.current = bakeSandboxEvaluationState;
+  }, [evaluationState, bakeSandboxEvaluationState]);
 
   const restoreCanvasFocus = useCallback((afterFocus?: () => void) => {
     queueMicrotask(() => {
@@ -156,6 +179,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             evaluationStateRef.current,
             useCadDocumentStore.getState().compiledDocumentRevision
           ),
+          includeHiddenGeometry: message.includeHiddenGeometry,
+          includeDisabledGeometry: message.includeDisabledGeometry,
+          bakeDisabledEvaluation: evaluationStateIsCurrentFor(
+            bakeSandboxEvaluationStateRef.current,
+            useCadDocumentStore.getState().compiledDocumentRevision
+          ) ? bakeSandboxEvaluationRef.current : undefined,
           emitSkippedComments: message.emitSkippedComments,
           getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
           measureCanvasTextWidth,
@@ -188,7 +217,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           evaluation: currentEvaluation,
           baseEvaluation: currentEvaluation,
           sourceStatementIndex: target.sourceStatementIndex,
-          emitSkippedComments: message.emitSkippedComments
+          emitSkippedComments: message.emitSkippedComments,
+          includeHiddenGeometry: message.includeHiddenGeometry,
+          includeDisabledGeometry: message.includeDisabledGeometry,
+          bakeDisabledEvaluation: evaluationStateIsCurrentFor(
+            bakeSandboxEvaluationStateRef.current,
+            current.state.compiledDocumentRevision
+          ) ? bakeSandboxEvaluationRef.current : undefined
         });
         const applied = typeof result === "object" && result !== null && "status" in result && result.status === "applied";
         if (applied) postCanvasCommit();

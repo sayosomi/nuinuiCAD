@@ -61,6 +61,8 @@ import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
+  /** Bake-only evaluation escape hatch; normal evaluation leaves disabled elements unevaluated. */
+  allowDisabledElementIds?: ReadonlySet<ElementId>;
   /** Compiled document-level drawing modifier definitions. */
   drawingModifiers?: readonly DrawingModifierDefinition[];
   /**
@@ -201,6 +203,9 @@ export const evaluateElements = (
     .filter((element) => evaluatedElementIds.has(element.id) &&
       activityAllowsEvaluation(effectiveElementActivity(element, activities).activity))
     .map((element) => element.id));
+  for (const elementId of options.allowDisabledElementIds ?? []) {
+    if (evaluatedElementIds.has(elementId)) baseEffectiveEnabledIds.add(elementId);
+  }
   const disabledByGroupId = new Map<ElementId, ElementId>(
     elements.flatMap((element) => {
       const disabledBy = effectiveElementActivity(element, activities).disabledByElementId;

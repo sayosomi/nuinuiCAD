@@ -90,6 +90,7 @@ const mocks = vi.hoisted(() => ({
   codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
   foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   showErrorMessage: vi.fn(),
+  bakeSettings: {} as Record<string, boolean>,
   showTextDocument: vi.fn(),
   executeCommand: vi.fn(),
   createWebviewPanel: vi.fn(),
@@ -172,6 +173,14 @@ vi.mock("vscode", () => {
       get textDocuments() {
         return mocks.textDocuments;
       },
+      getConfiguration: (section: string) => ({
+        get: <T>(key: string, defaultValue: T) => {
+          const fullKey = `${section}.${key}`;
+          return Object.hasOwn(mocks.bakeSettings, fullKey)
+            ? mocks.bakeSettings[fullKey] as T
+            : defaultValue;
+        }
+      }),
       onDidOpenTextDocument: mocks.onDidOpenTextDocument,
       onDidChangeTextDocument: mocks.onDidChangeTextDocument,
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
@@ -490,6 +499,7 @@ afterEach(() => {
   mocks.codeActionRegistrations.length = 0;
   mocks.foldingRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
+  mocks.bakeSettings = {};
   mocks.showTextDocument.mockReset();
   mocks.executeCommand.mockReset();
   mocks.createWebviewPanel.mockReset();
@@ -563,6 +573,26 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "fitDrawing" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasElementNames" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPoints" });
+  });
+
+  it("resolves all Bake settings in the Extension Host before Canvas routing", () => {
+    mocks.bakeSettings = {
+      "nuinuiCAD.bake.emitSkippedComments": false,
+      "nuinuiCAD.bake.includeHiddenGeometry": true,
+      "nuinuiCAD.bake.includeDisabledGeometry": true
+    };
+    setup();
+    const panel = openPanelFor();
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape",
+      emitSkippedComments: false,
+      includeHiddenGeometry: true,
+      includeDisabledGeometry: true
+    });
   });
 
   it("routes Canvas Undo/Redo to the active Canvas webview", () => {

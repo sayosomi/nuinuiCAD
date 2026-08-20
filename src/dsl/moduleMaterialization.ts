@@ -1,6 +1,8 @@
 import { isInUnloweredModuleSubtree } from "./dslCompilationGuard";
 import { isElementDslStatement } from "./dslParser";
 import { encodeIdentityTuple } from "../document/identityTuple";
+import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
+import { isContainerElementType } from "../model/containers";
 import type { DslStatement } from "./dslTypes";
 import type {
   ModuleInstanceSemantic,
@@ -378,14 +380,18 @@ export const materializeModuleExecution = ({
       .filter((entry) => entry.type === "moduleInstance")
       .map((entry, entryIndex) => {
         const path = entry.instancePath;
-        const descendants = executionStatements
+        const materializedDescendants = executionStatements
           .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
           .filter(({ candidate }) =>
             candidate.runtimeElementId !== entry.runtimeElementId &&
             candidate.instancePath.length >= path.length &&
             path.every((identity, index) => candidate.instancePath[index] === identity)
           );
-        const endRuntimeIndex = descendants.reduce(
+        const descendants = materializedDescendants.filter(({ candidate }) =>
+          !elementTypesWithoutOwnDrawableGeometry.has(candidate.type) &&
+          !isContainerElementType(candidate.type)
+        );
+        const endRuntimeIndex = materializedDescendants.reduce(
           (last, { candidateIndex }) => Math.max(last, candidateIndex),
           entryIndex
         );

@@ -11,12 +11,20 @@ const compile = (source: string) => {
   return result;
 };
 
-const evaluate = (compiled: ReturnType<typeof compile>) => evaluateElements(
+const evaluate = (
+  compiled: ReturnType<typeof compile>,
+  allowDisabledElementIds: readonly string[] = []
+) => evaluateElements(
   compiled.doc.document.elements,
-  buildEvaluationOptions({
-    compiledDocument: compiled.doc,
-    evaluationLimitIndex: undefined
-  })
+  {
+    ...buildEvaluationOptions({
+      compiledDocument: compiled.doc,
+      evaluationLimitIndex: undefined
+    }),
+    ...(allowDisabledElementIds.length
+      ? { allowDisabledElementIds: new Set(allowDisabledElementIds) }
+      : {})
+  }
 );
 
 describe("Bake geometry", () => {
@@ -204,27 +212,124 @@ describe("Bake geometry", () => {
     expect(patched).not.toContain("modifier Basic_baked");
   });
 
-  it("supports hidden geometry but skips disabled geometry", () => {
+  it("silently filters hidden geometry when hidden inclusion is off", () => {
     const compiled = compile([
       "nui 4",
-      "point Hidden = coordinate(x: 1, y: 2, state: hidden)",
-      "point Disabled = coordinate(x: 3, y: 4, state: disabled)"
+      "point Hidden = coordinate(x: 1, y: 2, state: hidden)"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const hidden = compiled.doc.document.elements.find((element) => element.name === "Hidden")!;
-    const disabled = compiled.doc.document.elements.find((element) => element.name === "Disabled")!;
     const plan = planBakeGeometry({
       mode: "current",
       elements: compiled.doc.document.elements,
       evaluation,
       compiled: compiled.doc,
-      selectedElementIds: [hidden.id, disabled.id]
+      selectedElementIds: [hidden.id]
+    });
+    expect(plan?.generatedElementIds).toEqual([]);
+    expect(plan?.skippedComments).toBe(0);
+    expect(plan?.splices).toEqual([]);
+  });
+
+  it("bakes hidden geometry when enabled and preserves its modifier/activity semantics", () => {
+    const compiled = compile([
+      "nui 4",
+      "modifier Hide {",
+      "  state: hidden,",
+      "}",
+      "point Hidden [Hide] = coordinate(x: 1, y: 2, state: hidden)"
+    ].join("\n"));
+    const evaluation = evaluate(compiled);
+    const hidden = compiled.doc.document.elements.find((element) => element.name === "Hidden")!;
+    const plan = planBakeGeometry({
+      mode: "current",
+      elements: compiled.doc.document.elements,
+      evaluation,
+      compiled: compiled.doc,
+      selectedElementIds: [hidden.id],
+      includeHiddenGeometry: true
     });
     expect(plan?.generatedElementIds).toHaveLength(1);
-    expect(plan?.skippedComments).toBe(1);
     const patched = applyLineSplices(compiled.sourceText, plan!.splices);
-    expect(patched).toContain("point Hidden_baked = coordinate(x: 1, y: 2, state: hidden)");
-    expect(patched).toContain("// Bake skipped: point Disabled — unsupported");
+    expect(patched).toContain("point Hidden_baked [Hide] = coordinate(x: 1, y: 2, state: hidden)");
+  });
+
+  it("silently filters disabled geometry by default and bakes it only through the sandbox", () => {
+    const compiled = compile([
+      "nui 4",
+      "point Disabled = coordinate(x: 3, y: 4, state: disabled)"
+    ].join("\n"));
+    const disabled = compiled.doc.document.elements.find((element) => element.name === "Disabled")!;
+    const evaluation = evaluate(compiled);
+    const sandbox = evaluate(compiled, [disabled.id]);
+    expect(evaluation.computedGeometry.has(disabled.id)).toBe(false);
+    expect(evaluation.effectiveEnabledElementIds?.has(disabled.id)).toBe(false);
+    expect(sandbox.computedGeometry.has(disabled.id)).toBe(true);
+    const filtered = planBakeGeometry({
+      mode: "current",
+      elements: compiled.doc.document.elements,
+      evaluation,
+      bakeDisabledEvaluation: sandbox,
+      compiled: compiled.doc,
+      selectedElementIds: [disabled.id]
+    });
+    expect(filtered?.generatedElementIds).toEqual([]);
+    expect(filtered?.skippedComments).toBe(0);
+    expect(filtered?.splices).toEqual([]);
+
+    const baked = planBakeGeometry({
+      mode: "current",
+      elements: compiled.doc.document.elements,
+      evaluation,
+      bakeDisabledEvaluation: sandbox,
+      compiled: compiled.doc,
+      selectedElementIds: [disabled.id],
+      includeDisabledGeometry: true
+    });
+    expect(baked?.generatedElementIds).toHaveLength(1);
+    expect(baked?.skippedComments).toBe(0);
+    expect(applyLineSplices(compiled.sourceText, baked!.splices)).toContain(
+      "point Disabled_baked = coordinate(x: 3, y: 4, state: disabled)"
+    );
+    expect(evaluation.computedGeometry.has(disabled.id)).toBe(false);
+    expect(evaluation.effectiveEnabledElementIds?.has(disabled.id)).toBe(false);
+  });
+
+  it("emits or suppresses a skip when disabled sandbox evaluation genuinely fails", () => {
+    const compiled = compile([
+      "nui 4",
+      "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
+      "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
+    ].join("\n"));
+    const evaluation = evaluate(compiled);
+    const broken = compiled.doc.document.elements.find((element) => element.name === "Broken")!;
+    const sandbox = evaluate(compiled, [broken.id]);
+    const withComment = planBakeGeometry({
+      mode: "current",
+      elements: compiled.doc.document.elements,
+      evaluation,
+      bakeDisabledEvaluation: sandbox,
+      compiled: compiled.doc,
+      selectedElementIds: [broken.id],
+      includeDisabledGeometry: true,
+      emitSkippedComments: true
+    });
+    expect(withComment?.generatedElementIds).toEqual([]);
+    expect(withComment?.skippedComments).toBe(1);
+    expect(applyLineSplices(compiled.sourceText, withComment!.splices)).toContain(
+      "// Bake skipped: line Broken — unsupported"
+    );
+    const withoutComment = planBakeGeometry({
+      mode: "current",
+      elements: compiled.doc.document.elements,
+      evaluation,
+      bakeDisabledEvaluation: sandbox,
+      compiled: compiled.doc,
+      selectedElementIds: [broken.id],
+      includeDisabledGeometry: true,
+      emitSkippedComments: false
+    });
+    expect(withoutComment?.splices).toEqual([]);
   });
 
   it("can succeed with skipped comments only, and leaves source unchanged when disabled", () => {
@@ -257,33 +362,81 @@ describe("Bake geometry", () => {
     expect(withoutComment?.splices).toEqual([]);
   });
 
-  it("bakes every materialized module descendant while keeping module definitions untouched", () => {
+  it("bakes materialized geometry descendants, applies activity per descendant, and includes internal moves in Instance Base", () => {
     const compiled = compile([
       "nui 4",
-      "module M() {",
-      "  point P = coordinate(x: 1, y: 2)",
-      "  export line L = segment(start: (0, 0), end: (3, 0))",
-      "  text Memo = label(text: \"memo\", anchor: none, size: 3)",
+      "modifier Hide {",
+      "  state: hidden,",
       "}",
-      "instance Call = M()"
+      "modifier Disable {",
+      "  state: disabled,",
+      "}",
+      "module M() {",
+      "  point P0 = coordinate(x: 0, y: 0)",
+      "  point Shift = coordinate(x: 10, y: 10)",
+      "  export line L = segment(start: (0, 0), end: (3, 0))",
+      "  line Private = segment(start: (0, 0), end: (0, 3))",
+      "  line Hidden [Hide] = segment(start: (0, 0), end: (3, 0), state: hidden)",
+      "  line Disabled [Disable] = segment(start: (0, 0), end: (0, 3), state: disabled)",
+      "  text Memo = label(text: \"memo\", anchor: none, size: 3)",
+      "  move(targets: [@L], from: @P0, to: @Shift)",
+      "}",
+      "instance Call = M()",
+      "move(targets: [@Call::L], from: (10, 10), to: (20, 10))"
     ].join("\n"));
     const evaluation = evaluate(compiled);
+    const disabledIds = compiled.doc.document.elements
+      .filter((element) => element.activity === "disabled")
+      .map((element) => element.id);
+    const sandbox = evaluate(compiled, disabledIds);
     const instance = compiled.doc.document.elements.find((element) => element.name === "Call")!;
-    const plan = planBakeGeometry({
-      mode: "current",
+    const basePlan = planBakeGeometry({
+      mode: "base",
       elements: compiled.doc.document.elements,
       evaluation,
+      bakeDisabledEvaluation: sandbox,
       compiled: compiled.doc,
       selectedElementIds: [instance.id]
     });
-    expect(plan?.generatedElementIds).toHaveLength(2);
-    expect(plan?.skippedComments).toBe(1);
-    const patched = applyLineSplices(compiled.sourceText, plan!.splices);
-    expect(patched).toContain("point P_baked = coordinate(x: 1, y: 2)");
-    expect(patched).toContain("line L_baked = segment(start: (0, 0), end: (3, 0))");
-    expect(patched).toContain("// Bake skipped: text Memo — unsupported");
-    expect(patched).not.toContain("module M() {\n  point P_baked");
-    expect(plan!.splices).toHaveLength(1);
+    const currentPlan = planBakeGeometry({
+      mode: "current",
+      elements: compiled.doc.document.elements,
+      evaluation,
+      bakeDisabledEvaluation: sandbox,
+      compiled: compiled.doc,
+      selectedElementIds: [instance.id]
+    });
+    expect(basePlan?.generatedElementIds).toHaveLength(4);
+    expect(basePlan?.skippedComments).toBe(1);
+    expect(currentPlan?.generatedElementIds).toHaveLength(4);
+    expect(currentPlan?.skippedComments).toBe(1);
+    const basePatched = applyLineSplices(compiled.sourceText, basePlan!.splices);
+    const currentPatched = applyLineSplices(compiled.sourceText, currentPlan!.splices);
+    expect(basePatched).toContain("line L_baked = segment(start: (10, 10), end: (13, 10))");
+    expect(currentPatched).toContain("line L_baked = segment(start: (20, 10), end: (23, 10))");
+    expect(basePatched).toContain("line Private_baked = segment(start: (0, 0), end: (0, 3))");
+    expect(basePatched).toContain("// Bake skipped: text Memo — unsupported");
+    expect(basePatched).not.toContain("Bake skipped: move");
+    expect(basePatched).not.toContain("module M() {\n  point P0_baked");
+
+    const included = planBakeGeometry({
+      mode: "current",
+      elements: compiled.doc.document.elements,
+      evaluation,
+      bakeDisabledEvaluation: sandbox,
+      compiled: compiled.doc,
+      selectedElementIds: [instance.id],
+      includeHiddenGeometry: true,
+      includeDisabledGeometry: true
+    });
+    expect(included?.generatedElementIds).toHaveLength(6);
+    expect(included?.skippedComments).toBe(1);
+    const includedPatched = applyLineSplices(compiled.sourceText, included!.splices);
+    expect(includedPatched).toContain("line Hidden_baked [Hide]");
+    expect(includedPatched).toContain("state: hidden");
+    expect(includedPatched).toContain("line Disabled_baked [Disable]");
+    expect(includedPatched).toContain("state: disabled");
+    expect(includedPatched).not.toContain("Bake skipped: move");
   });
 
   it("uses the instance Base boundary before caller-side mutations", () => {

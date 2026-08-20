@@ -10,6 +10,9 @@ pub type ElementId = String;
 pub struct EvaluationInput {
     pub(crate) elements: Vec<Value>,
     pub(crate) evaluation_limit_index: Option<usize>,
+    /// Bake-only evaluation escape hatch; normal evaluation leaves disabled elements unevaluated.
+    #[serde(default)]
+    pub(crate) allow_disabled_element_ids: Option<Vec<ElementId>>,
     /// Compiled document-level drawing modifier definitions. Rust consumes
     /// this metadata only; source names are resolved by the DSL compiler.
     #[serde(default)]

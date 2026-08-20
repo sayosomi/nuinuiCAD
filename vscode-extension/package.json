@@ -17,6 +17,16 @@
           "type": "boolean",
           "default": true,
           "description": "Bakeできない対象の位置に理由コメントを挿入します。"
+        },
+        "nuinuiCAD.bake.includeHiddenGeometry": {
+          "type": "boolean",
+          "default": false,
+          "description": "Bake対象にhidden geometryを含めます。"
+        },
+        "nuinuiCAD.bake.includeDisabledGeometry": {
+          "type": "boolean",
+          "default": false,
+          "description": "Bake対象にdisabled geometryを含めます。"
         }
       }
     },

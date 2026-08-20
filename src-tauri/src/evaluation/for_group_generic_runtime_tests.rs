@@ -13,6 +13,7 @@ fn input(elements: Vec<Value>) -> EvaluationInput {
         module_materialization: None,
         elements,
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program: None,

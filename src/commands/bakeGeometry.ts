@@ -6,7 +6,11 @@ import { createCadElementId } from "../model/cadIds";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import type { DocumentMutationResult } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
+import {
+  effectiveElementActivity,
+  effectiveElementActivityById,
+  elementTypesWithoutOwnDrawableGeometry
+} from "../model/elementActivity";
 import type {
   CadElement,
   ComputedGeometry,
@@ -254,7 +258,7 @@ const primitiveToElement = (
   const common = {
     id,
     name,
-    activity: source?.activity === "hidden" ? "hidden" as const : "visible" as const,
+    activity: source?.activity ?? "visible",
     ...(source?.modifierNames ? { modifierNames: [...source.modifierNames] } : {}),
     ...(parentGroupId ? { parentGroupId } : {})
   };
@@ -324,22 +328,29 @@ export const planBakeGeometry = ({
   elements,
   evaluation,
   baseEvaluation,
+  bakeDisabledEvaluation,
   compiled,
   selectedElementIds,
   sourceStatementIndex,
-  emitSkippedComments = true
+  emitSkippedComments = true,
+  includeHiddenGeometry = false,
+  includeDisabledGeometry = false
 }: {
   mode: BakeMode;
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
   baseEvaluation?: EvaluationResult;
+  bakeDisabledEvaluation?: EvaluationResult;
   compiled: LastGoodDslDocument;
   selectedElementIds?: readonly ElementId[];
   sourceStatementIndex?: number;
   emitSkippedComments?: boolean;
+  includeHiddenGeometry?: boolean;
+  includeDisabledGeometry?: boolean;
 }): BakePlan | null => {
   if (!evaluation.evaluatedElementIds || !evaluation.effectiveEnabledElementIds) return null;
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const effectiveActivities = effectiveElementActivityById(elements, compiled.document.modifiers ?? []);
   const targets = sourceStatementIndex === undefined
     ? resolveCanvasTargets(compiled, elements, selectedElementIds ?? [])
     : resolveSourceBakeTargets(compiled, elements, sourceStatementIndex);
@@ -366,17 +377,27 @@ export const planBakeGeometry = ({
     : [target]);
 
   for (const target of bakeTargets) {
-    const sourceEvaluation = mode === "base" ? baseEvaluation ?? evaluation : evaluation;
+    const sourceElement = sourceElementForRuntimeId(elementsById, target.targetId);
+    const effectiveActivity = sourceElement
+      ? effectiveElementActivity(sourceElement, effectiveActivities).activity
+      : "visible";
+    if (effectiveActivity === "hidden" && !includeHiddenGeometry) continue;
+    if (effectiveActivity === "disabled" && !includeDisabledGeometry) continue;
+
+    const sourceEvaluation = effectiveActivity === "disabled"
+      ? bakeDisabledEvaluation
+      : mode === "base" ? baseEvaluation ?? evaluation : evaluation;
     const runtimeGeometry = target.instanceBaseId && mode === "base"
-      ? (sourceEvaluation.instanceBaseGeometry?.get(target.instanceBaseId) ?? [])
+      ? (sourceEvaluation?.instanceBaseGeometry?.get(target.instanceBaseId) ?? [])
           .filter((geometry) => geometry.elementId === target.targetId)
           .map((geometry) => ({ id: geometry.elementId, geometry }))
       : target.runtimeElementIds.flatMap((id) => {
-          const geometry = (mode === "base" ? sourceEvaluation.preMutationGeometry : sourceEvaluation.computedGeometry)?.get(id);
+          const geometry = (mode === "base" ? sourceEvaluation?.preMutationGeometry : sourceEvaluation?.computedGeometry)?.get(id);
           return geometry ? [{ id, geometry }] : [];
         });
     const targetElements = target.runtimeElementIds.map((id) => elementsById.get(id)).filter(Boolean) as CadElement[];
     const invalidRuntimeElement = targetElements.find((element) =>
+      !sourceEvaluation ||
       !sourceEvaluation.evaluatedElementIds?.has(element.id) ||
       !sourceEvaluation.effectiveEnabledElementIds?.has(element.id) ||
       sourceEvaluation.errors.some((error) => error.elementId === element.id)
@@ -409,8 +430,8 @@ export const planBakeGeometry = ({
       continue;
     }
 
-    const sourceElement = sourceElementForRuntimeId(elementsById, target.sourceElementId) ?? targetElements[0];
-    const baseName = sourceElement?.name.trim() ? `${sourceElement.name.trim()}_baked` : "_baked";
+    const namingSourceElement = sourceElementForRuntimeId(elementsById, target.sourceElementId) ?? targetElements[0];
+    const baseName = namingSourceElement?.name.trim() ? `${namingSourceElement.name.trim()}_baked` : "_baked";
     const indent = sourceIndent(compiled, statementInfoForTarget(compiled, target)?.line ?? 1);
     const lines = linesByInsertion.get(target.insertionStatementIndex) ?? [];
     const nameState = emittedNameState.get(baseName) ?? { nextSuffix: 1, usedBaseName: false };
@@ -428,7 +449,7 @@ export const planBakeGeometry = ({
         fallbackBaseName: requestedName,
         parentGroupId: target.insertionParentGroupId
       });
-      const generated = primitiveToElement(primitive, id, name, primitiveSource ?? sourceElement, target.insertionParentGroupId);
+      const generated = primitiveToElement(primitive, id, name, primitiveSource ?? namingSourceElement, target.insertionParentGroupId);
       plannedElements.push(generated);
       generatedElementIds.push(id);
       if (!primaryGeneratedElementId) primaryGeneratedElementId = id;

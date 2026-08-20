@@ -200,6 +200,10 @@ export type CommandContext = {
   /** Source statement selected by a host-side source cursor query. */
   sourceStatementIndex?: number;
   emitSkippedComments?: boolean;
+  includeHiddenGeometry?: boolean;
+  includeDisabledGeometry?: boolean;
+  /** Bake-only sandbox evaluation; canonical evaluation remains disabled-aware. */
+  bakeDisabledEvaluation?: EvaluationResult;
   selectionMode?: "replace" | "toggle" | "range";
   /** Source Editor folded-block move: use elementId alone instead of the current multi-selection. */
   moveCursorElementOnly?: boolean;

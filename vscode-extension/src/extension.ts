@@ -73,6 +73,8 @@ type DocumentSession = {
     normalizedSourceOffset: number;
     mode: "current" | "base";
     emitSkippedComments: boolean;
+    includeHiddenGeometry: boolean;
+    includeDisabledGeometry: boolean;
   } | null;
   inFlightCanvasNavigation: {
     requestId: number;
@@ -839,16 +841,23 @@ export const activate = (context: vscode.ExtensionContext): void => {
     void session.panel.webview.postMessage({ type: "canvasCommand", commandId } satisfies ExtensionToVscodeMessage);
   };
 
-  const emitSkippedCommentsSetting = (): boolean =>
-    vscode.workspace.getConfiguration("nuinuiCAD").get<boolean>("bake.emitSkippedComments", true);
+  const bakeSettings = () => {
+    const configuration = vscode.workspace.getConfiguration("nuinuiCAD");
+    return {
+      emitSkippedComments: configuration.get<boolean>("bake.emitSkippedComments", true),
+      includeHiddenGeometry: configuration.get<boolean>("bake.includeHiddenGeometry", false),
+      includeDisabledGeometry: configuration.get<boolean>("bake.includeDisabledGeometry", false)
+    };
+  };
 
   const executeBakeCommand = (mode: "current" | "base"): void => {
+    const settings = bakeSettings();
     const canvasSession = [...sessions.values()].find((candidate) => candidate.panel.active);
     if (canvasSession) {
       void canvasSession.panel.webview.postMessage({
         type: "canvasCommand",
         commandId: mode === "current" ? "bakeCurrentShape" : "bakeBaseShape",
-        emitSkippedComments: emitSkippedCommentsSetting()
+        ...settings
       } satisfies ExtensionToVscodeMessage);
       return;
     }
@@ -888,7 +897,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       documentVersion: document.version,
       normalizedSourceOffset,
       mode,
-      emitSkippedComments: emitSkippedCommentsSetting()
+      ...settings
     };
     session.panel.reveal(vscode.ViewColumn.Beside, true);
     deliverPendingBake(session);

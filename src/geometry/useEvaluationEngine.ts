@@ -87,6 +87,7 @@ export const useEvaluationEngine = (
   rustTransport?: RustEvaluationTransport
 ): EvaluationEngineState => {
   const evaluationLimitIndex = options.evaluationLimitIndex;
+  const allowDisabledElementIds = options.allowDisabledElementIds;
   const drawingModifiers = options.drawingModifiers;
   const scalarProgram = options.scalarProgram;
   const bindingVersions = options.bindingVersions;
@@ -98,6 +99,7 @@ export const useEvaluationEngine = (
   const forGroupMutationOwnerByElementId = options.forGroupMutationOwnerByElementId;
   const moduleConditionalOwnerStatementIdByElementId = options.moduleConditionalOwnerStatementIdByElementId;
   const moduleForGroupMutationOwnerByElementId = options.moduleForGroupMutationOwnerByElementId;
+  const moduleMaterialization = options.moduleMaterialization;
   const propertyBindingEntries = options.propertyBindingEntries;
   const numericBindingEntries = options.numericBindingEntries;
   const controlBooleanEntries = options.controlBooleanEntries;
@@ -107,6 +109,7 @@ export const useEvaluationEngine = (
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
+      ...(allowDisabledElementIds?.size ? { allowDisabledElementIds } : {}),
       ...(drawingModifiers?.length ? { drawingModifiers } : {}),
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(bindingVersions ? {
@@ -114,6 +117,7 @@ export const useEvaluationEngine = (
         conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId,
         moduleConditionalOwnerStatementIdByElementId, moduleForGroupMutationOwnerByElementId
       } : {}),
+      ...(moduleMaterialization ? { moduleMaterialization } : {}),
       ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
       ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
       ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
@@ -123,6 +127,7 @@ export const useEvaluationEngine = (
     }),
     [
       evaluationLimitIndex,
+      allowDisabledElementIds,
       drawingModifiers,
       scalarProgram,
       bindingVersions,
@@ -134,6 +139,7 @@ export const useEvaluationEngine = (
       forGroupMutationOwnerByElementId,
       moduleConditionalOwnerStatementIdByElementId,
       moduleForGroupMutationOwnerByElementId,
+      moduleMaterialization,
       propertyBindingEntries,
       numericBindingEntries,
       controlBooleanEntries,
@@ -151,6 +157,7 @@ export const useEvaluationEngine = (
     () => JSON.stringify({
       elements,
       evaluationLimitIndex,
+      allowDisabledElementIds: allowDisabledElementIds ? Array.from(allowDisabledElementIds) : undefined,
       drawingModifiers,
       scalarProgram,
       bindingVersions,
@@ -177,6 +184,7 @@ export const useEvaluationEngine = (
     [
       elements,
       evaluationLimitIndex,
+      allowDisabledElementIds,
       drawingModifiers,
       scalarProgram,
       bindingVersions,

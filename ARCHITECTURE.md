@@ -258,6 +258,11 @@ same JSON payload boundary and are available to the host-neutral Bake operation;
 the existing Canvas Bezier editing helper narrows the generalized map to Bezier
 geometry locally.
 
+Bake-only evaluation of explicitly included disabled geometry uses the existing
+Rust/TypeScript evaluation boundary with an explicit allow-list in the evaluation
+payload. Normal evaluation still leaves disabled elements unevaluated; the
+allow-list is only supplied by the Bake host path for its sandbox snapshot.
+
 `src/commands/bakeGeometry.ts` owns host-neutral target resolution, exact primitive
 conversion, generated declaration naming, source insertion planning, and skipped
 target comments. `bakeCurrentShape` and `bakeBaseShape` dispatch through the shared
@@ -463,11 +468,15 @@ context is cleared before Editor focus is transferred.
 
 The Source+Canvas `Bake Current Shape` and `Bake Base Shape` commands are visible
 from native command-palette surface predicates only. The Extension Host owns the
-VS Code setting `nuinuiCAD.bake.emitSkippedComments`, document-version isolation,
-and the native edit bridge; the Webview owns target resolution and the shared Bake
-conversion. A source-triggered request keeps Source Editor focus where possible,
-rejects reusable module-definition bodies, and is accepted only after the same
-authoritative source/revision/evaluation checks used by navigation.
+VS Code settings `nuinuiCAD.bake.emitSkippedComments`,
+`nuinuiCAD.bake.includeHiddenGeometry`, and
+`nuinuiCAD.bake.includeDisabledGeometry`, document-version isolation, and the
+native edit bridge. When disabled geometry is included, the host requests the
+Bake-only sandbox through the same Rust evaluation boundary. The Webview owns
+target resolution and the shared Bake conversion. A source-triggered request keeps
+Source Editor focus where possible, rejects reusable module-definition bodies, and
+is accepted only after the same authoritative source/revision/evaluation checks
+used by navigation.
 
 `RustEvaluationProcess` is lazy and extension-wide through
 `RustEvaluationProcessOwner`; all document sessions share it. A panel does not

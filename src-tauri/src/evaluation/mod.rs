@@ -663,10 +663,19 @@ fn evaluate_document_input_with_scalar_program(
             .into_iter()
             .filter(|id| evaluated_ids.contains(id))
             .collect::<Vec<_>>();
-    let base_effective_enabled_ids = effective_element_ids(&input.elements, &activities, false)
+    let mut base_effective_enabled_ids = effective_element_ids(&input.elements, &activities, false)
         .into_iter()
         .filter(|id| evaluated_ids.contains(id))
         .collect::<HashSet<_>>();
+    base_effective_enabled_ids.extend(
+        input
+            .allow_disabled_element_ids
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .filter(|id| evaluated_ids.contains(*id))
+            .cloned(),
+    );
 
     let mut state = EvaluationState {
         elements_by_id: input

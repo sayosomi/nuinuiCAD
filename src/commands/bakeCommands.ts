@@ -19,7 +19,10 @@ const runBake = (mode: BakeMode, context?: CommandContext) => {
     compiled: document.doc,
     selectedElementIds: getSelectedElementIds(),
     sourceStatementIndex: context?.sourceStatementIndex,
-    emitSkippedComments: context?.emitSkippedComments ?? true
+    emitSkippedComments: context?.emitSkippedComments ?? true,
+    includeHiddenGeometry: context?.includeHiddenGeometry ?? false,
+    includeDisabledGeometry: context?.includeDisabledGeometry ?? false,
+    bakeDisabledEvaluation: context?.bakeDisabledEvaluation
   });
   if (!plan || (plan.splices.length === 0 && plan.generatedElementIds.length === 0)) {
     useCadUiStore.getState().setCommandErrorMessage("Bakeできるジオメトリがありません。");

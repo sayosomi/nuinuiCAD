@@ -122,6 +122,7 @@ fn input(scalar_program: Option<Value>, binding_versions: Option<Value>) -> Eval
         module_materialization: None,
         elements: vec![],
         evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
         drawing_modifiers: None,
         scalar_expression_payload: None,
         scalar_program,

@@ -22,6 +22,9 @@ type CommandPaletteMenu = {
 
 type ExtensionManifest = {
   contributes?: {
+    configuration?: {
+      properties?: Record<string, { type: string; default: unknown }>;
+    };
     commands?: Command[];
     keybindings?: Keybinding[];
     menus?: {
@@ -55,6 +58,16 @@ async function readManifest(): Promise<ExtensionManifest> {
 }
 
 describe("VS Code extension manifest command contributions", () => {
+  it("declares the Bake activity settings with their current defaults", async () => {
+    const manifest = await readManifest();
+    const properties = manifest.contributes?.configuration?.properties ?? {};
+    expect(properties).toMatchObject({
+      "nuinuiCAD.bake.emitSkippedComments": { type: "boolean", default: true },
+      "nuinuiCAD.bake.includeHiddenGeometry": { type: "boolean", default: false },
+      "nuinuiCAD.bake.includeDisabledGeometry": { type: "boolean", default: false }
+    });
+  });
+
   it("registers the current command set", async () => {
     const manifest = await readManifest();
     const commands = manifest.contributes?.commands ?? [];
