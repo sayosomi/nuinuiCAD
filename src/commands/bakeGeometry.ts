@@ -390,7 +390,9 @@ const planInsertionSplices = (
   .sort(([left], [right]) => left - right)
   .map(([statementIndex, lines]) => {
     const statement = compiled.statementMap.statements[statementIndex];
-    const endLine = statement?.range.endLine ?? statement?.endLine;
+    const endLine = statement
+      ? Math.max(statement.range.endLine, statement.endLine)
+      : undefined;
     if (!statement || endLine === undefined) throw new Error("Bakeの挿入位置を特定できません。");
     return { startLine: endLine + 1, endLine, replacementLines: lines };
   });

@@ -252,6 +252,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let benchmarkEditorListener: vscode.Disposable | null = null;
   const canvasHistoryHandoffContextKey = "nuinuiCAD.canvasHistoryHandoff";
   let canvasHistoryHandoffSession: DocumentSession | null = null;
+  let lastActiveCanvasSession: DocumentSession | null = null;
   let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
   let nextNavigationRequestId = 1;
   let nextBakeRequestId = 1;
@@ -272,6 +273,18 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const clearCanvasHistoryHandoffIfReady = (session: DocumentSession): void => {
     if (session.panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
+  };
+
+  const canvasSessionForCommand = (): DocumentSession | null => {
+    const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    if (activeSession) {
+      lastActiveCanvasSession = activeSession;
+      return activeSession;
+    }
+    const remembered = lastActiveCanvasSession;
+    return remembered && sessions.get(remembered.key) === remembered && remembered.panel.visible
+      ? remembered
+      : null;
   };
 
   const publishCompilerDiagnostics = (document: vscode.TextDocument): void => {
@@ -650,6 +663,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const disposeSession = (session: DocumentSession): void => {
     if (sessions.get(session.key) !== session) return;
+    if (lastActiveCanvasSession === session) lastActiveCanvasSession = null;
     session.inFlightCanvasHistory = null;
     clearCanvasHistoryHandoff(session);
     sessions.delete(session.key);
@@ -754,6 +768,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
 
     session.disposables.push(panel.onDidChangeViewState(() => {
+      if (panel.active) lastActiveCanvasSession = session;
       if (panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
     }));
 
@@ -828,7 +843,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const executeCanvasCommand = (commandId: VscodeCanvasCommandId): void => {
-    const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const activeSession = canvasSessionForCommand();
     const session = activeSession ?? (
       commandId === "undo" || commandId === "redo"
         ? canvasHistoryHandoffSession
@@ -852,7 +867,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const executeBakeCommand = (mode: "current" | "base"): void => {
     const settings = bakeSettings();
-    const canvasSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const canvasSession = canvasSessionForCommand();
     if (canvasSession) {
       void canvasSession.panel.webview.postMessage({
         type: "canvasCommand",
@@ -904,7 +919,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const goToSourceDefinition = (): void => {
-    const session = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const session = canvasSessionForCommand();
     if (
       !session ||
       session.inFlightCanvasHistory !== null ||
@@ -1040,6 +1055,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
       context.subscriptions.push(benchmarkEditorListener);
     }
   }
+  const activeEditorListener = vscode.window.onDidChangeActiveTextEditor(() => {
+    lastActiveCanvasSession = [...sessions.values()].find((candidate) => candidate.panel.active) ?? null;
+  });
+  context.subscriptions.push(activeEditorListener);
 };
 
 export const deactivate = (): void => undefined;

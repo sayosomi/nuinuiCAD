@@ -43,6 +43,7 @@ type TestEditor = {
 type TestPanel = {
   title: string;
   active: boolean;
+  visible: boolean;
   webview: {
     cspSource: string;
     html: string;
@@ -325,6 +326,7 @@ const panelFor = (): TestPanel => {
   const panel = {
     title: "",
     active: true,
+    visible: true,
     webview: {
       cspSource: "csp",
       html: "",
@@ -593,6 +595,21 @@ describe("VS Code production document lifecycle", () => {
       includeHiddenGeometry: true,
       includeDisabledGeometry: true
     });
+  });
+
+  it("keeps Bake routed to the last active Canvas while the Command Palette owns focus", () => {
+    setup();
+    const panel = openPanelFor();
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    panel.active = false;
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it("routes Canvas Undo/Redo to the active Canvas webview", () => {

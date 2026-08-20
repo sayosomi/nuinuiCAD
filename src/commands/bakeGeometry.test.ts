@@ -1,9 +1,14 @@
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { compileFreshCanonicalText } from "../document/canonicalDocument";
 import { applyLineSplices } from "../document/textPatch";
 import { evaluateElements } from "../geometry/evaluate";
+import { evaluationPayloadToResult, type EvaluationPayload } from "../geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
-import { planBakeGeometry, resolveDisabledBakeTargetIds } from "./bakeGeometry";
+import { buildRustEvaluationInput } from "../geometry/rustEvaluationInput";
+import { planBakeGeometry, resolveDisabledBakeTargetIds, resolveSourceBakeTargets } from "./bakeGeometry";
 
 const compile = (source: string) => {
   const result = compileFreshCanonicalText(source);
@@ -27,7 +32,74 @@ const evaluate = (
   }
 );
 
+const productionRustBinary = process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(
+  process.cwd(),
+  "src-tauri/target/debug/evaluation_stdio"
+);
+
+const evaluateWithProductionRust = (compiled: ReturnType<typeof compile>) => {
+  const input = buildRustEvaluationInput(
+    compiled.doc.document.elements,
+    buildEvaluationOptions({
+      compiledDocument: compiled.doc,
+      evaluationLimitIndex: undefined
+    })
+  );
+  const response = JSON.parse(execFileSync(productionRustBinary, [], {
+    encoding: "utf8",
+    input: `${JSON.stringify({ id: 1, input })}\n`
+  })) as { payload: EvaluationPayload };
+  return evaluationPayloadToResult(response.payload);
+};
+
 describe("Bake geometry", () => {
+  it.skipIf(!existsSync(productionRustBinary))("bakes a division point through the production Rust evaluation path", () => {
+    const compiled = compile([
+      "nui 4",
+      "modifier Guide {",
+      "  state: visible,",
+      "}",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "point Derived [Guide] = between(",
+      "  start: @A,",
+      "  end: @B,",
+      "  ratio: 0.25,",
+      ")"
+    ].join("\n"));
+    const derived = compiled.doc.document.elements.find((element) => element.name === "Derived")!;
+    const evaluation = evaluateWithProductionRust(compiled);
+
+    expect(evaluation.evaluatedElementIds).toContain(derived.id);
+    expect(evaluation.effectiveEnabledElementIds).toContain(derived.id);
+    expect(evaluation.computedGeometry.get(derived.id)).toMatchObject({
+      kind: "point",
+      x: 25,
+      y: 0
+    });
+
+    const sourceStatementIndex = compiled.doc.statementMap.byElementId.get(derived.id)!.statementIndex;
+    expect(resolveSourceBakeTargets(
+      compiled.doc,
+      compiled.doc.document.elements,
+      sourceStatementIndex
+    )).toEqual(expect.arrayContaining([
+      expect.objectContaining({ targetId: derived.id })
+    ]));
+
+    const plan = planBakeGeometry({
+      mode: "current",
+      elements: compiled.doc.document.elements,
+      evaluation,
+      compiled: compiled.doc,
+      selectedElementIds: [derived.id]
+    });
+    expect(plan?.generatedElementIds).toHaveLength(1);
+    expect(applyLineSplices(compiled.sourceText, plan!.splices)).toContain(
+      "point Derived_baked [Guide] = coordinate(x: 25, y: 0)"
+    );
+  }, 30_000);
+
   it("creates independent coordinate primitives in source order", () => {
     const current = compile([
       "nui 4",
