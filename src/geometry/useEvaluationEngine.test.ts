@@ -74,7 +74,7 @@ const copySource = (angleDeg: string) => [
   "point B = coordinate(x: 10, y: 0)",
   "line AB = segment(start: @A, end: @B)",
   "for i in range(from: 0, count: 2, step: 1, showGenerated: true) {",
-  `  line Copy = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: ${angleDeg}, mirrorX: false, baseLines: [@AB])`,
+  `  line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: ${angleDeg}, mirrorX: false, baseLines: [@AB])`,
   "}"
 ].join("\n");
 

@@ -453,7 +453,7 @@ describe("module geometry runtime", () => {
     const allowed = compileWithIds([
       "nui 4",
       "module M(path: line) {",
-      "  line Copy = copy(startPoint: @path.start, endPoint: @path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@path])",
+      "  line Copy = transformCopy(startPoint: @path.start, endPoint: @path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@path])",
       "  reverse(target: @Copy)",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",

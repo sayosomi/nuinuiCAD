@@ -276,6 +276,18 @@ describe("VS Code native nui completion provider", () => {
     }
   });
 
+  it("offers transformCopy and its existing argument names through the native provider", () => {
+    const constructionItems = itemsFor("nui 4\nline L = tran");
+    expect(constructionItems.map((item) => item.label)).toContain("transformCopy");
+    expect(constructionItems.map((item) => item.label)).not.toContain("copy");
+    expect(constructionItems.find((item) => item.label === "transformCopy")?.insertText).toBe("transformCopy");
+
+    const argumentItems = itemsFor("nui 4\nline L = transformCopy(");
+    expect(argumentItems.map((item) => item.label)).toEqual(expect.arrayContaining([
+      "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "baseLines"
+    ]));
+  });
+
   it("returns syntax candidates for incomplete source and does not require Rust", () => {
     const source = "nui 4\npoint P = co";
     const session = createLanguageAnalysisSession(source);

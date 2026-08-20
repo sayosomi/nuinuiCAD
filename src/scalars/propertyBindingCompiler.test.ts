@@ -154,9 +154,9 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(7, "useExtensions"))).toMatchObject({ kind: "binding", type: { kind: "boolean" } });
   });
 
-  it.each(["copy", "move"] as const)("%s mirrorX", (construction) => {
-    const constructionLine = construction === "copy"
-      ? "line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @反転, baseLines: [@AB])"
+  it.each(["transformCopy", "move"] as const)("%s mirrorX", (construction) => {
+    const constructionLine = construction === "transformCopy"
+      ? "line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @反転, baseLines: [@AB])"
       : "move(targets: [@AB], from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: @反転)";
     const compiled = compileFor([
       "let 反転: boolean = true",

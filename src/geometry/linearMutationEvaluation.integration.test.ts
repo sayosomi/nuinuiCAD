@@ -121,7 +121,7 @@ describe("Task 31 linear mutation production wiring", () => {
       "line AB = segment(start: @A, end: @B)",
       "for i in range(from: 0, count: 2, step: 1, showGenerated: @show) {",
       "  set total = @total + 1",
-      "  line Copy = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 90, mirrorX: false, baseLines: [@AB])",
+      "  line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 90, mirrorX: false, baseLines: [@AB])",
       "}",
       'text Final = label(text: "${@total}", anchor: none, size: 3)'
     ].join("\n"));

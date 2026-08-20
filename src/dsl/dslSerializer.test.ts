@@ -30,7 +30,7 @@ const buildElements = () => {
       "arc three = through(point1: @A,point2: @B,point3: @C,start: 180,end: 270, id: a3)",
       'text label = label(text: "前中心",anchor: @A,size: 4, id: t1)',
       "edge(end1: @AB.start, end2: @shoulder.end, index: 0, id: e1)",
-      "line cp = copy(startPoint: @A,endPoint: @B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [@AB], id: e2)",
+      "line cp = transformCopy(startPoint: @A,endPoint: @B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [@AB], id: e2)",
       "line sym = mirrorCopy(axis1: @A,axis2: @B,baseLines: [@AB], id: e3)",
       "move(targets: [@AB], from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: false, id: e4)",
       "mirrorMove(targets: [@AB], axis1: @A, axis2: @B, id: e5)",
@@ -54,7 +54,10 @@ const buildElements = () => {
 describe("serializeElementsToDsl flat output", () => {
   it("keeps the flat id-based output canonical", () => {
     const elements = buildElements();
-    expect(serializeElementsToDsl(elements)).toMatchInlineSnapshot(`
+    const serialized = serializeElementsToDsl(elements);
+    expect(serialized).toContain("transformCopy(");
+    expect(serialized).not.toContain("copy(");
+    expect(serialized).toMatchInlineSnapshot(`
       "group 前身頃 (id: g1)
       point A = coordinate(
         x: 0,
@@ -179,7 +182,7 @@ describe("serializeElementsToDsl flat output", () => {
         index: 0,
         id: e1,
       )
-      line cp = copy(
+      line cp = transformCopy(
         startPoint: @p1,
         endPoint: @p2,
         scale: 1,
