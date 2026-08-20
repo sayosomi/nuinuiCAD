@@ -1,10 +1,11 @@
-import type { CSSProperties } from "react";
 import { canvasThemeCssVariables, type CanvasTheme } from "./canvasTheme";
-import type { ViewportSize } from "./canvasViewport";
-import {
-  pointDragAxisHintPosition,
-  type PointDragAxisLockFeedbackState
-} from "./pointDragAxisHintGeometry";
+import type { ScreenPoint } from "./DrawingCanvasHitTest";
+import type { AxisLockKeys, ViewportSize } from "./canvasViewport";
+
+export type PointDragAxisLockFeedbackState = {
+  origin: ScreenPoint;
+  axisLockKeys: AxisLockKeys;
+};
 
 type PointDragAxisLockFeedbackProps = {
   feedback: PointDragAxisLockFeedbackState;
@@ -18,14 +19,6 @@ export const PointDragAxisLockFeedback = ({
   canvasTheme
 }: PointDragAxisLockFeedbackProps) => {
   const activeAxis = feedback.axisLockKeys.x ? "x" : feedback.axisLockKeys.y ? "y" : null;
-  const hintPosition = pointDragAxisHintPosition({
-    cursor: feedback.cursor,
-    viewportSize
-  });
-  const hintStyle = {
-    left: `${hintPosition.x}px`,
-    top: `${hintPosition.y}px`
-  } satisfies CSSProperties;
 
   return (
     <div
@@ -66,22 +59,20 @@ export const PointDragAxisLockFeedback = ({
       <div
         className="point-drag-axis-lock-hint"
         data-point-drag-axis-lock-hint="true"
-        style={hintStyle}
+        data-point-drag-axis-lock-hint-position="bottom-left"
+        style={{ left: 0, bottom: 0 }}
       >
+        <span className="point-drag-axis-lock-move">Move</span>
+        <span className="point-drag-axis-lock-separator"> · </span>
         <span
           className={`point-drag-axis-lock-action ${activeAxis === "x" ? "is-active" : ""}`.trim()}
           data-axis="x"
-        >
-          <kbd>[X]</kbd>
-          <span>X軸</span>
-        </span>
+        >X Horizontal</span>
+        <span className="point-drag-axis-lock-separator"> · </span>
         <span
           className={`point-drag-axis-lock-action ${activeAxis === "y" ? "is-active" : ""}`.trim()}
           data-axis="y"
-        >
-          <kbd>[Y]</kbd>
-          <span>Y軸</span>
-        </span>
+        >Y Vertical</span>
       </div>
     </div>
   );

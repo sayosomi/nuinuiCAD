@@ -21,9 +21,9 @@ import type {
 import { CanvasCandidateMenus } from "./CanvasCandidateMenus";
 import { CanvasOverlay } from "./CanvasOverlay";
 import {
-  PointDragAxisLockFeedback
+  PointDragAxisLockFeedback,
+  type PointDragAxisLockFeedbackState
 } from "./PointDragAxisLockFeedback";
-import type { PointDragAxisLockFeedbackState } from "./pointDragAxisHintGeometry";
 import {
   hitTestCanvasGeometry,
   hitTestLineCandidates,
@@ -657,10 +657,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       x: intent.start.clientX - rect.left - viewport.clientLeft,
       y: intent.start.clientY - rect.top - viewport.clientTop
     };
-    const latestScreen = {
-      x: intent.latest.clientX - rect.left - viewport.clientLeft,
-      y: intent.latest.clientY - rect.top - viewport.clientTop
-    };
     const movement = pendingCanvasPointerDistance(intent);
     const beginCapture = () => {
       if (intent.pointerReleased) return;
@@ -811,7 +807,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     };
     setPointDragFeedback({
       origin: screen,
-      cursor: latestScreen,
       axisLockKeys: { ...axisLockKeysRef.current }
     });
     setIsPointDragging(true);
@@ -1104,17 +1099,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
       claimPointerMoveEntry(pointerMoveEntry, "point");
       event.preventDefault();
-      const rect = event.currentTarget.getBoundingClientRect();
-      const cursor = {
-        x: event.clientX - rect.left - event.currentTarget.clientLeft,
-        y: event.clientY - rect.top - event.currentTarget.clientTop
-      };
-      setPointDragFeedback((feedback) => feedback
-        ? {
-            ...feedback,
-            cursor
-          }
-        : feedback);
       const screenDx = event.clientX - pointDrag.startClientX;
       const screenDy = event.clientY - pointDrag.startClientY;
       const worldDelta = constrainedWorldDelta({

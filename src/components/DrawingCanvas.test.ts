@@ -16,7 +16,6 @@ import { DEFAULT_CANVAS_VIEWPORT, DEFAULT_PRINT_PREVIEW_WINDOW, useCadDocumentSt
 import { useCadUiStore } from "../state/cadUiStore";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { TauriDrawingCanvas } from "./TauriDrawingCanvas";
-import { POINT_DRAG_AXIS_HINT_SIZE, pointDragAxisHintPosition } from "./pointDragAxisHintGeometry";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
 import { worldToScreen } from "./canvasViewport";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
@@ -812,7 +811,7 @@ describe("hitTestCanvasGeometry", () => {
 });
 
 describe("DrawingCanvas point dragging", () => {
-  it("keeps the axis hint absent at idle, shows both actions during a point drag, follows the pointer, and clamps to the viewport", () => {
+  it("keeps the axis feedback absent at idle and shows the fixed bottom-left hint during a point drag", () => {
     const { container, viewport } = renderDrawingCanvas();
     const feedback = () => container.querySelector<HTMLElement>("[data-point-drag-axis-lock-feedback]");
     const hint = () => container.querySelector<HTMLElement>("[data-point-drag-axis-lock-hint]");
@@ -828,12 +827,11 @@ describe("DrawingCanvas point dragging", () => {
     });
 
     expect(feedback()).not.toBeNull();
-    expect(hint()).toHaveTextContent("[X]");
-    expect(hint()).toHaveTextContent("X軸");
-    expect(hint()).toHaveTextContent("[Y]");
-    expect(hint()).toHaveTextContent("Y軸");
+    expect(hint()).toHaveTextContent("Move · X Horizontal · Y Vertical");
+    expect(hint()).toHaveAttribute("data-point-drag-axis-lock-hint-position", "bottom-left");
+    expect(hint()).toHaveStyle({ left: "0px", bottom: "0px" });
+    expect(feedback()).toHaveStyle({ pointerEvents: "none" });
     expect(container.querySelector("[data-point-drag-axis-guide]")).toBeNull();
-    expect(hint()).toHaveStyle({ left: "310px", top: "260px" });
 
     fireEvent.pointerMove(viewport, {
       buttons: 1,
@@ -841,39 +839,50 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 270,
       pointerId: 1
     });
-    expect(hint()).toHaveStyle({ left: "330px", top: "280px" });
-
-    fireEvent.pointerMove(viewport, {
-      buttons: 1,
-      clientX: 495,
-      clientY: 395,
-      pointerId: 1
-    });
-    const placedHint = hint();
-    if (!placedHint) throw new Error("Missing point drag hint");
-    expect(Number.parseFloat(placedHint.style.left) + POINT_DRAG_AXIS_HINT_SIZE.width).toBeLessThanOrEqual(500);
-    expect(Number.parseFloat(placedHint.style.top) + POINT_DRAG_AXIS_HINT_SIZE.height).toBeLessThanOrEqual(400);
+    expect(hint()).toHaveStyle({ left: "0px", bottom: "0px" });
 
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: 495,
-      clientY: 395,
+      clientX: 320,
+      clientY: 270,
       pointerId: 1
     });
     expect(feedback()).toBeNull();
   });
 
-  it("places the point drag hint beside the cursor and flips it near both viewport edges", () => {
-    expect(pointDragAxisHintPosition({
-      cursor: { x: 100, y: 100 },
-      viewportSize: { width: 500, height: 400 }
-    })).toEqual({ x: 110, y: 110 });
-    expect(pointDragAxisHintPosition({
-      cursor: { x: 495, y: 395 },
-      viewportSize: { width: 500, height: 400 }
-    })).toEqual({
-      x: 367,
-      y: 357
+  it("does not retain cursor-following positioning state", () => {
+    const { container, viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    const hint = container.querySelector<HTMLElement>("[data-point-drag-axis-lock-hint]");
+    if (!hint) throw new Error("Missing point drag hint");
+    expect(hint.style.left).toBe("0px");
+    expect(hint.style.top).toBe("");
+    expect(hint.style.right).toBe("");
+    expect(hint.style.bottom).toBe("0px");
+    expect(hint).toHaveAttribute("data-point-drag-axis-lock-hint-position", "bottom-left");
+
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 420,
+      clientY: 340,
+      pointerId: 1
+    });
+    expect(hint.style.left).toBe("0px");
+    expect(hint.style.top).toBe("");
+
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 420,
+      clientY: 340,
+      pointerId: 1
     });
   });
 

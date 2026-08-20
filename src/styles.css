@@ -3777,15 +3777,8 @@ textarea {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 7px;
-  width: 118px;
-  height: 28px;
-  overflow: hidden;
-  border: 1px solid var(--canvas-muted);
-  border-radius: 5px;
-  background: var(--canvas-background);
-  box-shadow: 0 3px 10px color-mix(in srgb, var(--canvas-foreground) 22%, transparent);
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--canvas-background) 82%, transparent);
   color: var(--canvas-foreground);
   font-size: 11px;
   line-height: 1;
@@ -3793,31 +3786,14 @@ textarea {
   user-select: none;
 }
 
+.point-drag-axis-lock-separator,
 .point-drag-axis-lock-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
   color: var(--canvas-muted);
-}
-
-.point-drag-axis-lock-action kbd {
-  border: 1px solid var(--canvas-muted);
-  border-radius: 3px;
-  background: var(--canvas-background);
-  color: var(--canvas-foreground);
-  font: inherit;
-  padding: 2px 3px;
 }
 
 .point-drag-axis-lock-action.is-active {
   color: var(--canvas-accent);
   font-weight: 700;
-}
-
-.point-drag-axis-lock-action.is-active kbd {
-  border-color: var(--canvas-accent);
-  background: var(--canvas-accent);
-  color: var(--canvas-background);
 }
 
 .canvas-viewport.is-panning {
