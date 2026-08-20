@@ -96,7 +96,7 @@ describe("Bake geometry", () => {
     });
     expect(plan?.generatedElementIds).toHaveLength(1);
     expect(applyLineSplices(compiled.sourceText, plan!.splices)).toContain(
-      "point Derived_baked [Guide] = coordinate(x: 25, y: 0)"
+      "point Derived_bake [Guide] = coordinate(x: 25, y: 0)"
     );
   }, 30_000);
 
@@ -119,7 +119,7 @@ describe("Bake geometry", () => {
     });
     expect(plan?.generatedElementIds).toHaveLength(1);
     const patched = applyLineSplices(current.sourceText, plan!.splices);
-    expect(patched).toContain("line AB_baked = segment(start: (0, 0), end: (100, 0))");
+    expect(patched).toContain("line AB_bake = segment(start: (0, 0), end: (100, 0))");
     expect(patched).toContain("start: (0, 0), end: (100, 0)");
   });
 
@@ -159,7 +159,7 @@ describe("Bake geometry", () => {
       selectedElementIds: [arc.id]
     });
     expect(applyLineSplices(compiled.sourceText, plan!.splices)).toContain(
-      "arc A_baked = arc(center: (0, 0), radius: 12, start: 30, end: 150)"
+      "arc A_bake = arc(center: (0, 0), radius: 12, start: 30, end: 150)"
     );
   });
 
@@ -186,10 +186,10 @@ describe("Bake geometry", () => {
       selectedElementIds: [line.id]
     });
     expect(applyLineSplices(compiled.sourceText, basePlan!.splices)).toContain(
-      "line L_baked = segment(start: (0, 0), end: (10, 0))"
+      "line L_bake = segment(start: (0, 0), end: (10, 0))"
     );
     expect(applyLineSplices(compiled.sourceText, currentPlan!.splices)).toContain(
-      "line L_baked = segment(start: (10, 0), end: (0, 0))"
+      "line L_bake = segment(start: (10, 0), end: (0, 0))"
     );
   });
 
@@ -212,9 +212,46 @@ describe("Bake geometry", () => {
     });
     expect(plan?.generatedElementIds).toHaveLength(2);
     const patched = applyLineSplices(compiled.sourceText, plan!.splices);
-    expect(patched).toContain("curve C_baked_1 = bezier(");
-    expect(patched).toContain("curve C_baked_2 = bezier(");
-    expect(patched).toContain("curve C_baked_1 = bezier(start: (0, 0)");
+    expect(patched).toContain("curve C_bake_1 = bezier(");
+    expect(patched).toContain("curve C_bake_2 = bezier(");
+    expect(patched).toContain("curve C_bake_1 = bezier(start: (0, 0)");
+  });
+
+  it("uses _bake for unnamed single primitives and _bake_N for unnamed multi primitives", () => {
+    const unnamedPointDocument = compile([
+      "nui 4",
+      "point = coordinate(x: 1, y: 2)"
+    ].join("\n"));
+    const unnamedPoint = unnamedPointDocument.doc.document.elements.find((element) => element.name === "")!;
+    const unnamedPointPlan = planBakeGeometry({
+      mode: "current",
+      elements: unnamedPointDocument.doc.document.elements,
+      evaluation: evaluate(unnamedPointDocument),
+      compiled: unnamedPointDocument.doc,
+      selectedElementIds: [unnamedPoint.id]
+    });
+    expect(applyLineSplices(unnamedPointDocument.sourceText, unnamedPointPlan!.splices)).toContain(
+      "point _bake = coordinate(x: 1, y: 2)"
+    );
+
+    const unnamedCurveDocument = compile([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point M = coordinate(x: 5, y: 5)",
+      "point B = coordinate(x: 10, y: 0)",
+      "curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [@M:90:1:1])"
+    ].join("\n"));
+    const unnamedCurve = unnamedCurveDocument.doc.document.elements.find((element) => element.name === "")!;
+    const unnamedCurvePlan = planBakeGeometry({
+      mode: "current",
+      elements: unnamedCurveDocument.doc.document.elements,
+      evaluation: evaluate(unnamedCurveDocument),
+      compiled: unnamedCurveDocument.doc,
+      selectedElementIds: [unnamedCurve.id]
+    });
+    const patched = applyLineSplices(unnamedCurveDocument.sourceText, unnamedCurvePlan!.splices);
+    expect(patched).toContain("curve _bake_1 = bezier(");
+    expect(patched).toContain("curve _bake_2 = bezier(");
   });
 
   it("preserves the exact primitive order of an open offset path", () => {
@@ -239,7 +276,7 @@ describe("Bake geometry", () => {
     });
     expect(plan?.generatedElementIds.length).toBe(offsetGeometry.segments.length);
     const patched = applyLineSplices(compiled.sourceText, plan!.splices);
-    expect(patched.indexOf("line O_baked_1 = ")).toBeLessThan(patched.indexOf("arc O_baked_2 = "));
+    expect(patched.indexOf("line O_bake_1 = ")).toBeLessThan(patched.indexOf("arc O_bake_2 = "));
   });
 
   it("keeps multiple insertion sites in source order", () => {
@@ -280,8 +317,8 @@ describe("Bake geometry", () => {
       selectedElementIds: [point.id]
     });
     const patched = applyLineSplices(compiled.sourceText, plan!.splices);
-    expect(patched).toContain("point A_baked [Basic] = coordinate(x: 1, y: 2)");
-    expect(patched).not.toContain("modifier Basic_baked");
+    expect(patched).toContain("point A_bake [Basic] = coordinate(x: 1, y: 2)");
+    expect(patched).not.toContain("modifier Basic_bake");
   });
 
   it("silently filters hidden geometry when hidden inclusion is off", () => {
@@ -323,7 +360,7 @@ describe("Bake geometry", () => {
     });
     expect(plan?.generatedElementIds).toHaveLength(1);
     const patched = applyLineSplices(compiled.sourceText, plan!.splices);
-    expect(patched).toContain("point Hidden_baked [Hide] = coordinate(x: 1, y: 2, state: hidden)");
+    expect(patched).toContain("point Hidden_bake [Hide] = coordinate(x: 1, y: 2, state: hidden)");
   });
 
   it("silently filters disabled geometry by default and bakes it only through the sandbox", () => {
@@ -361,7 +398,7 @@ describe("Bake geometry", () => {
     expect(baked?.generatedElementIds).toHaveLength(1);
     expect(baked?.skippedComments).toBe(0);
     expect(applyLineSplices(compiled.sourceText, baked!.splices)).toContain(
-      "point Disabled_baked = coordinate(x: 3, y: 4, state: disabled)"
+      "point Disabled_bake = coordinate(x: 3, y: 4, state: disabled)"
     );
     expect(evaluation.computedGeometry.has(disabled.id)).toBe(false);
     expect(evaluation.effectiveEnabledElementIds?.has(disabled.id)).toBe(false);
@@ -512,12 +549,12 @@ describe("Bake geometry", () => {
     expect(currentPlan?.skippedComments).toBe(1);
     const basePatched = applyLineSplices(compiled.sourceText, basePlan!.splices);
     const currentPatched = applyLineSplices(compiled.sourceText, currentPlan!.splices);
-    expect(basePatched).toContain("line L_baked = segment(start: (10, 10), end: (13, 10))");
-    expect(currentPatched).toContain("line L_baked = segment(start: (20, 10), end: (23, 10))");
-    expect(basePatched).toContain("line Private_baked = segment(start: (0, 0), end: (0, 3))");
+    expect(basePatched).toContain("line L_bake = segment(start: (10, 10), end: (13, 10))");
+    expect(currentPatched).toContain("line L_bake = segment(start: (20, 10), end: (23, 10))");
+    expect(basePatched).toContain("line Private_bake = segment(start: (0, 0), end: (0, 3))");
     expect(basePatched).toContain("// Bake skipped: text Memo — unsupported");
     expect(basePatched).not.toContain("Bake skipped: move");
-    expect(basePatched).not.toContain("module M() {\n  point P0_baked");
+    expect(basePatched).not.toContain("module M() {\n  point P0_bake");
 
     const included = planBakeGeometry({
       mode: "current",
@@ -532,9 +569,9 @@ describe("Bake geometry", () => {
     expect(included?.generatedElementIds).toHaveLength(6);
     expect(included?.skippedComments).toBe(1);
     const includedPatched = applyLineSplices(compiled.sourceText, included!.splices);
-    expect(includedPatched).toContain("line Hidden_baked [Hide]");
+    expect(includedPatched).toContain("line Hidden_bake [Hide]");
     expect(includedPatched).toContain("state: hidden");
-    expect(includedPatched).toContain("line Disabled_baked [Disable]");
+    expect(includedPatched).toContain("line Disabled_bake [Disable]");
     expect(includedPatched).toContain("state: disabled");
     expect(includedPatched).not.toContain("Bake skipped: move");
   });
@@ -565,10 +602,10 @@ describe("Bake geometry", () => {
       selectedElementIds: [instance.id]
     });
     expect(applyLineSplices(compiled.sourceText, basePlan!.splices)).toContain(
-      "line L_baked = segment(start: (0, 0), end: (10, 0))"
+      "line L_bake = segment(start: (0, 0), end: (10, 0))"
     );
     expect(applyLineSplices(compiled.sourceText, currentPlan!.splices)).toContain(
-      "line L_baked = segment(start: (10, 0), end: (0, 0))"
+      "line L_bake = segment(start: (10, 0), end: (0, 0))"
     );
   });
 });

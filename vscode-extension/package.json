@@ -156,11 +156,11 @@
       },
       {
         "command": "nuinuiCAD.bakeCurrentShape",
-        "title": "nuinuiCAD: 現在の形状をBake"
+        "title": "nuinuiCAD: Bake Current Shape"
       },
       {
         "command": "nuinuiCAD.bakeBaseShape",
-        "title": "nuinuiCAD: ベース形状をBake"
+        "title": "nuinuiCAD: Bake Base Shape"
       }
     ],
     "languages": [

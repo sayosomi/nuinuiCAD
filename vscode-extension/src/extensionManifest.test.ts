@@ -84,8 +84,8 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Fit Drawing",
       "nuinuiCAD: Toggle Canvas Element Names",
       "nuinuiCAD: Toggle Canvas Points",
-      "nuinuiCAD: 現在の形状をBake",
-      "nuinuiCAD: ベース形状をBake"
+      "nuinuiCAD: Bake Current Shape",
+      "nuinuiCAD: Bake Base Shape"
     ]);
   });
 

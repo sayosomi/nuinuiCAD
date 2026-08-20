@@ -57,7 +57,7 @@ const expectBakedSource = () => {
   const derivedStartLine = lines.findIndex((line) => line === "point Derived [Guide] = between(");
   const derivedEndLine = lines.findIndex((line, index) => index > derivedStartLine && line === ")");
   expect(derivedEndLine).toBeGreaterThanOrEqual(0);
-  expect(lines[derivedEndLine + 1]).toBe("point Derived_baked [Guide] = coordinate(x: 25, y: 0)");
+  expect(lines[derivedEndLine + 1]).toBe("point Derived_bake [Guide] = coordinate(x: 25, y: 0)");
 };
 
 describe.skipIf(!existsSync(rustBinary))("VS Code production Bake path", () => {

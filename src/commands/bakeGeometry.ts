@@ -502,7 +502,7 @@ export const planBakeGeometry = ({
     }
 
     const namingSourceElement = sourceElementForRuntimeId(elementsById, target.sourceElementId) ?? targetElements[0];
-    const baseName = namingSourceElement?.name.trim() ? `${namingSourceElement.name.trim()}_baked` : "_baked";
+    const baseName = namingSourceElement?.name.trim() ? `${namingSourceElement.name.trim()}_bake` : "_bake";
     const indent = sourceIndent(compiled, statementInfoForTarget(compiled, target)?.line ?? 1);
     const lines = linesByInsertion.get(target.insertionStatementIndex) ?? [];
     const nameState = emittedNameState.get(baseName) ?? { nextSuffix: 1, usedBaseName: false };
