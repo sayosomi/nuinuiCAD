@@ -48,7 +48,20 @@ const renderStatus = (canvasViewport: CanvasViewport) => {
   const viewport = canvasFocusRef.current;
   if (!viewport) throw new Error("Canvas viewport was not mounted");
   vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue(domRectFor(100, 50, 400, 300));
-  return { view, viewport };
+  const rerenderStatus = (nextCanvasViewport: CanvasViewport) => {
+    view.rerender(
+      <div ref={canvasFocusRef}>
+        <VSCodeCanvasRibbonOverlay
+          canvasFocusRef={canvasFocusRef}
+          canvasViewport={nextCanvasViewport}
+          canvasRibbonRibbons={ribbonWithStatus}
+          viewportSize={{ width: 400, height: 300 }}
+          ribbonCommandContext={commandContext}
+        />
+      </div>
+    );
+  };
+  return { rerenderStatus, view, viewport };
 };
 
 describe("VSCodeCanvasRibbonOverlay Canvas status", () => {
@@ -73,6 +86,19 @@ describe("VSCodeCanvasRibbonOverlay Canvas status", () => {
 
     fireEvent.pointerLeave(viewport);
     expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM200%X—Y—");
+  });
+
+  it("refreshes stationary-pointer coordinates when the viewport zooms and pans", () => {
+    const { rerenderStatus, viewport } = renderStatus({ panX: 0, panY: 0, zoom: 1 });
+
+    fireEvent.pointerMove(viewport, { clientX: 250, clientY: 150 });
+    expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM100%X-50.0Y50.0");
+
+    rerenderStatus({ panX: 0, panY: 0, zoom: 2 });
+    expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM200%X-25.0Y25.0");
+
+    rerenderStatus({ panX: 20, panY: -10, zoom: 2 });
+    expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM200%X-35.0Y20.0");
   });
 
   it("renders the status as a read-only value item without dispatching commands", () => {

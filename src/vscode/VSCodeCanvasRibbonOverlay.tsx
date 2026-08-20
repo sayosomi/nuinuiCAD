@@ -34,6 +34,11 @@ export type VSCodeCanvasRibbonOverlayProps = {
   onPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
 };
 
+type PointerClientPosition = {
+  clientX: number;
+  clientY: number;
+};
+
 const commandItemPresentationFor = (
   item: VscodeCanvasRibbonCommandItem,
   ribbonCommandContext: VscodeCanvasRibbonCommandContext
@@ -79,14 +84,14 @@ const vscodeCanvasRibbonPresentationsFor = (
 }));
 
 const pointerWorldPointFor = (
-  event: PointerEvent,
+  pointerPosition: PointerClientPosition,
   viewportElement: HTMLDivElement,
   viewportSize: ViewportSize,
   canvasViewport: CanvasViewport
 ): VscodeCanvasWorldPoint => {
   const rect = viewportElement.getBoundingClientRect();
   return screenToWorld(
-    { x: event.clientX - rect.left, y: event.clientY - rect.top },
+    { x: pointerPosition.clientX - rect.left, y: pointerPosition.clientY - rect.top },
     viewportSize,
     canvasViewport
   );
@@ -101,6 +106,7 @@ export const VSCodeCanvasRibbonOverlay = ({
   onCommand,
   onPositionCommit
 }: VSCodeCanvasRibbonOverlayProps) => {
+  const [pointerPosition, setPointerPosition] = useState<PointerClientPosition | null>(null);
   const [pointerWorldPoint, setPointerWorldPoint] = useState<VscodeCanvasWorldPoint | null>(null);
   const ribbonPresentations = useMemo(
     () => vscodeCanvasRibbonPresentationsFor(
@@ -123,9 +129,19 @@ export const VSCodeCanvasRibbonOverlay = ({
     }
 
     const handlePointerMove = (event: PointerEvent) => {
-      setPointerWorldPoint(pointerWorldPointFor(event, viewportElement, viewportSize, canvasViewport));
+      const nextPointerPosition = { clientX: event.clientX, clientY: event.clientY };
+      setPointerPosition(nextPointerPosition);
+      setPointerWorldPoint(pointerWorldPointFor(
+        nextPointerPosition,
+        viewportElement,
+        viewportSize,
+        canvasViewport
+      ));
     };
-    const handlePointerLeave = () => setPointerWorldPoint(null);
+    const handlePointerLeave = () => {
+      setPointerPosition(null);
+      setPointerWorldPoint(null);
+    };
     viewportElement.addEventListener("pointermove", handlePointerMove);
     viewportElement.addEventListener("pointerleave", handlePointerLeave);
     return () => {
@@ -133,6 +149,18 @@ export const VSCodeCanvasRibbonOverlay = ({
       viewportElement.removeEventListener("pointerleave", handlePointerLeave);
     };
   }, [canvasFocusRef, canvasViewport, tracksPointer, viewportSize]);
+
+  useEffect(() => {
+    if (!pointerPosition) return;
+    const viewportElement = canvasFocusRef.current;
+    if (!viewportElement) return;
+    setPointerWorldPoint(pointerWorldPointFor(
+      pointerPosition,
+      viewportElement,
+      viewportSize,
+      canvasViewport
+    ));
+  }, [canvasFocusRef, canvasViewport, pointerPosition, viewportSize]);
 
   return (
     <CommandRibbonFloatingOverlay
