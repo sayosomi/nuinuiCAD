@@ -6,6 +6,7 @@ pub mod evaluation;
 pub mod image_metadata;
 pub mod layout_settings;
 pub mod palette_settings;
+pub mod print_output;
 pub mod print_pdf;
 pub mod print_svg;
 pub mod shortcut_settings;

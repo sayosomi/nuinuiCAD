@@ -304,6 +304,37 @@ which applies one native TextDocument edit. Source ownership and normalized sour
 position queries remain the existing SAY-41 boundary; Bake does not create a
 second runtime-to-source map.
 
+### Output planning / print encoding
+
+Primary:
+
+- `src/output/outputCore.ts`
+- `src-tauri/src/print_output.rs`
+- `src-tauri/src/print_svg.rs`
+- `src-tauri/src/print_pdf.rs`
+
+`outputCore.ts` is the host-neutral owner of the resolved output plan shared by
+SVG, PDF, and future Preview. It consumes compiler-resolved layouts/outputs,
+calls the existing `buildEvaluationOptions` boundary with the output's selected
+Drawing Profile, and consumes the resulting `EvaluationResult` without
+re-evaluating or filtering the common Canvas result. It resolves typed numeric
+output values through the compiled numeric binding/runtime products, applies
+ordered group-subtree placements, emits only line/arc/Bezier/offsetLine/text
+drawables, and calculates deterministic stroke-inclusive/text-inclusive bounds.
+
+The same plan owns SVG physical sizing and print tiling metadata, including
+page origins, effective areas, overlap guides, and joining labels. It uses the
+fixed `LEGACY_CANVAS_THEME` semantic palette and converts modifier widths from
+CSS pixels to millimetres. It has no React, host UI, command, dialog, or save
+flow ownership.
+
+`print_output.rs` is the JSON-friendly resolved-payload validation boundary.
+`print_svg.rs` and `print_pdf.rs` remain the production Rust encoding owners;
+they do not parse `.nui` source or resolve source names. SVG performs the Y-up
+to SVG Y-down conversion only at this boundary, while PDF preserves the
+physical Y-up page coordinates. Tauri command registration remains in
+`src-tauri/src/lib.rs`.
+
 ### Rust evaluation
 
 Primary:

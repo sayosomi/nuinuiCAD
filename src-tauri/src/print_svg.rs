@@ -1,3 +1,7 @@
+use crate::print_output::{
+    validate_svg_payload, OutputDrawable, OutputPathSegment, OutputPoint, OutputStroke,
+    ResolvedSvgOutputPayload,
+};
 use serde::Deserialize;
 use std::fs;
 
@@ -5,63 +9,16 @@ use std::fs;
 #[serde(rename_all = "camelCase")]
 pub struct ExportPrintSvgInput {
     path: String,
-    canvas: SvgCanvasInput,
-    paths: Vec<PrintablePath>,
-    #[serde(default)]
-    texts: Vec<PrintableText>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SvgCanvasInput {
-    width_mm: f64,
-    height_mm: f64,
-}
-
-#[derive(Debug, Deserialize, Clone, Copy)]
-struct PrintPoint {
-    x: f64,
-    y: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-enum PrintablePath {
-    Line {
-        start: PrintPoint,
-        end: PrintPoint,
-    },
-    Bezier {
-        start: PrintPoint,
-        control1: PrintPoint,
-        control2: PrintPoint,
-        end: PrintPoint,
-    },
-    Polyline {
-        points: Vec<PrintPoint>,
-    },
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PrintableText {
-    text: String,
-    anchor: PrintPoint,
-    font_size: f64,
+    payload: ResolvedSvgOutputPayload,
 }
 
 #[tauri::command]
 pub fn export_print_svg(input: ExportPrintSvgInput) -> Result<(), String> {
-    let svg = build_print_svg(&input)?;
+    let svg = build_print_svg(&input.payload)?;
     fs::write(&input.path, svg).map_err(|error| format!("SVGを書き出せません: {error}"))
 }
 
-const SVG_PATH_LINE_WIDTH_MM: f64 = 0.18;
-
 fn svg_number(value: f64) -> String {
-    if !value.is_finite() {
-        return "0".to_owned();
-    }
     let rounded = (value * 1000.0).round() / 1000.0;
     if (rounded - rounded.round()).abs() < 0.000_5 {
         format!("{rounded:.0}")
@@ -73,38 +30,66 @@ fn svg_number(value: f64) -> String {
     }
 }
 
-fn svg_point(point: PrintPoint, canvas_height_mm: f64) -> (String, String) {
-    (svg_number(point.x), svg_number(canvas_height_mm - point.y))
+fn svg_point(point: OutputPoint, payload: &ResolvedSvgOutputPayload) -> (String, String) {
+    (
+        svg_number(point.x - payload.content_origin.x),
+        svg_number(payload.height_mm - (point.y - payload.content_origin.y)),
+    )
 }
 
-fn path_data(path: &PrintablePath, canvas_height_mm: f64) -> Option<String> {
-    match path {
-        PrintablePath::Line { start, end } => {
-            let (x1, y1) = svg_point(*start, canvas_height_mm);
-            let (x2, y2) = svg_point(*end, canvas_height_mm);
+fn path_data(segment: &OutputPathSegment, payload: &ResolvedSvgOutputPayload) -> Option<String> {
+    match segment {
+        OutputPathSegment::Line { start, end } => {
+            let (x1, y1) = svg_point(*start, payload);
+            let (x2, y2) = svg_point(*end, payload);
             Some(format!("M {x1} {y1} L {x2} {y2}"))
         }
-        PrintablePath::Bezier {
+        OutputPathSegment::Bezier {
             start,
             control1,
             control2,
             end,
         } => {
-            let (x1, y1) = svg_point(*start, canvas_height_mm);
-            let (c1x, c1y) = svg_point(*control1, canvas_height_mm);
-            let (c2x, c2y) = svg_point(*control2, canvas_height_mm);
-            let (x2, y2) = svg_point(*end, canvas_height_mm);
+            let (x1, y1) = svg_point(*start, payload);
+            let (c1x, c1y) = svg_point(*control1, payload);
+            let (c2x, c2y) = svg_point(*control2, payload);
+            let (x2, y2) = svg_point(*end, payload);
             Some(format!("M {x1} {y1} C {c1x} {c1y} {c2x} {c2y} {x2} {y2}"))
         }
-        PrintablePath::Polyline { points } => {
-            let first = points.first()?;
-            let (x, y) = svg_point(*first, canvas_height_mm);
-            let mut data = format!("M {x} {y}");
-            for point in points.iter().skip(1) {
-                let (x, y) = svg_point(*point, canvas_height_mm);
-                data.push_str(&format!(" L {x} {y}"));
+        OutputPathSegment::Arc {
+            center,
+            radius,
+            start_angle_deg,
+            sweep_angle_deg,
+        } => {
+            let count = (sweep_angle_deg.abs() / 180.0).ceil().max(1.0) as usize;
+            let delta = sweep_angle_deg / count as f64;
+            let mut data = String::new();
+            for index in 0..count {
+                let start_angle = (start_angle_deg + index as f64 * delta).to_radians();
+                let end_angle = (start_angle_deg + (index + 1) as f64 * delta).to_radians();
+                let start = OutputPoint {
+                    x: center.x + radius * start_angle.cos(),
+                    y: center.y + radius * start_angle.sin(),
+                };
+                let end = OutputPoint {
+                    x: center.x + radius * end_angle.cos(),
+                    y: center.y + radius * end_angle.sin(),
+                };
+                let (x1, y1) = svg_point(start, payload);
+                let (x2, y2) = svg_point(end, payload);
+                let large_arc = if delta.abs() > 180.0 { 1 } else { 0 };
+                let sweep = if *sweep_angle_deg < 0.0 { 1 } else { 0 };
+                if index == 0 {
+                    data.push_str(&format!("M {x1} {y1} "));
+                }
+                data.push_str(&format!(
+                    "A {} {} 0 {large_arc} {sweep} {x2} {y2} ",
+                    svg_number(*radius),
+                    svg_number(*radius)
+                ));
             }
-            Some(data)
+            Some(data.trim_end().to_owned())
         }
     }
 }
@@ -115,20 +100,130 @@ fn escape_xml(value: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
-fn build_print_svg(input: &ExportPrintSvgInput) -> Result<String, String> {
-    if input.canvas.width_mm <= 0.0
-        || input.canvas.height_mm <= 0.0
-        || !input.canvas.width_mm.is_finite()
-        || !input.canvas.height_mm.is_finite()
-    {
-        return Err("SVGキャンバスサイズが不正です。".to_owned());
+fn dash_attributes(stroke: &OutputStroke) -> String {
+    match stroke.style.as_str() {
+        "solid" => String::new(),
+        "dashed" => r#" stroke-dasharray="4 3""#.to_owned(),
+        "dotted" => r#" stroke-dasharray="1 2""#.to_owned(),
+        _ => String::new(),
     }
+}
 
-    let width = svg_number(input.canvas.width_mm);
-    let height = svg_number(input.canvas.height_mm);
-    let stroke_width = svg_number(SVG_PATH_LINE_WIDTH_MM);
+fn push_path(
+    svg: &mut String,
+    segment: &OutputPathSegment,
+    stroke: &OutputStroke,
+    payload: &ResolvedSvgOutputPayload,
+) {
+    if let Some(data) = path_data(segment, payload) {
+        svg.push_str(&format!(
+            r##"    <path d="{data}" fill="none" stroke="{}" stroke-width="{}" stroke-linecap="round" stroke-linejoin="round"{} />"##,
+            escape_xml(&stroke.color_hex),
+            svg_number(stroke.width_mm),
+            dash_attributes(stroke)
+        ));
+        svg.push('\n');
+    }
+}
+
+fn push_drawable(svg: &mut String, drawable: &OutputDrawable, payload: &ResolvedSvgOutputPayload) {
+    match drawable {
+        OutputDrawable::Line {
+            start, end, stroke, ..
+        } => push_path(
+            svg,
+            &OutputPathSegment::Line {
+                start: *start,
+                end: *end,
+            },
+            stroke,
+            payload,
+        ),
+        OutputDrawable::Bezier {
+            start,
+            control1,
+            control2,
+            end,
+            stroke,
+            ..
+        } => push_path(
+            svg,
+            &OutputPathSegment::Bezier {
+                start: *start,
+                control1: *control1,
+                control2: *control2,
+                end: *end,
+            },
+            stroke,
+            payload,
+        ),
+        OutputDrawable::Arc {
+            center,
+            radius,
+            start_angle_deg,
+            sweep_angle_deg,
+            stroke,
+            ..
+        } => push_path(
+            svg,
+            &OutputPathSegment::Arc {
+                center: *center,
+                radius: *radius,
+                start_angle_deg: *start_angle_deg,
+                sweep_angle_deg: *sweep_angle_deg,
+            },
+            stroke,
+            payload,
+        ),
+        OutputDrawable::OffsetLine {
+            segments, stroke, ..
+        } => {
+            for segment in segments {
+                push_path(svg, segment, stroke, payload);
+            }
+        }
+        OutputDrawable::Text {
+            text,
+            anchor,
+            font_size_mm,
+            line_height_mm,
+            rotation_deg,
+            mirror_x,
+            color_hex,
+            ..
+        } => {
+            let (x, y) = svg_point(*anchor, payload);
+            let mirror = if *mirror_x { -1 } else { 1 };
+            svg.push_str(&format!(
+                r##"    <text x="0" y="0" font-size="{}" fill="{}" font-family="HeiseiKakuGo-W5, sans-serif" dominant-baseline="text-before-edge" transform="translate({x} {y}) rotate({} 0 0) scale({mirror} 1)">"##,
+                svg_number(*font_size_mm),
+                escape_xml(color_hex),
+                svg_number(-*rotation_deg)
+            ));
+            let line_height = svg_number(*line_height_mm);
+            for (index, line) in text.lines().enumerate() {
+                svg.push_str(&format!(
+                    r#"<tspan x="0" dy="{}">{}</tspan>"#,
+                    if index == 0 {
+                        "0".to_owned()
+                    } else {
+                        line_height.clone()
+                    },
+                    escape_xml(line)
+                ));
+            }
+            svg.push_str("</text>\n");
+        }
+    }
+}
+
+fn build_print_svg(payload: &ResolvedSvgOutputPayload) -> Result<String, String> {
+    validate_svg_payload(payload)?;
+    let width = svg_number(payload.width_mm);
+    let height = svg_number(payload.height_mm);
     let mut svg = String::new();
     svg.push_str(r#"<?xml version="1.0" encoding="UTF-8"?>"#);
     svg.push('\n');
@@ -136,109 +231,63 @@ fn build_print_svg(input: &ExportPrintSvgInput) -> Result<String, String> {
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="{width}mm" height="{height}mm" viewBox="0 0 {width} {height}">"#
     ));
     svg.push('\n');
-    svg.push_str(&format!(
-        r##"  <g fill="none" stroke="#000000" stroke-width="{stroke_width}" stroke-linecap="round" stroke-linejoin="round">"##
-    ));
-    svg.push('\n');
-    for path in &input.paths {
-        let Some(data) = path_data(path, input.canvas.height_mm) else {
-            continue;
-        };
-        svg.push_str(&format!(r#"    <path d="{data}" />"#));
-        svg.push('\n');
+    for drawable in &payload.drawables {
+        push_drawable(&mut svg, drawable, payload);
     }
-    svg.push_str("  </g>\n");
-    svg.push_str(r##"  <g fill="#000000" stroke="none" font-family="Hiragino Sans, Yu Gothic, sans-serif">"##);
-    svg.push('\n');
-    for text in &input.texts {
-        if text.font_size <= 0.0 || !text.font_size.is_finite() {
-            continue;
-        }
-        let (x, y) = svg_point(text.anchor, input.canvas.height_mm);
-        let font_size = svg_number(text.font_size);
-        let line_height = svg_number(text.font_size * 1.2);
-        svg.push_str(&format!(
-            r#"    <text x="{x}" y="{y}" font-size="{font_size}" dominant-baseline="text-before-edge">"#
-        ));
-        for (index, line) in text.text.lines().enumerate() {
-            if index == 0 {
-                svg.push_str(&format!(
-                    r#"<tspan x="{x}" dy="0">{}</tspan>"#,
-                    escape_xml(line)
-                ));
-            } else {
-                svg.push_str(&format!(
-                    r#"<tspan x="{x}" dy="{line_height}">{}</tspan>"#,
-                    escape_xml(line)
-                ));
-            }
-        }
-        svg.push_str("</text>\n");
-    }
-    svg.push_str("  </g>\n</svg>\n");
+    svg.push_str("</svg>\n");
     Ok(svg)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::print_output::{OutputBounds, OutputStroke};
 
-    #[test]
-    fn builds_plain_svg_with_mm_canvas_and_y_axis_conversion() {
-        let input = ExportPrintSvgInput {
-            path: "unused.svg".to_owned(),
-            canvas: SvgCanvasInput {
-                width_mm: 100.0,
-                height_mm: 80.0,
+    fn stroke() -> OutputStroke {
+        OutputStroke {
+            width_mm: 0.18,
+            style: "solid".to_owned(),
+            color_hex: "#31322f".to_owned(),
+        }
+    }
+
+    fn payload() -> ResolvedSvgOutputPayload {
+        ResolvedSvgOutputPayload {
+            version: 1,
+            kind: "svg".to_owned(),
+            bounds: OutputBounds {
+                min_x: 0.0,
+                min_y: 0.0,
+                max_x: 100.0,
+                max_y: 80.0,
+                width: 100.0,
+                height: 80.0,
             },
-            paths: vec![
-                PrintablePath::Line {
-                    start: PrintPoint { x: 0.0, y: 0.0 },
-                    end: PrintPoint { x: 10.0, y: 20.0 },
-                },
-                PrintablePath::Bezier {
-                    start: PrintPoint { x: 10.0, y: 20.0 },
-                    control1: PrintPoint { x: 15.0, y: 25.0 },
-                    control2: PrintPoint { x: 20.0, y: 25.0 },
-                    end: PrintPoint { x: 25.0, y: 20.0 },
-                },
-                PrintablePath::Polyline {
-                    points: vec![PrintPoint { x: 1.0, y: 1.0 }, PrintPoint { x: 2.0, y: 3.0 }],
-                },
-            ],
-            texts: vec![PrintableText {
-                text: "前中心".to_owned(),
-                anchor: PrintPoint { x: 4.0, y: 5.0 },
-                font_size: 3.0,
+            drawables: vec![OutputDrawable::Line {
+                element_id: "line".to_owned(),
+                name: "line".to_owned(),
+                start: OutputPoint { x: 0.0, y: 0.0 },
+                end: OutputPoint { x: 10.0, y: 20.0 },
+                stroke: stroke(),
             }],
-        };
-
-        let svg = build_print_svg(&input).expect("svg should build");
-        assert!(svg.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
-        assert!(svg.contains(r#"<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="80mm" viewBox="0 0 100 80">"#));
-        assert!(svg.contains(r#"stroke-width="0.18""#));
-        assert!(svg.contains(r#"<path d="M 0 80 L 10 60" />"#));
-        assert!(svg.contains(r#"<path d="M 10 60 C 15 55 20 55 25 60" />"#));
-        assert!(svg.contains(r#"<path d="M 1 79 L 2 77" />"#));
-        assert!(svg.contains(r#"<text x="4" y="75" font-size="3""#));
-        assert!(svg.contains("前中心"));
+            width_mm: 100.0,
+            height_mm: 80.0,
+            content_origin: OutputPoint { x: 0.0, y: 0.0 },
+        }
     }
 
     #[test]
-    fn rejects_invalid_canvas_size() {
-        let input = ExportPrintSvgInput {
-            path: "unused.svg".to_owned(),
-            canvas: SvgCanvasInput {
-                width_mm: 0.0,
-                height_mm: 80.0,
-            },
-            paths: vec![],
-            texts: vec![],
-        };
+    fn validates_payload_and_converts_y_axis_at_svg_boundary() {
+        let svg = build_print_svg(&payload()).expect("svg should build");
+        assert!(svg.contains(r#"width="100mm" height="80mm" viewBox="0 0 100 80""#));
+        assert!(svg.contains(r#"d="M 0 80 L 10 60""#));
+        assert!(svg.contains(r##"stroke="#31322f" stroke-width="0.18""##));
+    }
 
-        assert_eq!(
-            build_print_svg(&input).expect_err("canvas should be invalid"),
-            "SVGキャンバスサイズが不正です。"
-        );
+    #[test]
+    fn rejects_invalid_payload() {
+        let mut invalid = payload();
+        invalid.width_mm = 0.0;
+        assert!(build_print_svg(&invalid).is_err());
     }
 }

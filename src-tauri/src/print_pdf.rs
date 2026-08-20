@@ -1,82 +1,32 @@
+use crate::print_output::{
+    validate_print_payload, OutputDrawable, OutputGuide, OutputPathSegment, OutputPoint,
+    OutputStroke, ResolvedPrintOutputPayload,
+};
 use serde::Deserialize;
+use std::f64::consts::PI;
 use std::fs;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportPrintPdfInput {
     path: String,
-    layout: PrintLayoutInput,
-    paper: PaperInput,
-    paths: Vec<PrintablePath>,
-    #[serde(default)]
-    texts: Vec<PrintableText>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PrintLayoutInput {
-    columns: usize,
-    rows: usize,
-    overlap_mm: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PaperInput {
-    width_mm: f64,
-    height_mm: f64,
-}
-
-#[derive(Debug, Deserialize, Clone, Copy)]
-struct PrintPoint {
-    x: f64,
-    y: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-enum PrintablePath {
-    Line {
-        start: PrintPoint,
-        end: PrintPoint,
-    },
-    Bezier {
-        start: PrintPoint,
-        control1: PrintPoint,
-        control2: PrintPoint,
-        end: PrintPoint,
-    },
-    Polyline {
-        points: Vec<PrintPoint>,
-    },
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PrintableText {
-    text: String,
-    anchor: PrintPoint,
-    font_size: f64,
+    payload: ResolvedPrintOutputPayload,
 }
 
 #[tauri::command]
 pub fn export_print_pdf(input: ExportPrintPdfInput) -> Result<(), String> {
-    let pdf = build_print_pdf(&input)?;
+    let pdf = build_print_pdf(&input.payload)?;
     fs::write(&input.path, pdf).map_err(|error| format!("PDFを書き出せません: {error}"))
 }
 
 const PT_PER_MM: f64 = 72.0 / 25.4;
-const PRINT_PATH_LINE_WIDTH_MM: f64 = 0.18;
-const PRINT_GUIDE_LINE_WIDTH_MM: f64 = PRINT_PATH_LINE_WIDTH_MM;
+const PRINT_LINE_WIDTH_MM: f64 = 0.18;
 
 fn pt(value_mm: f64) -> f64 {
     value_mm * PT_PER_MM
 }
 
 fn pdf_number(value: f64) -> String {
-    if !value.is_finite() {
-        return "0".to_owned();
-    }
     let rounded = (value * 1000.0).round() / 1000.0;
     if (rounded - rounded.round()).abs() < 0.000_5 {
         format!("{rounded:.0}")
@@ -88,51 +38,11 @@ fn pdf_number(value: f64) -> String {
     }
 }
 
-fn pdf_mm(value_mm: f64) -> String {
-    pdf_number(pt(value_mm))
-}
-
-fn point_on_page(point: PrintPoint, page_origin: PrintPoint) -> (String, String) {
+fn page_point(point: OutputPoint, origin: OutputPoint) -> (String, String) {
     (
-        pdf_number(pt(point.x - page_origin.x)),
-        pdf_number(pt(point.y - page_origin.y)),
+        pdf_number(pt(point.x - origin.x)),
+        pdf_number(pt(point.y - origin.y)),
     )
-}
-
-fn push_path(content: &mut String, path: &PrintablePath, page_origin: PrintPoint) {
-    match path {
-        PrintablePath::Line { start, end } => {
-            let (x1, y1) = point_on_page(*start, page_origin);
-            let (x2, y2) = point_on_page(*end, page_origin);
-            content.push_str(&format!("{x1} {y1} m {x2} {y2} l S\n"));
-        }
-        PrintablePath::Bezier {
-            start,
-            control1,
-            control2,
-            end,
-        } => {
-            let (x1, y1) = point_on_page(*start, page_origin);
-            let (c1x, c1y) = point_on_page(*control1, page_origin);
-            let (c2x, c2y) = point_on_page(*control2, page_origin);
-            let (x2, y2) = point_on_page(*end, page_origin);
-            content.push_str(&format!(
-                "{x1} {y1} m {c1x} {c1y} {c2x} {c2y} {x2} {y2} c S\n"
-            ));
-        }
-        PrintablePath::Polyline { points } => {
-            let Some(first) = points.first() else {
-                return;
-            };
-            let (x, y) = point_on_page(*first, page_origin);
-            content.push_str(&format!("{x} {y} m "));
-            for point in points.iter().skip(1) {
-                let (x, y) = point_on_page(*point, page_origin);
-                content.push_str(&format!("{x} {y} l "));
-            }
-            content.push_str("S\n");
-        }
-    }
 }
 
 fn pdf_utf16_hex(value: &str) -> String {
@@ -144,73 +54,331 @@ fn pdf_utf16_hex(value: &str) -> String {
     output
 }
 
-fn push_text(content: &mut String, text: &PrintableText, page_origin: PrintPoint) {
-    if text.font_size <= 0.0 || !text.font_size.is_finite() {
-        return;
+fn color_operator(hex: &str) -> String {
+    let red = u8::from_str_radix(&hex[1..3], 16).unwrap_or(0) as f64 / 255.0;
+    let green = u8::from_str_radix(&hex[3..5], 16).unwrap_or(0) as f64 / 255.0;
+    let blue = u8::from_str_radix(&hex[5..7], 16).unwrap_or(0) as f64 / 255.0;
+    format!(
+        "{} {} {} RG",
+        pdf_number(red),
+        pdf_number(green),
+        pdf_number(blue)
+    )
+}
+
+fn dash_operator(stroke: &OutputStroke) -> &'static str {
+    match stroke.style.as_str() {
+        "dashed" => "[4 3] 0 d",
+        "dotted" => "[1 2] 0 d",
+        _ => "[] 0 d",
     }
-    let font_size = pdf_number(pt(text.font_size));
-    for (index, line) in text.text.lines().enumerate() {
-        let point = PrintPoint {
-            x: text.anchor.x,
-            y: text.anchor.y - text.font_size * (index as f64 + 1.0),
-        };
-        let (x, y) = point_on_page(point, page_origin);
+}
+
+fn arc_cubic_segments(
+    center: OutputPoint,
+    radius: f64,
+    start_angle_deg: f64,
+    sweep_angle_deg: f64,
+) -> Vec<(OutputPoint, OutputPoint, OutputPoint, OutputPoint)> {
+    let count = (sweep_angle_deg.abs() / 90.0).ceil().max(1.0) as usize;
+    let delta = sweep_angle_deg / count as f64;
+    (0..count)
+        .map(|index| {
+            let start = (start_angle_deg + index as f64 * delta).to_radians();
+            let end = (start_angle_deg + (index + 1) as f64 * delta).to_radians();
+            let k = 4.0 / 3.0 * ((end - start) / 4.0).tan();
+            let start_point = OutputPoint {
+                x: center.x + radius * start.cos(),
+                y: center.y + radius * start.sin(),
+            };
+            let end_point = OutputPoint {
+                x: center.x + radius * end.cos(),
+                y: center.y + radius * end.sin(),
+            };
+            let control1 = OutputPoint {
+                x: start_point.x - radius * k * start.sin(),
+                y: start_point.y + radius * k * start.cos(),
+            };
+            let control2 = OutputPoint {
+                x: end_point.x + radius * k * end.sin(),
+                y: end_point.y - radius * k * end.cos(),
+            };
+            (start_point, control1, control2, end_point)
+        })
+        .collect()
+}
+
+fn push_segment(content: &mut String, segment: &OutputPathSegment, origin: OutputPoint) {
+    match segment {
+        OutputPathSegment::Line { start, end } => {
+            let (x1, y1) = page_point(*start, origin);
+            let (x2, y2) = page_point(*end, origin);
+            content.push_str(&format!("{x1} {y1} m {x2} {y2} l\n"));
+        }
+        OutputPathSegment::Bezier {
+            start,
+            control1,
+            control2,
+            end,
+        } => {
+            let (x1, y1) = page_point(*start, origin);
+            let (c1x, c1y) = page_point(*control1, origin);
+            let (c2x, c2y) = page_point(*control2, origin);
+            let (x2, y2) = page_point(*end, origin);
+            content.push_str(&format!(
+                "{x1} {y1} m {c1x} {c1y} {c2x} {c2y} {x2} {y2} c\n"
+            ));
+        }
+        OutputPathSegment::Arc {
+            center,
+            radius,
+            start_angle_deg,
+            sweep_angle_deg,
+        } => {
+            for (index, (start, control1, control2, end)) in
+                arc_cubic_segments(*center, *radius, *start_angle_deg, *sweep_angle_deg)
+                    .into_iter()
+                    .enumerate()
+            {
+                let (x1, y1) = page_point(start, origin);
+                let (c1x, c1y) = page_point(control1, origin);
+                let (c2x, c2y) = page_point(control2, origin);
+                let (x2, y2) = page_point(end, origin);
+                if index == 0 {
+                    content.push_str(&format!("{x1} {y1} m "));
+                }
+                content.push_str(&format!("{c1x} {c1y} {c2x} {c2y} {x2} {y2} c\n"));
+            }
+        }
+    }
+}
+
+fn push_stroked_path(
+    content: &mut String,
+    segment: &OutputPathSegment,
+    stroke: &OutputStroke,
+    origin: OutputPoint,
+) {
+    content.push_str(&format!(
+        "{} {} w {}\n",
+        color_operator(&stroke.color_hex),
+        pdf_number(pt(stroke.width_mm)),
+        dash_operator(stroke)
+    ));
+    push_segment(content, segment, origin);
+    content.push_str("S\n");
+}
+
+struct PdfTextPlacement {
+    anchor: OutputPoint,
+    font_size_mm: f64,
+    line_height_mm: f64,
+    rotation_deg: f64,
+    mirror_x: bool,
+}
+
+fn push_text(
+    content: &mut String,
+    text: &str,
+    placement: PdfTextPlacement,
+    color_hex: &str,
+    origin: OutputPoint,
+) {
+    let (x, _y) = page_point(placement.anchor, origin);
+    let angle = placement.rotation_deg * PI / 180.0;
+    let sign = if placement.mirror_x { -1.0 } else { 1.0 };
+    let a = angle.cos() * sign;
+    let b = angle.sin() * sign;
+    let c = -angle.sin();
+    let d = angle.cos();
+    let size = pdf_number(pt(placement.font_size_mm));
+    for (index, line) in text.lines().enumerate() {
+        let line_y = pdf_number(pt(placement.anchor.y
+            - origin.y
+            - placement.font_size_mm * 0.8
+            - placement.line_height_mm * index as f64));
         content.push_str(&format!(
-            "BT /F1 {font_size} Tf 1 0 0 1 {x} {y} Tm {} Tj ET\n",
+            "BT {} /F1 {size} Tf {a} {b} {c} {d} {x} {line_y} Tm {} Tj ET\n",
+            color_operator(color_hex),
             pdf_utf16_hex(line)
         ));
     }
 }
 
-fn push_guides(content: &mut String, paper: &PaperInput, overlap_mm: f64) {
-    if overlap_mm <= 0.0 {
-        return;
+fn push_drawable(content: &mut String, drawable: &OutputDrawable, origin: OutputPoint) {
+    match drawable {
+        OutputDrawable::Line {
+            start, end, stroke, ..
+        } => push_stroked_path(
+            content,
+            &OutputPathSegment::Line {
+                start: *start,
+                end: *end,
+            },
+            stroke,
+            origin,
+        ),
+        OutputDrawable::Bezier {
+            start,
+            control1,
+            control2,
+            end,
+            stroke,
+            ..
+        } => push_stroked_path(
+            content,
+            &OutputPathSegment::Bezier {
+                start: *start,
+                control1: *control1,
+                control2: *control2,
+                end: *end,
+            },
+            stroke,
+            origin,
+        ),
+        OutputDrawable::Arc {
+            center,
+            radius,
+            start_angle_deg,
+            sweep_angle_deg,
+            stroke,
+            ..
+        } => push_stroked_path(
+            content,
+            &OutputPathSegment::Arc {
+                center: *center,
+                radius: *radius,
+                start_angle_deg: *start_angle_deg,
+                sweep_angle_deg: *sweep_angle_deg,
+            },
+            stroke,
+            origin,
+        ),
+        OutputDrawable::OffsetLine {
+            segments, stroke, ..
+        } => {
+            for segment in segments {
+                push_stroked_path(content, segment, stroke, origin);
+            }
+        }
+        OutputDrawable::Text {
+            text,
+            anchor,
+            font_size_mm,
+            line_height_mm,
+            rotation_deg,
+            mirror_x,
+            color_hex,
+            ..
+        } => push_text(
+            content,
+            text,
+            PdfTextPlacement {
+                anchor: *anchor,
+                font_size_mm: *font_size_mm,
+                line_height_mm: *line_height_mm,
+                rotation_deg: *rotation_deg,
+                mirror_x: *mirror_x,
+            },
+            color_hex,
+            origin,
+        ),
     }
-    let width = pt(paper.width_mm);
-    let height = pt(paper.height_mm);
-    let overlap = pt(overlap_mm
-        .min(paper.width_mm / 2.0)
-        .min(paper.height_mm / 2.0));
-    let width_s = pdf_number(width);
-    let height_s = pdf_number(height);
-    let overlap_s = pdf_number(overlap);
-    let right_s = pdf_number(width - overlap);
-    let top_s = pdf_number(height - overlap);
-
-    let guide_line_width = pdf_mm(PRINT_GUIDE_LINE_WIDTH_MM);
-    content.push_str(&format!("q 0 G {guide_line_width} w [4 3] 0 d\n"));
-    content.push_str(&format!("{overlap_s} 0 m {overlap_s} {height_s} l S\n"));
-    content.push_str(&format!("{right_s} 0 m {right_s} {height_s} l S\n"));
-    content.push_str(&format!("0 {overlap_s} m {width_s} {overlap_s} l S\n"));
-    content.push_str(&format!("0 {top_s} m {width_s} {top_s} l S\n"));
-    content.push_str("Q\n");
 }
 
-fn page_content(input: &ExportPrintPdfInput, column: usize, row: usize) -> String {
-    let page_step_x = (input.paper.width_mm - input.layout.overlap_mm).max(1.0);
-    let page_step_y = (input.paper.height_mm - input.layout.overlap_mm).max(1.0);
-    let canvas_height =
-        input.paper.height_mm + (input.layout.rows.saturating_sub(1) as f64) * page_step_y;
-    let page_origin = PrintPoint {
-        x: column as f64 * page_step_x,
-        y: canvas_height - input.paper.height_mm - row as f64 * page_step_y,
+fn push_guide(
+    content: &mut String,
+    guide: &OutputGuide,
+    paper_width_mm: f64,
+    paper_height_mm: f64,
+    margin_mm: f64,
+    overlap_mm: f64,
+) {
+    let guide_x = if guide.axis == "vertical" {
+        guide.position_mm
+    } else {
+        0.0
     };
-    let width = pdf_number(pt(input.paper.width_mm));
-    let height = pdf_number(pt(input.paper.height_mm));
-    let mut content = String::new();
+    let guide_y = if guide.axis == "horizontal" {
+        guide.position_mm
+    } else {
+        0.0
+    };
+    let line_width = pdf_number(pt(PRINT_LINE_WIDTH_MM));
+    content.push_str(&format!("q 0 G {line_width} w [4 3] 0 d\n"));
+    if guide.axis == "vertical" {
+        let x = pdf_number(pt(guide_x));
+        content.push_str(&format!(
+            "{x} 0 m {x} {} l S\n",
+            pdf_number(pt(paper_height_mm))
+        ));
+        push_text(
+            content,
+            &guide.label,
+            PdfTextPlacement {
+                anchor: OutputPoint {
+                    x: guide_x,
+                    y: paper_height_mm / 2.0,
+                },
+                font_size_mm: guide.label_font_size_mm,
+                line_height_mm: guide.label_font_size_mm * 1.2,
+                rotation_deg: guide.label_rotation_deg,
+                mirror_x: false,
+            },
+            "#31322f",
+            OutputPoint { x: 0.0, y: 0.0 },
+        );
+    } else {
+        let y = pdf_number(pt(guide_y));
+        content.push_str(&format!(
+            "0 {y} m {} {y} l S\n",
+            pdf_number(pt(paper_width_mm))
+        ));
+        push_text(
+            content,
+            &guide.label,
+            PdfTextPlacement {
+                anchor: OutputPoint {
+                    x: paper_width_mm / 2.0,
+                    y: guide_y,
+                },
+                font_size_mm: guide.label_font_size_mm,
+                line_height_mm: guide.label_font_size_mm * 1.2,
+                rotation_deg: guide.label_rotation_deg,
+                mirror_x: false,
+            },
+            "#31322f",
+            OutputPoint { x: 0.0, y: 0.0 },
+        );
+    }
+    content.push_str(&format!(
+        "% guide margin={} overlap={}\nQ\n",
+        pdf_number(pt(margin_mm)),
+        pdf_number(pt(overlap_mm))
+    ));
+}
 
+fn page_content(payload: &ResolvedPrintOutputPayload, page_index: usize) -> String {
+    let page = &payload.pages[page_index];
+    let width = pdf_number(pt(payload.paper.width_mm));
+    let height = pdf_number(pt(payload.paper.height_mm));
+    let mut content = String::new();
     content.push_str("q\n");
     content.push_str(&format!("0 0 {width} {height} re W n\n"));
-    let path_line_width = pdf_mm(PRINT_PATH_LINE_WIDTH_MM);
-    content.push_str(&format!("0 G {path_line_width} w 1 J 1 j\n"));
-    for path in &input.paths {
-        push_path(&mut content, path, page_origin);
-    }
-    for text in &input.texts {
-        push_text(&mut content, text, page_origin);
+    for drawable in &payload.drawables {
+        push_drawable(&mut content, drawable, page.origin);
     }
     content.push_str("Q\n");
-    push_guides(&mut content, &input.paper, input.layout.overlap_mm);
+    for guide in &page.guides {
+        push_guide(
+            &mut content,
+            guide,
+            payload.paper.width_mm,
+            payload.paper.height_mm,
+            payload.margin_mm,
+            payload.overlap_mm,
+        );
+    }
     content
 }
 
@@ -227,15 +395,9 @@ fn stream_object(content: &str) -> Vec<u8> {
     .into_bytes()
 }
 
-fn build_print_pdf(input: &ExportPrintPdfInput) -> Result<Vec<u8>, String> {
-    if input.layout.columns == 0 || input.layout.rows == 0 {
-        return Err("用紙枚数は1以上にしてください。".to_owned());
-    }
-    if input.paper.width_mm <= 0.0 || input.paper.height_mm <= 0.0 {
-        return Err("用紙サイズが不正です。".to_owned());
-    }
-
-    let page_count = input.layout.columns * input.layout.rows;
+fn build_print_pdf(payload: &ResolvedPrintOutputPayload) -> Result<Vec<u8>, String> {
+    validate_print_payload(payload)?;
+    let page_count = payload.pages.len();
     let catalog_id = 1usize;
     let pages_id = 2usize;
     let first_page_id = 3usize;
@@ -243,9 +405,7 @@ fn build_print_pdf(input: &ExportPrintPdfInput) -> Result<Vec<u8>, String> {
     let cid_font_id = font_id + 1;
     let first_content_id = cid_font_id + 1;
     let mut objects = Vec::<Vec<u8>>::new();
-
     objects.push(pdf_object("<< /Type /Catalog /Pages 2 0 R >>"));
-
     let kids = (0..page_count)
         .map(|index| format!("{} 0 R", first_page_id + index))
         .collect::<Vec<_>>()
@@ -253,29 +413,23 @@ fn build_print_pdf(input: &ExportPrintPdfInput) -> Result<Vec<u8>, String> {
     objects.push(pdf_object(&format!(
         "<< /Type /Pages /Count {page_count} /Kids [{kids}] >>"
     )));
-
-    let media_width = pdf_number(pt(input.paper.width_mm));
-    let media_height = pdf_number(pt(input.paper.height_mm));
+    let media_width = pdf_number(pt(payload.paper.width_mm));
+    let media_height = pdf_number(pt(payload.paper.height_mm));
     for index in 0..page_count {
         let content_id = first_content_id + index;
         objects.push(pdf_object(&format!(
             "<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {media_width} {media_height}] /Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R >>"
         )));
     }
-
     objects.push(pdf_object(&format!(
         "<< /Type /Font /Subtype /Type0 /BaseFont /HeiseiKakuGo-W5 /Encoding /UniJIS-UCS2-H /DescendantFonts [{cid_font_id} 0 R] >>"
     )));
     objects.push(pdf_object(
         "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /HeiseiKakuGo-W5 /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 2 >> /FontDescriptor << /Type /FontDescriptor /FontName /HeiseiKakuGo-W5 /Flags 4 /FontBBox [-92 -250 1010 922] /ItalicAngle 0 /Ascent 752 /Descent -221 /CapHeight 737 /StemV 80 >> >>",
     ));
-
-    for row in 0..input.layout.rows {
-        for column in 0..input.layout.columns {
-            objects.push(stream_object(&page_content(input, column, row)));
-        }
+    for page_index in 0..page_count {
+        objects.push(stream_object(&page_content(payload, page_index)));
     }
-
     let mut pdf = Vec::<u8>::new();
     pdf.extend_from_slice(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
     let mut offsets = Vec::<usize>::with_capacity(objects.len() + 1);
@@ -286,7 +440,6 @@ fn build_print_pdf(input: &ExportPrintPdfInput) -> Result<Vec<u8>, String> {
         pdf.extend_from_slice(object);
         pdf.extend_from_slice(b"\nendobj\n");
     }
-
     let xref_offset = pdf.len();
     pdf.extend_from_slice(format!("xref\n0 {}\n", objects.len() + 1).as_bytes());
     pdf.extend_from_slice(b"0000000000 65535 f \n");
@@ -306,39 +459,70 @@ fn build_print_pdf(input: &ExportPrintPdfInput) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::print_output::{OutputBounds, OutputPrintPage};
 
-    #[test]
-    fn builds_a_multi_page_pdf() {
-        let input = ExportPrintPdfInput {
-            path: "unused.pdf".to_owned(),
-            layout: PrintLayoutInput {
-                columns: 2,
-                rows: 1,
-                overlap_mm: 10.0,
+    fn payload() -> ResolvedPrintOutputPayload {
+        ResolvedPrintOutputPayload {
+            version: 1,
+            kind: "print".to_owned(),
+            bounds: OutputBounds {
+                min_x: 0.0,
+                min_y: 0.0,
+                max_x: 100.0,
+                max_y: 80.0,
+                width: 100.0,
+                height: 80.0,
             },
-            paper: PaperInput {
+            drawables: vec![OutputDrawable::Line {
+                element_id: "line".to_owned(),
+                name: "line".to_owned(),
+                start: OutputPoint { x: 0.0, y: 0.0 },
+                end: OutputPoint { x: 10.0, y: 0.0 },
+                stroke: OutputStroke {
+                    width_mm: 0.18,
+                    style: "solid".to_owned(),
+                    color_hex: "#31322f".to_owned(),
+                },
+            }],
+            paper: crate::print_output::PaperSize {
                 width_mm: 210.0,
                 height_mm: 297.0,
             },
-            paths: vec![PrintablePath::Line {
-                start: PrintPoint { x: 0.0, y: 0.0 },
-                end: PrintPoint { x: 10.0, y: 0.0 },
-            }],
-            texts: vec![PrintableText {
-                text: "前中心".to_owned(),
-                anchor: PrintPoint { x: 5.0, y: 20.0 },
-                font_size: 3.0,
-            }],
-        };
+            margin_mm: 10.0,
+            overlap_mm: 10.0,
+            stride: OutputPoint { x: 180.0, y: 267.0 },
+            pages: vec![
+                OutputPrintPage {
+                    index: 0,
+                    column: 0,
+                    row: 0,
+                    origin: OutputPoint { x: -10.0, y: -10.0 },
+                    guides: vec![],
+                },
+                OutputPrintPage {
+                    index: 1,
+                    column: 1,
+                    row: 0,
+                    origin: OutputPoint { x: 170.0, y: -10.0 },
+                    guides: vec![],
+                },
+            ],
+        }
+    }
 
-        let pdf = build_print_pdf(&input).expect("pdf should build");
+    #[test]
+    fn builds_pages_in_payload_order_and_validates_payload() {
+        let pdf = build_print_pdf(&payload()).expect("pdf should build");
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.starts_with("%PDF-1.4"));
         assert!(text.contains("/Count 2"));
-        assert!(text.contains("0 G 0.51 w 1 J 1 j"));
-        assert!(text.contains("q 0 G 0.51 w [4 3] 0 d"));
-        assert!(text.contains("28.346 0 m 28.346 841.89 l S"));
-        assert!(text.contains("/Encoding /UniJIS-UCS2-H"));
-        assert!(text.contains("<FEFF524D4E2D5FC3> Tj"));
+        assert!(text.contains("0.192 0.196 0.184 RG"));
+    }
+
+    #[test]
+    fn rejects_invalid_overlap() {
+        let mut invalid = payload();
+        invalid.overlap_mm = 200.0;
+        assert!(build_print_pdf(&invalid).is_err());
     }
 }
