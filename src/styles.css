@@ -4254,6 +4254,10 @@ textarea {
 
 .vscode-canvas-webview .command-ribbon-tooltip {
   position: absolute;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
   z-index: 20;
   top: calc(100% + 6px);
   left: 50%;
@@ -4266,6 +4270,8 @@ textarea {
   padding: 4px 7px;
   font-size: 11px;
   line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
   opacity: 0;
   pointer-events: none;
   transform: translateX(-50%);

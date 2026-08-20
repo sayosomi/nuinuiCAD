@@ -85,12 +85,28 @@ describe("shared stylesheet host layout ownership", () => {
     expect(ruleBody(".command-ribbon")).toMatch(/overflow:\s*hidden/);
     expect(ruleBody(".vscode-canvas-webview .command-ribbon")).toMatch(/overflow:\s*visible/);
 
+    const sharedTooltip = ruleBody(".command-ribbon-tooltip");
+    expect(sharedTooltip).toMatch(/width:\s*1px/);
+    expect(sharedTooltip).toMatch(/height:\s*1px/);
+    expect(sharedTooltip).toMatch(/overflow:\s*hidden/);
+    expect(sharedTooltip).toMatch(/clip:\s*rect\(0 0 0 0\)/);
+    expect(sharedTooltip).toMatch(/clip-path:\s*inset\(50%\)/);
+    expect(sharedTooltip).toMatch(/white-space:\s*nowrap/);
+
     const tooltipVisibility = ruleBody(
       ".vscode-canvas-webview .command-ribbon-item-shell:hover .command-ribbon-tooltip,\n.vscode-canvas-webview .command-ribbon-button:focus-visible + .command-ribbon-tooltip"
     );
     expect(tooltipVisibility).toMatch(/opacity:\s*1/);
 
     const tooltip = ruleBody(".vscode-canvas-webview .command-ribbon-tooltip");
+    expect(tooltip).toMatch(/height:\s*auto/);
+    expect(tooltip).toMatch(/overflow:\s*visible/);
+    expect(tooltip).toMatch(/clip:\s*auto/);
+    expect(tooltip).toMatch(/clip-path:\s*none/);
+    expect(tooltip).toMatch(/max-width:\s*min\(320px, 80vw\)/);
+    expect(tooltip).toMatch(/transition:\s*opacity 80ms ease-in/);
+    expect(tooltip).toMatch(/white-space:\s*normal/);
+    expect(tooltip).toMatch(/overflow-wrap:\s*anywhere/);
     expect(tooltip).toMatch(/pointer-events:\s*none/);
   });
 
