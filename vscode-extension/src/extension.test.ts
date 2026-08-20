@@ -581,6 +581,7 @@ describe("VS Code production document lifecycle", () => {
   it("routes Canvas command palette commands to the active Canvas webview", () => {
     setup();
     const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
 
     for (const command of [
       "nuinuiCAD.clearCanvasSelection",
@@ -597,6 +598,58 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "fitDrawing" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasElementNames" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPoints" });
+  });
+
+  it("accepts the direct Canvas TabInputWebview representation", () => {
+    setup();
+    const panel = openPanelFor();
+
+    commandHandlerFor("nuinuiCAD.clearCanvasSelection")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommand",
+      commandId: "clearCanvasSelection"
+    });
+  });
+
+  it("routes Bake Current Shape from a dynamic Canvas tab to Canvas", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it("routes Go to Source Definition from a dynamic Canvas tab to Canvas", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasSourceDefinitionRequest"
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it("resolves the Canvas context command through a dynamic Canvas tab", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    // The webview/context contribution invokes this same registered command.
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasSourceDefinitionRequest"
+    }));
   });
 
   it("resolves all Bake settings in the Extension Host before Canvas routing", () => {

@@ -178,8 +178,14 @@ const activeNuiEditor = (): vscode.TextEditor | undefined => {
 const activeEditorTabInput = (): vscode.Tab["input"] | undefined =>
   vscode.window.tabGroups.activeTabGroup.activeTab?.input;
 
+const nuiCanvasViewType = "nuinuiCAD.canvas";
+const dynamicNuiCanvasViewType = `mainThreadWebview-${nuiCanvasViewType}`;
+
+const providerViewTypeForTabInput = (viewType: string): string =>
+  viewType === dynamicNuiCanvasViewType ? nuiCanvasViewType : viewType;
+
 const isNuiCanvasTab = (input: vscode.Tab["input"] | undefined): input is vscode.TabInputWebview =>
-  input instanceof vscode.TabInputWebview && input.viewType === "nuinuiCAD.canvas";
+  input instanceof vscode.TabInputWebview && providerViewTypeForTabInput(input.viewType) === nuiCanvasViewType;
 
 const activeNuiTextEditorForCommand = (): vscode.TextEditor | undefined => {
   const input = activeEditorTabInput();
