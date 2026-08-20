@@ -138,7 +138,7 @@ const constructionSpecs: DslConstructionSpec[] = [
   { category: "line", construction: "split", elementType: "splitLine", args: [required("source", "baseLineId"), required("at", "splitPoint")] },
   {
     category: "line",
-    construction: "copy",
+    construction: "transformCopy",
     elementType: "copyLine",
     args: [required("startPoint"), required("endPoint"), arg("scale"), arg("angleDeg"), arg("mirrorX"), required("baseLines", "baseLineIds")],
   },

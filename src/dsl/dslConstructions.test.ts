@@ -28,7 +28,7 @@ const calls = [
   ["line", "polar", "angleLengthLine"],
   ["line", "offset", "offsetLine"],
   ["line", "split", "splitLine"],
-  ["line", "copy", "copyLine"],
+  ["line", "transformCopy", "copyLine"],
   ["line", "mirrorCopy", "symmetricCopyLine"],
   ["mutation", "edge", "edge"],
   ["mutation", "extend", "extendTrim"],
@@ -79,6 +79,23 @@ describe("DSL nui 4 construction registry", () => {
     expect(constructionFor("line", "polar")?.elementType).toBe("angleLengthLine");
     expect(constructionFor("point", "missing")).toBeNull();
     expect(constructionFor("missing", "offset")).toBeNull();
+  });
+
+  it("renames the copy construction without changing its element or arguments", () => {
+    expect(constructionFor("line", "transformCopy")).toMatchObject({
+      category: "line",
+      construction: "transformCopy",
+      elementType: "copyLine",
+      args: [
+        { arg: "startPoint", required: true },
+        { arg: "endPoint", required: true },
+        { arg: "scale" },
+        { arg: "angleDeg" },
+        { arg: "mirrorX" },
+        { arg: "baseLines", required: true, parameterKey: "baseLineIds" },
+      ],
+    });
+    expect(constructionFor("line", "copy")).toBeNull();
   });
 
   it("maps each ordinary registry argument to an existing parameter definition", () => {

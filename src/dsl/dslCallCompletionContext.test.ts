@@ -23,6 +23,15 @@ describe("dslCallCompletionContextAt", () => {
     ]);
   });
 
+  it("keeps transformCopy argument completion on the renamed registry construction", () => {
+    const context = atEnd("line L = transformCopy(");
+    expect(context).toMatchObject({ kind: "argument", spec: { category: "line", construction: "transformCopy", elementType: "copyLine" } });
+    if (!context || context.kind !== "argument") throw new Error("argument context expected");
+    expect(argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
+      "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "baseLines", "state", "color", "steps"
+    ]);
+  });
+
   it("excludes used named arguments and waits for container positional arguments", () => {
     const offset = "point P = offset(from: A, dx: 10 )";
     const offsetContext = dslCallCompletionContextAt(offset, offset.indexOf(")"));

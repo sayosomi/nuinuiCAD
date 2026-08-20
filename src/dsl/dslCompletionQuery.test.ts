@@ -42,6 +42,13 @@ describe("queryDslCompletion", () => {
     expect(labels(queryIncomplete("const value: cho"))).toEqual(["number", "string", "boolean", "choice"]);
     expect(labels(queryIncomplete("nui 4\nmodule M(input: pa"))).toContain("path");
     expect(labels(queryIncomplete("point P = co"))).toContain("coordinate");
+    const lineConstructions = labels(queryIncomplete("line L = tran"));
+    expect(lineConstructions).toContain("transformCopy");
+    expect(lineConstructions).not.toContain("copy");
+    const transformCopyArguments = labels(queryIncomplete("line L = transformCopy("));
+    expect(transformCopyArguments).toEqual(expect.arrayContaining([
+      "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "baseLines"
+    ]));
     const argument = queryIncomplete("point P = offset(\n  d");
     expect(argument?.category).toBe("argument");
     expect(labels(argument)).toEqual(expect.arrayContaining(["dx", "dy"]));

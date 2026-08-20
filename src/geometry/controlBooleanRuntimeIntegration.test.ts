@@ -173,9 +173,9 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
       "line AB = segment(start: @A, end: @B)",
       "for i in range(from: 0, count: 3, step: 1) {",
       "  if (@flag) {",
-      "    line Then = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
+      "    line Then = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "  } else {",
-      "    line Else = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: true, baseLines: [@AB])",
+      "    line Else = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: true, baseLines: [@AB])",
       "  }",
       "}"
     ].join("\n"));
@@ -205,7 +205,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
       "for i in range(from: 0, count: 3, step: 1, showGenerated: false) {",
-      "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
+      "  line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -222,7 +222,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
       "for i in range(from: 0, count: 3, step: 1, showGenerated: @表示) {",
-      "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
+      "  line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -247,7 +247,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
       "for i in range(from: 0, count: 3, step: 1, showGenerated: @表示) {",
-      "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
+      "  line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -293,7 +293,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
       "for i in range(from: 0, count: 3, step: 1, showGenerated: @表示) {",
-      "  line C = copy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
+      "  line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));

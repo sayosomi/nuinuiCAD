@@ -31,7 +31,7 @@ const calls: ReadonlyArray<readonly [CadElementType, string, string]> = [
   ["bezierBulgePoint", "point", "bezierBulgePoint"],
   ["angleLengthLine", "line", "polar"], ["offsetLine", "line", "offset"],
   ["splitLine", "line", "split"],
-  ["copyLine", "line", "copy"],
+  ["copyLine", "line", "transformCopy"],
   ["symmetricCopyLine", "line", "mirrorCopy"],
   ["extendTrim", "mutation", "extend"], ["move", "mutation", "move"],
   ["symmetricMove", "mutation", "mirrorMove"], ["edge", "mutation", "edge"],

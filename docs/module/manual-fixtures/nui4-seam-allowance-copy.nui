@@ -4,7 +4,7 @@ nui 4
 const 縫い代幅: number = 5
 
 module 縫い代写し(基準点: point, 写し元縫い線: path, 合わせ先縫い線: path, 写し元先に縫う縫い代線: path, 写し元後で縫う縫い代線: path, mirrorX: boolean = false) {
-  line 脇コピー = copy(
+  line 脇コピー = transformCopy(
     startPoint: @基準点,
     endPoint: @合わせ先縫い線.end,
     scale: 1,
@@ -24,7 +24,7 @@ module 縫い代写し(基準点: point, 写し元縫い線: path, 合わせ先�
     mirrorX: false
   )
 
-  export line 先に縫う = copy(
+  export line 先に縫う = transformCopy(
     startPoint: @基準点,
     endPoint: @脇コピー.end,
     scale: 1,
@@ -33,7 +33,7 @@ module 縫い代写し(基準点: point, 写し元縫い線: path, 合わせ先�
     baseLines: [@写し元先に縫う縫い代線]
   )
 
-  export line 後で縫う = copy(
+  export line 後で縫う = transformCopy(
     startPoint: @基準点,
     endPoint: @脇コピー.end,
     scale: 1,
@@ -133,7 +133,7 @@ group 後ろ身頃 {
     mirrorX: true
   )
 
-  line 先に縫う = copy(
+  line 先に縫う = transformCopy(
     startPoint: @前身頃::交点,
     endPoint: @後で縫う.start,
     scale: 1,

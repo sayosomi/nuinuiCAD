@@ -441,7 +441,7 @@ describe("Module v1 manual fixtures", () => {
       "}",
       "instance I = M()",
       "line Base = segment(start: (0, 0), end: (5, 0))",
-      "line Use = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])"
+      "line Use = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -479,8 +479,8 @@ describe("Module v1 manual fixtures", () => {
       "}",
       "instance \"I.dot\" = \"M.dot\"()",
       "line Base = segment(start: (0, 0), end: (5, 0))",
-      "line LineUse = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])",
-      "line PointUse = copy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])"
+      "line LineUse = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])",
+      "line PointUse = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());

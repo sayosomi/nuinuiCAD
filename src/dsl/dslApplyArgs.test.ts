@@ -65,7 +65,7 @@ const populatedArgs = (spec: DslConstructionSpec, element: CadElement) =>
 const specs = [
   ["point", "coordinate"], ["point", "offset"], ["point", "polar"], ["point", "between"],
   ["point", "onLine"], ["point", "intersection"], ["point", "tangentOffset"], ["line", "segment"],
-  ["line", "polar"], ["line", "offset"], ["line", "split"], ["line", "copy"],
+  ["line", "polar"], ["line", "offset"], ["line", "split"], ["line", "transformCopy"],
   ["line", "mirrorCopy"],
   ["mutation", "extend"], ["mutation", "move"], ["mutation", "mirrorMove"], ["mutation", "edge"],
   ["mutation", "reverse"],
