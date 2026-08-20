@@ -122,8 +122,18 @@ describe("VS Code Canvas Ribbon configuration", () => {
       items: [{ id: "command", type: "command", commandId: "resetCanvasView", icon: "circle", iconColor: "#0f766e", showLabel: false }]
     }])[0]?.items[0]).toMatchObject({ iconColor: "default" });
 
-    expect(commandRibbonIconColorValues.amber).toBe("#b7791f");
-    expect(commandRibbonIconColorValues.slate).toBe("#475569");
+    expect(commandRibbonIconColorValues).toEqual({
+      default: "currentColor",
+      teal: "#0f766e",
+      blue: "#2563eb",
+      green: "#15803d",
+      amber: "#b7791f",
+      orange: "#c2410c",
+      red: "#dc2626",
+      pink: "#db2777",
+      purple: "#7c3aed",
+      slate: "#475569"
+    });
   });
 
   it("keeps the closed Ribbon command catalog separate from shared CommandId", () => {

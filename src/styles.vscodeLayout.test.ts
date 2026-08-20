@@ -29,4 +29,20 @@ describe("shared stylesheet host layout ownership", () => {
     expect(vscodeCanvasWebviewBody).toMatch(/min-width:\s*0/);
     expect(vscodeCanvasWebviewBody).toMatch(/overflow:\s*hidden/);
   });
+
+  it("uses theme-aware VS Code Ribbon icon variables and a side handle for vertical Ribbons", () => {
+    const vscodeWebview = ruleBody(".vscode-canvas-webview");
+    for (const color of ["teal", "blue", "green", "amber", "orange", "red", "pink", "purple", "slate"]) {
+      expect(vscodeWebview).toContain(`--vscode-canvas-ribbon-icon-${color}:`);
+    }
+    expect(vscodeWebview).toContain("--vscode-charts-");
+    expect(vscodeWebview).toContain("--vscode-terminal-ansi");
+
+    const sideHandleRibbon = ruleBody(".vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle");
+    expect(sideHandleRibbon).toMatch(/flex-direction:\s*row/);
+    const sideHandleButtons = ruleBody(
+      ".vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle .command-ribbon-buttons"
+    );
+    expect(sideHandleButtons).toMatch(/flex-direction:\s*column/);
+  });
 });

@@ -39,6 +39,7 @@ export type CommandRibbonPresentation = {
   iconSize: number;
   items: CommandRibbonPresentationItem[];
   docked?: boolean;
+  verticalHandlePlacement?: "top" | "side";
 };
 
 export type CommandRibbonViewProps = {
@@ -74,6 +75,7 @@ export const CommandRibbonView = ({
     className={[
       "command-ribbon",
       ribbon.docked ? "is-docked" : `is-${ribbon.orientation}`,
+      ribbon.verticalHandlePlacement === "side" ? "has-side-handle" : "",
       dragging ? "is-dragging" : "",
       className
     ].filter(Boolean).join(" ")}

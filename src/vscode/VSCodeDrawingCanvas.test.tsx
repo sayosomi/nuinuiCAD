@@ -115,6 +115,37 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(onEditCanvasRibbon).toHaveBeenCalledTimes(1);
   });
 
+  it("uses the VS Code side-handle presentation and theme icon color for vertical Ribbons", () => {
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const ribbons: VscodeCanvasRibbon[] = [{
+      id: "vertical-ribbon",
+      label: "Vertical Ribbon",
+      x: 12,
+      y: 12,
+      orientation: "vertical",
+      iconSize: 16,
+      items: [{
+        id: "edit",
+        type: "command",
+        commandId: "editCanvasRibbon",
+        icon: "settings-2",
+        iconColor: "amber",
+        showLabel: true
+      }]
+    }];
+    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), ribbons);
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 });
+    if (!overlay) throw new Error("Ribbon overlay was not rendered");
+    const view = render(overlay);
+
+    expect(view.container.querySelector(".command-ribbon")).toHaveClass("is-vertical", "has-side-handle");
+    expect(view.container.querySelector(".command-ribbon")?.children).toHaveLength(2);
+    expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(1);
+    expect(view.container.querySelector("svg")).toHaveStyle({
+      color: "var(--vscode-canvas-ribbon-icon-amber)"
+    });
+  });
+
   it("keeps preview mutations in the Webview and sends one canonical source after each commit", () => {
     mocks.dispatchCommand.mockReturnValue({ status: "applied" });
     const postCanonicalSourceText = vi.fn();

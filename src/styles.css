@@ -4153,6 +4153,15 @@ textarea {
    palette above. */
 .vscode-canvas-webview {
   --vscode-canvas-ribbon-foreground: var(--vscode-foreground, #cccccc);
+  --vscode-canvas-ribbon-icon-teal: var(--vscode-terminal-ansiCyan, #66d9ef);
+  --vscode-canvas-ribbon-icon-blue: var(--vscode-charts-blue, #75beff);
+  --vscode-canvas-ribbon-icon-green: var(--vscode-charts-green, #89d185);
+  --vscode-canvas-ribbon-icon-amber: var(--vscode-terminal-ansiYellow, #fdd663);
+  --vscode-canvas-ribbon-icon-orange: var(--vscode-charts-orange, #f28b25);
+  --vscode-canvas-ribbon-icon-red: var(--vscode-charts-red, #f14c4c);
+  --vscode-canvas-ribbon-icon-pink: var(--vscode-terminal-ansiMagenta, #d670d6);
+  --vscode-canvas-ribbon-icon-purple: var(--vscode-charts-purple, #b180d7);
+  --vscode-canvas-ribbon-icon-slate: var(--vscode-descriptionForeground, var(--vscode-foreground, #cccccc));
   --vscode-canvas-ribbon-background: var(--vscode-editorWidget-background, #252526);
   --vscode-canvas-ribbon-border: var(--vscode-widget-border, #454545);
   --vscode-canvas-ribbon-hover: var(--vscode-toolbar-hoverBackground, #2a2d2e);
@@ -4167,6 +4176,14 @@ textarea {
   background: var(--vscode-canvas-ribbon-background);
   color: var(--vscode-canvas-ribbon-foreground);
   box-shadow: 0 5px 14px rgb(0 0 0 / 28%);
+}
+
+.vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle {
+  flex-direction: row;
+}
+
+.vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle .command-ribbon-buttons {
+  flex-direction: column;
 }
 
 .vscode-canvas-webview .command-ribbon-handle,

@@ -81,4 +81,38 @@ describe("CommandRibbonView", () => {
     fireEvent.focus(names);
     expect(document.getElementById(describedBy!)).toBeInTheDocument();
   });
+
+  it("keeps a one-item VS Code vertical Ribbon handle beside its item column", () => {
+    const oneItemRibbon: CommandRibbonPresentation = {
+      ...ribbonFor("vertical"),
+      items: [ribbonFor("vertical").items[1]!],
+      verticalHandlePlacement: "side"
+    };
+    const view = render(
+      <CommandRibbonView ribbon={oneItemRibbon} iconResolver={() => Circle} />
+    );
+
+    expect(view.container.querySelector(".command-ribbon")).toHaveClass("is-vertical", "has-side-handle");
+    expect(view.container.querySelector(".command-ribbon")?.children).toHaveLength(2);
+    expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(1);
+  });
+
+  it("keeps multiple VS Code vertical Ribbon items in the item column", () => {
+    const multiItemRibbon = { ...ribbonFor("vertical"), verticalHandlePlacement: "side" as const };
+    const view = render(
+      <CommandRibbonView ribbon={multiItemRibbon} iconResolver={() => Circle} />
+    );
+
+    expect(view.container.querySelector(".command-ribbon")).toHaveClass("has-side-handle");
+    expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(3);
+  });
+
+  it("keeps the Tauri vertical Ribbon on its existing top-handle layout", () => {
+    const view = render(
+      <CommandRibbonView ribbon={ribbonFor("vertical")} iconResolver={() => Circle} />
+    );
+
+    expect(view.container.querySelector(".command-ribbon")).toHaveClass("is-vertical");
+    expect(view.container.querySelector(".command-ribbon")).not.toHaveClass("has-side-handle");
+  });
 });

@@ -13,17 +13,24 @@ export type RibbonRenderedSize = { width: number; height: number };
 export const estimatedRibbonSize = (
   ribbon: CommandRibbonPresentation
 ): RibbonRenderedSize => {
-  const itemLength = ribbon.items.reduce((total, item) => {
+  const itemLengths = ribbon.items.map((item) => {
     const labelLength = item.type === "command" && item.showLabel
       ? Math.min(120, Math.max(20, item.label.length * 7)) + 5
       : item.type === "value"
         ? Math.min(140, Math.max(32, item.value.length * 7)) + 5
         : 0;
-    return total + ribbon.iconSize + RIBBON_BUTTON_PADDING + labelLength;
-  }, 0);
+    return ribbon.iconSize + RIBBON_BUTTON_PADDING + labelLength;
+  });
+  const itemLength = itemLengths.reduce((total, length) => total + length, 0);
   const itemCount = ribbon.items.length;
-  const length = RIBBON_HANDLE_WIDTH + (itemCount > 0 ? itemLength : 0);
   const thickness = ribbon.iconSize + RIBBON_BUTTON_PADDING + 2;
+  if (ribbon.orientation === "vertical" && ribbon.verticalHandlePlacement === "side") {
+    return {
+      width: RIBBON_HANDLE_WIDTH + (itemLengths.length > 0 ? Math.max(...itemLengths) : 0),
+      height: Math.max(30, thickness * itemCount)
+    };
+  }
+  const length = RIBBON_HANDLE_WIDTH + (itemCount > 0 ? itemLength : 0);
   return ribbon.orientation === "vertical"
     ? { width: thickness, height: length }
     : { width: length, height: thickness };
