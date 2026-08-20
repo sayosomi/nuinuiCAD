@@ -25,11 +25,14 @@ import {
   type PointDragAxisLockFeedbackState
 } from "./PointDragAxisLockFeedback";
 import {
-  hitTestCanvasGeometry,
+  hitTestCanvasGeometryAll,
   hitTestLineCandidates,
   hitTestLineMeasurementCandidates
 } from "./DrawingCanvasHitTest";
-import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
+import type {
+  CanvasGeometryHitCandidate,
+  LineMeasurementCandidate
+} from "./DrawingCanvasHitTest";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
 import {
   hitTestBezierHandle,
@@ -42,15 +45,21 @@ import {
 } from "./canvasViewport";
 import { renderCanvasGeometry } from "./canvasRenderer";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
-import type { CanvasHostAdapter } from "./canvasHostAdapter";
+import type { CanvasHostAdapter, CanvasSelectionMode } from "./canvasHostAdapter";
 import { canvasThemeCssVariables } from "./canvasTheme";
 import type {
+  CanvasOverlapCandidateSession,
   LinePickCandidate,
   LinePickCandidateMenu,
   MeasurementCandidateMenu,
   PointPickCandidate,
   PointPickCandidateMenu
 } from "./DrawingCanvasTypes";
+import type { SelectionSnapshot } from "../state/cadDocumentStore";
+import {
+  finalizeCanvasSelectionSession,
+  previewCanvasSelection
+} from "../commands/selectionCommands";
 import {
   beginPendingCanvasPointer,
   cancelPendingCanvasPointer,
@@ -83,6 +92,7 @@ type DrawingCanvasProps = {
 export type DrawingCanvasHandle = {
   clearPendingCanvasPointerIntent: () => void;
   clearEditorFocusReservation: () => void;
+  finalizeCanvasInteraction: () => void;
 };
 
 type PointDragState = {
@@ -93,6 +103,10 @@ type PointDragState = {
   zoom: number;
   baseElements: CadElement[];
   baseEvaluation?: EvaluationResult;
+  overlapCandidates?: CanvasGeometryHitCandidate[];
+  overlapSelectionBefore?: SelectionSnapshot;
+  overlapSelectionMode?: CanvasSelectionMode;
+  overlapSelectionHistoryCommitted?: boolean;
 };
 
 type BezierHandleDragState = {
@@ -112,11 +126,22 @@ type PolarLockKeys = {
   distance: boolean;
 };
 
+type CanvasOverlapSessionState = CanvasOverlapCandidateSession & {
+  startSelection: SelectionSnapshot;
+  selectionMode: CanvasSelectionMode;
+  evaluation: EvaluationResult;
+  visibleElementIds: Set<ElementId>;
+  viewport: { panX: number; panY: number; zoom: number };
+  viewportSize: ViewportSize;
+  finalized: boolean;
+};
+
 const WHEEL_ZOOM_BASE = 1.1;
 const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
 const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
 const DEFERRED_DRAG_THRESHOLD_PX = 3;
 const DEFERRED_POINTER_TIMEOUT_MS = 5000;
+const OVERLAP_WHEEL_THRESHOLD_PX = 24;
 
 const isRejectedDocumentMutation = (result: unknown) =>
   typeof result === "object" && result !== null && "status" in result && result.status === "rejected";
@@ -149,6 +174,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     useState<PointPickCandidateMenu | null>(null);
   const [linePickCandidateMenu, setLinePickCandidateMenu] =
     useState<LinePickCandidateMenu | null>(null);
+  const [overlapCandidateSession, setOverlapCandidateSession] =
+    useState<CanvasOverlapSessionState | null>(null);
+  const [hoveredElementId, setHoveredElementId] = useState<ElementId | null>(null);
+  const overlapCandidateSessionRef = useRef<CanvasOverlapSessionState | null>(null);
+  const finalizeOverlapSessionRef = useRef<() => boolean>(() => false);
+  const hoverFrameRef = useRef<number | null>(null);
+  const hoverPointerRef = useRef<ScreenPoint | null>(null);
+  const overlapWheelDeltaRef = useRef(0);
   const {
     elements,
     canonicalElements: documentElements,
@@ -162,7 +195,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     selectedElementId,
     selectedElementIds,
     canvasViewport,
-    showCanvasElementNames,
+    showCanvasPointNames: hostShowCanvasPointNames,
+    showCanvasGeometryNames: hostShowCanvasGeometryNames,
+    showCanvasElementNames: legacyShowCanvasElementNames,
     showCanvasPoints,
     showPrintPreviewWindow,
     activePointPickTarget,
@@ -170,6 +205,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activeLinePickTarget,
     commandLineSession
   } = hostAdapter;
+  const showCanvasPointNames = hostShowCanvasPointNames ?? legacyShowCanvasElementNames ?? false;
+  const showCanvasGeometryNames = hostShowCanvasGeometryNames ?? false;
   const renderFixedCanvasChrome = hostAdapter.renderFixedCanvasChrome ?? true;
   const previewElementIds = useMemo(() => {
     const documentElementIds = new Set(documentElements.map((element) => element.id));
@@ -244,6 +281,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     overlayOffsetLines,
     overlayImages,
     overlayTexts,
+    overlayIdentityCandidates,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
     selectedBezierEditingHelper,
@@ -288,6 +326,33 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     () => overlayTexts.filter(({ text }) => !previewElementIds.has(text.elementId)),
     [overlayTexts, previewElementIds]
   );
+  const interactiveOverlayIdentityCandidates = useMemo(
+    () => overlayIdentityCandidates.filter(({ elementId }) => !previewElementIds.has(elementId)),
+    [overlayIdentityCandidates, previewElementIds]
+  );
+  const currentCanvasSelection = useCallback((): SelectionSnapshot => ({
+    selectedElementId,
+    selectedElementIds: [...selectedElementIds],
+    selectionAnchorElementId: hostAdapter.selectionAnchorElementId ?? selectedElementId
+  }), [hostAdapter.selectionAnchorElementId, selectedElementId, selectedElementIds]);
+  const hitCandidatesAt = useCallback((screen: ScreenPoint) => hitTestCanvasGeometryAll({
+    screen,
+    lines: interactiveOverlayLines,
+    arcs: interactiveOverlayArcs,
+    curves: interactiveOverlayCurves,
+    offsetLines: interactiveOverlayOffsetLines,
+    images: interactiveOverlayImages,
+    texts: interactiveOverlayTexts,
+    points: interactiveOverlayPoints
+  }), [
+    interactiveOverlayArcs,
+    interactiveOverlayCurves,
+    interactiveOverlayImages,
+    interactiveOverlayLines,
+    interactiveOverlayOffsetLines,
+    interactiveOverlayPoints,
+    interactiveOverlayTexts
+  ]);
   const reusableDragEvaluation = useCallback((snapshotElements: typeof elements) => {
     if (evaluationState?.isStale) return undefined;
     if ((evaluation.evaluationLimitIndex ?? snapshotElements.length) !== snapshotElements.length) {
@@ -460,6 +525,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
     event.preventDefault();
 
+    if (overlapCandidateSessionRef.current) {
+      const pixelsPerUnit = event.deltaMode === 1
+        ? 16
+        : event.deltaMode === 2
+          ? Math.max(viewportSize.height, 1)
+          : 1;
+      overlapWheelDeltaRef.current += event.deltaY * pixelsPerUnit;
+      const cycles = Math.trunc(Math.abs(overlapWheelDeltaRef.current) / OVERLAP_WHEEL_THRESHOLD_PX);
+      if (cycles > 0) {
+        const direction = overlapWheelDeltaRef.current > 0 ? 1 : -1;
+        overlapWheelDeltaRef.current -= direction * cycles * OVERLAP_WHEEL_THRESHOLD_PX;
+        cycleOverlapCandidate(direction * cycles);
+      }
+      return;
+    }
+
     const rect = event.currentTarget.getBoundingClientRect();
     const anchor = {
       x: event.clientX - rect.left - event.currentTarget.clientLeft,
@@ -592,6 +673,188 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         ? "range" as const
         : "replace" as const;
 
+  const clearHoveredElement = useCallback(() => {
+    hoverPointerRef.current = null;
+    setHoveredElementId(null);
+  }, []);
+
+  const setOverlapSession = useCallback((session: CanvasOverlapSessionState | null) => {
+    overlapCandidateSessionRef.current = session;
+    setOverlapCandidateSession(session);
+  }, []);
+
+  const previewOverlapSelection = useCallback((
+    previousSelection: SelectionSnapshot,
+    elementId: ElementId,
+    selectionMode: CanvasSelectionMode
+  ) => {
+    if (hostAdapter.previewCanvasSelection) {
+      hostAdapter.previewCanvasSelection(previousSelection, elementId, selectionMode);
+      return;
+    }
+    previewCanvasSelection(previousSelection, elementId, selectionMode);
+  }, [hostAdapter]);
+
+  const finalizeOverlapSelection = useCallback((previousSelection: SelectionSnapshot) => {
+    if (hostAdapter.finalizeCanvasSelectionSession) {
+      hostAdapter.finalizeCanvasSelectionSession(previousSelection);
+      return;
+    }
+    finalizeCanvasSelectionSession(previousSelection);
+  }, [hostAdapter]);
+
+  const finalizeOverlapSession = useCallback(() => {
+    const session = overlapCandidateSessionRef.current;
+    if (!session || session.finalized) return false;
+    session.finalized = true;
+    finalizeOverlapSelection(session.startSelection);
+    setOverlapSession(null);
+    overlapWheelDeltaRef.current = 0;
+    clearHoveredElement();
+    return true;
+  }, [clearHoveredElement, finalizeOverlapSelection, setOverlapSession]);
+  useEffect(() => {
+    finalizeOverlapSessionRef.current = finalizeOverlapSession;
+  }, [finalizeOverlapSession]);
+
+  const activateOverlapCandidate = useCallback((index: number) => {
+    const session = overlapCandidateSessionRef.current;
+    if (!session || session.finalized || session.candidates.length === 0) return;
+    const wrappedIndex = ((index % session.candidates.length) + session.candidates.length) % session.candidates.length;
+    const candidate = session.candidates[wrappedIndex];
+    if (!candidate) return;
+    previewOverlapSelection(session.startSelection, candidate.elementId, session.selectionMode);
+    const next = { ...session, activeIndex: wrappedIndex };
+    overlapCandidateSessionRef.current = next;
+    setOverlapCandidateSession(next);
+  }, [previewOverlapSelection]);
+
+  const cycleOverlapCandidate = useCallback((offset: number) => {
+    const session = overlapCandidateSessionRef.current;
+    if (!session) return;
+    activateOverlapCandidate(session.activeIndex + offset);
+  }, [activateOverlapCandidate]);
+
+  const openOverlapSession = useCallback((
+    screen: ScreenPoint,
+    candidates: CanvasGeometryHitCandidate[],
+    selectionMode: CanvasSelectionMode,
+    startSelection = currentCanvasSelection()
+  ) => {
+    if (candidates.length < 2) return false;
+    const first = candidates[0];
+    if (!first) return false;
+    previewOverlapSelection(startSelection, first.elementId, selectionMode);
+    setOverlapSession({
+      screen,
+      candidates: [...candidates],
+      activeIndex: 0,
+      startSelection,
+      selectionMode,
+      evaluation,
+      visibleElementIds,
+      viewport: { ...canvasViewport },
+      viewportSize: { ...viewportSize },
+      finalized: false
+    });
+    clearHoveredElement();
+    return true;
+  }, [
+    canvasViewport,
+    clearHoveredElement,
+    currentCanvasSelection,
+    evaluation,
+    previewOverlapSelection,
+    setOverlapSession,
+    viewportSize,
+    visibleElementIds
+  ]);
+
+  const hoverSuppressed = Boolean(
+    isPanning ||
+    isPointDragging ||
+    isBezierHandleDragging ||
+    pendingPointerState.kind === "waiting" ||
+    activePointPickTarget ||
+    activeNumericReferencePickTarget ||
+    activeLinePickTarget ||
+    hasCommandLineGhost ||
+    overlapCandidateSession ||
+    !evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)
+  );
+
+  const scheduleHoverAt = useCallback((screen: ScreenPoint) => {
+    if (hoverSuppressed) {
+      clearHoveredElement();
+      return;
+    }
+    hoverPointerRef.current = screen;
+    if (hoverFrameRef.current !== null) return;
+    const frame = (callback: FrameRequestCallback) =>
+      typeof window.requestAnimationFrame === "function"
+        ? window.requestAnimationFrame(callback)
+        : window.setTimeout(() => callback(Date.now()), 0);
+    hoverFrameRef.current = frame(() => {
+      hoverFrameRef.current = null;
+      if (hoverSuppressed) {
+        clearHoveredElement();
+        return;
+      }
+      const pointer = hoverPointerRef.current;
+      if (!pointer) return;
+      setHoveredElementId(hitCandidatesAt(pointer)[0]?.elementId ?? null);
+    });
+  }, [clearHoveredElement, hitCandidatesAt, hoverSuppressed]);
+
+  useEffect(() => {
+    if (!hoverSuppressed) return;
+    if (hoverFrameRef.current !== null && typeof window.cancelAnimationFrame === "function") {
+      window.cancelAnimationFrame(hoverFrameRef.current);
+      hoverFrameRef.current = null;
+    }
+    clearHoveredElement();
+  }, [clearHoveredElement, hoverSuppressed]);
+
+  useEffect(() => {
+    const session = overlapCandidateSessionRef.current;
+    if (!session) return;
+    const sameViewport =
+      session.viewport.panX === canvasViewport.panX &&
+      session.viewport.panY === canvasViewport.panY &&
+      session.viewport.zoom === canvasViewport.zoom;
+    const sameSize =
+      session.viewportSize.width === viewportSize.width &&
+      session.viewportSize.height === viewportSize.height;
+    if (
+      session.evaluation !== evaluation ||
+      session.visibleElementIds !== visibleElementIds ||
+      !sameViewport ||
+      !sameSize
+    ) {
+      finalizeOverlapSession();
+    }
+  }, [
+    canvasViewport,
+    evaluation,
+    finalizeOverlapSession,
+    visibleElementIds,
+    viewportSize
+  ]);
+
+  useEffect(() => {
+    if (overlapCandidateSession && (activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget || commandLineSession)) {
+      finalizeOverlapSession();
+    }
+  }, [
+    activeLinePickTarget,
+    activeNumericReferencePickTarget,
+    activePointPickTarget,
+    commandLineSession,
+    finalizeOverlapSession,
+    hasCommandLineGhost,
+    overlapCandidateSession
+  ]);
+
   const capturePointer = useCallback((viewport: HTMLDivElement, pointerId: number) => {
     try {
       captureLedger.capture(viewport, pointerId);
@@ -615,15 +878,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const scheduleEditorFocus = useCallback((pointerId: number, pointerReleased: boolean) => {
     if (pointerReleased) {
       pendingEditorFocusRef.current = null;
+      finalizeOverlapSession();
       hostAdapter.focusSourceEditor();
       return;
     }
     pendingEditorFocusRef.current = { pointerId };
-  }, [hostAdapter]);
+  }, [finalizeOverlapSession, hostAdapter]);
 
   const resolveEditorFocusReservation = useCallback((pointerId: number) => {
     if (pendingEditorFocusRef.current?.pointerId !== pointerId) return;
     pendingEditorFocusRef.current = null;
+    finalizeOverlapSessionRef.current();
     hostAdapter.focusSourceEditor();
   }, [hostAdapter]);
 
@@ -639,8 +904,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     },
     clearEditorFocusReservation: () => {
       pendingEditorFocusRef.current = null;
+    },
+    finalizeCanvasInteraction: () => {
+      finalizeOverlapSession();
+      clearHoveredElement();
     }
-  }), [applyPendingPointerTransition]);
+  }), [applyPendingPointerTransition, clearHoveredElement, finalizeOverlapSession]);
 
   /**
    * Resolves an intent only against the current render.  The original pointer
@@ -750,23 +1019,30 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       return;
     }
 
-    const elementId = hitTestCanvasGeometry({
-      screen,
-      lines: interactiveOverlayLines,
-      arcs: interactiveOverlayArcs,
-      curves: interactiveOverlayCurves,
-      offsetLines: interactiveOverlayOffsetLines,
-      images: interactiveOverlayImages,
-      texts: interactiveOverlayTexts,
-      points: interactiveOverlayPoints
-    });
-    if (!elementId) {
+    const hitCandidates = hitCandidatesAt(screen);
+    const frontmostCandidate = hitCandidates[0];
+    if (!frontmostCandidate) {
       focusCanvas();
       return;
     }
 
+    const selectionMode = selectionModeFor(intent);
+    const isPointCandidate = frontmostCandidate.kind === "point";
+    if (hitCandidates.length > 1 && (!isPointCandidate || (intent.pointerReleased && movement < DEFERRED_DRAG_THRESHOLD_PX))) {
+      focusCanvas();
+      openOverlapSession(screen, hitCandidates, selectionMode, currentCanvasSelection());
+      return;
+    }
+
+    const elementId = frontmostCandidate.elementId;
+
     focusCanvas();
-    hostAdapter.selectElement(elementId, selectionModeFor(intent));
+    const overlapSelectionBefore = hitCandidates.length > 1 ? currentCanvasSelection() : undefined;
+    if (hitCandidates.length > 1 && isPointCandidate && !intent.pointerReleased && overlapSelectionBefore) {
+      previewOverlapSelection(overlapSelectionBefore, elementId, selectionMode);
+    } else {
+      hostAdapter.selectElement(elementId, selectionMode);
+    }
     if (!interactiveOverlayPoints.some(({ point }) => point.elementId === elementId)) {
       scheduleEditorFocus(intent.pointerId, intent.pointerReleased);
       return;
@@ -802,7 +1078,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       startClientX: intent.start.clientX,
       startClientY: intent.start.clientY,
       zoom: canvasViewport.zoom,
-      ...dragBase
+      ...dragBase,
+      ...(hitCandidates.length > 1 && isPointCandidate && overlapSelectionBefore ? {
+        overlapCandidates: hitCandidates,
+        overlapSelectionBefore,
+        overlapSelectionMode: selectionMode,
+        overlapSelectionHistoryCommitted: false
+      } : {})
     };
     setPointDragFeedback({
       origin: screen,
@@ -822,40 +1104,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     hasCommandLineGhost,
     linePickCandidatesAt,
     numericReferenceCandidatesAt,
-    interactiveOverlayArcs,
-    interactiveOverlayCurves,
-    interactiveOverlayImages,
-    interactiveOverlayLines,
-    interactiveOverlayOffsetLines,
+    currentCanvasSelection,
+    hitCandidatesAt,
     overlayPointPickCandidates,
     interactiveOverlayPoints,
-    interactiveOverlayTexts,
     scheduleEditorFocus,
     selectedBezierHandles,
     hostAdapter,
+    openOverlapSession,
+    previewOverlapSelection,
     viewportSize.height,
     viewportSize.width
   ]);
-
-  const staleTargetHintAt = (event: ReactPointerEvent<HTMLDivElement>): ElementId | null => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const screen = {
-      x: event.clientX - rect.left - event.currentTarget.clientLeft,
-      y: event.clientY - rect.top - event.currentTarget.clientTop
-    };
-    const handle = hitTestBezierHandle(screen, selectedBezierHandles, BEZIER_HANDLE_HIT_RADIUS_PX);
-    if (handle) return handle.curveId;
-    return hitTestCanvasGeometry({
-      screen,
-      lines: interactiveOverlayLines,
-      arcs: interactiveOverlayArcs,
-      curves: interactiveOverlayCurves,
-      offsetLines: interactiveOverlayOffsetLines,
-      images: interactiveOverlayImages,
-      texts: interactiveOverlayTexts,
-      points: interactiveOverlayPoints
-    });
-  };
 
   const terminalPendingPointer = useCallback((message: string) => {
     const transition = cancelPendingCanvasPointer(pendingPointerStateRef.current);
@@ -890,10 +1150,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       return;
     }
     if (!evaluationStateIsCurrentFor(evaluationState, documentState.compiledDocumentRevision)) return;
-    if (intent.staleTargetHint && !documentState.elements.some((element) => element.id === intent.staleTargetHint)) {
-      terminalPendingPointer("操作対象が更新中に削除されたためキャンバス操作を取り消しました。");
-      return;
-    }
     const resolved = applyPendingPointerTransition(resolvePendingCanvasPointer(pendingPointerStateRef.current));
     const viewport = canvasFocusRef.current;
     if (resolved && viewport) resolvePrimaryPointerIntent(resolved, viewport);
@@ -921,6 +1177,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const transition = cancelPendingCanvasPointer(pendingPointerStateRef.current);
     if (transition.releasePointerId !== undefined) captureLedger.release(transition.releasePointerId);
     pendingPointerStateRef.current = transition.state;
+    finalizeOverlapSessionRef.current();
+    if (hoverFrameRef.current !== null && typeof window.cancelAnimationFrame === "function") {
+      window.cancelAnimationFrame(hoverFrameRef.current);
+    }
+    hoverFrameRef.current = null;
   }, [captureLedger]);
 
   const stopPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -939,6 +1200,29 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
     const screenDx = event.clientX - drag.startClientX;
     const screenDy = event.clientY - drag.startClientY;
+    const movement = Math.hypot(screenDx, screenDy);
+    if (drag.overlapCandidates && drag.overlapSelectionBefore && movement < DEFERRED_DRAG_THRESHOLD_PX) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const screen = {
+        x: drag.startClientX - rect.left - event.currentTarget.clientLeft,
+        y: drag.startClientY - rect.top - event.currentTarget.clientTop
+      };
+      captureLedger.release(event.pointerId);
+      pointDragRef.current = null;
+      setPointDragFeedback(null);
+      setIsPointDragging(false);
+      discardEditorFocusReservation(event.pointerId);
+      openOverlapSession(
+        screen,
+        drag.overlapCandidates,
+        drag.overlapSelectionMode ?? "replace",
+        drag.overlapSelectionBefore
+      );
+      return;
+    }
+    if (drag.overlapSelectionBefore && !drag.overlapSelectionHistoryCommitted) {
+      finalizeOverlapSelection(drag.overlapSelectionBefore);
+    }
     const worldDelta = constrainedWorldDelta({
       screenDx,
       screenDy,
@@ -993,6 +1277,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       );
       return;
     }
+    if (overlapCandidateSessionRef.current) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const screen = {
+        x: event.clientX - rect.left - event.currentTarget.clientLeft,
+        y: event.clientY - rect.top - event.currentTarget.clientTop
+      };
+      const isBlank = event.button === 0 && hitCandidatesAt(screen).length === 0;
+      finalizeOverlapSession();
+      if (isBlank) {
+        event.preventDefault();
+        event.currentTarget.focus();
+        return;
+      }
+    }
     if (event.button === 0) {
       syntheticPointerEventRef.current = event.isTrusted === false;
       const documentState = hostAdapter.getCurrentCanonicalDocument();
@@ -1015,8 +1313,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         sourceRevision: documentState.sourceRevision,
         compiledDocumentRevision: documentState.compiledDocumentRevision,
         deadlineAt: Date.now() + DEFERRED_POINTER_TIMEOUT_MS,
-        // This hint is only an invalidation guard. Resolution below always reruns hit testing.
-        staleTargetHint: deferToFreshEvaluation ? staleTargetHintAt(event) : null
       };
       if (deferToFreshEvaluation) {
         event.preventDefault();
@@ -1044,6 +1340,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   };
 
   const handleCanvasKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const overlapSession = overlapCandidateSessionRef.current;
+    if (overlapSession && event.currentTarget === document.activeElement) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        cycleOverlapCandidate(event.key === "ArrowDown" ? 1 : -1);
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Escape") {
+        event.preventDefault();
+        finalizeOverlapSession();
+        event.currentTarget.focus();
+        return;
+      }
+    }
     if (event.key !== "Escape" || event.currentTarget !== document.activeElement) return;
     if (commandLineSession || activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget) return;
     event.preventDefault();
@@ -1100,6 +1410,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       event.preventDefault();
       const screenDx = event.clientX - pointDrag.startClientX;
       const screenDy = event.clientY - pointDrag.startClientY;
+      if (
+        pointDrag.overlapSelectionBefore &&
+        !pointDrag.overlapSelectionHistoryCommitted &&
+        Math.hypot(screenDx, screenDy) >= DEFERRED_DRAG_THRESHOLD_PX
+      ) {
+        finalizeOverlapSelection(pointDrag.overlapSelectionBefore);
+        pointDragRef.current = {
+          ...pointDrag,
+          overlapSelectionHistoryCommitted: true
+        };
+      }
       const worldDelta = constrainedWorldDelta({
         screenDx,
         screenDy,
@@ -1127,7 +1448,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
 
     const drag = panDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      if (event.buttons === 0) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        scheduleHoverAt({
+          x: event.clientX - rect.left - event.currentTarget.clientLeft,
+          y: event.clientY - rect.top - event.currentTarget.clientTop
+        });
+      } else {
+        clearHoveredElement();
+      }
+      return;
+    }
     if ((event.buttons & 4) === 0) {
       stopPanning(event);
       return;
@@ -1188,6 +1520,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           stopPanning(event);
           discardEditorFocusReservation(event.pointerId);
         }}
+        onPointerLeave={clearHoveredElement}
         onAuxClick={(event) => event.preventDefault()}
       >
         <canvas ref={canvasRef} aria-label="CAD drawing canvas" />
@@ -1208,7 +1541,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           selectedElementId={selectedElementId}
           canvasTheme={canvasTheme}
           elementColors={elementColors}
-          showCanvasElementNames={showCanvasElementNames}
+          overlayIdentityCandidates={interactiveOverlayIdentityCandidates}
+          showCanvasPointNames={showCanvasPointNames}
+          showCanvasGeometryNames={showCanvasGeometryNames}
+          hoveredElementId={hoveredElementId}
           showCanvasPoints={showCanvasPoints}
           isPointPickActive={Boolean(activePointPickTarget)}
           isNumericReferencePickActive={Boolean(activeNumericReferencePickTarget)}
@@ -1226,11 +1562,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           <div className="canvas-display-controls" aria-label="キャンバス表示設定">
             <button
               type="button"
-              className={showCanvasElementNames ? "active-toggle" : ""}
-              aria-pressed={showCanvasElementNames}
-              onClick={() => hostAdapter.toggleCanvasElementNames()}
+              className={showCanvasPointNames ? "active-toggle" : ""}
+              aria-pressed={showCanvasPointNames}
+              onClick={() => (hostAdapter.toggleCanvasPointNames ?? hostAdapter.toggleCanvasElementNames)()}
             >
-              要素名
+              点名
+            </button>
+            <button
+              type="button"
+              className={showCanvasGeometryNames ? "active-toggle" : ""}
+              aria-pressed={showCanvasGeometryNames}
+              onClick={() => hostAdapter.toggleCanvasGeometryNames?.()}
+            >
+              図形名
             </button>
             <button
               type="button"
@@ -1254,9 +1598,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           measurementCandidateMenu={measurementCandidateMenu}
           pointPickCandidateMenu={pointPickCandidateMenu}
           linePickCandidateMenu={linePickCandidateMenu}
+          overlapCandidateSession={overlapCandidateSession}
+          viewportSize={viewportSize}
           onApplyMeasurementCandidate={applyMeasurementCandidate}
           onApplyPointPickCandidate={applyPointPickCandidate}
           onApplyLinePickCandidate={applyLinePickCandidate}
+          onActivateOverlapCandidate={activateOverlapCandidate}
+          onFocusCanvas={() => canvasFocusRef.current?.focus()}
         />
         {renderFixedCanvasChrome && evaluation.errors.length + evaluation.warnings.length > 0 ? (
           <div className="canvas-warning">

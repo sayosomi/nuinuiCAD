@@ -7,6 +7,7 @@ import type {
   ElementId
 } from "../types/geometry";
 import type { NumericMeasurementKey } from "../geometry/numericExpressions";
+import type { CanvasIdentityKind } from "./DrawingCanvasTypes";
 
 export type ScreenPoint = {
   x: number;
@@ -130,6 +131,174 @@ const distanceToPolyline = (point: ScreenPoint, points: ScreenPoint[]) => {
   return distance;
 };
 
+const safeScreenPoint = (point: ScreenPoint | undefined): ScreenPoint =>
+  point && Number.isFinite(point.x) && Number.isFinite(point.y)
+    ? point
+    : { x: 0, y: 0 };
+
+/** Returns the midpoint by cumulative screen-space length, not array index. */
+export const screenSpaceCumulativeLengthMidpoint = (
+  points: readonly ScreenPoint[],
+  fallback: ScreenPoint = { x: 0, y: 0 }
+): ScreenPoint => {
+  const safePoints = points.map(safeScreenPoint);
+  if (safePoints.length === 0) return safeScreenPoint(fallback);
+  if (safePoints.length === 1) return safePoints[0];
+
+  let totalLength = 0;
+  for (let index = 1; index < safePoints.length; index += 1) {
+    totalLength += Math.hypot(
+      safePoints[index]!.x - safePoints[index - 1]!.x,
+      safePoints[index]!.y - safePoints[index - 1]!.y
+    );
+  }
+  if (!(totalLength > 0) || !Number.isFinite(totalLength)) return safePoints[0];
+
+  const midpointDistance = totalLength / 2;
+  let traversed = 0;
+  for (let index = 1; index < safePoints.length; index += 1) {
+    const start = safePoints[index - 1]!;
+    const end = safePoints[index]!;
+    const segmentLength = Math.hypot(end.x - start.x, end.y - start.y);
+    if (!(segmentLength > 0)) continue;
+    if (traversed + segmentLength >= midpointDistance) {
+      const ratio = (midpointDistance - traversed) / segmentLength;
+      return {
+        x: start.x + (end.x - start.x) * ratio,
+        y: start.y + (end.y - start.y) * ratio
+      };
+    }
+    traversed += segmentLength;
+  }
+  return safePoints.at(-1)!;
+};
+
+export type ScreenTextHitBounds = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+/** The shared approximate bounds used by both text hit testing and identity labels. */
+export const textHitBounds = (
+  item: { text: string; screen: ScreenPoint; fontSizePx: number }
+): ScreenTextHitBounds => {
+  const screen = safeScreenPoint(item.screen);
+  const fontSizePx = Number.isFinite(item.fontSizePx) && item.fontSizePx > 0 ? item.fontSizePx : 0;
+  const lines = item.text.split(/\r?\n/);
+  const maxLineLength = Math.max(1, ...lines.map((line) => Array.from(line).length));
+  return {
+    left: screen.x,
+    top: screen.y,
+    width: maxLineLength * fontSizePx * 0.62,
+    height: Math.max(1, lines.length) * fontSizePx * 1.2
+  };
+};
+
+export const averageScreenPoints = (points: readonly ScreenPoint[]): ScreenPoint => {
+  const safePoints = points.map(safeScreenPoint);
+  if (safePoints.length === 0) return { x: 0, y: 0 };
+  return {
+    x: safePoints.reduce((sum, point) => sum + point.x, 0) / safePoints.length,
+    y: safePoints.reduce((sum, point) => sum + point.y, 0) / safePoints.length
+  };
+};
+
+export type CanvasGeometryHitCandidate = {
+  elementId: ElementId;
+  kind: CanvasIdentityKind;
+  name: string;
+};
+
+type CanvasGeometryHitTestInput = {
+  screen: ScreenPoint;
+  lines: Array<{ line: ComputedLine; start: ScreenPoint; end: ScreenPoint }>;
+  arcs?: Array<{ arc: ComputedArcLine; points: ScreenPoint[] }>;
+  curves?: Array<{ curve: ComputedBezierCurve; points: ScreenPoint[] }>;
+  offsetLines?: Array<{ line: ComputedOffsetLine; points: ScreenPoint[] }>;
+  images?: Array<{ image: { elementId: ElementId; name?: string }; corners: ScreenPoint[] }>;
+  texts?: Array<{ text: { elementId: ElementId; name?: string; text: string }; screen: ScreenPoint; fontSizePx: number }>;
+  points: Array<{ point: ComputedPoint; screen: ScreenPoint }>;
+};
+
+/**
+ * The single source of truth for Canvas hit order. Arrays are document-order
+ * draw lists, so reversing each category puts later items in front.
+ */
+export const CANVAS_DRAW_ORDER: readonly CanvasIdentityKind[] = [
+  "image",
+  "line",
+  "arcLine",
+  "bezierCurve",
+  "offsetLine",
+  "text",
+  "point"
+];
+
+export const hitTestCanvasGeometryAll = ({
+  screen,
+  lines,
+  arcs = [],
+  curves = [],
+  offsetLines = [],
+  images = [],
+  texts = [],
+  points
+}: CanvasGeometryHitTestInput): CanvasGeometryHitCandidate[] => {
+  const candidates: CanvasGeometryHitCandidate[] = [];
+  const seen = new Set<ElementId>();
+  const add = (candidate: CanvasGeometryHitCandidate) => {
+    if (seen.has(candidate.elementId)) return;
+    seen.add(candidate.elementId);
+    candidates.push(candidate);
+  };
+
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    const item = points[index]!;
+    if (squaredDistance(screen, item.screen) <= POINT_HIT_RADIUS_PX * POINT_HIT_RADIUS_PX) {
+      add({ elementId: item.point.elementId, kind: "point", name: item.point.name });
+    }
+  }
+  for (let index = texts.length - 1; index >= 0; index -= 1) {
+    const item = texts[index]!;
+    if (pointInTextBounds(screen, item)) {
+      add({ elementId: item.text.elementId, kind: "text", name: item.text.name ?? "" });
+    }
+  }
+  for (let index = offsetLines.length - 1; index >= 0; index -= 1) {
+    const item = offsetLines[index]!;
+    if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
+      add({ elementId: item.line.elementId, kind: "offsetLine", name: item.line.name });
+    }
+  }
+  for (let index = curves.length - 1; index >= 0; index -= 1) {
+    const item = curves[index]!;
+    if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
+      add({ elementId: item.curve.elementId, kind: "bezierCurve", name: item.curve.name });
+    }
+  }
+  for (let index = arcs.length - 1; index >= 0; index -= 1) {
+    const item = arcs[index]!;
+    if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
+      add({ elementId: item.arc.elementId, kind: "arcLine", name: item.arc.name });
+    }
+  }
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const item = lines[index]!;
+    if (distanceToLineSegment(screen, item.start, item.end) <= LINE_HIT_DISTANCE_PX) {
+      add({ elementId: item.line.elementId, kind: "line", name: item.line.name });
+    }
+  }
+  for (let index = images.length - 1; index >= 0; index -= 1) {
+    const item = images[index]!;
+    if (pointInPolygon(screen, item.corners)) {
+      add({ elementId: item.image.elementId, kind: "image", name: item.image.name ?? "" });
+    }
+  }
+  return candidates;
+};
+
 export const hitTestCanvasGeometry = ({
   screen,
   lines,
@@ -139,85 +308,36 @@ export const hitTestCanvasGeometry = ({
   images,
   texts,
   points
-}: {
-  screen: ScreenPoint;
-  lines: Array<{ line: ComputedLine; start: ScreenPoint; end: ScreenPoint }>;
-  arcs?: Array<{ arc: ComputedArcLine; points: ScreenPoint[] }>;
-  curves?: Array<{ curve: ComputedBezierCurve; points: ScreenPoint[] }>;
-  offsetLines?: Array<{ line: ComputedOffsetLine; points: ScreenPoint[] }>;
-  images?: Array<{ image: { elementId: ElementId }; corners: ScreenPoint[] }>;
-  texts?: Array<{ text: { elementId: ElementId; text: string }; screen: ScreenPoint; fontSizePx: number }>;
-  points: Array<{ point: ComputedPoint; screen: ScreenPoint }>;
-}): ElementId | null => {
-  for (let index = points.length - 1; index >= 0; index -= 1) {
-    const item = points[index];
-    if (squaredDistance(screen, item.screen) <= POINT_HIT_RADIUS_PX * POINT_HIT_RADIUS_PX) {
-      return item.point.elementId;
-    }
-  }
-
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const item = lines[index];
-    if (distanceToLineSegment(screen, item.start, item.end) <= LINE_HIT_DISTANCE_PX) {
-      return item.line.elementId;
-    }
-  }
-
-  for (let index = (arcs?.length ?? 0) - 1; index >= 0; index -= 1) {
-    const item = arcs![index];
-    if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
-      return item.arc.elementId;
-    }
-  }
-
-  for (let index = (curves?.length ?? 0) - 1; index >= 0; index -= 1) {
-    const item = curves![index];
-    if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
-      return item.curve.elementId;
-    }
-  }
-
-  for (let index = (offsetLines?.length ?? 0) - 1; index >= 0; index -= 1) {
-    const item = offsetLines![index];
-    if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
-      return item.line.elementId;
-    }
-  }
-
-  for (let index = (texts?.length ?? 0) - 1; index >= 0; index -= 1) {
-    const item = texts![index];
-    if (pointInTextBounds(screen, item)) {
-      return item.text.elementId;
-    }
-  }
-
-  for (let index = (images?.length ?? 0) - 1; index >= 0; index -= 1) {
-    const item = images![index];
-    if (pointInPolygon(screen, item.corners)) {
-      return item.image.elementId;
-    }
-  }
-
-  return null;
-};
+}: CanvasGeometryHitTestInput): ElementId | null => hitTestCanvasGeometryAll({
+  screen,
+  lines,
+  arcs,
+  curves,
+  offsetLines,
+  images,
+  texts,
+  points
+})[0]?.elementId ?? null;
 
 const pointInTextBounds = (
   point: ScreenPoint,
   item: { text: { text: string }; screen: ScreenPoint; fontSizePx: number }
 ) => {
-  const lines = item.text.text.split(/\r?\n/);
-  const maxLineLength = Math.max(1, ...lines.map((line) => Array.from(line).length));
-  const width = maxLineLength * item.fontSizePx * 0.62;
-  const height = Math.max(1, lines.length) * item.fontSizePx * 1.2;
+  const bounds = textHitBounds({
+    text: item.text.text,
+    screen: item.screen,
+    fontSizePx: item.fontSizePx
+  });
   return (
-    point.x >= item.screen.x &&
-    point.x <= item.screen.x + width &&
-    point.y >= item.screen.y &&
-    point.y <= item.screen.y + height
+    point.x >= bounds.left &&
+    point.x <= bounds.left + bounds.width &&
+    point.y >= bounds.top &&
+    point.y <= bounds.top + bounds.height
   );
 };
 
 const pointInPolygon = (point: ScreenPoint, polygon: ScreenPoint[]) => {
+  if (polygon.length < 3) return false;
   let inside = false;
   for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
     const currentPoint = polygon[index];

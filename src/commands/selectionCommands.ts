@@ -24,7 +24,7 @@ import {
 } from "../model/groups";
 import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import { isValidPaletteColorId } from "../palette/palette";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadDocumentStore, type SelectionSnapshot } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
@@ -141,6 +141,34 @@ const mutateCanvasSelection = (recordHistory: boolean, mutate: () => void) => {
   };
   mutate();
   if (recordHistory) useCadDocumentStore.getState().recordCanvasSelection(before);
+};
+
+/** Snapshot used by ephemeral Canvas candidate sessions before their first preview. */
+export const canvasSelectionSnapshot = (): SelectionSnapshot => {
+  const state = useCadUiStore.getState();
+  return {
+    selectedElementId: state.selectedElementId,
+    selectedElementIds: [...state.selectedElementIds],
+    selectionAnchorElementId: state.selectionAnchorElementId
+  };
+};
+
+/**
+ * Applies one overlap candidate from the session baseline through the normal
+ * selection command semantics, without creating a history entry.
+ */
+export const previewCanvasSelection = (
+  previousSelection: SelectionSnapshot,
+  elementId: ElementId,
+  selectionMode: CommandContext["selectionMode"] = "replace"
+) => {
+  useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, previousSelection);
+  selectElement(elementId, selectionMode, false);
+};
+
+/** Commits exactly one ephemeral candidate-session transition to the shared history owner. */
+export const finalizeCanvasSelectionSession = (previousSelection: SelectionSnapshot) => {
+  useCadDocumentStore.getState().recordCanvasSelection(previousSelection);
 };
 
 /** Replace Canvas selection in document order through the shared history owner. */

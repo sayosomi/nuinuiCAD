@@ -1,5 +1,3 @@
-import type { ElementId } from "../types/geometry";
-
 export type CanvasPointerCoordinates = {
   clientX: number;
   clientY: number;
@@ -27,7 +25,6 @@ export type PendingCanvasPointerIntent = {
   /** Absolute deadline so pointer moves cannot keep a failed evaluation alive forever. */
   deadlineAt: number;
   /** Used only to reject a deleted target; resolution always performs a new hit test. */
-  staleTargetHint: ElementId | null;
   pointerReleased: boolean;
 };
 

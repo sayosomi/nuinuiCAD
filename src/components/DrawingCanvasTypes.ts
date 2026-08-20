@@ -12,7 +12,11 @@ import type {
   ElementId,
   PointAnchor
 } from "../types/geometry";
-import type { LineMeasurementCandidate, ScreenPoint } from "./DrawingCanvasHitTest";
+import type {
+  CanvasGeometryHitCandidate,
+  LineMeasurementCandidate,
+  ScreenPoint
+} from "./DrawingCanvasHitTest";
 
 export type CanvasOverlayLine = {
   line: ComputedLine;
@@ -57,6 +61,30 @@ export type CanvasOverlayText = {
   text: ComputedText;
   screen: ScreenPoint;
   fontSizePx: number;
+};
+
+export type CanvasIdentityKind =
+  | "image"
+  | "line"
+  | "arcLine"
+  | "bezierCurve"
+  | "offsetLine"
+  | "text"
+  | "point";
+
+export type CanvasIdentityCandidate = {
+  elementId: ElementId;
+  name: string;
+  kind: CanvasIdentityKind;
+  screen: ScreenPoint;
+};
+
+export type CanvasOverlapCandidate = CanvasGeometryHitCandidate;
+
+export type CanvasOverlapCandidateSession = {
+  screen: ScreenPoint;
+  candidates: CanvasOverlapCandidate[];
+  activeIndex: number;
 };
 
 export type CanvasNumericReferenceCandidate = {
@@ -120,6 +148,7 @@ export type CanvasOverlayData = {
   overlayOffsetLines: CanvasOverlayOffsetLine[];
   overlayImages: CanvasOverlayImage[];
   overlayTexts: CanvasOverlayText[];
+  overlayIdentityCandidates: CanvasIdentityCandidate[];
   selectedBezierEditingHelper: BezierEditingHelperOverlay | null;
   overlayPointPickCandidates: PointPickCandidate[];
   overlayNumericReferenceCandidates: CanvasNumericReferenceCandidate[];

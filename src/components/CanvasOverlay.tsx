@@ -9,6 +9,7 @@ import type {
   BezierHandleOverlay,
   CanvasOverlayArc,
   CanvasOverlayCurve,
+  CanvasIdentityCandidate,
   CanvasOverlayLine,
   CanvasOverlayOffsetLine,
   CanvasOverlayPoint,
@@ -24,6 +25,7 @@ type CanvasOverlayProps = {
   overlayOffsetLines: CanvasOverlayOffsetLine[];
   overlayPoints: CanvasOverlayPoint[];
   overlayTexts: CanvasOverlayText[];
+  overlayIdentityCandidates?: CanvasIdentityCandidate[];
   selectedBezierEditingHelper: BezierEditingHelperOverlay | null;
   selectedBezierHandles: BezierHandleOverlay[];
   overlayPointPickCandidates: PointPickCandidate[];
@@ -34,11 +36,15 @@ type CanvasOverlayProps = {
   selectedElementId: ElementId | null;
   canvasTheme: CanvasTheme;
   elementColors: Map<ElementId, string>;
-  showCanvasElementNames: boolean;
+  showCanvasPointNames?: boolean;
+  showCanvasGeometryNames?: boolean;
+  /** @deprecated Compatibility prop for older embedders. */
+  showCanvasElementNames?: boolean;
   showCanvasPoints: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
+  hoveredElementId?: ElementId | null;
 };
 
 export const CanvasOverlay = ({
@@ -49,6 +55,7 @@ export const CanvasOverlay = ({
   overlayOffsetLines,
   overlayPoints,
   overlayTexts,
+  overlayIdentityCandidates = [],
   selectedBezierEditingHelper,
   selectedBezierHandles,
   overlayPointPickCandidates,
@@ -58,11 +65,14 @@ export const CanvasOverlay = ({
   selectedElementId,
   canvasTheme,
   elementColors,
+  showCanvasPointNames,
+  showCanvasGeometryNames,
   showCanvasElementNames,
   showCanvasPoints,
   isPointPickActive,
   isNumericReferencePickActive,
-  isLinePickActive
+  isLinePickActive,
+  hoveredElementId = null
 }: CanvasOverlayProps) => {
   const lineOverlayClass = (elementId: ElementId) =>
     [
@@ -87,6 +97,16 @@ export const CanvasOverlay = ({
     "data-line-pick-candidate":
       isLinePickActive && pickCandidateLineIds.has(elementId) ? "true" : undefined
   });
+  const pointNamesEnabled = showCanvasPointNames ?? showCanvasElementNames ?? false;
+  const geometryNamesEnabled = showCanvasGeometryNames ?? false;
+  const identityCandidatesById = new Map<ElementId, CanvasIdentityCandidate>();
+  for (const candidate of overlayIdentityCandidates) {
+    if (!candidate.name.trim() || identityCandidatesById.has(candidate.elementId)) continue;
+    const persistent = candidate.kind === "point" ? pointNamesEnabled : geometryNamesEnabled;
+    if (persistent || candidate.elementId === hoveredElementId || candidate.elementId === selectedElementId) {
+      identityCandidatesById.set(candidate.elementId, candidate);
+    }
+  }
 
   return (
   <svg
@@ -209,14 +229,22 @@ export const CanvasOverlay = ({
               />
             </>
           ) : null}
-          {showCanvasElementNames ? (
-            <text className="overlay-element-name" x={screen.x + 8} y={screen.y - 8}>
-              {point.name}
-            </text>
-          ) : null}
         </g>
       );
     })}
+    {[...identityCandidatesById.values()].map((candidate) => (
+      <text
+        key={`identity-${candidate.elementId}`}
+        className="overlay-element-identity"
+        data-element-identity={candidate.elementId}
+        x={candidate.screen.x + 8}
+        y={candidate.screen.y - 8}
+        fill="var(--canvas-foreground)"
+        style={{ fontSize: 12, pointerEvents: "none" }}
+      >
+        {candidate.name}
+      </text>
+    ))}
     {isPointPickActive
       ? overlayPointPickCandidates.map((candidate, index) => (
           <circle

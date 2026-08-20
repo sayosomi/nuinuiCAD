@@ -1170,6 +1170,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     ["nuinuiCAD.clearCanvasSelection", "clearCanvasSelection"],
     ["nuinuiCAD.resetCanvasView", "resetCanvasView"],
     ["nuinuiCAD.fitDrawing", "fitDrawing"],
+    ["nuinuiCAD.toggleCanvasPointNames", "toggleCanvasPointNames"],
+    ["nuinuiCAD.toggleCanvasGeometryNames", "toggleCanvasGeometryNames"],
     ["nuinuiCAD.toggleCanvasElementNames", "toggleCanvasElementNames"],
     ["nuinuiCAD.toggleCanvasPoints", "toggleCanvasPoints"]
   ].map(([command, commandId]) => vscode.commands.registerCommand(command, () => {

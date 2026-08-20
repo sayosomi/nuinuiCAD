@@ -608,23 +608,15 @@ describe("Canvas selection focuses the Source Editor", () => {
     expect(useCadUiStore.getState().sourceCursorLine).toBe(4);
   });
 
-  it("supports Canvas selection -> editor focus -> Tab/Shift-Tab -> Alt+Arrow editing", async () => {
-    const { viewport, content, cmView } = await setUp();
+  it("keeps Canvas focus while the overlap candidate session is active", async () => {
+    const { viewport } = await setUp();
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });
     fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...B_SCREEN });
-    await waitFor(() => expect(document.activeElement).toBe(content));
-
-    fireEvent.keyDown(content, { key: "Tab" });
-    expect(cmView.state.sliceDoc(cmView.state.selection.main.from, cmView.state.selection.main.to)).toBe("100");
-    fireEvent.keyDown(content, { key: "Tab" });
-    expect(cmView.state.sliceDoc(cmView.state.selection.main.from, cmView.state.selection.main.to)).toBe("0");
-    fireEvent.keyDown(content, { key: "Tab", shiftKey: true });
-    expect(cmView.state.sliceDoc(cmView.state.selection.main.from, cmView.state.selection.main.to)).toBe("100");
-
-    fireEvent.keyDown(content, { key: "ArrowRight", altKey: true });
-    fireEvent.keyUp(content, { key: "ArrowRight", altKey: true });
-    await waitFor(() => expect(useCadDocumentStore.getState().sourceText).toContain("x: 101"));
+    await waitFor(() => expect(viewport.querySelector('[role="listbox"]')).not.toBeNull());
+    expect(document.activeElement).toBe(viewport);
+    fireEvent.keyDown(viewport, { key: "Enter" });
+    expect(document.activeElement).toBe(viewport);
   });
 
   it("keeps Canvas focus through a point drag and focuses the editor only after the move commits", async () => {
@@ -665,8 +657,8 @@ describe("Canvas selection focuses the Source Editor", () => {
     expect(document.activeElement).not.toBe(content);
   });
 
-  it("focuses the editor once a click resolves after evaluation catches up", async () => {
-    const { viewport, content, cmView, elementId } = await setUp();
+  it("keeps Canvas focus when a deferred click resolves to overlap candidates", async () => {
+    const { viewport, cmView, elementId } = await setUp();
 
     // Uncommitted editor text at gesture time defers resolution to the resolution
     // effect, which runs after the pointer has already been released.
@@ -678,7 +670,10 @@ describe("Canvas selection focuses the Source Editor", () => {
     fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...B_SCREEN });
 
     await waitFor(() => expect(useCadUiStore.getState().selectedElementId).toBe(elementId("B")));
-    await waitFor(() => expect(document.activeElement).toBe(content));
+    await waitFor(() => expect(viewport.querySelector('[role="listbox"]')).not.toBeNull());
+    expect(document.activeElement).toBe(viewport);
+    fireEvent.keyDown(viewport, { key: "Escape" });
+    expect(document.activeElement).toBe(viewport);
   });
 
   it("moves focus back to the editor when re-clicking the already-selected element", async () => {
@@ -696,44 +691,18 @@ describe("Canvas selection focuses the Source Editor", () => {
     await waitFor(() => expect(document.activeElement).toBe(content));
   });
 
-  it("does not restore a stale deferred cursor snapshot once Canvas re-selects the same element", async () => {
-    const { viewport, content, cmView, elementId } = await setUp();
+  it("does not retain stale pointer candidates while a deferred overlap session resolves", async () => {
+    const { viewport, cmView, elementId } = await setUp();
 
-    // Select B, then nudge the CM cursor a couple columns into B's own line
-    // without changing the primary selection (still within B's statement range).
+    act(() => {
+      cmView.dispatch({ changes: { from: cmView.state.doc.length, insert: "\npoint C = coordinate(x: 0, y: -60)" } });
+    });
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 1, ...B_SCREEN });
     fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 1, ...B_SCREEN });
-    await waitFor(() => expect(document.activeElement).toBe(content));
-    const projectedHead = cmView.state.selection.main.head;
-    act(() => {
-      cmView.dispatch({ selection: { anchor: projectedHead + 2 } });
-    });
 
-    // Blur, then mutate B while unfocused so a deferred-cursor snapshot is
-    // captured at the nudged (wrong) position. Uses colorId (not enabled) so
-    // B stays drawn && clickable on the canvas for the re-selection below.
-    act(() => content.blur());
-    act(() => {
-      const elements = useCadDocumentStore.getState().elements.map((element) =>
-        element.id === elementId("B") ? { ...element, colorId: "cut-red" } : element
-      );
-      useCadDocumentStore.getState().commitDocumentChange({ elements });
-    });
-
-    // Select a different element, then re-select B via Canvas: this is a real
-    // primary-selection change back to B, so projectPrimaryCursor must run &&
-    // clear the stale deferred snapshot before the editor is focused again.
-    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 2, ...AB_MIDPOINT_SCREEN });
-    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 2, ...AB_MIDPOINT_SCREEN });
-    await waitFor(() => expect(document.activeElement).toBe(content));
-
-    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, pointerId: 3, ...B_SCREEN });
-    fireEvent.pointerUp(viewport, { buttons: 0, pointerId: 3, ...B_SCREEN });
-    await waitFor(() => expect(document.activeElement).toBe(content));
-
-    // No drag ran here, so this final focus() never hits restoreDeferredExternalCursor's
-    // DOM-selection re-read; the cursor should sit exactly at B's fresh projection.
-    expect(useCadUiStore.getState().sourceCursorLine).toBe(3);
-    expect(cmView.state.selection.main.head).toBe(cmView.state.doc.line(3).from);
+    await waitFor(() => expect(useCadUiStore.getState().selectedElementId).toBe(elementId("B")));
+    await waitFor(() => expect(viewport.querySelector('[role="listbox"]')).not.toBeNull());
+    expect(document.activeElement).toBe(viewport);
+    expect(viewport.querySelectorAll('[role="option"]')).not.toHaveLength(0);
   });
 });

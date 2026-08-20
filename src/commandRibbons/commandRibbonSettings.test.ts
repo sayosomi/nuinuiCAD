@@ -131,6 +131,21 @@ describe("commandRibbonSettings", () => {
     expect(settings.ribbons.some((ribbon) => ribbon.id === "selection-actions")).toBe(true);
   });
 
+  it("migrates the retired Element Names button to Point Names", () => {
+    const settings = normalizeCommandRibbonSettings({
+      version: 1,
+      ribbons: [{
+        id: "canvas",
+        buttons: [{ id: "toggleCanvasElementNames", commandId: "toggleCanvasElementNames", icon: "tags" }]
+      }]
+    });
+
+    expect(settings.ribbons[0]?.buttons[0]).toMatchObject({
+      id: "toggleCanvasPointNames",
+      commandId: "toggleCanvasPointNames"
+    });
+  });
+
   it("falls back to the default ribbon for broken browser settings", async () => {
     window.localStorage.setItem("nuinuiCAD.commandRibbonSettings.v1", "{not-json");
 

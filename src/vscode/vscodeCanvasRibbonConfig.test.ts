@@ -139,12 +139,31 @@ describe("VS Code Canvas Ribbon configuration", () => {
     expect(normalized[0]?.items[1]).not.toHaveProperty("label");
   });
 
+  it("migrates the retired Element Names command in saved Ribbons", () => {
+    const normalized = normalizeVscodeCanvasRibbons([{
+      id: "legacy-labels",
+      items: [{
+        id: "toggleCanvasElementNames",
+        type: "command",
+        commandId: "toggleCanvasElementNames",
+        icon: "tags",
+        showLabel: false
+      }]
+    }]);
+
+    expect(normalized[0]?.items[0]).toMatchObject({
+      id: "toggleCanvasPointNames",
+      commandId: "toggleCanvasPointNames"
+    });
+  });
+
   it("keeps the closed Ribbon command catalog separate from shared CommandId", () => {
     expect(vscodeCanvasRibbonCommandIds).toEqual([
       "clearCanvasSelection",
       "resetCanvasView",
       "fitDrawing",
-      "toggleCanvasElementNames",
+      "toggleCanvasPointNames",
+      "toggleCanvasGeometryNames",
       "toggleCanvasPoints",
       "editCanvasRibbon"
     ]);

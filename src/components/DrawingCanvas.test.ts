@@ -141,7 +141,8 @@ const resetStore = () => {
     elementSearchQuery: "",
     elementSearchCursorId: null,
     elementSearchPickableOnly: false,
-    showCanvasElementNames: true,
+    showCanvasPointNames: true,
+    showCanvasGeometryNames: false,
     showCanvasPoints: true,
     showShortcutHelp: false,
     showShortcutSettings: false,
@@ -221,7 +222,8 @@ const createFakeCanvasHostAdapter = (
     selectedElementId: useCadStore.getState().selectedElementId,
     selectedElementIds: useCadStore.getState().selectedElementIds,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
-    showCanvasElementNames: true,
+    showCanvasPointNames: true,
+    showCanvasGeometryNames: false,
     showCanvasPoints: true,
     showPrintPreviewWindow: false,
     activePointPickTarget: null,
@@ -358,6 +360,39 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("opens an overlap candidate session for a short multi-hit point click and commits one final selection transition", () => {
+    const previewCanvasSelection = vi.fn();
+    const finalizeCanvasSelectionSession = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      previewCanvasSelection,
+      finalizeCanvasSelectionSession
+    });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    expect(viewport.querySelector('[role="listbox"]')).toBeInTheDocument();
+    expect(viewport.querySelectorAll('[role="option"]')).toHaveLength(3);
+    expect(previewCanvasSelection).toHaveBeenCalled();
+
+    fireEvent.keyDown(viewport, { key: "ArrowDown" });
+    expect(previewCanvasSelection.mock.calls.at(-1)?.[1]).toBe("curve-ac");
+    fireEvent.keyDown(viewport, { key: "Enter" });
+    expect(finalizeCanvasSelectionSession).toHaveBeenCalledTimes(1);
+    expect(viewport.querySelector('[role="listbox"]')).toBeNull();
+  });
+
   it.each([
     ["no modifier", {}],
     ["Meta", { metaKey: true }],
@@ -625,10 +660,10 @@ describe("DrawingCanvas rendering", () => {
 
     expect(container.querySelector("text")?.textContent).toBe("点A");
 
-    fireEvent.click(getByRole("button", { name: "要素名" }));
+    fireEvent.click(getByRole("button", { name: "点名" }));
 
-    expect(container.querySelector("text")).toBeNull();
-    expect(useCadStore.getState().showCanvasElementNames).toBe(false);
+    expect(container.querySelectorAll("[data-element-identity]")).toHaveLength(1);
+    expect(useCadStore.getState().showCanvasPointNames).toBe(false);
   });
 
   it("uses the semantic Canvas selection color for selected line overlays", () => {
@@ -2427,7 +2462,7 @@ describe("DrawingCanvas pending pointer intents", () => {
     fireEvent.pointerUp(viewport, { buttons: 0, clientX: 350, clientY: 200, pointerId: 1 });
 
     await deliverEvaluationState();
-    expect(useCadUiStore.getState().commandErrorMessage).toContain("削除");
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("評価に失敗");
     expect(useCadStore.getState().selectedElementId).not.toBe(bId);
   });
 

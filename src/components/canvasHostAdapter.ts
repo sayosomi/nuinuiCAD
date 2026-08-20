@@ -16,6 +16,7 @@ import type {
   PointAnchor,
   VisibilityProfile
 } from "../types/geometry";
+import type { SelectionSnapshot } from "../state/cadDocumentStore";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { ViewportSize } from "./canvasViewport";
 import type { CanvasTheme } from "./canvasTheme";
@@ -69,8 +70,12 @@ export type CanvasHostAdapter = {
   moduleSemanticContext: ModuleSemanticCandidateContext;
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
+  selectionAnchorElementId?: ElementId | null;
   canvasViewport: CanvasViewport;
-  showCanvasElementNames: boolean;
+  showCanvasPointNames?: boolean;
+  showCanvasGeometryNames?: boolean;
+  /** @deprecated Compatibility payload field; Point Names is canonical. */
+  showCanvasElementNames?: boolean;
   showCanvasPoints: boolean;
   showPrintPreviewWindow: boolean;
   /** Whether the host wants the shared fixed Canvas controls/status chrome. */
@@ -89,7 +94,13 @@ export type CanvasHostAdapter = {
     zoomFactor: number,
     anchor?: { x: number; y: number; width: number; height: number }
   ) => void;
-  selectElement: (elementId: ElementId, selectionMode: CanvasSelectionMode) => unknown;
+  selectElement: (elementId: ElementId, selectionMode: CanvasSelectionMode, recordHistory?: boolean) => unknown;
+  previewCanvasSelection?: (
+    previousSelection: SelectionSnapshot,
+    elementId: ElementId,
+    selectionMode: CanvasSelectionMode
+  ) => unknown;
+  finalizeCanvasSelectionSession?: (previousSelection: SelectionSnapshot) => unknown;
   clearCanvasSelection: () => unknown;
   movePointElementByDelta: (action: CanvasPointDragAction) => unknown;
   moveBezierHandleByDelta: (action: CanvasBezierHandleDragAction) => unknown;
@@ -107,6 +118,9 @@ export type CanvasHostAdapter = {
     pickedPointAnchor: PointAnchor;
     pickedPointSourceReference?: CanonicalGeometrySourceReference;
   }) => unknown;
+  toggleCanvasPointNames?: () => unknown;
+  toggleCanvasGeometryNames?: () => unknown;
+  /** @deprecated Compatibility alias. */
   toggleCanvasElementNames: () => unknown;
   toggleCanvasPoints: () => unknown;
   togglePrintPreviewWindow: () => unknown;

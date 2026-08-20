@@ -63,6 +63,9 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isCommandId = (value: unknown): value is CommandId =>
   typeof value === "string" && Object.hasOwn(commands, value);
 
+const normalizeCanvasIdentityCommandId = (commandId: CommandId): CommandId =>
+  commandId === "toggleCanvasElementNames" ? "toggleCanvasPointNames" : commandId;
+
 const clampCoordinate = (value: number) =>
   Math.min(Math.max(Math.round(value), MIN_RIBBON_COORDINATE), MAX_RIBBON_COORDINATE);
 
@@ -142,15 +145,17 @@ export const defaultCommandRibbonSettings = (): CommandRibbonSettings => ({
 
 const normalizeButton = (value: unknown): CommandRibbonButton | null => {
   if (!isObject(value) || !isCommandId(value.commandId)) return null;
+  const commandId = normalizeCanvasIdentityCommandId(value.commandId);
+  const rawId = typeof value.id === "string" && value.id.length > 0 ? value.id : value.commandId;
   return {
-    id: typeof value.id === "string" && value.id.length > 0 ? value.id : value.commandId,
-    commandId: value.commandId,
+    id: rawId === "toggleCanvasElementNames" ? commandId : rawId,
+    commandId,
     icon: isCommandRibbonIconId(value.icon) ? value.icon : "circle-dot",
     iconColor: normalizeIconColor(value.iconColor),
     label:
       typeof value.label === "string" && value.label.trim().length > 0
         ? value.label
-        : commands[value.commandId].label,
+        : commands[commandId].label,
     showLabel: value.showLabel === true
   };
 };

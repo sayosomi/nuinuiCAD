@@ -2,6 +2,11 @@ import type { RefObject } from "react";
 import { forwardRef, useMemo } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commands";
+import {
+  finalizeCanvasSelectionSession,
+  previewCanvasSelection
+} from "../commands/selectionCommands";
+import type { SelectionSnapshot } from "../state/cadDocumentStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -44,8 +49,10 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
     const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
     const selectedElementId = useCadUiStore((state) => state.selectedElementId);
     const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
+    const selectionAnchorElementId = useCadUiStore((state) => state.selectionAnchorElementId);
     const canvasViewport = useCadUiStore((state) => state.canvasViewport);
-    const showCanvasElementNames = useCadUiStore((state) => state.showCanvasElementNames);
+    const showCanvasPointNames = useCadUiStore((state) => state.showCanvasPointNames);
+    const showCanvasGeometryNames = useCadUiStore((state) => state.showCanvasGeometryNames);
     const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
     const showPrintPreviewWindow = useCadUiStore((state) => state.showPrintPreviewWindow);
     const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
@@ -70,8 +77,10 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       moduleSemanticContext,
       selectedElementId,
       selectedElementIds,
+      selectionAnchorElementId,
       canvasViewport,
-      showCanvasElementNames,
+      showCanvasPointNames,
+      showCanvasGeometryNames,
       showCanvasPoints,
       showPrintPreviewWindow,
       renderFixedCanvasChrome: true,
@@ -94,7 +103,15 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       },
       panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
-      selectElement: (elementId, selectionMode) => dispatchCommand("selectElement", { elementId, selectionMode }),
+      selectElement: (elementId, selectionMode, recordHistory) => dispatchCommand("selectElement", {
+        elementId,
+        selectionMode,
+        ...(recordHistory === undefined ? {} : { recordSelectionHistory: recordHistory })
+      }),
+      previewCanvasSelection: (previousSelection: SelectionSnapshot, elementId, selectionMode) =>
+        previewCanvasSelection(previousSelection, elementId, selectionMode),
+      finalizeCanvasSelectionSession: (previousSelection: SelectionSnapshot) =>
+        finalizeCanvasSelectionSession(previousSelection),
       clearCanvasSelection: () => dispatchCommand("clearCanvasSelection"),
       movePointElementByDelta: (action) => dispatchCommand("movePointElementByDelta", action),
       moveBezierHandleByDelta: (action) => dispatchCommand("moveBezierHandleByDelta", action),
@@ -104,6 +121,8 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       applyNumericExpressionReference: (action) => dispatchCommand("applyNumericExpressionReference", action),
       applyPickedLine: (action) => dispatchCommand("applyPickedLine", action),
       applyPickedPoint: (action) => dispatchCommand("applyPickedPoint", action),
+      toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
+      toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
       toggleCanvasElementNames: () => dispatchCommand("toggleCanvasElementNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
       togglePrintPreviewWindow: () => dispatchCommand("togglePrintPreviewWindow"),
@@ -133,7 +152,9 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       palette,
       selectedElementId,
       selectedElementIds,
-      showCanvasElementNames,
+      selectionAnchorElementId,
+      showCanvasPointNames,
+      showCanvasGeometryNames,
       showCanvasPoints,
       showPrintPreviewWindow,
       visibilityProfiles

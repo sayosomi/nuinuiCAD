@@ -134,3 +134,25 @@ describe("fitDrawing", () => {
     expect(useCadUiStore.getState().canvasViewport).toEqual(initialViewport);
   });
 });
+
+describe("Canvas identity-label visibility commands", () => {
+  beforeEach(() => {
+    useCadUiStore.setState(initialCadUiState());
+  });
+
+  it("uses independent Point Names and Geometry Names defaults and keeps the alias on Point Names", () => {
+    expect(useCadUiStore.getState().showCanvasPointNames).toBe(true);
+    expect(useCadUiStore.getState().showCanvasGeometryNames).toBe(false);
+    expect(useCadUiStore.getState().showCanvasPoints).toBe(true);
+    expect(useCadUiStore.getState()).not.toHaveProperty("showCanvasElementNames");
+
+    viewModeCommandDefinitions.toggleCanvasGeometryNames.run();
+    expect(useCadUiStore.getState().showCanvasGeometryNames).toBe(true);
+    expect(useCadUiStore.getState().showCanvasPointNames).toBe(true);
+
+    viewModeCommandDefinitions.toggleCanvasElementNames.run();
+    expect(useCadUiStore.getState().showCanvasPointNames).toBe(false);
+    expect(useCadUiStore.getState().showCanvasGeometryNames).toBe(true);
+    expect(useCadUiStore.getState().showCanvasPoints).toBe(true);
+  });
+});

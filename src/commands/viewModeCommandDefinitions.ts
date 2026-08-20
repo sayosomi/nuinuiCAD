@@ -82,6 +82,7 @@ export const viewModeCommandDefinitions = {
     palette: { order: 24, keywords: ["undo", "戻す"] },
     shortcuts: [{ keys: "Mod+Z" }],
     run: (context) => {
+      context?.finalizeCanvasInteraction?.();
       if (context?.canvasHistory) {
         context.canvasHistory("undo");
         return;
@@ -95,6 +96,7 @@ export const viewModeCommandDefinitions = {
     palette: { order: 25, keywords: ["redo", "やり直す"] },
     shortcuts: [{ keys: "Mod+Y" }],
     run: (context) => {
+      context?.finalizeCanvasInteraction?.();
       if (context?.canvasHistory) {
         context.canvasHistory("redo");
         return;
@@ -181,13 +183,31 @@ export const viewModeCommandDefinitions = {
       });
     }
   },
+  toggleCanvasPointNames: {
+    id: "toggleCanvasPointNames",
+    label: "キャンバス点名を表示/非表示",
+    palette: { order: 26, keywords: ["canvas", "point", "label", "name", "点名", "ラベル", "表示", "非表示"] },
+    run: () => {
+      const { showCanvasPointNames } = useCadUiStore.getState();
+      useCadUiStore.getState().setShowCanvasPointNames(!showCanvasPointNames);
+    }
+  },
+  toggleCanvasGeometryNames: {
+    id: "toggleCanvasGeometryNames",
+    label: "キャンバス図形名を表示/非表示",
+    palette: { order: 26.5, keywords: ["canvas", "geometry", "label", "name", "図形名", "ラベル", "表示", "非表示"] },
+    run: () => {
+      const { showCanvasGeometryNames } = useCadUiStore.getState();
+      useCadUiStore.getState().setShowCanvasGeometryNames(!showCanvasGeometryNames);
+    }
+  },
+  /** Compatibility alias retained for existing host dispatchers and saved commands. */
   toggleCanvasElementNames: {
     id: "toggleCanvasElementNames",
     label: "キャンバス要素名を表示/非表示",
-    palette: { order: 26, keywords: ["canvas", "label", "name", "要素名", "ラベル", "表示", "非表示"] },
     run: () => {
-      const { showCanvasElementNames } = useCadUiStore.getState();
-      useCadUiStore.getState().setShowCanvasElementNames(!showCanvasElementNames);
+      const { showCanvasPointNames } = useCadUiStore.getState();
+      useCadUiStore.getState().setShowCanvasPointNames(!showCanvasPointNames);
     }
   },
   toggleCanvasPoints: {

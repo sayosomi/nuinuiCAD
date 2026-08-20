@@ -42,6 +42,9 @@ export type VscodeCanvasCommandId =
   | "clearCanvasSelection"
   | "resetCanvasView"
   | "fitDrawing"
+  | "toggleCanvasPointNames"
+  | "toggleCanvasGeometryNames"
+  /** @deprecated Compatibility alias for Point Names. */
   | "toggleCanvasElementNames"
   | "toggleCanvasPoints"
   | "bakeCurrentShape"
