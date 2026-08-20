@@ -316,7 +316,7 @@ export const renderCanvasGeometry = ({
       radius,
       -((arc.startAngleDeg * Math.PI) / 180),
       -(((arc.startAngleDeg + arc.sweepAngleDeg) * Math.PI) / 180),
-      true
+      arc.sweepAngleDeg >= 0
     );
     applyGeometryStroke({
       ctx,

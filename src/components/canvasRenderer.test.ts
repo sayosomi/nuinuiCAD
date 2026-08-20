@@ -303,6 +303,62 @@ const renderPointAndReturnLastPaintStyles = ({
 };
 
 describe("renderCanvasGeometry", () => {
+  const reverseEquivalentArcs = () => {
+    const center = point("center", 0, 0);
+    const positive: ComputedArcLine = {
+      kind: "arcLine", elementId: "positive", name: "positive", centerPointId: null, center,
+      start: point("positive-start", 10, 0), end: point("positive-end", 0, 10), radius: 10,
+      startAngleDeg: 0, endAngleDeg: 90, startTangentAngleDeg: 90, endTangentAngleDeg: 180,
+      sweepAngleDeg: 90, length: 5 * Math.PI
+    };
+    const negative: ComputedArcLine = {
+      kind: "arcLine", elementId: "negative", name: "negative", centerPointId: null, center,
+      start: point("negative-start", 0, 10), end: point("negative-end", 10, 0), radius: 10,
+      startAngleDeg: 90, endAngleDeg: 0, startTangentAngleDeg: 180, endTangentAngleDeg: 90,
+      sweepAngleDeg: -90, length: 5 * Math.PI
+    };
+    return { positive, negative };
+  };
+
+  const renderArc = (arc: ComputedArcLine) => {
+    const { ctx } = strokeContext();
+    renderCanvasGeometry({
+      ctx,
+      size: { width: 500, height: 400 },
+      viewport: { panX: 0, panY: 0, zoom: 1 },
+      lines: [],
+      arcs: [arc],
+      curves: [],
+      offsetLines: [],
+      points: [],
+      visibleElementIds: new Set([arc.elementId]),
+      selectedElementIdSet: new Set(),
+      selectedElementId: null,
+      showCanvasPoints: true,
+      isPointPickActive: false,
+      isNumericReferencePickActive: false,
+      isLinePickActive: false
+    });
+    return ctx;
+  };
+
+  it("renders a top-level positive arc sweep counterclockwise", () => {
+    const { positive } = reverseEquivalentArcs();
+    const ctx = renderArc(positive);
+
+    expect(ctx.arc).toHaveBeenCalledWith(250, 200, 10, -0, -Math.PI / 2, true);
+  });
+
+  it("renders a reverse-equivalent top-level negative arc sweep clockwise", () => {
+    const { positive, negative } = reverseEquivalentArcs();
+    expect(positive.start).toMatchObject({ x: negative.end.x, y: negative.end.y });
+    expect(positive.end).toMatchObject({ x: negative.start.x, y: negative.start.y });
+
+    const ctx = renderArc(negative);
+
+    expect(ctx.arc).toHaveBeenCalledWith(250, 200, 10, -Math.PI / 2, -0, false);
+  });
+
   it("applies fixed and temporary theme-role modifier strokes to supported geometry", () => {
     const start = point("start", 0, 0);
     const end = point("end", 100, 0);
