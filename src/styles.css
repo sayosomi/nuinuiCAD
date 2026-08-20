@@ -4164,10 +4164,41 @@ textarea {
 }
 
 .vscode-canvas-webview .command-ribbon {
+  overflow: visible;
   border-color: var(--vscode-canvas-ribbon-border);
   background: var(--vscode-canvas-ribbon-background);
   color: var(--vscode-canvas-ribbon-foreground);
   box-shadow: 0 5px 14px rgb(0 0 0 / 28%);
+}
+
+.vscode-canvas-webview .command-ribbon:not(.is-docked):not(.is-vertical) .command-ribbon-handle,
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle .command-ribbon-handle {
+  border-radius: 5px 0 0 5px;
+}
+
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical:not(.has-side-handle) .command-ribbon-handle {
+  border-radius: 5px 5px 0 0;
+}
+
+.vscode-canvas-webview .command-ribbon:not(.is-docked):not(.is-vertical)
+  .command-ribbon-buttons > :last-child.command-ribbon-value,
+.vscode-canvas-webview .command-ribbon:not(.is-docked):not(.is-vertical)
+  .command-ribbon-buttons > :last-child > .command-ribbon-button {
+  border-radius: 0 5px 5px 0;
+}
+
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle
+  .command-ribbon-buttons > :first-child.command-ribbon-value,
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle
+  .command-ribbon-buttons > :first-child > .command-ribbon-button {
+  border-top-right-radius: 5px;
+}
+
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle
+  .command-ribbon-buttons > :last-child.command-ribbon-value,
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle
+  .command-ribbon-buttons > :last-child > .command-ribbon-button {
+  border-bottom-right-radius: 5px;
 }
 
 .vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle {

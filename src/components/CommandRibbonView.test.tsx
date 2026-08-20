@@ -56,6 +56,16 @@ describe("CommandRibbonView", () => {
     const unavailable = screen.getByRole("button", { name: "Unavailable" });
     expect(unavailable).not.toBeDisabled();
     expect(unavailable).toHaveAttribute("aria-disabled", "true");
+    const describedBy = unavailable.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toHaveTextContent(
+      "Unavailable: This command is unavailable."
+    );
+    expect(unavailable).toHaveAttribute("title", "Unavailable: This command is unavailable.");
+    fireEvent.focus(unavailable);
+    expect(document.getElementById(describedBy!)).toHaveTextContent(
+      "Unavailable: This command is unavailable."
+    );
     expect(unavailable.querySelector("svg")?.getAttribute("style")).toMatch(/color:\s*currentcolor/i);
     fireEvent.click(unavailable);
     fireEvent.keyDown(unavailable, { key: "Enter" });
@@ -81,6 +91,7 @@ describe("CommandRibbonView", () => {
     const describedBy = names.getAttribute("aria-describedby");
     expect(describedBy).toBeTruthy();
     expect(document.getElementById(describedBy!)).toHaveTextContent("Names: Toggle element names.");
+    expect(names.querySelector(".command-ribbon-button > span")).toHaveTextContent("Names");
     fireEvent.focus(names);
     expect(document.getElementById(describedBy!)).toBeInTheDocument();
   });

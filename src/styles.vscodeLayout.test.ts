@@ -80,4 +80,39 @@ describe("shared stylesheet host layout ownership", () => {
     expect(itemShell).not.toMatch(/display:\s*inline/);
     expect(itemShell).not.toMatch(/vertical-align:/);
   });
+
+  it("lets VS Code tooltips escape Ribbon clipping while Tauri keeps overflow hidden", () => {
+    expect(ruleBody(".command-ribbon")).toMatch(/overflow:\s*hidden/);
+    expect(ruleBody(".vscode-canvas-webview .command-ribbon")).toMatch(/overflow:\s*visible/);
+
+    const tooltipVisibility = ruleBody(
+      ".vscode-canvas-webview .command-ribbon-item-shell:hover .command-ribbon-tooltip,\n.vscode-canvas-webview .command-ribbon-button:focus-visible + .command-ribbon-tooltip"
+    );
+    expect(tooltipVisibility).toMatch(/opacity:\s*1/);
+
+    const tooltip = ruleBody(".vscode-canvas-webview .command-ribbon-tooltip");
+    expect(tooltip).toMatch(/pointer-events:\s*none/);
+  });
+
+  it("keeps rounded VS Code Ribbon child backgrounds aligned with each layout", () => {
+    const leftHandle = ruleBody(
+      ".vscode-canvas-webview .command-ribbon:not(.is-docked):not(.is-vertical) .command-ribbon-handle,\n.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle .command-ribbon-handle"
+    );
+    expect(leftHandle).toMatch(/border-radius:\s*5px 0 0 5px/);
+
+    const topHandle = ruleBody(
+      ".vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical:not(.has-side-handle) .command-ribbon-handle"
+    );
+    expect(topHandle).toMatch(/border-radius:\s*5px 5px 0 0/);
+
+    const horizontalEnd = ruleBody(
+      ".vscode-canvas-webview .command-ribbon:not(.is-docked):not(.is-vertical)\n  .command-ribbon-buttons > :last-child.command-ribbon-value,\n.vscode-canvas-webview .command-ribbon:not(.is-docked):not(.is-vertical)\n  .command-ribbon-buttons > :last-child > .command-ribbon-button"
+    );
+    expect(horizontalEnd).toMatch(/border-radius:\s*0 5px 5px 0/);
+
+    const sideHandleEnds = stylesheet.match(
+      /\.vscode-canvas-webview \.command-ribbon:not\(\.is-docked\)\.is-vertical\.has-side-handle\s+\.command-ribbon-buttons > :first-child[\s\S]*?border-top-right-radius:\s*5px[\s\S]*?\.vscode-canvas-webview \.command-ribbon:not\(\.is-docked\)\.is-vertical\.has-side-handle\s+\.command-ribbon-buttons > :last-child[\s\S]*?border-bottom-right-radius:\s*5px/
+    );
+    expect(sideHandleEnds).not.toBeNull();
+  });
 });
