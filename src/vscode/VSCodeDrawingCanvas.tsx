@@ -262,6 +262,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
           ribbons={ribbonPresentations}
           viewportSize={viewportSize}
           iconResolver={resolveVscodeLucideIcon}
+          viewportAwareTooltips
           onCommand={executeRibbonCommand}
           onPositionCommit={onCanvasRibbonPositionCommit}
         />

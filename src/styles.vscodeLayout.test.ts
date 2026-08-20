@@ -99,15 +99,20 @@ describe("shared stylesheet host layout ownership", () => {
     expect(tooltipVisibility).toMatch(/opacity:\s*1/);
 
     const tooltip = ruleBody(".vscode-canvas-webview .command-ribbon-tooltip");
+    expect(tooltip).toMatch(/position:\s*fixed/);
     expect(tooltip).toMatch(/height:\s*auto/);
     expect(tooltip).toMatch(/overflow:\s*visible/);
     expect(tooltip).toMatch(/clip:\s*auto/);
     expect(tooltip).toMatch(/clip-path:\s*none/);
     expect(tooltip).toMatch(/max-width:\s*min\(320px, 80vw\)/);
+    expect(tooltip).toMatch(/top:\s*0/);
+    expect(tooltip).toMatch(/left:\s*0/);
     expect(tooltip).toMatch(/transition:\s*opacity 80ms ease-in/);
     expect(tooltip).toMatch(/white-space:\s*normal/);
     expect(tooltip).toMatch(/overflow-wrap:\s*anywhere/);
     expect(tooltip).toMatch(/pointer-events:\s*none/);
+    expect(tooltip).not.toMatch(/top:\s*calc\(100%\s*\+\s*6px\)/);
+    expect(tooltip).not.toMatch(/transform:\s*translateX\(-50%\)/);
   });
 
   it("keeps rounded VS Code Ribbon child backgrounds aligned with each layout", () => {

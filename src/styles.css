@@ -4253,14 +4253,14 @@ textarea {
 }
 
 .vscode-canvas-webview .command-ribbon-tooltip {
-  position: absolute;
+  position: fixed;
   height: auto;
   overflow: visible;
   clip: auto;
   clip-path: none;
   z-index: 20;
-  top: calc(100% + 6px);
-  left: 50%;
+  top: 0;
+  left: 0;
   width: max-content;
   max-width: min(320px, 80vw);
   border: 1px solid var(--vscode-canvas-ribbon-border);
@@ -4274,7 +4274,7 @@ textarea {
   overflow-wrap: anywhere;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(-50%);
+  transform: none;
   transition: opacity 80ms ease-in;
 }
 

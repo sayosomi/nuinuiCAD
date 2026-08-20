@@ -42,6 +42,23 @@ const ribbonFor = (orientation: "horizontal" | "vertical"): CommandRibbonPresent
   ]
 });
 
+const domRectFor = (
+  left: number,
+  top: number,
+  right: number,
+  bottom: number
+): DOMRect => ({
+  left,
+  top,
+  right,
+  bottom,
+  width: right - left,
+  height: bottom - top,
+  x: left,
+  y: top,
+  toJSON: () => ({})
+} as DOMRect);
+
 describe("CommandRibbonView", () => {
   it("keeps unavailable commands focusable and does not execute them", () => {
     const onCommand = vi.fn();
@@ -61,6 +78,8 @@ describe("CommandRibbonView", () => {
     expect(document.getElementById(describedBy!)).toHaveTextContent(
       "Unavailable: This command is unavailable."
     );
+    expect(document.getElementById(describedBy!)).not.toHaveStyle({ position: "fixed" });
+    expect(unavailable.closest(".command-ribbon")).not.toHaveClass("has-viewport-aware-tooltips");
     expect(unavailable).toHaveAttribute("title", "Unavailable: This command is unavailable.");
     fireEvent.focus(unavailable);
     expect(document.getElementById(describedBy!)).toHaveTextContent(
@@ -119,6 +138,51 @@ describe("CommandRibbonView", () => {
 
     expect(view.container.querySelector(".command-ribbon")).toHaveClass("has-side-handle");
     expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(3);
+  });
+
+  it("uses fresh viewport-aware placement for hover, focus, and unavailable commands", () => {
+    const boundaryRef = { current: null as HTMLElement | null };
+    let namesRect = domRectFor(100, 40, 140, 60);
+    const view = render(
+      <div ref={(node) => { boundaryRef.current = node; }}>
+        <CommandRibbonView
+          ribbon={ribbonFor("horizontal")}
+          iconResolver={() => Circle}
+          viewportAwareTooltips
+          tooltipBoundaryRef={boundaryRef}
+        />
+      </div>
+    );
+    const boundary = boundaryRef.current!;
+    vi.spyOn(boundary, "getBoundingClientRect").mockReturnValue(domRectFor(20, 10, 320, 200));
+
+    const names = screen.getByRole("button", { name: "Names" });
+    const unavailable = screen.getByRole("button", { name: "Unavailable" });
+    const namesTooltip = document.getElementById(names.getAttribute("aria-describedby")!);
+    const unavailableTooltip = document.getElementById(unavailable.getAttribute("aria-describedby")!);
+    expect(namesTooltip).not.toBeNull();
+    expect(unavailableTooltip).not.toBeNull();
+    vi.spyOn(names, "getBoundingClientRect").mockImplementation(() => namesRect);
+    vi.spyOn(unavailable, "getBoundingClientRect").mockReturnValue(domRectFor(250, 40, 290, 60));
+    vi.spyOn(namesTooltip!, "getBoundingClientRect").mockReturnValue(domRectFor(0, 0, 120, 30));
+    vi.spyOn(unavailableTooltip!, "getBoundingClientRect").mockReturnValue(domRectFor(0, 0, 120, 30));
+
+    expect(view.container.querySelector(".command-ribbon")).toHaveClass("has-viewport-aware-tooltips");
+    fireEvent.pointerEnter(names.closest(".command-ribbon-item-shell")!);
+    expect(namesTooltip).toHaveStyle({ position: "fixed", left: "60px", top: "66px" });
+
+    fireEvent.pointerLeave(names.closest(".command-ribbon-item-shell")!);
+    fireEvent.focus(names);
+    expect(namesTooltip).toHaveStyle({ position: "fixed", left: "60px", top: "66px" });
+
+    fireEvent.blur(names);
+    fireEvent.focus(unavailable);
+    expect(unavailableTooltip).toHaveStyle({ position: "fixed", left: "194px", top: "66px" });
+
+    fireEvent.blur(unavailable);
+    namesRect = domRectFor(100, 160, 140, 180);
+    fireEvent.pointerEnter(names.closest(".command-ribbon-item-shell")!);
+    expect(namesTooltip).toHaveStyle({ position: "fixed", left: "60px", top: "124px" });
   });
 
   it("keeps the Tauri vertical Ribbon on its existing top-handle layout", () => {

@@ -22,6 +22,7 @@ export type CommandRibbonFloatingOverlayProps = {
   ribbons: CommandRibbonPresentation[];
   viewportSize: ViewportSize;
   iconResolver: (iconName: string) => import("lucide-react").LucideIcon;
+  viewportAwareTooltips?: boolean;
   onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
   onPositionChange?: (ribbonId: string, position: RibbonPosition) => void;
   onPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
@@ -42,6 +43,7 @@ export const CommandRibbonFloatingOverlay = ({
   ribbons,
   viewportSize,
   iconResolver,
+  viewportAwareTooltips = false,
   onCommand,
   onPositionChange,
   onPositionCommit,
@@ -52,6 +54,7 @@ export const CommandRibbonFloatingOverlay = ({
   const [renderedSizes, setRenderedSizes] = useState<Record<string, RibbonRenderedSize>>({});
   const dragRef = useRef<RibbonDrag | null>(null);
   const ribbonNodesRef = useRef(new Map<string, HTMLDivElement>());
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const configuredCoordinatesRef = useRef<Record<string, { x: number | null; y: number }>>({});
   const [draggingRibbonId, setDraggingRibbonId] = useState<string | null>(null);
 
@@ -201,7 +204,7 @@ export const CommandRibbonFloatingOverlay = ({
   };
 
   return (
-    <div className="command-ribbon-layer" aria-label="コマンドリボン">
+    <div ref={overlayRef} className="command-ribbon-layer" aria-label="コマンドリボン">
       {ribbons.map((ribbon) => {
         const position = positionFor(ribbon);
         return (
@@ -213,6 +216,8 @@ export const CommandRibbonFloatingOverlay = ({
             <CommandRibbonView
               ribbon={ribbon}
               iconResolver={iconResolver}
+              viewportAwareTooltips={viewportAwareTooltips}
+              tooltipBoundaryRef={viewportAwareTooltips ? overlayRef : undefined}
               onCommand={onCommand}
               dragging={draggingRibbonId === ribbon.id}
               onHandlePointerDown={startDrag}

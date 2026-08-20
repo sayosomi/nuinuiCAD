@@ -71,4 +71,49 @@ describe("CommandRibbonFloatingOverlay", () => {
     });
     expect(onPositionCommit).toHaveBeenCalledTimes(commitsBeforeResize);
   });
+
+  it("positions a viewport-aware tooltip without committing Ribbon movement", () => {
+    const onPositionCommit = vi.fn();
+    const view = render(
+      <CommandRibbonFloatingOverlay
+        ribbons={[ribbon]}
+        viewportSize={{ width: 320, height: 180 }}
+        iconResolver={() => Circle}
+        viewportAwareTooltips
+        onPositionCommit={onPositionCommit}
+      />
+    );
+    const boundary = view.container.querySelector(".command-ribbon-layer")!;
+    const button = screen.getByRole("button", { name: "A visible label that affects the rendered width" });
+    const tooltip = document.getElementById(button.getAttribute("aria-describedby")!)!;
+    vi.spyOn(boundary, "getBoundingClientRect").mockReturnValue({
+      left: 40,
+      top: 20,
+      right: 360,
+      bottom: 200,
+      width: 320,
+      height: 180
+    } as DOMRect);
+    vi.spyOn(button, "getBoundingClientRect").mockReturnValue({
+      left: 100,
+      top: 40,
+      right: 240,
+      bottom: 72,
+      width: 140,
+      height: 32
+    } as DOMRect);
+    vi.spyOn(tooltip, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      right: 120,
+      bottom: 30,
+      width: 120,
+      height: 30
+    } as DOMRect);
+
+    fireEvent.pointerEnter(button.closest(".command-ribbon-item-shell")!);
+
+    expect(tooltip).toHaveStyle({ position: "fixed", left: "110px", top: "78px" });
+    expect(onPositionCommit).not.toHaveBeenCalled();
+  });
 });
