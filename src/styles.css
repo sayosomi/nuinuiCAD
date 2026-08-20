@@ -4469,9 +4469,17 @@ textarea {
 }
 
 .canvas-overlap-candidate-menu button:hover,
-.canvas-overlap-candidate-menu button:focus-visible,
+.canvas-overlap-candidate-menu button:focus-visible {
+  background: color-mix(in srgb, var(--canvas-accent) 10%, var(--canvas-background));
+}
+
 .canvas-overlap-candidate-menu button.is-active {
-  background: color-mix(in srgb, var(--canvas-accent) 12%, var(--canvas-background));
+  background: color-mix(in srgb, var(--canvas-accent) 18%, var(--canvas-background));
+  box-shadow: inset 3px 0 0 var(--canvas-accent);
+}
+
+.canvas-overlap-candidate-menu button.is-active small {
+  color: var(--canvas-foreground);
 }
 
 .canvas-hover-identity-candidate-menu {
