@@ -15,7 +15,8 @@ const resetStore = () => {
     shortcutSettingsError: null,
     showShortcutHelp: false,
     showCommandPalette: false,
-    showCanvasElementNames: true,
+    showCanvasPointNames: true,
+    showCanvasGeometryNames: false,
     showCanvasPoints: true,
     canvasViewport: DEFAULT_CANVAS_VIEWPORT,
   });

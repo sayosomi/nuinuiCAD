@@ -21,7 +21,8 @@ const ribbonWithStatus: VscodeCanvasRibbon[] = [{
 
 const commandContext = {
   hasSelection: false,
-  showCanvasElementNames: false,
+  showCanvasPointNames: false,
+  showCanvasGeometryNames: false,
   showCanvasPoints: false
 };
 

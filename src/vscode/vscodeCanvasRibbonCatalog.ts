@@ -6,7 +6,8 @@ export const vscodeCanvasRibbonCommandIds = [
   "clearCanvasSelection",
   "resetCanvasView",
   "fitDrawing",
-  "toggleCanvasElementNames",
+  "toggleCanvasPointNames",
+  "toggleCanvasGeometryNames",
   "toggleCanvasPoints",
   "editCanvasRibbon"
 ] as const;
@@ -15,7 +16,8 @@ export type VscodeCanvasRibbonCommandId = (typeof vscodeCanvasRibbonCommandIds)[
 
 export type VscodeCanvasRibbonCommandContext = {
   hasSelection: boolean;
-  showCanvasElementNames: boolean;
+  showCanvasPointNames: boolean;
+  showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
 };
 
@@ -35,7 +37,8 @@ const sharedLabel = (commandId: Exclude<VscodeCanvasRibbonCommandId, "editCanvas
     clearCanvasSelection: selectionCommandDefinitions.clearCanvasSelection,
     resetCanvasView: viewModeCommandDefinitions.resetCanvasView,
     fitDrawing: viewModeCommandDefinitions.fitDrawing,
-    toggleCanvasElementNames: viewModeCommandDefinitions.toggleCanvasElementNames,
+    toggleCanvasPointNames: viewModeCommandDefinitions.toggleCanvasPointNames,
+    toggleCanvasGeometryNames: viewModeCommandDefinitions.toggleCanvasGeometryNames,
     toggleCanvasPoints: viewModeCommandDefinitions.toggleCanvasPoints
   } as Record<Exclude<VscodeCanvasRibbonCommandId, "editCanvasRibbon">, { label: string }>)[commandId].label;
 
@@ -67,14 +70,23 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     sharedCommandId: "fitDrawing",
     isAvailable: () => true
   },
-  toggleCanvasElementNames: {
-    id: "toggleCanvasElementNames",
-    label: sharedLabel("toggleCanvasElementNames"),
-    description: "Show or hide Canvas element names.",
+  toggleCanvasPointNames: {
+    id: "toggleCanvasPointNames",
+    label: sharedLabel("toggleCanvasPointNames"),
+    description: "Show or hide Canvas point names.",
     icon: "tags",
-    sharedCommandId: "toggleCanvasElementNames",
+    sharedCommandId: "toggleCanvasPointNames",
     isAvailable: () => true,
-    isPressed: ({ showCanvasElementNames }) => showCanvasElementNames
+    isPressed: ({ showCanvasPointNames }) => showCanvasPointNames
+  },
+  toggleCanvasGeometryNames: {
+    id: "toggleCanvasGeometryNames",
+    label: sharedLabel("toggleCanvasGeometryNames"),
+    description: "Show or hide Canvas geometry names.",
+    icon: "tags",
+    sharedCommandId: "toggleCanvasGeometryNames",
+    isAvailable: () => true,
+    isPressed: ({ showCanvasGeometryNames }) => showCanvasGeometryNames
   },
   toggleCanvasPoints: {
     id: "toggleCanvasPoints",

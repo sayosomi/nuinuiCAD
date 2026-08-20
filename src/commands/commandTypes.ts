@@ -130,6 +130,9 @@ export type CommandId =
   | "zoomOutCanvas"
   | "resetCanvasView"
   | "fitDrawing"
+  | "toggleCanvasPointNames"
+  | "toggleCanvasGeometryNames"
+  /** @deprecated Compatibility alias for toggleCanvasPointNames. */
   | "toggleCanvasElementNames"
   | "toggleCanvasPoints"
   | "toggleElementListColorAccents"
@@ -162,6 +165,8 @@ export type CommandId =
 export type CommandContext = {
   /** VS Code Canvas opts into local element-selection history; Tauri leaves this unset. */
   recordSelectionHistory?: boolean;
+  /** Finalizes ephemeral Canvas interaction state before a command changes ownership. */
+  finalizeCanvasInteraction?: () => void;
   /** Host-aware Canvas Undo/Redo coordinator. The direct store path remains the Tauri fallback. */
   canvasHistory?: (direction: "undo" | "redo") => void;
   focusCanvas?: () => void;

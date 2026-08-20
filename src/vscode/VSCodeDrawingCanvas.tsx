@@ -1,6 +1,11 @@
 import type { RefObject } from "react";
-import { forwardRef, useCallback, useEffect, useMemo } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
+import {
+  canvasSelectionSnapshot,
+  finalizeCanvasSelectionSession,
+  previewCanvasSelection
+} from "../commands/selectionCommands";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import {
@@ -53,6 +58,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     onEditCanvasRibbon,
     measureCanvasTextWidth
   }, ref) {
+    const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
     const elements = useCadDocumentStore(effectiveElements);
     const canonicalElements = useCadDocumentStore((state) => state.elements);
     const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
@@ -66,8 +72,10 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap?.byElementId);
     const selectedElementId = useCadUiStore((state) => state.selectedElementId);
     const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
+    const selectionAnchorElementId = useCadUiStore((state) => state.selectionAnchorElementId);
     const canvasViewport = useCadUiStore((state) => state.canvasViewport);
-    const showCanvasElementNames = useCadUiStore((state) => state.showCanvasElementNames);
+    const showCanvasPointNames = useCadUiStore((state) => state.showCanvasPointNames);
+    const showCanvasGeometryNames = useCadUiStore((state) => state.showCanvasGeometryNames);
     const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
     const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
@@ -82,15 +90,18 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
 
     const ribbonCommandContext = useMemo(() => ({
       hasSelection: selectedElementIds.length > 0,
-      showCanvasElementNames,
+      showCanvasPointNames,
+      showCanvasGeometryNames,
       showCanvasPoints
-    }), [selectedElementIds.length, showCanvasElementNames, showCanvasPoints]);
+    }), [selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
 
     const executeRibbonCommand = useCallback((item: CommandRibbonPresentationCommandItem) => {
+      drawingCanvasRef.current?.finalizeCanvasInteraction();
       const definition = vscodeCanvasRibbonCommandFor(item.commandId);
       if (!definition || !definition.isAvailable({
         hasSelection: useCadUiStore.getState().selectedElementIds.length > 0,
-        showCanvasElementNames: useCadUiStore.getState().showCanvasElementNames,
+        showCanvasPointNames: useCadUiStore.getState().showCanvasPointNames,
+        showCanvasGeometryNames: useCadUiStore.getState().showCanvasGeometryNames,
         showCanvasPoints: useCadUiStore.getState().showCanvasPoints
       })) return;
       if (definition.hostAction === "editCanvasRibbon") {
@@ -103,6 +114,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
         getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
         measureCanvasTextWidth,
         recordSelectionHistory: true,
+        finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
         focusCanvas: () => canvasFocusRef.current?.focus()
       });
       canvasFocusRef.current?.focus();
@@ -165,8 +177,10 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       moduleSemanticContext,
       selectedElementId,
       selectedElementIds,
+      selectionAnchorElementId,
       canvasViewport,
-      showCanvasElementNames,
+      showCanvasPointNames,
+      showCanvasGeometryNames,
       showCanvasPoints,
       renderFixedCanvasChrome: false,
       activePointPickTarget,
@@ -188,13 +202,18 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       },
       panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
-      selectElement: (elementId, selectionMode) => {
+      selectElement: (elementId, selectionMode, recordHistory) => {
         return dispatchCommand("selectElement", {
           elementId,
           selectionMode,
-          recordSelectionHistory: true
+          recordSelectionHistory: recordHistory ?? true
         });
       },
+      getCanvasSelectionSnapshot: () => canvasSelectionSnapshot(),
+      previewCanvasSelection: (previousSelection, elementId, selectionMode) =>
+        previewCanvasSelection(previousSelection, elementId, selectionMode),
+      finalizeCanvasSelectionSession: (previousSelection) =>
+        finalizeCanvasSelectionSession(previousSelection),
       clearCanvasSelection: () => dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true }),
       movePointElementByDelta: (action) => action.commitMode === "preview"
         ? dragPreviewScheduler.dispatchPreview(action, evaluationState)
@@ -208,7 +227,8 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       applyNumericExpressionReference: (action) => dispatchCommand("applyNumericExpressionReference", action),
       applyPickedLine: (action) => dispatchCommand("applyPickedLine", action),
       applyPickedPoint: (action) => dispatchCommand("applyPickedPoint", action),
-      toggleCanvasElementNames: () => dispatchCommand("toggleCanvasElementNames"),
+      toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
+      toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
       resolveImageSourceUrl: (sourcePath) => sourcePath,
       renderHostOverlay: (viewportSize) => (
@@ -241,7 +261,9 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       palette,
       selectedElementId,
       selectedElementIds,
-      showCanvasElementNames,
+      selectionAnchorElementId,
+      showCanvasPointNames,
+      showCanvasGeometryNames,
       showCanvasPoints,
       visibilityProfiles,
       executeRibbonCommand,
@@ -251,9 +273,15 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       canvasFocusRef
     ]);
 
+    useImperativeHandle(ref, () => ({
+      clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
+      clearEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
+      finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction()
+    }), []);
+
     return (
       <DrawingCanvas
-        ref={ref}
+        ref={drawingCanvasRef}
         evaluation={evaluation}
         evaluationState={evaluationState}
         canvasFocusRef={canvasFocusRef}

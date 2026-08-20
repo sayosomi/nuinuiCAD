@@ -169,7 +169,9 @@ export type CadUiState = CadElementSelection & {
   elementSearchQuery: string;
   elementSearchCursorId: ElementId | null;
   elementSearchPickableOnly: boolean;
-  showCanvasElementNames: boolean;
+  /** Canonical identity-label visibility flags. */
+  showCanvasPointNames: boolean;
+  showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
   showElementListColorAccents: boolean;
   showShortcutHelp: boolean;
@@ -214,7 +216,8 @@ export type CadUiState = CadElementSelection & {
   setElementSearchQuery: (elementSearchQuery: string) => void;
   setElementSearchCursorId: (elementSearchCursorId: ElementId | null) => void;
   setElementSearchPickableOnly: (elementSearchPickableOnly: boolean) => void;
-  setShowCanvasElementNames: (showCanvasElementNames: boolean) => void;
+  setShowCanvasPointNames: (showCanvasPointNames: boolean) => void;
+  setShowCanvasGeometryNames: (showCanvasGeometryNames: boolean) => void;
   setShowCanvasPoints: (showCanvasPoints: boolean) => void;
   setShowElementListColorAccents: (showElementListColorAccents: boolean) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
@@ -281,7 +284,8 @@ export const initialCadUiState = (): Omit<
   | "setElementSearchQuery"
   | "setElementSearchCursorId"
   | "setElementSearchPickableOnly"
-  | "setShowCanvasElementNames"
+  | "setShowCanvasPointNames"
+  | "setShowCanvasGeometryNames"
   | "setShowCanvasPoints"
   | "setShowElementListColorAccents"
   | "setShowShortcutHelp"
@@ -340,7 +344,8 @@ export const initialCadUiState = (): Omit<
   elementSearchQuery: "",
   elementSearchCursorId: null,
   elementSearchPickableOnly: false,
-  showCanvasElementNames: true,
+  showCanvasPointNames: true,
+  showCanvasGeometryNames: false,
   showCanvasPoints: true,
   showElementListColorAccents: false,
   showShortcutHelp: false,
@@ -449,7 +454,8 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   setElementSearchCursorId: (elementSearchCursorId) => set({ elementSearchCursorId }),
   setElementSearchPickableOnly: (elementSearchPickableOnly) =>
     set({ elementSearchPickableOnly, elementSearchCursorId: null }),
-  setShowCanvasElementNames: (showCanvasElementNames) => set({ showCanvasElementNames }),
+  setShowCanvasPointNames: (showCanvasPointNames) => set({ showCanvasPointNames }),
+  setShowCanvasGeometryNames: (showCanvasGeometryNames) => set({ showCanvasGeometryNames }),
   setShowCanvasPoints: (showCanvasPoints) => set({ showCanvasPoints }),
   setShowElementListColorAccents: (showElementListColorAccents) =>
     set({ showElementListColorAccents }),

@@ -1,4 +1,5 @@
 import type { BezierHandleRole as CommandBezierHandleRole } from "../commands/commands";
+import type { CanvasSelectionMode } from "../commands/selectionCommands";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { ParameterKey } from "../parameters/parameterDefinitions";
 import type {
@@ -12,7 +13,9 @@ import type {
   ElementId,
   PointAnchor
 } from "../types/geometry";
+import type { SelectionSnapshot } from "../state/cadDocumentStore";
 import type { LineMeasurementCandidate, ScreenPoint } from "./DrawingCanvasHitTest";
+import type { CanvasIdentityKind } from "./canvasDrawOrder";
 
 export type CanvasOverlayLine = {
   line: ComputedLine;
@@ -57,6 +60,31 @@ export type CanvasOverlayText = {
   text: ComputedText;
   screen: ScreenPoint;
   fontSizePx: number;
+};
+
+export type CanvasIdentityCandidate = {
+  elementId: ElementId;
+  name: string | null;
+  kind: CanvasIdentityKind;
+  representativeScreen: ScreenPoint;
+};
+
+export type CanvasOverlapCandidateSession = {
+  anchor: ScreenPoint;
+  candidates: CanvasIdentityCandidate[];
+  activeIndex: number;
+  selectionMode: CanvasSelectionMode;
+  selectionBefore: SelectionSnapshot;
+};
+
+export type CanvasHoverIdentityState = {
+  pointer: ScreenPoint;
+  candidates: CanvasIdentityCandidate[];
+} | null;
+
+export type CanvasHoverIdentityPopup = {
+  pointer: ScreenPoint;
+  candidates: CanvasIdentityCandidate[];
 };
 
 export type CanvasNumericReferenceCandidate = {
@@ -120,6 +148,7 @@ export type CanvasOverlayData = {
   overlayOffsetLines: CanvasOverlayOffsetLine[];
   overlayImages: CanvasOverlayImage[];
   overlayTexts: CanvasOverlayText[];
+  overlayIdentityCandidates: CanvasIdentityCandidate[];
   selectedBezierEditingHelper: BezierEditingHelperOverlay | null;
   overlayPointPickCandidates: PointPickCandidate[];
   overlayNumericReferenceCandidates: CanvasNumericReferenceCandidate[];

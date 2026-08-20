@@ -60,8 +60,16 @@
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
-          "command": "nuinuiCAD.toggleCanvasElementNames",
+          "command": "nuinuiCAD.toggleCanvasPointNames",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.toggleCanvasGeometryNames",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.toggleCanvasElementNames",
+          "when": "false"
         },
         {
           "command": "nuinuiCAD.toggleCanvasPoints",
@@ -131,8 +139,16 @@
         "title": "nuinuiCAD: Fit Drawing"
       },
       {
+        "command": "nuinuiCAD.toggleCanvasPointNames",
+        "title": "nuinuiCAD: Toggle Point Names"
+      },
+      {
+        "command": "nuinuiCAD.toggleCanvasGeometryNames",
+        "title": "nuinuiCAD: Toggle Geometry Names"
+      },
+      {
         "command": "nuinuiCAD.toggleCanvasElementNames",
-        "title": "nuinuiCAD: Toggle Canvas Element Names"
+        "title": "nuinuiCAD: Toggle Canvas Element Names (Legacy)"
       },
       {
         "command": "nuinuiCAD.toggleCanvasPoints",

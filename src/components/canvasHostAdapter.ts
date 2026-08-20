@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { BezierHandleRole } from "../model/elementDragTransforms";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";
+import type { CanvasSelectionMode } from "../commands/selectionCommands";
 import type {
   ActiveLinePickTarget,
   ActiveNumericReferencePickTarget,
@@ -16,12 +17,13 @@ import type {
   PointAnchor,
   VisibilityProfile
 } from "../types/geometry";
+import type { SelectionSnapshot } from "../state/cadDocumentStore";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { ViewportSize } from "./canvasViewport";
 import type { CanvasTheme } from "./canvasTheme";
 
 export type CanvasCommitMode = "preview" | "commit";
-export type CanvasSelectionMode = "replace" | "toggle" | "range";
+export type { CanvasSelectionMode };
 
 export type CanvasPointDragAction = {
   elementId: ElementId;
@@ -69,8 +71,10 @@ export type CanvasHostAdapter = {
   moduleSemanticContext: ModuleSemanticCandidateContext;
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
+  selectionAnchorElementId?: ElementId | null;
   canvasViewport: CanvasViewport;
-  showCanvasElementNames: boolean;
+  showCanvasPointNames: boolean;
+  showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
   /** Whether the host wants the shared fixed Canvas controls/status chrome. */
   renderFixedCanvasChrome?: boolean;
@@ -88,7 +92,14 @@ export type CanvasHostAdapter = {
     zoomFactor: number,
     anchor?: { x: number; y: number; width: number; height: number }
   ) => void;
-  selectElement: (elementId: ElementId, selectionMode: CanvasSelectionMode) => unknown;
+  selectElement: (elementId: ElementId, selectionMode: CanvasSelectionMode, recordHistory?: boolean) => unknown;
+  getCanvasSelectionSnapshot: () => SelectionSnapshot;
+  previewCanvasSelection: (
+    previousSelection: SelectionSnapshot,
+    elementId: ElementId,
+    selectionMode: CanvasSelectionMode
+  ) => unknown;
+  finalizeCanvasSelectionSession: (previousSelection: SelectionSnapshot) => unknown;
   clearCanvasSelection: () => unknown;
   movePointElementByDelta: (action: CanvasPointDragAction) => unknown;
   moveBezierHandleByDelta: (action: CanvasBezierHandleDragAction) => unknown;
@@ -106,7 +117,8 @@ export type CanvasHostAdapter = {
     pickedPointAnchor: PointAnchor;
     pickedPointSourceReference?: CanonicalGeometrySourceReference;
   }) => unknown;
-  toggleCanvasElementNames: () => unknown;
+  toggleCanvasPointNames?: () => unknown;
+  toggleCanvasGeometryNames?: () => unknown;
   toggleCanvasPoints: () => unknown;
   resolveImageSourceUrl: (sourcePath: string) => string;
   renderHostOverlay?: (viewportSize: ViewportSize) => ReactNode;

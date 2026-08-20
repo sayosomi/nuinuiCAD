@@ -221,8 +221,15 @@ export const AppLayout = () => {
     });
   }, [evaluation, evaluationRevision, evaluationRequestRevision, evaluationIsCurrent]);
   const commandContext = useMemo(() => ({
-    focusCanvas: () => canvasFocusRef.current?.focus(),
-    focusSourceEditor: () => sourceEditorRef.current?.focus(),
+    finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
+    focusCanvas: () => {
+      drawingCanvasRef.current?.finalizeCanvasInteraction();
+      canvasFocusRef.current?.focus();
+    },
+    focusSourceEditor: () => {
+      drawingCanvasRef.current?.finalizeCanvasInteraction();
+      sourceEditorRef.current?.focus();
+    },
     focusElementSearch: () => sourceEditorRef.current?.focusSearch(),
     currentCursorElementId: () => sourceEditorRef.current?.currentCursorElementId?.() ?? null,
     currentSourceCursor: () => sourceEditorRef.current?.currentSourceCursor?.() ?? null,
