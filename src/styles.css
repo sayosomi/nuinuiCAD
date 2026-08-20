@@ -4143,6 +4143,197 @@ textarea {
   white-space: nowrap;
 }
 
+.command-ribbon-item-shell,
+.command-ribbon-value {
+  position: relative;
+}
+
+.command-ribbon-tooltip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* VS Code owns its webview theme; the desktop/Tauri ribbon keeps the legacy
+   palette above. */
+.vscode-canvas-webview {
+  --vscode-canvas-ribbon-foreground: var(--vscode-foreground, #cccccc);
+  --vscode-canvas-ribbon-background: var(--vscode-editorWidget-background, #252526);
+  --vscode-canvas-ribbon-border: var(--vscode-widget-border, #454545);
+  --vscode-canvas-ribbon-hover: var(--vscode-toolbar-hoverBackground, #2a2d2e);
+  --vscode-canvas-ribbon-active: var(--vscode-list-activeSelectionBackground, #094771);
+  --vscode-canvas-ribbon-active-foreground: var(--vscode-list-activeSelectionForeground, var(--vscode-canvas-ribbon-foreground));
+  --vscode-canvas-ribbon-focus: var(--vscode-focusBorder, #007fd4);
+  --vscode-canvas-ribbon-disabled: var(--vscode-disabledForeground, #858585);
+  --vscode-canvas-ribbon-tooltip: var(--vscode-editorHoverWidget-background, #252526);
+}
+
+.vscode-canvas-webview .command-ribbon {
+  overflow: visible;
+  border-color: var(--vscode-canvas-ribbon-border);
+  background: var(--vscode-canvas-ribbon-background);
+  color: var(--vscode-canvas-ribbon-foreground);
+  box-shadow: 0 5px 14px rgb(0 0 0 / 28%);
+}
+
+.vscode-canvas-webview .command-ribbon:not(.is-docked):not(.is-vertical) .command-ribbon-handle,
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle .command-ribbon-handle {
+  border-radius: 5px 0 0 5px;
+}
+
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical:not(.has-side-handle) .command-ribbon-handle {
+  border-radius: 5px 5px 0 0;
+}
+
+.vscode-canvas-webview .command-ribbon:not(.is-docked):not(.is-vertical)
+  .command-ribbon-buttons > :last-child.command-ribbon-value,
+.vscode-canvas-webview .command-ribbon:not(.is-docked):not(.is-vertical)
+  .command-ribbon-buttons > :last-child > .command-ribbon-button {
+  border-radius: 0 5px 5px 0;
+}
+
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle
+  .command-ribbon-buttons > :first-child.command-ribbon-value,
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle
+  .command-ribbon-buttons > :first-child > .command-ribbon-button {
+  border-top-right-radius: 5px;
+}
+
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle
+  .command-ribbon-buttons > :last-child.command-ribbon-value,
+.vscode-canvas-webview .command-ribbon:not(.is-docked).is-vertical.has-side-handle
+  .command-ribbon-buttons > :last-child > .command-ribbon-button {
+  border-bottom-right-radius: 5px;
+}
+
+.vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle {
+  flex-direction: row;
+}
+
+.vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle .command-ribbon-buttons {
+  flex-direction: column;
+}
+
+.vscode-canvas-webview .command-ribbon-item-shell {
+  display: grid;
+}
+
+.vscode-canvas-webview .command-ribbon-handle,
+.vscode-canvas-webview .command-ribbon-button,
+.vscode-canvas-webview .command-ribbon-value {
+  color: var(--vscode-canvas-ribbon-foreground);
+}
+
+.vscode-canvas-webview .command-ribbon-handle {
+  background: color-mix(in srgb, var(--vscode-canvas-ribbon-background) 82%, var(--vscode-canvas-ribbon-foreground));
+}
+
+.vscode-canvas-webview .command-ribbon-handle:hover,
+.vscode-canvas-webview .command-ribbon-button:hover:not(:disabled),
+.vscode-canvas-webview .command-ribbon-button:focus-visible {
+  background: var(--vscode-canvas-ribbon-hover);
+}
+
+.vscode-canvas-webview .command-ribbon-button.is-active,
+.vscode-canvas-webview .command-ribbon-button[aria-pressed="true"] {
+  background: var(--vscode-canvas-ribbon-active);
+  color: var(--vscode-canvas-ribbon-active-foreground);
+}
+
+.vscode-canvas-webview .command-ribbon-button:focus-visible,
+.vscode-canvas-webview .command-ribbon-handle:focus-visible {
+  outline: 2px solid var(--vscode-canvas-ribbon-focus);
+  outline-offset: -2px;
+}
+
+.vscode-canvas-webview .command-ribbon-button[aria-disabled="true"] {
+  color: var(--vscode-canvas-ribbon-disabled);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.vscode-canvas-webview .command-ribbon-item-shell,
+.vscode-canvas-webview .command-ribbon-value {
+  position: relative;
+}
+
+.vscode-canvas-webview .command-ribbon-tooltip {
+  position: fixed;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  z-index: 20;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(320px, 80vw);
+  border: 1px solid var(--vscode-canvas-ribbon-border);
+  border-radius: 3px;
+  background: var(--vscode-canvas-ribbon-tooltip);
+  color: var(--vscode-canvas-ribbon-foreground);
+  padding: 4px 7px;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  pointer-events: none;
+  transform: none;
+  transition: opacity 80ms ease-in;
+}
+
+.vscode-canvas-webview .command-ribbon-item-shell:hover .command-ribbon-tooltip,
+.vscode-canvas-webview .command-ribbon-button:focus-visible + .command-ribbon-tooltip {
+  opacity: 1;
+}
+
+.vscode-canvas-webview .command-ribbon-value {
+  display: inline-flex;
+  align-items: center;
+  align-content: center;
+  min-height: 30px;
+  border-left: 1px solid var(--vscode-canvas-ribbon-border);
+  padding: 4px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.vscode-canvas-webview .command-ribbon-value-fields {
+  display: grid;
+  grid-template-columns: 5ch 8ch 8ch;
+  align-items: center;
+  gap: 12px;
+}
+
+.vscode-canvas-webview .command-ribbon-value-field {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vscode-canvas-webview .command-ribbon-value-field-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.vscode-canvas-webview .command-ribbon-value output {
+  font-family: var(--dsl-code-font);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vscode-canvas-webview .command-ribbon-grip {
+  font-size: 14px;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
 .source-ribbon-dock {
   display: grid;
   gap: 0;

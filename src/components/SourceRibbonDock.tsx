@@ -1,13 +1,17 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CommandContext, CommandId } from "../commands/commands";
+import { dispatchCommand, type CommandContext, type CommandId } from "../commands/commands";
 import type {
   CommandRibbon,
   CommandRibbonSettings
 } from "../commandRibbons/commandRibbonSettings";
 import { saveCommandRibbonSettings } from "../commandRibbons/commandRibbonSettings";
 import { useCadUiStore } from "../state/cadUiStore";
-import { CommandRibbonView } from "./CommandRibbonView";
+import {
+  CommandRibbonView,
+  type CommandRibbonPresentation
+} from "./CommandRibbonView";
+import { resolveTauriCommandRibbonIcon, tauriCommandRibbonPresentation } from "./tauriCommandRibbonAdapter";
 
 type SourceRibbonDockProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
@@ -76,8 +80,9 @@ export const SourceRibbonDock = ({
   // ribbon layouts, so the legacy name stays until a deliberate settings migration.
   const dockedRibbons = settings?.ribbons.filter((ribbon) => ribbon.dock === "leftPanelBottom") ?? [];
 
-  const startDrag = (event: ReactPointerEvent<HTMLButtonElement>, ribbon: CommandRibbon) => {
-    if (!settings || event.button !== 0) return;
+  const startDrag = (event: ReactPointerEvent<HTMLButtonElement>, presentation: CommandRibbonPresentation) => {
+    const ribbon = settings?.ribbons.find((candidate) => candidate.id === presentation.id);
+    if (!settings || !ribbon || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -143,11 +148,13 @@ export const SourceRibbonDock = ({
       {dockedRibbons.map((ribbon) => (
         <CommandRibbonView
           key={ribbon.id}
-          ribbon={ribbon}
-          commandContext={commandContext}
-          disabledCommandIds={disabledCommandIds}
-          docked
+          ribbon={tauriCommandRibbonPresentation(ribbon, disabledCommandIds, true)}
+          iconResolver={resolveTauriCommandRibbonIcon}
           dragging={draggingRibbonId === ribbon.id}
+          onCommand={(item) => {
+            dispatchCommand(item.commandId as CommandId, commandContext);
+            commandContext.focusCanvas?.();
+          }}
           onHandlePointerDown={startDrag}
           onHandlePointerMove={moveDrag}
           onHandlePointerUp={stopDrag}

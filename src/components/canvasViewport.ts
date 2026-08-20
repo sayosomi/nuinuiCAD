@@ -20,6 +20,15 @@ export const worldToScreen = (
   y: size.height / 2 + viewport.panY - point.y * viewport.zoom
 });
 
+export const screenToWorld = (
+  point: ScreenPoint,
+  size: ViewportSize,
+  viewport: CanvasViewport
+): ScreenPoint => ({
+  x: (point.x - size.width / 2 - viewport.panX) / viewport.zoom,
+  y: (size.height / 2 + viewport.panY - point.y) / viewport.zoom
+});
+
 export const visibleWorldBounds = (size: ViewportSize, viewport: CanvasViewport) => ({
   minX: (0 - size.width / 2 - viewport.panX) / viewport.zoom,
   maxX: (size.width - size.width / 2 - viewport.panX) / viewport.zoom,

@@ -89,6 +89,9 @@ const mocks = vi.hoisted(() => ({
   referenceRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
   foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
+  canvasRibbonSetting: undefined as unknown,
+  configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
+  configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   showErrorMessage: vi.fn(),
   showTextDocument: vi.fn(),
   executeCommand: vi.fn(),
@@ -106,6 +109,8 @@ const mocks = vi.hoisted(() => ({
   onDidOpenTextDocument: vi.fn(),
   onDidChangeTextDocument: vi.fn(),
   onDidCloseTextDocument: vi.fn(),
+  getConfiguration: vi.fn(),
+  onDidChangeConfiguration: vi.fn(),
   asRelativePath: vi.fn()
 }));
 
@@ -175,6 +180,8 @@ vi.mock("vscode", () => {
       onDidOpenTextDocument: mocks.onDidOpenTextDocument,
       onDidChangeTextDocument: mocks.onDidChangeTextDocument,
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
+      getConfiguration: mocks.getConfiguration,
+      onDidChangeConfiguration: mocks.onDidChangeConfiguration,
       asRelativePath: mocks.asRelativePath
     },
     commands: { registerCommand: mocks.registerCommand, executeCommand: mocks.executeCommand },
@@ -202,6 +209,7 @@ vi.mock("vscode", () => {
     },
     CodeActionKind: { QuickFix: "quickfix" },
     FoldingRangeKind: { Comment: "comment" },
+    ConfigurationTarget: { Global: 1 },
     TextDocumentChangeReason: { Undo: 1, Redo: 2 },
     Position,
     Range,
@@ -440,6 +448,20 @@ const setup = (
     mocks.documentCloseListeners.push(listener);
     return disposable();
   });
+  mocks.getConfiguration.mockImplementation(() => ({
+    get: <T>(section: string) => section === "nuinuiCAD.canvasRibbon.ribbons"
+      ? mocks.canvasRibbonSetting as T
+      : undefined,
+    update: (section: string, value: unknown, target: unknown) => {
+      mocks.configurationUpdates.push({ section, value, target });
+      if (section === "nuinuiCAD.canvasRibbon.ribbons") mocks.canvasRibbonSetting = value;
+      return Promise.resolve();
+    }
+  }));
+  mocks.onDidChangeConfiguration.mockImplementation((listener: (event: { affectsConfiguration: (section: string) => boolean }) => void) => {
+    mocks.configurationChangeListeners.push(listener);
+    return disposable();
+  });
   activate(context as unknown as Parameters<typeof activate>[0]);
   return context;
 };
@@ -479,6 +501,9 @@ afterEach(() => {
   mocks.documentOpenListeners.length = 0;
   mocks.documentChangeListeners.length = 0;
   mocks.documentCloseListeners.length = 0;
+  mocks.canvasRibbonSetting = undefined;
+  mocks.configurationUpdates.length = 0;
+  mocks.configurationChangeListeners.length = 0;
   mocks.panels.length = 0;
   mocks.rustProcesses.length = 0;
   mocks.diagnosticCollections.length = 0;
@@ -506,6 +531,8 @@ afterEach(() => {
   mocks.onDidOpenTextDocument.mockReset();
   mocks.onDidChangeTextDocument.mockReset();
   mocks.onDidCloseTextDocument.mockReset();
+  mocks.getConfiguration.mockReset();
+  mocks.onDidChangeConfiguration.mockReset();
   mocks.asRelativePath.mockReset();
 });
 
@@ -1910,5 +1937,140 @@ describe("VS Code native choice Quick Fix lifecycle", () => {
     );
     expect(commandHandlerFor("nuinuiCAD.applyChoiceQuickFix")).toEqual(expect.any(Function));
     expect(commandHandlerFor("nuinuiCAD.openCanvas")).toEqual(expect.any(Function));
+  });
+});
+
+describe("VS Code Canvas Ribbon lifecycle", () => {
+  it("registers the global edit command and targets the normal Settings surface", () => {
+    setup(false, null, []);
+
+    expect(mocks.registerCommand).toHaveBeenCalledWith(
+      "nuinuiCAD.editCanvasRibbon",
+      expect.any(Function)
+    );
+    commandHandlerFor("nuinuiCAD.editCanvasRibbon")?.();
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "workbench.action.openSettings",
+      "nuinuiCAD.canvasRibbon.ribbons"
+    );
+  });
+
+  it("patches only a validated Ribbon position in authoritative User Settings", async () => {
+    mocks.canvasRibbonSetting = [
+      {
+        id: "one",
+        label: "One",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        iconSize: 16,
+        items: [{
+          id: "edit",
+          type: "command",
+          commandId: "editCanvasRibbon",
+          icon: "settings-2",
+          label: "Legacy edit",
+          showLabel: false,
+          futureItemField: { keep: "verbatim" }
+        }],
+        futureRibbonField: { keep: true }
+      },
+      {
+        id: "two",
+        items: "malformed",
+        futureMalformedRibbonField: [1, 2, 3]
+      },
+      {
+        id: "one",
+        label: "Later duplicate",
+        x: 7,
+        y: 8,
+        items: [{ id: "later", type: "value", valueId: "canvasZoom" }],
+        futureDuplicateField: "keep"
+      },
+      {
+        id: "three",
+        label: "Three",
+        x: 4,
+        y: 5,
+        orientation: "vertical",
+        iconSize: 20,
+        items: [{ id: "zoom", type: "value", valueId: "canvasZoom" }]
+      }
+    ];
+    const configuredRibbons = mocks.canvasRibbonSetting as Array<Record<string, unknown>>;
+    setup();
+    const panel = openPanelFor();
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: 40, y: 52 });
+
+    expect(mocks.configurationUpdates).toEqual([{
+      section: "nuinuiCAD.canvasRibbon.ribbons",
+      target: 1,
+      value: [
+        { ...configuredRibbons[0], x: 40, y: 52 },
+        configuredRibbons[1],
+        configuredRibbons[2],
+        configuredRibbons[3]
+      ]
+    }]);
+
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: Number.NaN, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: Number.POSITIVE_INFINITY, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "", x: 40, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "missing", x: 40, y: 52 });
+    expect(mocks.configurationUpdates).toHaveLength(1);
+  });
+
+  it("broadcasts normalized configuration changes to every open Canvas session", () => {
+    mocks.canvasRibbonSetting = [];
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA, [documentA]);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorB];
+    mocks.textDocuments = [documentA, documentB];
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels.at(-1)!;
+    panelA.webview.postMessage.mockClear();
+    panelB.webview.postMessage.mockClear();
+
+    mocks.canvasRibbonSetting = [{
+      id: "new",
+      label: "New",
+      x: null,
+      y: 12,
+      orientation: "horizontal",
+      iconSize: 16,
+      items: []
+    }];
+    mocks.configurationChangeListeners[0]?.({
+      affectsConfiguration: (section) => section === "nuinuiCAD.canvasRibbon.ribbons"
+    });
+
+    expect(panelA.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasRibbonConfiguration",
+      ribbons: [{
+        id: "new",
+        label: "New",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        items: []
+      }]
+    });
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasRibbonConfiguration",
+      ribbons: [{
+        id: "new",
+        label: "New",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        items: []
+      }]
+    });
   });
 });
