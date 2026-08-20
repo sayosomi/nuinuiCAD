@@ -703,16 +703,26 @@ describe("VS Code production document lifecycle", () => {
 
   it("keeps Bake routed to the last active Canvas while the Command Palette owns focus", () => {
     setup();
-    const panel = openPanelFor();
-    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    const sourceEditor = mocks.activeTextEditor!;
+    const panel = openPanelFor(sourceEditor);
+    const viewStateHandler = (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler;
+    viewStateHandler();
     panel.canvasSelection = "NormalArc";
+
+    mocks.activeTextEditor = sourceEditor;
+    mocks.visibleTextEditors = [sourceEditor];
     panel.active = false;
+    viewStateHandler();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
 
     commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
 
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "canvasCommand",
       commandId: "bakeCurrentShape"
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "bakeSourceRequest"
     }));
     expect(panel.canvasSelection).toBe("NormalArc");
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
