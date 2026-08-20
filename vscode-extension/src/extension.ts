@@ -27,6 +27,10 @@ import {
   nuiRenameSelector
 } from "./renameProvider";
 import {
+  createNuiReferenceProvider,
+  nuiReferenceSelector
+} from "./referenceProvider";
+import {
   createNuiChoiceQuickFixApplyHandler,
   createNuiChoiceQuickFixProvider,
   nuiChoiceQuickFixSelector,
@@ -321,6 +325,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     nuiRenameSelector,
     createNuiRenameProvider(languageAnalysisSessionFor)
   );
+  const referenceProvider = vscode.languages.registerReferenceProvider(
+    nuiReferenceSelector,
+    createNuiReferenceProvider(languageAnalysisSessionFor)
+  );
   const choiceQuickFixProvider = vscode.languages.registerCodeActionsProvider(
     nuiChoiceQuickFixSelector,
     createNuiChoiceQuickFixProvider(languageAnalysisSessionFor),
@@ -339,6 +347,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     completionProvider,
     definitionProvider,
     renameProvider,
+    referenceProvider,
     choiceQuickFixProvider,
     foldingProvider
   );

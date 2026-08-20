@@ -19,11 +19,13 @@ describe("VS Code document-scoped language analysis session", () => {
     session.getDiagnostics();
     session.completionSemanticSnapshot(sourceSnapshotFor(validSource, 1));
     session.definitionSemanticSnapshot(sourceSnapshotFor(validSource, 1));
+    session.referencesSemanticSnapshot(sourceSnapshotFor(validSource, 1));
     session.renameSemanticSnapshot(sourceSnapshotFor(validSource, 1));
     session.replaceSource("nui 4\npoint B = coordinate(x: 0, y: 1)\n");
     session.getDiagnostics();
     session.completionSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
     session.definitionSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
+    session.referencesSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
     session.renameSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
 
     expect(fromSource).toHaveBeenCalledTimes(1);
@@ -48,6 +50,11 @@ describe("VS Code document-scoped language analysis session", () => {
       compiled: expect.any(Object)
     });
     expect(valid.definitionSemanticSnapshot(sourceSnapshotFor(validSource, 1))).toMatchObject({
+      sourceRevision: 1,
+      sourceText: validSource,
+      compiled: expect.any(Object)
+    });
+    expect(valid.referencesSemanticSnapshot(sourceSnapshotFor(validSource, 1))).toMatchObject({
       sourceRevision: 1,
       sourceText: validSource,
       compiled: expect.any(Object)
@@ -190,6 +197,7 @@ describe("VS Code document-scoped language analysis session", () => {
 
     expect(session.completionSemanticSnapshot(staleRevision)).toBeUndefined();
     expect(session.definitionSemanticSnapshot(staleRevision)).toBeUndefined();
+    expect(session.referencesSemanticSnapshot(staleRevision)).toBeUndefined();
     expect(session.renameSemanticSnapshot(staleRevision)).toBeUndefined();
   });
 

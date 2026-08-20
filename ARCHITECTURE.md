@@ -175,9 +175,16 @@ Representative owners:
 - `src/dsl/lexicalScopeIndexAdapter.ts`
 - `src/dsl/sourceLexicalNamespaceIndex.ts`
 - `src/dsl/dslReferenceTokens.ts`
+- `src/dsl/dslSemanticOccurrenceIndex.ts`
+- `src/dsl/dslDefinitionQuery.ts`
+- `src/dsl/dslRenameQuery.ts`
+- `src/dsl/dslReferencesQuery.ts`
 
 既存 lexical / source namespace resolution が owner。同じ semantic concept の
-second resolver を作らない。
+second resolver を作らない。Definition、Rename、References の source
+occurrence enumeration は `dslSemanticOccurrenceIndex.ts` が compiler-resolved
+identity と exact physical range を共有し、各 query がそれぞれの safety
+policy を持つ。
 
 ### Typed scalar expressions
 
@@ -367,6 +374,7 @@ Primary:
 - `vscode-extension/src/languageAnalysisSession.ts`
 - `vscode-extension/src/completionProvider.ts`
 - `vscode-extension/src/definitionProvider.ts`
+- `vscode-extension/src/referenceProvider.ts`
 - `vscode-extension/src/renameProvider.ts`
 - `vscode-extension/src/choiceQuickFixProvider.ts`
 - `vscode-extension/src/rustEvaluationProcessOwner.ts`
@@ -448,7 +456,7 @@ relay, TextDocument edit bridge, and URI-scoped language analysis sessions.
 
 The extension keeps one `NuiLanguageAnalysisSession` and one production
 `AutomationDocument` per supported document URI. Diagnostics, native
-completion, and native definition navigation share that session:
+completion, definition navigation, rename, and references share that session:
 
 ```text
 VS Code TextDocument
@@ -456,6 +464,7 @@ VS Code TextDocument
 ├→ compiler diagnostics → DiagnosticCollection
 ├→ queryDslCompletion → CompletionItemProvider
 ├→ queryDslDefinition → DefinitionProvider
+├→ queryDslReferences → ReferenceProvider
 ├→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
 └→ current invalid-choice diagnostic → typedVariableQuickFixes choice-replacement subset
    → CodeActionProvider → guarded internal apply command → WorkspaceEdit
@@ -471,10 +480,12 @@ truncation remain owned by the production query. `definitionProvider.ts` keeps
 the VS Code adapter thin: it synchronizes the current `TextDocument`, converts
 UTF-16 raw offsets across CRLF normalization, delegates semantic resolution to
 `queryDslDefinition`, and projects its exact ranges to a same-document
-`DefinitionLink`. Rename target and edit-plan projection similarly remain
-host-neutral; VS Code `RenameProvider` registration is an adapter boundary,
-not a second rename resolver. Neither diagnostics, completion, definition
-navigation, rename planning, nor choice Quick Fix generation performs runtime
+`DefinitionLink`. `referenceProvider.ts` uses the same session/current-source
+flow and delegates to `queryDslReferences`, returning deterministic
+same-document `Location`s. Rename target and edit-plan projection similarly
+remain host-neutral; VS Code `RenameProvider` and `ReferenceProvider`
+registrations are adapter boundaries, not second resolvers. Neither diagnostics,
+completion, definition navigation, references, rename planning, nor choice Quick Fix generation performs runtime
 evaluation or starts the Rust process. Choice Quick Fix reuses the current
 compiler invalid-choice diagnostic and the existing `typedVariableQuickFixes`
 choice-replacement descriptors; it does not use the CodeMirror adapter. The
