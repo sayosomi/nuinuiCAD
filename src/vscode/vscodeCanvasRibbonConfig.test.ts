@@ -5,8 +5,6 @@ import {
   patchVscodeCanvasRibbonPosition
 } from "./vscodeCanvasRibbonConfig";
 import {
-  commandRibbonIconColors,
-  commandRibbonIconColorValues,
   commandRibbonIconSizes
 } from "../commandRibbons/commandRibbonVisuals";
 import {
@@ -54,7 +52,7 @@ describe("VS Code Canvas Ribbon configuration", () => {
             type: "command",
             commandId: "workbench.action.files.openFile",
             icon: "not-a-lucide-icon",
-            iconColor: "not-a-color",
+            iconColor: "legacy-amber",
             showLabel: true
           },
           {
@@ -95,13 +93,13 @@ describe("VS Code Canvas Ribbon configuration", () => {
     expect(ribbons[0]?.items[0]).toMatchObject({
       commandId: "workbench.action.files.openFile",
       icon: "not-a-lucide-icon",
-      iconColor: "default",
       showLabel: true
     });
+    expect(ribbons[0]?.items[0]).not.toHaveProperty("iconColor");
     expect(ribbons[1]).toMatchObject({ id: "second", x: 10, y: 21, orientation: "vertical", iconSize: 20 });
   });
 
-  it("accepts only the fixed icon sizes and color names", () => {
+  it("accepts only the fixed icon sizes and ignores legacy iconColor input", () => {
     for (const iconSize of commandRibbonIconSizes) {
       expect(normalizeVscodeCanvasRibbons([{
         id: `size-${iconSize}`,
@@ -111,29 +109,25 @@ describe("VS Code Canvas Ribbon configuration", () => {
     }
     expect(normalizeVscodeCanvasRibbons([{ id: "invalid-size", items: [], iconSize: 22 }])[0]?.iconSize).toBe(16);
 
-    for (const iconColor of commandRibbonIconColors) {
-      expect(normalizeVscodeCanvasRibbons([{
-        id: `color-${iconColor}`,
-        items: [{ id: "command", type: "command", commandId: "resetCanvasView", icon: "circle", iconColor, showLabel: false }]
-      }])[0]?.items[0]).toMatchObject({ iconColor });
-    }
-    expect(normalizeVscodeCanvasRibbons([{
-      id: "invalid-color",
-      items: [{ id: "command", type: "command", commandId: "resetCanvasView", icon: "circle", iconColor: "#0f766e", showLabel: false }]
-    }])[0]?.items[0]).toMatchObject({ iconColor: "default" });
-
-    expect(commandRibbonIconColorValues).toEqual({
-      default: "currentColor",
-      teal: "#0f766e",
-      blue: "#2563eb",
-      green: "#15803d",
-      amber: "#b7791f",
-      orange: "#c2410c",
-      red: "#dc2626",
-      pink: "#db2777",
-      purple: "#7c3aed",
-      slate: "#475569"
+    const normalized = normalizeVscodeCanvasRibbons([{
+      id: "legacy-color",
+      items: [{
+        id: "command",
+        type: "command",
+        commandId: "resetCanvasView",
+        icon: "circle",
+        iconColor: "#0f766e",
+        showLabel: false
+      }]
+    }]);
+    expect(normalized[0]?.items[0]).toEqual({
+      id: "command",
+      type: "command",
+      commandId: "resetCanvasView",
+      icon: "circle",
+      showLabel: false
     });
+    expect(normalized[0]?.items[0]).not.toHaveProperty("iconColor");
   });
 
   it("keeps the closed Ribbon command catalog separate from shared CommandId", () => {
@@ -164,7 +158,14 @@ describe("VS Code Canvas Ribbon configuration", () => {
       y: 12,
       orientation: "horizontal",
       iconSize: 16,
-      items: [{ id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: false }],
+      items: [{
+        id: "edit",
+        type: "command",
+        commandId: "editCanvasRibbon",
+        icon: "settings-2",
+        iconColor: "legacy-amber",
+        showLabel: false
+      }],
       futureRibbonField: { keep: true }
     }, {
       id: "two",
@@ -179,11 +180,13 @@ describe("VS Code Canvas Ribbon configuration", () => {
       malformedFutureField: true,
       items: "not-an-array"
     }];
-    expect(patchVscodeCanvasRibbonPosition(current, "one", 24.5, 36.25)).toEqual([
+    const patched = patchVscodeCanvasRibbonPosition(current, "one", 24.5, 36.25);
+    expect(patched).toEqual([
       { ...current[0], x: 24.5, y: 36.25 },
       current[1],
       current[2]
     ]);
+    expect((patched?.[0] as { items: Array<Record<string, unknown>> }).items[0]?.iconColor).toBe("legacy-amber");
     expect(patchVscodeCanvasRibbonPosition(current, "one", Number.NaN, 36)).toBeNull();
     expect(patchVscodeCanvasRibbonPosition(current, "one", Number.POSITIVE_INFINITY, 36)).toBeNull();
     expect(patchVscodeCanvasRibbonPosition(current, "missing", 24, 36)).toBeNull();

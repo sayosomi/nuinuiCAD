@@ -185,7 +185,6 @@
                             "type": { "const": "command" },
                             "commandId": { "type": "string", "minLength": 1 },
                             "icon": { "type": "string", "minLength": 1 },
-                            "iconColor": { "enum": ["default", "teal", "blue", "green", "amber", "orange", "red", "pink", "purple", "slate"] },
                             "label": { "type": "string" },
                             "showLabel": { "type": "boolean" }
                           }

@@ -115,7 +115,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(onEditCanvasRibbon).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the VS Code side-handle presentation and theme icon color for vertical Ribbons", () => {
+  it("uses the VS Code side-handle presentation and inherited currentColor for vertical Ribbons", () => {
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
     const ribbons: VscodeCanvasRibbon[] = [{
       id: "vertical-ribbon",
@@ -129,7 +129,6 @@ describe("VSCodeDrawingCanvas adapter", () => {
         type: "command",
         commandId: "editCanvasRibbon",
         icon: "settings-2",
-        iconColor: "amber",
         showLabel: true
       }]
     }];
@@ -141,9 +140,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(view.container.querySelector(".command-ribbon")).toHaveClass("is-vertical", "has-side-handle");
     expect(view.container.querySelector(".command-ribbon")?.children).toHaveLength(2);
     expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(1);
-    expect(view.container.querySelector("svg")).toHaveStyle({
-      color: "var(--vscode-canvas-ribbon-icon-amber)"
-    });
+    expect(view.container.querySelector("svg")?.getAttribute("style")).toMatch(/color:\s*currentcolor/i);
   });
 
   it("keeps preview mutations in the Webview and sends one canonical source after each commit", () => {

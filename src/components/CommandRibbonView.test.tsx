@@ -56,6 +56,7 @@ describe("CommandRibbonView", () => {
     const unavailable = screen.getByRole("button", { name: "Unavailable" });
     expect(unavailable).not.toBeDisabled();
     expect(unavailable).toHaveAttribute("aria-disabled", "true");
+    expect(unavailable.querySelector("svg")?.getAttribute("style")).toMatch(/color:\s*currentcolor/i);
     fireEvent.click(unavailable);
     fireEvent.keyDown(unavailable, { key: "Enter" });
     expect(onCommand).not.toHaveBeenCalled();
@@ -72,6 +73,8 @@ describe("CommandRibbonView", () => {
     const ribbon = screenView.container.querySelector(".command-ribbon");
     expect(ribbon).toHaveClass("is-vertical");
     expect(screen.getByRole("button", { name: "Names" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Names" }).querySelector("svg")?.getAttribute("style"))
+      .toMatch(/color:\s*currentcolor/i);
     expect(screen.getByRole("status", { name: "Zoom: 1.23 px/mm" })).toBeInTheDocument();
 
     const names = screen.getByRole("button", { name: "Names" });

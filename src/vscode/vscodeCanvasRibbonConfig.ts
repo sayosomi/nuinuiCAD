@@ -1,8 +1,5 @@
-import {
-  commandRibbonIconColors,
-  commandRibbonIconSizes
-} from "../commandRibbons/commandRibbonVisuals";
-import type { CommandRibbonIconColor, CommandRibbonIconSize } from "../commandRibbons/commandRibbonVisuals";
+import { commandRibbonIconSizes } from "../commandRibbons/commandRibbonVisuals";
+import type { CommandRibbonIconSize } from "../commandRibbons/commandRibbonVisuals";
 
 export const VSCODE_CANVAS_RIBBON_SETTING = "nuinuiCAD.canvasRibbon.ribbons";
 
@@ -16,7 +13,6 @@ export type VscodeCanvasRibbonCommandItem = {
   type: "command";
   commandId: string;
   icon: string;
-  iconColor?: CommandRibbonIconColor;
   label?: string;
   showLabel: boolean;
 };
@@ -62,8 +58,6 @@ export const defaultVscodeCanvasRibbons = (): VscodeCanvasRibbon[] => [
   }
 ];
 
-export const VSCODE_CANVAS_RIBBON_SAFE_ICON_COLOR: CommandRibbonIconColor = "default";
-
 const isObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -85,12 +79,6 @@ const normalizeIconSize = (value: unknown): CommandRibbonIconSize => {
     : VSCODE_CANVAS_RIBBON_DEFAULT_ICON_SIZE;
 };
 
-const isAllowedIconColor = (value: unknown): value is CommandRibbonIconColor =>
-  typeof value === "string" && (commandRibbonIconColors as readonly string[]).includes(value);
-
-const normalizeIconColor = (value: unknown): CommandRibbonIconColor =>
-  isAllowedIconColor(value) ? value : VSCODE_CANVAS_RIBBON_SAFE_ICON_COLOR;
-
 const normalizeCommandItem = (value: unknown): VscodeCanvasRibbonCommandItem | null => {
   if (!isObject(value)) return null;
   const id = nonEmptyString(value.id);
@@ -103,7 +91,6 @@ const normalizeCommandItem = (value: unknown): VscodeCanvasRibbonCommandItem | n
     type: "command",
     commandId,
     icon,
-    iconColor: normalizeIconColor(value.iconColor),
     ...(label ? { label } : {}),
     showLabel: value.showLabel === true
   };

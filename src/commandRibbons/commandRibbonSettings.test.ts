@@ -3,7 +3,8 @@ import {
   defaultCommandRibbonSettings,
   loadCommandRibbonSettings,
   normalizeCommandRibbonSettings,
-  saveCommandRibbonSettings
+  saveCommandRibbonSettings,
+  commandRibbonIconColorValues
 } from "./commandRibbonSettings";
 
 beforeEach(() => {
@@ -11,6 +12,21 @@ beforeEach(() => {
 });
 
 describe("commandRibbonSettings", () => {
+  it("keeps the Tauri semantic icon color constants unchanged", () => {
+    expect(commandRibbonIconColorValues).toEqual({
+      default: "currentColor",
+      teal: "#0f766e",
+      blue: "#2563eb",
+      green: "#15803d",
+      amber: "#b7791f",
+      orange: "#c2410c",
+      red: "#dc2626",
+      pink: "#db2777",
+      purple: "#7c3aed",
+      slate: "#475569"
+    });
+  });
+
   it("loads the default ribbon when no browser setting exists", async () => {
     const settings = await loadCommandRibbonSettings();
 

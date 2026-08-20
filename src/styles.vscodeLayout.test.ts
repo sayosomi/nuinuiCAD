@@ -30,13 +30,18 @@ describe("shared stylesheet host layout ownership", () => {
     expect(vscodeCanvasWebviewBody).toMatch(/overflow:\s*hidden/);
   });
 
-  it("uses theme-aware VS Code Ribbon icon variables and a side handle for vertical Ribbons", () => {
+  it("uses inherited VS Code Ribbon colors, disabled foreground, and a side handle", () => {
     const vscodeWebview = ruleBody(".vscode-canvas-webview");
-    for (const color of ["teal", "blue", "green", "amber", "orange", "red", "pink", "purple", "slate"]) {
-      expect(vscodeWebview).toContain(`--vscode-canvas-ribbon-icon-${color}:`);
-    }
-    expect(vscodeWebview).toContain("--vscode-charts-");
-    expect(vscodeWebview).toContain("--vscode-terminal-ansi");
+    expect(vscodeWebview).toContain("--vscode-canvas-ribbon-foreground:");
+    expect(stylesheet).not.toContain("--vscode-canvas-ribbon-icon-");
+    expect(stylesheet).not.toContain("--vscode-charts-");
+    expect(stylesheet).not.toContain("--vscode-terminal-ansi");
+    expect(stylesheet).toMatch(
+      /\.vscode-canvas-webview \.command-ribbon-handle,\s*\.vscode-canvas-webview \.command-ribbon-button,\s*\.vscode-canvas-webview \.command-ribbon-value\s*\{\s*color:\s*var\(--vscode-canvas-ribbon-foreground\)/
+    );
+
+    const disabledCommand = ruleBody('.vscode-canvas-webview .command-ribbon-button[aria-disabled="true"]');
+    expect(disabledCommand).toMatch(/color:\s*var\(--vscode-canvas-ribbon-disabled\)/);
 
     const sideHandleRibbon = ruleBody(".vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle");
     expect(sideHandleRibbon).toMatch(/flex-direction:\s*row/);

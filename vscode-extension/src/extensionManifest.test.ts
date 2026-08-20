@@ -167,9 +167,7 @@ describe("VS Code Canvas Ribbon configuration contribution", () => {
     const commandSchema = itemSchema?.oneOf?.find((schema) => schema.properties?.type?.const === "command");
     const valueSchema = itemSchema?.oneOf?.find((schema) => schema.properties?.type?.const === "value");
     expect(ribbonSchema?.properties?.iconSize).toEqual({ enum: [14, 16, 18, 20, 24] });
-    expect(commandSchema?.properties?.iconColor).toEqual({
-      enum: ["default", "teal", "blue", "green", "amber", "orange", "red", "pink", "purple", "slate"]
-    });
+    expect(commandSchema?.properties?.iconColor).toBeUndefined();
     expect(commandSchema?.properties?.commandId).toBeDefined();
     expect(valueSchema?.properties?.valueId).toEqual({ const: "canvasZoom" });
   });
