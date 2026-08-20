@@ -34,10 +34,10 @@ export type DslDocumentSymbolQueryInput = {
   sourceMap: LogicalStatementSourceMap;
 };
 
-type StructuralSymbolKind = "moduleDefinition" | "group" | "conditionalGroup" | "forGroup";
+type StructuralSymbolKind = "moduleDefinition" | "modifierDefinition" | "group" | "conditionalGroup" | "forGroup";
 
 const structuralSymbolKindOf = (statement: DslStatement): StructuralSymbolKind | null => {
-  if (statement.kind === "moduleDefinition" || statement.kind === "group") return statement.kind;
+  if (statement.kind === "moduleDefinition" || statement.kind === "modifierDefinition" || statement.kind === "group") return statement.kind;
   if (statement.kind !== "element") return null;
   return statement.type === "conditionalGroup" || statement.type === "forGroup"
     ? statement.type
@@ -117,7 +117,7 @@ const leafSymbolFor = (
       : null;
   }
   if (statement.kind === "group") {
-    const selectionRange = symbolNameSelectionRange(statement, source) ?? keywordSelectionRange(statement, source);
+    const selectionRange = symbolNameSelectionRange(statement, source);
     return selectionRange
       ? {
           name: statement.name,

@@ -86,6 +86,38 @@ describe("DSL document symbol query", () => {
     expect(symbols.some((symbol) => symbol.name === "Draft")).toBe(false);
   });
 
+  it("uses the matching closing brace for modifier ranges and excludes override rows", () => {
+    const source = [
+      "nui 4",
+      "modifier Seam {",
+      "  state: visible,",
+      "  for @Print {",
+      "    width: 1px,",
+      "  }",
+      "}",
+    ].join("\n");
+
+    const symbols = symbolsFor(source);
+    const modifier = symbolNamed(symbols, "Seam");
+    const closeStart = source.lastIndexOf("}");
+
+    expect(modifier.range).toEqual({ from: source.indexOf("modifier Seam"), to: closeStart + 1 });
+    expect(modifier.children).toEqual([]);
+    expect(symbols.map((symbol) => symbol.name)).toEqual(["Seam"]);
+  });
+
+  it("extends an unclosed modifier range to the current EOF", () => {
+    const source = [
+      "nui 4",
+      "modifier Seam {",
+      "  state: visible,",
+    ].join("\n");
+
+    const modifier = symbolNamed(symbolsFor(source), "Seam");
+
+    expect(modifier.range).toEqual({ from: source.indexOf("modifier Seam"), to: source.length });
+  });
+
   it("never treats modifier profile `for @Profile` as an iteration namespace", () => {
     const source = [
       "nui 4",
@@ -181,6 +213,18 @@ describe("DSL document symbol query", () => {
     const group = symbolsFor(source)[0]!;
 
     expect(group.range).toEqual({ from: 0, to: source.length });
+  });
+
+  it("omits a malformed nameless group while retaining its safely projectable descendant", () => {
+    const source = [
+      "group {",
+      "  point P = coordinate(x: 0, y: 0)"
+    ].join("\n");
+
+    const symbols = symbolsFor(source);
+
+    expect(symbols.map((symbol) => symbol.name)).toEqual(["P"]);
+    expect(symbols[0]).toMatchObject({ kind: "property", children: [] });
   });
 
   it("fails closed for every stale source/map/revision combination", () => {
