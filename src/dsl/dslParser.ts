@@ -9,8 +9,8 @@ import type {
 } from "./dslTypes";
 import type {
   DrawingModifierState,
-  DrawingModifierStroke,
   DrawingModifierStrokeStyle,
+  DrawingModifierStrokeColor,
   DrawingModifierThemeRole
 } from "../types/geometry";
 import { isBareDslIdentifierChar, unquoteDslString } from "./dslTokens";
@@ -37,6 +37,7 @@ import {
 } from "./dslModuleParser";
 import { parseDslExportStatement } from "./dslExportParser";
 import { isCompilableDslStatement } from "./dslCompilationGuard";
+import { parseDslSourceReference } from "./dslReferenceTokens";
 
 /**
  * Statement-leading spellings accepted by this parser. Keeping these constants
@@ -49,6 +50,7 @@ export const dslStatementKeywords = {
   for: "for",
   place: "place",
   role: "role",
+  profile: "profile",
   view: "view",
   activeView: "activeView",
   activePrintLayout: "activePrintLayout",
@@ -125,6 +127,7 @@ const mutationKeywords = new Set<string>([
 
 const nonElementKinds = new Set<DslStatement["kind"]>([
   "role",
+  "profileDeclaration",
   "view",
   "activeView",
   "printLayout",
@@ -136,6 +139,7 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "moduleDefinition",
   "modifierDefinition",
   "modifierProperty",
+  "modifierProfileBlock",
   "moduleInstance",
   "typedDeclaration",
   "set",
@@ -315,7 +319,14 @@ const setStatementToDslStatement = (
 
 type ParsedModifierDefinition = StatementCommonFields & {
   state: DrawingModifierState | null;
-  stroke: DrawingModifierStroke | null;
+  widthPx: number | null;
+  style: DrawingModifierStrokeStyle | null;
+  color: DrawingModifierStrokeColor | null;
+};
+
+type ParsedModifierProfileBlock = StatementCommonFields & {
+  profileName: string;
+  profileNameSpan: DslSpan;
 };
 
 type ParsedModifierProperty = {
@@ -382,7 +393,9 @@ const parseModifierDefinition = (
     payloadSpans: nameSpan.start === nameSpan.end ? {} : { name: nameSpan },
     attrs: [],
     state: null,
-    stroke: null
+    widthPx: null,
+    style: null,
+    color: null
   };
 };
 
@@ -452,49 +465,95 @@ const parseModifierProperty = (
   };
 };
 
-const parseModifierStroke = (
+const parseModifierWidth = (
   value: string,
   diagnostics: DslDiagnostic[],
   line: number
-): DrawingModifierStroke | null => {
-  const parts = value.trim().match(/^(\S+)\s+(\S+)\s+(\S+)$/);
-  if (!parts) {
-    diagnostics.push(diagnostic(line, "modifier の stroke は `<width>px <style> <color>` の形式で指定してください。"));
+): number | null => {
+  const match = value.trim().match(/^(\d+(?:\.\d*)?|\.\d+)px$/);
+  const width = match ? Number(match[1]) : NaN;
+  if (!match || !Number.isFinite(width) || width <= 0) {
+    diagnostics.push(diagnostic(line, "modifier の width は正の有限な10進数pxリテラルで指定してください(例: 1.5px)。"));
     return null;
   }
-  const [, widthToken, styleToken, colorToken] = parts;
-  const widthMatch = widthToken!.match(/^(\d+(?:\.\d*)?|\.\d+)px$/);
-  const width = widthMatch ? Number(widthMatch[1]) : NaN;
-  if (!widthMatch || !Number.isFinite(width) || width <= 0) {
-    diagnostics.push(diagnostic(line, "modifier の stroke 幅は正の有限な10進数で指定してください(例: 1.5px)。"));
-    return null;
-  }
-  if (!modifierStrokeStyles.has(styleToken as DrawingModifierStrokeStyle)) {
-    diagnostics.push(diagnostic(line, "modifier の stroke style は solid / dashed / dotted のいずれかで指定してください。"));
-    return null;
-  }
+  return width;
+};
 
-  const color = colorToken!;
-  if (modifierThemeRoles.has(color as DrawingModifierThemeRole)) {
-    return {
-      widthPx: width,
-      style: styleToken as DrawingModifierStrokeStyle,
-      color: { kind: "themeRole", role: color as DrawingModifierThemeRole }
-    };
+const parseModifierStyle = (
+  value: string,
+  diagnostics: DslDiagnostic[],
+  line: number
+): DrawingModifierStrokeStyle | null => {
+  if (!modifierStrokeStyles.has(value as DrawingModifierStrokeStyle)) {
+    diagnostics.push(diagnostic(line, "modifier の style は solid / dashed / dotted のいずれかで指定してください。"));
+    return null;
   }
-  if (color.startsWith("#")) {
-    if (!modifierFixedColorPattern.test(color)) {
-      diagnostics.push(diagnostic(line, "modifier の stroke 固定色は #RRGGBB の形式で指定してください。"));
+  return value as DrawingModifierStrokeStyle;
+};
+
+const parseModifierColor = (
+  value: string,
+  diagnostics: DslDiagnostic[],
+  line: number
+): DrawingModifierStrokeColor | null => {
+  if (modifierThemeRoles.has(value as DrawingModifierThemeRole)) {
+    return { kind: "themeRole", role: value as DrawingModifierThemeRole };
+  }
+  if (value.startsWith("#")) {
+    if (!modifierFixedColorPattern.test(value)) {
+      diagnostics.push(diagnostic(line, "modifier の color 固定色は #RRGGBB の形式で指定してください。"));
       return null;
     }
-    return {
-      widthPx: width,
-      style: styleToken as DrawingModifierStrokeStyle,
-      color: { kind: "fixed", hex: color.toLowerCase() }
+    return { kind: "fixed", hex: value.toLowerCase() };
+  }
+  diagnostics.push(diagnostic(line, "modifier の color は foreground / muted / accent / info / warning / error または #RRGGBB で指定してください。"));
+  return null;
+};
+
+const parseModifierProfileBlock = (
+  logicalText: string,
+  opensOnNextLine: boolean,
+  diagnostics: DslDiagnostic[],
+  line: number
+): ParsedModifierProfileBlock => {
+  const keyword = "for";
+  const keywordSpan = { start: 0, end: keyword.length };
+  const trimmedEnd = logicalText.trimEnd().length;
+  const inlineBrace = logicalText[trimmedEnd - 1] === "{";
+  const end = inlineBrace ? trimmedEnd - 1 : logicalText.length;
+  let tokenStart = keyword.length;
+  while (tokenStart < end && /\s/.test(logicalText[tokenStart]!)) tokenStart += 1;
+  const raw = logicalText.slice(tokenStart, end).trim();
+  const rawStart = tokenStart + logicalText.slice(tokenStart, end).indexOf(raw);
+  const parsed = parseDslSourceReference(raw);
+  let profileName = "";
+  let profileNameSpan: DslSpan = { start: rawStart, end: rawStart };
+  if (parsed.kind !== "valid") {
+    diagnostics.push(diagnostic(line, `modifier の for は @profile 参照で指定してください: ${parsed.message}`));
+  } else {
+    if (parsed.reference.property) {
+      diagnostics.push(diagnostic(line, "modifier の for 参照には property を指定できません。"));
+    }
+    profileName = parsed.reference.pathText;
+    profileNameSpan = {
+      start: rawStart + parsed.reference.pathRange.start,
+      end: rawStart + parsed.reference.pathRange.end
     };
   }
-  diagnostics.push(diagnostic(line, "modifier の stroke 色は foreground / muted / accent / info / warning / error または #RRGGBB で指定してください。"));
-  return null;
+  if (inlineBrace && trimmedEnd < logicalText.length && logicalText.slice(trimmedEnd).trim()) {
+    diagnostics.push(diagnostic(line, "modifier の for ブロックの「{」の後に余分なトークンがあります。"));
+  }
+  if (!inlineBrace && !opensOnNextLine) diagnostics.push(diagnostic(line, "modifier の for にはブロックが必要です。"));
+  return {
+    name: profileName,
+    nameSpan: profileNameSpan,
+    keywordSpan,
+    opensBlock: inlineBrace || opensOnNextLine,
+    payloadSpans: { profile: profileNameSpan },
+    attrs: [],
+    profileName,
+    profileNameSpan
+  };
 };
 
 const modifierDefinitionToDslStatement = (
@@ -505,7 +564,22 @@ const modifierDefinitionToDslStatement = (
   ...baseFrom(parsed, line, endLine),
   kind: "modifierDefinition",
   state: parsed.state,
-  stroke: parsed.stroke,
+  widthPx: parsed.widthPx,
+  style: parsed.style,
+  color: parsed.color,
+  properties: [],
+  profileBlocks: []
+});
+
+const modifierProfileBlockToDslStatement = (
+  parsed: ParsedModifierProfileBlock,
+  line: number,
+  endLine: number
+): DslStatement => ({
+  ...baseFrom(parsed, line, endLine),
+  kind: "modifierProfileBlock",
+  profileName: parsed.profileName,
+  profileNameSpan: parsed.profileNameSpan,
   properties: []
 });
 
@@ -604,6 +678,42 @@ const fromSet = (
 
 const leadingIdentifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 
+const parseDrawingProfileDeclaration = (
+  logicalText: string,
+  diagnostics: DslDiagnostic[],
+  line: number
+): DslStatement => {
+  const keyword = "profile";
+  const keywordSpan = { start: 0, end: keyword.length };
+  let start = keyword.length;
+  while (start < logicalText.length && /\s/.test(logicalText[start]!)) start += 1;
+  let end = logicalText.length;
+  while (end > start && /\s/.test(logicalText[end - 1]!)) end -= 1;
+  const nameSpan = { start, end };
+  if (start === end) diagnostics.push(diagnostic(line, "profile には名前が必要です。"));
+  else if ([...logicalText.slice(start, end)].some((character) => !isBareDslIdentifierChar(character))) {
+    const rawName = logicalText.slice(start, end);
+    const quoted = (rawName.startsWith("\"") && rawName.endsWith("\"")) ||
+      (rawName.startsWith("'") && rawName.endsWith("'"));
+    if (!quoted) diagnostics.push(diagnostic(line, "profile の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。"));
+  }
+  return {
+    line,
+    endLine: line,
+    name: start === end ? "" : unquoteDslString(logicalText.slice(start, end)),
+    nameSpan: start === end ? null : nameSpan,
+    keywordSpan,
+    opensBlock: false,
+    payloadSpans: start === end ? {} : { name: nameSpan },
+    enclosing: null,
+    attrs: [],
+    sourceRevision: 0,
+    documentRange: { from: 0, to: 0, startLine: line, endLine: line, sourceRevision: 0 },
+    physicalSpan: { segments: [], sourceRevision: 0 },
+    kind: "profileDeclaration"
+  };
+};
+
 const parseLine = (
   logicalText: string,
   line: number,
@@ -627,6 +737,21 @@ const parseLine = (
     return {
       statement: modifierDefinitionToDslStatement(parsed, line, endLine),
       diagnostics: modifierDiagnostics
+    };
+  }
+  if (keyword === dslStatementKeywords.profile) {
+    const profileDiagnostics: DslDiagnostic[] = [];
+    return {
+      statement: parseDrawingProfileDeclaration(logicalText, profileDiagnostics, line),
+      diagnostics: profileDiagnostics
+    };
+  }
+  if (keyword === dslStatementKeywords.for && /^for\s+@/.test(logicalText)) {
+    const profileDiagnostics: DslDiagnostic[] = [];
+    const parsed = parseModifierProfileBlock(logicalText, opensOnNextLine, profileDiagnostics, line);
+    return {
+      statement: modifierProfileBlockToDslStatement(parsed, line, endLine),
+      diagnostics: profileDiagnostics
     };
   }
   if (keyword === dslStatementKeywords.export) {
@@ -674,7 +799,7 @@ const parseLine = (
 
 type BlockFrame = {
   statementIndex: number;
-  kind: "group" | "conditionalGroup" | "forGroup" | "printLayout" | "moduleDefinition" | "modifier";
+  kind: "group" | "conditionalGroup" | "forGroup" | "printLayout" | "moduleDefinition" | "modifier" | "modifierProfile";
   branch: "then" | "else";
   line: number;
 };
@@ -682,6 +807,7 @@ type BlockFrame = {
 export const blockFrameKind = (statement: DslStatement): BlockFrame["kind"] | null => {
   if (statement.kind === "moduleDefinition") return "moduleDefinition";
   if (statement.kind === "modifierDefinition") return "modifier";
+  if (statement.kind === "modifierProfileBlock") return "modifierProfile";
   if (statement.kind === "group") return "group";
   if (statement.kind === "printLayout") return "printLayout";
   if (statement.kind === "element") {
@@ -719,12 +845,20 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
     }
     const top = stack.at(-1);
     const modifierAncestor = stack.some((frame) => frame.kind === "modifier");
-    if (statement.kind === "modifierProperty" && top?.kind !== "modifier") {
-      diagnostics.push(diagnostic(statement.line, "modifier プロパティは modifier ブロック内にのみ書けます。"));
+    if (statement.kind === "profileDeclaration" && statement.enclosing) {
+      diagnostics.push(diagnostic(statement.line, "profile 定義は文書のトップレベルにのみ書けます。"));
+    }
+    const modifierPropertyInBlock = statement.kind === "modifierProperty" &&
+      (top?.kind === "modifier" || top?.kind === "modifierProfile");
+    const modifierProfileInModifier = statement.kind === "modifierProfileBlock" && top?.kind === "modifier";
+    if (statement.kind === "modifierProperty" && !modifierPropertyInBlock) {
+      diagnostics.push(diagnostic(statement.line, "modifier プロパティは modifier または for @profile ブロック内にのみ書けます。"));
+    } else if (statement.kind === "modifierProfileBlock" && !modifierProfileInModifier) {
+      diagnostics.push(diagnostic(statement.line, "modifier の for @profile ブロックは modifier ブロック内にのみ書けます。"));
     } else if (modifierAncestor && statement.kind === "modifierDefinition") {
       diagnostics.push(diagnostic(statement.line, "modifier 定義を別のブロック内にネストできません。"));
-    } else if (modifierAncestor && statement.kind !== "modifierProperty") {
-      diagnostics.push(diagnostic(statement.line, "modifier ブロック内には state / stroke プロパティだけを書けます。"));
+    } else if (modifierAncestor && statement.kind !== "modifierProperty" && statement.kind !== "modifierProfileBlock") {
+      diagnostics.push(diagnostic(statement.line, "modifier ブロック内には state / width / style / color または for @profile だけを書けます。"));
     }
     if (
       top?.kind === "printLayout" &&
@@ -770,12 +904,32 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
         seen.set(definition.name, definition.line);
       }
     }
+    const definitionIndex = statements.indexOf(definition);
     const properties = statements
       .filter((statement): statement is Extract<DslStatement, { kind: "modifierProperty" }> =>
-        statement.kind === "modifierProperty" && statement.enclosing?.statementIndex === statements.indexOf(definition)
+        statement.kind === "modifierProperty" && statement.enclosing?.statementIndex === definitionIndex
       )
       .map((statement) => statement.property);
+    const profileBlocks = statements
+      .filter((statement): statement is Extract<DslStatement, { kind: "modifierProfileBlock" }> =>
+        statement.kind === "modifierProfileBlock" && statement.enclosing?.statementIndex === definitionIndex
+      );
     definition.properties = properties;
+    definition.profileBlocks = profileBlocks.map((block) => ({
+      profileName: block.profileName,
+      profileNameSpan: block.profileNameSpan,
+      profileNamePhysicalSpan: block.profileNamePhysicalSpan,
+      properties: statements
+        .filter((statement): statement is Extract<DslStatement, { kind: "modifierProperty" }> =>
+          statement.kind === "modifierProperty" && statement.enclosing?.statementIndex === statements.indexOf(block)
+        )
+        .map((statement) => statement.property)
+      ,
+      state: null,
+      widthPx: null,
+      style: null,
+      color: null
+    }));
     const propertiesByKey = new Map<string, DslModifierProperty[]>();
     for (const property of properties) {
       const sameKey = propertiesByKey.get(property.key) ?? [];
@@ -787,15 +941,60 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
         diagnostics.push(diagnostic(definition.line, `modifier の ${key} プロパティは1つだけ指定できます。`));
       }
     }
-    if (properties.some((property) => property.key !== "state" && property.key !== "stroke")) {
-      for (const property of properties.filter((item) => item.key !== "state" && item.key !== "stroke")) {
+    const supportedPropertyKeys = new Set(["state", "width", "style", "color"]);
+    if (properties.some((property) => !supportedPropertyKeys.has(property.key))) {
+      for (const property of properties.filter((item) => !supportedPropertyKeys.has(item.key))) {
         diagnostics.push(diagnostic(definition.line, `modifier に未知のプロパティ「${property.key}」があります。`));
       }
     }
+    for (const [blockIndex, block] of profileBlocks.entries()) {
+      const blockEntry = definition.profileBlocks[blockIndex];
+      if (!blockEntry) continue;
+      const blockProperties = statements
+        .filter((statement): statement is Extract<DslStatement, { kind: "modifierProperty" }> =>
+          statement.kind === "modifierProperty" && statement.enclosing?.statementIndex === statements.indexOf(block)
+        )
+        .map((statement) => statement.property);
+      blockEntry.properties = blockProperties;
+      const propertiesByBlockKey = new Map<string, DslModifierProperty[]>();
+      for (const property of blockProperties) {
+        propertiesByBlockKey.set(property.key, [...(propertiesByBlockKey.get(property.key) ?? []), property]);
+      }
+      for (const [key, sameKey] of propertiesByBlockKey) {
+        if (sameKey.length > 1) {
+          diagnostics.push(diagnostic(block.line, `modifier の for @${block.profileName} 内の ${key} プロパティは1つだけ指定できます。`));
+        }
+      }
+      for (const property of blockProperties.filter((item) => !supportedPropertyKeys.has(item.key))) {
+        diagnostics.push(diagnostic(block.line, `modifier の for @${block.profileName} に未知のプロパティ「${property.key}」があります。`));
+      }
+      if (blockProperties.length === 0) {
+        diagnostics.push(diagnostic(block.line, `modifier の for @${block.profileName} にはプロパティが1つ以上必要です。`));
+      }
+      const blockState = propertiesByBlockKey.get("state")?.[0]?.value;
+      if (blockState !== undefined && !modifierStateValues.has(blockState as DrawingModifierState)) {
+        diagnostics.push(diagnostic(block.line, "modifier の for @profile の state は visible / hidden / disabled のいずれかで指定してください。"));
+      } else if (blockEntry) {
+        blockEntry.state = blockState as DrawingModifierState | undefined ?? null;
+      }
+      if (blockEntry) {
+        blockEntry.widthPx = propertiesByBlockKey.get("width")?.[0]
+          ? parseModifierWidth(propertiesByBlockKey.get("width")![0]!.value, diagnostics, block.line)
+          : null;
+        blockEntry.style = propertiesByBlockKey.get("style")?.[0]
+          ? parseModifierStyle(propertiesByBlockKey.get("style")![0]!.value, diagnostics, block.line)
+          : null;
+        blockEntry.color = propertiesByBlockKey.get("color")?.[0]
+          ? parseModifierColor(propertiesByBlockKey.get("color")![0]!.value, diagnostics, block.line)
+          : null;
+      }
+    }
     const stateProperties = propertiesByKey.get("state") ?? [];
-    const strokeProperties = propertiesByKey.get("stroke") ?? [];
-    if (stateProperties.length === 0 && strokeProperties.length === 0) {
-      diagnostics.push(diagnostic(definition.line, "modifier には state または stroke プロパティが1つ以上必要です。"));
+    const widthProperties = propertiesByKey.get("width") ?? [];
+    const styleProperties = propertiesByKey.get("style") ?? [];
+    const colorProperties = propertiesByKey.get("color") ?? [];
+    if (stateProperties.length === 0 && widthProperties.length === 0 && styleProperties.length === 0 && colorProperties.length === 0 && profileBlocks.length === 0) {
+      diagnostics.push(diagnostic(definition.line, "modifier には state / width / style / color または for @profile が1つ以上必要です。"));
     }
     const state = stateProperties[0]?.value;
     if (state !== undefined && !modifierStateValues.has(state as DrawingModifierState)) {
@@ -804,9 +1003,9 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
     } else {
       definition.state = state as DrawingModifierState | undefined ?? null;
     }
-    definition.stroke = strokeProperties[0]
-      ? parseModifierStroke(strokeProperties[0].value, diagnostics, definition.line)
-      : null;
+    definition.widthPx = widthProperties[0] ? parseModifierWidth(widthProperties[0].value, diagnostics, definition.line) : null;
+    definition.style = styleProperties[0] ? parseModifierStyle(styleProperties[0].value, diagnostics, definition.line) : null;
+    definition.color = colorProperties[0] ? parseModifierColor(colorProperties[0].value, diagnostics, definition.line) : null;
   }
 };
 
@@ -863,10 +1062,23 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
   } else if (statement.kind === "modifierProperty") {
     statement.property.keyPhysicalSpan = project(statement.property.keySpan);
     statement.property.valuePhysicalSpan = project(statement.property.valueSpan);
+  } else if (statement.kind === "modifierProfileBlock") {
+    statement.profileNamePhysicalSpan = project(statement.profileNameSpan);
+    for (const property of statement.properties) {
+      property.keyPhysicalSpan = project(property.keySpan);
+      property.valuePhysicalSpan = project(property.valueSpan);
+    }
   } else if (statement.kind === "modifierDefinition") {
     for (const property of statement.properties) {
       property.keyPhysicalSpan = project(property.keySpan);
       property.valuePhysicalSpan = project(property.valueSpan);
+    }
+    for (const block of statement.profileBlocks) {
+      block.profileNamePhysicalSpan = project(block.profileNameSpan);
+      for (const property of block.properties) {
+        property.keyPhysicalSpan = project(property.keySpan);
+        property.valuePhysicalSpan = project(property.valueSpan);
+      }
     }
   } else if (statement.kind === "typedDeclaration") {
     statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;

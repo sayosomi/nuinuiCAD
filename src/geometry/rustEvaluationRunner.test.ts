@@ -75,11 +75,9 @@ describe("rustEvaluationRunner", () => {
       drawingModifiers: [{
         name: "Guide",
         state: "visible" as const,
-        stroke: {
-          widthPx: 1.25,
-          style: "dashed" as const,
-          color: { kind: "themeRole" as const, role: "accent" as const }
-        }
+        widthPx: 1.25,
+        style: "dashed" as const,
+        color: { kind: "themeRole" as const, role: "accent" as const }
       }]
     };
     const prepared = prepareRustEvaluation([{

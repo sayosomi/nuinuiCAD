@@ -21,6 +21,7 @@ fn input(
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: None,
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program,
         binding_versions: None,

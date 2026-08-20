@@ -65,6 +65,8 @@ export type EvaluateElementsOptions = {
   allowDisabledElementIds?: ReadonlySet<ElementId>;
   /** Compiled document-level drawing modifier definitions. */
   drawingModifiers?: readonly DrawingModifierDefinition[];
+  /** Optional selected Drawing Profile; omitted means common modifier properties only. */
+  selectedDrawingProfileId?: string;
   /**
    * Task 19's compiled declaration program. Task 20 evaluates it (via
    * createDocumentScalarBindingResolver) on this TS reference path only -
@@ -191,9 +193,17 @@ export const evaluateElements = (
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const runtimeElementsById = new Map(elementsById);
   const runtimeElements = [...evaluatedElements];
-  const activities = effectiveElementActivityById(elements, options.drawingModifiers);
+  const activities = effectiveElementActivityById(
+    elements,
+    options.drawingModifiers,
+    options.selectedDrawingProfileId
+  );
   const effectiveDrawingModifierStrokes = new Map(
-    effectiveDrawingModifierStrokeById(elements, options.drawingModifiers)
+    effectiveDrawingModifierStrokeById(
+      elements,
+      options.drawingModifiers,
+      options.selectedDrawingProfileId
+    )
   );
   const effectiveVisibleIds = new Set(elements
     .filter((element) => evaluatedElementIds.has(element.id) &&

@@ -2,9 +2,11 @@ import type {
   CadElement,
   CadElementType,
   DocumentPalette,
+  DrawingModifierStrokeColor,
+  DrawingModifierStrokeStyle,
   DrawingModifierDefinition,
-  DrawingModifierStroke,
   DrawingModifierState,
+  DrawingProfile,
   ElementId,
   PrintLayout,
   VisibilityProfile,
@@ -147,6 +149,17 @@ export type DslModifierProperty = {
   valuePhysicalSpan?: DslPhysicalSpan | null;
 };
 
+export type DslModifierProfileBlock = {
+  profileName: string;
+  profileNameSpan: DslSpan;
+  profileNamePhysicalSpan?: DslPhysicalSpan | null;
+  properties: readonly DslModifierProperty[];
+  state: DrawingModifierState | null;
+  widthPx: number | null;
+  style: DrawingModifierStrokeStyle | null;
+  color: DrawingModifierStrokeColor | null;
+};
+
 export type DslStatementBase = {
   line: number;
   /** Final physical source line belonging to this logical statement. */
@@ -177,6 +190,7 @@ export type DslStatementBase = {
 // arcLine/text の7種)はすべて category/construction を持つ "element" へ統合。
 export type DslStatement =
   | (DslStatementBase & { kind: "role" })
+  | (DslStatementBase & { kind: "profileDeclaration" })
   | (DslStatementBase & { kind: "view" })
   | (DslStatementBase & { kind: "activeView" })
   | (DslStatementBase & { kind: "printLayout" })
@@ -187,7 +201,17 @@ export type DslStatement =
   | (DslStatementBase & {
       kind: "modifierDefinition";
       state: DrawingModifierState | null;
-      stroke: DrawingModifierStroke | null;
+      widthPx: number | null;
+      style: DrawingModifierStrokeStyle | null;
+      color: DrawingModifierStrokeColor | null;
+      properties: readonly DslModifierProperty[];
+      profileBlocks: readonly DslModifierProfileBlock[];
+    })
+  | (DslStatementBase & {
+      kind: "modifierProfileBlock";
+      profileName: string;
+      profileNameSpan: DslSpan;
+      profileNamePhysicalSpan?: DslPhysicalSpan | null;
       properties: readonly DslModifierProperty[];
     })
   | (DslStatementBase & {
@@ -293,6 +317,7 @@ export type CompileDslContext = {
 export type CompileDslResult = {
   elements: CadElement[];
   modifiers?: DrawingModifierDefinition[];
+  drawingProfiles?: DrawingProfile[];
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
   visibilityRoles?: VisibilityRole[];

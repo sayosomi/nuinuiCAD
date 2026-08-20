@@ -37,6 +37,7 @@ fn state_with_geometry(
         },
         elements_by_id,
         drawing_modifiers: serde_json::json!([]),
+        selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([(id.to_owned(), geometry)]),
         computed_geometry_order: vec![id.to_owned()],

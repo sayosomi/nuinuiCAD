@@ -1,6 +1,7 @@
 import type {
   CadElementType,
   DrawingModifierDefinition,
+  DrawingModifierProperties,
   DrawingModifierStroke,
   ElementId
 } from "../types/geometry";
@@ -43,38 +44,61 @@ const modifierOwnersFor = <T extends ActivityElement>(
   return owners;
 };
 
+const defaultDrawingModifierProperties: Required<Pick<DrawingModifierStroke, "widthPx" | "style" | "color">> = {
+  widthPx: 1,
+  style: "solid",
+  color: { kind: "themeRole", role: "foreground" }
+};
+
 const copyDrawingModifierStroke = (stroke: DrawingModifierStroke): DrawingModifierStroke => ({
   ...stroke,
   color: { ...stroke.color }
 });
 
+const modifierContributionFor = (
+  modifier: DrawingModifierDefinition,
+  selectedDrawingProfileId?: string
+): DrawingModifierProperties => {
+  const delta = selectedDrawingProfileId
+    ? modifier.profileDeltas?.find((candidate) => candidate.profileId === selectedDrawingProfileId)
+    : undefined;
+  return {
+    ...modifier,
+    ...(delta ?? {})
+  };
+};
+
 /**
- * Resolves only the explicit stroke property of drawing modifiers. State and
- * stroke are intentionally independent properties: a state-only modifier does
- * not clear a stroke inherited from an outer owner, and a stroke-only modifier
- * does not affect activity.
+ * Resolves the split drawing properties through the same owner and modifier
+ * cascade used by activity. State and style properties remain independent: a
+ * state-only contribution does not clear width/style/color inherited earlier.
  */
 export const effectiveDrawingModifierStrokeById = <T extends ActivityElement>(
   elements: readonly T[],
-  drawingModifiers: readonly DrawingModifierDefinition[] = []
+  drawingModifiers: readonly DrawingModifierDefinition[] = [],
+  selectedDrawingProfileId?: string
 ): ReadonlyMap<ElementId, DrawingModifierStroke> => {
   const byId = new Map(elements.map((element) => [element.id, element]));
-  const strokeByName = new Map(
-    drawingModifiers.flatMap((modifier) => modifier.stroke
-      ? [[modifier.name, modifier.stroke] as const]
-      : [])
-  );
+  const modifierByName = new Map(drawingModifiers.map((modifier) => [modifier.name, modifier] as const));
   const effectiveStrokes = new Map<ElementId, DrawingModifierStroke>();
 
   for (const element of elements) {
-    let winningStroke: DrawingModifierStroke | undefined;
+    let hasModifier = false;
+    let widthPx = defaultDrawingModifierProperties.widthPx;
+    let style = defaultDrawingModifierProperties.style;
+    let color = defaultDrawingModifierProperties.color;
     for (const owner of modifierOwnersFor(element, byId)) {
       for (const modifierName of owner.modifierNames ?? []) {
-        const stroke = strokeByName.get(modifierName);
-        if (stroke) winningStroke = stroke;
+        const modifier = modifierByName.get(modifierName);
+        if (!modifier) continue;
+        hasModifier = true;
+        const contribution = modifierContributionFor(modifier, selectedDrawingProfileId);
+        if (contribution.widthPx !== undefined) widthPx = contribution.widthPx;
+        if (contribution.style !== undefined) style = contribution.style;
+        if (contribution.color !== undefined) color = { ...contribution.color };
       }
     }
-    if (winningStroke) effectiveStrokes.set(element.id, copyDrawingModifierStroke(winningStroke));
+    if (hasModifier) effectiveStrokes.set(element.id, copyDrawingModifierStroke({ widthPx, style, color }));
   }
   return effectiveStrokes;
 };
@@ -115,10 +139,11 @@ export const nextElementActivity = (
  */
 export const effectiveElementActivityById = <T extends ActivityElement>(
   elements: readonly T[],
-  drawingModifiers: readonly DrawingModifierDefinition[] = []
+  drawingModifiers: readonly DrawingModifierDefinition[] = [],
+  selectedDrawingProfileId?: string
 ): ReadonlyMap<ElementId, EffectiveElementActivity> => {
   const byId = new Map(elements.map((element) => [element.id, element]));
-  const modifierStateByName = new Map(drawingModifiers.map((modifier) => [modifier.name, modifier.state] as const));
+  const modifierByName = new Map(drawingModifiers.map((modifier) => [modifier.name, modifier] as const));
   const directCache = new Map<ElementId, EffectiveElementActivity>();
   const cache = new Map<ElementId, EffectiveElementActivity>();
 
@@ -153,7 +178,9 @@ export const effectiveElementActivityById = <T extends ActivityElement>(
     let winning: { activity: ElementActivity; ownerId: ElementId } | undefined;
     for (const owner of modifierOwnersFor(element, byId)) {
       for (const modifierName of owner.modifierNames ?? []) {
-        const activity = modifierStateByName.get(modifierName);
+        const modifier = modifierByName.get(modifierName);
+        if (!modifier) continue;
+        const activity = modifierContributionFor(modifier, selectedDrawingProfileId).state;
         if (activity !== undefined) winning = { activity, ownerId: owner.id };
       }
     }
@@ -185,9 +212,10 @@ export const effectiveElementActivity = <T extends ActivityElement>(
 
 export const effectiveDrawElementIds = <T extends ActivityElement>(
   elements: readonly T[],
-  drawingModifiers: readonly DrawingModifierDefinition[] = []
+  drawingModifiers: readonly DrawingModifierDefinition[] = [],
+  selectedDrawingProfileId?: string
 ) => {
-  const activities = effectiveElementActivityById(elements, drawingModifiers);
+  const activities = effectiveElementActivityById(elements, drawingModifiers, selectedDrawingProfileId);
   return new Set(elements.filter((element) =>
     activityAllowsDrawing(effectiveElementActivity(element, activities).activity)
   ).map((element) => element.id));
@@ -195,9 +223,10 @@ export const effectiveDrawElementIds = <T extends ActivityElement>(
 
 export const effectiveEvaluationElementIds = <T extends ActivityElement>(
   elements: readonly T[],
-  drawingModifiers: readonly DrawingModifierDefinition[] = []
+  drawingModifiers: readonly DrawingModifierDefinition[] = [],
+  selectedDrawingProfileId?: string
 ) => {
-  const activities = effectiveElementActivityById(elements, drawingModifiers);
+  const activities = effectiveElementActivityById(elements, drawingModifiers, selectedDrawingProfileId);
   return new Set(elements.filter((element) =>
     activityAllowsEvaluation(effectiveElementActivity(element, activities).activity)
   ).map((element) => element.id));

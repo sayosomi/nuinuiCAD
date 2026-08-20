@@ -2,7 +2,7 @@ use super::types::{
     BuiltinArgumentType, BuiltinFunctionName, GeometryInterfaceType,
     ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument,
 };
-use crate::evaluation::activity::{effective_activity_by_element_id, ElementActivity};
+use crate::evaluation::activity::{effective_activity_by_element_id_with_profile, ElementActivity};
 use crate::evaluation::point_anchor::{
     point_from_geometry, point_from_value, resolve_derived_point,
 };
@@ -67,8 +67,11 @@ pub(crate) fn resolve_geometry_builtin_target(
     {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
     }
-    let activities =
-        effective_activity_by_element_id(&state.elements, Some(&state.drawing_modifiers));
+    let activities = effective_activity_by_element_id_with_profile(
+        &state.elements,
+        Some(&state.drawing_modifiers),
+        state.selected_drawing_profile_id.as_deref(),
+    );
     if activities
         .get(&target.statement_id)
         .is_some_and(|activity| activity.activity == ElementActivity::Disabled)

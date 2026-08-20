@@ -1,0 +1,25 @@
+nui 4
+
+profile Print
+
+modifier Guide {
+  width: 1px,
+  style: solid,
+  color: foreground,
+  for @Print {
+    width: 0.5px,
+    style: dashed,
+    color: warning,
+  }
+}
+
+modifier DisableInPrint {
+  state: visible,
+  for @Print {
+    state: disabled,
+  }
+}
+
+point Styled [Guide] = coordinate(x: 0, y: 0)
+point Disabled [DisableInPrint] = coordinate(x: 10, y: 0)
+point Dependent = offset(from: @Disabled, dx: 1, dy: 0)

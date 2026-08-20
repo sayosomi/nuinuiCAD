@@ -6,7 +6,10 @@ import type {
   CadElement,
   CadElementType,
   DocumentPalette,
+  DrawingModifierProperties,
   DrawingModifierDefinition,
+  DrawingModifierProfileDelta,
+  DrawingProfile,
   ElementId,
   PaletteColor,
   PrintLayout,
@@ -20,7 +23,16 @@ import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isCompilableDslStatement, type DslStatementInclusion } from "./dslCompilationGuard";
 import { isElementDslStatement, parseDsl } from "./dslParser";
 import { createNameIndex, resolveId, type NameIndex } from "./dslReferences";
-import type { CompileDslContext, CompileDslResult, DslAttribute, DslDiagnostic, DslStatement } from "./dslTypes";
+import { parseDslReferenceToken } from "./dslReferenceTokens";
+import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
+import type {
+  CompileDslContext,
+  CompileDslResult,
+  DslAttribute,
+  DslDiagnostic,
+  DslModifierProfileBlock,
+  DslStatement
+} from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 import type { DslMajorVersion } from "./dslVersion";
 import { materializeModuleExecution } from "./moduleMaterialization";
@@ -69,16 +81,90 @@ const warning = (line: number, message: string): DslDiagnostic => ({
   message
 });
 
-const modifierDefinitionsFromStatements = (statements: readonly DslStatement[]): DrawingModifierDefinition[] =>
-  statements.flatMap((statement) =>
-    statement.kind === "modifierDefinition" && !statement.enclosing && (statement.state || statement.stroke)
-      ? [{
-          name: statement.name,
-          ...(statement.state ? { state: statement.state } : {}),
-          ...(statement.stroke ? { stroke: statement.stroke } : {})
-        }]
-      : []
+const modifierPropertiesFrom = (
+  statement: Extract<DslStatement, { kind: "modifierDefinition" }> | DslModifierProfileBlock
+): DrawingModifierProperties => ({
+  ...(statement.state ? { state: statement.state } : {}),
+  ...(statement.widthPx !== null ? { widthPx: statement.widthPx } : {}),
+  ...(statement.style ? { style: statement.style } : {}),
+  ...(statement.color ? { color: statement.color } : {})
+});
+
+const modifierDefinitionsFromStatements = (
+  statements: readonly DslStatement[],
+  sourceNamespace: SourceLexicalNamespaceIndex | undefined,
+  diagnostics: DslDiagnostic[]
+): DrawingModifierDefinition[] => statements.flatMap((statement, statementIndex) => {
+  if (statement.kind !== "modifierDefinition" || statement.enclosing) return [];
+  const common = modifierPropertiesFrom(statement);
+  const profileDeltas: DrawingModifierProfileDelta[] = [];
+  const blockStatements = statements.filter(
+    (candidate): candidate is Extract<DslStatement, { kind: "modifierProfileBlock" }> =>
+      candidate.kind === "modifierProfileBlock" && candidate.enclosing?.statementIndex === statementIndex
   );
+  const resolvedProfileIds = new Set<string>();
+  for (const [blockIndex, block] of statement.profileBlocks.entries()) {
+    const blockStatement = blockStatements[blockIndex];
+    const sourceStatementIndex = blockStatement ? statements.indexOf(blockStatement) : statementIndex;
+    const path = parseDslReferenceToken(block.profileName);
+    const lookup = sourceNamespace
+      ? resolveSourceLexicalPath(sourceNamespace, sourceStatementIndex, path)
+      : block.profileName
+        ? { kind: "resolved" as const, declaration: { statementId: block.profileName, name: block.profileName, kind: "profile" as const } }
+        : { kind: "undefined" as const };
+    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "profile") {
+      const message = lookup.kind === "forward"
+        ? `Drawing Profile「${block.profileName}」はこの位置より後で宣言されています。`
+        : lookup.kind === "ambiguous"
+          ? `Drawing Profile 参照が曖昧です: ${block.profileName}`
+          : lookup.kind === "resolved"
+            ? `参照先「${block.profileName}」は Drawing Profile ではありません。`
+            : `未定義の Drawing Profile です: ${block.profileName}`;
+      diagnostics.push({
+        severity: "error",
+        line: blockStatement?.line ?? statement.line,
+        column: 1,
+        code: "invalid-drawing-profile-reference",
+        message,
+        ...(block.profileNameSpan ? { logicalSpan: block.profileNameSpan, statementIndex: sourceStatementIndex } : {})
+      });
+      continue;
+    }
+    if (resolvedProfileIds.has(lookup.declaration.statementId)) {
+      diagnostics.push({
+        severity: "error",
+        line: blockStatement?.line ?? statement.line,
+        column: 1,
+        code: "duplicate-drawing-profile-override",
+        message: `modifier の Drawing Profile「${lookup.declaration.name}」は1つだけ指定できます。`,
+        ...(block.profileNameSpan ? { logicalSpan: block.profileNameSpan, statementIndex: sourceStatementIndex } : {})
+      });
+      continue;
+    }
+    resolvedProfileIds.add(lookup.declaration.statementId);
+    profileDeltas.push({
+      profileId: lookup.declaration.statementId,
+      profileName: lookup.declaration.name,
+      ...modifierPropertiesFrom(block)
+    });
+  }
+  return [{
+    name: statement.name,
+    ...common,
+    ...(profileDeltas.length ? { profileDeltas } : {})
+  }];
+});
+
+const drawingProfilesFromStatements = (
+  statements: readonly DslStatement[],
+  sourceNamespace?: SourceLexicalNamespaceIndex
+): DrawingProfile[] => statements.flatMap((statement) => {
+  if (statement.kind !== "profileDeclaration" || statement.enclosing || !statement.name) return [];
+  const declaration = sourceNamespace?.allDeclarations.find(
+    (candidate) => candidate.statementIndex === statements.indexOf(statement) && candidate.kind === "profile"
+  );
+  return [{ id: declaration?.statementId ?? statement.name, name: statement.name }];
+});
 
 const booleanValue = (value: string) =>
   ["true", "1", "yes", "on"].includes(value.toLowerCase())
@@ -470,7 +556,10 @@ export const buildBlockPrintLayouts = ({
 
 export const compileDslToElements = (source: string, context: CompileDslContext): CompileDslResult => {
   const parsed = context.preparsed ?? parseDsl(source);
-  const modifiers = modifierDefinitionsFromStatements(parsed.statements);
+  const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
+  const sourceNamespace = context.sourceLexicalResolution?.sourceNamespace;
+  const modifiers = modifierDefinitionsFromStatements(parsed.statements, sourceNamespace, diagnostics);
+  const drawingProfiles = drawingProfilesFromStatements(parsed.statements, sourceNamespace);
   // Same missing-attribute-value carve-out as dslDocument.ts's fatal gates:
   // an intentionally-blank `key:` value must not prevent every other
   // statement in the document from compiling into elements.
@@ -478,6 +567,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     return {
       elements: context.elements,
       modifiers,
+      drawingProfiles,
       selectedElementId: null,
       selectedElementIds: [],
       visibilityRoles: context.visibilityRoles,
@@ -486,12 +576,11 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       printLayouts: context.printLayouts,
       palette: context.palette,
       activePrintLayoutId: context.activePrintLayoutId,
-      diagnostics: parsed.diagnostics,
+      diagnostics,
       changedCount: 0
     };
   }
 
-  const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
   const includeStatement: DslStatementInclusion = (_statement, statementIndex) =>
     isCompilableDslStatement(parsed.statements, statementIndex);
   const printLayoutIdsByStatementIndex = new Map<number, string>();
@@ -548,7 +637,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       applyStatement,
       buildBlockPrintLayouts
       }),
-      modifiers
+      modifiers,
+      drawingProfiles
     };
   }
   const existing = documentMode ? [] : context.elements;
@@ -723,6 +813,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   return {
     elements,
     modifiers,
+    drawingProfiles,
     selectedElementId: selectedElementIds[0] ?? null,
     selectedElementIds,
     visibilityRoles: visibilitySettings.visibilityRoles,

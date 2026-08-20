@@ -11,6 +11,7 @@ import type {
   CadElementType,
   DocumentPalette,
   DrawingModifierDefinition,
+  DrawingProfile,
   ElementId,
   PaletteColor,
   PrintLayout,
@@ -90,6 +91,8 @@ export type DslDocumentData = {
   elements: CadElement[];
   /** Document-level source definitions; runtime modifier resolution is deferred. */
   modifiers?: DrawingModifierDefinition[];
+  /** Document-level drawing profile declarations, in source order. */
+  drawingProfiles?: DrawingProfile[];
   palette: DocumentPalette;
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
@@ -150,6 +153,12 @@ export type StatementMap = {
   byModifierName: Map<string, StatementInfo>;
   /** Definition ranges keyed by the source modifier name. */
   modifierDefinitionRangeByName: Map<string, LineRange>;
+  /** Stable source ownership for document-level drawing profile declarations. */
+  byDrawingProfileName: Map<string, StatementInfo>;
+  /** Declaration ranges keyed by the source drawing profile name. */
+  drawingProfileDeclarationRangeByName: Map<string, LineRange>;
+  /** Profile override block ranges keyed by modifier and profile name. */
+  modifierProfileBlockRangeByModifierAndProfile: Map<string, LineRange>;
   /** Reconciler-owned identities, present only when typed declarations need them. */
   statementIdByStatementIndex?: Map<number, string>;
   /** Reverse lookup for a current reconciler-owned statement identity. */
@@ -166,6 +175,7 @@ export type StatementMap = {
   sectionEnds: {
     version?: number;
     palette?: number;
+    drawingProfiles?: number;
     modifiers?: number;
     visibility?: number;
     elements?: number;
@@ -305,16 +315,45 @@ export const serializePaletteLines = (
   palette: DocumentPalette
 ): string[] => palette.colors.map((color) => serializePaletteColorLine(color, palette.defaultColorId));
 
+export const serializeDrawingProfileLines = (
+  profiles: readonly DrawingProfile[]
+): string[] => profiles.map((profile) => `profile ${formatDslName(profile.name)}`);
+
+const serializeDrawingModifierProperties = (
+  properties: {
+    state?: string;
+    widthPx?: number;
+    style?: string;
+    color?: { kind: "themeRole"; role: string } | { kind: "fixed"; hex: string };
+  }
+): string[] => {
+  const lines: string[] = [];
+  if (properties.state) lines.push(`${DSL_INDENT}state: ${properties.state},`);
+  if (properties.widthPx !== undefined) lines.push(`${DSL_INDENT}width: ${properties.widthPx}px,`);
+  if (properties.style) lines.push(`${DSL_INDENT}style: ${properties.style},`);
+  if (properties.color) {
+    const color = properties.color.kind === "themeRole"
+      ? properties.color.role
+      : properties.color.hex.toLowerCase();
+    lines.push(`${DSL_INDENT}color: ${color},`);
+  }
+  return lines;
+};
+
 export const serializeDrawingModifierLines = (
   modifiers: readonly DrawingModifierDefinition[]
 ): string[] => modifiers.flatMap((modifier) => {
   const lines = [`modifier ${formatDslName(modifier.name)} {`];
-  if (modifier.state) lines.push(`${DSL_INDENT}state: ${modifier.state},`);
-  if (modifier.stroke) {
-    const color = modifier.stroke.color.kind === "themeRole"
-      ? modifier.stroke.color.role
-      : modifier.stroke.color.hex.toLowerCase();
-    lines.push(`${DSL_INDENT}stroke: ${modifier.stroke.widthPx}px ${modifier.stroke.style} ${color},`);
+  lines.push(...serializeDrawingModifierProperties(modifier));
+  for (const delta of modifier.profileDeltas ?? []) {
+    lines.push(`${DSL_INDENT}for @${formatDslName(delta.profileName)} {`);
+    lines.push(...serializeDrawingModifierProperties({
+      state: delta.state,
+      widthPx: delta.widthPx,
+      style: delta.style,
+      color: delta.color
+    }).map((line) => `${DSL_INDENT}${line}`));
+    lines.push(`${DSL_INDENT}}`);
   }
   lines.push("}");
   return lines;
@@ -670,10 +709,19 @@ export const serializeDocumentToDsl = (
   options: SerializeDslDocumentOptions = {}
 ): string => {
   const refs = options.preserveElementOrder ? flatRefs() : documentDslRefs(data.elements);
+  const drawingProfiles = data.drawingProfiles?.length
+    ? data.drawingProfiles
+    : [...new Map(
+        (data.modifiers ?? []).flatMap((modifier) => (modifier.profileDeltas ?? []).map((delta) => [
+          delta.profileId,
+          { id: delta.profileId, name: delta.profileName }
+        ] as const))
+      ).values()];
   const sections: string[][] = [
     [`nui ${majorVersion}`, ...(options.headerComment ? [`// ${options.headerComment}`] : [])],
     serializePaletteLines(data.palette),
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
+    serializeDrawingProfileLines(drawingProfiles),
     serializeDrawingModifierLines(data.modifiers ?? []),
     options.preserveElementOrder
       ? serializeFlatElementTree(data.elements, refs, data.evaluationLimitIndex)
@@ -875,6 +923,9 @@ const buildStatementMap = (
       case "modifierDefinition":
         byKey.set(`modifier:${statement.name}`, info);
         break;
+      case "profileDeclaration":
+        byKey.set(`profile:${statement.name}`, info);
+        break;
       case "role":
         byKey.set(`role:${attrValueOf(statement, "id") ?? statement.name}`, info);
         break;
@@ -918,12 +969,32 @@ const buildStatementMap = (
   }
   const byModifierName = new Map<string, StatementInfo>();
   const modifierDefinitionRangeByName = new Map<string, LineRange>();
+  const byDrawingProfileName = new Map<string, StatementInfo>();
+  const drawingProfileDeclarationRangeByName = new Map<string, LineRange>();
+  const modifierProfileBlockRangeByModifierAndProfile = new Map<string, LineRange>();
   for (const info of infos) {
     const statement = statements[info.statementIndex];
-    if (!includeStatement(statement, info.statementIndex) || statement.kind !== "modifierDefinition") continue;
-    if (!byModifierName.has(statement.name)) byModifierName.set(statement.name, info);
-    if (!modifierDefinitionRangeByName.has(statement.name)) {
-      modifierDefinitionRangeByName.set(statement.name, { ...info.range });
+    if (!includeStatement(statement, info.statementIndex)) continue;
+    if (statement.kind === "modifierDefinition") {
+      if (!byModifierName.has(statement.name)) byModifierName.set(statement.name, info);
+      if (!modifierDefinitionRangeByName.has(statement.name)) {
+        modifierDefinitionRangeByName.set(statement.name, { ...info.range });
+      }
+    } else if (statement.kind === "profileDeclaration") {
+      if (!byDrawingProfileName.has(statement.name)) byDrawingProfileName.set(statement.name, info);
+      if (!drawingProfileDeclarationRangeByName.has(statement.name)) {
+        drawingProfileDeclarationRangeByName.set(statement.name, { ...info.range });
+      }
+    } else if (statement.kind === "modifierProfileBlock") {
+      const parent = statement.enclosing?.statementIndex === undefined
+        ? undefined
+        : statements[statement.enclosing.statementIndex];
+      if (parent?.kind === "modifierDefinition") {
+        const key = `${parent.name}\0${statement.profileName}`;
+        if (!modifierProfileBlockRangeByModifierAndProfile.has(key)) {
+          modifierProfileBlockRangeByModifierAndProfile.set(key, { ...info.range });
+        }
+      }
     }
   }
   const statementIdByStatementIndex = assignedStatementIds
@@ -964,6 +1035,8 @@ const buildStatementMap = (
       sectionEnds.version = Math.max(sectionEnds.version ?? 0, info.line);
     } else if (statement.kind === "color") {
       sectionEnds.palette = Math.max(sectionEnds.palette ?? 0, info.line);
+    } else if (statement.kind === "profileDeclaration") {
+      sectionEnds.drawingProfiles = Math.max(sectionEnds.drawingProfiles ?? 0, info.line);
     } else if (statement.kind === "modifierDefinition") {
       sectionEnds.modifiers = Math.max(sectionEnds.modifiers ?? 0, info.range.endLine, info.endLine);
     } else if (statement.kind === "role" || statement.kind === "view" || statement.kind === "activeView") {
@@ -991,6 +1064,9 @@ const buildStatementMap = (
     elementIdByStatementIndex,
     byModifierName,
     modifierDefinitionRangeByName,
+    byDrawingProfileName,
+    drawingProfileDeclarationRangeByName,
+    modifierProfileBlockRangeByModifierAndProfile,
     ...(statementIdByStatementIndex ? { statementIdByStatementIndex } : {}),
     ...(statementIndexByStatementId ? { statementIndexByStatementId } : {}),
     statementRangeById,
@@ -1055,12 +1131,16 @@ export const compileDslDocument = (
         statement.kind === "group" ||
         statement.kind === "moduleDefinition" ||
         statement.kind === "moduleInstance" ||
+        statement.kind === "profileDeclaration" ||
         statement.kind === "typedDeclaration" ||
         (statement.kind === "element" &&
           (isGeometryDeclarationCategory(statement.category) ||
             statement.type === "conditionalGroup" ||
             statement.type === "forGroup"))
       )
+  );
+  const hasDrawingProfileStatements = parsed.statements.some(
+    (statement, statementIndex) => statement.kind === "profileDeclaration" && includeStatement(statement, statementIndex)
   );
   const stableStatementIdByIndex =
     (hasTypedDeclarations || hasSetStatements || hasPrintLayoutStatements || hasModuleStatements || hasSourceNamespaceStatements)
@@ -1079,11 +1159,35 @@ export const compileDslDocument = (
       if (statement.kind === "printLayout" && !stableStatementIdByIndex.has(statementIndex)) {
         stableStatementIdByIndex.set(statementIndex, createStatementIdentity("printLayout"));
       }
+      if (statement.kind === "profileDeclaration" && !stableStatementIdByIndex.has(statementIndex)) {
+        stableStatementIdByIndex.set(statementIndex, createStatementIdentity("profile"));
+      }
+      if (
+        hasDrawingProfileStatements &&
+        !stableStatementIdByIndex.has(statementIndex) &&
+        (
+          statement.kind === "moduleDefinition" ||
+          statement.kind === "moduleInstance" ||
+          statement.kind === "group" ||
+          statement.kind === "typedDeclaration" ||
+          (statement.kind === "element" && (
+            isGeometryDeclarationCategory(statement.category) ||
+            statement.type === "conditionalGroup" ||
+            statement.type === "forGroup"
+          ))
+        )
+      ) {
+        stableStatementIdByIndex.set(
+          statementIndex,
+          createStatementIdentity(statement.kind === "element" ? statement.type ?? "element" : statement.kind)
+        );
+      }
     });
   }
   const sourceNamespaceRequiresIdentity = (statement: DslStatement) =>
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
+    statement.kind === "profileDeclaration" ||
     statement.kind === "group" ||
     statement.kind === "typedDeclaration" ||
     (statement.kind === "element" &&
@@ -1092,7 +1196,7 @@ export const compileDslDocument = (
         statement.type === "forGroup"));
   const sourceNamespaceHasCompleteIdentity =
     stableStatementIdByIndex !== undefined &&
-    (options.assignedStatementIds !== undefined || options.assignedElementIds !== undefined) &&
+    ((options.assignedStatementIds !== undefined || options.assignedElementIds !== undefined) || hasDrawingProfileStatements) &&
     parsed.statements.every(
       (statement, statementIndex) => !sourceNamespaceRequiresIdentity(statement) || stableStatementIdByIndex.has(statementIndex)
     );
@@ -1314,7 +1418,8 @@ export const compileDslDocument = (
   if (
     moduleSemanticCompilation &&
     !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
-    stableStatementIdByIndex
+    stableStatementIdByIndex &&
+    sourceLexicalNamespace
   ) {
     compiled = compileDslToElements(normalized, {
       elements: [],
@@ -1322,6 +1427,10 @@ export const compileDslDocument = (
       preparsed: parsed,
       assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds ?? compiled.elementIdsByStatementIndex,
       stableStatementIdByIndex,
+      sourceLexicalResolution: {
+        sourceNamespace: sourceLexicalNamespace,
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map()
+      },
       moduleSemanticAnalysis: moduleSemanticCompilation,
       majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
     });
@@ -1598,6 +1707,7 @@ export const compileDslDocument = (
   const document: DslDocumentData = {
     elements: compiled.elements,
     modifiers: compiled.modifiers ?? [],
+    ...(compiled.drawingProfiles?.length ? { drawingProfiles: compiled.drawingProfiles } : {}),
     palette: compiled.palette ?? defaultDocumentPalette(),
     visibilityRoles: compiled.visibilityRoles ?? [],
     visibilityProfiles,

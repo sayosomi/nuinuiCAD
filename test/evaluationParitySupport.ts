@@ -42,20 +42,25 @@ export const readParityFixture = (repoRoot: string, name: string): EvaluationFix
   return fixtureFromSource(source);
 };
 
-export const optionsFor = (fixture: EvaluationFixture): EvaluateElementsOptions => {
+export const optionsFor = (
+  fixture: EvaluationFixture,
+  selectedDrawingProfileId?: string
+): EvaluateElementsOptions => {
   if (!fixture.compiled) throw new Error("evaluation fixture has no compiled document");
   return buildEvaluationOptions({
     compiledDocument: fixture.compiled.doc,
-    evaluationLimitIndex: fixture.evaluationLimitIndex
+    evaluationLimitIndex: fixture.evaluationLimitIndex,
+    selectedDrawingProfileId
   });
 };
 
 export const evaluateWithRustFixture = (
   repoRoot: string,
-  fixture: EvaluationFixture
+  fixture: EvaluationFixture,
+  selectedDrawingProfileId?: string
 ): EvaluationPayload => {
   const cargoManifest = join(repoRoot, "src-tauri", "Cargo.toml");
-  const input = buildRustEvaluationInput(fixture.elements, optionsFor(fixture));
+  const input = buildRustEvaluationInput(fixture.elements, optionsFor(fixture, selectedDrawingProfileId));
   const output = execFileSync(
     "cargo",
     ["run", "--quiet", "--manifest-path", cargoManifest, "--example", "evaluate_fixture"],
@@ -81,8 +86,8 @@ export const normalizeParityPayload = (value: unknown): unknown => {
   return value;
 };
 
-export const isRustEligibleFixture = (fixture: EvaluationFixture) =>
-  canUseRustEvaluationForElements(fixture.elements, optionsFor(fixture));
+export const isRustEligibleFixture = (fixture: EvaluationFixture, selectedDrawingProfileId?: string) =>
+  canUseRustEvaluationForElements(fixture.elements, optionsFor(fixture, selectedDrawingProfileId));
 
 export const runtimeDiagnosticsFor = (fixture: EvaluationFixture, payload: EvaluationPayload) => {
   const doc = fixture.compiled?.doc;

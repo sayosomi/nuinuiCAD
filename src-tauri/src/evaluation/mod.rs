@@ -108,7 +108,10 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
-use activity::{effective_activity_by_element_id, effective_drawing_modifier_stroke_by_element_id};
+use activity::{
+    effective_activity_by_element_id_with_profile,
+    effective_drawing_modifier_stroke_by_element_id_with_profile,
+};
 use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
 use control_boolean_runtime::{
@@ -656,7 +659,11 @@ fn evaluate_document_input_with_scalar_program(
         .unwrap_or_default();
     let evaluated_ids: HashSet<ElementId> =
         evaluated_elements.iter().filter_map(element_id).collect();
-    let activities = effective_activity_by_element_id(&input.elements, Some(&drawing_modifiers));
+    let activities = effective_activity_by_element_id_with_profile(
+        &input.elements,
+        Some(&drawing_modifiers),
+        input.selected_drawing_profile_id.as_deref(),
+    );
     let group_states = group_state_by_element_id(&input.elements, &activities);
     let mut effective_visible_element_ids =
         effective_element_ids(&input.elements, &activities, true)
@@ -687,6 +694,7 @@ fn evaluate_document_input_with_scalar_program(
         elements: input.elements,
         group_states,
         drawing_modifiers,
+        selected_drawing_profile_id: input.selected_drawing_profile_id.clone(),
         computed_geometry: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
@@ -700,10 +708,12 @@ fn evaluate_document_input_with_scalar_program(
     let mut effective_enabled_order = Vec::<ElementId>::new();
     let template_descendant_ids = for_group_template_descendant_ids(&state.elements);
     let original_elements = state.elements.clone();
-    let source_effective_drawing_modifier_strokes = effective_drawing_modifier_stroke_by_element_id(
-        &original_elements,
-        Some(&state.drawing_modifiers),
-    );
+    let source_effective_drawing_modifier_strokes =
+        effective_drawing_modifier_stroke_by_element_id_with_profile(
+            &original_elements,
+            Some(&state.drawing_modifiers),
+            state.selected_drawing_profile_id.as_deref(),
+        );
     let mut for_group_generated_rows = Vec::new();
     let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
     let capture_completed_instances = |completed_index: usize, state: &mut EvaluationState| {

@@ -63,6 +63,31 @@ describe("source lexical namespace index", () => {
     );
   });
 
+  it("reports duplicate top-level Drawing Profile declarations", () => {
+    const source = [
+      "nui 4",
+      "profile Print",
+      "profile Print"
+    ].join("\n");
+    const { parsed, stableIds } = parseWithStableIds(source);
+    const index = buildSourceLexicalNamespaceIndex(parsed.statements, stableIds);
+
+    expect(index.collisions).toHaveLength(1);
+    expect(index.collisions[0]?.declarations.map((declaration) => declaration.kind)).toEqual([
+      "profile",
+      "profile"
+    ]);
+    expect(index.diagnostics).toEqual([
+      expect.objectContaining({ code: "source-namespace-collision", line: 3 })
+    ]);
+
+    const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: stableIds });
+    expect(compiled.document).toBeNull();
+    expect(compiled.diagnostics).toEqual([
+      expect.objectContaining({ code: "source-namespace-collision", line: 3 })
+    ]);
+  });
+
   it("reports duplicate geometry declarations inside an inert module body", () => {
     const source = [
       "nui 4",

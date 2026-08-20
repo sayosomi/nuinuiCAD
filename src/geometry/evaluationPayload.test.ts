@@ -39,8 +39,8 @@ describe("evaluation payload conversion", () => {
       { id: "role", name: "Role", type: "freePoint", activity: "visible", modifierNames: ["Role"], x: 1, y: 0 }
     ], {
       drawingModifiers: [
-        { name: "Fixed", stroke: { widthPx: 2, style: "solid", color: { kind: "fixed", hex: "#123456" } } },
-        { name: "Role", stroke: { widthPx: 3, style: "dotted", color: { kind: "themeRole", role: "warning" } } }
+        { name: "Fixed", widthPx: 2, style: "solid", color: { kind: "fixed", hex: "#123456" } },
+        { name: "Role", widthPx: 3, style: "dotted", color: { kind: "themeRole", role: "warning" } }
       ]
     });
     const payload = evaluationResultToPayload(evaluation);

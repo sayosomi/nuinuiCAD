@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use super::types::{element_id, element_type, parent_group_id, ElementId};
 
@@ -51,7 +51,12 @@ fn is_activity_container(element: &Value) -> bool {
     )
 }
 
-fn drawing_modifier_states(drawing_modifiers: Option<&Value>) -> HashMap<String, ElementActivity> {
+type DrawingModifierProperties = Map<String, Value>;
+
+fn drawing_modifier_properties(
+    drawing_modifiers: Option<&Value>,
+    selected_profile_id: Option<&str>,
+) -> HashMap<String, DrawingModifierProperties> {
     let Some(modifiers) = drawing_modifiers.and_then(Value::as_array) else {
         return HashMap::new();
     };
@@ -59,27 +64,48 @@ fn drawing_modifier_states(drawing_modifiers: Option<&Value>) -> HashMap<String,
         .iter()
         .filter_map(|modifier| {
             let name = modifier.get("name")?.as_str()?.to_owned();
-            let state = match modifier.get("state").and_then(Value::as_str) {
+            let mut properties = Map::new();
+            for key in ["state", "widthPx", "style", "color"] {
+                if let Some(value) = modifier.get(key) {
+                    properties.insert(key.to_owned(), value.clone());
+                }
+            }
+            if let Some(profile_id) = selected_profile_id {
+                let delta = modifier
+                    .get("profileDeltas")
+                    .and_then(Value::as_array)
+                    .and_then(|deltas| {
+                        deltas.iter().find(|delta| {
+                            delta.get("profileId").and_then(Value::as_str) == Some(profile_id)
+                        })
+                    });
+                if let Some(delta) = delta {
+                    for key in ["state", "widthPx", "style", "color"] {
+                        if let Some(value) = delta.get(key) {
+                            properties.insert(key.to_owned(), value.clone());
+                        }
+                    }
+                }
+            }
+            Some((name, properties))
+        })
+        .collect()
+}
+
+fn drawing_modifier_states(
+    drawing_modifiers: Option<&Value>,
+    selected_profile_id: Option<&str>,
+) -> HashMap<String, ElementActivity> {
+    drawing_modifier_properties(drawing_modifiers, selected_profile_id)
+        .into_iter()
+        .filter_map(|(name, properties)| {
+            let state = match properties.get("state").and_then(Value::as_str) {
                 Some("hidden") => ElementActivity::Hidden,
                 Some("disabled") => ElementActivity::Disabled,
                 Some("visible") => ElementActivity::Visible,
                 _ => return None,
             };
             Some((name, state))
-        })
-        .collect()
-}
-
-fn drawing_modifier_strokes(drawing_modifiers: Option<&Value>) -> HashMap<String, Value> {
-    let Some(modifiers) = drawing_modifiers.and_then(Value::as_array) else {
-        return HashMap::new();
-    };
-    modifiers
-        .iter()
-        .filter_map(|modifier| {
-            let name = modifier.get("name")?.as_str()?.to_owned();
-            let stroke = modifier.get("stroke")?.clone();
-            Some((name, stroke))
         })
         .collect()
 }
@@ -113,23 +139,35 @@ fn modifier_owner_indices(
     owners
 }
 
+#[cfg(test)]
 pub(crate) fn effective_drawing_modifier_stroke_by_element_id(
     elements: &[Value],
     drawing_modifiers: Option<&Value>,
+) -> HashMap<ElementId, Value> {
+    effective_drawing_modifier_stroke_by_element_id_with_profile(elements, drawing_modifiers, None)
+}
+
+pub(crate) fn effective_drawing_modifier_stroke_by_element_id_with_profile(
+    elements: &[Value],
+    drawing_modifiers: Option<&Value>,
+    selected_profile_id: Option<&str>,
 ) -> HashMap<ElementId, Value> {
     let by_id = elements
         .iter()
         .enumerate()
         .filter_map(|(index, element)| element_id(element).map(|id| (id, index)))
         .collect::<HashMap<_, _>>();
-    let modifier_strokes = drawing_modifier_strokes(drawing_modifiers);
+    let modifier_properties = drawing_modifier_properties(drawing_modifiers, selected_profile_id);
     let mut effective = HashMap::new();
 
     for (index, element) in elements.iter().enumerate() {
         let Some(id) = element_id(element) else {
             continue;
         };
-        let mut winning_stroke = None;
+        let mut has_modifier = false;
+        let mut width = Value::from(1.0);
+        let mut style = Value::from("solid");
+        let mut color = serde_json::json!({ "kind": "themeRole", "role": "foreground" });
         for owner_index in modifier_owner_indices(index, elements, &by_id) {
             let Some(modifier_names) = elements[owner_index]
                 .get("modifierNames")
@@ -138,28 +176,49 @@ pub(crate) fn effective_drawing_modifier_stroke_by_element_id(
                 continue;
             };
             for modifier_name in modifier_names.iter().filter_map(Value::as_str) {
-                if let Some(stroke) = modifier_strokes.get(modifier_name) {
-                    winning_stroke = Some(stroke.clone());
+                if let Some(properties) = modifier_properties.get(modifier_name) {
+                    has_modifier = true;
+                    if let Some(value) = properties.get("widthPx") {
+                        width = value.clone();
+                    }
+                    if let Some(value) = properties.get("style") {
+                        style = value.clone();
+                    }
+                    if let Some(value) = properties.get("color") {
+                        color = value.clone();
+                    }
                 }
             }
         }
-        if let Some(stroke) = winning_stroke {
-            effective.insert(id, stroke);
+        if has_modifier {
+            effective.insert(
+                id,
+                serde_json::json!({ "widthPx": width, "style": style, "color": color }),
+            );
         }
     }
     effective
 }
 
+#[cfg(test)]
 pub(crate) fn effective_activity_by_element_id(
     elements: &[Value],
     drawing_modifiers: Option<&Value>,
+) -> HashMap<ElementId, EffectiveElementActivity> {
+    effective_activity_by_element_id_with_profile(elements, drawing_modifiers, None)
+}
+
+pub(crate) fn effective_activity_by_element_id_with_profile(
+    elements: &[Value],
+    drawing_modifiers: Option<&Value>,
+    selected_profile_id: Option<&str>,
 ) -> HashMap<ElementId, EffectiveElementActivity> {
     let by_id = elements
         .iter()
         .enumerate()
         .filter_map(|(index, element)| element_id(element).map(|id| (id, index)))
         .collect::<HashMap<_, _>>();
-    let modifier_states = drawing_modifier_states(drawing_modifiers);
+    let modifier_states = drawing_modifier_states(drawing_modifiers, selected_profile_id);
     let mut direct_cache = HashMap::new();
     let mut cache = HashMap::new();
 

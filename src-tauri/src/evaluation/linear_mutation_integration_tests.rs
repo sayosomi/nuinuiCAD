@@ -51,6 +51,7 @@ fn input(elements: Vec<Value>, versions: Vec<Value>, cutoff: Option<usize>) -> E
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: None,
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: Some(binding_versions),
@@ -276,6 +277,7 @@ fn production_command_runs_for_group_mutation_and_carries_the_final_slot() {
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: None,
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: Some(binding_versions.take()),
@@ -347,6 +349,7 @@ fn nested_inner_stop_stops_remaining_inner_and_outer_iterations() {
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: None,
+        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: Some(json!({

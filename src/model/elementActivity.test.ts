@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activityAllowsDrawing,
   activityAllowsEvaluation,
+  effectiveDrawingModifierStrokeById,
   effectiveElementActivityById,
   elementTypeSupportsHiddenActivity,
   nextElementActivity
@@ -140,6 +141,38 @@ describe("element activity", () => {
     expect(effectiveElementActivityById([
       { id: "child", type: "freePoint", activity: "disabled", modifierNames: ["show"] }
     ], definitions).get("child")).toEqual({ activity: "disabled", disabledByElementId: "child" });
+  });
+
+  it("cascades split style properties and selected profile deltas independently", () => {
+    const elements = [
+      { id: "group", type: "group", activity: "visible" as const, modifierNames: ["outer"] },
+      { id: "point", type: "freePoint", activity: "visible" as const, parentGroupId: "group", modifierNames: ["inner"] }
+    ];
+    const definitions = [
+      { name: "outer", widthPx: 2 },
+      {
+        name: "inner",
+        style: "dashed" as const,
+        profileDeltas: [{ profileId: "print", profileName: "Print", color: { kind: "fixed" as const, hex: "#123456" } }]
+      }
+    ];
+
+    expect(effectiveDrawingModifierStrokeById(elements, definitions).get("point")).toEqual({
+      widthPx: 2,
+      style: "dashed",
+      color: { kind: "themeRole", role: "foreground" }
+    });
+    expect(effectiveDrawingModifierStrokeById(elements, definitions, "print").get("point")).toEqual({
+      widthPx: 2,
+      style: "dashed",
+      color: { kind: "fixed", hex: "#123456" }
+    });
+    expect(effectiveElementActivityById([
+      { id: "point", type: "freePoint", activity: "visible", modifierNames: ["inner"] }
+    ], [{
+      name: "inner",
+      profileDeltas: [{ profileId: "print", profileName: "Print", state: "disabled" as const }]
+    }], "print").get("point")).toEqual({ activity: "disabled", disabledByElementId: "point" });
   });
 
   it.each([

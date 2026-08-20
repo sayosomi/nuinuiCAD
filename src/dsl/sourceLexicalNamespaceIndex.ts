@@ -7,6 +7,7 @@ import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId
 
 /** Named declarations that participate in the source-level lexical namespace. */
 export type SourceLexicalDeclarationKind =
+  | "profile"
   | "moduleDefinition"
   | "moduleInstance"
   | "group"
@@ -63,6 +64,7 @@ export type BuildSourceLexicalNamespaceOptions = {
 };
 
 const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKind | null => {
+  if (statement.kind === "profileDeclaration") return "profile";
   if (statement.kind === "moduleDefinition") return "moduleDefinition";
   if (statement.kind === "moduleInstance") return "moduleInstance";
   if (statement.kind === "group") return "group";
@@ -170,6 +172,7 @@ export const buildSourceLexicalNamespaceIndex = (
             candidate.kind !== declaration.kind ||
             isModuleKind(candidate.kind) ||
             isModuleKind(declaration.kind) ||
+            (candidate.kind === "profile" && declaration.kind === "profile") ||
             (isSourceOnlyDeclaration(candidate) && isSourceOnlyDeclaration(declaration))
         );
         if (!conflicting) {
