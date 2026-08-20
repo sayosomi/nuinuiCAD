@@ -4430,9 +4430,13 @@ textarea {
   min-width: 230px;
 }
 
+.canvas-overlap-candidate-menu,
+.canvas-hover-identity-candidate-menu {
+  min-width: 150px;
+}
+
 .canvas-overlap-candidate-menu {
   box-sizing: border-box;
-  width: min(300px, calc(100vw - 16px));
   max-height: min(420px, calc(100vh - 16px));
   overflow-x: hidden;
   overflow-y: auto;
@@ -4484,7 +4488,6 @@ textarea {
 
 .canvas-hover-identity-candidate-menu {
   pointer-events: none;
-  min-width: 150px;
   padding: 6px 0;
   color: var(--canvas-foreground);
   background: var(--canvas-background);
