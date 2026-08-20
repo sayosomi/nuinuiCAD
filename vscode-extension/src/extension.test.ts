@@ -779,11 +779,14 @@ describe("VS Code production document lifecycle", () => {
     await messageHandlerFor(panel)({ type: "webviewReady" });
     await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
 
-    panel.active = false;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    panel.active = true;
     mocks.activeTextEditor = editor;
     mocks.visibleTextEditors = [editor];
     mocks.activeTabInput = new mocks.TabInputText(document.uri);
     emitActiveEditorChange(editor);
+    panel.active = false;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
     mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
 
     commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();

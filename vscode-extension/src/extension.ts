@@ -368,6 +368,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (isSupportedNuiDocument(document)) lastBakeSurface = { kind: "source", document };
   };
 
+  const rememberActiveBakeSource = (): void => {
+    const editor = activeNuiEditor();
+    if (editor) rememberBakeSource(editor.document);
+  };
+
   const activeCanvasSessionForBake = (): DocumentSession | null => {
     const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
     if (!activeSession) return null;
@@ -906,6 +911,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
       if (panel.active) {
         lastActiveCanvasSession = session;
         rememberBakeCanvas(session);
+      } else {
+        rememberActiveBakeSource();
       }
       if (panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
     }));
@@ -1230,7 +1237,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const activeBakeSourceListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
     if (!editor || !isSupportedNuiDocument(editor.document)) return;
-    if ([...sessions.values()].some((session) => session.panel.active)) return;
     rememberBakeSource(editor.document);
   });
   context.subscriptions.push(activeBakeSourceListener);
