@@ -192,6 +192,18 @@ const renderDrawingCanvas = () => {
   return { ...view, viewport };
 };
 
+const renderWithHostAdapter = (overrides: Partial<CanvasHostAdapter> = {}) => {
+  const hostAdapter = createFakeCanvasHostAdapter(overrides);
+  const view = render(createElement(DrawingCanvas, {
+    evaluation: evaluateElements(hostAdapter.elements),
+    canvasFocusRef: createRef<HTMLDivElement>(),
+    hostAdapter
+  }));
+  const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+  if (!viewport) throw new Error("Missing canvas viewport");
+  return { ...view, hostAdapter, viewport };
+};
+
 const createFakeCanvasHostAdapter = (
   overrides: Partial<CanvasHostAdapter> = {}
 ): CanvasHostAdapter => {
@@ -799,6 +811,288 @@ describe("hitTestCanvasGeometry", () => {
 });
 
 describe("DrawingCanvas point dragging", () => {
+  it("keeps the axis feedback absent at idle and shows the fixed bottom-right hint during a point drag", () => {
+    const { container, viewport } = renderDrawingCanvas();
+    const feedback = () => container.querySelector<HTMLElement>("[data-point-drag-axis-lock-feedback]");
+    const hint = () => container.querySelector<HTMLElement>("[data-point-drag-axis-lock-hint]");
+
+    expect(feedback()).toBeNull();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    expect(feedback()).not.toBeNull();
+    expect(hint()).toHaveTextContent(/^Press X for Horizontal, Y for Vertical$/);
+    expect(hint()).toHaveAttribute("data-point-drag-axis-lock-hint-position", "bottom-right");
+    expect(hint()).toHaveStyle({ right: "0px", bottom: "0px" });
+    expect(feedback()).toHaveStyle({ pointerEvents: "none" });
+    expect(container.querySelector("[data-point-drag-axis-guide]")).toBeNull();
+
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 270,
+      pointerId: 1
+    });
+    expect(hint()).toHaveStyle({ right: "0px", bottom: "0px" });
+
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 320,
+      clientY: 270,
+      pointerId: 1
+    });
+    expect(feedback()).toBeNull();
+  });
+
+  it("does not retain cursor-following positioning state", () => {
+    const { container, viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    const hint = container.querySelector<HTMLElement>("[data-point-drag-axis-lock-hint]");
+    if (!hint) throw new Error("Missing point drag hint");
+    expect(hint.style.right).toBe("0px");
+    expect(hint.style.left).toBe("");
+    expect(hint.style.top).toBe("");
+    expect(hint.style.bottom).toBe("0px");
+    expect(hint).toHaveAttribute("data-point-drag-axis-lock-hint-position", "bottom-right");
+
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 420,
+      clientY: 340,
+      pointerId: 1
+    });
+    expect(hint.style.right).toBe("0px");
+    expect(hint.style.left).toBe("");
+    expect(hint.style.top).toBe("");
+
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 420,
+      clientY: 340,
+      pointerId: 1
+    });
+  });
+
+  it("shows an active horizontal guide for x and removes it on x release while keeping the hint", () => {
+    const { container, viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "x" });
+
+    const xAction = container.querySelector<HTMLElement>('[data-point-drag-axis-lock-hint] [data-axis="x"]');
+    const xGuide = container.querySelector<SVGLineElement>('[data-point-drag-axis-guide="x"]');
+    expect(xAction).toHaveClass("is-active");
+    expect(xGuide).toHaveAttribute("x1", "0");
+    expect(xGuide).toHaveAttribute("x2", "500");
+    expect(xGuide).toHaveAttribute("y1", "250");
+    expect(xGuide).toHaveAttribute("y2", "250");
+
+    fireEvent.keyUp(window, { key: "x" });
+
+    expect(xAction).not.toHaveClass("is-active");
+    expect(container.querySelector('[data-point-drag-axis-guide="x"]')).toBeNull();
+    expect(container.querySelector("[data-point-drag-axis-lock-hint]")).not.toBeNull();
+
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+  });
+
+  it("shows an active vertical guide for y and removes it on y release", () => {
+    const { container, viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "y" });
+
+    const yAction = container.querySelector<HTMLElement>('[data-point-drag-axis-lock-hint] [data-axis="y"]');
+    const yGuide = container.querySelector<SVGLineElement>('[data-point-drag-axis-guide="y"]');
+    expect(yAction).toHaveClass("is-active");
+    expect(yGuide).toHaveAttribute("x1", "300");
+    expect(yGuide).toHaveAttribute("x2", "300");
+    expect(yGuide).toHaveAttribute("y1", "0");
+    expect(yGuide).toHaveAttribute("y2", "400");
+
+    fireEvent.keyUp(window, { key: "y" });
+
+    expect(yAction).not.toHaveClass("is-active");
+    expect(container.querySelector('[data-point-drag-axis-guide="y"]')).toBeNull();
+
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+  });
+
+  it("shows only the effective x lock when x and y are held together", () => {
+    const { container, viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "x" });
+    fireEvent.keyDown(window, { key: "y" });
+
+    expect(container.querySelector('[data-axis="x"]')).toHaveClass("is-active");
+    expect(container.querySelector('[data-axis="y"]')).not.toHaveClass("is-active");
+    expect(container.querySelector('[data-point-drag-axis-guide="x"]')).not.toBeNull();
+    expect(container.querySelector('[data-point-drag-axis-guide="y"]')).toBeNull();
+
+    fireEvent.keyUp(window, { key: "y" });
+    fireEvent.keyUp(window, { key: "x" });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+  });
+
+  it("clears active axis feedback on window blur but keeps the point hint until pointerup", () => {
+    const { container, viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "x" });
+    expect(container.querySelector('[data-point-drag-axis-guide="x"]')).not.toBeNull();
+
+    fireEvent.blur(window);
+
+    expect(container.querySelector('[data-point-drag-axis-guide]')).toBeNull();
+    expect(container.querySelector('[data-point-drag-axis-lock-hint]')).not.toBeNull();
+
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+  });
+
+  it("clears point feedback on pointer cancel and rejected preview mutation", () => {
+    const cancelled = renderDrawingCanvas();
+    fireEvent.pointerDown(cancelled.viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "x" });
+    expect(cancelled.container.querySelector("[data-point-drag-axis-lock-feedback]")).not.toBeNull();
+    fireEvent.pointerCancel(cancelled.viewport, {
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    expect(cancelled.container.querySelector("[data-point-drag-axis-lock-feedback]")).toBeNull();
+    fireEvent.keyUp(window, { key: "x" });
+    cancelled.unmount();
+
+    const rejected = renderWithHostAdapter({
+      movePointElementByDelta: vi.fn<CanvasHostAdapter["movePointElementByDelta"]>(() => ({ status: "rejected" }))
+    });
+    fireEvent.pointerDown(rejected.viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+    expect(rejected.container.querySelector("[data-point-drag-axis-lock-feedback]")).not.toBeNull();
+    fireEvent.pointerMove(rejected.viewport, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 270,
+      pointerId: 1
+    });
+    expect(rejected.container.querySelector("[data-point-drag-axis-lock-feedback]")).toBeNull();
+  });
+
+  it("does not show the point hint during a Bezier handle drag", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"]
+    });
+    const { container, viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 345,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    expect(container.querySelector("[data-point-drag-axis-lock-hint]")).toBeNull();
+
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 345,
+      clientY: 250,
+      pointerId: 1
+    });
+  });
+
+  it("does not show the point hint during point reference picking", () => {
+    useCadStore.setState({
+      activePointPickTarget: {
+        elementId: "line-ab",
+        parameterKey: "startPoint"
+      }
+    });
+    const { container, viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    expect(container.querySelector("[data-point-drag-axis-lock-hint]")).toBeNull();
+  });
+
   it("only shows Bezier handles for the primary selected curve", () => {
     const { container, unmount } = renderDrawingCanvas();
     expect(container.querySelectorAll(".overlay-bezier-handle-point")).toHaveLength(0);
