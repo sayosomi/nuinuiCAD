@@ -811,7 +811,7 @@ describe("hitTestCanvasGeometry", () => {
 });
 
 describe("DrawingCanvas point dragging", () => {
-  it("keeps the axis feedback absent at idle and shows the fixed bottom-left hint during a point drag", () => {
+  it("keeps the axis feedback absent at idle and shows the fixed bottom-right hint during a point drag", () => {
     const { container, viewport } = renderDrawingCanvas();
     const feedback = () => container.querySelector<HTMLElement>("[data-point-drag-axis-lock-feedback]");
     const hint = () => container.querySelector<HTMLElement>("[data-point-drag-axis-lock-hint]");
@@ -828,8 +828,8 @@ describe("DrawingCanvas point dragging", () => {
 
     expect(feedback()).not.toBeNull();
     expect(hint()).toHaveTextContent("Move · X Horizontal · Y Vertical");
-    expect(hint()).toHaveAttribute("data-point-drag-axis-lock-hint-position", "bottom-left");
-    expect(hint()).toHaveStyle({ left: "0px", bottom: "0px" });
+    expect(hint()).toHaveAttribute("data-point-drag-axis-lock-hint-position", "bottom-right");
+    expect(hint()).toHaveStyle({ right: "0px", bottom: "0px" });
     expect(feedback()).toHaveStyle({ pointerEvents: "none" });
     expect(container.querySelector("[data-point-drag-axis-guide]")).toBeNull();
 
@@ -839,7 +839,7 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 270,
       pointerId: 1
     });
-    expect(hint()).toHaveStyle({ left: "0px", bottom: "0px" });
+    expect(hint()).toHaveStyle({ right: "0px", bottom: "0px" });
 
     fireEvent.pointerUp(viewport, {
       buttons: 0,
@@ -863,11 +863,11 @@ describe("DrawingCanvas point dragging", () => {
 
     const hint = container.querySelector<HTMLElement>("[data-point-drag-axis-lock-hint]");
     if (!hint) throw new Error("Missing point drag hint");
-    expect(hint.style.left).toBe("0px");
+    expect(hint.style.right).toBe("0px");
+    expect(hint.style.left).toBe("");
     expect(hint.style.top).toBe("");
-    expect(hint.style.right).toBe("");
     expect(hint.style.bottom).toBe("0px");
-    expect(hint).toHaveAttribute("data-point-drag-axis-lock-hint-position", "bottom-left");
+    expect(hint).toHaveAttribute("data-point-drag-axis-lock-hint-position", "bottom-right");
 
     fireEvent.pointerMove(viewport, {
       buttons: 1,
@@ -875,7 +875,8 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 340,
       pointerId: 1
     });
-    expect(hint.style.left).toBe("0px");
+    expect(hint.style.right).toBe("0px");
+    expect(hint.style.left).toBe("");
     expect(hint.style.top).toBe("");
 
     fireEvent.pointerUp(viewport, {

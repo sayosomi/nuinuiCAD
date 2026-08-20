@@ -59,8 +59,8 @@ export const PointDragAxisLockFeedback = ({
       <div
         className="point-drag-axis-lock-hint"
         data-point-drag-axis-lock-hint="true"
-        data-point-drag-axis-lock-hint-position="bottom-left"
-        style={{ left: 0, bottom: 0 }}
+        data-point-drag-axis-lock-hint-position="bottom-right"
+        style={{ right: 0, bottom: 0 }}
       >
         <span className="point-drag-axis-lock-move">Move</span>
         <span className="point-drag-axis-lock-separator"> · </span>
