@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "../../src/document/automationDocument";
+import { queryDslDocumentSymbols } from "../../src/dsl/dslDocumentSymbolQuery";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 
 const sourceSnapshotFor = (source: string, sourceRevision: number) => ({
@@ -104,6 +105,52 @@ describe("VS Code document-scoped language analysis session", () => {
       1
     ))).toBeUndefined();
     expect(session.foldingSyntaxSnapshot(sourceSnapshotFor(validSource, 2))).toBeUndefined();
+  });
+
+  it("exposes an exact-current document symbol structure snapshot", () => {
+    const session = createLanguageAnalysisSession(validSource);
+    const snapshot = session.documentSymbolSyntaxSnapshot(sourceSnapshotFor(validSource, 1));
+
+    expect(snapshot).toMatchObject({
+      sourceRevision: 1,
+      sourceText: validSource,
+      statements: expect.any(Array),
+      sourceMap: expect.objectContaining({ source: validSource, sourceRevision: 1 })
+    });
+    expect(session.documentSymbolSyntaxSnapshot(sourceSnapshotFor(validSource, 2))).toBeUndefined();
+    expect(session.documentSymbolSyntaxSnapshot(sourceSnapshotFor("nui 4\npoint Other = coordinate(x: 0, y: 1)\n", 1))).toBeUndefined();
+  });
+
+  it("does not leak last-good document symbol statements after a fatal edit", () => {
+    const session = createLanguageAnalysisSession("nui 4\nconst old: number = 1\n");
+    const currentSource = "nui 4\npoint Current = coordinate(";
+    session.replaceSource(currentSource);
+
+    const snapshot = session.documentSymbolSyntaxSnapshot(sourceSnapshotFor(currentSource, 2));
+
+    expect(snapshot?.statements ?? []).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "old" })])
+    );
+    expect(snapshot?.sourceMap.source).toBe(currentSource);
+    const symbols = snapshot
+      ? queryDslDocumentSymbols({
+          source: sourceSnapshotFor(currentSource, 2),
+          statements: snapshot.statements,
+          sourceMap: snapshot.sourceMap
+        })
+      : [];
+    expect(symbols.map((symbol) => symbol.name)).toEqual(["Current"]);
+    expect(symbols[0]?.range.from).toBe(currentSource.indexOf("point Current"));
+  });
+
+  it("normalizes CRLF source for the document symbol snapshot", () => {
+    const rawSource = validSource.replace(/\n/g, "\r\n");
+    const session = createLanguageAnalysisSession(rawSource);
+
+    expect(session.documentSymbolSyntaxSnapshot(sourceSnapshotFor(rawSource, 1))).toMatchObject({
+      sourceText: validSource,
+      sourceMap: expect.objectContaining({ source: validSource })
+    });
   });
 
   it("returns current parse-only folding data for fatal source without last-good fallback", () => {

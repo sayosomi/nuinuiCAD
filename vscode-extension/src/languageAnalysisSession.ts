@@ -32,6 +32,9 @@ export type NuiLanguageAnalysisSession = {
   foldingSyntaxSnapshot: (
     source: SourceSnapshot
   ) => NuiFoldingSyntaxSnapshot | undefined;
+  documentSymbolSyntaxSnapshot: (
+    source: SourceSnapshot
+  ) => NuiDocumentSymbolSyntaxSnapshot | undefined;
   choiceQuickFixSemanticSnapshot: (
     source: SourceSnapshot
   ) => NuiChoiceQuickFixSemanticSnapshot | undefined;
@@ -43,6 +46,8 @@ export type NuiFoldingSyntaxSnapshot = {
   statements: DslFoldingQueryInput["statements"];
   sourceMap: DslFoldingQueryInput["sourceMap"];
 };
+
+export type NuiDocumentSymbolSyntaxSnapshot = NuiFoldingSyntaxSnapshot;
 
 export type NuiChoiceQuickFixSemanticSnapshot = {
   sourceRevision: number;
@@ -104,7 +109,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     };
   };
 
-  const foldingSyntaxSnapshot = (
+  const sourceStructureSnapshot = (
     source: SourceSnapshot
   ): NuiFoldingSyntaxSnapshot | undefined => {
     const state = document.getState();
@@ -125,6 +130,13 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     };
   };
 
+  const foldingSyntaxSnapshot = (source: SourceSnapshot): NuiFoldingSyntaxSnapshot | undefined =>
+    sourceStructureSnapshot(source);
+
+  const documentSymbolSyntaxSnapshot = (
+    source: SourceSnapshot
+  ): NuiDocumentSymbolSyntaxSnapshot | undefined => sourceStructureSnapshot(source);
+
   return {
     getSource: () => document.getSource(),
     getSourceRevision: currentSourceRevision,
@@ -138,6 +150,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     referencesSemanticSnapshot: semanticSnapshotFor,
     renameSemanticSnapshot: semanticSnapshotFor,
     foldingSyntaxSnapshot,
+    documentSymbolSyntaxSnapshot,
     choiceQuickFixSemanticSnapshot
   };
 };
