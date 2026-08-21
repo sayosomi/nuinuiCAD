@@ -4,6 +4,7 @@ import {
   outputPreviewCandidatesFor,
   selectOutputPreviewCandidate
 } from "./outputPreviewSelection";
+import { outputPreviewManualE2eSource } from "./outputPreviewManualFixture";
 
 const source = [
   "nui 4",
@@ -129,5 +130,34 @@ describe("Output Preview output selection", () => {
       from: multilineOutputSource.indexOf("svg Vector("),
       to: multilineOutputSource.length
     });
+  });
+
+  it("keeps both current Manual E2E outputs connected to their complete source declarations", () => {
+    const compiled = compileFreshCanonicalText(outputPreviewManualE2eSource);
+    expect(compiled.status).toBe("valid");
+    expect(compiled.doc.document.printOutputs.map((output) => output.name)).toEqual(["家庭用A4"]);
+    expect(compiled.doc.document.svgOutputs.map((output) => output.name)).toEqual(["型紙SVG"]);
+
+    const candidates = outputPreviewCandidatesFor(outputPreviewManualE2eSource, compiled.currentCompiled);
+    const printStart = outputPreviewManualE2eSource.indexOf("print 家庭用A4(");
+    const printEnd = outputPreviewManualE2eSource.indexOf(")\n\nsvg 型紙SVG") + 1;
+    const svgStart = outputPreviewManualE2eSource.indexOf("svg 型紙SVG(");
+
+    expect(candidates.map((candidate) => `${candidate.kind}:${candidate.output.name}`)).toEqual([
+      "print:家庭用A4",
+      "svg:型紙SVG"
+    ]);
+    expect(candidates[0]?.sourceRange).toEqual({ from: printStart, to: printEnd });
+    expect(candidates[1]?.sourceRange).toEqual({ from: svgStart, to: outputPreviewManualE2eSource.length });
+    expect(selectOutputPreviewCandidate({
+      candidates,
+      cursorOffset: outputPreviewManualE2eSource.indexOf("profile: @印刷用"),
+      existingKey: null
+    })?.key).toBe(candidates[0]?.key);
+    expect(selectOutputPreviewCandidate({
+      candidates,
+      cursorOffset: outputPreviewManualE2eSource.indexOf("profile: @SVG用"),
+      existingKey: null
+    })?.key).toBe(candidates[1]?.key);
   });
 });

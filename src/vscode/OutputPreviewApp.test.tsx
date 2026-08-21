@@ -5,6 +5,7 @@ import type { OutputPlan } from "../output/outputCore";
 import { OutputPreviewApp, outputPreviewDiagnosticSourceRangeFor } from "./OutputPreviewApp";
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { VscodeWebviewApi } from "./protocol";
+import { outputPreviewManualE2eSource } from "./outputPreviewManualFixture";
 
 const mocks = vi.hoisted(() => ({
   evaluateOutputPlan: vi.fn()
@@ -304,6 +305,50 @@ describe("Output Preview application", () => {
     act(() => useCadDocumentStore.getState().commitText(source, "test"));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
     expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A"));
+  });
+
+  it("hydrates both Manual E2E outputs and opens the output at a cursor offset", async () => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    render(<OutputPreviewApp api={api} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: outputPreviewManualE2eSource, documentVersion: 1 }
+      }));
+    });
+
+    await waitFor(() => expect(screen.getByRole("combobox").querySelectorAll("option")).toHaveLength(2));
+    expect([...screen.getByRole("combobox").querySelectorAll("option")].map((option) => option.textContent)).toEqual([
+      "Print · 家庭用A4",
+      "SVG · 型紙SVG"
+    ]);
+    expect(useCadDocumentStore.getState().printOutputs.map((output) => output.name)).toEqual(["家庭用A4"]);
+    expect(useCadDocumentStore.getState().svgOutputs.map((output) => output.name)).toEqual(["型紙SVG"]);
+
+    const printKey = outputKeyFor("print", "家庭用A4");
+    const svgKey = outputKeyFor("svg", "型紙SVG");
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "outputPreviewOpen",
+          documentVersion: 1,
+          normalizedSourceOffset: outputPreviewManualE2eSource.indexOf("profile: @印刷用")
+        }
+      }));
+    });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(printKey));
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "outputPreviewOpen",
+          documentVersion: 1,
+          normalizedSourceOffset: outputPreviewManualE2eSource.indexOf("profile: @SVG用")
+        }
+      }));
+    });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(svgKey));
   });
 
   it("renders overlapping page fills, geometry, boundaries, and guides in contract order", async () => {

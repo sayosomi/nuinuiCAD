@@ -20,9 +20,13 @@ const sourceRangeForStatement = (
   const normalizedSource = normalizedSourceFor(sourceText);
   const sourceMap = compiled.spans.sourceMap;
   if (sourceMap.source !== normalizedSource) return null;
-  const sourceStatement = sourceMap.statements[statement.statementIndex];
-  if (!sourceStatement || sourceStatement.range.sourceRevision !== sourceMap.sourceRevision) return null;
-  const { from, to } = sourceStatement.range;
+  // StatementMap indexes semantic statements. The source-map projection also
+  // contains blank/comment logical entries, so its array index is not the
+  // current statement identity. Use the parser-owned range on the matching
+  // current compiled statement instead of re-resolving source text here.
+  const sourceStatement = compiled.statements[statement.statementIndex];
+  if (!sourceStatement || sourceStatement.documentRange.sourceRevision !== sourceMap.sourceRevision) return null;
+  const { from, to } = sourceStatement.documentRange;
   return to > from ? { from, to } : null;
 };
 
