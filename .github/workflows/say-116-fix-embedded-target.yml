@@ -37,3 +37,5 @@ jobs:
           git add .github/workflows/say-116-apply.yml
           git commit -m "chore: fix SAY-116 apply target"
           git push origin HEAD:sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
+
+# Trigger the already-present SAY-116 finalizer on the next PR synchronize event.
