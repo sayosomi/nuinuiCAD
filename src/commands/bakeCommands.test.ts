@@ -19,8 +19,6 @@ describe("Bake command sandbox boundary", () => {
       currentFilePath: null,
       dirtySinceSave: false
     });
-    const broken = useCadDocumentStore.getState().elements.find((element) => element.name === "Broken")!;
-    useCadUiStore.getState().setSelectedElementId(broken.id);
   });
 
   const currentEvaluation = () => {
@@ -32,9 +30,11 @@ describe("Bake command sandbox boundary", () => {
   };
 
   it("does not mutate source when disabled inclusion requires an unavailable sandbox", () => {
+    const broken = useCadDocumentStore.getState().elements.find((element) => element.name === "Broken")!;
     const result = dispatchCommand("bakeCurrentShape", {
       evaluation: currentEvaluation(),
       evaluationIsCurrent: true,
+      bakeSelectedElementIds: [broken.id],
       includeDisabledGeometry: true,
       emitSkippedComments: true
     });
@@ -51,6 +51,7 @@ describe("Bake command sandbox boundary", () => {
     const result = await dispatchCommand("bakeCurrentShape", {
       evaluation: currentEvaluation(),
       evaluationIsCurrent: true,
+      bakeSelectedElementIds: [broken.id],
       includeDisabledGeometry: true,
       emitSkippedComments: true,
       prepareBakeSandbox: async (targetIds) => {
