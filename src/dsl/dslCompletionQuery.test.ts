@@ -460,18 +460,25 @@ describe("queryDslCompletion", () => {
       "nui 4",
       "const outer: number = 10",
       "module M(width: number, caption: string) {",
-      "  const first: number = 1",
+      "  const local: number = 1",
       "  text Label = label(text: \"width=${@width}\", anchor: (0, 0))",
-      "  text Local = label(text: \"first=${@first}\", anchor: (0, 0))",
+      "  text Local = label(text: \"local=${@loc}\", anchor: (0, 0))",
       "}"
     ].join("\n");
-    const position = source.indexOf("${@width}") + 2;
-    const result = exactQuery(source, "${@width}", 2);
+    const position = source.indexOf("${@width}") + 3;
+    const result = exactQuery(source, "${@width}", 3);
 
     expect(result?.category).toBe("templateHole");
-    expect(result?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["width", "first"]));
+    expect(result?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["width", "local"]));
     expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("outer");
     expect(result?.replacementRange).toEqual({ from: position, to: position });
+
+    const partialPosition = source.indexOf("${@loc}") + "${@loc".length;
+    const partial = exactQuery(source, "${@loc}", "${@loc".length);
+    expect(partial?.category).toBe("templateHole");
+    expect(partial?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["local"]));
+    expect(partial?.candidates.map((candidate) => candidate.label)).not.toContain("outer");
+    expect(partial?.replacementRange).toEqual({ from: partialPosition - 3, to: partialPosition });
   });
 
   it("supports Module callee, argument labels, typed filtering, geometry interfaces, and qualified members", () => {

@@ -20,7 +20,10 @@ export const nuiSignatureHelpSelector: vscode.DocumentSelector = {
   scheme: "file"
 };
 
-export const nuiSignatureHelpTriggerCharacters = ["(", ",", ":"] as const;
+export const nuiSignatureHelpProviderMetadata: vscode.SignatureHelpProviderMetadata = {
+  triggerCharacters: ["(", ",", ":"],
+  retriggerCharacters: ["(", ",", ":"]
+};
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 

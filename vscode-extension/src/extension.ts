@@ -21,7 +21,7 @@ import {
 import {
   createNuiSignatureHelpProvider,
   nuiSignatureHelpSelector,
-  nuiSignatureHelpTriggerCharacters
+  nuiSignatureHelpProviderMetadata
 } from "./signatureHelpProvider";
 import {
   createNuiDefinitionProvider,
@@ -522,7 +522,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const signatureHelpProvider = vscode.languages.registerSignatureHelpProvider(
     nuiSignatureHelpSelector,
     createNuiSignatureHelpProvider(languageAnalysisSessionFor),
-    ...nuiSignatureHelpTriggerCharacters
+    nuiSignatureHelpProviderMetadata
   );
   const definitionProvider = vscode.languages.registerDefinitionProvider(
     nuiDefinitionSelector,

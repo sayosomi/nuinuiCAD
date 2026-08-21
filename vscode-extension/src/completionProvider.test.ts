@@ -400,6 +400,24 @@ describe("VS Code native nui completion provider", () => {
     ]));
   });
 
+  it("keeps Module template-hole completion scoped to Module parameters and locals", () => {
+    const source = [
+      "nui 4",
+      "const outer: number = 10",
+      "module M(width: number) {",
+      "  const local: number = 1",
+      "  text Label = label(text: \"width=${@}\", anchor: (0, 0))",
+      "}"
+    ].join("\n");
+    const lines = source.split("\n");
+    const line = lines.findIndex((value) => value.includes('text Label = label(text: "width='));
+    const lineText = lines[line]!;
+    const items = itemsFor(source, line, lineText.indexOf("${@") + 3);
+
+    expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["width", "local"]));
+    expect(items.map((item) => item.label)).not.toContain("outer");
+  });
+
   it("returns syntax candidates for incomplete source and does not require Rust", () => {
     const source = "nui 4\npoint P = co";
     const session = createLanguageAnalysisSession(source);

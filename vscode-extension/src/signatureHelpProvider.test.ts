@@ -32,8 +32,8 @@ import { queryDslSignatureHelp } from "../../src/dsl/dslSignatureHelpQuery";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   createNuiSignatureHelpProvider,
+  nuiSignatureHelpProviderMetadata,
   nuiSignatureHelpSelector,
-  nuiSignatureHelpTriggerCharacters
 } from "./signatureHelpProvider";
 
 type TestDocument = {
@@ -80,7 +80,10 @@ const helpForAt = (
 describe("VS Code native nui Signature Help provider", () => {
   it("uses the file-scoped selector and requested trigger characters", () => {
     expect(nuiSignatureHelpSelector).toEqual({ language: "nui", scheme: "file" });
-    expect(nuiSignatureHelpTriggerCharacters).toEqual(["(", ",", ":"]);
+    expect(nuiSignatureHelpProviderMetadata).toEqual({
+      triggerCharacters: ["(", ",", ":"],
+      retriggerCharacters: ["(", ",", ":"]
+    });
   });
 
   it("projects a standard builtin Signature Help result with active overload and parameter", () => {
