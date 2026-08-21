@@ -162,6 +162,7 @@ describe("creationRecipes", () => {
       bezierExtremePoint: "point 作成bezierExtremePoint = bezierExtremePoint(source: @AB, segmentIndex: 12, direction: 12)",
       line: "line 作成line = segment(start: @A, end: @A)",
       angleLengthLine: "line 作成angleLengthLine = polar(start: @A, angle: 12, length: 12)",
+      commonTangentLine: "line 作成commonTangentLine = commonTangent(first: @AB, second: @AB, kind: external, side: left)",
       arcLine: "arc 作成arcLine = arc(center: @A, radius: 12, start: 12, end: 12)",
       threePointArcLine: "arc 作成threePointArcLine = through(point1: @A, point2: @A, point3: @A, start: 12, end: 12)",
       cornerRadiusArcLine: "arc 作成cornerRadiusArcLine = corner(end1: @AB.start, end2: @AB.start, radius: 12, index: 12)",
@@ -207,7 +208,7 @@ describe("creationRecipes", () => {
     expect(line).toMatchObject({
       id: "recipe-created-id",
       name: "",
-      startPoint: referenceAnchor(""),
+      startPoint: referenceAnchor("") ,
       endPoint: referenceAnchor("")
     });
     expect(offset).toMatchObject({ name: "", baseLineIds: [] });
