@@ -214,7 +214,7 @@ export const visibleCanvasDrawingBounds = ({
   });
 };
 
-const canvasDrawingBoundsForVisibleIds = ({
+export const canvasDrawingBoundsForVisibleIds = ({
   evaluation,
   visibleIds,
   elementById,
