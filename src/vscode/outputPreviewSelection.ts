@@ -80,17 +80,19 @@ export const selectOutputPreviewCandidate = ({
   existingKey
 }: {
   candidates: readonly OutputPreviewCandidate[];
-  cursorOffset: number;
+  cursorOffset: number | null;
   existingKey: string | null;
 }): OutputPreviewCandidate | null => {
-  const printAtCursor = candidates.find((candidate) =>
-    candidate.kind === "print" && cursorIsInside(cursorOffset, candidate.sourceRange)
-  );
-  if (printAtCursor) return printAtCursor;
-  const svgAtCursor = candidates.find((candidate) =>
-    candidate.kind === "svg" && cursorIsInside(cursorOffset, candidate.sourceRange)
-  );
-  if (svgAtCursor) return svgAtCursor;
+  if (cursorOffset !== null) {
+    const printAtCursor = candidates.find((candidate) =>
+      candidate.kind === "print" && cursorIsInside(cursorOffset, candidate.sourceRange)
+    );
+    if (printAtCursor) return printAtCursor;
+    const svgAtCursor = candidates.find((candidate) =>
+      candidate.kind === "svg" && cursorIsInside(cursorOffset, candidate.sourceRange)
+    );
+    if (svgAtCursor) return svgAtCursor;
+  }
   const existing = candidates.find((candidate) => candidate.key === existingKey);
   return existing ?? candidates[0] ?? null;
 };

@@ -50,6 +50,7 @@ type SchemaNode = {
 };
 
 const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
+const agentsPath = resolve(process.cwd(), "AGENTS.md");
 const commandIds = [
   "nuinuiCAD.openCanvas",
   "nuinuiCAD.openOutputPreview",
@@ -70,6 +71,8 @@ const commandIds = [
   "nuinuiCAD.editCanvasRibbon"
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
+const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
+const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
@@ -82,6 +85,10 @@ async function readManifest(): Promise<ExtensionManifest> {
 }
 
 describe("VS Code extension manifest command contributions", () => {
+  it("keeps the Source+Output Preview Palette scope in the durable policy", async () => {
+    expect(await readFile(agentsPath, "utf8")).toContain("* `Source+Output Preview`");
+  });
+
   it("declares the Bake activity settings with their current defaults", async () => {
     const manifest = await readManifest();
     const properties = manifest.contributes?.configuration?.properties ?? {};
@@ -118,13 +125,13 @@ describe("VS Code extension manifest command contributions", () => {
     ]);
   });
 
-  it("scopes Command Palette visibility to Source and Canvas surfaces", async () => {
+  it("scopes the cross-surface open commands to their exact surfaces", async () => {
     const manifest = await readManifest();
     const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];
 
     expect(commandPalette).toEqual([
-      { command: "nuinuiCAD.openCanvas", when: sourcePaletteWhen },
-      { command: "nuinuiCAD.openOutputPreview", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.openCanvas", when: sourceOrOutputPreviewPaletteWhen },
+      { command: "nuinuiCAD.openOutputPreview", when: sourceOrCanvasPaletteWhen },
       { command: "nuinuiCAD.editCanvasRibbon", when: "true" },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },

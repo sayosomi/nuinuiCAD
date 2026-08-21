@@ -130,7 +130,7 @@ export type ExtensionToVscodeMessage =
   | { type: "rustEvaluationResponse"; id: number; payload: unknown }
   | { type: "rustEvaluationError"; id: number; error: string }
   | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig }
-  | { type: "outputPreviewOpen"; documentVersion: number; normalizedSourceOffset: number }
+  | { type: "outputPreviewOpen"; documentVersion: number; normalizedSourceOffset: number | null }
   | { type: "outputPreviewFit" };
 
 export type VscodeWebviewApi = {
