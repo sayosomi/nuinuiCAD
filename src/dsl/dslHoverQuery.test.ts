@@ -51,7 +51,9 @@ describe("queryDslGeometryHoverTarget", () => {
   it("targets the element segment rather than a numeric property suffix", () => {
     const source = [
       "nui 4",
-      "line Shoulder = segment(start: (0, 0), end: (20, 0))",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "line Shoulder = segment(start: @A, end: @B)",
       "const width: number = @Shoulder.length"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -126,7 +128,7 @@ describe("queryDslGeometryHoverTarget", () => {
     const source = [
       "nui 4",
       "for i in range(from: 0, count: 2) {",
-      "  point P = coordinate(x: @i, y: 0)",
+      "  point P = coordinate(x: i * 10, y: 0)",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
