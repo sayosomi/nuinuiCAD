@@ -33,11 +33,11 @@
       "commandPalette": [
         {
           "command": "nuinuiCAD.openCanvas",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+          "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
         },
         {
           "command": "nuinuiCAD.openOutputPreview",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+          "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
           "command": "nuinuiCAD.editCanvasRibbon",

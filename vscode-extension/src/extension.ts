@@ -118,7 +118,7 @@ type OutputPreviewSession = VscodeWebviewSessionBase & {
   disposables: vscode.Disposable[];
   webviewReady: boolean;
   authoritativeDocumentVersion: number | null;
-  pendingOpen: { normalizedSourceOffset: number } | null;
+  pendingOpen: { normalizedSourceOffset: number | null } | null;
 };
 
 type WebviewSession = DocumentSession | OutputPreviewSession;
@@ -260,12 +260,21 @@ const activeEditorTabInput = (): vscode.Tab["input"] | undefined =>
 
 const nuiCanvasViewType = "nuinuiCAD.canvas";
 const dynamicNuiCanvasViewType = `mainThreadWebview-${nuiCanvasViewType}`;
+const nuiOutputPreviewViewType = "nuinuiCAD.outputPreview";
+const dynamicNuiOutputPreviewViewType = `mainThreadWebview-${nuiOutputPreviewViewType}`;
 
 const providerViewTypeForTabInput = (viewType: string): string =>
-  viewType === dynamicNuiCanvasViewType ? nuiCanvasViewType : viewType;
+  viewType === dynamicNuiCanvasViewType
+    ? nuiCanvasViewType
+    : viewType === dynamicNuiOutputPreviewViewType
+      ? nuiOutputPreviewViewType
+      : viewType;
 
 const isNuiCanvasTab = (input: vscode.Tab["input"] | undefined): input is vscode.TabInputWebview =>
   input instanceof vscode.TabInputWebview && providerViewTypeForTabInput(input.viewType) === nuiCanvasViewType;
+
+const isNuiOutputPreviewTab = (input: vscode.Tab["input"] | undefined): input is vscode.TabInputWebview =>
+  input instanceof vscode.TabInputWebview && providerViewTypeForTabInput(input.viewType) === nuiOutputPreviewViewType;
 
 const activeNuiTextEditorForCommand = (): vscode.TextEditor | undefined => {
   const input = activeEditorTabInput();
@@ -411,6 +420,16 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return remembered && sessions.get(remembered.documentUri, "canvas") === remembered && remembered.panel.visible
       ? remembered
       : null;
+  };
+
+  const activeCanvasSessionForOpenCommand = (): DocumentSession | null => {
+    if (!isNuiCanvasTab(activeEditorTabInput())) return null;
+    return sessions.valuesForSurface("canvas").find((candidate) => candidate.panel.active) ?? null;
+  };
+
+  const activeOutputPreviewSessionForOpenCommand = (): OutputPreviewSession | null => {
+    if (!isNuiOutputPreviewTab(activeEditorTabInput())) return null;
+    return sessions.valuesForSurface("outputPreview").find((candidate) => candidate.panel.active) ?? null;
   };
 
   const rememberBakeCanvas = (session: DocumentSession): void => {
@@ -931,10 +950,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const createCanvasPanel = (
-    editor: vscode.TextEditor,
+    document: vscode.TextDocument,
     preserveFocus = false
   ): DocumentSession | undefined => {
-    const document = editor.document;
     const documentUri = documentKey(document);
     const existing = sessions.get(documentUri, "canvas");
     if (existing) {
@@ -1173,11 +1191,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const createOutputPreviewPanel = (
-    editor: vscode.TextEditor,
-    normalizedSourceOffset: number,
+    document: vscode.TextDocument,
+    normalizedSourceOffset: number | null,
     preserveFocus = false
   ): OutputPreviewSession => {
-    const document = editor.document;
     const documentUri = documentKey(document);
     const existing = sessions.get(documentUri, "outputPreview");
     if (existing) {
@@ -1248,12 +1265,19 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const executeOpenOutputPreview = (): void => {
     const editor = activeNuiTextEditorForCommand();
-    if (!editor) {
-      void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor.");
+    if (editor) {
+      const offset = normalizedOffsetFromRaw(editor.document.getText(), editor.document.offsetAt(editor.selection.active));
+      createOutputPreviewPanel(editor.document, offset);
       return;
     }
-    const offset = normalizedOffsetFromRaw(editor.document.getText(), editor.document.offsetAt(editor.selection.active));
-    createOutputPreviewPanel(editor, offset);
+
+    const canvasSession = activeCanvasSessionForOpenCommand();
+    if (canvasSession) {
+      createOutputPreviewPanel(canvasSession.document, null);
+      return;
+    }
+
+    void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor or Canvas.");
   };
 
   const executeFitOutputPreview = (): void => {
@@ -1314,7 +1338,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const key = documentKey(document);
     let session = sessions.get(key, "canvas");
     if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) return;
-    if (!session) session = createCanvasPanel(editor, true);
+    if (!session) session = createCanvasPanel(editor.document, true);
     if (!session) return;
     session.pendingBake = {
       requestId: nextBakeRequestId++,
@@ -1361,7 +1385,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const key = documentKey(document);
     let session = sessions.get(key, "canvas");
     if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) return;
-    if (!session) session = createCanvasPanel(editor, true);
+    if (!session) session = createCanvasPanel(editor.document, true);
     if (!session) return;
 
     const requestId = nextNavigationRequestId++;
@@ -1380,20 +1404,35 @@ export const activate = (context: vscode.ExtensionContext): void => {
     benchmarkStarted = true;
     benchmarkEditorListener?.dispose();
     benchmarkEditorListener = null;
-    createCanvasPanel(editor);
+    createCanvasPanel(editor.document);
   };
 
   const command = vscode.commands.registerCommand("nuinuiCAD.openCanvas", () => {
-    const editor = activeNuiEditor();
-    if (!editor) {
-      void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor.");
+    const outputPreviewSession = activeOutputPreviewSessionForOpenCommand();
+    if (outputPreviewSession) {
+      createCanvasPanel(outputPreviewSession.document);
       return;
     }
-    if (benchmarkConfig) {
-      startBenchmark(editor);
+
+    if (isNuiOutputPreviewTab(activeEditorTabInput())) {
+      void vscode.window.showErrorMessage("nuinuiCAD requires a matching active Output Preview session.");
       return;
     }
-    createCanvasPanel(editor);
+
+    // Preserve the existing source-editor command behavior. The Output Preview
+    // branch above is checked first so a stale activeTextEditor cannot
+    // override a live cross-surface session.
+    const editor = activeNuiTextEditorForCommand();
+    if (editor) {
+      if (benchmarkConfig) {
+        startBenchmark(editor);
+        return;
+      }
+      createCanvasPanel(editor.document);
+      return;
+    }
+
+    void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor or Output Preview.");
   });
   const openOutputPreviewCommand = vscode.commands.registerCommand(
     "nuinuiCAD.openOutputPreview",

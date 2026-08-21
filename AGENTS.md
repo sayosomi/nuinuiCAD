@@ -156,6 +156,7 @@ implementation. Allowed scopes are exactly:
 * `Canvas`
 * `Output Preview`
 * `Source+Canvas`
+* `Source+Output Preview`
 
 Palette scope is part of the implementation contract. Palette visibility
 represents the relevant surface, not fine-grained transient executability. Do

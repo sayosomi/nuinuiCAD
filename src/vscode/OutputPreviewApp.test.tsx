@@ -490,6 +490,36 @@ describe("Output Preview application", () => {
     await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(svgKey));
   });
 
+  it("keeps the current output selection when opened without a source cursor", async () => {
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+    });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+
+    const svgKey = outputKeyFor("svg", "B");
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "outputPreviewOpen",
+          documentVersion: 1,
+          normalizedSourceOffset: source.indexOf("svg B(")
+        }
+      }));
+    });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(svgKey));
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "outputPreviewOpen", documentVersion: 1, normalizedSourceOffset: null }
+      }));
+    });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(svgKey));
+  });
+
   it("renders overlapping page fills, geometry, boundaries, and guides in contract order", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));

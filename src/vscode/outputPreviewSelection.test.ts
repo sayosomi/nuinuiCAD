@@ -77,6 +77,16 @@ describe("Output Preview output selection", () => {
     })?.kind).toBe("print");
   });
 
+  it("preserves a valid existing selection when opened without a source cursor", () => {
+    const candidates = outputPreviewCandidatesFor(source, compiledForSource());
+
+    expect(selectOutputPreviewCandidate({
+      candidates,
+      cursorOffset: null,
+      existingKey: candidates[1].key
+    })?.kind).toBe("print");
+  });
+
   it("falls back to the first source-order output and supports an empty state", () => {
     const candidates = outputPreviewCandidatesFor(source, compiledForSource());
 
@@ -85,7 +95,13 @@ describe("Output Preview output selection", () => {
       cursorOffset: 0,
       existingKey: "missing"
     })?.kind).toBe("svg");
+    expect(selectOutputPreviewCandidate({
+      candidates,
+      cursorOffset: null,
+      existingKey: "missing"
+    })?.kind).toBe("svg");
     expect(selectOutputPreviewCandidate({ candidates: [], cursorOffset: 0, existingKey: null })).toBeNull();
+    expect(selectOutputPreviewCandidate({ candidates: [], cursorOffset: null, existingKey: null })).toBeNull();
   });
 
   it("owns the complete physical range for multi-line print and svg declarations", () => {
