@@ -1,502 +1,502 @@
-SAY-21 remote verification failed (exit 101)
+SAY-21 remote verification failed (exit 1)
 
-test evaluation::bezier_math_tests::signed_curvature_uses_zero_for_zero_speed ... ok
-test evaluation::bezier_path::tests::cubic_point_at_uses_cubic_bezier_evaluation ... ok
-test evaluation::control_boolean_runtime_tests::a_plain_legacy_numeric_condition_with_no_condition_expressions_is_unaffected ... ok
-test evaluation::control_boolean_runtime_tests::a_poisoned_typed_condition_disables_both_branches ... ok
-test evaluation::common_tangent_evaluator_tests::reports_exact_common_tangent_boundary_diagnostics ... ok
-test evaluation::control_boolean_runtime_tests::bare_boolean_binding_reference_condition_selects_the_correct_branch ... ok
-test evaluation::common_tangent_evaluator_tests::rejects_non_arc_and_invalid_radius_exactly ... ok
-test evaluation::common_tangent_evaluator_tests::evaluates_four_common_tangent_solutions ... ok
-test evaluation::control_boolean_runtime_tests::a_typed_condition_inside_a_for_group_template_resolves_the_same_branch_on_every_iteration ... ok
-test evaluation::control_boolean_runtime_tests::boolean_literal_condition_selects_the_then_branch ... ok
-test evaluation::control_boolean_runtime_tests::show_generated_bound_false_keeps_generated_geometry_but_removes_it_from_the_draw_mask ... ok
-test evaluation::control_boolean_runtime_tests::evaluates_a_resolved_geometry_property_condition_against_prior_geometry ... ok
-test evaluation::control_boolean_runtime_tests::show_generated_bound_to_a_wrong_runtime_type_fails_closed_to_hidden ... ok
-test evaluation::control_boolean_runtime_tests::show_generated_bound_true_is_reflected_without_affecting_rows ... ok
-test evaluation::control_boolean_runtime_tests::show_generated_literal_false_never_affects_iteration_count_or_rows ... ok
-test evaluation::corner_radius_tests::corner_radius_can_feed_downstream_line_elements ... ok
-test evaluation::corner_radius_tests::corner_radius_reports_geometry_and_dependency_errors ... ok
-test evaluation::corner_radius_tests::corner_radius_trims_two_lines_and_creates_arc ... ok
-test evaluation::edge_tests::edge_extends_a_bezier_along_its_handle_angle ... ok
-test evaluation::edge_tests::edge_extends_and_trims_two_line_endpoints ... ok
-test evaluation::corner_radius_tests::corner_radius_trims_bezier_and_offset_line_to_polylines ... ok
-test evaluation::extend_trim_tests::extend_trim_bezier_to_opposite_anchor_reports_zero_length_error ... ok
-test evaluation::edge_tests::edge_trims_a_bezier_and_a_line ... ok
-test evaluation::edge_tests::edge_trims_two_bezier_curves ... ok
-test evaluation::extend_trim_tests::extend_trim_extends_line_and_supports_coordinate_target ... ok
-test evaluation::edge_tests::edge_reports_geometry_errors ... ok
-test evaluation::extend_trim_tests::extend_trim_moves_open_offset_line_and_rejects_closed_offset_line ... ok
-test evaluation::extend_trim_tests::extend_trim_moves_arc_endpoint ... ok
-test evaluation::extend_trim_tests::extend_trim_moves_bezier_endpoint_on_tangent ... ok
-test evaluation::extend_trim_tests::extend_trim_reports_line_target_error_and_dependency_error ... ok
-test evaluation::extend_trim_tests::extend_trim_extends_offset_bezier_endpoint_by_appending_line_segment ... ok
-test evaluation::extend_trim_tests::extend_trim_shortens_arc_to_division_point_on_circle ... ok
-test evaluation::extend_trim_tests::extend_trim_shortens_bezier_to_division_point_on_body ... ok
-test evaluation::extend_trim_tests::extend_trim_shortens_multi_segment_bezier_and_keeps_untouched_segments ... ok
-test evaluation::extend_trim_tests::extend_trim_shortens_bezier_start_to_division_point_on_body ... ok
-test evaluation::extend_trim_tests::updated_line_can_feed_downstream_rust_elements ... ok
-test evaluation::for_group_ancestor_reference_tests::does_nothing_when_the_ancestor_map_is_empty ... ok
-test evaluation::for_group_ancestor_reference_tests::does_nothing_when_the_current_invocation_map_is_empty ... ok
-test evaluation::extend_trim_tests::extend_trim_shortens_bezier_to_intersection_point_on_body ... ok
-test evaluation::for_group_ancestor_reference_tests::leaves_structural_reference_fields_untouched_since_remap_json_ids_already_handles_them ... ok
-test evaluation::for_group_ancestor_reference_tests::leaves_a_numeric_expression_unchanged_when_it_references_nothing_in_the_ancestor_map ... ok
-test evaluation::for_group_ancestor_reference_tests::does_not_remap_a_loop_variable_token_even_if_its_bare_name_collides_with_an_ancestor_id ... ok
-test evaluation::for_group_ancestor_reference_tests::remaps_a_bare_element_token_used_as_a_measurement_function_argument ... ok
-test evaluation::for_group_ancestor_reference_tests::remaps_a_bare_element_token_used_as_a_measurement_function_argument_for_the_current_invocation ... ok
-test evaluation::for_group_ancestor_reference_tests::remaps_a_property_reference_element_id_inside_a_numeric_expression ... ok
-test evaluation::for_group_ancestor_reference_tests::remaps_a_property_reference_element_id_inside_a_numeric_expression_for_the_current_invocation ... ok
-test evaluation::for_group_ancestor_reference_tests::remaps_a_reference_field_without_touching_unrelated_literals_that_collide_with_the_ancestor_id ... ok
-test evaluation::for_group_ancestor_reference_tests::remaps_an_endpoint_line_id_without_touching_its_endpoint_key_literal ... ok
-test evaluation::for_group_ancestor_reference_tests::remaps_bezier_bulge_point_source_and_segment_index_reference ... ok
-test evaluation::for_group_ancestor_reference_tests::remaps_bezier_extreme_point_source_and_numeric_references ... ok
-test evaluation::extend_trim_tests::extend_trim_shortens_offset_bezier_and_keeps_untouched_segments_analytic ... ok
-test evaluation::for_group_generic_runtime_tests::a_measurement_functions_derived_point_argument_still_resolves_for_an_ordinary_non_generated_line ... ok
-test evaluation::for_group_generic_runtime_tests::a_for_group_bodys_numeric_expression_references_a_same_scope_generated_sibling ... ok
-test evaluation::for_group_generic_runtime_tests::a_for_group_bodys_measurement_function_resolves_same_scope_generated_point_arguments ... ok
-test evaluation::for_group_generic_runtime_tests::a_measurement_functions_point_argument_still_resolves_for_an_ordinary_non_generated_point ... ok
-test evaluation::for_group_generic_runtime_tests::a_generated_inner_for_groups_row_reports_the_runtime_outer_instance_id_not_the_template_id ... ok
-test evaluation::for_group_generic_runtime_tests::a_nested_inner_bodys_numeric_expression_references_an_outer_owned_points_property ... ok
-test evaluation::for_group_generic_runtime_tests::disabled_outer_for_group_generates_nothing_for_the_nested_inner_loop ... ok
-test evaluation::for_group_generic_runtime_tests::a_nested_inner_bodys_measurement_function_resolves_an_outer_owned_generated_point_argument ... ok
-test evaluation::for_group_generic_runtime_tests::evaluates_a_nested_generic_for_group_as_outer_times_inner_iterations_exactly_once_each ... ok
-test evaluation::for_group_tests::a_nested_body_element_resolves_a_reference_to_an_element_generated_by_an_outer_iteration ... ok
-test evaluation::for_group_generic_runtime_tests::nested_inner_for_group_with_count_zero_generates_nothing_but_outer_still_runs ... ok
-test evaluation::for_group_tests::an_inner_loop_variable_shadows_an_outer_loop_variable_of_the_same_name ... ok
-test evaluation::for_group_tests::remaps_a_direct_childs_parent_group_id_to_the_runtime_forgroup_instance ... ok
-test evaluation::for_group_tests::does_not_mix_parent_chains_across_two_outer_iterations ... ok
-test evaluation::for_group_tests::threads_both_outer_and_inner_ancestor_iteration_variables_into_the_nested_body ... ok
-test evaluation::intersection_point_tests::discards_bezier_arc_rough_candidate_when_no_exact_root_exists ... ok
-test evaluation::incomplete_numeric_expression_tests::generated_copy_reports_its_incomplete_numeric_expression_as_the_dependency_id ... ok
-test evaluation::intersection_point_tests::evaluates_intersection_index_numeric_parameter ... ok
-test evaluation::intersection_point_tests::excludes_bezier_circle_root_outside_the_arc_sweep_range ... ok
-test evaluation::intersection_point_tests::excludes_circle_line_root_outside_the_arc_sweep_range ... ok
-test evaluation::intersection_point_tests::evaluates_intersection_point_between_arc_and_line ... ok
-test evaluation::intersection_point_tests::keeps_a_full_circle_seam_in_its_local_seed_chord ... ok
-test evaluation::intersection_point_tests::finds_intersections_against_a_closed_offset_line ... ok
-test evaluation::intersection_point_tests::evaluates_intersection_point_between_line_segments ... ok
-test evaluation::intersection_point_tests::excludes_circle_circle_root_outside_the_arc_sweep_range ... ok
-test evaluation::intersection_point_tests::refines_bezier_and_circle_intersection_to_analytic_precision ... ok
-test evaluation::intersection_point_tests::refines_bezier_and_circle_intersection_with_negative_sweep ... ok
-test evaluation::intersection_point_tests::refines_circle_and_circle_intersection_to_analytic_precision ... ok
-test evaluation::intersection_point_tests::refines_circle_and_circle_intersection_with_negative_sweep ... ok
-test evaluation::intersection_point_tests::refines_circle_and_line_intersection_to_analytic_precision ... ok
-test evaluation::intersection_point_tests::keeps_all_three_local_roots_of_a_multi_root_bezier_pair ... ok
-test evaluation::intersection_point_tests::refines_circle_and_line_intersection_with_negative_sweep ... ok
-test evaluation::intersection_point_tests::keeps_near_full_positive_and_negative_arc_intersections_exact ... ok
-test evaluation::intersection_point_tests::refines_near_tangent_circle_and_circle_intersection_stably ... ok
-test evaluation::intersection_point_tests::refines_tangent_line_to_circle_intersection ... ok
-test evaluation::intersection_point_tests::reports_intersection_point_dependency_that_appears_too_late ... ok
-test evaluation::intersection_point_tests::refines_offset_line_arc_segment_against_a_line ... ok
-test evaluation::intersection_point_tests::refines_offset_line_straight_segment_against_a_bezier_curve ... ok
-test evaluation::intersection_point_tests::refines_offset_line_bezier_segment_against_a_bezier_curve ... ok
-test evaluation::intersection_point_tests::reports_no_intersection_and_overlapping_lines ... ok
-test evaluation::intersection_point_tests::reports_intersection_point_geometry_errors ... ok
-test evaluation::intersection_point_tests::selects_intersection_point_by_index ... ok
-test evaluation::line_copy_move_tests::copy_line_and_move_scale_around_end_point ... ok
-test evaluation::line_copy_move_tests::copy_line_mirror_reverses_arc_sweep ... ok
-test evaluation::line_copy_move_tests::move_updates_existing_geometry_and_downstream_references ... ok
-test evaluation::intersection_point_tests::uses_line_endpoint_tangent_extensions_when_requested ... ok
-test evaluation::line_copy_move_tests::copy_line_rejects_a_discontinuous_source_list ... ok
-test evaluation::line_copy_move_tests::symmetric_copy_line_rejects_a_discontinuous_source_list ... ok
-test evaluation::line_tangent_offset_point_tests::evaluates_line_tangent_offset_point_numeric_parameters ... ok
-test evaluation::line_copy_move_tests::symmetric_move_reports_axis_and_dependency_errors ... ok
-test evaluation::line_tangent_offset_point_tests::evaluates_line_tangent_offset_point_on_arc_line ... ok
-test evaluation::line_tangent_offset_point_tests::evaluates_line_tangent_offset_point_on_bezier_intermediate_point_tangent ... ok
-test evaluation::line_tangent_offset_point_tests::evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles ... ok
-test evaluation::line_tangent_offset_point_tests::evaluates_line_tangent_offset_point_on_line ... ok
-test evaluation::line_tangent_offset_point_tests::evaluates_convex_and_concave_curve_side_on_a_bezier ... ok
-test evaluation::line_tangent_offset_point_tests::reports_line_tangent_offset_point_base_line_dependency_that_appears_too_late ... ok
-test evaluation::intersection_point_tests::uses_offset_bezier_endpoint_tangents_for_extension_intersections ... ok
-test evaluation::line_tangent_offset_point_tests::reports_line_tangent_offset_point_base_point_dependency ... ok
-test evaluation::line_tangent_offset_point_tests::reports_line_tangent_offset_point_when_base_point_is_not_on_line ... ok
-test evaluation::line_tangent_offset_point_tests::rejects_curve_side_on_non_bezier_and_negative_distance ... ok
-test evaluation::linear_mutation_integration_tests::history_and_final_binding_order_match_the_linear_ts_contract ... ok
-test evaluation::linear_mutation_integration_tests::mutation_payload_rejects_inconsistent_ids_types_choices_and_control_owners ... ok
-test evaluation::linear_mutation_integration_tests::production_command_finalizes_a_document_with_no_elements ... ok
-test evaluation::linear_mutation_integration_tests::production_command_finalizes_a_set_after_the_last_element ... ok
-test evaluation::linear_mutation_integration_tests::nested_inner_stop_stops_remaining_inner_and_outer_iterations ... ok
-test evaluation::linear_mutation_integration_tests::terminal_finalize_never_executes_versions_at_or_after_stop ... ok
-test evaluation::linear_mutation_integration_tests::production_command_runs_for_group_mutation_and_carries_the_final_slot ... ok
-test evaluation::line_tangent_offset_point_tests::evaluates_unique_curve_side_and_rejects_ambiguous_internal_join ... ok
-test evaluation::numeric_binding_runtime::tests::accepts_typed_numeric_entries_with_empty_references ... ok
-test evaluation::numeric_binding_runtime::tests::expands_finite_exponents_without_losing_the_ieee_value ... ok
-test evaluation::numeric_binding_runtime::tests::materializes_typed_numeric_geometry_builtin_with_current_source_order ... ok
-test evaluation::numeric_binding_runtime::tests::materializes_typed_numeric_result_as_a_literal_number ... ok
-test evaluation::numeric_binding_runtime::tests::rejects_legacy_numeric_entries_with_empty_references ... ok
-test evaluation::numeric_binding_runtime::tests::rejects_malformed_typed_numeric_expression ... ok
-test evaluation::offset_joins::tests::join_uses_finite_bezier_intersection_before_tangent_miter ... ok
-test evaluation::numeric_binding_runtime::tests::typed_numeric_evaluation_errors_fail_closed_for_wrong_type_error_and_non_finite ... ok
-test evaluation::offset_bezier::tests::unit_tangent_uses_fallback_for_degenerate_start_handle ... ok
-test evaluation::offset_joins::tests::with_end_trims_bezier_to_on_curve_join_point ... ok
-test evaluation::offset_line_tests::evaluates_line_offset ... ok
-test evaluation::offset_line_tests::evaluates_arc_offset_and_radius_error ... ok
-test evaluation::offset_line_tests::evaluates_numeric_offset_parameter ... ok
-test evaluation::offset_line_tests::rejects_reversed_base_lines_without_an_explicit_reverse ... ok
-test evaluation::offset_line_tests::offset_line_can_feed_line_point_and_intersection_helpers ... ok
-test evaluation::offset_line_tests::reports_too_late_base_dependency ... ok
-test evaluation::offset_line_tests::rejects_a_source_chain_that_does_not_follow_the_first_line ... ok
-test evaluation::offset_line_tests::reports_bezier_trim_warning ... ok
-test evaluation::offset_source_segments::tests::preserves_explicit_source_direction ... ok
-test evaluation::path_reverse_evaluator_tests::path_reverse_allows_nested_inner_loop_reverse_targeting_same_inner_loop_element ... ok
-test evaluation::offset_line_tests::suppresses_bezier_trim_warning_when_requested ... ok
-test evaluation::path_reverse_evaluator_tests::path_reverse_does_not_apply_inside_a_disabled_group ... ok
-test evaluation::offset_line_tests::evaluates_bezier_and_nested_offset ... ok
-test evaluation::path_reverse_evaluator_tests::path_reverse_allows_target_declared_in_the_same_for_loop ... ok
-test evaluation::path_reverse_evaluator_tests::path_reverse_flips_target_line_in_place_without_own_geometry ... ok
-test evaluation::path_reverse_evaluator_tests::path_reverse_generated_clone_keeps_model_name_empty_but_reports_display_name_fallback ... ok
-test evaluation::path_reverse_evaluator_tests::path_reverse_only_applies_in_the_active_conditional_branch ... ok
-test evaluation::path_reverse_evaluator_tests::path_reverse_rejects_target_declared_outside_its_for_loop ... ok
-test evaluation::path_reverse_evaluator_tests::path_reverse_rejects_nested_inner_loop_reverse_targeting_outer_loop_only_element ... ok
-test evaluation::path_reverse_evaluator_tests::path_reverse_reports_dependency_error_for_missing_target ... ok
-test evaluation::performance_tests::performance_1000_line_elements ... ignored
-test evaluation::performance_tests::performance_deep_groups ... ignored
-test evaluation::performance_tests::performance_many_beziers ... ignored
-test evaluation::performance_tests::performance_many_dependency_errors ... ignored
-test evaluation::performance_tests::performance_many_offset_lines ... ignored
-test evaluation::path_reverse_evaluator_tests::path_reverse_reports_geometry_error_for_non_line_target ... ok
-test evaluation::property_binding_runtime_tests::evaluate_document_accepts_a_schema_driven_property_key_and_fails_closed_at_runtime ... ok
-test evaluation::property_binding_runtime_tests::evaluates_a_resolved_geometry_property_expression_on_a_common_property ... ok
-test evaluation::property_binding_runtime_tests::fails_closed_when_the_resolved_choice_value_is_not_one_of_the_propertys_own_options ... ok
-test evaluation::property_binding_runtime_tests::fails_closed_on_a_runtime_type_mismatch_even_though_the_payloads_own_expected_type_was_valid ... ok
-test evaluation::pure_typed_production_performance_tests::performance_pure_typed_production_binding_versions ... ignored
-test evaluation::pure_typed_production_performance_tests::performance_pure_typed_production_scalar_program ... ignored
-test evaluation::property_binding_runtime_tests::fails_closed_when_the_bound_binding_is_poisoned ... ok
-test evaluation::scalar_expression_payload_compat_tests::malformed_shadow_payload_does_not_change_evaluation_output_or_panic ... ok
-test evaluation::scalar_expression_payload_compat_tests::valid_shadow_payload_does_not_change_evaluation_output ... ok
-test evaluation::property_binding_runtime_tests::offset_line_side_bound_to_a_choice_binding_flips_the_offset_direction ... ok
-test evaluation::scalar_expression_payload_compat_tests::scalar_program_returns_bindings_and_rejects_malformed_payloads ... ok
-test evaluation::scalar_program_integration_tests::evaluates_all_scalar_literals_and_prior_binding_references_in_order ... ok
-test evaluation::scalar_program_integration_tests::honors_stop_and_keeps_geometry_unchanged_for_empty_or_omitted_programs ... ok
-test evaluation::scalar_program_integration_tests::evaluates_resolved_print_layout_bindings_after_stop ... ok
-test evaluation::scalar_program_performance_tests::performance_scalar_program_const_evaluation ... ignored
-test evaluation::scalar_program_integration_tests::poisons_a_decodable_statement_with_a_malformed_initializer ... ok
-test evaluation::scalar_program_integration_tests::rejects_external_document_binding_references ... ok
-test evaluation::scalars::bindings_tests::returns_a_cycle_guard_error_instead_of_infinite_recursing_on_a_synthetic_cyclic_program ... ok
-test evaluation::property_binding_runtime_tests::materializes_a_bound_boolean_property_uniformly_across_every_forgroup_generated_instance ... ok
-test evaluation::scalars::builtin_function_semantics_tests::evaluates_basic_numeric_builtins ... ok
-test evaluation::scalars::bindings_tests::scalar_evaluation_json_round_trips_geometry_builtin_target_context ... ok
-test evaluation::scalars::bindings_tests::finalize_output_order_matches_program_statements_order_even_when_resolved_out_of_order_first ... ok
-test evaluation::scalars::bindings_tests::resolves_bindings_out_of_array_order_and_caches_each_at_most_once ... ok
-test evaluation::scalars::builtin_function_semantics_tests::evaluates_inverse_trigonometric_functions_in_degrees_and_validates_domains ... ok
-test evaluation::scalars::builtin_function_semantics_tests::evaluates_is_close_and_rejects_negative_tolerance ... ok
-test evaluation::scalars::builtin_function_semantics_tests::evaluates_spread_angle_from_chord_length_in_degrees ... ok
-test evaluation::scalars::builtin_function_semantics_tests::evaluates_trigonometric_functions_in_degrees ... ok
-test evaluation::scalars::builtin_function_semantics_tests::normalizes_atan2_y_x_to_compass_degrees ... ok
-test evaluation::scalars::builtin_function_semantics_tests::rejects_invalid_spread_angle_arguments_and_arity ... ok
-test evaluation::scalars::builtin_function_semantics_tests::matches_decimal_shift_representability_contract ... ok
-test evaluation::scalars::builtin_function_semantics_tests::rejects_invalid_sqrt_argument ... ok
-test evaluation::scalars::builtin_function_semantics_tests::rejects_non_finite_trigonometric_inputs ... ok
-test evaluation::scalars::builtin_function_semantics_tests::rejects_tangent_singularities_by_the_exact_degree_contract ... ok
-test evaluation::scalars::builtin_function_semantics_tests::preserves_decimal_coefficient_text_until_the_final_parse ... ok
-test evaluation::scalars::builtin_function_semantics_tests::rejects_non_finite_round_to_intermediates ... ok
-test evaluation::scalars::builtin_function_semantics_tests::rounds_midpoints_away_from_zero_and_supports_decimal_digits ... ok
-test evaluation::scalars::builtin_function_semantics_tests::rounds_to_a_positive_step_using_the_same_midpoint_rule ... ok
-test evaluation::scalars::condition_expression_payload_tests::rejects_a_duplicate_element_id ... ok
-test evaluation::scalars::condition_expression_payload_tests::accepts_a_valid_boolean_condition_expression ... ok
-test evaluation::scalars::condition_expression_payload_tests::rejects_a_malformed_expression_payload ... ok
-test evaluation::scalars::condition_expression_payload_tests::rejects_a_non_array_payload ... ok
-test evaluation::scalars::condition_expression_payload_tests::rejects_an_element_id_that_does_not_match_any_element ... ok
-test evaluation::scalars::condition_expression_payload_tests::rejects_a_null_root_type ... ok
-test evaluation::scalars::condition_expression_payload_tests::rejects_a_non_boolean_root_type ... ok
-test evaluation::scalars::condition_expression_payload_tests::rejects_an_element_that_is_not_a_conditional_group ... ok
-test evaluation::scalars::condition_expression_payload_tests::rejects_an_unexpected_field ... ok
-test evaluation::scalars::control_boolean_payload_tests::accepts_a_compound_typed_expression_source ... ok
-test evaluation::scalars::control_boolean_payload_tests::accepts_a_schema_driven_control_parameter_without_a_property_allowlist ... ok
-test evaluation::scalars::control_boolean_payload_tests::accepts_a_valid_show_generated_binding ... ok
-test evaluation::scalars::control_boolean_payload_tests::accepts_an_element_type_when_the_compiled_contract_supplies_the_type ... ok
-test evaluation::scalars::control_boolean_payload_tests::rejects_a_binding_id_that_does_not_exist_in_the_scalar_program ... ok
-test evaluation::scalars::control_boolean_payload_tests::accepts_the_compiled_expected_type_without_a_rust_schema_duplicate ... ok
-test evaluation::scalars::control_boolean_payload_tests::rejects_an_element_id_that_does_not_match_any_element ... ok
-test evaluation::scalars::control_boolean_payload_tests::rejects_a_duplicate_element_id_and_parameter_key_pair ... ok
-test evaluation::scalars::control_boolean_payload_tests::rejects_a_non_array_payload ... ok
-test evaluation::scalars::control_boolean_payload_tests::rejects_an_unexpected_field ... ok
-test evaluation::scalars::control_boolean_payload_tests::rejects_every_entry_when_there_is_no_scalar_program_at_all_fail_closed_not_literal_fallback ... ok
-test evaluation::scalars::expression_evaluator_tests::and_with_a_false_left_never_evaluates_a_right_side_unary_operand ... ok
-test evaluation::scalars::expression_evaluator_tests::carries_the_original_issue_code_and_binding_id_through_nested_group_unary_binary_reference ... ok
-test evaluation::scalars::expression_evaluator_tests::choice_equality_different_value_same_options_is_false ... ok
-test evaluation::scalars::expression_evaluator_tests::compares_multi_byte_and_emoji_strings_by_exact_equality ... ok
-test evaluation::scalars::expression_evaluator_tests::does_not_round_float_arithmetic ... ok
-test evaluation::scalars::expression_evaluator_tests::evaluates_angle_in_normalized_degrees ... ok
-test evaluation::scalars::expression_evaluator_tests::evaluates_builtin_arguments_left_to_right_and_stops_at_the_first_error ... ok
-test evaluation::scalars::expression_evaluator_tests::evaluates_distance_for_normal_same_and_negative_coordinates ... ok
-test evaluation::scalars::expression_evaluator_tests::evaluates_line_angle_as_the_directionless_smaller_angle ... ok
-test evaluation::scalars::expression_evaluator_tests::evaluates_number_boolean_nested_reference_and_geometry_builtin_calls ... ok
-test evaluation::scalars::expression_evaluator_tests::evaluates_line_distance_to_the_infinite_line ... ok
-test evaluation::scalars::expression_evaluator_tests::geometry_runtime_disabled_is_distinct_from_unavailable ... ok
-test evaluation::scalars::expression_evaluator_tests::geometry_lookup_uses_resolved_statement_id_identity ... ok
-test evaluation::scalars::expression_evaluator_tests::evaluates_every_shared_vector_matching_its_expected_result ... ok
-test evaluation::scalars::expression_evaluator_tests::geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_point_key ... ok
-test evaluation::scalars::expression_evaluator_tests::maps_builtin_runtime_argument_and_non_finite_errors ... ok
-test evaluation::scalars::expression_evaluator_tests::geometry_runtime_kind_mismatch_is_unavailable ... ok
-test evaluation::scalars::expression_evaluator_tests::maps_geometry_non_finite_result_to_evaluation_non_finite_result ... ok
-test evaluation::scalars::expression_evaluator_tests::or_with_a_true_left_never_evaluates_a_right_side_unary_operand ... ok
-test evaluation::scalars::expression_evaluator_tests::performance_typed_expression_evaluator_baseline ... ignored
-test evaluation::scalars::expression_evaluator_tests::reference_as_an_arithmetic_operand_is_checked_and_stops_the_whole_expression ... ok
-test evaluation::scalars::expression_evaluator_tests::static_type_null_geometry_call_does_not_lookup_geometry_targets ... ok
-test evaluation::scalars::expression_evaluator_tests::reference_as_an_equality_operand_is_checked ... ok
-test evaluation::scalars::expression_evaluator_tests::uses_static_type_null_error_for_an_untyped_call ... ok
-test evaluation::scalars::expression_evaluator_tests::zero_length_first_or_second_line_has_a_distinct_runtime_failure_for_line_angle ... ok
-test evaluation::scalars::expression_evaluator_tests::zero_length_line_is_an_invalid_builtin_argument ... ok
-test evaluation::scalars::expression_payload_tests::accepts_choice_literal_with_a_null_type ... ok
-test evaluation::scalars::expression_payload_tests::accepts_nested_calls_exactly_at_the_shared_expression_depth_limit ... ok
-test evaluation::scalars::expression_payload_tests::accepts_power_and_remainder_binary_operators ... ok
-test evaluation::scalars::expression_payload_tests::accepts_reference_with_a_non_null_binding_id_and_a_null_type ... ok
-test evaluation::scalars::expression_payload_tests::accepts_unary_group_nesting_exactly_at_the_limit ... ok
-test evaluation::scalars::expression_payload_tests::call_dispatch_identity_does_not_re_resolve_the_source_name ... ok
-test evaluation::scalars::expression_evaluator_tests::evaluates_a_long_flat_binary_chain_without_overflowing_a_bounded_stack ... ok
-test evaluation::scalars::expression_payload_tests::decodes_angle_point_point_geometry_wrappers ... ok
-test evaluation::scalars::expression_payload_tests::decodes_builtin_call_and_preserves_nested_argument_order_and_references ... ok
-test evaluation::scalars::expression_payload_tests::decodes_derived_point_geometry_target_and_keeps_direct_payload_compatible ... ok
-test evaluation::scalars::expression_payload_tests::decodes_distance_point_point_geometry_wrappers ... ok
-test evaluation::scalars::expression_payload_tests::decodes_every_shared_vector_ast_without_a_dedicated_rust_fixture ... ok
-test evaluation::scalars::expression_payload_tests::decodes_line_angle_line_line_geometry_wrappers_without_argument_names ... ok
-test evaluation::scalars::expression_payload_tests::decodes_line_distance_point_line_geometry_wrappers ... ok
-test evaluation::scalars::expression_payload_tests::decodes_scalar_wrapper_arguments ... ok
-test evaluation::scalars::expression_payload_tests::decodes_spread_angle_scalar_wrapper_arguments_without_argument_names ... ok
-test evaluation::scalars::expression_payload_tests::golden_vector_choice_option_order_survives_decode_distinctly ... ok
-test evaluation::scalars::expression_payload_tests::golden_vector_unresolved_reference_decodes_with_null_binding_and_type ... ok
-test evaluation::scalars::expression_payload_tests::preserves_resolved_geometry_target_identity_and_rejects_raw_source_name ... ok
-test evaluation::scalars::expression_payload_tests::accepts_a_wide_shallow_tree_within_the_node_count_limit ... ok
-test evaluation::scalars::expression_payload_tests::rejects_choice_literal_value_not_a_member_of_its_declared_options ... ok
-test evaluation::scalars::expression_payload_tests::rejects_choice_literal_with_a_non_choice_declared_type ... ok
-test evaluation::scalars::expression_payload_tests::rejects_empty_string_binding_id ... ok
-test evaluation::scalars::expression_payload_tests::rejects_invalid_binary_operator ... ok
-test evaluation::scalars::expression_payload_tests::rejects_invalid_derived_geometry_target_shapes ... ok
-test evaluation::scalars::expression_payload_tests::rejects_literal_node_whose_declared_type_kind_does_not_match_its_own_kind ... ok
-test evaluation::scalars::expression_payload_tests::rejects_malformed_call_args_and_unexpected_call_fields ... ok
-test evaluation::scalars::expression_payload_tests::rejects_malformed_call_target_and_unexpected_target_fields ... ok
-test evaluation::scalars::expression_payload_tests::rejects_malformed_geometry_interface_and_target_fields ... ok
-test evaluation::scalars::expression_payload_tests::rejects_nested_calls_one_level_past_the_shared_expression_depth_limit ... ok
-test evaluation::scalars::expression_payload_tests::rejects_node_missing_a_required_field ... ok
-test evaluation::scalars::expression_payload_tests::rejects_node_with_an_unexpected_extra_field ... ok
-test evaluation::scalars::expression_payload_tests::rejects_non_null_call_argument_consistency_errors ... ok
-test evaluation::scalars::expression_payload_tests::rejects_non_string_binding_id ... ok
-test evaluation::scalars::expression_payload_tests::rejects_null_call_target ... ok
-test evaluation::scalars::expression_payload_tests::rejects_old_raw_scalar_argument_shape ... ok
-test evaluation::scalars::expression_payload_tests::rejects_reference_with_a_non_null_type_but_a_null_binding_id ... ok
-test evaluation::scalars::expression_payload_tests::rejects_span_with_start_after_end ... ok
-test evaluation::scalars::expression_payload_tests::rejects_unary_group_nesting_one_level_past_the_limit ... ok
-test evaluation::scalars::expression_payload_tests::rejects_unknown_builtin_target_name ... ok
-test evaluation::scalars::expression_payload_tests::rejects_unknown_call_target_kind ... ok
-test evaluation::scalars::expression_payload_tests::rejects_unknown_node_kind ... ok
-test evaluation::scalars::expression_payload_tests::rejects_wrong_json_type_for_a_field ... ok
-test evaluation::scalars::expression_payload_tests::semantic_invalid_call_shapes_decode_when_static_type_is_null ... ok
-test evaluation::scalars::for_group_mutation_core_tests::a_later_body_statement_recovers_a_poisoned_outer_slot ... ok
-test evaluation::scalars::for_group_mutation_core_tests::carries_outer_slots_and_retires_nested_locals ... ok
-test evaluation::scalars::for_group_mutation_core_tests::matches_shared_for_group_mutation_fixture ... ok
-test evaluation::scalars::for_group_mutation_core_tests::performance_for_group_mutation_core_baseline ... ignored
-test evaluation::scalars::for_group_mutation_core_tests::rejects_iteration_binding_assignment_and_retires_failed_frame ... ok
-test evaluation::scalars::for_group_mutation_core_tests::stopped_callback_retires_its_frame_and_stops_remaining_iterations ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::ancestor_group_disabled_geometry_target_has_a_distinct_runtime_failure ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::derived_start_and_end_targets_resolve_to_points ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::derived_target_requires_an_available_base_geometry ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::disabled_geometry_target_has_a_distinct_runtime_failure ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::earlier_point_target_resolves ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::expected_target_and_runtime_geometry_type_mismatch_rejects ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::fabricated_computed_geometry_without_an_element_rejects ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::hidden_geometry_target_remains_usable ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::invalid_derived_projection_fails_closed_as_unavailable ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::line_longer_than_threshold_validates ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::line_target_requires_strict_line_kind_and_start_end ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::modifier_disabled_geometry_target_has_a_distinct_runtime_failure ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::offset_line_is_not_a_strict_line ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::point_point_and_point_line_signatures_validate_without_calculating ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::point_target_requires_point_runtime_kind ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::self_and_forward_targets_reject ... ok
-test evaluation::scalars::geometry_builtin_runtime_tests::zero_length_line_rejects_at_and_below_threshold ... ok
-test evaluation::scalars::program_payload_tests::accepts_task_19_program_wire_shape_and_task_17_ast_spans ... ok
-test evaluation::scalars::program_payload_tests::rejects_invalid_envelope_and_duplicate_binding_ids ... ok
-test evaluation::scalars::property_binding_payload_tests::accepts_a_compound_typed_expression_source ... ok
-test evaluation::scalars::property_binding_payload_tests::accepts_a_schema_driven_parameter_key_without_a_property_allowlist ... ok
-test evaluation::scalars::property_binding_payload_tests::accepts_a_valid_standard_property_binding ... ok
-test evaluation::scalars::property_binding_payload_tests::accepts_an_element_type_when_the_compiled_contract_supplies_the_type ... ok
-test evaluation::scalars::property_binding_payload_tests::accepts_the_compiled_choice_type_without_rederiving_property_options ... ok
-test evaluation::scalars::property_binding_payload_tests::accepts_the_compiled_expected_type_without_a_rust_schema_duplicate ... ok
-test evaluation::scalars::property_binding_payload_tests::rejects_a_binding_id_that_does_not_exist_in_the_scalar_program ... ok
-test evaluation::scalars::property_binding_payload_tests::rejects_a_duplicate_element_id_and_parameter_key_pair ... ok
-test evaluation::scalars::property_binding_payload_tests::rejects_a_non_array_payload ... ok
-test evaluation::scalars::property_binding_payload_tests::rejects_an_element_id_that_does_not_match_any_element ... ok
-test evaluation::scalars::property_binding_payload_tests::rejects_an_unexpected_field ... ok
-test evaluation::scalars::property_binding_payload_tests::rejects_every_entry_when_there_is_no_scalar_program_at_all_fail_closed_not_literal_fallback ... ok
-test evaluation::scalars::scalar_payload_tests::decodes_and_rejects_geometry_builtin_target_contexts_fail_closed ... ok
-test evaluation::scalars::scalar_payload_tests::decodes_each_scalar_type_kind ... ok
-test evaluation::scalars::scalar_payload_tests::decodes_each_scalar_value_kind ... ok
-test evaluation::scalars::scalar_payload_tests::decodes_error_scalar_evaluation_with_a_binding_id ... ok
-test evaluation::scalars::scalar_payload_tests::decodes_error_scalar_evaluation_with_an_open_issue_code_string ... ok
-test evaluation::scalars::scalar_payload_tests::decodes_ok_scalar_evaluation ... ok
-test evaluation::scalars::scalar_payload_tests::rejects_choice_type_options_beyond_the_limit ... ok
-test evaluation::scalars::scalar_payload_tests::rejects_choice_type_with_empty_string_option ... ok
-test evaluation::scalars::scalar_payload_tests::rejects_choice_value_not_a_member_of_its_options ... ok
-test evaluation::scalars::scalar_payload_tests::rejects_error_scalar_evaluation_with_empty_issue_code ... ok
-test evaluation::scalars::scalar_payload_tests::rejects_error_scalar_evaluation_with_null_binding_id ... ok
-test evaluation::scalars::scalar_payload_tests::rejects_non_finite_number_value ... ok
-test evaluation::scalars::scalar_payload_tests::rejects_ok_scalar_evaluation_whose_value_does_not_match_its_type ... ok
-test evaluation::scalars::scalar_payload_tests::rejects_scalar_type_with_unexpected_field ... ok
-test evaluation::scalars::scalar_payload_tests::rejects_unknown_scalar_evaluation_status ... ok
-test evaluation::scalars::scalar_payload_tests::rejects_unknown_scalar_type_kind ... ok
-test evaluation::scalars::text_property_binding_payload_tests::accepts_a_compound_typed_expression_source ... ok
-test evaluation::scalars::text_property_binding_payload_tests::accepts_a_schema_driven_parameter_key_without_a_property_allowlist ... ok
-test evaluation::scalars::text_property_binding_payload_tests::accepts_a_valid_text_binding ... ok
-test evaluation::scalars::text_property_binding_payload_tests::accepts_an_element_type_when_the_compiled_contract_supplies_the_type ... ok
-test evaluation::scalars::text_property_binding_payload_tests::accepts_the_compiled_expected_type_without_a_rust_schema_duplicate ... ok
-test evaluation::scalars::text_property_binding_payload_tests::rejects_a_binding_id_that_does_not_exist_in_the_scalar_program ... ok
-test evaluation::scalars::text_property_binding_payload_tests::rejects_a_duplicate_element_id_and_parameter_key_pair ... ok
-test evaluation::scalars::text_property_binding_payload_tests::rejects_a_non_array_payload ... ok
-test evaluation::scalars::text_property_binding_payload_tests::rejects_an_element_id_that_does_not_match_any_element ... ok
-test evaluation::scalars::text_property_binding_payload_tests::rejects_an_unexpected_field ... ok
-test evaluation::scalars::text_property_binding_payload_tests::rejects_every_entry_when_there_is_no_scalar_program_at_all_fail_closed_not_literal_fallback ... ok
-test evaluation::scalars::text_template_payload_tests::accepts_a_boolean_hole_when_a_scalar_program_is_present ... ok
-test evaluation::scalars::text_template_payload_tests::accepts_a_literal_only_template_without_a_scalar_program ... ok
-test evaluation::scalars::text_template_payload_tests::accepts_a_numeric_expression_hole_only_template_without_a_scalar_program ... ok
-test evaluation::scalars::text_template_payload_tests::accepts_a_typed_number_hole_when_a_scalar_program_is_present ... ok
-test evaluation::scalars::text_template_payload_tests::accepts_a_typed_string_hole_when_a_scalar_program_is_present ... ok
-test evaluation::scalars::text_template_payload_tests::accepts_reference_free_boolean_holes_without_a_scalar_runtime ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_boolean_hole_whose_expression_root_type_is_number ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_boolean_hole_with_a_binding_reference_without_a_scalar_runtime ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_duplicate_element_id ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_literal_segment_with_an_unexpected_field ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_non_array_segments_field ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_non_array_top_level_payload ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_number_hole_whose_expression_root_type_is_string ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_numeric_expression_hole_segment_with_an_unexpected_field ... ok
-test evaluation::scalars::expression_payload_tests::accepts_a_long_flat_binary_chain_within_the_node_count_budget ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_string_hole_whose_expression_root_type_is_number ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_typed_number_hole_with_a_binding_reference_when_no_scalar_program_is_present ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_a_typed_string_hole_with_a_binding_reference_when_no_scalar_program_is_present ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_an_owner_element_that_is_not_a_text_element ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_an_element_id_that_does_not_match_any_element ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_an_unknown_hole_kind ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_an_unknown_segment_kind ... ok
-test evaluation::scalars::text_tests::appends_lowercase_boolean_values ... ok
-test evaluation::scalars::text_tests::assembles_literal_only_segments ... ok
-test evaluation::scalars::text_template_payload_tests::rejects_an_unexpected_field_on_the_template_entry ... ok
-test evaluation::scalars::text_tests::delegates_a_numeric_expression_hole_to_the_injected_evaluator ... ok
-test evaluation::scalars::text_tests::fails_closed_on_a_numeric_expression_hole_failure_without_a_message_the_caller_already_pushed_one ... ok
-test evaluation::scalars::text_tests::fails_closed_on_a_typed_hole_evaluation_error ... ok
-test evaluation::scalars::text_tests::fails_closed_when_a_boolean_hole_resolves_to_a_non_boolean_value ... ok
-test evaluation::scalars::text_tests::formats_a_non_integer_typed_number_hole_to_three_decimals_trimmed ... ok
-test evaluation::scalars::text_tests::formats_an_integer_typed_number_hole_without_a_decimal_point ... ok
-test evaluation::scalars::text_tests::stops_at_the_first_failing_hole_in_source_order_never_evaluating_later_segments ... ok
-test evaluation::scalars::text_tests::interleaves_numeric_expression_and_typed_holes_in_source_order ... ok
-test evaluation::scalars::text_tests::substitutes_a_typed_string_hole ... ok
-test evaluation::split_line_tests::reports_base_and_split_point_dependencies ... ok
-test evaluation::split_line_tests::rejects_split_point_outside_or_at_endpoint ... ok
-test evaluation::split_line_tests::splits_arc_line ... ok
-test evaluation::split_line_tests::split_line_can_feed_downstream_line_helpers ... ok
-test evaluation::split_line_tests::splits_bezier_curve ... ok
-test evaluation::split_line_tests::splits_bezier_curve_at_intersection_with_angle_line ... ok
-test evaluation::split_line_tests::splits_offset_line ... ok
-test evaluation::text_template_runtime_tests::a_for_group_generated_text_elements_typed_hole_failure_is_self_referential_per_clone ... ok
-test evaluation::split_line_tests::splits_line_and_updates_base_geometry ... ok
-test evaluation::text_template_runtime_tests::a_numeric_expression_hole_failure_produces_exactly_one_error_no_duplicate ... ok
-test evaluation::text_template_runtime_tests::a_text_element_with_no_compiled_entry_keeps_braces_literal ... ok
-test evaluation::text_template_runtime_tests::a_typed_hole_referencing_a_completely_dangling_binding_fails_closed_self_referentially ... ok
-test evaluation::text_template_runtime_tests::a_typed_hole_referencing_a_poisoned_binding_fails_closed_self_referentially ... ok
-test evaluation::text_template_runtime_tests::assembles_a_literal_only_template_with_no_scalar_program ... ok
-test evaluation::text_template_runtime_tests::assembles_a_numeric_expression_hole_only_template_with_no_scalar_program ... ok
-test evaluation::text_template_runtime_tests::materializes_a_bare_text_property_binding_with_no_compiled_template ... ok
-test evaluation::text_template_runtime_tests::interleaves_numeric_expression_and_typed_holes ... ok
-test evaluation::text_template_runtime_tests::substitutes_a_typed_number_hole_and_formats_it ... ok
-test evaluation::text_template_runtime_tests::substitutes_a_typed_string_hole ... ok
-test evaluation::text_template_runtime_tests::substitutes_typed_boolean_holes_as_lowercase_true_and_false ... ok
-test evaluation::three_point_arc_line_tests::evaluates_three_point_arc_line ... ok
-test evaluation::three_point_arc_line_tests::allows_supported_point_elements_to_reference_three_point_arc ... ok
-test evaluation::three_point_arc_line_tests::evaluates_three_point_arc_numeric_parameters ... ok
-test evaluation::three_point_arc_line_tests::evaluates_three_point_arc_wrap_and_measurement_reference ... ok
-test evaluation::three_point_arc_line_tests::reports_three_point_arc_dependency_that_appears_too_late ... ok
-test evaluation::three_point_arc_line_tests::reports_three_point_arc_geometry_error_for_collinear_points ... ok
-test layout_settings::tests::returns_default_settings_for_missing_file ... ok
-test layout_settings::tests::returns_error_for_unwritable_path ... ok
-test layout_settings::tests::falls_back_to_default_settings_for_invalid_json ... ok
-test layout_settings::tests::saves_and_loads_layout_settings ... ok
-test palette_settings::tests::returns_default_template_for_missing_file ... ok
-test palette_settings::tests::returns_error_for_unwritable_path ... ok
-test palette_settings::tests::saves_and_loads_palette_template ... ok
-test palette_settings::tests::falls_back_to_default_template_for_invalid_json ... ok
-test print_output::tests::accepts_unlabeled_outer_guides_and_matching_shared_labels ... ok
-test print_output::tests::deserializes_actual_camel_case_print_payload_with_xy_stride_and_label_center ... ok
-test print_pdf::tests::builds_pages_in_payload_order_and_validates_payload ... ok
-test print_output::tests::rejects_malformed_guide_and_label_metadata ... ok
-test print_pdf::tests::converts_dashed_lengths_from_mm_to_pdf_points ... ok
-test print_pdf::tests::consumes_resolved_guide_center_and_keeps_label_off_the_guide_line ... ok
-test print_pdf::tests::converts_dotted_lengths_from_mm_to_pdf_points ... ok
-test print_pdf::tests::emits_exact_text_local_layout_for_multiline_rotated_mirrored_text ... ok
-test print_pdf::tests::emits_exact_ucs2_codes_for_latin_and_japanese_text ... ok
-test print_pdf::tests::emits_round_line_cap_and_join_and_keeps_physical_stroke_width ... ok
-test print_pdf::tests::emits_supported_ucs2_codes ... ok
-test print_pdf::tests::full_pdf_build_propagates_unsupported_text_error ... ok
-test print_pdf::tests::rejects_text_outside_the_current_ucs2_cmap ... ok
-test print_pdf::tests::rejects_unsupported_bmp_text_explicitly ... ok
-test print_pdf::tests::rejects_invalid_overlap ... ok
-test print_svg::tests::emits_exact_text_local_layout_for_multiline_rotated_mirrored_text ... ok
-test print_svg::tests::rejects_invalid_payload ... ok
-test print_svg::tests::validates_payload_and_converts_y_axis_at_svg_boundary ... ok
-test shortcut_settings::tests::falls_back_to_default_settings_for_invalid_json ... ok
-test shortcut_settings::tests::returns_default_settings_for_missing_file ... ok
-test shortcut_settings::tests::saves_and_loads_shortcut_settings ... ok
-test shortcut_settings::tests::returns_error_for_unwritable_path ... ok
-test evaluation::scalars::expression_payload_tests::rejects_a_wide_shallow_tree_past_the_node_count_limit_independent_of_depth ... ok
-test evaluation::scalars::expression_payload_tests::call_nodes_count_toward_the_existing_node_count_limit ... ok
+/* assert on the output */
 
-test result: ok. 480 passed; 0 failed; 10 ignored; 0 measured; 0 filtered out; finished in 10.05s
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
 
-     Running unittests src/bin/evaluation_stdio.rs (src-tauri/target/debug/deps/evaluation_stdio-fe54257bbc7dfb99)
+[90mstderr[2m | src/vscode/VSCodeDrawingCanvas.test.tsx[2m > [22m[2mVSCodeDrawingCanvas adapter[2m > [22m[2muses the VS Code side-handle presentation and inherited currentColor for vertical Ribbons
+[22m[39mAn update to ForwardRef inside a test was not wrapped in act(...).
 
-running 3 tests
-test tests::processes_multiple_line_delimited_requests_independently ... ok
-test tests::returns_evaluation_errors_with_the_request_id ... ok
-test tests::returns_success_with_the_request_id_and_existing_payload ... ok
+When testing, code that causes React state updates should be wrapped into act(...):
 
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
 
-     Running unittests src/main.rs (src-tauri/target/debug/deps/nuinuicad-ce27253617897987)
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
 
-running 0 tests
+ [32m✓[39m src/vscode/VSCodeDrawingCanvas.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[33m 315[2mms[22m[39m
+ [32m✓[39m src/dsl/printLayoutDslV1.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 112[2mms[22m[39m
+ [32m✓[39m src/dsl/dslElementParameterCompletionCandidates.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 89[2mms[22m[39m
+ [32m✓[39m src/commands/commandLinePickRouting.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 108[2mms[22m[39m
+ [32m✓[39m src/editor/cmDeleteCompletionRetry.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 3293[2mms[22m[39m
+     [33m[2m✓[22m[39m reopens a choice value's own candidates after a real delete lands the cursor at a zero-length value, with no explicit invocation [33m 404[2mms[22m[39m
+     [33m[2m✓[22m[39m never opens a popup for a delete that lands on a position with no completion context [33m 320[2mms[22m[39m
+     [33m[2m✓[22m[39m never retries while IME composition is active [33m 315[2mms[22m[39m
+     [33m[2m✓[22m[39m only ever produces one tooltip for one delete transaction (no duplicate/reopen loop) [33m 434[2mms[22m[39m
+     [33m[2m✓[22m[39m does not reopen the popup when undo removes text back down to a completable zero-length target [33m 465[2mms[22m[39m
+     [33m[2m✓[22m[39m does not misfire the delete retry when redo reinserts text after that undo [33m 534[2mms[22m[39m
+     [33m[2m✓[22m[39m does not fire for a programmatic transaction that removes text without a delete-origin userEvent [33m 428[2mms[22m[39m
+ [32m✓[39m src/model/dependencies.test.ts [2m([22m[2m29 tests[22m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m src/dsl/dslApplyArgs.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/dsl/dslValueSpans.test.ts [2m([22m[2m33 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/geometry/numericExpressions.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+[90mstderr[2m | src/state/cadDocumentStore.test.ts[2m > [22m[2mcadDocumentStore file state[2m > [22m[2mleaves selection unchanged when a command commit is rejected
+[22m[39m[canonicalDocument] fatalな編集中テキストがあるためモデル編集を適用できません。
 
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+ [32m✓[39m src/state/cadDocumentStore.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 295[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorPatchHighlight.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/languageAnalysisSession.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 122[2mms[22m[39m
+ [32m✓[39m src/model/elementDragTransforms.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/commands/creationRecipes.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 209[2mms[22m[39m
+ [32m✓[39m src/model/elementFactory.test.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/document/renameAnalysis.test.ts [2m([22m[2m12 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[33m 1259[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps all reference resolutions stable for dense generated rename cases with shadowing, qualified, and dangling references [33m 1150[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/languageSyntax.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 129[2mms[22m[39m
+ [32m✓[39m src/scalars/typedDeclarationAnalysis.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 83[2mms[22m[39m
+ [32m✓[39m src/geometry/controlBooleanRuntimeIntegration.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 197[2mms[22m[39m
+ [32m✓[39m src/document/shadowText.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 129[2mms[22m[39m
+ [32m✓[39m src/document/statementCommentMerge.test.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/scalars/setCompletionCandidates.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m src/model/elementDuplication.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorValueStep.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 979[2mms[22m[39m
+     [33m[2m✓[22m[39m changes one numeric token and creates one store Undo step with no CM history [33m 401[2mms[22m[39m
+ [32m✓[39m src/commands/renameElementWithPropagation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 179[2mms[22m[39m
+ [32m✓[39m src/components/typedBindingRuntimeInspectorPresentation.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 115[2mms[22m[39m
+ [32m✓[39m src/scalars/scalarExpressionPositionClassifier.test.ts [2m([22m[2m34 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/state/cadDocumentStore.shadow.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 272[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/choiceQuickFixProvider.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 111[2mms[22m[39m
+ [32m✓[39m src/components/useCanvasOverlayData.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[32m 67[2mms[22m[39m
+ [32m✓[39m src/geometry/elementParameterReferenceOptions.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 103[2mms[22m[39m
+ [32m✓[39m src/dsl/dslReferencesQuery.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 158[2mms[22m[39m
+ [32m✓[39m src/performance/TauriBenchmarkCaptureRunner.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 105[2mms[22m[39m
+ [31m❯[39m src/commands/renamePropagationCoverage.test.ts [2m([22m[2m9 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 5569[2mms[22m[39m
+     [32m✓[39m propagates direct, start/end, point-key, and typed-property references[32m 100[2mms[22m[39m
+     [32m✓[39m propagates qualified group references and place while leaving role/view records unchanged[32m 36[2mms[22m[39m
+     [32m✓[39m names an explicit-id unnamed element, propagates its raw reference, and reloads cleanly[32m 23[2mms[22m[39m
+     [32m✓[39m rejects an absolute-path rename when serializer output would resolve to a shadowing element[32m 9[2mms[22m[39m
+     [32m✓[39m rejects same-scope explicit-id duplicates even though the DSL parser accepts them[32m 14[2mms[22m[39m
+     [32m✓[39m rejects a shadowing resolution change and an invalid name without mutation[32m 14[2mms[22m[39m
+     [32m✓[39m rejects an existing dangling document at the clean-source gate[32m 11[2mms[22m[39m
+     [32m✓[39m rejects dangling capture in 5d analysis before bridge execution[32m 10[2mms[22m[39m
+[31m     [31m×[31m renames a clean, reference-dense 1,000-element document within the loose command guard[39m[33m 5350[2mms[22m[39m
+ [32m✓[39m src/scalars/typedRenameAnalysis.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 105[2mms[22m[39m
+ [32m✓[39m src/scalars/conditionalGroupConditionCompiler.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m test/benchmarkFoundation.test.ts [2m([22m[2m27 tests[22m[2m)[22m[33m 774[2mms[22m[39m
+     [33m[2m✓[22m[39m prints scenario, metric, p50/p95/max, and p95 ratio [33m 370[2mms[22m[39m
+ [32m✓[39m src/scalars/expressionTokenizer.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/dsl/dslCompletionCandidates.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1841[2mms[22m[39m
+     [33m[2m✓[22m[39m returns only the stable top eight for a 1000-element document [33m 1738[2mms[22m[39m
+ [32m✓[39m src/scalars/builtinGeometryArgumentResolution.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/geometry/productionEvaluationContext.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 167[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/extensionManifest.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/components/CanvasOverlay.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 266[2mms[22m[39m
+ [32m✓[39m src/state/cadDocumentStore.vscodeHistory.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 103[2mms[22m[39m
+ [32m✓[39m src/scalars/textTemplateEvaluator.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/dsl/dslSerializeElement.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/editor/moduleSemanticRangeIndex.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 105[2mms[22m[39m
+ [32m✓[39m src/document/renameAnalysis.contract.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 103[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/definitionProvider.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 98[2mms[22m[39m
+ [32m✓[39m src/state/cadDocumentStore.canonical.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 298[2mms[22m[39m
+ [32m✓[39m src/scalars/bindingProgramEligibility.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/scalars/literalScanner.test.ts [2m([22m[2m41 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorFolding.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 99[2mms[22m[39m
+ [32m✓[39m src/scalars/typedVariableQuickFixes.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorStateRail.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 794[2mms[22m[39m
+     [33m[2m✓[22m[39m cycles the clicked row's element directly on mousedown, without moving the cursor [33m 385[2mms[22m[39m
+ [32m✓[39m src/dsl/moduleMaterialization.blocking.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 118[2mms[22m[39m
+ [32m✓[39m src/dsl/dslValueStep.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m src/geometry/canvasDrawingBounds.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/geometry/tangentOffsetCurveSide.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/dsl/dslDocumentSymbolQuery.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m src/geometry/forGroupExpansion.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/dsl/dslModuleCompilationGuard.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 83[2mms[22m[39m
+ [32m✓[39m scripts/performance/captureTauri.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/geometry/textTemplateEvaluationIntegration.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 102[2mms[22m[39m
+ [32m✓[39m src/components/CommandRibbonView.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 381[2mms[22m[39m
+ [32m✓[39m src/scalars/lexicalScopeIndex.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 101[2mms[22m[39m
+ [32m✓[39m src/model/elementNames.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/dsl/dslCallParser.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/geometry/preMutationBezierGeometry.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+ [32m✓[39m src/parameters/parameterAccess.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/commands/renameTypedBindingWithPropagation.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 118[2mms[22m[39m
+ [32m✓[39m src/dsl/expressionReferenceToken.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/dsl/dslSerializer.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 147[2mms[22m[39m
+ [32m✓[39m src/geometry/propertyBindingRuntime.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/dsl/dslDanglingReferences.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 102[2mms[22m[39m
+ [32m✓[39m src/components/DrawingCanvas.dragThreshold.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 157[2mms[22m[39m
+ [32m✓[39m src/vscode/vscodeCanvasTheme.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/commands/commandLineDraftInsertion.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 112[2mms[22m[39m
+ [32m✓[39m src/geometry/propertyBindingRuntimeIntegration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 140[2mms[22m[39m
+ [32m✓[39m src/dsl/moduleMaterialization.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 97[2mms[22m[39m
+ [32m✓[39m src/scalars/builtinFunctionSemantics.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/commands/viewModeCommandDefinitions.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 92[2mms[22m[39m
+ [32m✓[39m src/document/unsavedChangesGuard.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 132[2mms[22m[39m
+ [32m✓[39m src/geometry/commonTangentEvaluator.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 101[2mms[22m[39m
+ [32m✓[39m src/keyboard/shortcutSettingsStorage.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/performance/benchmarkInstrumentation.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/commands/commandLineSession.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/signatureHelpProvider.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 97[2mms[22m[39m
+ [32m✓[39m src/commands/bakeFailureResults.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+ [32m✓[39m src/scalars/runtimeScalarDiagnostics.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m src/dsl/dslNavigationQuery.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 118[2mms[22m[39m
+ [32m✓[39m src/geometry/textTemplateRuntime.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/model/elementActivity.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/document/textPatch.property.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1765[2mms[22m[39m
+     [33m[2m✓[22m[39m ランダム操作列: 各ステップでパース可能・意味的等価・ノイズ行バイト不変 [33m 913[2mms[22m[39m
+     [33m[2m✓[22m[39m 照合連鎖: パッチ適用後の再パースで生存要素のIDが全て継承される [33m 626[2mms[22m[39m
+ [32m✓[39m src/components/RenameElementDialog.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 679[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps only the current rename rejection in the prompt, then retries successfully with one undo [33m 326[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorController.patchHighlight.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 737[2mms[22m[39m
+     [33m[2m✓[22m[39m highlights the changed range after a Canvas-equivalent model patch, surviving the controller's own follow-up dispatches [33m 317[2mms[22m[39m
+ [32m✓[39m src/styles.vscodeLayout.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/components/typedBindingRuntimeInspectorPresentation.consumers.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 114[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorEvaluationDecorations.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m src/components/ShortcutSettingsDialog.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 7247[2mms[22m[39m
+     [33m[2m✓[22m[39m focuses the command search field when opened [33m 549[2mms[22m[39m
+     [33m[2m✓[22m[39m does not focus the search field until the deferred frame actually runs [33m 539[2mms[22m[39m
+     [33m[2m✓[22m[39m filters commands by recorded shortcut key [33m 1357[2mms[22m[39m
+     [33m[2m✓[22m[39m filters commands by shortcuts added in the current draft [33m 1052[2mms[22m[39m
+     [33m[2m✓[22m[39m cancels shortcut key search recording with Escape [33m 1418[2mms[22m[39m
+     [33m[2m✓[22m[39m combines command text and shortcut key filters [33m 444[2mms[22m[39m
+     [33m[2m✓[22m[39m records and auto-saves a shortcut for a command without a default [33m 387[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps auto-saved shortcuts after closing and reopening the dialog [33m 1011[2mms[22m[39m
+     [33m[2m✓[22m[39m does not auto-save conflicting shortcuts [33m 485[2mms[22m[39m
+ [32m✓[39m scripts/performance/captureVscode.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/vscode/vscodeDragPreviewScheduler.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/dsl/dslPropertyReferenceSyntax.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 111[2mms[22m[39m
+ [32m✓[39m src/dsl/dslTypedValueStep.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/geometry/moduleInstanceCanvasGeometry.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [2m[90m↓[39m[22m test/typedVariablesPureBindingAnalysisProfile.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32m✓[39m src/geometry/bezierExtremePoint.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/document/typedRenameSplice.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m src/dsl/dslFoldingQuery.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/vscode/vscodeCanvasRibbonConfig.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/scalars/bindingIssueDiagnostics.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/components/geometryDisplay.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/scalars/bindingDiagnostics.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m test/moduleConditionalSetRust.integration.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1993[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts the exact no-geometry reproduction and preserves the outside point [33m 458[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts the true literal variant with the same source layout [33m 392[2mms[22m[39m
+     [33m[2m✓[22m[39m matches TS/Rust for true and false Module instances without sharing state [33m 382[2mms[22m[39m
+     [33m[2m✓[22m[39m evaluates omitted and supplied optional module bodies through Rust first [33m 338[2mms[22m[39m
+     [33m[2m✓[22m[39m evaluates the convex-notch manual fixture through the Rust/parity payload [33m 389[2mms[22m[39m
+[90mstderr[2m | src/commands/selectionCommands.activity.test.ts[2m > [22m[2mactivity commands[2m > [22m[2mreconciles selection when a Drawing Modifier changes effective activity
+[22m[39m[canonicalDocument] 行パッチを適用できないため全体再生成します: モデル差分テキストのコンパイルに失敗しました。
 
-   Doc-tests nuinuicad_lib
+ [32m✓[39m src/commands/selectionCommands.activity.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 156[2mms[22m[39m
+ [32m✓[39m src/geometry/numericReferenceProperties.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/editor/typedGeometryPropertyCompletion.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 114[2mms[22m[39m
+ [32m✓[39m src/dsl/nui4Task6.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 96[2mms[22m[39m
+ [32m✓[39m src/state/cadDocumentStore.sourceUpdate.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m src/document/shadowTextAssert.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+ [32m✓[39m src/geometry/bezierBulgePoint.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/components/SourceEditorPane.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 1494[2mms[22m[39m
+     [33m[2m✓[22m[39m mounts outside AppLayout and applies a model patch without resetting the full document [33m 410[2mms[22m[39m
+[90mstderr[2m | src/commands/imageCreationCommands.test.ts[2m > [22m[2mimageCreationCommands[2m > [22m[2mshows an image import error when metadata loading fails
+[22m[39mFailed to add image. Error: 画像メタデータを読み取れません。
+    at [90m/home/runner/work/nuinuiCAD/nuinuiCAD/[39msrc/commands/imageCreationCommands.test.ts:99:44
+    at [90mfile:///home/runner/work/nuinuiCAD/nuinuiCAD/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at [90mfile:///home/runner/work/nuinuiCAD/nuinuiCAD/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at [90mfile:///home/runner/work/nuinuiCAD/nuinuiCAD/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///home/runner/work/nuinuiCAD/nuinuiCAD/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10[90m)[39m
+    at [90mfile:///home/runner/work/nuinuiCAD/nuinuiCAD/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///home/runner/work/nuinuiCAD/nuinuiCAD/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10[90m)[39m
+    at [90mfile:///home/runner/work/nuinuiCAD/nuinuiCAD/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
 
-running 0 tests
+ [32m✓[39m src/commands/imageCreationCommands.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 81[2mms[22m[39m
+ [32m✓[39m src/vscode/outputPreviewSelection.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 146[2mms[22m[39m
+ [32m✓[39m src/vscode/VSCodeCanvasRibbonOverlay.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 442[2mms[22m[39m
+ [32m✓[39m src/scalars/bindingVersions.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 106[2mms[22m[39m
+ [32m✓[39m src/editor/typedRenameTargetAtCursor.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 79[2mms[22m[39m
+ [32m✓[39m src/geometry/evaluationPayload.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m src/scalars/scalarJson.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/state/cadDocumentStore.shadow.property.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1312[2mms[22m[39m
+     [33m[2m✓[22m[39m ランダムなコミット列後も影は常にモデルと意味的等価であり、手置きノイズ行は保存される [33m 1189[2mms[22m[39m
+ [32m✓[39m src/dsl/dslSignatureHelpQuery.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 102[2mms[22m[39m
+ [31m❯[39m src/dsl/dslConstructions.test.ts [2m([22m[2m6 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 31[2mms[22m[39m
+[31m     [31m×[31m maps every CadElementType to a construction and resolves every call by category[39m[32m 13[2mms[22m[39m
+     [32m✓[39m keeps same-named constructions independent within their categories[32m 1[2mms[22m[39m
+     [32m✓[39m renames the copy construction without changing its element or arguments[32m 0[2mms[22m[39m
+     [32m✓[39m maps each ordinary registry argument to an existing parameter definition[32m 7[2mms[22m[39m
+     [32m✓[39m round-trips construction parameter keys to their DSL argument names[32m 6[2mms[22m[39m
+     [32m✓[39m defines the specified settings arguments and positional slots[32m 1[2mms[22m[39m
+ [32m✓[39m src/dsl/dslCallCompletionContext.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/scalars/setTargetRecoveryCandidates.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/dsl/dslArgScanner.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/referenceProvider.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 75[2mms[22m[39m
+ [32m✓[39m src/geometry/numericBindingRuntime.integration.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 121[2mms[22m[39m
+ [32m✓[39m src/document/moduleSemanticRenameAnalysis.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 142[2mms[22m[39m
+ [32m✓[39m src/commands/selectionCommands.canvasSession.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorController.bindingSelection.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 562[2mms[22m[39m
+     [33m[2m✓[22m[39m auto-selects a typed binding when the cursor enters its declaration, clearing an active element selection [33m 366[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/documentSymbolProvider.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [2m[90m↓[39m[22m src/vscode/VSCodeApp.production.test.tsx [2m([22m[2m3 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m
+ [32m✓[39m src/document/automationDocument.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 73[2mms[22m[39m
+ [32m✓[39m src/output/outputPlaceProjection.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 88[2mms[22m[39m
+ [32m✓[39m src/dsl/dslBlankLineContinuation.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/dsl/dslDeclarationParser.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/scalars/typedRenameOccurrences.task36Coverage.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 74[2mms[22m[39m
+[90mstdout[2m | src/document/statementReconciler.performance.test.ts[2m > [22m[2mstatementReconciler performance regression guard[2m > [22m[2mattribute: keeps 250→1000-element reconciliation linear in worker CPU time
+[22m[39m[statementReconciler perf] attribute: 250 median=0.345ms p95=0.669ms; 1000 median=1.277ms p95=1.355ms; ratio=3.70x
 
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+[90mstdout[2m | src/document/statementReconciler.performance.test.ts[2m > [22m[2mstatementReconciler performance regression guard[2m > [22m[2mrename: keeps 250→1000-element reconciliation linear in worker CPU time
+[22m[39m[statementReconciler perf] rename: 250 median=0.196ms p95=0.317ms; 1000 median=0.832ms p95=1.244ms; ratio=4.24x
 
-   Compiling nuinuicad v0.0.0 (/home/runner/work/nuinuiCAD/nuinuiCAD/src-tauri)
-error: the use of negated comparison operators on partially ordered types produces code that is hard to read and refactor, please consider using the `partial_cmp` method instead, to make it clear that the two values could be incomparable
-  --> src/evaluation/common_tangent_evaluator.rs:46:8
-   |
-46 |     if !(r1 > CIRCLE_EPSILON) {
-   |        ^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#neg_cmp_op_on_partial_ord
-   = note: `-D clippy::neg-cmp-op-on-partial-ord` implied by `-D warnings`
-   = help: to override `-D warnings` add `#[allow(clippy::neg_cmp_op_on_partial_ord)]`
+ [32m✓[39m src/document/statementReconciler.performance.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2048[2mms[22m[39m
+     [33m[2m✓[22m[39m attribute: keeps 250→1000-element reconciliation linear in worker CPU time [33m 1171[2mms[22m[39m
+     [33m[2m✓[22m[39m rename: keeps 250→1000-element reconciliation linear in worker CPU time [33m 874[2mms[22m[39m
+ [32m✓[39m src/components/pendingCanvasPointer.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/components/typedDeclarationInspectorPresentation.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/bakeOperationPresentation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/geometry/pathReverseEvaluator.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+[90mstdout[2m | src/document/shadowCommitCost.test.ts[2m > [22m[2mshadowText 大規模文書コミットコスト計測[2m > [22m[2m250/1000要素のcompileDslDocument中央値を報告し、規模比からO(n^2)/O(n^3)退行を検出する
+[22m[39m[shadowText perf] 250要素 compileDslDocument(参照あり): 中央値=199.43ms (3回、warm-up後)
+[shadowText perf] 1000要素 compileDslDocument(参照あり): 中央値=1617.40ms (3回、warm-up後)
 
-error: the use of negated comparison operators on partially ordered types produces code that is hard to read and refactor, please consider using the `partial_cmp` method instead, to make it clear that the two values could be incomparable
-  --> src/evaluation/common_tangent_evaluator.rs:52:8
-   |
-52 |     if !(r2 > CIRCLE_EPSILON) {
-   |        ^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#neg_cmp_op_on_partial_ord
+ [32m✓[39m src/dsl/moduleNestedExportCandidate.integration.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 80[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/compilerDiagnostics.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m src/scalars/setStatementCompiler.integration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m src/dsl/dslHighlight.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/geometry/numericReferencePaths.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorDiagnosticsExtension.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 254[2mms[22m[39m
+ [32m✓[39m src/scalars/linearMutationEvaluator.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 60[2mms[22m[39m
+ [32m✓[39m src/keyboard/shortcutRegistry.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/dsl/dslSerializeElementBlanks.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/editor/typedVariableQuickFixActions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 258[2mms[22m[39m
+[90mstdout[2m | src/document/shadowCommitCost.test.ts[2m > [22m[2mshadowText 大規模文書コミットコスト計測[2m > [22m[2m1000要素 advanceShadow のprod/dev相当中央値を報告する
+[22m[39m[shadowText perf] 1000要素 advanceShadow prod相当: 中央値=1580.74ms (3回、warm-up後)
+[shadowText perf] 1000要素 advanceShadow dev相当: 中央値=1607.93ms (3回、warm-up後)
 
-error: the use of negated comparison operators on partially ordered types produces code that is hard to read and refactor, please consider using the `partial_cmp` method instead, to make it clear that the two values could be incomparable
-  --> src/evaluation/common_tangent_evaluator.rs:58:8
-   |
-58 |     if !(r1 > CIRCLE_EPSILON) || !(r2 > CIRCLE_EPSILON) {
-   |        ^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#neg_cmp_op_on_partial_ord
+ [32m✓[39m src/model/moduleInstanceSelection.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+[90mstdout[2m | src/document/shadowCommitCost.test.ts[2m > [22m[2mshadowText 大規模文書コミットコスト計測[2m > [22m[2m1000要素 serializeDocumentToDsl（式入り）の中央値を報告する
+[22m[39m[shadowText perf] 1000要素 serializeDocumentToDsl（式入り）: 中央値=11.06ms (3回、warm-up後)
 
-error: the use of negated comparison operators on partially ordered types produces code that is hard to read and refactor, please consider using the `partial_cmp` method instead, to make it clear that the two values could be incomparable
-  --> src/evaluation/common_tangent_evaluator.rs:58:34
-   |
-58 |     if !(r1 > CIRCLE_EPSILON) || !(r2 > CIRCLE_EPSILON) {
-   |                                  ^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#neg_cmp_op_on_partial_ord
+ [32m✓[39m src/document/shadowCommitCost.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 22766[2mms[22m[39m
+     [33m[2m✓[22m[39m 250/1000要素のcompileDslDocument中央値を報告し、規模比からO(n^2)/O(n^3)退行を検出する [33m 7513[2mms[22m[39m
+     [33m[2m✓[22m[39m 1000要素 advanceShadow のprod/dev相当中央値を報告する [33m 13694[2mms[22m[39m
+     [33m[2m✓[22m[39m 1000要素 serializeDocumentToDsl（式入り）の中央値を報告する [33m 1557[2mms[22m[39m
+ [32m✓[39m src/state/cadDocumentStore.editorSession.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32m✓[39m src/dsl/moduleDiagnosticRelatedInformation.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+ [32m✓[39m src/components/textInspectorSource.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/dsl/dslCallAuthoringContext.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/dsl/dslDependencyClosure.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/commandRibbons/commandRibbonSettings.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/dsl/logicalStatementSourceMap.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/dsl/lexicalScopeIndexAdapter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/dsl/dslTokens.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/foldingProvider.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/vscode/VSCodeBakeOperationTransport.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 197[2mms[22m[39m
+ [32m✓[39m src/scalars/forGroupMutationCore.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/model/referenceSuggestions.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/commands/commandLineGhostPreview.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/dsl/dslExpressionFormat.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/dsl/dslDiagnosticSpan.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/dsl/dslPropertyScalarCompletionContext.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/geometry/linePaths.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/components/DrawingCanvasHitTest.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/scalars/scalarProgram.integration.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 79[2mms[22m[39m
+ [32m✓[39m src/components/CommandRibbonFloatingOverlay.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 266[2mms[22m[39m
+ [32m✓[39m src/geometry/geometryBuiltinEvaluation.integration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+ [32m✓[39m src/dsl/dslSetCompletionContext.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/dsl/dslDeclarationSerializer.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/geometry/numericExpressionParser.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/vscode/vscodeRustTransport.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/geometry/rustEvaluationRunner.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/performance/benchmarkCaptureRunner.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/commands/phase4gCreationCutover.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 64[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorDiagnostics.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/state/cadDocumentStore.moduleSourceOwnership.container.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 76[2mms[22m[39m
+ [32m✓[39m src/components/ImageImportDialog.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 379[2mms[22m[39m
+ [32m✓[39m src/components/DocumentDiagnostics.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 311[2mms[22m[39m
+ [32m✓[39m src/geometry/pathReverseIntegration.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 90[2mms[22m[39m
+ [32m✓[39m src/scalars/builtinFunctions.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/document/documentFile.confirmation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 112[2mms[22m[39m
+ [32m✓[39m src/commands/commands.editorFlush.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m src/dsl/dslElementParameterToken.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/dsl/sourceOwnership.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 69[2mms[22m[39m
+ [32m✓[39m src/geometry/controlBooleanRuntime.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/geometry/drawingModifierProfileEvaluation.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 54[2mms[22m[39m
+[90mstdout[2m | src/scalars/typedValueCandidates.performance.test.ts[2m > [22m[2mTask 39 typed value completion performance[2m > [22m[2mrecords 250/1000 binding-catalog reference-candidate generation cost (precomputed catalog, no compile in the loop)
+[22m[39m[Task 39 value completion] 250 median=0.2193ms p95=0.2447ms; 1000 median=1.0317ms p95=1.2535ms; scaling=4.705x
 
-error: could not compile `nuinuicad` (lib) due to 4 previous errors
-warning: build failed, waiting for other jobs to finish...
-error: could not compile `nuinuicad` (lib test) due to 4 previous errors
+ [32m✓[39m src/scalars/typedValueCandidates.performance.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 951[2mms[22m[39m
+     [33m[2m✓[22m[39m records 250/1000 binding-catalog reference-candidate generation cost (precomputed catalog, no compile in the loop) [33m 949[2mms[22m[39m
+ [32m✓[39m test/arithmeticOperatorNumericRuntimeRust.integration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 802[2mms[22m[39m
+     [33m[2m✓[22m[39m retains an empty scalar program for ref-free typed module expressions [33m 415[2mms[22m[39m
+     [33m[2m✓[22m[39m carries typed ^ / % ASTs through both numeric runtime payloads [33m 384[2mms[22m[39m
+ [32m✓[39m src/dsl/dslReferenceTokens.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/document/imageFilePaths.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/document/canonicalDocument.commitLineSplicePatch.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m src/commands/containerCreation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m src/components/SourceSearchPanel.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 327[2mms[22m[39m
+ [32m✓[39m src/dsl/dslSettingsParser.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/dsl/unifiedReferenceFrontend.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 63[2mms[22m[39m
+ [32m✓[39m src/model/documentOrder.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/dsl/dslCompactNamedArgs.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [2m[90m↓[39m[22m test/typedVariablesPureBindingAnalysisPerformance.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+[90mstdout[2m | src/editor/sourceEditorCutoverCost.test.ts[2m > [22m[2mPhase 2e source editor integration performance[2m > [22m[2mhandles controller transactions, model patches, and 1000-element commits as a scaling smoke test
+[22m[39m[Phase 2e perf] 500行 controller typing transaction: median=34.40ms p95=65.84ms (21 runs, warm-up)
+[Phase 2e perf] 500行 external 1-line model patch (store+CM): median=395.37ms p95=477.85ms (21 runs, warm-up)
+[Phase 2e perf] 500行 external 1-line model patch (store only): median=263.82ms p95=324.45ms (21 runs, warm-up)
+[Phase 2e perf] 500行 model patch CM反映分 (差分): 131.55ms
+[Phase 2e perf] 1000行 controller typing transaction: median=48.31ms p95=64.83ms (21 runs, warm-up)
+[Phase 2e perf] 1000行 external 1-line model patch (store+CM): median=1128.79ms p95=1227.77ms (21 runs, warm-up)
+[Phase 2e perf] 1000行 external 1-line model patch (store only): median=1095.04ms p95=1178.51ms (21 runs, warm-up)
+[Phase 2e perf] 1000行 model patch CM反映分 (差分): 33.75ms
+
+ [32m✓[39m src/editor/sourceEditorCutoverCost.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 68951[2mms[22m[39m
+     [33m[2m✓[22m[39m handles controller transactions, model patches, and 1000-element commits as a scaling smoke test [33m 68949[2mms[22m[39m
+ [32m✓[39m src/model/forGroupGeneratedReferences.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/scalars/types.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/commands/bakeOperationResult.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/dsl/dslMissingAttributeValueTolerance.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m src/scalars/typedRenameAnalysis.property.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 401[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps every fan-out reference resolvable for a safe rename, matching an independently-generated already-renamed document [33m 399[2mms[22m[39m
+ [32m✓[39m src/commands/selectionCommands.evaluationDivider.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [2m[90m↓[39m[22m src/scalars/typedRenameAnalysis.performance.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [2m[90m↓[39m[22m test/typedVariablesForGroupMutationProductionPerformance.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32m✓[39m src/performance/benchmarkResultAssembly.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/editor/sourceUpdateProtocol.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/dsl/dslSetParser.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/commands/phase3dCommandRegistry.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/commands/bakeCommands.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/dsl/dslTypedDeclarationCompletionContext.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/layout/layoutSettingsStorage.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/geometry/moduleConditionalMutationEngine.integration.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 152[2mms[22m[39m
+ [32m✓[39m src/model/visibilityProfiles.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/dsl/dslDocument.typedDiagnosticsIntegration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/commands/commandLineUnnamedPromotion.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/components/ModuleHierarchyPanel.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 413[2mms[22m[39m
+ [32m✓[39m src/components/CommandPalette.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 417[2mms[22m[39m
+ [32m✓[39m src/scalars/bindingResolution.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/commands/commandLineSourceInsertion.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32m✓[39m test/bindingResolutionPublicSurface.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [2m[90m↓[39m[22m src/editor/codemirrorFoundationCost.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32m✓[39m src/model/elementCreationPlacement.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/commands/selectionCommandDefinitions.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/model/moduleHierarchy.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/dsl/dslSetSerializer.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/palette/elementColors.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/editor/lineSpliceChanges.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/model/documentSelection.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/dsl/dslExportParser.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorPickSelection.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/parameters/parameterDefinitions.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/components/canvasViewport.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/vscode/vscodeWebviewSession.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [2m[90m↓[39m[22m src/scalars/typedDependencyGraph.performance.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32m✓[39m src/commands/phase4iDslPanelRemoval.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/components/commandRibbonTooltipGeometry.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/model/pointAnchors.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/scalars/runtimeIssueMessages.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/commands/commandLineInsertionAnchor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/components/SourceEditorContextMenu.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 267[2mms[22m[39m
+ [32m✓[39m src/dsl/dslTemplateHoleCompletionContext.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/commands/tauriMenuEvents.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 112[2mms[22m[39m
+ [32m✓[39m src/vscode/vscodeBakeOperationResult.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/components/PickModeStatus.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 73[2mms[22m[39m
+ [32m✓[39m src/geometry/bezierMath.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/model/groups.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/document/typedRenameAnalysis.module.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 60[2mms[22m[39m
+ [32m✓[39m src/scalars/numericBindingCompiler.construction.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 110[2mms[22m[39m
+ [32m✓[39m src/palette/colorApplicability.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/rustEvaluationProcess.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/sourceOffsetAdapter.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/vscode/outputPreviewRendering.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/keyboard/activityShortcuts.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/performance/benchmarkFrameObserver.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/localization.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/components/canvasInteractionHitTest.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/dsl/dslNumericTypeOptionsCompletionContext.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/model/elementSearch.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+[90mstdout[2m | test/elementActivityPerformance.test.ts[2m > [22m[2melement activity performance measurements[2m > [22m[2mrecords cached 250/1000-element state composition
+[22m[39m[typedVariables baseline] {"area":"elementActivityComposition","metric":"workerCpuMs","warmUpRuns":100,"trials":21,"runsPerTrial":20,"small":{"statementCount":250,"bindingCount":0,"geometryStatementCount":0,"computedGeometryCount":0,"generatedRowCount":0,"medianMs":0.10455,"p95Ms":0.1389},"large":{"statementCount":1000,"bindingCount":0,"geometryStatementCount":0,"computedGeometryCount":0,"generatedRowCount":0,"medianMs":0.3359,"p95Ms":0.55235},"scalingRatio":3.212816834050693}
+
+ [32m✓[39m test/elementActivityPerformance.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 326[2mms[22m[39m
+     [33m[2m✓[22m[39m records cached 250/1000-element state composition [33m 324[2mms[22m[39m
+ [32m✓[39m src/dsl/dslDeclaredTypeCompletionContext.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/dsl/dslVariableToken.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/geometry/offsetJoins.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/vscode/outputPreviewViewport.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/components/canvasTextMeasurement.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+[90mstdout[2m | test/typedVariablesForGroupMutationPerformance.test.ts[2m > [22m[2mforGroup mutation performance baseline[2m > [22m[2mrecords 250/1000 iteration in-place loop measurements
+[22m[39m[typedVariables baseline] {"area":"forGroupMutationCore","metric":"workerCpuMs","warmUpRuns":20,"trials":21,"runsPerTrial":5,"small":{"statementCount":1,"bindingCount":1,"geometryStatementCount":0,"computedGeometryCount":0,"generatedRowCount":250,"medianMs":0.047,"p95Ms":0.1024},"large":{"statementCount":1,"bindingCount":1,"geometryStatementCount":0,"computedGeometryCount":0,"generatedRowCount":1000,"medianMs":0.1852,"p95Ms":0.391},"scalingRatio":3.9404255319148938}
+
+ [32m✓[39m test/typedVariablesForGroupMutationPerformance.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m src/components/commandRibbonFloatingGeometry.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/model/elementPresentationStatus.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorValueStepGesture.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/components/commandLineProgress.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m test/commandIdMap.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/commands/bakeSettingsStorage.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/geometry/numericExpressionInsertion.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/dsl/dslStatementProjection.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m vscode-extension/src/rustEvaluationProcessOwner.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/palette/paletteSettingsStorage.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/geometry/canvasViewportReveal.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/scalars/scalarAssignability.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/dsl/nui4Cutover.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/components/canvasDrawOrder.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/editor/sourceEditorTextPreservation.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 294[2mms[22m[39m
+ [32m✓[39m src/geometry/offsetSourceSegments.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/vscode/webviewSurfaceRouter.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/layout/leftPanelWidth.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/components/numericDrag.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/editor/sourceTextFormat.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/model/runtimeBindingFreshness.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/scalars/numericLiteral.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/components/canvasPopupPlacement.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/components/sourceEditorCmIsolation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/commands/parameterPickCommand.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/geometry/imageScale.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/document/nuiVersion.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/vscode/hostDocumentVersion.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/commands/renamePropagationCoverage.test.ts[2m > [22mrename propagation reference-form coverage[2m > [22mrenames a clean, reference-dense 1,000-element document within the loose command guard
+[31m[1mError[22m: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m src/commands/renamePropagationCoverage.test.ts:[2m340:3[22m[39m
+    [90m338|[39m   })[33m;[39m
+    [90m339|[39m
+    [90m340|[39m   it("renames a clean, reference-dense 1,000-element document within t…
+    [90m   |[39m   [31m^[39m
+    [90m341|[39m     [34mseed[39m([34mdenseCleanSource[39m())[33m;[39m
+    [90m342|[39m     [35mconst[39m before [33m=[39m useCadDocumentStore[33m.[39m[34mgetState[39m()[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/dsl/dslConstructions.test.ts[2m > [22mDSL nui 4 construction registry[2m > [22mmaps every CadElementType to a construction and resolves every call by category
+[31m[1mAssertionError[22m: expected Set{ 'freePoint', 'offsetPoint', …(27) } to deeply equal Set{ 'group', …(29) }[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -2,11 +2,10 @@[39m
+[2m    "angleLengthLine",[22m
+[2m    "arcLine",[22m
+[2m    "bezierBulgePoint",[22m
+[2m    "bezierCurve",[22m
+[2m    "bezierExtremePoint",[22m
+[32m-   "commonTangentLine",[39m
+[2m    "conditionalGroup",[22m
+[2m    "copyLine",[22m
+[2m    "cornerRadiusArcLine",[22m
+[2m    "divisionPoint",[22m
+[2m    "edge",[22m
+
+[36m [2m❯[22m src/dsl/dslConstructions.test.ts:[2m70:26[22m[39m
+    [90m 68|[39m     }
+    [90m 69|[39m
+    [90m 70|[39m     [34mexpect[39m(coveredTypes)[33m.[39m[34mtoEqual[39m([35mnew[39m [33mSet[39m(
+    [90m   |[39m                          [31m^[39m
+    [90m 71|[39m       Object.keys(elementTypeLabels).filter((type) => !runtimeOnlyElem…
+    [90m 72|[39m     ))[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m364 passed[39m[22m[2m | [22m[33m8 skipped[39m[90m (374)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m4489 passed[39m[22m[2m | [22m[33m23 skipped[39m[90m (4514)[39m
+[2m   Start at [22m 18:22:04
+[2m   Duration [22m 250.27s[2m (transform 13.44s, setup 34.11s, import 78.78s, tests 191.67s, environment 369.98s)[22m
+
+
+::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/commands/renamePropagationCoverage.test.ts,title=src/commands/renamePropagationCoverage.test.ts > rename propagation reference-form coverage > renames a clean%2C reference-dense 1%2C000-element document within the loose command guard,line=340,column=3::Error: Test timed out in 5000ms.%0AIf this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".%0A ❯ src/commands/renamePropagationCoverage.test.ts:340:3%0A%0A
+
+::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/dsl/dslConstructions.test.ts,title=src/dsl/dslConstructions.test.ts > DSL nui 4 construction registry > maps every CadElementType to a construction and resolves every call by category,line=70,column=26::AssertionError: expected Set{ 'freePoint', 'offsetPoint', …(27) } to deeply equal Set{ 'group', …(29) }%0A%0A- Expected%0A+ Received%0A%0A@@ -2,11 +2,10 @@%0A    "angleLengthLine",%0A    "arcLine",%0A    "bezierBulgePoint",%0A    "bezierCurve",%0A    "bezierExtremePoint",%0A-   "commonTangentLine",%0A    "conditionalGroup",%0A    "copyLine",%0A    "cornerRadiusArcLine",%0A    "divisionPoint",%0A    "edge",%0A%0A ❯ src/dsl/dslConstructions.test.ts:70:26%0A%0A
