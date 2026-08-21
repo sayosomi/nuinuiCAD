@@ -77,19 +77,23 @@ export type OutputPlaceProjection = {
 
 const DIRECT_NUMERIC_LITERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
-const classifyCoordinate = (axis: "x" | "y", source: string | null) => {
+type CoordinateClassification =
+  | { value: number; issue: null }
+  | { value: null; issue: OutputPlaceDragIssue };
+
+const classifyCoordinate = (axis: "x" | "y", source: string | null): CoordinateClassification => {
   if (source === null) {
-    return { issue: { axis, reason: "source-unavailable" as const } };
+    return { value: null, issue: { axis, reason: "source-unavailable" } };
   }
   const trimmed = source.trim();
   if (!DIRECT_NUMERIC_LITERAL.test(trimmed)) {
-    return { issue: { axis, reason: "not-direct-numeric-literal" as const } };
+    return { value: null, issue: { axis, reason: "not-direct-numeric-literal" } };
   }
   const value = Number(trimmed);
   if (!Number.isFinite(value)) {
-    return { issue: { axis, reason: "non-finite-numeric-literal" as const } };
+    return { value: null, issue: { axis, reason: "non-finite-numeric-literal" } };
   }
-  return { value };
+  return { value, issue: null };
 };
 
 /** Classifies exactly the source-authored `at` coordinate spellings; resolved runtime values never make an expression draggable. */
@@ -99,14 +103,14 @@ export const classifyOutputPlaceAtDragability = (
 ): OutputPlaceDragability => {
   const x = classifyCoordinate("x", xSource);
   const y = classifyCoordinate("y", ySource);
-  const issues = [x.issue, y.issue].filter((issue): issue is OutputPlaceDragIssue => Boolean(issue));
-  if (issues.length) {
+  if (x.issue || y.issue) {
+    const issues = [x.issue, y.issue].filter((issue): issue is OutputPlaceDragIssue => issue !== null);
     return {
       draggable: false,
       reason: { code: "at-not-direct-finite-numeric-literals", issues }
     };
   }
-  return { draggable: true, literals: { x: x.value!, y: y.value! } };
+  return { draggable: true, literals: { x: x.value, y: y.value } };
 };
 
 const occurrenceIsInside = (
