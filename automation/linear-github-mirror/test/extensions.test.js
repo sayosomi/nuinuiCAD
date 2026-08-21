@@ -12,7 +12,10 @@ import {
   documentSweepFinalizeMessage,
   enqueueDocumentSafetySweep,
   extractLinearDocumentId,
+  handleDocumentPayload,
   isDocumentInNuinuiCadScope,
+  reconcileDocumentById,
+  reconcileDocumentSweepFinalize,
   renderGithubDocumentBody,
   waitForGithubDocumentVisibility,
 } from "../src/documents.js";
@@ -165,6 +168,114 @@ test("marker lookup uses repository issue listing so new document mirrors are im
   assert.match(calls[0], /\/issues\?state=all/);
   assert.match(calls[0], /labels=Linear%20Document/);
   assert.equal(calls[0].includes("/search/issues"), false);
+});
+
+test("issue marker lookup uses repository issue listing instead of Search API", async () => {
+  const calls = [];
+  const githubFetch = async (path) => {
+    calls.push(path);
+    return [{ number: 272, body: "Issue\n\n<!-- linear-issue-id:issue-a -->" }];
+  };
+  const issueNumber = await findGithubIssueByMarker(
+    "linear-issue-id:issue-a",
+    { GITHUB_OWNER: "sayosomi", GITHUB_REPO: "nuinuiCAD" },
+    githubFetch,
+  );
+  assert.equal(issueNumber, 272);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /\/issues\?state=all/);
+  assert.equal(calls[0].includes("/search/issues"), false);
+});
+
+test("archived and trashed Documents close their existing mirrors as not planned", async () => {
+  const env = { GITHUB_OWNER: "sayosomi", GITHUB_REPO: "nuinuiCAD", LINEAR_INITIATIVE_ID: "initiative-a" };
+
+  for (const lifecycle of [
+    { archivedAt: "2026-08-21T05:00:00.000Z", trashed: false },
+    { archivedAt: null, trashed: true },
+  ]) {
+    const calls = [];
+    const githubFetch = async (path, init = {}) => {
+      calls.push({ path, init });
+      if (path.includes("/issues?state=all")) {
+        return [{ number: 301, body: "Document\n\n<!-- linear-document-id:doc-closed -->" }];
+      }
+      if (path.includes("/issues/301/comments?")) return [];
+      return {};
+    };
+    const document = {
+      id: "doc-closed",
+      title: "Closed document",
+      content: "Archived content",
+      archivedAt: lifecycle.archivedAt,
+      trashed: lifecycle.trashed,
+      updatedAt: "2026-08-21T05:00:00.000Z",
+      url: "https://linear.app/example/document/closed",
+      initiative: { id: "initiative-a" },
+    };
+
+    await reconcileDocumentById("doc-closed", env, {
+      linearGraphql: async () => ({ document }),
+      githubFetch,
+    });
+
+    const update = calls.find((call) => call.init.method === "PATCH" && call.path.endsWith("/issues/301"));
+    assert.ok(update);
+    assert.deepEqual(JSON.parse(update.init.body), {
+      title: "Closed document",
+      body: "Archived content\n\n---\nOriginal Linear document: [Closed document](https://linear.app/example/document/closed)\n\n<!-- linear-document-id:doc-closed -->\n<!-- linear-document-updated-at:2026-08-21T05:00:00.000Z -->",
+      state: "closed",
+      labels: ["Linear Document"],
+      state_reason: "not_planned",
+    });
+  }
+});
+
+test("removed Documents close their existing mirrors as not planned", async () => {
+  const calls = [];
+  const githubFetch = async (path, init = {}) => {
+    calls.push({ path, init });
+    if (path.includes("/issues?state=all")) {
+      return [{ number: 302, body: "Document\n\n<!-- linear-document-id:doc-removed -->" }];
+    }
+    return {};
+  };
+
+  await handleDocumentPayload(
+    { type: "Document", action: "remove", data: { id: "doc-removed" } },
+    { GITHUB_OWNER: "sayosomi", GITHUB_REPO: "nuinuiCAD" },
+    { githubFetch },
+  );
+
+  const close = calls.find((call) => call.init.method === "PATCH" && call.path.endsWith("/issues/302"));
+  assert.ok(close);
+  assert.deepEqual(JSON.parse(close.init.body), { state: "closed", state_reason: "not_planned" });
+});
+
+test("Document sweep finalizer closes orphaned managed mirrors", async () => {
+  const calls = [];
+  const githubFetch = async (path, init = {}) => {
+    calls.push({ path, init });
+    if (path.includes("/issues?state=all")) {
+      return [
+        { number: 303, body: "Current\n\n<!-- linear-document-id:doc-current -->" },
+        { number: 304, body: "Orphan\n\n<!-- linear-document-id:doc-orphan -->" },
+        { number: 305, body: "Unmanaged Linear Document issue" },
+      ];
+    }
+    return {};
+  };
+
+  await reconcileDocumentSweepFinalize(
+    documentSweepFinalizeMessage(["doc-current"]).payload,
+    { GITHUB_OWNER: "sayosomi", GITHUB_REPO: "nuinuiCAD" },
+    { githubFetch },
+  );
+
+  const closes = calls.filter((call) => call.init.method === "PATCH");
+  assert.equal(closes.length, 1);
+  assert.equal(closes[0].path, "/repos/sayosomi/nuinuiCAD/issues/304");
+  assert.deepEqual(JSON.parse(closes[0].init.body), { state: "closed", state_reason: "not_planned" });
 });
 
 test("document creation waits for marker visibility before releasing the serialized queue", async () => {

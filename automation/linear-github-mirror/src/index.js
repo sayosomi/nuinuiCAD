@@ -1,3 +1,5 @@
+import { findGithubIssueByMarker } from "./mirrorApi.js";
+
 const LINEAR_GRAPHQL_URL = "https://api.linear.app/graphql";
 const GITHUB_API_URL = "https://api.github.com";
 const GITHUB_API_VERSION = "2026-03-10";
@@ -252,13 +254,7 @@ async function createGithubIssue(issue, env) {
 }
 
 async function findGithubIssueByLinearId(linearIssueId, env) {
-  const marker = `${MIRROR_MARKER_PREFIX}${linearIssueId}`;
-  const query = `repo:${env.GITHUB_OWNER}/${env.GITHUB_REPO} is:issue in:body \"${marker}\"`;
-  const result = await githubFetch(`/search/issues?q=${encodeURIComponent(query)}&per_page=10`, {}, env);
-  const items = Array.isArray(result.items) ? result.items : [];
-  if (items.length === 0) return null;
-  if (items.length > 1) throw new Error(`Multiple GitHub issues contain mirror marker for ${linearIssueId}`);
-  return items[0].number;
+  return findGithubIssueByMarker(`${MIRROR_MARKER_PREFIX}${linearIssueId}`, env, githubFetch);
 }
 
 async function assertGithubIssueExists(issueNumber, env) {
