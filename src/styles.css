@@ -4327,6 +4327,24 @@ textarea {
   width: min(360px, 42vw);
 }
 
+.vscode-canvas-webview .output-preview-toolbar > select {
+  height: 30px;
+  border: 1px solid var(--vscode-canvas-ribbon-border);
+  border-radius: 6px;
+  background: var(--vscode-canvas-ribbon-background);
+  color: var(--vscode-canvas-ribbon-foreground);
+  box-shadow: 0 5px 14px rgb(0 0 0 / 28%);
+}
+
+.vscode-canvas-webview .output-preview-toolbar > select:hover:not(:disabled) {
+  background: var(--vscode-canvas-ribbon-hover);
+}
+
+.vscode-canvas-webview .output-preview-toolbar > select:focus-visible {
+  outline: 2px solid var(--vscode-canvas-ribbon-focus);
+  outline-offset: -2px;
+}
+
 .output-preview-toolbar > button:hover:not(:disabled),
 .output-preview-toolbar > button:focus-visible {
   background: var(--vscode-toolbar-hoverBackground, #2a2d2e);
@@ -4336,6 +4354,10 @@ textarea {
 .output-preview-toolbar > select:disabled {
   cursor: default;
   opacity: 0.62;
+}
+
+.vscode-canvas-webview .output-preview-toolbar > select:disabled {
+  color: var(--vscode-canvas-ribbon-disabled);
 }
 
 .output-preview-status {

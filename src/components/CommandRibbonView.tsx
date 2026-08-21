@@ -243,7 +243,7 @@ export const CommandRibbonView = ({
           }
 
           const Icon = iconResolver(item.icon);
-          const title = `${item.label}: ${item.description}`;
+          const title = item.description ? `${item.label}: ${item.description}` : item.label;
           return (
             <span
               key={item.id}

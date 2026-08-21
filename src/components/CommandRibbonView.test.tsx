@@ -126,6 +126,33 @@ describe("CommandRibbonView", () => {
     expect(document.getElementById(describedBy!)).toBeInTheDocument();
   });
 
+  it("uses only the command label when its description is empty", () => {
+    const view = render(
+      <CommandRibbonView
+        ribbon={{
+          ...ribbonFor("horizontal"),
+          items: [{
+            id: "label-only",
+            type: "command",
+            commandId: "test.command",
+            icon: "circle",
+            label: "Go to Source",
+            description: "",
+            showLabel: false,
+            available: true
+          }]
+        }}
+        iconResolver={() => Circle}
+      />
+    );
+
+    const button = screen.getByRole("button", { name: "Go to Source" });
+    const tooltip = document.getElementById(button.getAttribute("aria-describedby")!);
+    expect(button).toHaveAttribute("title", "Go to Source");
+    expect(tooltip?.textContent).toBe("Go to Source");
+    expect(view.container.querySelector(".command-ribbon-tooltip")).toHaveTextContent("Go to Source");
+  });
+
   it("keeps a one-item VS Code vertical Ribbon handle beside its item column", () => {
     const oneItemRibbon: CommandRibbonPresentation = {
       ...ribbonFor("vertical"),

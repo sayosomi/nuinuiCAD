@@ -390,8 +390,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 type: "command",
                 commandId: "outputPreviewSourceNavigation",
                 icon: "crosshair",
-                label: "ソースエディタで出力定義を表示",
-                description: "選択した出力定義をソースエディタで表示します。",
+                label: "Go to Source",
+                description: "",
                 showLabel: false,
                 available: Boolean(selectedCandidate),
                 nativeDisabled: !selectedCandidate
@@ -401,8 +401,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 type: "command",
                 commandId: "outputPreviewFit",
                 icon: "maximize",
-                label: "出力全体をプレビューに合わせる",
-                description: "選択した出力全体が収まるようにプレビューを調整します。",
+                label: "Fit Output Preview",
+                description: "",
                 showLabel: false,
                 available: Boolean(plan),
                 nativeDisabled: !plan

@@ -247,16 +247,21 @@ describe("Output Preview application", () => {
 
     expect(document.querySelector(".output-preview-title-button")).toBeNull();
     expect((screen.getByRole("combobox") as HTMLSelectElement).selectedOptions[0]).toHaveTextContent("Print · A");
-    expect(screen.getByRole("button", { name: "ソースエディタで出力定義を表示" })).toBeInTheDocument();
-    const maximize = screen.getByRole("button", { name: "出力全体をプレビューに合わせる" });
+    const sourceNavigation = screen.getByRole("button", { name: "Go to Source" });
+    const maximize = screen.getByRole("button", { name: "Fit Output Preview" });
+    expect(sourceNavigation).toBeInTheDocument();
     expect(maximize).toBeInTheDocument();
+    expect(sourceNavigation).toHaveAttribute("title", "Go to Source");
+    expect(document.getElementById(sourceNavigation.getAttribute("aria-describedby")!)?.textContent).toBe("Go to Source");
+    expect(maximize).toHaveAttribute("title", "Fit Output Preview");
+    expect(document.getElementById(maximize.getAttribute("aria-describedby")!)?.textContent).toBe("Fit Output Preview");
 
     act(() => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
       }));
     });
-    fireEvent.click(screen.getByRole("button", { name: "ソースエディタで出力定義を表示" }));
+    fireEvent.click(sourceNavigation);
     const printStart = source.indexOf("print A(");
     expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "outputPreviewSourceNavigation",
@@ -264,8 +269,8 @@ describe("Output Preview application", () => {
       range: expect.objectContaining({ from: printStart, to: expect.any(Number) })
     }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "出力全体をプレビューに合わせる" })).not.toBeDisabled());
-    fireEvent.click(screen.getByRole("button", { name: "出力全体をプレビューに合わせる" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Fit Output Preview" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "Fit Output Preview" }));
     expect(api.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
   });
 
@@ -276,7 +281,7 @@ describe("Output Preview application", () => {
 
     const workspace = document.querySelector<HTMLElement>(".output-preview-workspace");
     if (!workspace) throw new Error("missing output preview workspace");
-    const trigger = screen.getByRole("button", { name: "ソースエディタで出力定義を表示" });
+    const trigger = screen.getByRole("button", { name: "Go to Source" });
     const tooltip = document.getElementById(trigger.getAttribute("aria-describedby") ?? "");
     if (!(tooltip instanceof HTMLElement)) throw new Error("missing output preview tooltip");
 
