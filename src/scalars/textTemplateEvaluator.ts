@@ -95,10 +95,18 @@ export const evaluateTextTemplate = (
       continue;
     }
 
-    if (evaluation.value.kind !== "number") {
-      return typedHoleError(segment.span, "テキスト埋め込みの値がnumber型ではありません。");
+    if (segment.holeKind === "number") {
+      if (evaluation.value.kind !== "number") {
+        return typedHoleError(segment.span, "テキスト埋め込みの値がnumber型ではありません。");
+      }
+      text += formatNumber(evaluation.value.value);
+      continue;
     }
-    text += formatNumber(evaluation.value.value);
+
+    if (evaluation.value.kind !== "boolean") {
+      return typedHoleError(segment.span, "テキスト埋め込みの値がboolean型ではありません。");
+    }
+    text += evaluation.value.value ? "true" : "false";
   }
 
   return { status: "ok", text };

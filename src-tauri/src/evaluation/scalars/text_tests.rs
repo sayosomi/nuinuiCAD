@@ -87,6 +87,18 @@ fn number_reference_hole(binding_id: &str) -> ValidatedTextTemplateSegment {
     }
 }
 
+fn boolean_reference_hole(binding_id: &str) -> ValidatedTextTemplateSegment {
+    ValidatedTextTemplateSegment::BooleanHole {
+        expression: TypedScalarExpression::Reference {
+            span: SPAN,
+            name_span: SPAN,
+            name: "name".to_owned(),
+            binding_id: Some(binding_id.to_owned()),
+            r#type: Some(ScalarType::Boolean),
+        },
+    }
+}
+
 fn ok_string(value: &str) -> ScalarEvaluation {
     ScalarEvaluation::Ok {
         r#type: ScalarType::String,
@@ -98,6 +110,13 @@ fn ok_number(value: f64) -> ScalarEvaluation {
     ScalarEvaluation::Ok {
         r#type: ScalarType::Number,
         value: ScalarValue::Number(value),
+    }
+}
+
+fn ok_boolean(value: bool) -> ScalarEvaluation {
+    ScalarEvaluation::Ok {
+        r#type: ScalarType::Boolean,
+        value: ScalarValue::Boolean(value),
     }
 }
 
@@ -153,6 +172,43 @@ fn formats_a_non_integer_typed_number_hole_to_three_decimals_trimmed() {
     let segments = vec![number_reference_hole("binding:count")];
     let result = evaluate_text_template_segments(&segments, &mut context, format_number);
     assert_eq!(result.unwrap(), "1.5");
+}
+
+#[test]
+fn appends_lowercase_boolean_values() {
+    let mut context = empty_context();
+    context
+        .bindings
+        .insert("binding:true".to_owned(), ok_boolean(true));
+    context
+        .bindings
+        .insert("binding:false".to_owned(), ok_boolean(false));
+    let segments = vec![
+        boolean_reference_hole("binding:true"),
+        literal(","),
+        boolean_reference_hole("binding:false"),
+    ];
+    let result = evaluate_text_template_segments(&segments, &mut context, format_number);
+    assert_eq!(result.unwrap(), "true,false");
+}
+
+#[test]
+fn fails_closed_when_a_boolean_hole_resolves_to_a_non_boolean_value() {
+    let mut context = empty_context();
+    context
+        .bindings
+        .insert("binding:wrong".to_owned(), ok_number(1.0));
+    let error = evaluate_text_template_segments(
+        &[boolean_reference_hole("binding:wrong")],
+        &mut context,
+        format_number,
+    )
+    .unwrap_err();
+    assert_eq!(error.origin, TextTemplateHoleOrigin::Typed);
+    assert!(error
+        .message
+        .unwrap()
+        .contains("evaluation-runtime-value-type-mismatch"));
 }
 
 #[test]
