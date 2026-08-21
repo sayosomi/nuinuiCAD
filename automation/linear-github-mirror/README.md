@@ -24,6 +24,8 @@ Not mirrored in v1:
 
 Comments are intentionally excluded because existing Linear top-level discussions can contain internal/non-public notes. A later comment bridge needs an explicit public-comment marker or equivalent privacy-safe contract.
 
+Migration-only/shadow Linear issues `SAY-39`, `SAY-75`, `SAY-84`, and `SAY-85` are explicitly excluded so they can never create a second public GitHub issue.
+
 ## Mapping
 
 Mapping resolution is deterministic and idempotent:

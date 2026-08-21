@@ -9,6 +9,7 @@ import {
   legacyGithubIssueNumber,
   priorityName,
   renderGithubBody,
+  shouldMirrorIssue,
   shouldQueuePayload,
   summarizeRelations,
   verifyLinearSignature,
@@ -21,6 +22,15 @@ test("legacy GitHub mapping matches the migrated ranges", () => {
   assert.equal(legacyGithubIssueNumber("SAY-74"), 250);
   assert.equal(legacyGithubIssueNumber("SAY-39"), null);
   assert.equal(legacyGithubIssueNumber("SAY-76"), null);
+});
+
+test("migration test and accidental shadow issues are excluded", () => {
+  assert.equal(shouldMirrorIssue({ identifier: "SAY-39" }), false);
+  assert.equal(shouldMirrorIssue({ identifier: "SAY-75" }), false);
+  assert.equal(shouldMirrorIssue({ identifier: "SAY-84" }), false);
+  assert.equal(shouldMirrorIssue({ identifier: "SAY-85" }), false);
+  assert.equal(shouldMirrorIssue({ identifier: "SAY-25" }), true);
+  assert.equal(shouldMirrorIssue({ identifier: "SAY-86" }), true);
 });
 
 test("GitHub issue attachment lookup is repository-specific", () => {

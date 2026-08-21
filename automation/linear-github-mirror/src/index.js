@@ -4,6 +4,7 @@ const GITHUB_API_VERSION = "2026-03-10";
 const MIRROR_MARKER_PREFIX = "linear-issue-id:";
 const GITHUB_ISSUE_URL_RE = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)\/?$/;
 const PRIORITY_NAMES = ["No priority", "Urgent", "High", "Medium", "Low"];
+const IGNORED_IDENTIFIERS = new Set(["SAY-39", "SAY-75", "SAY-84", "SAY-85"]);
 
 const ISSUE_QUERY = `
   query MirrorIssue($id: String!) {
@@ -126,10 +127,19 @@ export async function mirrorPayload(payload, env) {
     console.warn("Ignoring issue from another Linear team", { identifier: issue.identifier });
     return;
   }
+  if (!shouldMirrorIssue(issue)) {
+    console.warn("Ignoring excluded migration/shadow issue", { identifier: issue.identifier });
+    return;
+  }
 
   const issueNumber = await resolveGithubIssueNumber(issue, env);
   await ensureGithubLabels(issue.labels?.nodes ?? [], env);
   await updateGithubIssue(issueNumber, issue, env);
+}
+
+export function shouldMirrorIssue(issue) {
+  const identifier = issue?.identifier;
+  return typeof identifier === "string" && !IGNORED_IDENTIFIERS.has(identifier);
 }
 
 export async function fetchLinearIssue(issueId, env) {
@@ -191,7 +201,7 @@ async function createGithubIssue(issue, env) {
 
 async function findGithubIssueByLinearId(linearIssueId, env) {
   const marker = `${MIRROR_MARKER_PREFIX}${linearIssueId}`;
-  const query = `repo:${env.GITHUB_OWNER}/${env.GITHUB_REPO} is:issue in:body "${marker}"`;
+  const query = `repo:${env.GITHUB_OWNER}/${env.GITHUB_REPO} is:issue in:body \"${marker}\"`;
   const result = await githubFetch(`/search/issues?q=${encodeURIComponent(query)}&per_page=10`, {}, env);
   const items = Array.isArray(result.items) ? result.items : [];
   if (items.length === 0) return null;
