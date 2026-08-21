@@ -200,6 +200,7 @@ const classifyPath = (path) => {
 
   if (path.startsWith("src/") ||
       path.startsWith("test/") ||
+      path.startsWith("mcp-server/") ||
       path.startsWith("vscode-extension/") ||
       (path.startsWith("scripts/") && !path.startsWith("scripts/ci/")) ||
       isRootNodeInput(path)) {

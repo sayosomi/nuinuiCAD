@@ -139,8 +139,24 @@ consumer が共有する。
 
 `AutomationDocument` は既存の parser、statement reconciler、compiler、Module
 semantic / materialization path をそのまま利用し、materialized Module children
-を source representation に flatten しない。Future Evaluation Context や
-Headless Rust はこの architecture の current component ではない。
+を source representation に flatten しない。Headless MCP の fresh file snapshot
+もこの facade を利用し、fatal current source では `currentCompiled` の diagnostics
+だけを返して last-good `doc` を current semantics として公開しない。
+
+### Headless MCP
+
+Primary:
+
+- `mcp-server/src/server.ts`
+- `mcp-server/src/documentSnapshot.ts`
+
+Repository-owned MCP server は Node の直接 entry
+`mcp-server/dist/server.js` を stdio transport で起動する。stdout は MCP protocol
+専用で、server diagnostics は stderr に出す。`document_inspect` は absolute
+file-backed `.nui` を call ごとに disk から fresh read し、SHA-256 source identity、
+exact-current compile status / diagnostics、compact declaration / element summary を
+JSON-friendly DTO として返す。Mutable document registry、Rust evaluation、VS Code
+attached observation、source mutation はこの boundary の owner ではない。
 
 ### Compilation / source mutation
 
