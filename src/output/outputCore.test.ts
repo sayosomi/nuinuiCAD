@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 import { compileFreshCanonicalText } from "../document/canonicalDocument";
 import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
-import { PX_TO_MM, buildOutputPlan, evaluateOutputPlan, OutputPlanError } from "./outputCore";
+import {
+  OUTPUT_PALETTE,
+  OUTPUT_TEXT_ASCENT,
+  OUTPUT_TEXT_DESCENT,
+  PX_TO_MM,
+  buildOutputPlan,
+  deterministicTextLayout,
+  evaluateOutputPlan,
+  outputDrawableBounds,
+  OutputPlanError
+} from "./outputCore";
 
 const sourceFor = (lines: string[]) => {
   const compiled = compileFreshCanonicalText(lines.join("\n"));
@@ -186,12 +196,15 @@ describe("SAY-64 output core", () => {
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     expect(plan.print).toMatchObject({ paperWidthMm: 420, paperHeightMm: 297, effectiveWidthMm: 400, effectiveHeightMm: 277, strideXmm: 390, strideYmm: 267 });
+    expect(plan.rustPayload).toMatchObject({ stride: { x: 390, y: 267 } });
+    expect(plan.rustPayload).not.toHaveProperty("stride.xMm");
+    expect(plan.rustPayload).not.toHaveProperty("stride.yMm");
     expect(plan.print!.pages.map((page) => page.index)).toEqual(plan.print!.pages.map((_, index) => index));
     expect(plan.print!.pages[0].origin).toEqual({ x: plan.renderedBounds.minX - 10, y: plan.renderedBounds.minY - 10 });
     expect(plan.print!.pages[1].origin.x).toBe(plan.print!.pages[0].origin.x + 390);
   });
 
-  it("emits overlap guides only on neighboring edges with repeated labels and shrink-to-fit", () => {
+  it("emits unique matching labels, resolved centers, and rotated shrink-to-fit guides", () => {
     const doc = sourceFor([
       "nui 4",
       "group G {",
@@ -206,13 +219,96 @@ describe("SAY-64 output core", () => {
     const guides = plan.print!.pages.flatMap((page) => page.guides);
     expect(guides.some((guide) => guide.label === "10")).toBe(true);
     expect(guides.some((guide) => guide.label === "AA")).toBe(true);
-    expect(guides.filter((guide) => guide.axis === "vertical" && guide.label === "1")).toHaveLength(plan.print!.rows * 2);
     expect(guides.filter((guide) => guide.axis === "vertical").every((guide) => guide.labelRotationDeg === 90)).toBe(true);
     expect(guides.filter((guide) => guide.axis === "horizontal").every((guide) => guide.labelRotationDeg === 0)).toBe(true);
-    expect(guides.every((guide) => guide.labelFontSizeMm < 3)).toBe(true);
+    const verticalPairs = new Map<string, string[]>();
+    const horizontalPairs = new Map<string, string[]>();
+    for (const page of plan.print!.pages) {
+      for (const guide of page.guides) {
+        if (guide.axis === "vertical") {
+          const boundary = guide.positionMm === plan.print!.marginMm + plan.print!.overlapMm ? page.column - 1 : page.column;
+          const key = `${page.row}:${boundary}`;
+          verticalPairs.set(key, [...(verticalPairs.get(key) ?? []), guide.label]);
+        } else {
+          const boundary = guide.positionMm === plan.print!.marginMm + plan.print!.overlapMm ? page.row - 1 : page.row;
+          const key = `${boundary}:${page.column}`;
+          horizontalPairs.set(key, [...(horizontalPairs.get(key) ?? []), guide.label]);
+        }
+      }
+    }
+    expect([...verticalPairs.values()].every((labels) => labels.length === 2 && labels[0] === labels[1])).toBe(true);
+    expect([...horizontalPairs.values()].every((labels) => labels.length === 2 && labels[0] === labels[1])).toBe(true);
+    expect(new Set([...verticalPairs.values(), ...horizontalPairs.values()].map(([label]) => label)).size).toBe(verticalPairs.size + horizontalPairs.size);
+    expect(verticalPairs.get("0:0")).toEqual(["1", "1"]);
+    expect(verticalPairs.get("1:0")).toEqual([`${plan.print!.columns - 1 + 1}`, `${plan.print!.columns - 1 + 1}`]);
+    expect(guides.every((guide) => guide.labelFontSizeMm <= 3)).toBe(true);
+    expect(guides.every((guide) => {
+      if (guide.axis === "vertical") {
+        const expectedX = guide.positionMm === plan.print!.marginMm + plan.print!.overlapMm
+          ? plan.print!.marginMm + plan.print!.overlapMm / 2
+          : plan.print!.paperWidthMm - plan.print!.marginMm - plan.print!.overlapMm / 2;
+        return guide.labelCenter.x === expectedX && guide.labelCenter.y === plan.print!.paperHeightMm / 2;
+      }
+      const expectedY = guide.positionMm === plan.print!.marginMm + plan.print!.overlapMm
+        ? plan.print!.marginMm + plan.print!.overlapMm / 2
+        : plan.print!.paperHeightMm - plan.print!.marginMm - plan.print!.overlapMm / 2;
+      return guide.labelCenter.x === plan.print!.paperWidthMm / 2 && guide.labelCenter.y === expectedY;
+    })).toBe(true);
     for (const page of plan.print!.pages) {
       if (page.column === 0) expect(page.guides.some((guide) => guide.axis === "vertical" && guide.positionMm === 11)).toBe(false);
       if (page.row === 0) expect(page.guides.some((guide) => guide.axis === "horizontal" && guide.positionMm === 11)).toBe(false);
     }
+  });
+
+  it("owns the fixed output palette and preserves fixed modifier colors", () => {
+    expect(OUTPUT_PALETTE).toEqual({
+      foreground: "#31322f",
+      muted: "#53564f",
+      accent: "#0f766e",
+      info: "#2563eb",
+      warning: "#73320d",
+      error: "#b91c1c"
+    });
+    const doc = simpleSource(["modifier Fixed {", "  color: #Ab12Ef,", "}"]);
+    const line = doc.document.elements.find((element) => element.name === "AB")!;
+    line.modifierNames = ["Fixed"];
+    const plan = buildOutputPlan({ compiledDocument: doc, output: output(doc, "S"), evaluation: evaluationFor(doc) });
+    const fixedDrawable = plan.drawables.find((drawable) => drawable.elementId === line.id);
+    if (!fixedDrawable || fixedDrawable.kind === "text") throw new Error("missing fixed-color line");
+    expect(fixedDrawable.stroke.colorHex).toBe("#ab12ef");
+  });
+
+  it("uses one baseline-anchor text layout for Latin, Japanese, multiline, rotation, and mirroring", () => {
+    const doc = sourceFor([
+      "nui 4",
+      "group G {",
+      "  text Label = label(text: \"AB\\n日本\", anchor: (0, 0), size: 4)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0), angle: 30, mirror: true)",
+      "}",
+      "svg S(layout: @L, margin: 0)"
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
+    const text = plan.drawables.find((drawable) => drawable.kind === "text");
+    if (!text || text.kind !== "text") throw new Error("missing output text");
+    const layout = deterministicTextLayout("AB\n日本", 4);
+    expect(text).toMatchObject({
+      anchor: { x: 0, y: 0 },
+      fontSizeMm: 4,
+      widthMm: 8,
+      lineWidthsMm: [4.96, 8],
+      lineAdvancesMm: [[2.48, 2.48], [4, 4]],
+      lineHeightMm: 4.8,
+      rotationDeg: 30,
+      mirrorX: true
+    });
+    expect(layout).toEqual({ lineWidthsMm: text.lineWidthsMm, lineAdvancesMm: text.lineAdvancesMm, widthMm: text.widthMm });
+    const ascent = text.fontSizeMm * OUTPUT_TEXT_ASCENT;
+    const descent = text.fontSizeMm * OUTPUT_TEXT_DESCENT;
+    expect(outputDrawableBounds(text)).toEqual(plan.renderedBounds);
+    expect(plan.renderedBounds.width).toBeGreaterThan(Math.max(...text.lineWidthsMm));
+    expect(plan.renderedBounds.height).toBeGreaterThan(text.lineHeightMm + ascent - descent);
+    expect(ascent + descent).toBe(text.fontSizeMm);
   });
 });

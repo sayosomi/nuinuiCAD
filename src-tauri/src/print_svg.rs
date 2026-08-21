@@ -5,6 +5,8 @@ use crate::print_output::{
 use serde::Deserialize;
 use std::fs;
 
+const OUTPUT_TEXT_FONT_FAMILY: &str = "HeiseiKakuGo-W5";
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportPrintSvgInput {
@@ -189,6 +191,7 @@ fn push_drawable(svg: &mut String, drawable: &OutputDrawable, payload: &Resolved
             text,
             anchor,
             font_size_mm,
+            line_widths_mm,
             line_height_mm,
             rotation_deg,
             mirror_x,
@@ -198,20 +201,20 @@ fn push_drawable(svg: &mut String, drawable: &OutputDrawable, payload: &Resolved
             let (x, y) = svg_point(*anchor, payload);
             let mirror = if *mirror_x { -1 } else { 1 };
             svg.push_str(&format!(
-                r##"    <text x="0" y="0" font-size="{}" fill="{}" font-family="HeiseiKakuGo-W5, sans-serif" dominant-baseline="text-before-edge" transform="translate({x} {y}) rotate({} 0 0) scale({mirror} 1)">"##,
+                r##"    <text x="0" y="0" font-size="{}" fill="{}" font-family="{OUTPUT_TEXT_FONT_FAMILY}" dominant-baseline="alphabetic" transform="translate({x} {y}) rotate({} 0 0) scale({mirror} -1)">"##,
                 svg_number(*font_size_mm),
                 escape_xml(color_hex),
                 svg_number(-*rotation_deg)
             ));
-            let line_height = svg_number(*line_height_mm);
-            for (index, line) in text.lines().enumerate() {
+            for (index, (line, width)) in text.split('\n').zip(line_widths_mm).enumerate() {
                 svg.push_str(&format!(
-                    r#"<tspan x="0" dy="{}">{}</tspan>"#,
+                    r#"<tspan x="0"{} textLength="{}" lengthAdjust="spacingAndGlyphs">{}</tspan>"#,
                     if index == 0 {
-                        "0".to_owned()
+                        r#" y="0""#.to_owned()
                     } else {
-                        line_height.clone()
+                        format!(r#" dy="{}""#, svg_number(-*line_height_mm))
                     },
+                    svg_number(*width),
                     escape_xml(line)
                 ));
             }
@@ -241,7 +244,7 @@ fn build_print_svg(payload: &ResolvedSvgOutputPayload) -> Result<String, String>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::print_output::{OutputBounds, OutputStroke};
+    use crate::print_output::{text_bounds_relative, OutputBounds, OutputStroke};
 
     fn stroke() -> OutputStroke {
         OutputStroke {
@@ -289,5 +292,56 @@ mod tests {
         let mut invalid = payload();
         invalid.width_mm = 0.0;
         assert!(build_print_svg(&invalid).is_err());
+    }
+
+    #[test]
+    fn emits_exact_text_local_layout_for_multiline_rotated_mirrored_text() {
+        let font_size_mm = 4.0;
+        let line_height_mm = 4.8;
+        let line_widths_mm = vec![4.96, 8.0];
+        let line_advances_mm = vec![vec![2.48, 2.48], vec![4.0, 4.0]];
+        let relative =
+            text_bounds_relative(font_size_mm, &line_widths_mm, line_height_mm, 30.0, true);
+        let text_payload = ResolvedSvgOutputPayload {
+            version: 1,
+            kind: "svg".to_owned(),
+            bounds: OutputBounds {
+                min_x: 20.0 + relative.min_x,
+                min_y: 30.0 + relative.min_y,
+                max_x: 20.0 + relative.max_x,
+                max_y: 30.0 + relative.max_y,
+                width: relative.width,
+                height: relative.height,
+            },
+            drawables: vec![OutputDrawable::Text {
+                element_id: "text".to_owned(),
+                name: "text".to_owned(),
+                text: "AB\n日本".to_owned(),
+                anchor: OutputPoint { x: 20.0, y: 30.0 },
+                font_size_mm,
+                width_mm: 8.0,
+                line_widths_mm,
+                line_advances_mm,
+                line_height_mm,
+                rotation_deg: 30.0,
+                mirror_x: true,
+                color_hex: "#31322f".to_owned(),
+            }],
+            width_mm: 100.0,
+            height_mm: 80.0,
+            content_origin: OutputPoint { x: 0.0, y: 0.0 },
+        };
+        let svg = build_print_svg(&text_payload).expect("text SVG should build");
+        assert!(svg.contains(
+            r##"font-family="HeiseiKakuGo-W5" dominant-baseline="alphabetic" transform="translate(20 50) rotate(-30 0 0) scale(-1 -1)""##
+        ));
+        assert!(svg.contains(
+            r#"<tspan x="0" y="0" textLength="4.96" lengthAdjust="spacingAndGlyphs">AB</tspan>"#
+        ));
+        assert!(svg.contains(
+            r#"<tspan x="0" dy="-4.8" textLength="8" lengthAdjust="spacingAndGlyphs">日本</tspan>"#
+        ));
+        assert!((text_payload.bounds.width - relative.width).abs() < 1e-9);
+        assert!((text_payload.bounds.height - relative.height).abs() < 1e-9);
     }
 }

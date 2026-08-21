@@ -6,7 +6,6 @@ import { buildEvaluationOptions } from "../geometry/productionEvaluationContext"
 import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { evaluateNumericValue, computedReferencePathValue } from "../geometry/numericExpressions";
 import { resolveDerivedPoint } from "../model/pointAnchors";
-import { LEGACY_CANVAS_THEME, canvasThemeColorForRole } from "../components/canvasTheme";
 import type {
   CadElement,
   ComputedBezierCurve,
@@ -20,12 +19,32 @@ import type {
   LayoutPlacement,
   NumericValue,
   PrintOutput,
-  SvgOutput
+  SvgOutput,
+  DrawingModifierThemeRole
 } from "../types/geometry";
 
 export const PX_TO_MM = 25.4 / 96;
 export const OUTPUT_TEXT_NOMINAL_FONT_SIZE_MM = 3;
 export const OUTPUT_TEXT_LINE_HEIGHT = 1.2;
+export const OUTPUT_TEXT_ASCENT = 0.8;
+export const OUTPUT_TEXT_DESCENT = 0.2;
+export const OUTPUT_TEXT_FONT_FAMILY = "HeiseiKakuGo-W5";
+
+/**
+ * Output colors are intentionally independent from the active Canvas theme.
+ * These values are the established legacy export appearance and are part of
+ * the output contract, not a runtime presentation preference.
+ */
+export const OUTPUT_PALETTE: Readonly<Record<DrawingModifierThemeRole, string>> = Object.freeze({
+  foreground: "#31322f",
+  muted: "#53564f",
+  accent: "#0f766e",
+  info: "#2563eb",
+  warning: "#73320d",
+  error: "#b91c1c"
+});
+
+export const outputPaletteColorForRole = (role: DrawingModifierThemeRole) => OUTPUT_PALETTE[role];
 
 /**
  * The output core is deliberately independent of host APIs.  A host supplies
@@ -84,6 +103,8 @@ export type OutputText = {
   anchor: OutputPoint;
   fontSizeMm: number;
   widthMm: number;
+  lineWidthsMm: number[];
+  lineAdvancesMm: number[][];
   lineHeightMm: number;
   rotationDeg: number;
   mirrorX: boolean;
@@ -118,6 +139,9 @@ export type OutputGuide = {
   label: string;
   labelFontSizeMm: number;
   labelRotationDeg: number;
+  labelCenter: OutputPoint;
+  labelWidthMm: number;
+  labelAdvancesMm: number[];
 };
 
 export type OutputPrintPage = {
@@ -146,7 +170,7 @@ export type RustPrintOutputPayload = RustOutputPayloadBase & {
   paper: { widthMm: number; heightMm: number };
   marginMm: number;
   overlapMm: number;
-  stride: { xMm: number; yMm: number };
+  stride: OutputPoint;
   pages: OutputPrintPage[];
 };
 
@@ -280,7 +304,7 @@ const strokeColor = (stroke: DrawingModifierStroke): string => {
     }
     return stroke.color.hex;
   }
-  return canvasThemeColorForRole(LEGACY_CANVAS_THEME, stroke.color.role);
+  return outputPaletteColorForRole(stroke.color.role);
 };
 
 const strokeFor = (
@@ -288,7 +312,7 @@ const strokeFor = (
   evaluation: EvaluationResult
 ): OutputStroke => {
   const resolved = evaluation.effectiveDrawingModifierStrokes?.get(elementId);
-  if (!resolved) return { widthMm: PX_TO_MM, style: "solid", colorHex: LEGACY_CANVAS_THEME.foreground };
+  if (!resolved) return { widthMm: PX_TO_MM, style: "solid", colorHex: OUTPUT_PALETTE.foreground };
   finitePositive(resolved.widthPx, `modifier width for ${elementId}`);
   return {
     widthMm: resolved.widthPx * PX_TO_MM,
@@ -344,26 +368,54 @@ const offsetSegments = (geometry: ComputedOffsetLine): OutputPathSegment[] => ge
   };
 });
 
-export const deterministicTextWidthMm = (text: string, fontSizeMm: number) => Math.max(
-  ...text.split("\n").map((line) => [...line].reduce((width, character) => {
-    if (/\p{Mark}/u.test(character)) return width;
-    const advance = character.codePointAt(0)! > 0x2e80 ? 1 : 0.62;
-    return width + advance;
-  }, 0) * fontSizeMm),
-  0
-);
+const normalizedTextLines = (text: string) => text.replace(/\r\n?/g, "\n").split("\n");
 
-const textBounds = (text: OutputText): OutputBounds => {
-  const width = text.widthMm;
-  const height = Math.max(1, text.text.split("\n").length) * text.lineHeightMm;
-  const corners = [
-    { x: 0, y: 0 },
-    { x: width, y: 0 },
-    { x: 0, y: height },
-    { x: width, y: height }
-  ].map((corner) => transformPoint(corner, { x: 0, y: 0 }, text.anchor, 1, text.rotationDeg, text.mirrorX));
+const textAdvanceRatio = (character: string) => {
+  if (/\p{Mark}/u.test(character)) return 0;
+  return character.codePointAt(0)! > 0x2e80 ? 1 : 0.62;
+};
+
+export type DeterministicTextLayout = {
+  lineWidthsMm: number[];
+  lineAdvancesMm: number[][];
+  widthMm: number;
+};
+
+/**
+ * Fixed output text metrics.  The encoders consume these resolved advances;
+ * neither browser layout nor an OS font installation owns output geometry.
+ */
+export const deterministicTextLayout = (text: string, fontSizeMm: number): DeterministicTextLayout => {
+  const lineAdvancesMm = normalizedTextLines(text).map((line) => [...line].map((character) => textAdvanceRatio(character) * fontSizeMm));
+  const lineWidthsMm = lineAdvancesMm.map((advances) => advances.reduce((width, advance) => width + advance, 0));
+  return { lineWidthsMm, lineAdvancesMm, widthMm: Math.max(...lineWidthsMm, 0) };
+};
+
+export const deterministicTextWidthMm = (text: string, fontSizeMm: number) => deterministicTextLayout(text, fontSizeMm).widthMm;
+
+const textBoundsFor = ({
+  anchor,
+  fontSizeMm,
+  lineWidthsMm,
+  lineHeightMm,
+  rotationDeg,
+  mirrorX
+}: Pick<OutputText, "anchor" | "fontSizeMm" | "lineWidthsMm" | "lineHeightMm" | "rotationDeg" | "mirrorX">): OutputBounds => {
+  const ascent = fontSizeMm * OUTPUT_TEXT_ASCENT;
+  const descent = fontSizeMm * OUTPUT_TEXT_DESCENT;
+  const corners = lineWidthsMm.flatMap((width, index) => {
+    const baselineY = -index * lineHeightMm;
+    return [
+      { x: 0, y: baselineY - descent },
+      { x: width, y: baselineY - descent },
+      { x: 0, y: baselineY + ascent },
+      { x: width, y: baselineY + ascent }
+    ];
+  }).map((corner) => transformPoint(corner, { x: 0, y: 0 }, anchor, 1, rotationDeg, mirrorX));
   return boundsFromPoints(corners);
 };
+
+const textBounds = (text: OutputText): OutputBounds => textBoundsFor(text);
 
 const emptyBounds = (): OutputBounds => ({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, width: 0, height: 0 });
 
@@ -452,6 +504,8 @@ const drawableBounds = (drawable: OutputDrawable): OutputBounds => {
   return expandBounds(bounds, drawable.stroke.widthMm / 2);
 };
 
+export const outputDrawableBounds = drawableBounds;
+
 const outputGeometryFor = (
   geometry: ComputedGeometry,
   elementId: ElementId,
@@ -475,14 +529,17 @@ const outputGeometryFor = (
   }
   if (geometry.kind === "text" && geometry.anchor) {
     const fontSizeMm = finitePositive(geometry.fontSize, `font size for ${elementId}`) * transform.scale;
+    const textLayout = deterministicTextLayout(geometry.text, fontSizeMm);
     return [{
       kind: "text",
       elementId,
       name,
-      text: geometry.text,
+      text: geometry.text.replace(/\r\n?/g, "\n"),
       anchor: transformPoint(pointOf(geometry.anchor), transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror),
       fontSizeMm,
-      widthMm: deterministicTextWidthMm(geometry.text, fontSizeMm),
+      widthMm: textLayout.widthMm,
+      lineWidthsMm: textLayout.lineWidthsMm,
+      lineAdvancesMm: textLayout.lineAdvancesMm,
       lineHeightMm: fontSizeMm * OUTPUT_TEXT_LINE_HEIGHT,
       rotationDeg: transform.angleDeg,
       mirrorX: transform.mirror,
@@ -634,12 +691,49 @@ const labelForIndex = (index: number) => {
   return label;
 };
 
-const labelFontSize = (text: string, overlapMm: number) => {
-  const nominal = OUTPUT_TEXT_NOMINAL_FONT_SIZE_MM;
-  const widthAtNominal = deterministicTextWidthMm(text, nominal);
-  return widthAtNominal <= overlapMm * 0.8 || widthAtNominal === 0
-    ? nominal
-    : nominal * (overlapMm * 0.8 / widthAtNominal);
+const labelLayout = ({
+  text,
+  axis,
+  center,
+  overlapMm,
+  paperWidthMm,
+  paperHeightMm
+}: {
+  text: string;
+  axis: OutputGuide["axis"];
+  center: OutputPoint;
+  overlapMm: number;
+  paperWidthMm: number;
+  paperHeightMm: number;
+}) => {
+  const stripWidthMm = axis === "vertical" ? overlapMm : paperWidthMm;
+  const stripHeightMm = axis === "vertical" ? paperHeightMm : overlapMm;
+  const rotationDeg = axis === "vertical" ? 90 : 0;
+  const nominalFontSizeMm = OUTPUT_TEXT_NOMINAL_FONT_SIZE_MM;
+  const lineHeightMm = nominalFontSizeMm * OUTPUT_TEXT_LINE_HEIGHT;
+  const nominalTextLayout = deterministicTextLayout(text, nominalFontSizeMm);
+  const nominalBounds = textBoundsFor({
+    anchor: { x: 0, y: 0 },
+    fontSizeMm: nominalFontSizeMm,
+    lineWidthsMm: nominalTextLayout.lineWidthsMm,
+    lineHeightMm,
+    rotationDeg,
+    mirrorX: false
+  });
+  const fitScale = Math.min(
+    1,
+    nominalBounds.width > 0 ? stripWidthMm / nominalBounds.width : 1,
+    nominalBounds.height > 0 ? stripHeightMm / nominalBounds.height : 1
+  );
+  const fontSizeMm = nominalFontSizeMm * fitScale;
+  const textLayout = deterministicTextLayout(text, fontSizeMm);
+  return {
+    labelFontSizeMm: fontSizeMm,
+    labelRotationDeg: rotationDeg,
+    labelCenter: center,
+    labelWidthMm: textLayout.widthMm,
+    labelAdvancesMm: textLayout.lineAdvancesMm[0] ?? []
+  };
 };
 
 const printPages = ({
@@ -666,20 +760,59 @@ const printPages = ({
   const columns = bounds.width <= effectiveWidthMm ? 1 : 1 + Math.ceil((bounds.width - effectiveWidthMm) / strideXmm);
   const rows = bounds.height <= effectiveHeightMm ? 1 : 1 + Math.ceil((bounds.height - effectiveHeightMm) / strideYmm);
   const pages: OutputPrintPage[] = [];
-  const verticalLabels = Array.from({ length: Math.max(0, columns - 1) }, (_, index) => String(index + 1));
+  const verticalBoundaryCount = Math.max(0, columns - 1);
+  const verticalLabelFor = (row: number, boundary: number) => String(row * verticalBoundaryCount + boundary + 1);
   const horizontalLabels = Array.from({ length: Math.max(0, columns * Math.max(0, rows - 1)) }, (_, index) => labelForIndex(index));
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
       const guides: OutputGuide[] = [];
-      if (overlapMm > 0 && column > 0) guides.push({ axis: "vertical", positionMm: marginMm + overlapMm, label: verticalLabels[column - 1], labelFontSizeMm: labelFontSize(verticalLabels[column - 1], overlapMm), labelRotationDeg: 90 });
-      if (overlapMm > 0 && column < columns - 1) guides.push({ axis: "vertical", positionMm: paperWidthMm - marginMm - overlapMm, label: verticalLabels[column], labelFontSizeMm: labelFontSize(verticalLabels[column], overlapMm), labelRotationDeg: 90 });
+      if (overlapMm > 0 && column > 0) {
+        const label = verticalLabelFor(row, column - 1);
+        const layout = labelLayout({
+          text: label,
+          axis: "vertical",
+          center: { x: marginMm + overlapMm / 2, y: paperHeightMm / 2 },
+          overlapMm,
+          paperWidthMm,
+          paperHeightMm
+        });
+        guides.push({ axis: "vertical", positionMm: marginMm + overlapMm, label, ...layout });
+      }
+      if (overlapMm > 0 && column < columns - 1) {
+        const label = verticalLabelFor(row, column);
+        const layout = labelLayout({
+          text: label,
+          axis: "vertical",
+          center: { x: paperWidthMm - marginMm - overlapMm / 2, y: paperHeightMm / 2 },
+          overlapMm,
+          paperWidthMm,
+          paperHeightMm
+        });
+        guides.push({ axis: "vertical", positionMm: paperWidthMm - marginMm - overlapMm, label, ...layout });
+      }
       if (overlapMm > 0 && row > 0) {
         const label = horizontalLabels[(row - 1) * columns + column];
-        guides.push({ axis: "horizontal", positionMm: marginMm + overlapMm, label, labelFontSizeMm: labelFontSize(label, overlapMm), labelRotationDeg: 0 });
+        const layout = labelLayout({
+          text: label,
+          axis: "horizontal",
+          center: { x: paperWidthMm / 2, y: marginMm + overlapMm / 2 },
+          overlapMm,
+          paperWidthMm,
+          paperHeightMm
+        });
+        guides.push({ axis: "horizontal", positionMm: marginMm + overlapMm, label, ...layout });
       }
       if (overlapMm > 0 && row < rows - 1) {
         const label = horizontalLabels[row * columns + column];
-        guides.push({ axis: "horizontal", positionMm: paperHeightMm - marginMm - overlapMm, label, labelFontSizeMm: labelFontSize(label, overlapMm), labelRotationDeg: 0 });
+        const layout = labelLayout({
+          text: label,
+          axis: "horizontal",
+          center: { x: paperWidthMm / 2, y: paperHeightMm - marginMm - overlapMm / 2 },
+          overlapMm,
+          paperWidthMm,
+          paperHeightMm
+        });
+        guides.push({ axis: "horizontal", positionMm: paperHeightMm - marginMm - overlapMm, label, ...layout });
       }
       pages.push({
         index: pages.length,
@@ -736,7 +869,7 @@ export const buildOutputPlan = ({
   const overlapMm = resolveNumeric({ value: output.overlap, occurrence: propertyBindingOccurrenceKey(outputIndex, "overlap"), sourceOrder: outputIndex, compiledDocument, evaluation });
   finiteNonNegative(marginMm, "print margin");
   const tiling = printPages({ bounds: renderedBounds, paperWidthMm, paperHeightMm, marginMm, overlapMm });
-  const rustPayload: RustPrintOutputPayload = { version: 1, kind: "print", bounds: renderedBounds, drawables, paper: { widthMm: paperWidthMm, heightMm: paperHeightMm }, marginMm, overlapMm, stride: { xMm: tiling.strideXmm, yMm: tiling.strideYmm }, pages: tiling.pages };
+  const rustPayload: RustPrintOutputPayload = { version: 1, kind: "print", bounds: renderedBounds, drawables, paper: { widthMm: paperWidthMm, heightMm: paperHeightMm }, marginMm, overlapMm, stride: { x: tiling.strideXmm, y: tiling.strideYmm }, pages: tiling.pages };
   return {
     kind: "print", outputId: output.id, outputName: output.name, layoutId: output.layoutId, ...(output.profileId ? { profileId: output.profileId } : {}),
     placements, drawables, renderedBounds, bounds: renderedBounds, rustPayload,

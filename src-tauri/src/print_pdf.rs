@@ -1,6 +1,6 @@
 use crate::print_output::{
-    validate_print_payload, OutputDrawable, OutputGuide, OutputPathSegment, OutputPoint,
-    OutputStroke, ResolvedPrintOutputPayload,
+    text_bounds_relative, validate_print_payload, OutputDrawable, OutputGuide, OutputPathSegment,
+    OutputPoint, OutputStroke, ResolvedPrintOutputPayload, OUTPUT_TEXT_LINE_HEIGHT,
 };
 use serde::Deserialize;
 use std::f64::consts::PI;
@@ -172,9 +172,63 @@ fn push_stroked_path(
 struct PdfTextPlacement {
     anchor: OutputPoint,
     font_size_mm: f64,
+    line_widths_mm: Vec<f64>,
+    line_advances_mm: Vec<Vec<f64>>,
     line_height_mm: f64,
     rotation_deg: f64,
     mirror_x: bool,
+}
+
+fn text_local_point(
+    placement: &PdfTextPlacement,
+    local_x: f64,
+    local_y: f64,
+    origin: OutputPoint,
+) -> (f64, f64) {
+    let angle = placement.rotation_deg * PI / 180.0;
+    let sign = if placement.mirror_x { -1.0 } else { 1.0 };
+    let mirrored_x = local_x * sign;
+    (
+        placement.anchor.x - origin.x + mirrored_x * angle.cos() - local_y * angle.sin(),
+        placement.anchor.y - origin.y + mirrored_x * angle.sin() + local_y * angle.cos(),
+    )
+}
+
+fn centered_text_anchor(
+    center: OutputPoint,
+    font_size_mm: f64,
+    line_widths_mm: &[f64],
+    line_height_mm: f64,
+    rotation_deg: f64,
+    mirror_x: bool,
+) -> OutputPoint {
+    let bounds = text_bounds_relative(
+        font_size_mm,
+        line_widths_mm,
+        line_height_mm,
+        rotation_deg,
+        mirror_x,
+    );
+    OutputPoint {
+        x: center.x - (bounds.min_x + bounds.max_x) / 2.0,
+        y: center.y - (bounds.min_y + bounds.max_y) / 2.0,
+    }
+}
+
+fn pdf_text_array(line: &str, advances_mm: &[f64], width_mm: f64, font_size_mm: f64) -> String {
+    let mut values = Vec::new();
+    let mut measured_width_mm = 0.0;
+    for (character, advance_mm) in line.chars().zip(advances_mm) {
+        values.push(pdf_utf16_hex(&character.to_string()));
+        let adjustment = 1000.0 - (*advance_mm / font_size_mm * 1000.0);
+        values.push(pdf_number(adjustment));
+        measured_width_mm += *advance_mm;
+    }
+    let correction_mm = width_mm - measured_width_mm;
+    if correction_mm.abs() > 1e-9 {
+        values.push(pdf_number(-correction_mm / font_size_mm * 1000.0));
+    }
+    format!("[{}] TJ", values.join(" "))
 }
 
 fn push_text(
@@ -184,7 +238,6 @@ fn push_text(
     color_hex: &str,
     origin: OutputPoint,
 ) {
-    let (x, _y) = page_point(placement.anchor, origin);
     let angle = placement.rotation_deg * PI / 180.0;
     let sign = if placement.mirror_x { -1.0 } else { 1.0 };
     let a = angle.cos() * sign;
@@ -192,15 +245,28 @@ fn push_text(
     let c = -angle.sin();
     let d = angle.cos();
     let size = pdf_number(pt(placement.font_size_mm));
-    for (index, line) in text.lines().enumerate() {
-        let line_y = pdf_number(pt(placement.anchor.y
-            - origin.y
-            - placement.font_size_mm * 0.8
-            - placement.line_height_mm * index as f64));
+    for (index, ((line, width_mm), advances_mm)) in text
+        .split('\n')
+        .zip(&placement.line_widths_mm)
+        .zip(&placement.line_advances_mm)
+        .enumerate()
+    {
+        let (line_x, line_y) = text_local_point(
+            &placement,
+            0.0,
+            -(index as f64) * placement.line_height_mm,
+            origin,
+        );
         content.push_str(&format!(
-            "BT {} /F1 {size} Tf {a} {b} {c} {d} {x} {line_y} Tm {} Tj ET\n",
+            "BT {} /F1 {size} Tf {} {} {} {} {} {} Tm {} ET\n",
             color_operator(color_hex),
-            pdf_utf16_hex(line)
+            pdf_number(a),
+            pdf_number(b),
+            pdf_number(c),
+            pdf_number(d),
+            pdf_number(pt(line_x)),
+            pdf_number(pt(line_y)),
+            pdf_text_array(line, advances_mm, *width_mm, placement.font_size_mm)
         ));
     }
 }
@@ -265,6 +331,8 @@ fn push_drawable(content: &mut String, drawable: &OutputDrawable, origin: Output
             text,
             anchor,
             font_size_mm,
+            line_widths_mm,
+            line_advances_mm,
             line_height_mm,
             rotation_deg,
             mirror_x,
@@ -276,6 +344,8 @@ fn push_drawable(content: &mut String, drawable: &OutputDrawable, origin: Output
             PdfTextPlacement {
                 anchor: *anchor,
                 font_size_mm: *font_size_mm,
+                line_widths_mm: line_widths_mm.clone(),
+                line_advances_mm: line_advances_mm.clone(),
                 line_height_mm: *line_height_mm,
                 rotation_deg: *rotation_deg,
                 mirror_x: *mirror_x,
@@ -316,12 +386,18 @@ fn push_guide(
             content,
             &guide.label,
             PdfTextPlacement {
-                anchor: OutputPoint {
-                    x: guide_x,
-                    y: paper_height_mm / 2.0,
-                },
+                anchor: centered_text_anchor(
+                    guide.label_center,
+                    guide.label_font_size_mm,
+                    &[guide.label_width_mm],
+                    guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
+                    guide.label_rotation_deg,
+                    false,
+                ),
                 font_size_mm: guide.label_font_size_mm,
-                line_height_mm: guide.label_font_size_mm * 1.2,
+                line_widths_mm: vec![guide.label_width_mm],
+                line_advances_mm: vec![guide.label_advances_mm.clone()],
+                line_height_mm: guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
                 rotation_deg: guide.label_rotation_deg,
                 mirror_x: false,
             },
@@ -338,12 +414,18 @@ fn push_guide(
             content,
             &guide.label,
             PdfTextPlacement {
-                anchor: OutputPoint {
-                    x: paper_width_mm / 2.0,
-                    y: guide_y,
-                },
+                anchor: centered_text_anchor(
+                    guide.label_center,
+                    guide.label_font_size_mm,
+                    &[guide.label_width_mm],
+                    guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
+                    guide.label_rotation_deg,
+                    false,
+                ),
                 font_size_mm: guide.label_font_size_mm,
-                line_height_mm: guide.label_font_size_mm * 1.2,
+                line_widths_mm: vec![guide.label_width_mm],
+                line_advances_mm: vec![guide.label_advances_mm.clone()],
+                line_height_mm: guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
                 rotation_deg: guide.label_rotation_deg,
                 mirror_x: false,
             },
@@ -425,7 +507,7 @@ fn build_print_pdf(payload: &ResolvedPrintOutputPayload) -> Result<Vec<u8>, Stri
         "<< /Type /Font /Subtype /Type0 /BaseFont /HeiseiKakuGo-W5 /Encoding /UniJIS-UCS2-H /DescendantFonts [{cid_font_id} 0 R] >>"
     )));
     objects.push(pdf_object(
-        "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /HeiseiKakuGo-W5 /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 2 >> /FontDescriptor << /Type /FontDescriptor /FontName /HeiseiKakuGo-W5 /Flags 4 /FontBBox [-92 -250 1010 922] /ItalicAngle 0 /Ascent 752 /Descent -221 /CapHeight 737 /StemV 80 >> >>",
+        "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /HeiseiKakuGo-W5 /DW 1000 /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 2 >> /FontDescriptor << /Type /FontDescriptor /FontName /HeiseiKakuGo-W5 /Flags 4 /FontBBox [-92 -250 1010 922] /ItalicAngle 0 /Ascent 752 /Descent -221 /CapHeight 737 /StemV 80 >> >>",
     ));
     for page_index in 0..page_count {
         objects.push(stream_object(&page_content(payload, page_index)));
@@ -459,7 +541,7 @@ fn build_print_pdf(payload: &ResolvedPrintOutputPayload) -> Result<Vec<u8>, Stri
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::print_output::{OutputBounds, OutputPrintPage};
+    use crate::print_output::{text_bounds_relative, OutputBounds, OutputPrintPage};
 
     fn payload() -> ResolvedPrintOutputPayload {
         ResolvedPrintOutputPayload {
@@ -524,5 +606,106 @@ mod tests {
         let mut invalid = payload();
         invalid.overlap_mm = 200.0;
         assert!(build_print_pdf(&invalid).is_err());
+    }
+
+    #[test]
+    fn emits_exact_text_local_layout_for_multiline_rotated_mirrored_text() {
+        let font_size_mm = 4.0;
+        let line_height_mm = 4.8;
+        let line_widths_mm = vec![4.96, 8.0];
+        let line_advances_mm = vec![vec![2.48, 2.48], vec![4.0, 4.0]];
+        let relative =
+            text_bounds_relative(font_size_mm, &line_widths_mm, line_height_mm, 30.0, true);
+        let text_payload = ResolvedPrintOutputPayload {
+            version: 1,
+            kind: "print".to_owned(),
+            bounds: OutputBounds {
+                min_x: 20.0 + relative.min_x,
+                min_y: 30.0 + relative.min_y,
+                max_x: 20.0 + relative.max_x,
+                max_y: 30.0 + relative.max_y,
+                width: relative.width,
+                height: relative.height,
+            },
+            drawables: vec![OutputDrawable::Text {
+                element_id: "text".to_owned(),
+                name: "text".to_owned(),
+                text: "AB\n日本".to_owned(),
+                anchor: OutputPoint { x: 20.0, y: 30.0 },
+                font_size_mm,
+                width_mm: 8.0,
+                line_widths_mm,
+                line_advances_mm,
+                line_height_mm,
+                rotation_deg: 30.0,
+                mirror_x: true,
+                color_hex: "#31322f".to_owned(),
+            }],
+            paper: crate::print_output::PaperSize {
+                width_mm: 210.0,
+                height_mm: 297.0,
+            },
+            margin_mm: 10.0,
+            overlap_mm: 10.0,
+            stride: OutputPoint { x: 180.0, y: 267.0 },
+            pages: vec![OutputPrintPage {
+                index: 0,
+                column: 0,
+                row: 0,
+                origin: OutputPoint { x: 0.0, y: 0.0 },
+                guides: vec![],
+            }],
+        };
+        let pdf = build_print_pdf(&text_payload).expect("text PDF should build");
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/DW 1000"));
+        assert!(text.contains(
+            "BT 0.192 0.196 0.184 RG /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 56.693 85.039 Tm [<FEFF0041> 380 <FEFF0042> 380] TJ ET"
+        ));
+        assert!(text.contains(
+            "BT 0.192 0.196 0.184 RG /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 63.496 73.256 Tm [<FEFF65E5> 0 <FEFF672C> 0] TJ ET"
+        ));
+        assert!((text_payload.bounds.width - relative.width).abs() < 1e-9);
+        assert!((text_payload.bounds.height - relative.height).abs() < 1e-9);
+    }
+
+    #[test]
+    fn consumes_resolved_guide_center_and_keeps_label_off_the_guide_line() {
+        let guide = OutputGuide {
+            axis: "vertical".to_owned(),
+            position_mm: 190.0,
+            label: "1".to_owned(),
+            label_font_size_mm: 1.0,
+            label_rotation_deg: 90.0,
+            label_center: OutputPoint { x: 195.0, y: 148.5 },
+            label_width_mm: 0.62,
+            label_advances_mm: vec![0.62],
+        };
+        let expected_anchor = centered_text_anchor(
+            guide.label_center,
+            guide.label_font_size_mm,
+            &[guide.label_width_mm],
+            guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
+            guide.label_rotation_deg,
+            false,
+        );
+        let mut resolved = payload();
+        resolved.pages[0].guides = vec![guide.clone()];
+        resolved.pages[1].guides = vec![OutputGuide {
+            position_mm: 20.0,
+            label_center: OutputPoint { x: 15.0, y: 148.5 },
+            ..guide
+        }];
+        let relative = text_bounds_relative(1.0, &[0.62], OUTPUT_TEXT_LINE_HEIGHT, 90.0, false);
+        assert!((expected_anchor.x + (relative.min_x + relative.max_x) / 2.0 - 195.0).abs() < 1e-9);
+        assert!((expected_anchor.y + (relative.min_y + relative.max_y) / 2.0 - 148.5).abs() < 1e-9);
+        let pdf = build_print_pdf(&resolved).expect("resolved guide center should build");
+        let text = String::from_utf8_lossy(&pdf);
+        let expected_text_marker = format!(
+            "BT 0.192 0.196 0.184 RG /F1 2.835 Tf 0 1 -1 0 {} {} Tm [<FEFF0031> 380] TJ ET",
+            pdf_number(pt(expected_anchor.x)),
+            pdf_number(pt(expected_anchor.y))
+        );
+        assert!(text.contains(&expected_text_marker));
     }
 }

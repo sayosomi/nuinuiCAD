@@ -323,10 +323,11 @@ ordered group-subtree placements, emits only line/arc/Bezier/offsetLine/text
 drawables, and calculates deterministic stroke-inclusive/text-inclusive bounds.
 
 The same plan owns SVG physical sizing and print tiling metadata, including
-page origins, effective areas, overlap guides, and joining labels. It uses the
-fixed `LEGACY_CANVAS_THEME` semantic palette and converts modifier widths from
-CSS pixels to millimetres. It has no React, host UI, command, dialog, or save
-flow ownership.
+page origins, effective areas, overlap guides, joining labels, and deterministic
+text layout. It owns a stable six-role export palette whose values match the
+legacy Canvas baseline, but does not read the active Canvas theme at runtime;
+it also converts modifier widths from CSS pixels to millimetres. It has no
+React, host UI, command, dialog, or save flow ownership.
 
 `print_output.rs` is the JSON-friendly resolved-payload validation boundary.
 `print_svg.rs` and `print_pdf.rs` remain the production Rust encoding owners;

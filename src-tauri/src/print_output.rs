@@ -1,5 +1,9 @@
 use serde::Deserialize;
 
+pub(crate) const OUTPUT_TEXT_LINE_HEIGHT: f64 = 1.2;
+pub(crate) const OUTPUT_TEXT_ASCENT: f64 = 0.8;
+pub(crate) const OUTPUT_TEXT_DESCENT: f64 = 0.2;
+
 #[derive(Debug, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputPoint {
@@ -77,6 +81,8 @@ pub enum OutputDrawable {
         anchor: OutputPoint,
         font_size_mm: f64,
         width_mm: f64,
+        line_widths_mm: Vec<f64>,
+        line_advances_mm: Vec<Vec<f64>>,
         line_height_mm: f64,
         rotation_deg: f64,
         mirror_x: bool,
@@ -103,6 +109,9 @@ pub struct OutputGuide {
     pub label: String,
     pub label_font_size_mm: f64,
     pub label_rotation_deg: f64,
+    pub label_center: OutputPoint,
+    pub label_width_mm: f64,
+    pub label_advances_mm: Vec<f64>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -148,6 +157,48 @@ pub struct PaperSize {
     pub height_mm: f64,
 }
 
+pub(crate) fn text_bounds_relative(
+    font_size_mm: f64,
+    line_widths_mm: &[f64],
+    line_height_mm: f64,
+    rotation_deg: f64,
+    mirror_x: bool,
+) -> OutputBounds {
+    let angle = rotation_deg.to_radians();
+    let sign = if mirror_x { -1.0 } else { 1.0 };
+    let ascent = font_size_mm * OUTPUT_TEXT_ASCENT;
+    let descent = font_size_mm * OUTPUT_TEXT_DESCENT;
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for (index, width) in line_widths_mm.iter().enumerate() {
+        let baseline_y = -(index as f64) * line_height_mm;
+        for (local_x, local_y) in [
+            (0.0, baseline_y - descent),
+            (*width, baseline_y - descent),
+            (0.0, baseline_y + ascent),
+            (*width, baseline_y + ascent),
+        ] {
+            let mirrored_x = local_x * sign;
+            let x = mirrored_x * angle.cos() - local_y * angle.sin();
+            let y = mirrored_x * angle.sin() + local_y * angle.cos();
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+        }
+    }
+    OutputBounds {
+        min_x,
+        min_y,
+        max_x,
+        max_y,
+        width: max_x - min_x,
+        height: max_y - min_y,
+    }
+}
+
 fn valid_hex(value: &str) -> bool {
     value.len() == 7
         && value.as_bytes()[0] == b'#'
@@ -185,6 +236,49 @@ fn non_negative(value: f64, label: &str) -> Result<(), String> {
 fn validate_point(point: OutputPoint, label: &str) -> Result<(), String> {
     finite(point.x, &format!("{label}.x"))?;
     finite(point.y, &format!("{label}.y"))
+}
+
+fn close_enough(left: f64, right: f64) -> bool {
+    (left - right).abs() <= 1e-6
+}
+
+fn validate_text_layout(
+    text: &str,
+    font_size_mm: f64,
+    width_mm: f64,
+    line_widths_mm: &[f64],
+    line_advances_mm: &[Vec<f64>],
+    line_height_mm: f64,
+    rotation_deg: f64,
+) -> Result<(), String> {
+    positive(font_size_mm, "text font size")?;
+    non_negative(width_mm, "text width")?;
+    positive(line_height_mm, "text line height")?;
+    finite(rotation_deg, "text rotation")?;
+    let lines = text.split('\n').collect::<Vec<_>>();
+    if line_widths_mm.len() != lines.len() || line_advances_mm.len() != lines.len() {
+        return Err("text line layout does not match text lines".to_owned());
+    }
+    let mut max_width: f64 = 0.0;
+    for ((line, advances), width) in lines.iter().zip(line_advances_mm).zip(line_widths_mm) {
+        if advances.len() != line.chars().count() {
+            return Err("text glyph layout does not match text characters".to_owned());
+        }
+        let mut measured_width = 0.0;
+        for advance in advances {
+            non_negative(*advance, "text glyph advance")?;
+            measured_width += *advance;
+        }
+        non_negative(*width, "text line width")?;
+        if !close_enough(measured_width, *width) {
+            return Err("text line width does not match glyph advances".to_owned());
+        }
+        max_width = max_width.max(*width);
+    }
+    if !close_enough(max_width, width_mm) {
+        return Err("text width does not match the widest line".to_owned());
+    }
+    Ok(())
 }
 
 fn validate_stroke(stroke: &OutputStroke) -> Result<(), String> {
@@ -279,19 +373,27 @@ fn validate_drawable(drawable: &OutputDrawable) -> Result<(), String> {
             validate_stroke(stroke)?;
         }
         OutputDrawable::Text {
+            text,
             anchor,
             font_size_mm,
             width_mm,
+            line_widths_mm,
+            line_advances_mm,
             line_height_mm,
             rotation_deg,
             color_hex,
             ..
         } => {
             validate_point(*anchor, "text.anchor")?;
-            positive(*font_size_mm, "text font size")?;
-            non_negative(*width_mm, "text width")?;
-            positive(*line_height_mm, "text line height")?;
-            finite(*rotation_deg, "text rotation")?;
+            validate_text_layout(
+                text,
+                *font_size_mm,
+                *width_mm,
+                line_widths_mm,
+                line_advances_mm,
+                *line_height_mm,
+                *rotation_deg,
+            )?;
             if !valid_hex(color_hex) {
                 return Err(format!("invalid text color: {color_hex}"));
             }
@@ -419,6 +521,21 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
             }
             positive(guide.label_font_size_mm, "joining label font size")?;
             finite(guide.label_rotation_deg, "joining label rotation")?;
+            validate_point(guide.label_center, "joining label center")?;
+            non_negative(guide.label_width_mm, "joining label width")?;
+            let measured_label_width =
+                guide
+                    .label_advances_mm
+                    .iter()
+                    .try_fold(0.0, |width, advance| {
+                        non_negative(*advance, "joining label glyph advance")?;
+                        Ok::<f64, String>(width + advance)
+                    })?;
+            if guide.label_advances_mm.len() != guide.label.chars().count()
+                || !close_enough(measured_label_width, guide.label_width_mm)
+            {
+                return Err("joining label width does not match glyph advances".to_owned());
+            }
             let valid_position = if guide.axis == "vertical" {
                 let is_left =
                     (guide.position_mm - (payload.margin_mm + payload.overlap_mm)).abs() <= 1e-6;
@@ -441,11 +558,111 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
                     "joining guide position is not derived from a neighboring page edge".to_owned(),
                 );
             }
+            let expected_center = if guide.axis == "vertical" {
+                if (guide.position_mm - (payload.margin_mm + payload.overlap_mm)).abs() <= 1e-6 {
+                    OutputPoint {
+                        x: payload.margin_mm + payload.overlap_mm / 2.0,
+                        y: payload.paper.height_mm / 2.0,
+                    }
+                } else {
+                    OutputPoint {
+                        x: payload.paper.width_mm - payload.margin_mm - payload.overlap_mm / 2.0,
+                        y: payload.paper.height_mm / 2.0,
+                    }
+                }
+            } else if (guide.position_mm - (payload.margin_mm + payload.overlap_mm)).abs() <= 1e-6 {
+                OutputPoint {
+                    x: payload.paper.width_mm / 2.0,
+                    y: payload.margin_mm + payload.overlap_mm / 2.0,
+                }
+            } else {
+                OutputPoint {
+                    x: payload.paper.width_mm / 2.0,
+                    y: payload.paper.height_mm - payload.margin_mm - payload.overlap_mm / 2.0,
+                }
+            };
+            if !close_enough(guide.label_center.x, expected_center.x)
+                || !close_enough(guide.label_center.y, expected_center.y)
+            {
+                return Err(
+                    "joining label center is not resolved inside its overlap strip".to_owned(),
+                );
+            }
             let expected_rotation = if guide.axis == "vertical" { 90.0 } else { 0.0 };
             if (guide.label_rotation_deg - expected_rotation).abs() > 1e-6 {
                 return Err("joining label rotation does not match its guide axis".to_owned());
             }
+            let label_bounds = text_bounds_relative(
+                guide.label_font_size_mm,
+                &[guide.label_width_mm],
+                guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
+                guide.label_rotation_deg,
+                false,
+            );
+            let strip_width = if guide.axis == "vertical" {
+                payload.overlap_mm
+            } else {
+                payload.paper.width_mm
+            };
+            let strip_height = if guide.axis == "vertical" {
+                payload.paper.height_mm
+            } else {
+                payload.overlap_mm
+            };
+            if label_bounds.width > strip_width + 1e-6 || label_bounds.height > strip_height + 1e-6
+            {
+                return Err("joining label does not fit inside its overlap strip".to_owned());
+            }
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn deserializes_actual_camel_case_print_payload_with_xy_stride_and_label_center() {
+        let payload: ResolvedPrintOutputPayload = serde_json::from_value(json!({
+            "version": 1,
+            "kind": "print",
+            "bounds": {
+                "minX": 0.0,
+                "minY": 0.0,
+                "maxX": 100.0,
+                "maxY": 80.0,
+                "width": 100.0,
+                "height": 80.0
+            },
+            "drawables": [],
+            "paper": { "widthMm": 210.0, "heightMm": 297.0 },
+            "marginMm": 10.0,
+            "overlapMm": 10.0,
+            "stride": { "x": 180.0, "y": 267.0 },
+            "pages": [{
+                "index": 0,
+                "column": 0,
+                "row": 0,
+                "origin": { "x": -10.0, "y": -10.0 },
+                "guides": [{
+                    "axis": "vertical",
+                    "positionMm": 190.0,
+                    "label": "1",
+                    "labelFontSizeMm": 1.0,
+                    "labelRotationDeg": 90.0,
+                    "labelCenter": { "x": 195.0, "y": 148.5 },
+                    "labelWidthMm": 0.62,
+                    "labelAdvancesMm": [0.62]
+                }]
+            }]
+        }))
+        .expect("camelCase output payload should deserialize");
+
+        assert_eq!(payload.stride.x, 180.0);
+        assert_eq!(payload.stride.y, 267.0);
+        assert_eq!(payload.pages[0].guides[0].label_center.x, 195.0);
+        assert_eq!(payload.pages[0].guides[0].label_center.y, 148.5);
+    }
 }
