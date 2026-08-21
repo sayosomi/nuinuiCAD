@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { AutomationDocument } from "../../src/document/automationDocument";
+import type { CompiledDslDocument } from "../../src/dsl/dslDocument";
 import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslStatement } from "../../src/dsl/dslTypes";
-import type { DslPhysicalSpan } from "../../src/dsl/logicalStatementSourceMap";
+import type { DslPhysicalSpan, SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { CadElement } from "../../src/types/geometry";
 
 export type SourcePositionDto = {
@@ -21,6 +22,12 @@ export type SourceRangeDto = {
   sourceRevision: number;
   segments: SourceRangeSegmentDto[];
 };
+
+export const SOURCE_POSITION_INDEXING = {
+  offset: "zero-based UTF-16 code units in CRLF-normalized source",
+  line: "one-based",
+  column: "one-based UTF-16 code units in CRLF-normalized source"
+} as const;
 
 export type DiagnosticDto = Omit<DslDiagnostic, "sourceRevision" | "relatedInformation"> & {
   sourceRevision: number;
@@ -48,7 +55,7 @@ export type ElementSummaryDto = Pick<CadElement, "id" | "name" | "type" | "activ
   parentGroupId?: string;
 };
 
-export type DocumentInspectDto = {
+export type FreshNuiDocumentSnapshot = {
   path: string;
   sourceIdentity: {
     algorithm: "sha256";
@@ -56,6 +63,18 @@ export type DocumentInspectDto = {
     byteLength: number;
     normalizedLength: number;
   };
+  source: SourceSnapshot;
+  currentCompiled: CompiledDslDocument;
+  compileStatus: "valid" | "warning" | "fatal";
+  currentSemanticsAvailable: boolean;
+  automationRevision: number;
+  automationCompiledRevision: number;
+  lineStarts: readonly number[];
+};
+
+export type DocumentInspectDto = {
+  path: string;
+  sourceIdentity: FreshNuiDocumentSnapshot["sourceIdentity"];
   lifecycle: {
     sourceRevision: number;
     automationRevision: number;
@@ -119,6 +138,17 @@ const rangeDto = (
     from: positionAt(lineStarts, normalizedSource.length, segment.from),
     to: positionAt(lineStarts, normalizedSource.length, segment.to)
   }))
+});
+
+export const sourceRangeDtoFromOffsets = (
+  snapshot: FreshNuiDocumentSnapshot,
+  range: { from: number; to: number }
+): SourceRangeDto => ({
+  sourceRevision: snapshot.source.sourceRevision,
+  segments: [{
+    from: positionAt(snapshot.lineStarts, snapshot.source.normalizedSource.length, range.from),
+    to: positionAt(snapshot.lineStarts, snapshot.source.normalizedSource.length, range.to)
+  }]
 });
 
 const diagnosticDto = (
@@ -191,12 +221,15 @@ export class DocumentInspectInputError extends Error {
   }
 }
 
-export const inspectNuiDocument = async (requestedPath: string): Promise<DocumentInspectDto> => {
+export const loadFreshNuiDocumentSnapshot = async (
+  requestedPath: string,
+  operationName = "document_inspect"
+): Promise<FreshNuiDocumentSnapshot> => {
   if (!path.isAbsolute(requestedPath)) {
-    throw new DocumentInspectInputError("document_inspect requires an absolute .nui path.");
+    throw new DocumentInspectInputError(`${operationName} requires an absolute .nui path.`);
   }
   if (path.extname(requestedPath).toLowerCase() !== ".nui") {
-    throw new DocumentInspectInputError("document_inspect accepts only .nui files.");
+    throw new DocumentInspectInputError(`${operationName} accepts only .nui files.`);
   }
 
   let canonicalPath: string;
@@ -214,36 +247,59 @@ export const inspectNuiDocument = async (requestedPath: string): Promise<Documen
   const bytes = await readFile(canonicalPath);
   const sourceText = bytes.toString("utf8");
   const normalizedSource = normalizedSourceFor(sourceText);
-  const sourceHash = createHash("sha256").update(bytes).digest("hex");
   const document = AutomationDocument.fromSource(sourceText);
   const state = document.getState();
   const currentCompiled = state.currentCompiled;
   const currentSourceRevision = currentCompiled.spans.sourceMap.sourceRevision;
-  const lineStarts = lineStartsFor(normalizedSource);
   const currentSemanticsAvailable =
     state.status !== "fatal" &&
     currentCompiled.document !== null &&
     currentCompiled.statementMap !== null;
+
+  return {
+    path: canonicalPath,
+    sourceIdentity: {
+      algorithm: "sha256",
+      hash: createHash("sha256").update(bytes).digest("hex"),
+      byteLength: bytes.byteLength,
+      normalizedLength: normalizedSource.length
+    },
+    source: {
+      normalizedSource,
+      sourceRevision: currentSourceRevision
+    },
+    currentCompiled,
+    compileStatus: state.status,
+    currentSemanticsAvailable,
+    automationRevision: state.revision,
+    automationCompiledRevision: state.compiledRevision,
+    lineStarts: lineStartsFor(normalizedSource)
+  };
+};
+
+export const inspectNuiDocument = async (requestedPath: string): Promise<DocumentInspectDto> => {
+  const snapshot = await loadFreshNuiDocumentSnapshot(requestedPath, "document_inspect");
+  const {
+    currentCompiled,
+    source,
+    lineStarts,
+    currentSemanticsAvailable
+  } = snapshot;
 
   const declarations = currentCompiled.statements
     .map(declarationSummary)
     .filter((item): item is DeclarationSummaryDto => item !== null);
 
   return {
-    path: canonicalPath,
-    sourceIdentity: {
-      algorithm: "sha256",
-      hash: sourceHash,
-      byteLength: bytes.byteLength,
-      normalizedLength: normalizedSource.length
-    },
+    path: snapshot.path,
+    sourceIdentity: snapshot.sourceIdentity,
     lifecycle: {
-      sourceRevision: currentSourceRevision,
-      automationRevision: state.revision,
-      automationCompiledRevision: state.compiledRevision,
+      sourceRevision: source.sourceRevision,
+      automationRevision: snapshot.automationRevision,
+      automationCompiledRevision: snapshot.automationCompiledRevision,
       currentCompiledSourceRevision: currentCompiled.spans.sourceMap.sourceRevision
     },
-    compileStatus: state.status,
+    compileStatus: snapshot.compileStatus,
     currentSemantics: {
       available: currentSemanticsAvailable,
       sourceRevision: currentSemanticsAvailable
@@ -252,10 +308,10 @@ export const inspectNuiDocument = async (requestedPath: string): Promise<Documen
     },
     diagnostics: {
       compile: currentCompiled.diagnostics.map((diagnostic) =>
-        diagnosticDto(diagnostic, currentSourceRevision, normalizedSource, lineStarts)
+        diagnosticDto(diagnostic, source.sourceRevision, source.normalizedSource, lineStarts)
       ),
       binding: (currentCompiled.bindingIssueDiagnostics ?? []).map((diagnostic) =>
-        diagnosticDto(diagnostic, currentSourceRevision, normalizedSource, lineStarts)
+        diagnosticDto(diagnostic, source.sourceRevision, source.normalizedSource, lineStarts)
       )
     },
     summary: {
