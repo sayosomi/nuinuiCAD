@@ -7,8 +7,7 @@ import {
   previewCanvasSelection
 } from "../commands/selectionCommands";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
-import { evaluationStateIsCurrentFor, type EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import { reconcileModuleInstanceSelection } from "../model/moduleInstanceSelection";
+import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import {
   effectiveElements,
   useCadDocumentStore
@@ -22,6 +21,7 @@ import type {
   CanvasPointDragAction,
   CanvasBezierHandleDragAction
 } from "../components/canvasHostAdapter";
+import { useModuleInstanceSelectionReconciliation } from "../components/useModuleInstanceSelectionReconciliation";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 import {
   type VscodeCanvasRibbon
@@ -83,6 +83,11 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
+    useModuleInstanceSelectionReconciliation({
+      evaluation,
+      evaluationState,
+      measureCanvasTextWidth
+    });
     const moduleSemanticContext = useMemo(() => ({
       moduleMaterialization,
       moduleSemanticAnalysis,
@@ -147,38 +152,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
         cancelled = true;
       };
     }, [dragPreviewScheduler, evaluationState]);
-
-    useEffect(() => {
-      if (!evaluationState || !evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)) return;
-      const reconciliation = reconcileModuleInstanceSelection({
-        selection: {
-          selectedElementId,
-          selectedElementIds,
-          selectionAnchorElementId
-        },
-        evaluationIsCurrent: true,
-        elements,
-        evaluation,
-        moduleMaterialization,
-        visibilityProfiles,
-        activeVisibilityProfileId,
-        measureCanvasTextWidth
-      });
-      if (!reconciliation) return;
-      useCadUiStore.getState().applySelection(elements, reconciliation.selection);
-    }, [
-      activeVisibilityProfileId,
-      compiledDocumentRevision,
-      elements,
-      evaluation,
-      evaluationState,
-      measureCanvasTextWidth,
-      moduleMaterialization,
-      selectedElementId,
-      selectedElementIds,
-      selectionAnchorElementId,
-      visibilityProfiles
-    ]);
 
     const commitGeometryCommand = useMemo(() => ({
       movePointElementByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["movePointElementByDelta"]>>[0]) => {
