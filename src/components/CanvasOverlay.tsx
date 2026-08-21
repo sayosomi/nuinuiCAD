@@ -1,5 +1,6 @@
 import type { ElementId } from "../types/geometry";
 import type { ViewportSize } from "./canvasViewport";
+import type { ModuleInstanceSelectionFrameOverlay } from "./moduleInstanceSelectionFrame";
 import {
   canvasThemeCssVariables,
   type CanvasTheme
@@ -19,6 +20,7 @@ import type {
 
 type CanvasOverlayProps = {
   viewportSize: ViewportSize;
+  moduleInstanceSelectionFrames?: readonly ModuleInstanceSelectionFrameOverlay[];
   overlayLines: CanvasOverlayLine[];
   overlayArcs: CanvasOverlayArc[];
   overlayCurves: CanvasOverlayCurve[];
@@ -48,6 +50,7 @@ type CanvasOverlayProps = {
 
 export const CanvasOverlay = ({
   viewportSize,
+  moduleInstanceSelectionFrames = [],
   overlayLines,
   overlayArcs,
   overlayCurves,
@@ -156,6 +159,35 @@ export const CanvasOverlay = ({
           {...pickCandidateAttributes(line.elementId)}
         />
         {draftLinePickMarker(line.elementId, centerOf(points))}
+      </g>
+    ))}
+    {moduleInstanceSelectionFrames.map((frame) => (
+      <g
+        key={`module-instance-frame-${frame.instanceId}`}
+        data-module-instance-selection-frame={frame.instanceId}
+        style={{ pointerEvents: "none" }}
+      >
+        <rect
+          x={frame.left}
+          y={frame.top}
+          width={frame.width}
+          height={frame.height}
+          fill="none"
+          stroke="var(--canvas-selection)"
+          strokeWidth={1.5}
+          strokeDasharray="6 4"
+          vectorEffect="non-scaling-stroke"
+          style={{ pointerEvents: "none" }}
+        />
+        <text
+          x={frame.left + 2}
+          y={Math.max(12, frame.top - 4)}
+          data-module-instance-selection-label={frame.instanceId}
+          fill="var(--canvas-selection)"
+          style={{ fontSize: 12, fontWeight: 700, pointerEvents: "none" }}
+        >
+          {frame.name}
+        </text>
       </g>
     ))}
     {selectedBezierEditingHelper ? (

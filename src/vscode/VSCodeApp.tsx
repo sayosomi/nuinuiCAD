@@ -21,6 +21,7 @@ import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasureme
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
+import { moduleInstanceCanvasGeometry } from "../geometry/moduleInstanceCanvasGeometry";
 import {
   normalizeVscodeCanvasRibbons,
   type VscodeCanvasRibbon
@@ -453,10 +454,54 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           return;
         }
         const owners = sourceOwnerByRuntimeElementId(current.compiled);
+        const runtimeElements = effectiveElements(current.state);
         const runtimeElementIds = current.state.elements
           .filter((element) => owners.get(element.id)?.sourceStatementIndex === target.sourceStatementIndex)
           .map((element) => element.id);
-        if (runtimeElementIds.length === 0 || !replaceCanvasSelection(runtimeElementIds, runtimeElementIds[0], true)) {
+        if (runtimeElementIds.length === 0) {
+          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
+          return;
+        }
+
+        const runtimeElementById = new Map(runtimeElements.map((element) => [element.id, element]));
+        const instanceId = runtimeElementIds.find((id) => runtimeElementById.get(id)?.type === "moduleInstance") ?? null;
+        const currentEvaluation = evaluationRef.current;
+        const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
+          evaluationStateRef.current,
+          current.state.compiledDocumentRevision
+        );
+        let selectionIds = runtimeElementIds;
+        let primarySelectionId = runtimeElementIds[0]!;
+        let revealBounds = null;
+
+        if (instanceId) {
+          if (!currentEvaluationIsCurrent || !(currentEvaluation.computedGeometry instanceof Map)) {
+            api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "stale" });
+            return;
+          }
+          const instanceGeometry = moduleInstanceCanvasGeometry({
+            instanceId,
+            elements: runtimeElements,
+            evaluation: currentEvaluation,
+            moduleMaterialization: current.state.doc.moduleMaterialization,
+            visibilityProfiles: current.state.visibilityProfiles,
+            activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+            measureCanvasTextWidth
+          });
+          if (!instanceGeometry?.bounds || instanceGeometry.renderableDescendantIds.length === 0) {
+            api.postMessage({
+              type: "canvasNavigationResult",
+              requestId: message.requestId,
+              status: "no-renderable-geometry"
+            });
+            return;
+          }
+          selectionIds = [instanceId];
+          primarySelectionId = instanceId;
+          revealBounds = instanceGeometry.bounds;
+        }
+
+        if (!replaceCanvasSelection(selectionIds, primarySelectionId, true)) {
           api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
           return;
         }
@@ -464,19 +509,20 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         const viewport = canvasFocusRef.current;
         if (viewport) {
           const rect = viewport.getBoundingClientRect();
-          const evaluation = evaluationRef.current;
-          const bounds = evaluation &&
-            evaluationStateIsCurrentFor(evaluationStateRef.current, current.state.compiledDocumentRevision) &&
-            evaluation.computedGeometry instanceof Map
-            ? canvasElementDrawingBounds({
-                elementId: runtimeElementIds[0]!,
-                elements: effectiveElements(current.state),
-                evaluation,
-                visibilityProfiles: current.state.visibilityProfiles,
-                activeVisibilityProfileId: current.state.activeVisibilityProfileId,
-                measureCanvasTextWidth
-              })
-            : null;
+          const bounds = revealBounds ?? (
+            currentEvaluation &&
+            currentEvaluationIsCurrent &&
+            currentEvaluation.computedGeometry instanceof Map
+              ? canvasElementDrawingBounds({
+                  elementId: primarySelectionId,
+                  elements: runtimeElements,
+                  evaluation: currentEvaluation,
+                  visibilityProfiles: current.state.visibilityProfiles,
+                  activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+                  measureCanvasTextWidth
+                })
+              : null
+          );
           if (bounds && Number.isFinite(rect.width) && Number.isFinite(rect.height)) {
             const pan = minimumCanvasPanForBounds(bounds, useCadUiStore.getState().canvasViewport, {
               width: rect.width,
