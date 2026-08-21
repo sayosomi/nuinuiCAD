@@ -91,17 +91,16 @@ test("rendered body is canonical Linear content plus managed metadata", () => {
   assert.match(body, /<!-- linear-issue-id:linear-uuid -->/);
 });
 
-test("webhook routing accepts issue and issue label events only", () => {
+test("webhook routing accepts issue events only", () => {
   assert.equal(shouldQueuePayload({ type: "Issue", action: "update" }), true);
   assert.equal(shouldQueuePayload({ type: "Issue", action: "remove" }), false);
-  assert.equal(shouldQueuePayload({ type: "IssueLabel", action: "create" }), true);
+  assert.equal(shouldQueuePayload({ type: "IssueLabel", action: "create" }), false);
   assert.equal(shouldQueuePayload({ type: "Comment", action: "create" }), false);
 });
 
-test("issue id extraction handles Issue and IssueLabel shapes", () => {
+test("issue id extraction accepts Issue payloads", () => {
   assert.equal(extractIssueId({ type: "Issue", data: { id: "issue-a" } }), "issue-a");
-  assert.equal(extractIssueId({ type: "IssueLabel", data: { issueId: "issue-b" } }), "issue-b");
-  assert.equal(extractIssueId({ type: "IssueLabel", data: { issue: { id: "issue-c" } } }), "issue-c");
+  assert.equal(extractIssueId({ type: "IssueLabel", data: { id: "label-a" } }), null);
 });
 
 test("webhook timestamp must be within one minute", () => {

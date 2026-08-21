@@ -102,7 +102,6 @@ export default {
 export function shouldQueuePayload(payload) {
   if (!payload || typeof payload !== "object") return false;
   if (payload.type === "Issue") return payload.action !== "remove";
-  if (payload.type === "IssueLabel") return true;
   return false;
 }
 
@@ -111,8 +110,6 @@ export function extractIssueId(payload) {
   const data = payload.data;
   if (!data || typeof data !== "object") return null;
   if (payload.type === "Issue" && typeof data.id === "string") return data.id;
-  if (typeof data.issueId === "string") return data.issueId;
-  if (data.issue && typeof data.issue.id === "string") return data.issue.id;
   return null;
 }
 

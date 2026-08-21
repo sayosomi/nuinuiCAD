@@ -85,7 +85,7 @@ https://nuinuicad-linear-github-mirror.<account>.workers.dev
 In Linear workspace settings, create a team webhook for the Sayosomi team:
 
 - URL: `https://<worker>/webhooks/linear`
-- resource types: `Issue`, `IssueLabel`
+- resource type: `Issue`
 
 Copy the webhook signing secret, then set it:
 
