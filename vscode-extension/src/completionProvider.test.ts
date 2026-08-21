@@ -171,6 +171,38 @@ describe("VS Code native nui completion provider", () => {
     });
   });
 
+  it("offers current-source Module labels when the incomplete call is opened cold", () => {
+    const source = [
+      "nui 4",
+      "",
+      "module M(",
+      "value: number,",
+      "optional?: number,",
+      ") {",
+      "}",
+      "",
+      "instance Use = M(",
+      "",
+      ")"
+    ].join("\n");
+    const callLine = source.split("\n").findIndex((line) => line === "instance Use = M(") + 1;
+    const items = itemsFor(source, callLine, 0);
+    const value = items.find((item) => item.label === "value")!;
+
+    expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["value", "optional"]));
+    expect(value.insertText).toBe("value: ");
+    expect(value.range).toMatchObject({
+      start: { line: callLine, character: 0 },
+      end: { line: callLine, character: 0 }
+    });
+
+    const unresolvedSource = source.replace("instance Use = M(\n", "instance Use = Other(\n");
+    const unresolvedCallLine = unresolvedSource.split("\n").findIndex((line) => line === "instance Use = Other(") + 1;
+    const unresolvedItems = itemsFor(unresolvedSource, unresolvedCallLine, 0);
+    expect(unresolvedItems.map((item) => item.label)).not.toContain("value");
+    expect(unresolvedItems.map((item) => item.label)).not.toContain("optional");
+  });
+
   it("filters a later in-call argument without changing the blank-line range", () => {
     const source = [
       "nui 4",

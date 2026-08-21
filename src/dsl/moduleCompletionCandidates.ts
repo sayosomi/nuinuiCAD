@@ -309,15 +309,21 @@ const liveArguments = (request: ModuleCompletionRequest) => {
 };
 
 const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
-  const instance = currentInstance(compiled, statementIndex);
   const statement = compiled.statements[statementIndex];
+  const used = request.usedArgumentNames ?? new Set(
+    (liveArguments(request)?.map((argument) => argument.key) ?? (statement?.kind === "moduleInstance" ? statement.arguments.map((argument) => argument.label) : []))
+      .filter((label): label is string => Boolean(label))
+  );
+  if (request.currentDefinitionParameters) {
+    return request.currentDefinitionParameters
+      .filter((parameter) => !used.has(parameter.name))
+      .map((parameter) => ({ kind: "argumentName" as const, label: parameter.name }));
+  }
+
+  const instance = currentInstance(compiled, statementIndex);
   if (!instance?.callee || statement?.kind !== "moduleInstance") return [];
   const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
   if (!definition) return [];
-  const used = request.usedArgumentNames ?? new Set(
-    (liveArguments(request)?.map((argument) => argument.key) ?? statement.arguments.map((argument) => argument.label))
-      .filter((label): label is string => Boolean(label))
-  );
   const parameters = request.currentDefinitionParameters ?? definition.parameters;
   return parameters
     .filter((parameter) => !used.has(parameter.name))
@@ -542,8 +548,8 @@ export const moduleCompletionCandidates = (request: ModuleCompletionRequest): Mo
   const statementIndex = stableStatementIndex(request);
   if (statementIndex < 0 || !request.compiled.sourceLexicalNamespace) return [];
   if (request.kind === "callee") return moduleCalleeCompletions(request.compiled, statementIndex, request);
-  if (!request.compiled.moduleSemanticAnalysis) return [];
   if (request.kind === "label") return moduleArgumentLabels(request.compiled, statementIndex, request);
+  if (!request.compiled.moduleSemanticAnalysis) return [];
   if (request.kind === "value") return moduleArgumentValues(request.compiled, statementIndex, request.argumentIndex ?? 0, request);
   if (request.kind === "qualifiedMember") return qualifiedMemberCompletions(request.compiled, statementIndex, request);
   const owner = currentModuleDefinition(request.compiled, statementIndex, request.scopeId);

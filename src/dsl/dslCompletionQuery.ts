@@ -210,6 +210,29 @@ const recoveredModuleStatementAt = (
   return { compiled: recovery.lastGoodCompiled, statementIndex, currentDefinitionParameters };
 };
 
+const currentModuleDefinitionParametersAt = (
+  compiled: CompiledDslDocument,
+  input: LogicalInput,
+  statementIndex: number
+): readonly ModuleCompletionParameterMetadata[] | undefined => {
+  const authoring = input.authoring;
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!authoring || authoring.kind !== "module" || !namespace || statementIndex < 0) return undefined;
+
+  const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, authoring.callee.name);
+  if (lookup.kind !== "resolved" || lookup.declaration.kind !== "moduleDefinition") return undefined;
+  const definition = lookup.declaration.statement;
+  if (definition.kind !== "moduleDefinition") return undefined;
+
+  return definition.parameters.map((parameter, parameterIndex) => ({
+    name: parameter.name,
+    type: parameter.type,
+    optional: parameter.optional,
+    definitionStatementId: lookup.declaration.statementId,
+    parameterIndex
+  }));
+};
+
 const recoveryIsExact = (
   source: SourceSnapshot,
   recovery: DslCompletionRecoveryInput | undefined
@@ -539,8 +562,11 @@ const moduleCandidatesAt = (
   // Exact semantic snapshots remain authoritative whenever they can answer.
   // A fatal current compile may still be exact in source/revision but lack the
   // Module semantic instance needed for a transient argument-label site.
-  if (compiled && semantic && exact && (context.kind === "moduleCallee" || compiled.moduleSemanticAnalysis)) {
-    const candidates = request(compiled, statementIndex >= 0 ? statementIndex : undefined);
+  if (compiled && semantic && exact && (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || compiled.moduleSemanticAnalysis)) {
+    const currentDefinitionParameters = context.kind === "moduleArgumentLabel"
+      ? currentModuleDefinitionParametersAt(compiled, input, statementIndex)
+      : undefined;
+    const candidates = request(compiled, statementIndex >= 0 ? statementIndex : undefined, currentDefinitionParameters);
     if (candidates.length > 0 || context.kind !== "moduleArgumentLabel") return candidates;
   }
 

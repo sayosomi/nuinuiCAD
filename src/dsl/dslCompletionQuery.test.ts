@@ -158,6 +158,49 @@ describe("queryDslCompletion", () => {
     expect(labels(changed)).not.toContain("optional");
   });
 
+  it("offers current-source Module labels on a cold-open incomplete call", () => {
+    const source = [
+      "nui 4",
+      "",
+      "module M(",
+      "value: number,",
+      "optional?: number,",
+      ") {",
+      "}",
+      "",
+      "instance Use = M(",
+      "",
+      ")"
+    ].join("\n");
+    const session = createLanguageAnalysisSession(source);
+    const sourceSnapshot = { normalizedSource: source, sourceRevision: session.getSourceRevision() };
+    const position = source.indexOf("instance Use = M(\n") + "instance Use = M(\n".length;
+    const result = queryDslCompletion({
+      source: sourceSnapshot,
+      position,
+      semantic: session.completionSemanticSnapshot(sourceSnapshot),
+      recovery: session.completionRecoverySnapshot(sourceSnapshot)
+    });
+
+    expect(result?.category).toBe("moduleArgumentLabel");
+    expect(labels(result)).toEqual(["value", "optional"]);
+
+    const unresolvedSource = source.replace("instance Use = M(\n", "instance Use = Other(\n");
+    const unresolvedSession = createLanguageAnalysisSession(unresolvedSource);
+    const unresolvedSnapshot = { normalizedSource: unresolvedSource, sourceRevision: unresolvedSession.getSourceRevision() };
+    const unresolvedPosition = unresolvedSource.indexOf("instance Use = Other(\n") + "instance Use = Other(\n".length;
+    const unresolved = queryDslCompletion({
+      source: unresolvedSnapshot,
+      position: unresolvedPosition,
+      semantic: unresolvedSession.completionSemanticSnapshot(unresolvedSnapshot),
+      recovery: unresolvedSession.completionRecoverySnapshot(unresolvedSnapshot)
+    });
+
+    expect(unresolved?.category).toBe("moduleArgumentLabel");
+    expect(labels(unresolved)).not.toContain("value");
+    expect(labels(unresolved)).not.toContain("optional");
+  });
+
   it("uses current-source Module parameters instead of stale last-good labels", () => {
     const lastGoodSource = [
       "nui 4",
