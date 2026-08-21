@@ -260,9 +260,9 @@ const activeEditorTabInput = (): vscode.Tab["input"] | undefined =>
   vscode.window.tabGroups.activeTabGroup.activeTab?.input;
 
 const nuiCanvasViewType = "nuinuiCAD.canvas";
-const dynamicNuiCanvasViewType = `mainThreadWebview-${nuiCanvasViewType}`;
+const dynamicNuiCanvasViewType = `mainThreadWebview-${nuinuiCAD.canvas}`;
 const nuiOutputPreviewViewType = "nuinuiCAD.outputPreview";
-const dynamicNuiOutputPreviewViewType = `mainThreadWebview-${nuiOutputPreviewViewType}`;
+const dynamicNuiOutputPreviewViewType = `mainThreadWebview-${nuinuiCAD.outputPreview}`;
 
 const providerViewTypeForTabInput = (viewType: string): string =>
   viewType === dynamicNuiCanvasViewType
@@ -355,7 +355,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const sessions = new VscodeWebviewSessionRegistry<WebviewSession>();
   const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
   const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
-  const bakeOutputChannel = vscode.window.createOutputChannel("nuinuiCAD Bake");
+  let bakeOutputChannel: vscode.OutputChannel | null = null;
   const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
   const benchmarkConfig = benchmarkConfigFromEnvironment();
   let benchmarkStarted = false;
@@ -368,6 +368,13 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
   let nextNavigationRequestId = 1;
   let nextBakeRequestId = 1;
+
+  const bakeOutputChannelFor = (): vscode.OutputChannel => {
+    if (bakeOutputChannel) return bakeOutputChannel;
+    bakeOutputChannel = vscode.window.createOutputChannel("nuinuiCAD Bake");
+    context.subscriptions.push(bakeOutputChannel);
+    return bakeOutputChannel;
+  };
 
   const handleRustEvaluationRequest = async (
     session: WebviewSession,
@@ -573,7 +580,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
   );
   context.subscriptions.push(
     compilerDiagnosticCollection,
-    bakeOutputChannel,
     compilerDiagnosticOpenListener,
     compilerDiagnosticChangeListener,
     compilerDiagnosticCloseListener,
@@ -1096,7 +1102,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
           if (message.summary.skippedTargetCount > 0) sourceBakeRequestsWithStructuredSkips.add(message.requestId);
           else sourceBakeRequestsWithStructuredSkips.delete(message.requestId);
         }
-        await presentBakeOperationResult(message, bakeOutputChannel, {
+        await presentBakeOperationResult(message, bakeOutputChannelFor(), {
           showWarningMessage: (notification, action) => vscode.window.showWarningMessage(notification, action),
           showErrorMessage: (notification, action) => vscode.window.showErrorMessage(notification, action)
         });
