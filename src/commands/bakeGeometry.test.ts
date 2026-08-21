@@ -178,7 +178,7 @@ describe("Bake geometry", () => {
       emitSkippedComments: true
     });
     expect(plan?.generatedElementIds).toEqual([]);
-    expect(applyLineSplices(current.sourceText, plan!.splices)).toContain("// Bake skipped: arc A — unsupported");
+    expect(applyLineSplices(current.sourceText, plan!.splices)).toContain("// Bake skipped: arc A — not losslessly representable");
   });
 
   it("bakes a representable positive arc exactly", () => {
@@ -463,7 +463,7 @@ describe("Bake geometry", () => {
     expect(withComment?.generatedElementIds).toEqual([]);
     expect(withComment?.skippedComments).toBe(1);
     expect(applyLineSplices(compiled.sourceText, withComment!.splices)).toContain(
-      "// Bake skipped: line Broken — unsupported"
+      "// Bake skipped: line Broken — evaluation failed"
     );
     const withoutComment = planBakeGeometry({
       mode: "current",
@@ -531,7 +531,7 @@ describe("Bake geometry", () => {
     });
     expect(withComment?.generatedElementIds).toEqual([]);
     expect(applyLineSplices(compiled.sourceText, withComment!.splices)).toContain(
-      "// Bake skipped: text Memo — unsupported"
+      "// Bake skipped: text Memo — unsupported geometry kind"
     );
     expect(withoutComment?.splices).toEqual([]);
   });
@@ -589,7 +589,7 @@ describe("Bake geometry", () => {
     expect(basePatched).toContain("line L_bake = segment(start: (10, 10), end: (13, 10))");
     expect(currentPatched).toContain("line L_bake = segment(start: (20, 10), end: (23, 10))");
     expect(basePatched).toContain("line Private_bake = segment(start: (0, 0), end: (0, 3))");
-    expect(basePatched).toContain("// Bake skipped: text Memo — unsupported");
+    expect(basePatched).toContain("// Bake skipped: text Memo — unsupported geometry kind");
     expect(basePatched).not.toContain("Bake skipped: move");
     expect(basePatched).not.toContain("module M() {\n  point P0_bake");
 
