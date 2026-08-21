@@ -17,7 +17,7 @@ const settingsSpecs: DslSettingsSpec[] = [
   { keyword: "role", args: [arg("name")] },
   { keyword: "view", args: [arg("default")], allowsDynamicArgs: true },
   { keyword: "layout", args: [arg("scale")] },
-  { keyword: "print", args: [arg("layout", true), arg("profile"), arg("paper", true), arg("orientation"), arg("margin"), arg("overlap", true)] },
+  { keyword: "print", args: [arg("layout", true), arg("profile"), arg("paper", true), arg("orientation"), arg("overlap", true)] },
   { keyword: "svg", args: [arg("layout", true), arg("profile"), arg("margin")] },
   { keyword: "place", args: [positional("group"), arg("origin"), arg("at", true), arg("scale"), arg("angle"), arg("mirror")] },
 ];

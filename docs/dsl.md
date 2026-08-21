@@ -391,12 +391,36 @@ print 家庭用A4(
   layout: @型紙,
   paper: a4,
   orientation: portrait,
-  margin: 10,
   overlap: 10,
 )
 
 svg 型紙SVG(layout: @型紙, margin: 0)
 ```
+
+`print.overlap` is the physical overlap between adjacent paper sheets and the
+outer inset on an edge without a neighboring sheet. It must be non-negative;
+let `O = overlap`, and let `Bw` and `Bh` be the stroke-inclusive rendered
+bounds width and height:
+
+```text
+firstUsableWidth  = W - 2O
+firstUsableHeight = H - 2O
+
+nx = 1 if Bw <= firstUsableWidth
+else 1 + ceil((Bw - firstUsableWidth) / (W - O))
+
+ny = 1 if Bh <= firstUsableHeight
+else 1 + ceil((Bh - firstUsableHeight) / (H - O))
+```
+
+Page 1 starts at `x = bounds.minX - O`, `y = bounds.minY - O`; later page
+origins advance by `W - O` and `H - O`. The physical overlap strips are
+`left = [0, O]`, `right = [W-O, W]`, `bottom = [0, O]`, and
+`top = [H-O, H]`. Guide positions are `left x = O`, `right x = W-O`,
+`bottom y = O`, and `top y = H-O`. Guides and labels exist only on shared
+edges; outer edges have none. `O = 0` produces no guides or labels. Print
+declarations do not have a `margin` attribute; `margin` remains an SVG-only
+option.
 
 ## 編集と診断
 

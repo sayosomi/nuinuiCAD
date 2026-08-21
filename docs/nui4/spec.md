@@ -730,7 +730,6 @@ print 家庭用A4(
   profile: @印刷用,
   paper: a4,
   orientation: portrait,
-  margin: 10,
   overlap: 10,
 )
 
@@ -742,11 +741,33 @@ svg 型紙SVG(
 ```
 
 Defaults are `layout.scale = 1`, target-group local origin, inherited place
-scale, `place.angle = 0`, `place.mirror = false`, portrait orientation,
-10 mm print margin, and 0 mm SVG margin. Literal scales must be finite and
-positive. Print margins and overlap must be non-negative; the effective paper
-width and height must remain positive and overlap must be smaller than both.
-Literal angles are normalized to `[0, 360)`.
+scale, `place.angle = 0`, `place.mirror = false`, portrait orientation, and
+0 mm SVG margin. `print.overlap` is required and must be finite and
+non-negative. It is the physical overlap between adjacent sheets and the
+outer inset on an edge without a neighboring sheet. Let `O = overlap`, and let
+`Bw` and `Bh` be the stroke-inclusive rendered bounds width and height:
+
+```text
+firstUsableWidth  = W - 2O
+firstUsableHeight = H - 2O
+
+nx = 1 if Bw <= firstUsableWidth
+else 1 + ceil((Bw - firstUsableWidth) / (W - O))
+
+ny = 1 if Bh <= firstUsableHeight
+else 1 + ceil((Bh - firstUsableHeight) / (H - O))
+```
+
+Both first usable dimensions must be positive. Page 1 starts at
+`x = bounds.minX - O`, `y = bounds.minY - O`; later page origins advance by
+`W - O` and `H - O`. Each page has physical overlap strips
+`left = [0, O]`, `right = [W-O, W]`, `bottom = [0, O]`, and
+`top = [H-O, H]`. Joining guides are at `left x = O`, `right x = W-O`,
+`bottom y = O`, and `top y = H-O`. Guides and labels exist only on shared
+edges; outer edges have none. `O = 0` produces no guides or labels. Print
+declarations do not accept `margin`; `margin` remains an SVG-only attribute.
+Literal scales must be finite and positive. Literal angles are normalized to
+`[0, 360)`.
 
 ## Choice literals and arrays
 
@@ -934,7 +955,7 @@ layout A4(scale: 1) {
   place @front::outline(at: (10, 10), angle: 0, mirror: false)
 }
 
-print 家庭用A4(layout: @A4, paper: a4, orientation: portrait, margin: 10, overlap: 10)
+print 家庭用A4(layout: @A4, paper: a4, orientation: portrait, overlap: 10)
 svg 型紙SVG(layout: @A4, margin: 0)
 
 stop

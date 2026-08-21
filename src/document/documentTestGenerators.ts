@@ -94,7 +94,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
       "layout L0(scale: 1) {",
       "  place @G0(origin: @G0, at: (0, 15), angle: 0, mirror: false)",
       "}",
-      "print A4(layout: @L0, paper: a4, orientation: portrait, margin: 10, overlap: 10)"
+      "print A4(layout: @L0, paper: a4, orientation: portrait, overlap: 10)"
     ]);
   }
 

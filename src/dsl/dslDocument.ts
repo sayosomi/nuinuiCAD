@@ -445,7 +445,6 @@ const serializeSourceOutputLines = (data: DslDocumentData): string[] => {
     if (profile) lines.push(`${DSL_INDENT}profile: ${sourceReference(profile)},`);
     lines.push(`${DSL_INDENT}paper: ${output.paper},`);
     lines.push(`${DSL_INDENT}orientation: ${output.orientation},`);
-    lines.push(`${DSL_INDENT}margin: ${numeric(output.margin)},`);
     lines.push(`${DSL_INDENT}overlap: ${numeric(output.overlap)},`);
     lines.push(")");
   }

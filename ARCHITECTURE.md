@@ -323,8 +323,9 @@ ordered group-subtree placements, emits only line/arc/Bezier/offsetLine/text
 drawables, and calculates deterministic stroke-inclusive/text-inclusive bounds.
 
 The same plan owns SVG physical sizing and print tiling metadata, including
-page origins, effective areas, overlap guides, joining labels, and deterministic
-text layout. It owns a stable six-role export palette whose values match the
+page origins, first-page usable areas derived from physical overlap, physical
+page strides, overlap guides, joining labels, and deterministic text layout. It
+owns a stable six-role export palette whose values match the
 legacy Canvas baseline, but does not read the active Canvas theme at runtime;
 it also converts modifier widths from CSS pixels to millimetres. It has no
 React, host UI, command, dialog, or save flow ownership.

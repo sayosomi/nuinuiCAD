@@ -434,7 +434,6 @@ describe("host-neutral DSL rename query", () => {
       "  layout: @Layout,",
       "  profile: @OutputProfile,",
       "  paper: a4,",
-      "  margin: 0,",
       "  overlap: 0,",
       ")",
       "svg SvgOutput(",
@@ -505,7 +504,7 @@ describe("host-neutral DSL rename query", () => {
       "layout Layout {",
       "  place @Existing(at: (0, 0))",
       "}",
-      "print PrintOutput(layout: @Layout, paper: a4, margin: 0, overlap: 0)",
+      "print PrintOutput(layout: @Layout, paper: a4, overlap: 0)",
       "svg SvgOutput(layout: @Layout)"
     ].join("\n");
 

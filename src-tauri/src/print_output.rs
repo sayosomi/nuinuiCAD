@@ -138,13 +138,13 @@ pub struct ResolvedSvgOutputPayload {
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ResolvedPrintOutputPayload {
     pub version: u32,
     pub kind: String,
     pub bounds: OutputBounds,
     pub drawables: Vec<OutputDrawable>,
     pub paper: PaperSize,
-    pub margin_mm: f64,
     pub overlap_mm: f64,
     pub stride: OutputPoint,
     pub pages: Vec<OutputPrintPage>,
@@ -466,19 +466,19 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
     )?;
     positive(payload.paper.width_mm, "paper width")?;
     positive(payload.paper.height_mm, "paper height")?;
-    non_negative(payload.margin_mm, "print margin")?;
     non_negative(payload.overlap_mm, "print overlap")?;
-    let effective_width = payload.paper.width_mm - 2.0 * payload.margin_mm;
-    let effective_height = payload.paper.height_mm - 2.0 * payload.margin_mm;
-    positive(effective_width, "effective paper width")?;
-    positive(effective_height, "effective paper height")?;
-    if payload.overlap_mm >= effective_width || payload.overlap_mm >= effective_height {
-        return Err("print overlap must be smaller than the effective paper dimensions".to_owned());
-    }
-    if (payload.stride.x - (effective_width - payload.overlap_mm)).abs() > 1e-6
-        || (payload.stride.y - (effective_height - payload.overlap_mm)).abs() > 1e-6
+    let first_usable_width = payload.paper.width_mm - 2.0 * payload.overlap_mm;
+    let first_usable_height = payload.paper.height_mm - 2.0 * payload.overlap_mm;
+    positive(first_usable_width, "first usable paper width")?;
+    positive(first_usable_height, "first usable paper height")?;
+    let expected_stride = OutputPoint {
+        x: payload.paper.width_mm - payload.overlap_mm,
+        y: payload.paper.height_mm - payload.overlap_mm,
+    };
+    if (payload.stride.x - expected_stride.x).abs() > 1e-6
+        || (payload.stride.y - expected_stride.y).abs() > 1e-6
     {
-        return Err("print stride does not match effective area and overlap".to_owned());
+        return Err("print stride does not match paper size and physical overlap".to_owned());
     }
     positive(payload.stride.x, "print x stride")?;
     positive(payload.stride.y, "print y stride")?;
@@ -498,6 +498,15 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
             return Err("print pages must be in deterministic page order".to_owned());
         }
         validate_point(page.origin, "page origin")?;
+        let expected_origin = OutputPoint {
+            x: payload.bounds.min_x + page.column as f64 * payload.stride.x - payload.overlap_mm,
+            y: payload.bounds.min_y + page.row as f64 * payload.stride.y - payload.overlap_mm,
+        };
+        if !close_enough(page.origin.x, expected_origin.x)
+            || !close_enough(page.origin.y, expected_origin.y)
+        {
+            return Err("page origin does not match physical overlap and stride".to_owned());
+        }
         if expected_index > 0 {
             let previous = &payload.pages[expected_index - 1];
             let expected_order = if page.row == previous.row {
@@ -510,6 +519,9 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
                     "print pages must be ordered lower-left to right, then upward".to_owned(),
                 );
             }
+        }
+        if payload.overlap_mm.abs() <= 1e-6 && !page.guides.is_empty() {
+            return Err("print overlap guides are not allowed when overlap is zero".to_owned());
         }
         for guide in &page.guides {
             if !matches!(guide.axis.as_str(), "vertical" | "horizontal") {
@@ -537,18 +549,14 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
                 return Err("joining label width does not match glyph advances".to_owned());
             }
             let valid_position = if guide.axis == "vertical" {
-                let is_left =
-                    (guide.position_mm - (payload.margin_mm + payload.overlap_mm)).abs() <= 1e-6;
-                let is_right = (guide.position_mm
-                    - (payload.paper.width_mm - payload.margin_mm - payload.overlap_mm))
+                let is_left = (guide.position_mm - payload.overlap_mm).abs() <= 1e-6;
+                let is_right = (guide.position_mm - (payload.paper.width_mm - payload.overlap_mm))
                     .abs()
                     <= 1e-6;
                 (is_left && page.column > 0) || (is_right && page.column + 1 < columns)
             } else {
-                let is_bottom =
-                    (guide.position_mm - (payload.margin_mm + payload.overlap_mm)).abs() <= 1e-6;
-                let is_top = (guide.position_mm
-                    - (payload.paper.height_mm - payload.margin_mm - payload.overlap_mm))
+                let is_bottom = (guide.position_mm - payload.overlap_mm).abs() <= 1e-6;
+                let is_top = (guide.position_mm - (payload.paper.height_mm - payload.overlap_mm))
                     .abs()
                     <= 1e-6;
                 (is_bottom && page.row > 0) || (is_top && page.row + 1 < rows)
@@ -559,26 +567,26 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
                 );
             }
             let expected_center = if guide.axis == "vertical" {
-                if (guide.position_mm - (payload.margin_mm + payload.overlap_mm)).abs() <= 1e-6 {
+                if (guide.position_mm - payload.overlap_mm).abs() <= 1e-6 {
                     OutputPoint {
-                        x: payload.margin_mm + payload.overlap_mm / 2.0,
+                        x: payload.overlap_mm / 2.0,
                         y: payload.paper.height_mm / 2.0,
                     }
                 } else {
                     OutputPoint {
-                        x: payload.paper.width_mm - payload.margin_mm - payload.overlap_mm / 2.0,
+                        x: payload.paper.width_mm - payload.overlap_mm / 2.0,
                         y: payload.paper.height_mm / 2.0,
                     }
                 }
-            } else if (guide.position_mm - (payload.margin_mm + payload.overlap_mm)).abs() <= 1e-6 {
+            } else if (guide.position_mm - payload.overlap_mm).abs() <= 1e-6 {
                 OutputPoint {
                     x: payload.paper.width_mm / 2.0,
-                    y: payload.margin_mm + payload.overlap_mm / 2.0,
+                    y: payload.overlap_mm / 2.0,
                 }
             } else {
                 OutputPoint {
                     x: payload.paper.width_mm / 2.0,
-                    y: payload.paper.height_mm - payload.margin_mm - payload.overlap_mm / 2.0,
+                    y: payload.paper.height_mm - payload.overlap_mm / 2.0,
                 }
             };
             if !close_enough(guide.label_center.x, expected_center.x)
@@ -602,10 +610,10 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
             let strip_width = if guide.axis == "vertical" {
                 payload.overlap_mm
             } else {
-                effective_width
+                payload.paper.width_mm
             };
             let strip_height = if guide.axis == "vertical" {
-                effective_height
+                payload.paper.height_mm
             } else {
                 payload.overlap_mm
             };
@@ -638,9 +646,8 @@ mod tests {
             },
             "drawables": [],
             "paper": { "widthMm": 210.0, "heightMm": 297.0 },
-            "marginMm": 10.0,
             "overlapMm": 10.0,
-            "stride": { "x": 180.0, "y": 267.0 },
+            "stride": { "x": 200.0, "y": 287.0 },
             "pages": [{
                 "index": 0,
                 "column": 0,
@@ -648,11 +655,11 @@ mod tests {
                 "origin": { "x": -10.0, "y": -10.0 },
                 "guides": [{
                     "axis": "vertical",
-                    "positionMm": 190.0,
+                    "positionMm": 200.0,
                     "label": "1",
                     "labelFontSizeMm": 1.0,
                     "labelRotationDeg": 90.0,
-                    "labelCenter": { "x": 195.0, "y": 148.5 },
+                    "labelCenter": { "x": 205.0, "y": 148.5 },
                     "labelWidthMm": 0.62,
                     "labelAdvancesMm": [0.62]
                 }]
@@ -660,9 +667,9 @@ mod tests {
         }))
         .expect("camelCase output payload should deserialize");
 
-        assert_eq!(payload.stride.x, 180.0);
-        assert_eq!(payload.stride.y, 267.0);
-        assert_eq!(payload.pages[0].guides[0].label_center.x, 195.0);
+        assert_eq!(payload.stride.x, 200.0);
+        assert_eq!(payload.stride.y, 287.0);
+        assert_eq!(payload.pages[0].guides[0].label_center.x, 205.0);
         assert_eq!(payload.pages[0].guides[0].label_center.y, 148.5);
     }
 }
