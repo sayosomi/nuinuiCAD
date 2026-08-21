@@ -7,7 +7,8 @@ import {
   previewCanvasSelection
 } from "../commands/selectionCommands";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
-import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import { evaluationStateIsCurrentFor, type EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import { reconcileModuleInstanceSelection } from "../model/moduleInstanceSelection";
 import {
   effectiveElements,
   useCadDocumentStore
@@ -146,6 +147,38 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
         cancelled = true;
       };
     }, [dragPreviewScheduler, evaluationState]);
+
+    useEffect(() => {
+      if (!evaluationState || !evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)) return;
+      const reconciliation = reconcileModuleInstanceSelection({
+        selection: {
+          selectedElementId,
+          selectedElementIds,
+          selectionAnchorElementId
+        },
+        evaluationIsCurrent: true,
+        elements,
+        evaluation,
+        moduleMaterialization,
+        visibilityProfiles,
+        activeVisibilityProfileId,
+        measureCanvasTextWidth
+      });
+      if (!reconciliation) return;
+      useCadUiStore.getState().applySelection(elements, reconciliation.selection);
+    }, [
+      activeVisibilityProfileId,
+      compiledDocumentRevision,
+      elements,
+      evaluation,
+      evaluationState,
+      measureCanvasTextWidth,
+      moduleMaterialization,
+      selectedElementId,
+      selectedElementIds,
+      selectionAnchorElementId,
+      visibilityProfiles
+    ]);
 
     const commitGeometryCommand = useMemo(() => ({
       movePointElementByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["movePointElementByDelta"]>>[0]) => {
