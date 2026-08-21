@@ -125,6 +125,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     error: null,
     evaluating: false
   });
+  const workspaceRef = useRef<HTMLElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<PanState | null>(null);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
@@ -356,7 +357,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     : null;
 
   return (
-    <main className="output-preview-workspace vscode-canvas-webview">
+    <main ref={workspaceRef} className="output-preview-workspace vscode-canvas-webview">
       <header className="output-preview-toolbar">
         <select
           aria-label="Output"
@@ -374,6 +375,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         <CommandRibbonView
           className="output-preview-command-ribbon"
           showHandle={false}
+          viewportAwareTooltips
+          tooltipBoundaryRef={workspaceRef}
           ribbon={{
             id: "output-preview-ribbon",
             label: "Output Preview",

@@ -269,6 +269,50 @@ describe("Output Preview application", () => {
     expect(api.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
   });
 
+  it("positions Output Preview ribbon tooltips relative to the workspace boundary", async () => {
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+
+    const workspace = document.querySelector<HTMLElement>(".output-preview-workspace");
+    if (!workspace) throw new Error("missing output preview workspace");
+    const trigger = screen.getByRole("button", { name: "ソースエディタで出力定義を表示" });
+    const tooltip = document.getElementById(trigger.getAttribute("aria-describedby") ?? "");
+    if (!(tooltip instanceof HTMLElement)) throw new Error("missing output preview tooltip");
+
+    vi.spyOn(workspace, "getBoundingClientRect").mockReturnValue({
+      ...viewportRect,
+      left: 100,
+      top: 50,
+      right: 500,
+      bottom: 350,
+      width: 400,
+      height: 300
+    });
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
+      ...viewportRect,
+      left: 200,
+      top: 100,
+      right: 240,
+      bottom: 124,
+      width: 40,
+      height: 24
+    });
+    vi.spyOn(tooltip, "getBoundingClientRect").mockReturnValue({
+      ...viewportRect,
+      left: 0,
+      top: 0,
+      right: 180,
+      bottom: 30,
+      width: 180,
+      height: 30
+    });
+
+    expect(document.querySelector(".output-preview-command-ribbon")).toHaveClass("has-viewport-aware-tooltips");
+    fireEvent.focus(trigger);
+    expect(tooltip).toHaveStyle({ position: "fixed", left: "130px", top: "130px", transform: "none" });
+  });
+
   it("uses an exact current diagnostic range for a current-source output error", async () => {
     mocks.evaluateOutputPlan.mockRejectedValue(new Error("output evaluation failed"));
     renderFixture();
