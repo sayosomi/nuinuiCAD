@@ -548,6 +548,7 @@ const openPanelFor = (editor = mocks.activeTextEditor!): TestPanel => {
   mocks.activeTextEditor = editor;
   mocks.visibleTextEditors = [editor];
   mocks.textDocuments = [editor.document];
+  mocks.activeTabInput = new mocks.TabInputText(editor.document.uri);
   commandHandlerFor("nuinuiCAD.openCanvas")?.();
   mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.canvas");
   return mocks.panels.at(-1)!;
@@ -647,6 +648,88 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.reveal).toHaveBeenCalledWith(2);
   });
 
+  it("opens Output Preview for the active Canvas document without a source cursor", async () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const editorA = editorFor(documentA);
+    setup(false, editorA, [documentA]);
+    const canvas = openPanelFor(editorA);
+    canvas.active = true;
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+
+    const preview = mocks.panels.at(-1)!;
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(preview.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
+
+    await messageHandlerFor(preview)({ type: "webviewReady" });
+    await messageHandlerFor(preview)({ type: "webviewAuthoritativeDocumentReady", documentVersion: documentA.version });
+    expect(preview.webview.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewOpen",
+      documentVersion: documentA.version,
+      normalizedSourceOffset: null
+    });
+  });
+
+  it("opens Canvas for the active Output Preview document", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const editorA = editorFor(documentA);
+    setup(false, editorA, [documentA]);
+    const preview = openOutputPreviewPanelFor(editorA);
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.outputPreview");
+
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
+    expect(preview.reveal).not.toHaveBeenCalled();
+  });
+
+  it("reveals an existing cross-surface target without duplicating it", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const editorA = editorFor(documentA);
+    setup(false, editorA, [documentA]);
+    const canvas = openPanelFor(editorA);
+    const preview = openOutputPreviewPanelFor(editorA);
+    preview.active = true;
+    canvas.active = false;
+    mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.outputPreview");
+
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(canvas.reveal).toHaveBeenCalledWith(2);
+  });
+
+  it("never resolves a cross-surface open command through another document", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA, [documentA, documentB]);
+    const previewA = openOutputPreviewPanelFor(editorA);
+    const canvasB = openPanelFor(editorB);
+    previewA.active = true;
+    canvasB.active = false;
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.outputPreview");
+
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(3);
+    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
+    expect(canvasB.reveal).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the active webview has no matching live session", () => {
+    setup();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("nuinuiCAD requires an active .nui Text Editor or Canvas.");
+  });
+
   it("keeps Canvas and Output Preview sessions independent for one document", () => {
     setup();
     const canvas = openPanelFor();
@@ -671,7 +754,8 @@ describe("VS Code production document lifecycle", () => {
     await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "outputPreviewOpen",
-      documentVersion: document.version
+      documentVersion: document.version,
+      normalizedSourceOffset: expect.any(Number)
     }));
 
     document.setSourceText("nui 4\n// changed\n");

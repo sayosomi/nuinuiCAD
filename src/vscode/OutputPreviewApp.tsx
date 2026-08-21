@@ -129,7 +129,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<PanState | null>(null);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
-  const pendingOpenOffsetRef = useRef<number | null>(null);
+  const pendingOpenRef = useRef<{ normalizedSourceOffset: number | null } | null>(null);
   const selectionGenerationRef = useRef(0);
   const fittedSelectionTokenRef = useRef<string | null>(null);
   const selectedOutputKeyRef = useRef<string | null>(selectedOutputKey);
@@ -159,19 +159,19 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setSelectedOutputKey(nextKey);
   }, []);
 
-  const applyOpenSelection = useCallback((cursorOffset: number) => {
+  const applyOpenSelection = useCallback((normalizedSourceOffset: number | null) => {
     const state = useCadDocumentStore.getState();
     if (state.sourceText !== state.docText) {
-      pendingOpenOffsetRef.current = cursorOffset;
+      pendingOpenRef.current = { normalizedSourceOffset };
       return;
     }
     const currentCandidates = outputPreviewCandidatesFor(state.sourceText, effectiveCompiledDocument(state));
     const selected = selectOutputPreviewCandidate({
       candidates: currentCandidates,
-      cursorOffset,
+      cursorOffset: normalizedSourceOffset,
       existingKey: selectedOutputKeyRef.current
     });
-    pendingOpenOffsetRef.current = null;
+    pendingOpenRef.current = null;
     updateSelectedOutputKey(selected?.key ?? null);
   }, [updateSelectedOutputKey]);
 
@@ -194,8 +194,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   useEffect(() => {
     if (!sourceIsCurrent) return;
-    if (pendingOpenOffsetRef.current !== null) {
-      applyOpenSelection(pendingOpenOffsetRef.current);
+    if (pendingOpenRef.current !== null) {
+      applyOpenSelection(pendingOpenRef.current.normalizedSourceOffset);
     }
   }, [applyOpenSelection, candidates, sourceIsCurrent]);
 
