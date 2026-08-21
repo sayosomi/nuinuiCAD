@@ -44,6 +44,18 @@ jobs:
           if text.count(old) != 1:
               raise SystemExit(f'dslDocument projection target count: {text.count(old)}')
           path.write_text(text.replace(old, new, 1))
+
+          path = Path('src/dsl/dslUnknownNameDiagnostics.test.ts')
+          text = path.read_text()
+          old = '''      "line L = segment(start: @A, end: @Missng)",
+      "point Later = coordinate(x: 10, y: 10)",
+      "line F = segment(start: @A, end: @Later)"'''
+          new = '''      "line L = segment(start: @A, end: @Missng)",
+      "line F = segment(start: @A, end: @Later)",
+      "point Later = coordinate(x: 10, y: 10)"'''
+          if text.count(old) != 1:
+              raise SystemExit(f'forward fixture target count: {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
           PY
           git diff --check
 
@@ -77,12 +89,16 @@ jobs:
             .github/workflows/say-116-fix-embedded-target.yml \
             .github/workflows/say-116-finalize.yml \
             .github/workflows/say-116-finalize-v2.yml \
-            .github/workflows/say-116-finalize-v3.yml
+            .github/workflows/say-116-finalize-v3.yml \
+            .github/workflows/say-116-finalize-v4.yml
           git add \
+            src/dsl/dslTypoMatcher.ts \
+            src/dsl/dslTypoMatcher.test.ts \
             src/dsl/dslTypeParser.ts \
             src/dsl/dslCallParser.ts \
             src/dsl/dslParser.ts \
             src/dsl/dslReferences.ts \
-            src/dsl/dslDocument.ts
-          git commit -m "feat: add stable unknown-name diagnostics (SAY-116)"
+            src/dsl/dslDocument.ts \
+            src/dsl/dslUnknownNameDiagnostics.test.ts
+          git commit -m "feat: finalize typo matcher diagnostics (SAY-116)"
           git push origin HEAD:sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
