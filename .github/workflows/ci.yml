@@ -9,97 +9,11 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply_say121:
-    name: Apply SAY-121 semantic patch
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout feature branch
-        uses: actions/checkout@v7
-        with:
-          ref: sayosomi/say-121-module-diagnostics-recursion-cycle-explanations
-          fetch-depth: 0
-
-      - name: Patch recursion diagnostics and restore CI
-        shell: bash
-        run: |
-          set -euo pipefail
-          python <<'PY'
-          from pathlib import Path
-
-          path = Path("src/dsl/moduleSemanticAnalysis.ts")
-          text = path.read_text()
-
-          old_import = 'import { moduleCallEdges, recursiveModuleInstanceIds } from "./moduleCallGraph";'
-          new_import = 'import { moduleCallEdges, moduleRecursionCycles } from "./moduleCallGraph";'
-          if text.count(old_import) != 1:
-              raise SystemExit(f"expected exactly one moduleCallGraph import, found {text.count(old_import)}")
-          text = text.replace(old_import, new_import)
-
-          start_marker = "  const callEdges = moduleCallEdges(instances);"
-          end_marker = "  for (const [statementIndex, local] of localDiagnosticsByStatement) {"
-          start = text.find(start_marker)
-          end = text.find(end_marker, start + len(start_marker))
-          if start < 0 or end < 0:
-              raise SystemExit(f"recursion diagnostic markers not found: start={start}, end={end}")
-          old_block = text[start:end]
-          expected_line = "  const recursiveInstances = recursiveModuleInstanceIds(semanticDefinitions, callEdges);"
-          if old_block.count(expected_line) != 1 or old_block.count('issue("module-recursion"') != 1:
-              raise SystemExit("recursion diagnostic block did not match the expected current implementation")
-
-          new_block = "\n".join([
-              "  const callEdges = moduleCallEdges(instances);",
-              "  const recursionCycles = moduleRecursionCycles(callEdges);",
-              "  const recursionInstancesByStatementId = new Map(instances.map((instance) => [instance.statementId, instance] as const));",
-              "  for (const instance of instances) {",
-              "    const cycle = recursionCycles.get(instance.statementId);",
-              "    if (!cycle) continue;",
-              "    const statement = statements[instance.statementIndex];",
-              '    if (statement.kind !== "moduleInstance") continue;',
-              "    const relatedSources: DiagnosticRelatedSource[] = [];",
-              "    for (const edge of cycle) {",
-              "      if (edge.instanceStatementId === instance.statementId) continue;",
-              "      const relatedInstance = recursionInstancesByStatementId.get(edge.instanceStatementId);",
-              "      if (!relatedInstance) continue;",
-              "      const relatedStatement = statements[relatedInstance.statementIndex];",
-              '      if (relatedStatement.kind !== "moduleInstance") continue;',
-              "      relatedSources.push({",
-              "        statementIndex: relatedInstance.statementIndex,",
-              "        span: relatedStatement.moduleNameSpan ?? relatedStatement.keywordSpan,",
-              '        message: "module recursion cycle に含まれる呼び出しです。"',
-              "      });",
-              "    }",
-              "    addLocal(",
-              "      instance.statementIndex,",
-              "      issue(",
-              '        "module-recursion",',
-              "        statement.moduleNameSpan ?? statement.keywordSpan,",
-              '        `module recursion は許可されていません:「${statement.moduleName}」。`,',
-              "        { relatedSources }",
-              "      )",
-              "    );",
-              "  }",
-              "",
-              ""
-          ])
-          path.write_text(text[:start] + new_block + text[end:])
-          PY
-
-          git checkout origin/main -- .github/workflows/ci.yml
-          rm -f .github/workflows/say-121-apply.yml
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- src/dsl/moduleSemanticAnalysis.ts .github/workflows/ci.yml
-          git add -u -- .github/workflows/say-121-apply.yml
-          git commit -m "feat: attach recursion cycle related locations (SAY-121)"
-          git push origin HEAD:sayosomi/say-121-module-diagnostics-recursion-cycle-explanations
-
   classification:
     name: Classify changes
-    needs: apply_say121
     runs-on: ubuntu-24.04
     outputs:
       base_sha: ${{ steps.classify.outputs.base_sha }}
@@ -188,7 +102,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: sayosomi/say-121-module-diagnostics-recursion-cycle-explanations
           fetch-depth: 0
 
       - name: Setup Node
@@ -229,8 +142,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: sayosomi/say-121-module-diagnostics-recursion-cycle-explanations
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
