@@ -24,7 +24,7 @@ import {
   type ModuleScalarLocalDiagnostic,
   type ModuleScalarReferenceResolution
 } from "./moduleScalarExpression";
-import { moduleCallEdges, recursiveModuleInstanceIds } from "./moduleCallGraph";
+import { moduleCallEdges, moduleRecursionCycles } from "./moduleCallGraph";
 import { analyzeModuleBody } from "./moduleBodySemantic";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { coordinateComponent } from "./dslParameterSpanScanner";
@@ -1643,12 +1643,35 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   }));
 
   const callEdges = moduleCallEdges(instances);
-  const recursiveInstances = recursiveModuleInstanceIds(semanticDefinitions, callEdges);
+  const recursionCycles = moduleRecursionCycles(semanticDefinitions, callEdges);
+  const recursionInstancesByStatementId = new Map(instances.map((instance) => [instance.statementId, instance] as const));
   for (const instance of instances) {
-    if (!recursiveInstances.has(instance.statementId)) continue;
+    const cycle = recursionCycles.get(instance.statementId);
+    if (!cycle) continue;
     const statement = statements[instance.statementIndex];
     if (statement.kind !== "moduleInstance") continue;
-    addLocal(instance.statementIndex, issue("module-recursion", statement.moduleNameSpan ?? statement.keywordSpan, `module recursion は許可されていません:「${statement.moduleName}」。`));
+    const relatedSources: DiagnosticRelatedSource[] = [];
+    for (const edge of cycle) {
+      if (edge.instanceStatementId === instance.statementId) continue;
+      const relatedInstance = recursionInstancesByStatementId.get(edge.instanceStatementId);
+      if (!relatedInstance) continue;
+      const relatedStatement = statements[relatedInstance.statementIndex];
+      if (relatedStatement.kind !== "moduleInstance") continue;
+      relatedSources.push({
+        statementIndex: relatedInstance.statementIndex,
+        span: relatedStatement.moduleNameSpan ?? relatedStatement.keywordSpan,
+        message: "module recursion cycle に含まれる呼び出しです。"
+      });
+    }
+    addLocal(
+      instance.statementIndex,
+      issue(
+        "module-recursion",
+        statement.moduleNameSpan ?? statement.keywordSpan,
+        `module recursion は許可されていません:「${statement.moduleName}」。`,
+        { relatedSources }
+      )
+    );
   }
 
   for (const [statementIndex, local] of localDiagnosticsByStatement) {
