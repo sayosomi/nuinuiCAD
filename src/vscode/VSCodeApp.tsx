@@ -240,6 +240,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         api.postMessage({
           type: "bakeOperationResult",
           surface: "canvas",
+          mode: commandId === "bakeCurrentShape" ? "current" : "base",
           ...operationResult
         });
       };
@@ -325,15 +326,16 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         const operationResult = vscodeBakeOperationResultFromCommand(result);
         const applied = operationResult?.status === "applied";
         if (applied) postCanvasCommit();
-        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: applied ? "applied" : "nothing" });
         if (operationResult) {
           api.postMessage({
             type: "bakeOperationResult",
             surface: "source",
             requestId: message.requestId,
+            mode: message.mode,
             ...operationResult
           });
         }
+        api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: applied ? "applied" : "nothing" });
       };
 
       if (disabledTargetIds.length === 0) {
