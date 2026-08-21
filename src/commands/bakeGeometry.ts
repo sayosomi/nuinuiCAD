@@ -48,14 +48,36 @@ type ResolvedBakeTarget = {
   wholeInstance: boolean;
 };
 
+type BakeEvaluationDiagnostic = EvaluationResult["errors"][number];
+
+export type BakeFailureReason =
+  | { code: "unsupported-geometry-kind"; geometryKind: ComputedGeometry["kind"] }
+  | { code: "evaluation-failed"; diagnostics: readonly BakeEvaluationDiagnostic[] }
+  | { code: "unevaluated" }
+  | { code: "geometry-unavailable" }
+  | { code: "not-losslessly-representable"; geometryKind: ComputedGeometry["kind"]; detail?: string };
+
+export type BakeSkippedTarget = {
+  targetId: ElementId;
+  sourceElementId: ElementId;
+  sourceLabel: string;
+  reason: BakeFailureReason;
+};
+
 export type BakePlan = {
   splices: LineSplice[];
   createdElementIds: ElementId[];
   generatedElementIds: ElementId[];
   primaryGeneratedElementId: ElementId | null;
+  successfulTargetCount: number;
+  skippedTargets: BakeSkippedTarget[];
   skippedTargetCount: number;
   skippedComments: number;
 };
+
+type BakePrimitiveConversion =
+  | { status: "ok"; primitives: BakePrimitive[] }
+  | { status: "failed"; reason: BakeFailureReason };
 
 const EPSILON = 1e-7;
 
@@ -89,12 +111,20 @@ const bezierPrimitive = (segment: {
   end: { x: number; y: number };
 }): BakePrimitive => ({ kind: "bezier", ...segment });
 
-const primitivesForGeometry = (geometry: ComputedGeometry): BakePrimitive[] | null => {
+const notLosslesslyRepresentable = (
+  geometryKind: ComputedGeometry["kind"],
+  detail: string
+): BakePrimitiveConversion => ({
+  status: "failed",
+  reason: { code: "not-losslessly-representable", geometryKind, detail }
+});
+
+const primitivesForGeometry = (geometry: ComputedGeometry): BakePrimitiveConversion => {
   switch (geometry.kind) {
     case "point":
-      return [{ kind: "point", point: { x: geometry.x, y: geometry.y } }];
+      return { status: "ok", primitives: [{ kind: "point", point: { x: geometry.x, y: geometry.y } }] };
     case "line":
-      return [{ kind: "line", start: geometry.start, end: geometry.end }];
+      return { status: "ok", primitives: [{ kind: "line", start: geometry.start, end: geometry.end }] };
     case "arcLine": {
       const primitive = exactArc(
         geometry.center,
@@ -103,22 +133,38 @@ const primitivesForGeometry = (geometry: ComputedGeometry): BakePrimitive[] | nu
         geometry.endAngleDeg,
         geometry.sweepAngleDeg
       );
-      return primitive ? [primitive] : null;
+      return primitive
+        ? { status: "ok", primitives: [primitive] }
+        : notLosslesslyRepresentable("arcLine", "directed arc cannot be represented exactly");
     }
-    case "bezierCurve":
-      return geometry.segments.map(bezierPrimitive);
+    case "bezierCurve": {
+      const primitives = geometry.segments.map(bezierPrimitive);
+      return primitives.length > 0
+        ? { status: "ok", primitives }
+        : notLosslesslyRepresentable("bezierCurve", "curve has no representable segments");
+    }
     case "offsetLine": {
-      if (geometry.closed) return null;
-      const result: BakePrimitive[] = [];
+      if (geometry.closed) {
+        return notLosslesslyRepresentable("offsetLine", "closed offset cannot be represented exactly");
+      }
+      const primitives: BakePrimitive[] = [];
       for (const segment of geometry.segments) {
         const primitive = primitiveForOffsetSegment(segment);
-        if (!primitive) return null;
-        result.push(primitive);
+        if (!primitive) {
+          return notLosslesslyRepresentable("offsetLine", "offset arc segment cannot be represented exactly");
+        }
+        primitives.push(primitive);
       }
-      return result;
+      return primitives.length > 0
+        ? { status: "ok", primitives }
+        : notLosslesslyRepresentable("offsetLine", "offset has no representable segments");
     }
-    default:
-      return null;
+    case "image":
+    case "text":
+      return {
+        status: "failed",
+        reason: { code: "unsupported-geometry-kind", geometryKind: geometry.kind }
+      };
   }
 };
 
@@ -397,7 +443,23 @@ const planInsertionSplices = (
     return { startLine: endLine + 1, endLine, replacementLines: lines };
   });
 
-const makeComment = (target: ResolvedBakeTarget) => `// Bake skipped: ${target.sourceLabel} — unsupported`;
+const failureCommentText = (reason: BakeFailureReason) => {
+  switch (reason.code) {
+    case "unsupported-geometry-kind":
+      return "unsupported geometry kind";
+    case "evaluation-failed":
+      return "evaluation failed";
+    case "unevaluated":
+      return "unevaluated";
+    case "geometry-unavailable":
+      return "geometry unavailable";
+    case "not-losslessly-representable":
+      return "not losslessly representable";
+  }
+};
+
+const makeComment = (target: ResolvedBakeTarget, reason: BakeFailureReason) =>
+  `// Bake skipped: ${target.sourceLabel} — ${failureCommentText(reason)}`;
 
 export const planBakeGeometry = ({
   mode,
@@ -442,8 +504,9 @@ export const planBakeGeometry = ({
   const linesByInsertion = new Map<number, string[]>();
   const plannedElements: CadElement[] = [...elements];
   const generatedElementIds: ElementId[] = [];
+  const skippedTargets: BakeSkippedTarget[] = [];
   let primaryGeneratedElementId: ElementId | null = null;
-  let skippedTargetCount = 0;
+  let successfulTargetCount = 0;
   let skippedComments = 0;
   const emittedNameState = new Map<string, { nextSuffix: number; usedBaseName: boolean }>();
 
@@ -467,33 +530,61 @@ export const planBakeGeometry = ({
           return geometry ? [{ id, geometry }] : [];
         });
     const targetElements = target.runtimeElementIds.map((id) => elementsById.get(id)).filter(Boolean) as CadElement[];
-    const invalidRuntimeElement = targetElements.find((element) =>
-      !sourceEvaluation ||
-      !sourceEvaluation.evaluatedElementIds?.has(element.id) ||
-      !sourceEvaluation.effectiveEnabledElementIds?.has(element.id) ||
-      sourceEvaluation.errors.some((error) => error.elementId === element.id)
-    );
+    const targetDiagnostics = sourceEvaluation?.errors.filter((error) => target.runtimeElementIds.includes(error.elementId)) ?? [];
     const missingGeometry = targetElements.some((element) =>
       element.type !== "group" && element.type !== "conditionalGroup" && element.type !== "forGroup" &&
       element.type !== "moduleInstance" && !elementTypesWithoutOwnDrawableGeometry.has(element.type) &&
       !runtimeGeometry.some(({ id }) => id === element.id)
     );
-    const primitiveEntries = invalidRuntimeElement || runtimeGeometry.length === 0
-      ? null
-      : runtimeGeometry.flatMap(({ id, geometry }) => {
-          const source = sourceElementForRuntimeId(elementsById, id);
-          return (primitivesForGeometry(geometry) ?? []).map((primitive) => ({ primitive, source }));
-        });
-    const allRepresentable = !invalidRuntimeElement && !missingGeometry && runtimeGeometry.length > 0 &&
-      runtimeGeometry.every(({ geometry }) => primitivesForGeometry(geometry) !== null);
-    if (!allRepresentable || !primitiveEntries || primitiveEntries.length === 0) {
-      skippedTargetCount += 1;
+
+    let failureReason: BakeFailureReason | null = null;
+    if (targetDiagnostics.length > 0) {
+      failureReason = { code: "evaluation-failed", diagnostics: targetDiagnostics };
+    } else if (!sourceEvaluation || targetElements.some((element) =>
+      !sourceEvaluation.evaluatedElementIds?.has(element.id) ||
+      !sourceEvaluation.effectiveEnabledElementIds?.has(element.id)
+    )) {
+      failureReason = { code: "unevaluated" };
+    } else if (missingGeometry || runtimeGeometry.length === 0) {
+      failureReason = { code: "geometry-unavailable" };
+    }
+
+    const primitiveEntries: Array<{ primitive: BakePrimitive; source: CadElement | undefined }> = [];
+    if (!failureReason) {
+      for (const { id, geometry } of runtimeGeometry) {
+        const conversion = primitivesForGeometry(geometry);
+        if (conversion.status === "failed") {
+          failureReason = conversion.reason;
+          break;
+        }
+        const source = sourceElementForRuntimeId(elementsById, id);
+        primitiveEntries.push(...conversion.primitives.map((primitive) => ({ primitive, source })));
+      }
+      if (!failureReason && primitiveEntries.length === 0) {
+        const firstGeometry = runtimeGeometry[0]?.geometry;
+        failureReason = firstGeometry
+          ? {
+              code: "not-losslessly-representable",
+              geometryKind: firstGeometry.kind,
+              detail: "geometry produced no bake primitives"
+            }
+          : { code: "geometry-unavailable" };
+      }
+    }
+
+    if (failureReason) {
+      skippedTargets.push({
+        targetId: target.targetId,
+        sourceElementId: target.sourceElementId,
+        sourceLabel: target.sourceLabel,
+        reason: failureReason
+      });
       if (emitSkippedComments) {
         const statement = statementInfoForTarget(compiled, target);
         if (statement) {
           const indent = sourceIndent(compiled, statement.line);
           const lines = linesByInsertion.get(target.insertionStatementIndex) ?? [];
-          lines.push(`${indent}${makeComment(target)}`);
+          lines.push(`${indent}${makeComment(target, failureReason)}`);
           linesByInsertion.set(target.insertionStatementIndex, lines);
           skippedComments += 1;
         }
@@ -501,6 +592,7 @@ export const planBakeGeometry = ({
       continue;
     }
 
+    successfulTargetCount += 1;
     const namingSourceElement = sourceElementForRuntimeId(elementsById, target.sourceElementId) ?? targetElements[0];
     const baseName = namingSourceElement?.name.trim() ? `${namingSourceElement.name.trim()}_bake` : "_bake";
     const indent = sourceIndent(compiled, statementInfoForTarget(compiled, target)?.line ?? 1);
@@ -530,13 +622,26 @@ export const planBakeGeometry = ({
     linesByInsertion.set(target.insertionStatementIndex, lines);
   }
 
-  if (linesByInsertion.size === 0) return { splices: [], createdElementIds: [], generatedElementIds: [], primaryGeneratedElementId: null, skippedTargetCount, skippedComments };
+  if (linesByInsertion.size === 0) {
+    return {
+      splices: [],
+      createdElementIds: [],
+      generatedElementIds: [],
+      primaryGeneratedElementId: null,
+      successfulTargetCount,
+      skippedTargets,
+      skippedTargetCount: skippedTargets.length,
+      skippedComments
+    };
+  }
   return {
     splices: planInsertionSplices(compiled, linesByInsertion),
     createdElementIds: generatedElementIds,
     generatedElementIds,
     primaryGeneratedElementId,
-    skippedTargetCount,
+    successfulTargetCount,
+    skippedTargets,
+    skippedTargetCount: skippedTargets.length,
     skippedComments
   };
 };
