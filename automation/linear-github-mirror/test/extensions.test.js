@@ -16,6 +16,7 @@ import {
   renderGithubDocumentBody,
 } from "../src/documents.js";
 import { shouldQueueExtendedPayload } from "../src/extensions.js";
+import { findGithubIssueByMarker } from "../src/mirrorApi.js";
 import worker from "../src/worker.js";
 
 test("extended webhook routing accepts Issue, Comment, and Document", () => {
@@ -142,6 +143,27 @@ test("document body carries source URL and durable markers", () => {
   assert.match(body, /Original Linear document:/);
   assert.equal(extractLinearDocumentId(body), "doc-a");
   assert.match(body, /linear-document-updated-at:2026-08-21T04:00:00.000Z/);
+});
+
+test("marker lookup uses repository issue listing so new document mirrors are immediately visible", async () => {
+  const calls = [];
+  const githubFetch = async (path) => {
+    calls.push(path);
+    return [
+      { number: 270, body: "Document\n\n<!-- linear-document-id:doc-a -->" },
+      { number: 271, body: "Other document" },
+    ];
+  };
+  const issueNumber = await findGithubIssueByMarker(
+    "linear-document-id:doc-a",
+    { GITHUB_OWNER: "sayosomi", GITHUB_REPO: "nuinuiCAD" },
+    githubFetch,
+  );
+  assert.equal(issueNumber, 270);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /\/issues\?state=all/);
+  assert.match(calls[0], /labels=Linear%20Document/);
+  assert.equal(calls[0].includes("/search/issues"), false);
 });
 
 test("Wrangler uses the extended Worker entrypoint", async () => {
