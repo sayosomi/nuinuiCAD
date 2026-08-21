@@ -199,8 +199,6 @@ export type OutputPlan = {
     paperWidthMm: number;
     paperHeightMm: number;
     overlapMm: number;
-    usableWidthMm: number;
-    usableHeightMm: number;
     strideXmm: number;
     strideYmm: number;
     columns: number;
@@ -813,7 +811,7 @@ const printPages = ({
       });
     }
   }
-  return { usableWidthMm, usableHeightMm, strideXmm, strideYmm, columns, rows, pages };
+  return { strideXmm, strideYmm, columns, rows, pages };
 };
 
 const outputLayout = (compiledDocument: LastGoodDslDocument, layoutId: string) => {

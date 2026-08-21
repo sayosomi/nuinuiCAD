@@ -396,16 +396,14 @@ describe("SAY-64 output core", () => {
       expect(print).toMatchObject({
         paperWidthMm: testCase.paperWidthMm,
         paperHeightMm: testCase.paperHeightMm,
-        usableWidthMm,
-        usableHeightMm,
         strideXmm,
         strideYmm,
-        columns: testCase.columns,
-        rows: testCase.rows
+        columns: expectedColumns,
+        rows: expectedRows
       });
       expect(expectedColumns).toBe(testCase.columns);
       expect(expectedRows).toBe(testCase.rows);
-      expect(print.pages).toHaveLength(testCase.columns * testCase.rows);
+      expect(print.pages).toHaveLength(expectedColumns * expectedRows);
       expect(plan.rustPayload).toMatchObject({ overlapMm: 10, stride: { x: strideXmm, y: strideYmm } });
       expect(plan.rustPayload).not.toHaveProperty("marginMm");
       expect(plan.rustPayload).not.toHaveProperty("stride.xMm");
