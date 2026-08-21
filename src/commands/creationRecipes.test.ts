@@ -208,7 +208,7 @@ describe("creationRecipes", () => {
     expect(line).toMatchObject({
       id: "recipe-created-id",
       name: "",
-      startPoint: referenceAnchor("") ,
+      startPoint: referenceAnchor(""),
       endPoint: referenceAnchor("")
     });
     expect(offset).toMatchObject({ name: "", baseLineIds: [] });
