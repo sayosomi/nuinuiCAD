@@ -5,6 +5,7 @@ import {
   queryDslCompletion,
   type DslCompletionQueryResult
 } from "./dslCompletionQuery";
+import { createLanguageAnalysisSession } from "../../vscode-extension/src/languageAnalysisSession";
 
 const compileWithIds = (source: string, sourceRevision = 7): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -78,6 +79,217 @@ describe("queryDslCompletion", () => {
     expect(result?.category).toBe("typedInitializer");
     expect(labels(result)).toEqual(["length", "spread"]);
     expect(result?.candidates.every((candidate) => candidate.kind === "argumentName")).toBe(true);
+  });
+
+  it("keeps construction and builtin completion active across a blank line", () => {
+    const construction = "nui 4\npoint P = coordinate(\n  \n)";
+    const constructionPosition = construction.indexOf("  \n") + 2;
+    const constructionResult = queryIncomplete(construction, constructionPosition);
+    expect(constructionResult?.category).toBe("argument");
+    expect(labels(constructionResult)).toEqual(expect.arrayContaining(["x", "y"]));
+    expect(constructionResult && construction.slice(constructionResult.replacementRange.from, constructionResult.replacementRange.to)).toBe("");
+    expect(constructionResult?.replacementRange.from).toBe(constructionPosition);
+
+    const builtin = "nui 4\nconst a: number = spreadAngle(\n  \n)";
+    const builtinPosition = builtin.indexOf("  \n") + 2;
+    const builtinResult = queryIncomplete(builtin, builtinPosition);
+    expect(builtinResult?.category).toBe("typedInitializer");
+    expect(labels(builtinResult)).toEqual(["length", "spread"]);
+    expect(builtinResult?.replacementRange).toEqual({ from: builtinPosition, to: builtinPosition });
+  });
+
+  it("keeps a later in-call argument out of the blank-line construction slot", () => {
+    const source = [
+      "nui 4",
+      "point P = coordinate(",
+      "",
+      "y: 20",
+      ")"
+    ].join("\n");
+    const position = source.indexOf("\n\n") + 1;
+    const result = queryIncomplete(source, position);
+
+    expect(result?.category).toBe("argument");
+    expect(labels(result)).toContain("x");
+    expect(labels(result)).not.toContain("y");
+    expect(result?.replacementRange).toEqual({ from: position, to: position });
+  });
+
+  it("recovers tolerant Module labels only when the current callee keeps its identity", () => {
+    const lastGoodSource = [
+      "nui 4",
+      "module M(",
+      "  value: number,",
+      "  optional?: number,",
+      ") {",
+      "  if (hasValue(@optional)) {",
+      "    const probe: number = @optional",
+      "  }",
+      "}",
+      "instance Use = M(value: 1)"
+    ].join("\n");
+    const liveSource = lastGoodSource.replace("instance Use = M(value: 1)", "instance Use = M(\n  \n)");
+    const session = createLanguageAnalysisSession(lastGoodSource);
+    session.replaceSource(liveSource);
+    const sourceRevision = session.getSourceRevision();
+    const position = liveSource.indexOf("  \n") + 2;
+    const source = { normalizedSource: liveSource, sourceRevision };
+
+    const result = queryDslCompletion({
+      source,
+      position,
+      semantic: session.completionSemanticSnapshot(source),
+      recovery: session.completionRecoverySnapshot(source)
+    });
+    expect(result?.category).toBe("moduleArgumentLabel");
+    expect(labels(result)).toEqual(expect.arrayContaining(["value", "optional"]));
+
+    const changedCallee = liveSource.replace("instance Use = M(\n", "instance Use = Other(\n");
+    session.replaceSource(changedCallee);
+    const changedSource = { normalizedSource: changedCallee, sourceRevision: session.getSourceRevision() };
+    const changedPosition = changedCallee.indexOf("  \n") + 2;
+    const changed = queryDslCompletion({
+      source: changedSource,
+      position: changedPosition,
+      semantic: session.completionSemanticSnapshot(changedSource),
+      recovery: session.completionRecoverySnapshot(changedSource)
+    });
+    expect(labels(changed)).not.toContain("value");
+    expect(labels(changed)).not.toContain("optional");
+  });
+
+  it("offers current-source Module labels on a cold-open incomplete call", () => {
+    const source = [
+      "nui 4",
+      "",
+      "module M(",
+      "value: number,",
+      "optional?: number,",
+      ") {",
+      "}",
+      "",
+      "instance Use = M(",
+      "",
+      ")"
+    ].join("\n");
+    const session = createLanguageAnalysisSession(source);
+    const sourceSnapshot = { normalizedSource: source, sourceRevision: session.getSourceRevision() };
+    const position = source.indexOf("instance Use = M(\n") + "instance Use = M(\n".length;
+    const result = queryDslCompletion({
+      source: sourceSnapshot,
+      position,
+      semantic: session.completionSemanticSnapshot(sourceSnapshot),
+      recovery: session.completionRecoverySnapshot(sourceSnapshot)
+    });
+
+    expect(result?.category).toBe("moduleArgumentLabel");
+    expect(labels(result)).toEqual(["value", "optional"]);
+
+    const sameLinePosition = source.indexOf("instance Use = M(") + "instance Use = M(".length;
+    const sameLine = queryDslCompletion({
+      source: sourceSnapshot,
+      position: sameLinePosition,
+      semantic: session.completionSemanticSnapshot(sourceSnapshot),
+      recovery: session.completionRecoverySnapshot(sourceSnapshot)
+    });
+    expect(sameLine?.category).toBe("moduleArgumentLabel");
+    expect(labels(sameLine)).toEqual(["value", "optional"]);
+    expect(sameLine?.replacementRange).toEqual({ from: sameLinePosition, to: sameLinePosition });
+
+    const unresolvedSource = source.replace("instance Use = M(\n", "instance Use = Other(\n");
+    const unresolvedSession = createLanguageAnalysisSession(unresolvedSource);
+    const unresolvedSnapshot = { normalizedSource: unresolvedSource, sourceRevision: unresolvedSession.getSourceRevision() };
+    const unresolvedPosition = unresolvedSource.indexOf("instance Use = Other(\n") + "instance Use = Other(\n".length;
+    const unresolved = queryDslCompletion({
+      source: unresolvedSnapshot,
+      position: unresolvedPosition,
+      semantic: unresolvedSession.completionSemanticSnapshot(unresolvedSnapshot),
+      recovery: unresolvedSession.completionRecoverySnapshot(unresolvedSnapshot)
+    });
+
+    expect(unresolved?.category).toBe("moduleArgumentLabel");
+    expect(labels(unresolved)).not.toContain("value");
+    expect(labels(unresolved)).not.toContain("optional");
+
+    const unresolvedSameLinePosition = unresolvedSource.indexOf("instance Use = Other(") + "instance Use = Other(".length;
+    const unresolvedSameLine = queryDslCompletion({
+      source: unresolvedSnapshot,
+      position: unresolvedSameLinePosition,
+      semantic: unresolvedSession.completionSemanticSnapshot(unresolvedSnapshot),
+      recovery: unresolvedSession.completionRecoverySnapshot(unresolvedSnapshot)
+    });
+    expect(unresolvedSameLine?.category).toBe("moduleArgumentLabel");
+    expect(labels(unresolvedSameLine)).not.toContain("value");
+    expect(labels(unresolvedSameLine)).not.toContain("optional");
+  });
+
+  it("uses current-source Module parameters instead of stale last-good labels", () => {
+    const lastGoodSource = [
+      "nui 4",
+      "module M(old: number) {",
+      "}",
+      "instance Use = M(old: 1)"
+    ].join("\n");
+    const liveSource = [
+      "nui 4",
+      "module M(new: number) {",
+      "}",
+      "instance Use = M(",
+      "",
+      ")"
+    ].join("\n");
+    const session = createLanguageAnalysisSession(lastGoodSource);
+    session.replaceSource(liveSource);
+    const source = { normalizedSource: liveSource, sourceRevision: session.getSourceRevision() };
+    const position = liveSource.indexOf("\n\n") + 1;
+    const result = queryDslCompletion({
+      source,
+      position,
+      semantic: session.completionSemanticSnapshot(source),
+      recovery: session.completionRecoverySnapshot(source)
+    });
+
+    expect(result?.category).toBe("moduleArgumentLabel");
+    expect(labels(result)).toEqual(["new"]);
+    expect(labels(result)).not.toContain("old");
+  });
+
+  it("tracks current Module parameter additions and removals during tolerant recovery", () => {
+    const lastGoodSource = [
+      "nui 4",
+      "module M(old: number) {",
+      "}",
+      "instance Use = M(old: 1)"
+    ].join("\n");
+    const cases = [
+      { signature: "old: number, added: number", expected: ["old", "added"] },
+      { signature: "removed: number", expected: ["removed"] },
+      { signature: "", expected: [] }
+    ];
+
+    const session = createLanguageAnalysisSession(lastGoodSource);
+    for (const { signature, expected } of cases) {
+      const liveSource = [
+        "nui 4",
+        `module M(${signature}) {`,
+        "}",
+        "instance Use = M(",
+        "",
+        ")"
+      ].join("\n");
+      session.replaceSource(liveSource);
+      const source = { normalizedSource: liveSource, sourceRevision: session.getSourceRevision() };
+      const position = liveSource.indexOf("\n\n") + 1;
+      const result = queryDslCompletion({
+        source,
+        position,
+        semantic: session.completionSemanticSnapshot(source),
+        recovery: session.completionRecoverySnapshot(source)
+      });
+
+      expect(result?.category).toBe("moduleArgumentLabel");
+      expect(labels(result)).toEqual(expected);
+    }
   });
 
   it("returns typed scalar syntax candidates for numeric, boolean, string, and choice expressions", () => {

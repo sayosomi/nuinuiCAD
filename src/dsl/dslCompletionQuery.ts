@@ -8,6 +8,11 @@ import {
 } from "./dslCompletionContext";
 import { dslStatementElementType } from "./dslCompletionMetadata";
 import {
+  dslCallAuthoringContextAt,
+  projectDslCallAuthoringRange,
+  type DslCallAuthoringContext
+} from "./dslCallAuthoringContext";
+import {
   createLogicalStatementSourceMap,
   logicalOffsetToPhysical,
   physicalSpanForLogicalRange,
@@ -21,7 +26,11 @@ import {
   resolveSourceLexicalDeclaration,
   sourceNamespaceScopeIdForDeclaration
 } from "./sourceLexicalNamespaceIndex";
-import { moduleCompletionCandidates, type ModuleCompletionCandidate } from "./moduleCompletionCandidates";
+import {
+  moduleCompletionCandidates,
+  type ModuleCompletionCandidate,
+  type ModuleCompletionParameterMetadata
+} from "./moduleCompletionCandidates";
 import type { CompiledDslDocument } from "./dslDocument";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import {
@@ -110,6 +119,7 @@ type LogicalInput = {
   lineNumber: number;
   map: ReturnType<typeof createLogicalStatementSourceMap>;
   statement: ReturnType<typeof createLogicalStatementSourceMap>["statements"][number] | null;
+  authoring?: DslCallAuthoringContext;
 };
 
 const lineNumberAt = (source: string, position: number) => {
@@ -150,10 +160,17 @@ const currentStatementIndex = (compiled: CompiledDslDocument, position: number):
 
 const recoveredModuleStatementAt = (
   recovery: DslCompletionRecoveryInput | undefined,
-  position: number
-): { compiled: CompiledDslDocument; statementIndex: number } | null => {
+  position: number,
+  statementIndexHint = -1
+): {
+  compiled: CompiledDslDocument;
+  statementIndex: number;
+  currentDefinitionParameters: readonly ModuleCompletionParameterMetadata[];
+} | null => {
   if (!recovery || !recovery.lastGoodCompiled.statementMap || !recovery.lastGoodCompiled.moduleSemanticAnalysis) return null;
-  const liveStatementIndex = currentStatementIndex(recovery.liveCompiled, position);
+  const liveStatementIndex = statementIndexHint >= 0
+    ? statementIndexHint
+    : currentStatementIndex(recovery.liveCompiled, position);
   if (liveStatementIndex < 0) return null;
   const liveStatement = recovery.liveCompiled.statements[liveStatementIndex];
   if (liveStatement?.kind !== "moduleInstance") return null;
@@ -180,7 +197,51 @@ const recoveredModuleStatementAt = (
   if (liveCallee.kind !== "resolved" || liveCallee.declaration.kind !== "moduleDefinition") return null;
   if (recovery.mappedStatementIds.get(liveCallee.declaration.statementIndex) !== definitionStatementId) return null;
 
-  return { compiled: recovery.lastGoodCompiled, statementIndex };
+  const liveDefinition = recovery.liveCompiled.statements[liveCallee.declaration.statementIndex];
+  if (liveDefinition?.kind !== "moduleDefinition") return null;
+  const currentDefinitionParameters = liveDefinition.parameters.map((parameter, parameterIndex) => ({
+    name: parameter.name,
+    type: parameter.type,
+    optional: parameter.optional,
+    definitionStatementId: liveCallee.declaration.statementId,
+    parameterIndex
+  }));
+
+  return { compiled: recovery.lastGoodCompiled, statementIndex, currentDefinitionParameters };
+};
+
+const currentModuleDefinitionParametersAt = (
+  compiled: CompiledDslDocument,
+  input: LogicalInput,
+  statementIndex: number,
+  exact: boolean
+): readonly ModuleCompletionParameterMetadata[] | undefined => {
+  const authoring = input.authoring;
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!exact || !namespace || statementIndex < 0) return undefined;
+
+  const calleeName = authoring
+    ? authoring.kind === "module"
+      ? authoring.callee.name
+      : undefined
+    : (() => {
+        const statement = compiled.statements[statementIndex];
+        return statement?.kind === "moduleInstance" ? statement.moduleName : undefined;
+      })();
+  if (!calleeName) return undefined;
+
+  const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, calleeName);
+  if (lookup.kind !== "resolved" || lookup.declaration.kind !== "moduleDefinition") return undefined;
+  const definition = compiled.statements[lookup.declaration.statementIndex];
+  if (definition?.kind !== "moduleDefinition") return undefined;
+
+  return definition.parameters.map((parameter, parameterIndex) => ({
+    name: parameter.name,
+    type: parameter.type,
+    optional: parameter.optional,
+    definitionStatementId: lookup.declaration.statementId,
+    parameterIndex
+  }));
 };
 
 const recoveryIsExact = (
@@ -485,7 +546,11 @@ const moduleCandidatesAt = (
         : context.kind === "moduleQualifiedMember"
           ? "qualifiedMember"
           : "reference";
-  const request = (semanticCompiled: CompiledDslDocument, semanticStatementIndex?: number) => moduleCompletionCandidates({
+  const request = (
+    semanticCompiled: CompiledDslDocument,
+    semanticStatementIndex?: number,
+    currentDefinitionParameters?: readonly ModuleCompletionParameterMetadata[]
+  ) => moduleCompletionCandidates({
     compiled: semanticCompiled,
     cursorPosition: position,
     kind: moduleKind,
@@ -497,6 +562,8 @@ const moduleCandidatesAt = (
       ? { argumentIndex: context.argumentIndex }
       : {}),
     ...(context.kind === "moduleArgumentValue" ? { argumentValueSpan: { start: context.from, end: context.to } } : {}),
+    ...(input.authoring ? { usedArgumentNames: input.authoring.usedArgumentNames } : {}),
+    ...(currentDefinitionParameters ? { currentDefinitionParameters } : {}),
     ...(context.kind === "moduleQualifiedMember" ? {
       qualifiedInstanceName: context.qualifiedInstanceName,
       ...(context.expectedScalarType ? { expectedScalarType: context.expectedScalarType } : {})
@@ -506,14 +573,35 @@ const moduleCandidatesAt = (
   // Exact semantic snapshots remain authoritative whenever they can answer.
   // A fatal current compile may still be exact in source/revision but lack the
   // Module semantic instance needed for a transient argument-label site.
-  if (compiled && semantic && exact && (context.kind === "moduleCallee" || compiled.moduleSemanticAnalysis)) {
-    const candidates = request(compiled, statementIndex >= 0 ? statementIndex : undefined);
-    if (candidates.length > 0 || context.kind !== "moduleArgumentLabel") return candidates;
+  if (compiled && semantic && exact && (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || compiled.moduleSemanticAnalysis)) {
+    const currentDefinitionParameters = context.kind === "moduleArgumentLabel"
+      ? currentModuleDefinitionParametersAt(compiled, input, statementIndex, exact)
+      : undefined;
+    // An ordinary same-line Module call has no tolerant authoring envelope to
+    // carry identity. If the exact compiled-instance proof cannot provide the
+    // current definition, fail closed rather than falling through to semantic
+    // or last-good Module parameter metadata.
+    if (context.kind === "moduleArgumentLabel" && !input.authoring && !currentDefinitionParameters) return [];
+    const candidates = request(compiled, statementIndex >= 0 ? statementIndex : undefined, currentDefinitionParameters);
+    if (candidates.length > 0 || context.kind !== "moduleArgumentLabel" || !input.authoring) return candidates;
   }
 
   if (context.kind !== "moduleArgumentLabel") return [];
-  const recovered = recoveredModuleStatementAt(recovery, position);
-  return recovered ? request(recovered.compiled, recovered.statementIndex) : [];
+  const recovered = recoveredModuleStatementAt(recovery, position, statementIndex);
+  return recovered
+    ? request(recovered.compiled, recovered.statementIndex, recovered.currentDefinitionParameters)
+    : [];
+};
+
+const statementIndexForAuthoring = (
+  compiled: CompiledDslDocument | undefined,
+  authoring: DslCallAuthoringContext | undefined,
+  exact: boolean
+) => {
+  if (!compiled || !authoring || !exact) return -1;
+  return compiled.statements.findIndex((statement) =>
+    statement.documentRange.from === authoring.sourceOrderAnchor.statementRange.from
+  );
 };
 
 const sourceTextForLogicalInput = (
@@ -665,16 +753,42 @@ const queryCandidates = (
  */
 export const queryDslCompletion = ({ source, position, semantic, recovery: requestedRecovery }: DslCompletionQueryInput): DslCompletionQueryResult | null => {
   if (source.normalizedSource.includes("\r") || position < 0 || position > source.normalizedSource.length) return null;
-  const input = logicalInputAt(source, position);
+  const strictInput = logicalInputAt(source, position);
+  const authoring = dslCallAuthoringContextAt(source, position);
+  const input: LogicalInput = authoring
+    ? {
+        lineText: authoring.logicalText,
+        localPosition: authoring.logicalCursorPosition,
+        lineStart: authoring.sourceOrderAnchor.statementRange.from,
+        lineNumber: authoring.sourceOrderAnchor.statementRange.startLine,
+        map: strictInput.map,
+        statement: null,
+        authoring
+      }
+    : strictInput;
   const startsInBlockComment = input.statement
     ? false
     : input.map.lexicalLines[input.lineNumber - 1]?.startsInBlockComment ?? false;
-  const context = dslCompletionContextAt(input.lineText, input.localPosition, startsInBlockComment);
+  const classifiedContext = authoring
+    ? dslCompletionContextAt(input.lineText, input.localPosition)
+    : dslCompletionContextAt(input.lineText, input.localPosition, startsInBlockComment);
+  const context = classifiedContext?.kind === "argument" && authoring
+    ? {
+        ...classifiedContext,
+        usedArgumentNames: new Set([
+          ...classifiedContext.usedArgumentNames,
+          ...authoring.usedArgumentNames
+        ])
+      }
+    : classifiedContext;
   if (!context) return null;
   const compiled = semantic?.compiled;
   const exact = semanticIsExact(source, semantic);
   const recovery = recoveryIsExact(source, requestedRecovery) ? requestedRecovery : undefined;
-  const statementIndex = statementIndexFor(compiled, position, exact);
+  const strictStatementIndex = statementIndexFor(compiled, position, exact);
+  const statementIndex = strictStatementIndex >= 0
+    ? strictStatementIndex
+    : statementIndexForAuthoring(compiled, authoring ?? undefined, exact);
   let candidates = queryCandidates(context, input, position, semantic, compiled, exact, statementIndex, recovery);
 
   // Module scalar references are intentionally additive to ordinary scalar
@@ -706,7 +820,9 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
   }
 
   const logicalRange = replacementRangeInLogicalText(input.lineText, context);
-  const replacementRange = projectReplacementRange(input, logicalRange);
+  const replacementRange = input.authoring
+    ? projectDslCallAuthoringRange(input.authoring, logicalRange)
+    : projectReplacementRange(input, logicalRange);
   if (!replacementRange) return null;
   return {
     context,

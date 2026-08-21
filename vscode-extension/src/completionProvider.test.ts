@@ -143,6 +143,101 @@ describe("VS Code native nui completion provider", () => {
     expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["dx", "dy"]));
   });
 
+  it("offers tolerant call arguments across a blank line with physical insertion ranges", () => {
+    const constructionSource = "nui 4\npoint P = coordinate(\n  \n)";
+    const constructionItems = itemsFor(constructionSource, 2, 2);
+    expect(constructionItems.map((item) => item.label)).toEqual(expect.arrayContaining(["x", "y"]));
+
+    const builtinSource = "nui 4\nconst a: number = spreadAngle(\n  \n)";
+    const builtinItems = itemsFor(builtinSource, 2, 2);
+    expect(builtinItems.map((item) => item.label)).toEqual(["length", "spread"]);
+
+    const liveSource = optionalModuleSource.replace("instance Use = M()", "instance Use = M(\n  \n)");
+    const session = createLanguageAnalysisSession(optionalModuleSource);
+    const provider = createNuiCompletionProvider(() => session);
+    session.replaceSource(liveSource);
+    const moduleItems = provider.provideCompletionItems(
+      documentFor(liveSource) as vscode.TextDocument,
+      new vscode.Position(9, 2),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+    const value = moduleItems.find((item) => item.label === "value")!;
+    expect(moduleItems.map((item) => item.label)).toContain("value");
+    expect(value.insertText).toBe("value: ");
+    expect(value.range).toMatchObject({
+      start: { line: 9, character: 2 },
+      end: { line: 9, character: 2 }
+    });
+  });
+
+  it("offers current-source Module labels when the incomplete call is opened cold", () => {
+    const source = [
+      "nui 4",
+      "",
+      "module M(",
+      "value: number,",
+      "optional?: number,",
+      ") {",
+      "}",
+      "",
+      "instance Use = M(",
+      "",
+      ")"
+    ].join("\n");
+    const statementLine = source.split("\n").findIndex((line) => line === "instance Use = M(");
+    const sameLineItems = itemsFor(source, statementLine, "instance Use = M(".length);
+    const sameLineValue = sameLineItems.find((item) => item.label === "value")!;
+
+    expect(sameLineItems.map((item) => item.label)).toEqual(expect.arrayContaining(["value", "optional"]));
+    expect(sameLineValue.insertText).toBe("value: ");
+    expect(sameLineValue.range).toMatchObject({
+      start: { line: statementLine, character: "instance Use = M(".length },
+      end: { line: statementLine, character: "instance Use = M(".length }
+    });
+
+    const callLine = statementLine + 1;
+    const items = itemsFor(source, callLine, 0);
+    const value = items.find((item) => item.label === "value")!;
+
+    expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["value", "optional"]));
+    expect(value.insertText).toBe("value: ");
+    expect(value.range).toMatchObject({
+      start: { line: callLine, character: 0 },
+      end: { line: callLine, character: 0 }
+    });
+
+    const unresolvedSource = source.replace("instance Use = M(\n", "instance Use = Other(\n");
+    const unresolvedStatementLine = unresolvedSource.split("\n").findIndex((line) => line === "instance Use = Other(");
+    const unresolvedSameLineItems = itemsFor(unresolvedSource, unresolvedStatementLine, "instance Use = Other(".length);
+    expect(unresolvedSameLineItems.map((item) => item.label)).not.toContain("value");
+    expect(unresolvedSameLineItems.map((item) => item.label)).not.toContain("optional");
+
+    const unresolvedCallLine = unresolvedSource.split("\n").findIndex((line) => line === "instance Use = Other(") + 1;
+    const unresolvedItems = itemsFor(unresolvedSource, unresolvedCallLine, 0);
+    expect(unresolvedItems.map((item) => item.label)).not.toContain("value");
+    expect(unresolvedItems.map((item) => item.label)).not.toContain("optional");
+  });
+
+  it("filters a later in-call argument without changing the blank-line range", () => {
+    const source = [
+      "nui 4",
+      "point P = coordinate(",
+      "",
+      "y: 20",
+      ")"
+    ].join("\n");
+    const items = itemsFor(source, 2, 0);
+
+    expect(items.map((item) => item.label)).toContain("x");
+    expect(items.map((item) => item.label)).not.toContain("y");
+    const x = items.find((item) => item.label === "x")!;
+    expect(x.range).toMatchObject({
+      start: { line: 2, character: 0 },
+      end: { line: 2, character: 0 }
+    });
+  });
+
   it("supports the manual E2E cases for incomplete argument, qualified member, and property completion", () => {
     const argumentSource = [
       "nui 4",
