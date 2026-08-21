@@ -14,7 +14,7 @@ import {
   type SourceLexicalLookup,
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
-import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
+import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
 import {
   moduleParameterPresenceKey,
   parseAndCheckModuleScalarExpression,
@@ -99,7 +99,8 @@ const sourceSpanFor = (spans: DiagnosticSpanContext, statement: DslStatement, sp
 const toDiagnostic = (
   spans: DiagnosticSpanContext,
   statement: DslStatement,
-  issue: LocalDiagnostic
+  issue: LocalDiagnostic,
+  relatedInformation: readonly DslDiagnosticRelatedInformation[] = []
 ): DslDiagnostic => {
   const physicalSpan = sourceSpanFor(spans, statement, issue.span);
   return {
@@ -110,6 +111,7 @@ const toDiagnostic = (
     message: issue.message,
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {}),
+    ...(relatedInformation.length ? { relatedInformation } : {}),
     ...(issue.expectedType ? { expectedType: issue.expectedType } : {}),
     ...(issue.actualType ? { actualType: issue.actualType } : {})
   };
@@ -361,10 +363,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     referenceSpan: DslSpan = { start: 0, end: name.length },
     presenceFacts: ReadonlySet<string> = new Set()
   ): ReferenceResolution => {
-    // Scalar AST reference spans include the leading `@`, while the
-    // qualified-module resolver's source spans are defined over the path
-    // text. Keep the already-resolved target's member/instance spans exact so
-    // editor consumers can use them without reconstructing `instance::member`.
     const referenceTextStart = referenceSpan.end - referenceSpan.start === name.length + 1 ? 1 : 0;
     const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, name, referenceSpan, referenceTextStart);
     if (qualified?.kind === "deferred") {
@@ -703,10 +701,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ? sourceDeclarationResolution(sourceNamespace, statementIndex, instanceName)
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, instanceName);
     if (lookup.kind === "resolved") {
-      // A qualified ordinary CAD namespace (for example
-      // `前身頃::縫い代::先に縫う`) is not a module export. Let the normal
-      // source-namespace path resolver handle every non-module declaration
-      // below. Module export lookup remains exclusive to module instances.
       if (lookup.declaration.kind !== "moduleInstance") {
         return null;
       }
@@ -1150,11 +1144,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return resolution;
   };
 
-  // Root elements normally use the ordinary document NameIndex. Keep the
-  // source-only result of the same resolver here as an editor projection too;
-  // ordinary references suppress diagnostics because their existing compiler
-  // owns validation, while qualified module exports retain this pass's
-  // established diagnostic behavior.
   const rootGeometryReferencesByStatementId = new Map<StatementIdentity, ModuleGeometryReferenceSite[]>();
   const rootParentReferencesByStatementId = new Map<StatementIdentity, ModuleParentReferenceSite>();
   const parentArg = commonArgSpecs.find((arg) => arg.special === "parent");
@@ -1278,10 +1267,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   const presenceFactsByStatementIndex = new Map<number, ReadonlySet<string>>();
   const instances: ModuleInstanceSemantic[] = [];
-  // Body semantic analysis needs instance -> callee identity to resolve
-  // qualified exports, while full argument analysis waits for branch facts.
-  // Seed the existing instance collection with those identities first; the
-  // complete pass below replaces these shells with normalized bindings.
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "moduleInstance") continue;
     const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
@@ -1450,10 +1435,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   }
   };
 
-  // Root typed declarations are owned by the ordinary scalar analyzer, but a
-  // qualified module scalar reference still needs the Module source identity
-  // for editor completion/navigation/rename. Reuse this analysis' resolved
-  // target instead of asking the editor to resolve `instance::member` again.
   const rootScalarExpressionsByStatementId = new Map<StatementIdentity, ModuleScalarExpressionSite>();
   for (const [statementIndex, statement] of statements.entries()) {
     if (
@@ -1485,11 +1466,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         }
       )
     );
-    // Root typed declaration diagnostics remain owned by the ordinary scalar
-    // analyzer. This pass only contributes already-resolved Module editor
-    // identity; duplicating an invalid/private diagnostic here would make the
-    // existing module scalar runtime bridge stop compiling its synthetic
-    // bindings before the canonical binding diagnostics are reported.
     const diagnostics = localDiagnosticsByStatement.get(statementIndex);
     if (diagnostics && diagnostics.length > diagnosticsBefore) {
       diagnostics.splice(diagnosticsBefore);
@@ -1569,10 +1545,282 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     addLocal(instance.statementIndex, issue("module-recursion", statement.moduleNameSpan ?? statement.keywordSpan, `module recursion は許可されていません:「${statement.moduleName}」。`));
   }
 
+  const relatedAt = (
+    targetStatementIndex: number,
+    targetSpan: DslSpan | null | undefined,
+    message: string
+  ): DslDiagnosticRelatedInformation | null => {
+    const targetStatement = statements[targetStatementIndex];
+    if (!targetStatement || !targetSpan) return null;
+    const physicalSpan = sourceSpanFor(spans, targetStatement, targetSpan);
+    return physicalSpan ? { message, physicalSpan } : null;
+  };
+  const compactRelated = (
+    items: readonly (DslDiagnosticRelatedInformation | null)[]
+  ): DslDiagnosticRelatedInformation[] =>
+    items.filter((item): item is DslDiagnosticRelatedInformation => item !== null);
+  const relatedForDeclaration = (
+    declaration: SourceLexicalDeclaration,
+    message = "Related declaration"
+  ) => relatedAt(
+    declaration.statementIndex,
+    declaration.nameSpan ?? declaration.statement.keywordSpan,
+    message
+  );
+  const relatedForParameter = (
+    definition: DefinitionState,
+    parameterIndex: number,
+    preferType = false,
+    message = preferType ? "Expected parameter type" : "Related parameter declaration"
+  ) => {
+    const parameter = definition.statement.parameters[parameterIndex];
+    if (!parameter) return null;
+    const span = preferType
+      ? parameter.typeSpan ?? parameter.nameSpan
+      : parameter.nameSpan ?? parameter.typeSpan;
+    return relatedAt(definition.statementIndex, span, message);
+  };
+  type ProvenanceLookup = ReturnType<typeof resolveModuleLexicalDeclaration> | ReturnType<typeof resolveModuleLexicalPath> | SourceLexicalLookup;
+  const relatedForLookup = (
+    lookup: ProvenanceLookup,
+    preferParameterType = false
+  ): DslDiagnosticRelatedInformation[] => {
+    if (lookup.kind === "parameter") {
+      return compactRelated([
+        relatedForParameter(lookup.definition, lookup.parameter.index, preferParameterType)
+      ]);
+    }
+    if (lookup.kind === "iteration") {
+      const iteration = statements[lookup.statementIndex];
+      return compactRelated([
+        relatedAt(lookup.statementIndex, iteration?.nameSpan ?? iteration?.keywordSpan, "Related iteration declaration")
+      ]);
+    }
+    if (lookup.kind === "resolved") {
+      return compactRelated([relatedForDeclaration(lookup.declaration)]);
+    }
+    if (lookup.kind === "forward" || lookup.kind === "ambiguous") {
+      return compactRelated(lookup.declarations.map((declaration) => relatedForDeclaration(declaration)));
+    }
+    if (lookup.kind === "invalidTraversal") {
+      return compactRelated([relatedForDeclaration(lookup.declaration)]);
+    }
+    return [];
+  };
+  const firstQuotedName = (message: string) => /「([^」]+)」/.exec(message)?.[1] ?? null;
+  const lookupForName = (statementIndex: number, name: string): ProvenanceLookup => {
+    const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+    const path = parseDslReferenceToken(name);
+    if (ownerIndex === null) {
+      return path.segments.length > 1
+        ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path)
+          ?? sourceDeclarationResolution(sourceNamespace, statementIndex, name)
+        : sourceDeclarationResolution(sourceNamespace, statementIndex, name);
+    }
+    return path.segments.length > 1
+      ? resolveModuleLexicalPath(statementIndex, ownerIndex, path)
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
+  };
+  const spansContain = (outer: DslSpan, inner: DslSpan) =>
+    inner.start >= outer.start && inner.end <= outer.end;
+  const relatedForInstanceParameter = (
+    statementIndex: number,
+    diagnosticSpan: DslSpan,
+    preferType: boolean
+  ): DslDiagnosticRelatedInformation[] => {
+    const statement = statements[statementIndex];
+    if (statement?.kind !== "moduleInstance") return [];
+    const argument = statement.arguments.find((candidate) => spansContain(candidate.valueSpan, diagnosticSpan));
+    const semantic = instances.find((candidate) => candidate.statementIndex === statementIndex);
+    const definition = semantic?.callee ? stateByIndex.get(semantic.callee.definitionStatementIndex) : undefined;
+    const parameter = argument?.label ? definition?.parameterByName.get(argument.label) : undefined;
+    return definition && parameter
+      ? compactRelated([relatedForParameter(definition, parameter.index, preferType)])
+      : [];
+  };
+  const relatedForModuleMember = (
+    statementIndex: number,
+    memberName: string
+  ): DslDiagnosticRelatedInformation[] => {
+    const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+    const ownerStatementId = ownerIndex === null ? null : stateByIndex.get(ownerIndex)?.statementId ?? null;
+    const candidateIndexes = new Set<number>();
+    for (const instance of instances) {
+      if (instance.callerModuleDefinitionStatementId !== ownerStatementId || !instance.callee) continue;
+      const definition = stateByIndex.get(instance.callee.definitionStatementIndex);
+      if (!definition) continue;
+      for (const candidateIndex of definition.bodyStatementIndexes) {
+        const candidate = statements[candidateIndex];
+        if (isDirectModuleChild(candidate, definition.statementIndex) && candidate.name === memberName) {
+          candidateIndexes.add(candidateIndex);
+        }
+      }
+    }
+    if (candidateIndexes.size !== 1) return [];
+    const candidateIndex = [...candidateIndexes][0]!;
+    const candidate = statements[candidateIndex];
+    return compactRelated([
+      relatedAt(candidateIndex, candidate.nameSpan ?? candidate.keywordSpan, "Related module member declaration")
+    ]);
+  };
+  const relatedInformationForDiagnostic = (
+    statementIndex: number,
+    diagnostic: LocalDiagnostic
+  ): DslDiagnosticRelatedInformation[] => {
+    if (diagnostic.code === "module-recursion") return [];
+    const statement = statements[statementIndex];
+    const quotedName = firstQuotedName(diagnostic.message);
+
+    if (diagnostic.code === "module-parameter-duplicate" && statement?.kind === "moduleDefinition") {
+      const currentIndex = statement.parameters.findIndex((parameter) =>
+        parameter.nameSpan?.start === diagnostic.span.start && parameter.nameSpan.end === diagnostic.span.end
+      );
+      const current = currentIndex >= 0 ? statement.parameters[currentIndex] : undefined;
+      const previousIndex = current
+        ? statement.parameters.findIndex((parameter, index) => index < currentIndex && parameter.name === current.name)
+        : -1;
+      return previousIndex >= 0
+        ? compactRelated([relatedForParameter(stateByIndex.get(statementIndex)!, previousIndex)])
+        : [];
+    }
+
+    if (diagnostic.code === "module-parameter-collision" && statement) {
+      const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+      const definition = ownerIndex === null ? undefined : stateByIndex.get(ownerIndex);
+      const parameter = definition?.parameterByName.get(statement.name);
+      return definition && parameter
+        ? compactRelated([relatedForParameter(definition, parameter.index)])
+        : [];
+    }
+
+    if (diagnostic.code === "module-duplicate-argument" && statement?.kind === "moduleInstance") {
+      const currentIndex = statement.arguments.findIndex((argument) => {
+        const span = argument.labelSpan ?? argument.valueSpan;
+        return span.start === diagnostic.span.start && span.end === diagnostic.span.end;
+      });
+      const current = currentIndex >= 0 ? statement.arguments[currentIndex] : undefined;
+      const previousIndex = current?.label
+        ? statement.arguments.findIndex((argument, index) => index < currentIndex && argument.label === current.label)
+        : -1;
+      const previous = previousIndex >= 0 ? statement.arguments[previousIndex] : undefined;
+      return previous
+        ? compactRelated([
+            relatedAt(statementIndex, previous.labelSpan ?? previous.valueSpan, "First argument with this name")
+          ])
+        : [];
+    }
+
+    if (diagnostic.code === "module-missing-argument" && statement?.kind === "moduleInstance" && quotedName) {
+      const semantic = instances.find((candidate) => candidate.statementIndex === statementIndex);
+      const definition = semantic?.callee ? stateByIndex.get(semantic.callee.definitionStatementIndex) : undefined;
+      const parameter = definition?.parameterByName.get(quotedName);
+      return definition && parameter
+        ? compactRelated([relatedForParameter(definition, parameter.index)])
+        : [];
+    }
+
+    if (
+      (diagnostic.code === "module-scalar-type-mismatch" || diagnostic.code === "module-geometry-type-mismatch") &&
+      statement?.kind === "moduleInstance"
+    ) {
+      const fromParameter = relatedForInstanceParameter(statementIndex, diagnostic.span, true);
+      if (fromParameter.length) return fromParameter;
+    }
+
+    if (diagnostic.code === "module-scalar-type-mismatch" && statement?.kind === "typedDeclaration") {
+      return compactRelated([
+        relatedAt(statementIndex, statement.payloadSpans.type, "Expected type declared here")
+      ]);
+    }
+
+    if (
+      statement?.kind === "moduleInstance" &&
+      (diagnostic.code === "module-forward-callee" ||
+        diagnostic.code === "module-ambiguous-callee" ||
+        diagnostic.code === "module-callee-not-definition")
+    ) {
+      const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+      const lookup = ownerIndex === null
+        ? sourceDeclarationResolution(sourceNamespace, statementIndex, statement.moduleName)
+        : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, statement.moduleName);
+      return relatedForLookup(lookup);
+    }
+
+    if (diagnostic.code === "module-unknown-argument" && statement?.kind === "moduleInstance") {
+      const semantic = instances.find((candidate) => candidate.statementIndex === statementIndex);
+      const definition = semantic?.callee ? stateByIndex.get(semantic.callee.definitionStatementIndex) : undefined;
+      return definition
+        ? compactRelated([
+            relatedAt(definition.statementIndex, definition.statement.nameSpan ?? definition.statement.keywordSpan, "Called module definition")
+          ])
+        : [];
+    }
+
+    if (
+      (diagnostic.code === "module-default-parameter-order" ||
+        diagnostic.code === "module-geometry-default" ||
+        diagnostic.code === "module-optional-value-required" ||
+        diagnostic.code === "module-has-value-parameter") &&
+      quotedName
+    ) {
+      const ownDefinition = statement?.kind === "moduleDefinition" ? stateByIndex.get(statementIndex) : undefined;
+      const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+      const ownerDefinition = ownerIndex === null ? undefined : stateByIndex.get(ownerIndex);
+      const directDefinition = ownDefinition?.parameterByName.has(quotedName)
+        ? ownDefinition
+        : ownerDefinition?.parameterByName.has(quotedName)
+          ? ownerDefinition
+          : undefined;
+      const parameter = directDefinition?.parameterByName.get(quotedName);
+      if (directDefinition && parameter) {
+        return compactRelated([relatedForParameter(directDefinition, parameter.index)]);
+      }
+      return relatedForLookup(lookupForName(statementIndex, quotedName));
+    }
+
+    if (diagnostic.code === "module-private-member" && quotedName) {
+      return relatedForModuleMember(statementIndex, quotedName);
+    }
+
+    if (quotedName && new Set([
+      "module-forward-reference",
+      "module-ambiguous-reference",
+      "module-forward-geometry-reference",
+      "module-ambiguous-geometry-reference",
+      "module-forward-instance-reference",
+      "module-ambiguous-instance-reference",
+      "module-outer-capture",
+      "module-scalar-geometry-reference",
+      "module-geometry-reference-in-scalar",
+      "module-default-invalid-reference",
+      "module-geometry-reference-in-default",
+      "module-invalid-reference",
+      "module-geometry-property-type-mismatch",
+      "module-geometry-type-mismatch",
+      "module-document-binding-unavailable"
+    ]).has(diagnostic.code)) {
+      const fromLookup = relatedForLookup(
+        lookupForName(statementIndex, quotedName),
+        diagnostic.code === "module-geometry-type-mismatch" || diagnostic.code === "module-geometry-property-type-mismatch"
+      );
+      if (fromLookup.length) return fromLookup;
+      if (diagnostic.code === "module-geometry-reference-in-scalar") {
+        return relatedForModuleMember(statementIndex, quotedName);
+      }
+    }
+
+    return [];
+  };
+
   for (const [statementIndex, local] of localDiagnosticsByStatement) {
     for (const diagnostic of local) {
       const statement = statements[statementIndex];
-      diagnostics.push(toDiagnostic(spans, statement, diagnostic));
+      diagnostics.push(toDiagnostic(
+        spans,
+        statement,
+        diagnostic,
+        relatedInformationForDiagnostic(statementIndex, diagnostic)
+      ));
     }
   }
   const definitionsByStatementId = new Map(semanticDefinitions.map((definition) => [definition.statementId, definition] as const));
