@@ -40,6 +40,7 @@ const source = [
 
 const printSourceWithoutB = source.slice(0, source.indexOf("svg B("));
 const repairedSource = source.replace("overlap: 5", "overlap: 20");
+const invalidOverlapSource = source.replace("overlap: 5", "overlap: 200");
 
 const bounds = { minX: 0, minY: 0, maxX: 20, maxY: 20, width: 20, height: 20 };
 
@@ -215,6 +216,57 @@ describe("Output Preview application", () => {
       documentVersion: 1,
       range: expect.objectContaining({ from: expect.any(Number), to: expect.any(Number) })
     }));
+  });
+
+  it("navigates from the real invalid-overlap compiler diagnostic to the overlap value", async () => {
+    mocks.evaluateOutputPlan.mockRejectedValue(new Error("not relevant to this diagnostic"));
+    renderFixture();
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: invalidOverlapSource, documentVersion: 1 }
+      }));
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("A4 portrait では overlap を 105mm 未満にしてください。");
+    const navigate = await screen.findByRole("button", { name: "Go to source" });
+    fireEvent.click(navigate);
+
+    const from = invalidOverlapSource.indexOf("200");
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewSourceNavigation",
+      documentVersion: 1,
+      range: { from, to: from + "200".length }
+    });
+  });
+
+  it("uses the selector as the output label and exposes crosshair and maximize ribbon actions", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+
+    expect(document.querySelector(".output-preview-title-button")).toBeNull();
+    expect((screen.getByRole("combobox") as HTMLSelectElement).selectedOptions[0]).toHaveTextContent("Print · A");
+    expect(screen.getByRole("button", { name: "ソースエディタで出力定義を表示" })).toBeInTheDocument();
+    const maximize = screen.getByRole("button", { name: "出力全体をプレビューに合わせる" });
+    expect(maximize).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "ソースエディタで出力定義を表示" }));
+    const printStart = source.indexOf("print A(");
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "outputPreviewSourceNavigation",
+      documentVersion: 1,
+      range: expect.objectContaining({ from: printStart, to: expect.any(Number) })
+    }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "出力全体をプレビューに合わせる" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "出力全体をプレビューに合わせる" }));
+    expect(api.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
   });
 
   it("uses an exact current diagnostic range for a current-source output error", async () => {

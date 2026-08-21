@@ -204,4 +204,25 @@ describe("CommandRibbonView", () => {
     expect(view.container.querySelector(".command-ribbon")).toHaveClass("is-vertical");
     expect(view.container.querySelector(".command-ribbon")).not.toHaveClass("has-side-handle");
   });
+
+  it("keeps the handle by default and omits only the handle in no-handle mode", () => {
+    const view = render(
+      <CommandRibbonView ribbon={ribbonFor("horizontal")} iconResolver={() => Circle} />
+    );
+
+    expect(view.container.querySelector(".command-ribbon-handle")).toBeInTheDocument();
+    expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(3);
+
+    view.rerender(
+      <CommandRibbonView
+        ribbon={ribbonFor("horizontal")}
+        iconResolver={() => Circle}
+        showHandle={false}
+      />
+    );
+
+    expect(view.container.querySelector(".command-ribbon-handle")).toBeNull();
+    expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(3);
+    expect(view.container.querySelectorAll(".command-ribbon-button")).toHaveLength(2);
+  });
 });

@@ -4312,8 +4312,8 @@ textarea {
   color: var(--vscode-titleBar-activeForeground, var(--vscode-foreground, #cccccc));
 }
 
-.output-preview-toolbar select,
-.output-preview-toolbar button {
+.output-preview-toolbar > select,
+.output-preview-toolbar > button {
   min-width: 0;
   border: 1px solid var(--vscode-dropdown-border, var(--vscode-widget-border, #454545));
   border-radius: 3px;
@@ -4327,22 +4327,15 @@ textarea {
   width: min(360px, 42vw);
 }
 
-.output-preview-toolbar button:hover:not(:disabled),
-.output-preview-toolbar button:focus-visible {
+.output-preview-toolbar > button:hover:not(:disabled),
+.output-preview-toolbar > button:focus-visible {
   background: var(--vscode-toolbar-hoverBackground, #2a2d2e);
 }
 
-.output-preview-toolbar button:disabled,
-.output-preview-toolbar select:disabled {
+.output-preview-toolbar > button:disabled,
+.output-preview-toolbar > select:disabled {
   cursor: default;
   opacity: 0.62;
-}
-
-.output-preview-title-button {
-  overflow: hidden;
-  max-width: 32vw;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .output-preview-status {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CommandRibbonView } from "../components/CommandRibbonView";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
 import {
@@ -29,6 +30,8 @@ import {
   outputPreviewTextTransformFor
 } from "./outputPreviewRendering";
 import type { ExtensionToVscodeMessage, VscodeWebviewApi } from "./protocol";
+import { VSCODE_CANVAS_RIBBON_ICON_SIZE } from "./vscodeCanvasRibbonConfig";
+import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
 
 type OutputPreviewEvaluationState = {
   outputKey: string | null;
@@ -353,17 +356,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     : null;
 
   return (
-    <main className="output-preview-workspace">
+    <main className="output-preview-workspace vscode-canvas-webview">
       <header className="output-preview-toolbar">
-        <button
-          type="button"
-          className="output-preview-title-button"
-          onClick={navigateToSelectedOutput}
-          disabled={!selectedCandidate}
-          title="Reveal output declaration in Source Editor"
-        >
-          {selectedCandidate?.output.name ?? "Output Preview"}
-        </button>
         <select
           aria-label="Output"
           value={selectedOutputKey ?? ""}
@@ -377,9 +371,47 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             </option>
           ))}
         </select>
-        <button type="button" onClick={() => api.postMessage({ type: "outputPreviewFit" })} disabled={!plan}>
-          Fit
-        </button>
+        <CommandRibbonView
+          className="output-preview-command-ribbon"
+          showHandle={false}
+          ribbon={{
+            id: "output-preview-ribbon",
+            label: "Output Preview",
+            x: null,
+            y: 0,
+            orientation: "horizontal",
+            iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
+            items: [
+              {
+                id: "output-preview-source-navigation",
+                type: "command",
+                commandId: "outputPreviewSourceNavigation",
+                icon: "crosshair",
+                label: "ソースエディタで出力定義を表示",
+                description: "選択した出力定義をソースエディタで表示します。",
+                showLabel: false,
+                available: Boolean(selectedCandidate),
+                nativeDisabled: !selectedCandidate
+              },
+              {
+                id: "output-preview-fit",
+                type: "command",
+                commandId: "outputPreviewFit",
+                icon: "maximize",
+                label: "出力全体をプレビューに合わせる",
+                description: "選択した出力全体が収まるようにプレビューを調整します。",
+                showLabel: false,
+                available: Boolean(plan),
+                nativeDisabled: !plan
+              }
+            ]
+          }}
+          iconResolver={resolveVscodeLucideIcon}
+          onCommand={(item) => {
+            if (item.commandId === "outputPreviewSourceNavigation") navigateToSelectedOutput();
+            if (item.commandId === "outputPreviewFit") api.postMessage({ type: "outputPreviewFit" });
+          }}
+        />
         {evaluationState.evaluating ? <span className="output-preview-status">Evaluating…</span> : null}
       </header>
       <div
