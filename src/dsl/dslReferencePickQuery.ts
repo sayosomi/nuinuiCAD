@@ -191,7 +191,23 @@ const expectationForParameter = (
   }
 };
 
+const trimPhysicalCallValueRange = (
+  source: SourceSnapshot,
+  range: DslReferencePickRange
+): DslReferencePickRange => {
+  let from = range.from;
+  let to = range.to;
+  while (from < to && /\s/.test(source.normalizedSource[from]!)) from += 1;
+  while (to > from && /\s/.test(source.normalizedSource[to - 1]!)) to -= 1;
+  if (to > from && source.normalizedSource[to - 1] === ",") {
+    to -= 1;
+    while (to > from && /\s/.test(source.normalizedSource[to - 1]!)) to -= 1;
+  }
+  return { from, to };
+};
+
 const callValueRange = (
+  source: SourceSnapshot,
   exact: ExactPosition,
   argument: ActiveCallArgument,
   sourcePosition: number
@@ -199,7 +215,8 @@ const callValueRange = (
   if (!argument.scanned || argument.scanned.valueSpan.start === argument.scanned.valueSpan.end) {
     return { from: sourcePosition, to: sourcePosition };
   }
-  return physicalRangeForLogical(exact, argument.scanned.valueSpan, sourcePosition);
+  const physical = physicalRangeForLogical(exact, argument.scanned.valueSpan, sourcePosition);
+  return physical ? trimPhysicalCallValueRange(source, physical) : null;
 };
 
 const targetFromExpectation = (
@@ -336,15 +353,15 @@ const moduleExpectation = (
   return type?.kind === "number" ? "number" : null;
 };
 
-const callTarget = (
+const targetForCall = (
   source: SourceSnapshot,
   position: number,
   exact: ExactPosition,
   compiled: CompiledDslDocument,
-  anchor: DslReferencePickSourceAnchor
+  anchor: DslReferencePickSourceAnchor,
+  call: DslCallAuthoringContext
 ): DslReferencePickTarget | null => {
-  const call = dslCallAuthoringContextAt(source, position);
-  if (!call || call.sourceRevision !== source.sourceRevision || call.sourceOrderAnchor.statementIndex !== exact.statementIndex) return null;
+  if (call.sourceRevision !== source.sourceRevision || call.sourceOrderAnchor.statementIndex !== exact.statementIndex) return null;
   const argument = activeCallArgument(call);
   if (!argument) return null;
 
@@ -359,7 +376,7 @@ const callTarget = (
   if (!expectation) return null;
 
   if (expectation !== "number") {
-    const range = callValueRange(exact, argument, position);
+    const range = callValueRange(source, exact, argument, position);
     return range ? targetFromExpectation(anchor, expectation, range) : null;
   }
 
@@ -367,6 +384,27 @@ const callTarget = (
   if (!numeric) return null;
   const range = physicalRangeForLogical(exact, numeric.range, position);
   return range ? targetFromExpectation(anchor, numeric.expectation, range) : null;
+};
+
+const callTarget = (
+  source: SourceSnapshot,
+  position: number,
+  exact: ExactPosition,
+  compiled: CompiledDslDocument,
+  anchor: DslReferencePickSourceAnchor
+): DslReferencePickTarget | null => {
+  const primary = dslCallAuthoringContextAt(source, position);
+  const primaryTarget = primary
+    ? targetForCall(source, position, exact, compiled, anchor, primary)
+    : null;
+  if (primaryTarget) return primaryTarget;
+
+  const currentCharacter = source.normalizedSource[position];
+  if (position <= 0 || (currentCharacter !== "," && currentCharacter !== ")" && currentCharacter !== "]")) return null;
+  const previous = dslCallAuthoringContextAt(source, position - 1);
+  return previous
+    ? targetForCall(source, position, exact, compiled, anchor, previous)
+    : null;
 };
 
 const typedDeclarationTarget = (
