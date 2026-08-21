@@ -127,7 +127,8 @@ const canContinueAcrossBlank = (
   lexicalLines: readonly DslLexedLine[],
   starts: readonly number[],
   cursor: number,
-  nesting: ReturnType<typeof scanDslNesting>
+  nesting: ReturnType<typeof scanDslNesting>,
+  allowModuleParameterFragments: boolean
 ) => {
   const opener = nesting.unmatchedOpeners[0];
   if (!opener) return false;
@@ -148,7 +149,9 @@ const canContinueAcrossBlank = (
     const codeBeforeClose = index === closeLine
       ? codeSource.slice(lineStart, closePhysical)
       : codeSource.slice(lineStart, lineEnd);
-    if (isUnsafeDslContinuationFragment(codeBeforeClose)) return false;
+    if (isUnsafeDslContinuationFragment(codeBeforeClose, {
+      allowModuleParameterFragment: allowModuleParameterFragments
+    })) return false;
   }
 
   const closeLineEnd = starts[closeLine + 1] ?? codeSource.length;
@@ -234,9 +237,19 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
       const nextCode = lexicalLines[next]!.codeText;
       const nextIsBlank = nextLine.trim() === "";
       const nextIsStructural = structuralKind(nextCode) !== null;
+      const allowModuleParameterFragments =
+        nesting.unmatchedOpeners.length === 1 &&
+        /^\s*module(?:\s|$)/.test(lexicalLines[firstLine]!.codeText);
       if (
         nextIsStructural ||
-        (nextIsBlank && !canContinueAcrossBlank(codeSource, lexicalLines, starts, cursor, nesting))
+        (nextIsBlank && !canContinueAcrossBlank(
+          codeSource,
+          lexicalLines,
+          starts,
+          cursor,
+          nesting,
+          allowModuleParameterFragments
+        ))
       ) {
         // Containment boundary: structural syntax, EOF, or a blank line whose
         // later closer cannot be proven safe terminates this incomplete
