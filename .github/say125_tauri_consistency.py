@@ -18,7 +18,7 @@ replace_once(
 replace_once(
     "src/components/TauriDrawingCanvas.tsx",
     '''  canvasFocusRef: RefObject<HTMLDivElement | null>;\n  commandContext?: CommandContext;\n''',
-    '''  canvasFocusRef: RefObject<HTMLDivElement | null>;\n  measureCanvasTextWidth: CanvasTextWidthMeasurer;\n  commandContext?: CommandContext;\n''',
+    '''  canvasFocusRef: RefObject<HTMLDivElement | null>;\n  measureCanvasTextWidth?: CanvasTextWidthMeasurer;\n  commandContext?: CommandContext;\n''',
     "Tauri measurer prop"
 )
 replace_once(
