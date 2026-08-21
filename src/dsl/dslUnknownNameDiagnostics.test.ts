@@ -53,8 +53,8 @@ describe("stable unknown-name diagnostics", () => {
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "line L = segment(start: @A, end: @Missng)",
-      "point Later = coordinate(x: 10, y: 10)",
-      "line F = segment(start: @A, end: @Later)"
+      "line F = segment(start: @A, end: @Later)",
+      "point Later = coordinate(x: 10, y: 10)"
     ].join("\n");
     const compiled = compileDslDocument(source, { sourceRevision: 23 });
     const undefinedDiagnostic = compiled.diagnostics.find((item) => item.code === "undefined-geometry-reference");
