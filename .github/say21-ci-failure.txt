@@ -1,3 +1,502 @@
 SAY-21 remote verification failed (exit 1)
 
-src/dsl/dslConstructions.ts: expected at least 1 occurrence(s), found 0: '  {\n    category: "line", construction: "polar", elementType: "angleLengthLine",\n    args: [\n      required("start", "st'
+[31m+     "column": 1,[39m
+[31m+     "line": 5,[39m
+[31m+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 177,[39m
+[31m+           "to": 187,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 5,[39m
+[31m+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 194,[39m
+[31m+           "to": 202,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+ ][39m
+
+[36m [2m❯[22m evaluateSource src/geometry/commonTangentEvaluator.test.ts:[2m21:76[22m[39m
+    [90m 19|[39m [35mconst[39m evaluateSource [33m=[39m (source[33m:[39m string) [33m=>[39m {
+    [90m 20|[39m   [35mconst[39m compiled [33m=[39m [34mcompileDslDocument[39m(source)[33m;[39m
+    [90m 21|[39m   expect(compiled.diagnostics.filter((item) => item.severity === "erro…
+    [90m   |[39m                                                                            [31m^[39m
+    [90m 22|[39m   [34mexpect[39m(compiled[33m.[39mdocument)[33m.[39mnot[33m.[39m[34mtoBeNull[39m()[33m;[39m
+    [90m 23|[39m   const tangent = compiled.document!.elements.find((element) => elemen…
+[90m [2m❯[22m src/geometry/commonTangentEvaluator.test.ts:[2m47:18[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/geometry/commonTangentEvaluator.test.ts[2m > [22mcommonTangent[2m > [22mround-trips the canonical DSL construction
+[31m[1mAssertionError[22m: expected [ { severity: 'error', …(5) }, …(3) ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 4,[39m
+[31m+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 111,[39m
+[31m+           "to": 121,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 4,[39m
+[31m+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 127,[39m
+[31m+           "to": 135,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 5,[39m
+[31m+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 177,[39m
+[31m+           "to": 187,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 5,[39m
+[31m+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 194,[39m
+[31m+           "to": 202,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+ ][39m
+
+[36m [2m❯[22m roundTrip src/dsl/dslDocumentTestUtils.ts:[2m155:73[22m[39m
+    [90m153|[39m     majorVersion[33m:[39m [33mTEST_DEFAULT_DSL_MAJOR_VERSION[39m
+    [90m154|[39m   })[33m;[39m
+    [90m155|[39m   expect(first.diagnostics.filter((item) => item.severity === "error")…
+    [90m   |[39m                                                                         [31m^[39m
+    [90m156|[39m   [35mconst[39m document[33m:[39m [33mDslDocumentData[39m [33m=[39m {
+    [90m157|[39m     elements[33m:[39m first[33m.[39melements[33m,[39m
+[90m [2m❯[22m src/geometry/commonTangentEvaluator.test.ts:[2m58:40[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/geometry/commonTangentEvaluator.test.ts[2m > [22mcommonTangent[2m > [22muses first->second orientation when arguments are swapped
+[31m[1mAssertionError[22m: expected [ { severity: 'error', …(5) }, …(3) ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 4,[39m
+[31m+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 111,[39m
+[31m+           "to": 121,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 4,[39m
+[31m+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 127,[39m
+[31m+           "to": 135,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 5,[39m
+[31m+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 177,[39m
+[31m+           "to": 187,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 5,[39m
+[31m+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 194,[39m
+[31m+           "to": 202,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+ ][39m
+
+[36m [2m❯[22m evaluateSource src/geometry/commonTangentEvaluator.test.ts:[2m21:76[22m[39m
+    [90m 19|[39m [35mconst[39m evaluateSource [33m=[39m (source[33m:[39m string) [33m=>[39m {
+    [90m 20|[39m   [35mconst[39m compiled [33m=[39m [34mcompileDslDocument[39m(source)[33m;[39m
+    [90m 21|[39m   expect(compiled.diagnostics.filter((item) => item.severity === "erro…
+    [90m   |[39m                                                                            [31m^[39m
+    [90m 22|[39m   [34mexpect[39m(compiled[33m.[39mdocument)[33m.[39mnot[33m.[39m[34mtoBeNull[39m()[33m;[39m
+    [90m 23|[39m   const tangent = compiled.document!.elements.find((element) => elemen…
+[90m [2m❯[22m src/geometry/commonTangentEvaluator.test.ts:[2m66:20[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/geometry/commonTangentEvaluator.test.ts[2m > [22mcommonTangent[2m > [22maccepts arc/through/corner outputs rather than authored arc type only
+[31m[1mAssertionError[22m: expected [ { severity: 'error', …(5) }, …(14) ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 11,[39m
+[31m+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 369,[39m
+[31m+           "to": 379,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 11,[39m
+[31m+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 385,[39m
+[31m+           "to": 393,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 12,[39m
+[31m+     "message": "construction「through」に引数「startAngle」はありません。候補: point1、point2、point3、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 457,[39m
+[31m+           "to": 467,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 12,[39m
+[31m+     "message": "construction「through」に引数「endAngle」はありません。候補: point1、point2、point3、start、end、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 473,[39m
+[31m+           "to": 481,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "code": "missing-attribute-value",[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "引数「endpoint1」の値がありません。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "code": "missing-argument-comma",[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "引数「L1」の前に「,」が必要です。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 518,[39m
+[31m+           "to": 520,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "code": "missing-attribute-value",[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "引数「endpoint2」の値がありません。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "code": "missing-argument-comma",[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "引数「L2」の前に「,」が必要です。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 537,[39m
+[31m+           "to": 539,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "construction「corner」に引数「endpoint1」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 507,[39m
+[31m+           "to": 516,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "construction「corner」に引数「L1」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 518,[39m
+[31m+           "to": 520,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "construction「corner」に引数「endpoint2」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 526,[39m
+[31m+           "to": 535,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "construction「corner」に引数「L2」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 537,[39m
+[31m+           "to": 539,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "construction「corner」に引数「intersectionIndex」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 558,[39m
+[31m+           "to": 575,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "construction「corner」には必須引数「end1」が必要です。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 500,[39m
+[31m+           "to": 506,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "column": 1,[39m
+[31m+     "line": 13,[39m
+[31m+     "message": "construction「corner」には必須引数「end2」が必要です。",[39m
+[31m+     "physicalSpan": {[39m
+[31m+       "segments": [[39m
+[31m+         {[39m
+[31m+           "from": 500,[39m
+[31m+           "to": 506,[39m
+[31m+         },[39m
+[31m+       ],[39m
+[31m+       "sourceRevision": 0,[39m
+[31m+     },[39m
+[31m+     "severity": "error",[39m
+[31m+     "sourceRevision": 0,[39m
+[31m+   },[39m
+[31m+ ][39m
+
+[36m [2m❯[22m evaluateSource src/geometry/commonTangentEvaluator.test.ts:[2m21:76[22m[39m
+    [90m 19|[39m [35mconst[39m evaluateSource [33m=[39m (source[33m:[39m string) [33m=>[39m {
+    [90m 20|[39m   [35mconst[39m compiled [33m=[39m [34mcompileDslDocument[39m(source)[33m;[39m
+    [90m 21|[39m   expect(compiled.diagnostics.filter((item) => item.severity === "erro…
+    [90m   |[39m                                                                            [31m^[39m
+    [90m 22|[39m   [34mexpect[39m(compiled[33m.[39mdocument)[33m.[39mnot[33m.[39m[34mtoBeNull[39m()[33m;[39m
+    [90m 23|[39m   const tangent = compiled.document!.elements.find((element) => elemen…
+[90m [2m❯[22m src/geometry/commonTangentEvaluator.test.ts:[2m91:24[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/geometry/commonTangentEvaluator.test.ts[2m > [22mcommonTangent[2m > [22msteps kind and side forward/backward with wrap
+[31m[1mTypeError[22m: options.indexOf is not a function[39m
+[36m [2m❯[22m choiceAfterStep src/dsl/dslValueStep.ts:[2m94:25[22m[39m
+    [90m 92|[39m   direction[33m:[39m [33mDslValueStepDirection[39m
+    [90m 93|[39m ) [33m=>[39m {
+    [90m 94|[39m   [35mconst[39m index [33m=[39m options[33m.[39m[34mindexOf[39m(value)[33m;[39m
+    [90m   |[39m                         [31m^[39m
+    [90m 95|[39m   [35mif[39m (index [33m<[39m [34m0[39m [33m||[39m options[33m.[39mlength [33m===[39m [34m0[39m) [35mreturn[39m [35mnull[39m[33m;[39m
+    [90m 96|[39m   return options[(index + direction + options.length) % options.length…
+[90m [2m❯[22m src/geometry/commonTangentEvaluator.test.ts:[2m125:12[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m6 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (7)[39m
+[2m   Start at [22m 17:45:56
+[2m   Duration [22m 1.70s[2m (transform 860ms, setup 56ms, import 995ms, tests 33ms, environment 493ms)[22m
+
+
+::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/geometry/commonTangentEvaluator.test.ts,title=src/geometry/commonTangentEvaluator.test.ts > commonTangent > evaluates external left/right from full supporting circles,line=21,column=76::AssertionError: expected [ { severity: 'error', …(5) }, …(3) ] to deeply equal []%0A%0A- Expected%0A+ Received%0A%0A- []%0A+ [%0A+   {%0A+     "column": 1,%0A+     "line": 4,%0A+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 111,%0A+           "to": 121,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 4,%0A+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 127,%0A+           "to": 135,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 5,%0A+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 177,%0A+           "to": 187,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 5,%0A+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 194,%0A+           "to": 202,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+ ]%0A%0A ❯ evaluateSource src/geometry/commonTangentEvaluator.test.ts:21:76%0A ❯ src/geometry/commonTangentEvaluator.test.ts:47:18%0A%0A
+
+::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/geometry/commonTangentEvaluator.test.ts,title=src/geometry/commonTangentEvaluator.test.ts > commonTangent > evaluates internal left/right from full supporting circles,line=21,column=76::AssertionError: expected [ { severity: 'error', …(5) }, …(3) ] to deeply equal []%0A%0A- Expected%0A+ Received%0A%0A- []%0A+ [%0A+   {%0A+     "column": 1,%0A+     "line": 4,%0A+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 111,%0A+           "to": 121,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 4,%0A+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 127,%0A+           "to": 135,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 5,%0A+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 177,%0A+           "to": 187,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 5,%0A+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 194,%0A+           "to": 202,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+ ]%0A%0A ❯ evaluateSource src/geometry/commonTangentEvaluator.test.ts:21:76%0A ❯ src/geometry/commonTangentEvaluator.test.ts:47:18%0A%0A
+
+::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/dsl/dslDocumentTestUtils.ts,title=src/geometry/commonTangentEvaluator.test.ts > commonTangent > round-trips the canonical DSL construction,line=155,column=73::AssertionError: expected [ { severity: 'error', …(5) }, …(3) ] to deeply equal []%0A%0A- Expected%0A+ Received%0A%0A- []%0A+ [%0A+   {%0A+     "column": 1,%0A+     "line": 4,%0A+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 111,%0A+           "to": 121,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 4,%0A+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 127,%0A+           "to": 135,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 5,%0A+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 177,%0A+           "to": 187,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 5,%0A+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 194,%0A+           "to": 202,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+ ]%0A%0A ❯ roundTrip src/dsl/dslDocumentTestUtils.ts:155:73%0A ❯ src/geometry/commonTangentEvaluator.test.ts:58:40%0A%0A
+
+::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/geometry/commonTangentEvaluator.test.ts,title=src/geometry/commonTangentEvaluator.test.ts > commonTangent > uses first->second orientation when arguments are swapped,line=21,column=76::AssertionError: expected [ { severity: 'error', …(5) }, …(3) ] to deeply equal []%0A%0A- Expected%0A+ Received%0A%0A- []%0A+ [%0A+   {%0A+     "column": 1,%0A+     "line": 4,%0A+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 111,%0A+           "to": 121,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 4,%0A+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 127,%0A+           "to": 135,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 5,%0A+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 177,%0A+           "to": 187,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 5,%0A+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 194,%0A+           "to": 202,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+ ]%0A%0A ❯ evaluateSource src/geometry/commonTangentEvaluator.test.ts:21:76%0A ❯ src/geometry/commonTangentEvaluator.test.ts:66:20%0A%0A
+
+::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/geometry/commonTangentEvaluator.test.ts,title=src/geometry/commonTangentEvaluator.test.ts > commonTangent > accepts arc/through/corner outputs rather than authored arc type only,line=21,column=76::AssertionError: expected [ { severity: 'error', …(5) }, …(14) ] to deeply equal []%0A%0A- Expected%0A+ Received%0A%0A- []%0A+ [%0A+   {%0A+     "column": 1,%0A+     "line": 11,%0A+     "message": "construction「arc」に引数「startAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 369,%0A+           "to": 379,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 11,%0A+     "message": "construction「arc」に引数「endAngle」はありません。候補: center、radius、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 385,%0A+           "to": 393,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 12,%0A+     "message": "construction「through」に引数「startAngle」はありません。候補: point1、point2、point3、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 457,%0A+           "to": 467,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 12,%0A+     "message": "construction「through」に引数「endAngle」はありません。候補: point1、point2、point3、start、end、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 473,%0A+           "to": 481,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "code": "missing-attribute-value",%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "引数「endpoint1」の値がありません。",%0A+     "physicalSpan": {%0A+       "segments": [],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "code": "missing-argument-comma",%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "引数「L1」の前に「,」が必要です。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 518,%0A+           "to": 520,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "code": "missing-attribute-value",%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "引数「endpoint2」の値がありません。",%0A+     "physicalSpan": {%0A+       "segments": [],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "code": "missing-argument-comma",%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "引数「L2」の前に「,」が必要です。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 537,%0A+           "to": 539,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "construction「corner」に引数「endpoint1」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 507,%0A+           "to": 516,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "construction「corner」に引数「L1」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 518,%0A+           "to": 520,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "construction「corner」に引数「endpoint2」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 526,%0A+           "to": 535,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "construction「corner」に引数「L2」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 537,%0A+           "to": 539,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "construction「corner」に引数「intersectionIndex」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 558,%0A+           "to": 575,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "construction「corner」には必須引数「end1」が必要です。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 500,%0A+           "to": 506,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+   {%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "construction「corner」には必須引数「end2」が必要です。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 500,%0A+           "to": 506,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+ ]%0A%0A ❯ evaluateSource src/geometry/commonTangentEvaluator.test.ts:21:76%0A ❯ src/geometry/commonTangentEvaluator.test.ts:91:24%0A%0A
+
+::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/dsl/dslValueStep.ts,title=src/geometry/commonTangentEvaluator.test.ts > commonTangent > steps kind and side forward/backward with wrap,line=94,column=25::TypeError: options.indexOf is not a function%0A ❯ choiceAfterStep src/dsl/dslValueStep.ts:94:25%0A ❯ src/geometry/commonTangentEvaluator.test.ts:125:12%0A%0A
