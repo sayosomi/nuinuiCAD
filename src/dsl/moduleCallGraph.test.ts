@@ -55,6 +55,7 @@ describe("moduleRecursionCycles", () => {
 
     expect([...recursive]).toEqual(["a-b", "b-a", "b-c", "c-b", "c-a"]);
     expect([...cycles.keys()]).toEqual([...recursive]);
+    expect(cycleCallSites(cycles, "c-a")).toEqual(["a-b", "b-c", "c-a"]);
     expect(cycles.has("a-c")).toBe(false);
   });
 
