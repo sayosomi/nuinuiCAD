@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { DslDiagnostic } from "../dsl/dslTypes";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
 import {
@@ -7,6 +6,7 @@ import {
   useCadDocumentStore
 } from "../state/cadDocumentStore";
 import { VscodeRustTransport } from "./vscodeRustTransport";
+import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostics";
 import {
   outputPreviewCandidateForKey,
   outputPreviewCandidatesFor,
@@ -38,32 +38,6 @@ type OutputPreviewEvaluationState = {
 };
 
 type PanState = { pointerId: number; lastX: number; lastY: number };
-
-const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
-
-export const outputPreviewDiagnosticSourceRangeFor = (
-  sourceText: string,
-  currentSourceRevision: number | null,
-  diagnostic: DslDiagnostic | undefined
-): { from: number; to: number } | null => {
-  if (!diagnostic) return null;
-  const navigationTarget = diagnostic.navigationTarget;
-  const physicalSpan = navigationTarget?.kind === "sourceSpan"
-    ? navigationTarget.physicalSpan
-    : diagnostic.physicalSpan;
-  if (!physicalSpan || currentSourceRevision === null || physicalSpan.sourceRevision !== currentSourceRevision || physicalSpan.segments.length !== 1) return null;
-  const segment = physicalSpan.segments[0];
-  const normalizedSource = normalizedSourceFor(sourceText);
-  if (
-    !segment ||
-    !Number.isInteger(segment.from) ||
-    !Number.isInteger(segment.to) ||
-    segment.from < 0 ||
-    segment.to <= segment.from ||
-    segment.to > normalizedSource.length
-  ) return null;
-  return { from: segment.from, to: segment.to };
-};
 
 const diagnosticMessageFor = (state: ReturnType<typeof useCadDocumentStore.getState>): string =>
   state.diagnostics[0]?.message ?? state.bindingIssueDiagnostics[0]?.message ?? "The current source cannot produce a valid output plan.";
