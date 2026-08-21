@@ -48,7 +48,6 @@ export const outputPreviewDiagnosticSourceRangeFor = (
 ): { from: number; to: number } | null => {
   if (!diagnostic) return null;
   const navigationTarget = diagnostic.navigationTarget;
-  if (navigationTarget && navigationTarget.kind !== "sourceSpan") return null;
   const physicalSpan = navigationTarget?.kind === "sourceSpan"
     ? navigationTarget.physicalSpan
     : diagnostic.physicalSpan;
@@ -131,6 +130,7 @@ const drawableSvg = (
 export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const sourceText = useCadDocumentStore((state) => state.sourceText);
   const docText = useCadDocumentStore((state) => state.docText);
+  const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
   const compiledDocument = useCadDocumentStore(effectiveCompiledDocument);
   const diagnostics = useCadDocumentStore((state) => state.diagnostics);
   const bindingIssueDiagnostics = useCadDocumentStore((state) => state.bindingIssueDiagnostics);
@@ -363,13 +363,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const plan = activePlan;
   const currentDiagnostic = [...diagnostics, ...bindingIssueDiagnostics].find((diagnostic) => diagnostic.severity === "error") ?? diagnostics[0] ?? bindingIssueDiagnostics[0];
-  const diagnosticSourceRange = !sourceIsCurrent
-    ? outputPreviewDiagnosticSourceRangeFor(
-        sourceText,
-        currentDiagnostic?.sourceRevision ?? currentDiagnostic?.physicalSpan?.sourceRevision ?? null,
-        currentDiagnostic
-      )
-    : null;
+  const diagnosticSourceRange = outputPreviewDiagnosticSourceRangeFor(sourceText, currentSourceRevision, currentDiagnostic);
   const sourceNavigationRange = diagnosticSourceRange ?? selectedCandidate?.sourceRange ?? null;
   const previewError = sourceIsCurrent
     ? selectedCandidate && evaluationState.outputKey === selectedCandidate.key ? evaluationState.error : null

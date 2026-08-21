@@ -166,7 +166,7 @@ describe("Output Preview application", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Output Preview unavailable");
   });
 
-  it("offers current diagnostic source navigation when the physical span is safe", async () => {
+  it("offers fatal-source diagnostic navigation when the physical span is safe", async () => {
     const brokenSource = "nui 4\npoint A = coordinate(";
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadDocumentStore.getState().commitText(brokenSource, "test");
@@ -185,6 +185,39 @@ describe("Output Preview application", () => {
       documentVersion: 1,
       range: expect.objectContaining({ from: expect.any(Number), to: expect.any(Number) })
     }));
+  });
+
+  it("uses an exact current diagnostic range for a current-source output error", async () => {
+    mocks.evaluateOutputPlan.mockRejectedValue(new Error("output evaluation failed"));
+    renderFixture();
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+    });
+
+    const state = useCadDocumentStore.getState();
+    const from = source.indexOf("margin: 10");
+    const to = from + "margin: 10".length;
+    useCadDocumentStore.setState({
+      diagnostics: [{
+        severity: "error",
+        line: 10,
+        column: 3,
+        message: "output value failed",
+        physicalSpan: { segments: [{ from, to }], sourceRevision: state.currentSourceRevision },
+        navigationTarget: { kind: "property", occurrenceKey: "output:margin" }
+      }]
+    });
+
+    const navigate = await screen.findByRole("button", { name: "Go to source" });
+    fireEvent.click(navigate);
+
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewSourceNavigation",
+      documentVersion: 1,
+      range: { from, to }
+    });
   });
 
   it("auto-fits the initial selected output", async () => {
@@ -293,7 +326,7 @@ describe("Output Preview application", () => {
     ]);
   });
 
-  it("exposes only a single current-revision diagnostic physical span for navigation", () => {
+  it("accepts exact physical spans for semantic diagnostic targets and fails closed otherwise", () => {
     const diagnostic = (physicalSpan: DslDiagnostic["physicalSpan"], navigationTarget?: DslDiagnostic["navigationTarget"]): DslDiagnostic => ({
       severity: "error",
       line: 1,
@@ -306,6 +339,9 @@ describe("Output Preview application", () => {
     expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic({ segments: [{ from: 1, to: 2 }], sourceRevision: 2 }))).toBeNull();
     expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic({ segments: [{ from: -1, to: 2 }], sourceRevision: 3 }))).toBeNull();
     expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic({ segments: [{ from: 1, to: 2 }, { from: 4, to: 5 }], sourceRevision: 3 }))).toBeNull();
-    expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic({ segments: [{ from: 1, to: 2 }], sourceRevision: 3 }, { kind: "binding", bindingId: "binding" }))).toBeNull();
+    expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic({ segments: [{ from: 1, to: 2 }], sourceRevision: 3 }, { kind: "binding", bindingId: "binding" }))).toEqual({ from: 1, to: 2 });
+    expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic({ segments: [{ from: 1, to: 2 }], sourceRevision: 3 }, { kind: "property", occurrenceKey: "property" }))).toEqual({ from: 1, to: 2 });
+    expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic({ segments: [{ from: 0, to: 1 }], sourceRevision: 3 }, { kind: "sourceSpan", physicalSpan: { segments: [{ from: 1, to: 2 }], sourceRevision: 3 } }))).toEqual({ from: 1, to: 2 });
+    expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic(undefined, { kind: "binding", bindingId: "binding" }))).toBeNull();
   });
 });

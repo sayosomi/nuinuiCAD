@@ -9,7 +9,8 @@ import {
   compileFreshCanonicalText,
   regenerateCanonicalFromModel,
   type CanonicalDocumentValue,
-  type LastGoodDslDocument
+  type LastGoodDslDocument,
+  type TextCompileResult
 } from "../document/canonicalDocument";
 import { assertReconcileSane, assertShadowEquivalent, shadowAssertEnabled } from "../document/shadowTextAssert";
 import { initialGroupFoldForLoadedDocument } from "../model/groups";
@@ -69,6 +70,9 @@ export type CadDocumentState = {
   sourceText: string;
   /** Monotonic notification sequence for source editor adapters. */
   sourceRevision: number;
+  /** DSL source-map revision for the current source compilation attempt,
+   * including fatal source text whose last-good document is retained. */
+  currentSourceRevision: number;
   /** Metadata for the latest source revision. Subscribers receive every transition synchronously. */
   sourceUpdate: SourceUpdate;
   /** Last successful compile; never null. */
@@ -280,10 +284,13 @@ const appendPast = (past: TextSnapshot[], snapshot: TextSnapshot) =>
 const dirtyForText = (state: Pick<CadDocumentState, "savedSourceText">, text: string) =>
   state.savedSourceText !== text;
 
-const canonicalFields = (value: CanonicalDocumentValue) => {
+const canonicalFields = (value: CanonicalDocumentValue | TextCompileResult) => {
   const document = value.doc.document;
   return {
     sourceText: value.sourceText,
+    currentSourceRevision: "currentCompiled" in value
+      ? value.currentCompiled.spans.sourceMap.sourceRevision
+      : value.doc.statementMap.sourceRevision,
     doc: value.doc,
     docText: value.docText,
     diagnostics: value.diagnostics,
