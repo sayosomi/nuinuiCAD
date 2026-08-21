@@ -45,10 +45,14 @@ jobs:
           source = Path('.github/workflows/say21-apply.yml').read_text().splitlines()
           start = next(i for i, line in enumerate(source) if "python3 <<'PY'" in line)
           end = next(i for i in range(start + 1, len(source)) if source[i].strip() == 'PY')
-          body = []
-          for line in source[start + 1:end]:
-              body.append(line[10:] if line.startswith('          ') else line)
-          Path('/tmp/say21-apply.py').write_text('\n'.join(body) + '\n')
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in source[start + 1:end]) + '\n'
+
+          # The current registry keeps segment/polar specs as compact one-liners.
+          patch_start = script.index('replace("src/dsl/dslConstructions.ts"')
+          patch_end = script.index('\n\nreplace("src/model/elementNames.ts"', patch_start)
+          registry_patch = '''replace("src/dsl/dslConstructions.ts", ''' + "'''" + '''  { category: "line", construction: "polar", elementType: "angleLengthLine", args: [required("start", "startPoint"), arg("angle", "angleDeg"), arg("length")] },\\n''' + "'''" + ''', ''' + "'''" + '''  { category: "line", construction: "polar", elementType: "angleLengthLine", args: [required("start", "startPoint"), arg("angle", "angleDeg"), arg("length")] },\\n  {\\n    category: "line",\\n    construction: "commonTangent",\\n    elementType: "commonTangentLine",\\n    args: [required("first", "firstLineId"), required("second", "secondLineId"), required("kind"), required("side")],\\n  },\\n''' + "'''" + ''')'''
+          script = script[:patch_start] + registry_patch + script[patch_end:]
+          Path('/tmp/say21-apply.py').write_text(script)
           PY
           python3 /tmp/say21-apply.py 2>&1 | tee -a "$LOG"
 
