@@ -174,7 +174,7 @@ describe("DrawingCanvas point drag activation threshold", () => {
     });
     fireEvent.pointerMove(viewport, {
       buttons: 1,
-      clientX: pointScreen.x + 2,
+      clientX: pointScreen.x + 7,
       clientY: pointScreen.y,
       pointerId: 1
     });
@@ -183,7 +183,7 @@ describe("DrawingCanvas point drag activation threshold", () => {
 
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: pointScreen.x + 2,
+      clientX: pointScreen.x + 7,
       clientY: pointScreen.y,
       pointerId: 1
     });
@@ -192,7 +192,7 @@ describe("DrawingCanvas point drag activation threshold", () => {
     expect(selectElement).toHaveBeenCalledWith("point-a", "replace");
   });
 
-  it("activates at three pixels and previews then commits the full pointerdown delta", () => {
+  it("activates at eight pixels and previews then commits the full pointerdown delta", () => {
     const movePointElementByDelta = vi.fn();
     const { viewport } = renderCanvas({ movePointElementByDelta });
 
@@ -205,7 +205,7 @@ describe("DrawingCanvas point drag activation threshold", () => {
     });
     fireEvent.pointerMove(viewport, {
       buttons: 1,
-      clientX: pointScreen.x + 3,
+      clientX: pointScreen.x + 8,
       clientY: pointScreen.y,
       pointerId: 2
     });
@@ -214,14 +214,14 @@ describe("DrawingCanvas point drag activation threshold", () => {
     const previewAction = movePointElementByDelta.mock.calls[0]?.[0];
     expect(previewAction).toMatchObject({
       elementId: "point-a",
-      dx: 3,
+      dx: 8,
       commitMode: "preview"
     });
     expect(Math.abs(previewAction?.dy ?? Number.NaN)).toBe(0);
 
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: pointScreen.x + 3,
+      clientX: pointScreen.x + 8,
       clientY: pointScreen.y,
       pointerId: 2
     });
@@ -230,7 +230,7 @@ describe("DrawingCanvas point drag activation threshold", () => {
     const commitAction = movePointElementByDelta.mock.calls[1]?.[0];
     expect(commitAction).toMatchObject({
       elementId: "point-a",
-      dx: 3,
+      dx: 8,
       commitMode: "commit"
     });
     expect(Math.abs(commitAction?.dy ?? Number.NaN)).toBe(0);
@@ -249,34 +249,34 @@ describe("DrawingCanvas point drag activation threshold", () => {
     });
     fireEvent.pointerMove(viewport, {
       buttons: 1,
-      clientX: pointScreen.x + 4,
+      clientX: pointScreen.x + 9,
       clientY: pointScreen.y,
       pointerId: 4
     });
     fireEvent.pointerMove(viewport, {
       buttons: 1,
-      clientX: pointScreen.x + 2,
+      clientX: pointScreen.x + 4,
       clientY: pointScreen.y,
       pointerId: 4
     });
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: pointScreen.x + 2,
+      clientX: pointScreen.x + 4,
       clientY: pointScreen.y,
       pointerId: 4
     });
 
     expect(movePointElementByDelta).toHaveBeenCalledTimes(3);
     expect(movePointElementByDelta.mock.calls[0]?.[0]).toMatchObject({
-      dx: 4,
+      dx: 9,
       commitMode: "preview"
     });
     expect(movePointElementByDelta.mock.calls[1]?.[0]).toMatchObject({
-      dx: 2,
+      dx: 4,
       commitMode: "preview"
     });
     expect(movePointElementByDelta.mock.calls[2]?.[0]).toMatchObject({
-      dx: 2,
+      dx: 4,
       commitMode: "commit"
     });
   });
@@ -295,27 +295,27 @@ describe("DrawingCanvas point drag activation threshold", () => {
     fireEvent.keyDown(window, { key: "x" });
     fireEvent.pointerMove(viewport, {
       buttons: 1,
-      clientX: pointScreen.x + 4,
+      clientX: pointScreen.x + 9,
       clientY: pointScreen.y + 5,
       pointerId: 3
     });
 
     expect(movePointElementByDelta.mock.calls[0]?.[0]).toMatchObject({
-      dx: 4,
+      dx: 9,
       dy: 0,
       commitMode: "preview"
     });
 
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: pointScreen.x + 4,
+      clientX: pointScreen.x + 9,
       clientY: pointScreen.y + 5,
       pointerId: 3
     });
     fireEvent.keyUp(window, { key: "x" });
 
     expect(movePointElementByDelta.mock.calls[1]?.[0]).toMatchObject({
-      dx: 4,
+      dx: 9,
       dy: 0,
       commitMode: "commit"
     });
