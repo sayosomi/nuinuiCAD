@@ -246,11 +246,20 @@ describe("Output Preview application", () => {
     await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
 
     expect(document.querySelector(".output-preview-title-button")).toBeNull();
-    expect((screen.getByRole("combobox") as HTMLSelectElement).selectedOptions[0]).toHaveTextContent("Print · A");
+    const selector = screen.getByRole("combobox");
+    expect((selector as HTMLSelectElement).selectedOptions[0]).toHaveTextContent("Print · A");
     const sourceNavigation = screen.getByRole("button", { name: "Go to Source" });
     const maximize = screen.getByRole("button", { name: "Fit Output Preview" });
     expect(sourceNavigation).toBeInTheDocument();
     expect(maximize).toBeInTheDocument();
+    const outputGroup = document.querySelector(".output-preview-output-group");
+    if (!outputGroup) throw new Error("missing output preview output group");
+    expect(outputGroup).toContainElement(selector);
+    expect(outputGroup).toContainElement(sourceNavigation);
+    expect(outputGroup).not.toContainElement(maximize);
+    expect(sourceNavigation.closest(".command-ribbon")).toHaveAttribute("data-ribbon-id", "output-preview-ribbon");
+    expect(maximize.closest(".command-ribbon")).toHaveAttribute("data-ribbon-id", "output-preview-fit-ribbon");
+    expect(sourceNavigation.closest(".command-ribbon")).not.toBe(maximize.closest(".command-ribbon"));
     expect(sourceNavigation).toHaveAttribute("title", "Go to Source");
     expect(document.getElementById(sourceNavigation.getAttribute("aria-describedby")!)?.textContent).toBe("Go to Source");
     expect(maximize).toHaveAttribute("title", "Fit Output Preview");

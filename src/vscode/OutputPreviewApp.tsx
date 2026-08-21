@@ -359,43 +359,65 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   return (
     <main ref={workspaceRef} className="output-preview-workspace vscode-canvas-webview">
       <header className="output-preview-toolbar">
-        <select
-          aria-label="Output"
-          value={selectedOutputKey ?? ""}
-          onChange={(event) => updateSelectedOutputKey(event.target.value || null)}
-          disabled={candidates.length === 0}
-        >
-          {candidates.length === 0 ? <option value="">No outputs</option> : null}
-          {candidates.map((candidate) => (
-            <option key={candidate.key} value={candidate.key}>
-              {outputKindLabel(candidate)} · {candidate.output.name}
-            </option>
-          ))}
-        </select>
+        <div className="output-preview-output-group">
+          <select
+            aria-label="Output"
+            value={selectedOutputKey ?? ""}
+            onChange={(event) => updateSelectedOutputKey(event.target.value || null)}
+            disabled={candidates.length === 0}
+          >
+            {candidates.length === 0 ? <option value="">No outputs</option> : null}
+            {candidates.map((candidate) => (
+              <option key={candidate.key} value={candidate.key}>
+                {outputKindLabel(candidate)} · {candidate.output.name}
+              </option>
+            ))}
+          </select>
+          <CommandRibbonView
+            className="output-preview-command-ribbon"
+            showHandle={false}
+            viewportAwareTooltips
+            tooltipBoundaryRef={workspaceRef}
+            ribbon={{
+              id: "output-preview-ribbon",
+              label: "Output Preview",
+              x: null,
+              y: 0,
+              orientation: "horizontal",
+              iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
+              items: [
+                {
+                  id: "output-preview-source-navigation",
+                  type: "command",
+                  commandId: "outputPreviewSourceNavigation",
+                  icon: "crosshair",
+                  label: "Go to Source",
+                  description: "",
+                  showLabel: false,
+                  available: Boolean(selectedCandidate),
+                  nativeDisabled: !selectedCandidate
+                }
+              ]
+            }}
+            iconResolver={resolveVscodeLucideIcon}
+            onCommand={(item) => {
+              if (item.commandId === "outputPreviewSourceNavigation") navigateToSelectedOutput();
+            }}
+          />
+        </div>
         <CommandRibbonView
-          className="output-preview-command-ribbon"
+          className="output-preview-fit-ribbon"
           showHandle={false}
           viewportAwareTooltips
           tooltipBoundaryRef={workspaceRef}
           ribbon={{
-            id: "output-preview-ribbon",
+            id: "output-preview-fit-ribbon",
             label: "Output Preview",
             x: null,
             y: 0,
             orientation: "horizontal",
             iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
             items: [
-              {
-                id: "output-preview-source-navigation",
-                type: "command",
-                commandId: "outputPreviewSourceNavigation",
-                icon: "crosshair",
-                label: "Go to Source",
-                description: "",
-                showLabel: false,
-                available: Boolean(selectedCandidate),
-                nativeDisabled: !selectedCandidate
-              },
               {
                 id: "output-preview-fit",
                 type: "command",
@@ -411,7 +433,6 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           }}
           iconResolver={resolveVscodeLucideIcon}
           onCommand={(item) => {
-            if (item.commandId === "outputPreviewSourceNavigation") navigateToSelectedOutput();
             if (item.commandId === "outputPreviewFit") api.postMessage({ type: "outputPreviewFit" });
           }}
         />
