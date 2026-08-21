@@ -244,6 +244,11 @@ export const evaluateElements = (
   const linearMutationResolver = linearMutationEnabled
     ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, elementsById, activities })
     : undefined;
+  const knownConditionalMutationOwnerIds = new Set(
+    options.bindingVersions?.versions.flatMap((version) => version.control.ownerChain
+      .filter((owner) => owner.kind === "conditionalBranch")
+      .map((owner) => owner.ownerStatementId)) ?? []
+  );
   const declarationResolver = !linearMutationResolver && options.scalarProgram
     ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, elementsById, activities })
     : undefined;
@@ -459,7 +464,13 @@ export const evaluateElements = (
           })();
       conditionalGroupStates.set(element.id, activeBranch);
       const ownerStatementId = options.conditionalOwnerStatementIdByElementId?.get((sourceElement ?? element).id);
-      if (ownerStatementId) linearMutationResolver!.registerConditionalResult(ownerStatementId, activeBranch);
+      // A module conditional may guard geometry-only output and therefore have
+      // no scalar version in the linear mutation graph. Its branch state still
+      // controls descendant evaluation, but it has no mutation frame to
+      // register.
+      if (ownerStatementId && knownConditionalMutationOwnerIds.has(ownerStatementId)) {
+        linearMutationResolver!.registerConditionalResult(ownerStatementId, activeBranch);
+      }
       return;
     }
 

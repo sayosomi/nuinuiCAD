@@ -76,6 +76,23 @@ const itemsFor = (source: string, line = source.split(/\r?\n/).length - 1, chara
   return provider.provideCompletionItems(document as vscode.TextDocument, position, undefined as never, undefined as never) as vscode.CompletionItem[];
 };
 
+const optionalModuleSource = [
+  "nui 4",
+  "module M(",
+  "  value?: number,",
+  ") {",
+  "  if (hasValue(@value)) {",
+  "    const probe: number = @value",
+  "  }",
+  "}",
+  "instance Use = M()"
+].join("\n");
+
+const transientOptionalModuleSource = optionalModuleSource.replace(
+  "instance Use = M()",
+  "instance Use = M(\n  v\n)"
+);
+
 describe("VS Code native nui completion provider", () => {
   it("uses the file-scoped selector and all requested trigger characters", () => {
     expect(nuiCompletionSelector).toEqual({ language: "nui", scheme: "file" });
@@ -323,6 +340,43 @@ describe("VS Code native nui completion provider", () => {
     ) as vscode.CompletionItem[];
 
     expect(items.map((item) => item.label)).not.toContain("old");
+  });
+
+  it("recovers Module argument labels from the last-good call identity while typing", () => {
+    const session = createLanguageAnalysisSession(optionalModuleSource);
+    const provider = createNuiCompletionProvider(() => session);
+    session.replaceSource(transientOptionalModuleSource);
+
+    const items = provider.provideCompletionItems(
+      documentFor(transientOptionalModuleSource) as vscode.TextDocument,
+      new vscode.Position(9, 3),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+    const value = items.find((item) => item.label === "value")!;
+
+    expect(items.map((item) => item.label)).toContain("value");
+    expect(value.insertText).toBe("value: ");
+    expect(value.range).toMatchObject({
+      start: { line: 9, character: 2 },
+      end: { line: 9, character: 3 }
+    });
+  });
+
+  it("does not recover stale Module labels after the callee loses its proven identity", () => {
+    const session = createLanguageAnalysisSession(optionalModuleSource);
+    const provider = createNuiCompletionProvider(() => session);
+    const changedCalleeSource = transientOptionalModuleSource.replace("M(\n  v", "Other(\n  v");
+    session.replaceSource(changedCalleeSource);
+
+    const items = provider.provideCompletionItems(
+      documentFor(changedCalleeSource) as vscode.TextDocument,
+      new vscode.Position(9, 3),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+
+    expect(items.map((item) => item.label)).not.toContain("value");
   });
 
   it("keeps the provider limited to the query result", () => {
