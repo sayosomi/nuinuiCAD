@@ -369,4 +369,40 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
     ]);
   });
 
+  it("reference-free boolean builtin interpolation works with zero typed declarations", () => {
+    const source = 'text T = label(text: "${isClose(1, 1, 0.1)}", anchor: none, size: 3)';
+    const parsed = parseDsl(source);
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+    expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const result = compileTextTemplates({
+      statements: parsed.statements,
+      elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+      elements: compiled.elements,
+      bindingAnalysis: undefined,
+      spans: { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom }
+    });
+    expect(result.diagnostics).toEqual([]);
+    const template = result.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(0, "text"))!;
+    expect(holeAt(template, 0).holeKind).toBe("boolean");
+  });
+
+  it("reference-free numeric builtin interpolation remains numeric with zero typed declarations", () => {
+    const source = 'text T = label(text: "${sqrt(4)}", anchor: none, size: 3)';
+    const parsed = parseDsl(source);
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+    expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const result = compileTextTemplates({
+      statements: parsed.statements,
+      elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+      elements: compiled.elements,
+      bindingAnalysis: undefined,
+      spans: { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom }
+    });
+    expect(result.diagnostics).toEqual([]);
+    const template = result.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(0, "text"))!;
+    expect(holeAt(template, 0).holeKind).toBe("numeric");
+  });
+
 });

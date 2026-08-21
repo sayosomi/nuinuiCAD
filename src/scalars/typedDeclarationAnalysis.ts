@@ -11,6 +11,7 @@ import { analyzeBindings, type BindingAnalysis, type InitializerReference } from
 import { bindingIdForStableStatementId, buildBindingCatalog, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "./bindingCatalog";
 import { resolveInitializerReferences, type BindingResolution, type InitializerResolutionRequest } from "./bindingResolution";
 import { resolveBuiltinGeometryArguments, type ResolveBuiltinGeometryArgumentsResult } from "./builtinGeometryArgumentResolution";
+import { getBuiltinFunctionDefinition } from "./builtinFunctions";
 import type { ScalarExpressionAst } from "./expressionAst";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { isScalarExpressionCandidateSource, parseScalarExpression } from "./expressionParser";
@@ -79,6 +80,8 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
       );
     case "group":
       return containsNonNumericScalarSyntax(ast.expression);
+    case "call":
+      return getBuiltinFunctionDefinition(ast.name)?.signatures.some((signature) => signature.returnType.kind === "boolean") ?? false;
     default:
       return false;
   }

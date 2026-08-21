@@ -76,6 +76,25 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("evaluates reference-free boolean templates through the Rust production boundary", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-reference-free-boolean-template.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const booleanLiteral = fixture.elements.find((element) => element.type === "text" && element.name === "BooleanLiteral")!;
+    const booleanCall = fixture.elements.find((element) => element.type === "text" && element.name === "BooleanCall")!;
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const result of [ts, rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(booleanLiteral.id)).toMatchObject({ kind: "text", text: "false" });
+      expect(result.computedGeometry.get(booleanCall.id)).toMatchObject({ kind: "text", text: "true" });
+    }
+  }, 30000);
+
   it("keeps tangentOffset curveSide literal, choice binding, and pathReverse parity", () => {
     const fixture = readParityFixture(repoRoot, "nui4-tangent-offset-curve-side.nui");
     const options = optionsFor(fixture);
