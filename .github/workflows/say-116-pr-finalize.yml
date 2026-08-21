@@ -1,4 +1,4 @@
-name: SAY-116 PR Finalize v2
+name: SAY-116 PR Finalize
 
 on:
   pull_request:
@@ -31,48 +31,50 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-
           workflow = Path('.github/workflows/say-116-direct-finalize.yml').read_text().splitlines()
           start = workflow.index("          python - <<'PY'") + 1
           end = workflow.index("          PY", start)
           script = "\n".join(line[10:] if line.startswith("          ") else line for line in workflow[start:end])
           exec(compile(script, 'say-116-direct-patches.py', 'exec'))
-
           document = Path('src/dsl/dslDocument.ts')
           text = document.read_text()
           anchor = "  });\n  const baseDiagnostics = ["
-          insertion = """  });
-  const compilerDiagnosticsForDocument = compiled.diagnostics.map((diagnostic, index) =>
-    diagnostic.code === \"undefined-geometry-reference\"
-      ? (projectedCompilerDiagnostics[index] ?? diagnostic)
-      : diagnostic
-  );
-  const baseDiagnostics = ["""
+          insertion = "\n".join([
+              "  });",
+              "  const compilerDiagnosticsForDocument = compiled.diagnostics.map((diagnostic, index) =>",
+              "    diagnostic.code === \"undefined-geometry-reference\"",
+              "      ? (projectedCompilerDiagnostics[index] ?? diagnostic)",
+              "      : diagnostic",
+              "  );",
+              "  const baseDiagnostics = ["
+          ])
           if text.count(anchor) != 1:
               raise SystemExit(f'dslDocument projection anchor count: {text.count(anchor)}')
           text = text.replace(anchor, insertion, 1)
-          old_final = """  const allDiagnostics = [
-    ...versionValidation.diagnostics,
-    ...sourceOutputPlacementDiagnostics,
-    ...projectedCompilerDiagnostics,
-    ...(sourceLexicalNamespace?.diagnostics ?? []),
-    ...scalarAnalysisCompilation.diagnostics,"""
-          new_final = """  const allDiagnostics = [
-    ...versionValidation.diagnostics,
-    ...sourceOutputPlacementDiagnostics,
-    ...compilerDiagnosticsForDocument,
-    ...(sourceLexicalNamespace?.diagnostics ?? []),
-    ...scalarAnalysisCompilation.diagnostics,"""
+          old_final = "\n".join([
+              "  const allDiagnostics = [",
+              "    ...versionValidation.diagnostics,",
+              "    ...sourceOutputPlacementDiagnostics,",
+              "    ...projectedCompilerDiagnostics,",
+              "    ...(sourceLexicalNamespace?.diagnostics ?? []),",
+              "    ...scalarAnalysisCompilation.diagnostics,"
+          ])
+          new_final = "\n".join([
+              "  const allDiagnostics = [",
+              "    ...versionValidation.diagnostics,",
+              "    ...sourceOutputPlacementDiagnostics,",
+              "    ...compilerDiagnosticsForDocument,",
+              "    ...(sourceLexicalNamespace?.diagnostics ?? []),",
+              "    ...scalarAnalysisCompilation.diagnostics,"
+          ])
           if text.count(old_final) != 1:
               raise SystemExit(f'dslDocument final diagnostics target count: {text.count(old_final)}')
           document.write_text(text.replace(old_final, new_final, 1))
-
           def one_file(name: str) -> Path:
               matches = [p for p in Path('.').rglob(name) if 'node_modules' not in p.parts]
               if len(matches) != 1:
                   raise SystemExit(f'{name}: expected one file, found {matches}')
               return matches[0]
-
           def replace_count(name: str, old: str, new: str, expected: int = 1) -> None:
               path = one_file(name)
               contents = path.read_text()
@@ -81,28 +83,10 @@ jobs:
                   raise SystemExit(f'{path}: expected {expected} targets, found {count}')
               path.write_text(contents.replace(old, new))
               print(f'updated {path}: {count} expectation(s)')
-
-          replace_count(
-              'dslDocumentDslNamesSeverity.test.ts',
-              'assert.equal(nameDiagnostic.exactSpanOnly, undefined);',
-              'assert.equal(nameDiagnostic.exactSpanOnly, true);'
-          )
-          replace_count(
-              'dslDiagnosticCode.test.ts',
-              'diagnostic.code === code && diagnostic.exactSpanOnly === undefined',
-              'diagnostic.code === code && diagnostic.exactSpanOnly === true'
-          )
-          replace_count(
-              'dslDiagnosticSpan.test.ts',
-              'assert.equal(diagnostic!.exactSpanOnly, undefined);',
-              'assert.equal(diagnostic!.exactSpanOnly, true);'
-          )
-          replace_count(
-              'dslPhysicalSpanOffset.test.ts',
-              'assert.equal(diagnostic!.exactSpanOnly, undefined);',
-              'assert.equal(diagnostic!.exactSpanOnly, true);',
-              expected=3
-          )
+          replace_count('dslDocumentDslNamesSeverity.test.ts', 'assert.equal(nameDiagnostic.exactSpanOnly, undefined);', 'assert.equal(nameDiagnostic.exactSpanOnly, true);')
+          replace_count('dslDiagnosticCode.test.ts', 'diagnostic.code === code && diagnostic.exactSpanOnly === undefined', 'diagnostic.code === code && diagnostic.exactSpanOnly === true')
+          replace_count('dslDiagnosticSpan.test.ts', 'assert.equal(diagnostic!.exactSpanOnly, undefined);', 'assert.equal(diagnostic!.exactSpanOnly, true);')
+          replace_count('dslPhysicalSpanOffset.test.ts', 'assert.equal(diagnostic!.exactSpanOnly, undefined);', 'assert.equal(diagnostic!.exactSpanOnly, true);', expected=3)
           PY
           git diff --check
           git status --short
@@ -114,15 +98,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t tests < <(find . -type f \( \
-            -name 'dslTypoMatcher.test.ts' -o \
-            -name 'dslUnknownNameDiagnostics.test.ts' -o \
-            -name 'dslDocumentDslNamesSeverity.test.ts' -o \
-            -name 'dslDiagnosticCode.test.ts' -o \
-            -name 'dslDiagnosticSpan.test.ts' -o \
-            -name 'dslPhysicalSpanOffset.test.ts' -o \
-            -name 'dslAdditionalDiagnostics.test.ts' \
-          \) -not -path './node_modules/*' -print)
+          mapfile -t tests < <(find . -type f \( -name 'dslTypoMatcher.test.ts' -o -name 'dslUnknownNameDiagnostics.test.ts' -o -name 'dslDocumentDslNamesSeverity.test.ts' -o -name 'dslDiagnosticCode.test.ts' -o -name 'dslDiagnosticSpan.test.ts' -o -name 'dslPhysicalSpanOffset.test.ts' -o -name 'dslAdditionalDiagnostics.test.ts' \) -not -path './node_modules/*' -print)
           printf 'focused test: %s\n' "${tests[@]}"
           npm test -- "${tests[@]}"
 
@@ -144,10 +120,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm \
-            .github/workflows/say-116-direct-finalize.yml \
-            .github/workflows/say-116-pr-finalize.yml \
-            .github/workflows/say-116-pr-finalize-v2.yml
+          git rm .github/workflows/say-116-direct-finalize.yml .github/workflows/say-116-pr-finalize.yml .github/workflows/say-116-pr-finalize-v2.yml
           git add -u
           git diff --cached --check
           git commit -m "feat: finalize stable unknown-name diagnostics (SAY-116)"
