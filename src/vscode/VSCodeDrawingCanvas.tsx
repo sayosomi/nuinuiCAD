@@ -21,6 +21,7 @@ import type {
   CanvasPointDragAction,
   CanvasBezierHandleDragAction
 } from "../components/canvasHostAdapter";
+import { useModuleInstanceSelectionReconciliation } from "../components/useModuleInstanceSelectionReconciliation";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 import {
   type VscodeCanvasRibbon
@@ -82,6 +83,11 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
+    useModuleInstanceSelectionReconciliation({
+      evaluation,
+      evaluationState,
+      measureCanvasTextWidth
+    });
     const moduleSemanticContext = useMemo(() => ({
       moduleMaterialization,
       moduleSemanticAnalysis,
