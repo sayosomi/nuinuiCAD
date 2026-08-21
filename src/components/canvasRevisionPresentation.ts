@@ -89,8 +89,12 @@ export const useRevisionCoherentCanvasPresentation = ({
   const evaluationRequestRevision = evaluationState?.evaluationRequestRevision;
 
   useLayoutEffect(() => {
-    if (!evaluationState) return;
-    if (isStale || evaluationRevision !== compiledDocumentRevision) return;
+    if (
+      isStale ||
+      evaluationRevision === undefined ||
+      evaluationRequestRevision === undefined ||
+      evaluationRevision !== compiledDocumentRevision
+    ) return;
     setLastStable((previous) => {
       if (
         previous?.evaluationRevision === evaluationRevision &&
@@ -110,7 +114,6 @@ export const useRevisionCoherentCanvasPresentation = ({
     current,
     evaluationRevision,
     evaluationRequestRevision,
-    evaluationState,
     isStale
   ]);
 
