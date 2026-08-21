@@ -71,11 +71,6 @@ type TestDiagnosticCollection = {
   dispose: ReturnType<typeof vi.fn>;
 };
 
-type SignatureHelpProviderMetadata = {
-  triggerCharacters: readonly string[];
-  retriggerCharacters: readonly string[];
-};
-
 const mocks = vi.hoisted(() => ({
   activeTextEditor: null as TestEditor | null,
   visibleTextEditors: [] as TestEditor[],
@@ -91,7 +86,7 @@ const mocks = vi.hoisted(() => ({
   diagnosticCollections: [] as TestDiagnosticCollection[],
   contexts: [] as Array<{ subscriptions: Array<{ dispose: () => void }> }>,
   completionRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
-  signatureHelpRegistrations: [] as Array<{ selector: unknown; provider: unknown; metadata: SignatureHelpProviderMetadata; disposable: { dispose: () => void } }>,
+  signatureHelpRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
   definitionRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   renameRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   referenceRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
@@ -449,9 +444,9 @@ const setup = (
     mocks.completionRegistrations.push({ selector, provider, triggerCharacters, disposable: registration });
     return registration;
   });
-  mocks.registerSignatureHelpProvider.mockImplementation((selector: unknown, provider: unknown, metadata: SignatureHelpProviderMetadata) => {
+  mocks.registerSignatureHelpProvider.mockImplementation((selector: unknown, provider: unknown, ...triggerCharacters: string[]) => {
     const registration = disposable();
-    mocks.signatureHelpRegistrations.push({ selector, provider, metadata, disposable: registration });
+    mocks.signatureHelpRegistrations.push({ selector, provider, triggerCharacters, disposable: registration });
     return registration;
   });
   mocks.registerDefinitionProvider.mockImplementation((selector: unknown, provider: unknown) => {
@@ -627,10 +622,7 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.signatureHelpRegistrations).toHaveLength(1);
     expect(mocks.signatureHelpRegistrations[0]).toMatchObject({
       selector: { language: "nui", scheme: "file" },
-      metadata: {
-        triggerCharacters: ["(", ",", ":"],
-        retriggerCharacters: ["(", ",", ":"]
-      }
+      triggerCharacters: ["(", ",", ":"]
     });
   });
 
