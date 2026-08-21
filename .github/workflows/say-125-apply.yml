@@ -1,0 +1,65 @@
+name: SAY-125 apply
+
+on:
+  push:
+    branches:
+      - sayosomi/say-125-module-instance-selection-frame-reveal-semantics
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: sayosomi/say-125-module-instance-selection-frame-reveal-semantics
+          fetch-depth: 0
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Refresh latest main
+        run: |
+          git fetch origin main
+          git merge --no-edit origin/main
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply implementation
+        run: |
+          python .github/say125_apply.py
+          rm .github/say125_apply.py .github/workflows/say-125-apply.yml
+      - name: Install dependencies
+        run: npm ci
+      - name: Focused tests
+        run: npx vitest run src/components/moduleInstanceSelectionFrame.test.ts src/components/CanvasOverlay.test.tsx src/vscode/VSCodeApp.test.tsx vscode-extension/src/extension.test.ts
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: Build VS Code
+        run: npm run build:vscode
+      - name: Commit implementation
+        run: |
+          git add -- \
+            src/components/moduleInstanceSelectionFrame.ts \
+            src/components/moduleInstanceSelectionFrame.test.ts \
+            src/components/CanvasOverlay.tsx \
+            src/components/CanvasOverlay.test.tsx \
+            src/components/canvasHostAdapter.ts \
+            src/components/DrawingCanvas.tsx \
+            src/vscode/protocol.ts \
+            src/vscode/VSCodeDrawingCanvas.tsx \
+            src/vscode/VSCodeApp.tsx \
+            src/vscode/VSCodeApp.test.tsx \
+            vscode-extension/src/extension.ts \
+            vscode-extension/src/extension.test.ts \
+            .github/say125_apply.py \
+            .github/workflows/say-125-apply.yml
+          git diff --cached --check
+          git commit -m "feat: add Module instance selection frame and Reveal semantics (SAY-125)"
+          git push origin HEAD:sayosomi/say-125-module-instance-selection-frame-reveal-semantics
