@@ -19,6 +19,7 @@ import type { DrawingCanvasHandle } from "./DrawingCanvas";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 import { useModuleInstanceSelectionReconciliation } from "./useModuleInstanceSelectionReconciliation";
+import { useRevisionCoherentCanvasPresentation } from "./canvasRevisionPresentation";
 
 type TauriDrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -66,16 +67,38 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       sourceLexicalNamespace,
       statementInfoByElementId
     }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
-    const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
+    const currentCanvasPresentation = useMemo(() => ({
       elements,
       canonicalElements,
       evaluationLimitIndex,
-      compiledDocumentRevision,
-      canvasTheme: LEGACY_CANVAS_THEME,
       palette,
       visibilityProfiles,
       activeVisibilityProfileId,
+      moduleSemanticContext
+    }), [
+      activeVisibilityProfileId,
+      canonicalElements,
+      elements,
+      evaluationLimitIndex,
       moduleSemanticContext,
+      palette,
+      visibilityProfiles
+    ]);
+    const canvasPresentation = useRevisionCoherentCanvasPresentation({
+      current: currentCanvasPresentation,
+      compiledDocumentRevision,
+      evaluationState
+    });
+    const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
+      elements: canvasPresentation.elements,
+      canonicalElements: canvasPresentation.canonicalElements,
+      evaluationLimitIndex: canvasPresentation.evaluationLimitIndex,
+      compiledDocumentRevision,
+      canvasTheme: LEGACY_CANVAS_THEME,
+      palette: canvasPresentation.palette,
+      visibilityProfiles: canvasPresentation.visibilityProfiles,
+      activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
+      moduleSemanticContext: canvasPresentation.moduleSemanticContext,
       selectedElementId,
       selectedElementIds,
       selectionAnchorElementId,
@@ -138,6 +161,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       activeNumericReferencePickTarget,
       activePointPickTarget,
       activeVisibilityProfileId,
+      canvasPresentation,
       canvasViewport,
       canonicalElements,
       commandContext,
