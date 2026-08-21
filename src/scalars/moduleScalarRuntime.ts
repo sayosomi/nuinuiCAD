@@ -15,6 +15,7 @@ import type {
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
+import { moduleParameterPresenceKey } from "../dsl/moduleScalarExpression";
 import type { CadElement, DrawingModifierDefinition, ElementId } from "../types/geometry";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
@@ -208,11 +209,19 @@ const materializeHasValueAst = (
   }
   switch (ast.kind) {
     case "unary": return { ...ast, operand: materializeHasValueAst(ast.operand, semantic, hasValueForParameter) };
-    case "binary": return {
-      ...ast,
-      left: materializeHasValueAst(ast.left, semantic, hasValueForParameter),
-      right: materializeHasValueAst(ast.right, semantic, hasValueForParameter)
-    };
+    case "binary": {
+      const left = materializeHasValueAst(ast.left, semantic, hasValueForParameter);
+      const right = materializeHasValueAst(ast.right, semantic, hasValueForParameter);
+      if (ast.operator === "&&" && left.kind === "booleanLiteral") {
+        if (!left.value) return { kind: "booleanLiteral", span: ast.span, value: false };
+        return right;
+      }
+      if (ast.operator === "||" && left.kind === "booleanLiteral") {
+        if (left.value) return { kind: "booleanLiteral", span: ast.span, value: true };
+        return right;
+      }
+      return { ...ast, left, right };
+    }
     case "group": return { ...ast, expression: materializeHasValueAst(ast.expression, semantic, hasValueForParameter) };
     case "call": return {
       ...ast,
@@ -654,6 +663,30 @@ export const compileModuleScalarRuntime = ({
     return false;
   };
 
+  const moduleBodyStatementIsReachable = (context: InstanceContext, body: ModuleBodyStatementSemantic): boolean => {
+    if (body.presenceParameterKeys.length === 0) return true;
+    const satisfiedPresenceKeys = new Set<string>();
+    let cursor: InstanceContext | undefined = context;
+    while (cursor) {
+      for (const parameter of cursor.definition.parameters) {
+        const binding = cursor.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
+        if (parameter.optional && binding?.state === "optionalSupplied") {
+          satisfiedPresenceKeys.add(moduleParameterPresenceKey(parameter.definitionStatementId, parameter.parameterIndex));
+        }
+      }
+      cursor = cursor.parentKey ? contextsByKey.get(cursor.parentKey) : undefined;
+    }
+    return body.presenceParameterKeys.every((key) => satisfiedPresenceKeys.has(key));
+  };
+
+  const contextIsReachable = (context: InstanceContext): boolean => {
+    if (!context.parentKey) return true;
+    const parent = contextsByKey.get(context.parentKey);
+    if (!parent || !contextIsReachable(parent)) return false;
+    const ownerBody = parent.definition.bodyStatements.find((body) => body.statementId === context.instance.statementId);
+    return ownerBody ? moduleBodyStatementIsReachable(parent, ownerBody) : false;
+  };
+
   const events: RuntimeEvent[] = [];
   const eventOrderByBindingId = new Map<BindingId, number>();
   const eventOrderByVersionId = new Map<string, number>();
@@ -677,6 +710,10 @@ export const compileModuleScalarRuntime = ({
 
   const emitInstance = (context: InstanceContext) => {
     const start = events.length;
+    if (!contextIsReachable(context)) {
+      scopeExitOrderById.set(context.scopeId, start);
+      return;
+    }
     const runtimeId = instanceElement(moduleMaterialization, context.path);
     if (runtimeId) pushEvent({ kind: "element", elementId: runtimeId }, context.instance.statementIndex);
     for (const parameter of context.definition.parameters) {
@@ -684,6 +721,7 @@ export const compileModuleScalarRuntime = ({
       if (info) pushEvent({ kind: "binding", bindingId: info.id }, context.instance.statementIndex);
     }
     for (const body of context.definition.bodyStatements) {
+      if (!moduleBodyStatementIsReachable(context, body)) continue;
       if (body.statementKind === "typedDeclaration") {
         const info = context.locals.get(body.statementId);
         if (info) pushEvent({ kind: "binding", bindingId: info.id }, body.statementIndex);
@@ -698,7 +736,15 @@ export const compileModuleScalarRuntime = ({
         if (runtime) pushEvent({ kind: "element", elementId: runtime.elementId }, body.statementIndex);
       }
     }
-    scopeExitOrderById.set(context.scopeId, Math.max(start, events.length));
+    const contextEnd = Math.max(start, events.length);
+    const sourceScopeIds = new Set<string>([context.bodyScopeId]);
+    for (const body of context.definition.bodyStatements) {
+      sourceScopeIds.add(sourceScopeIndex?.scopeOfStatement.get(body.statementIndex) ?? context.bodyScopeId);
+    }
+    for (const sourceScopeId of sourceScopeIds) {
+      scopeExitOrderById.set(moduleScopeIdFor(context.path, sourceScopeId), contextEnd);
+    }
+    scopeExitOrderById.set(context.scopeId, contextEnd);
   };
 
   for (const [statementIndex, statement] of statements.entries()) {
@@ -731,6 +777,13 @@ export const compileModuleScalarRuntime = ({
   }
 
   for (const entry of moduleMaterialization.executionStatements) {
+    if (entry.runtimeIdentity) {
+      const context = contextsByKey.get(pathKey(entry.instancePath));
+      const body = entry.runtimeIdentity.kind === "moduleBody"
+        ? context?.definition.bodyStatements.find((candidate) => candidate.statementId === entry.sourceStatementId)
+        : undefined;
+      if (context && (!contextIsReachable(context) || (body && !moduleBodyStatementIsReachable(context, body)))) continue;
+    }
     if (!elementOrderById.has(entry.runtimeElementId)) {
       pushEvent({ kind: "element", elementId: entry.runtimeElementId }, entry.sourceStatementIndex);
     }
@@ -911,7 +964,7 @@ export const compileModuleScalarRuntime = ({
   };
 
   for (const context of contextsByKey.values()) {
-    if (contextIsDisabled(context)) continue;
+    if (contextIsDisabled(context) || !contextIsReachable(context)) continue;
     for (const parameter of context.definition.parameters) {
       const info = context.parameters.get(parameter.parameterIndex);
       const binding = context.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
@@ -920,7 +973,10 @@ export const compileModuleScalarRuntime = ({
     }
     for (const local of context.definition.localScalars) {
       const info = context.locals.get(local.statementId);
-      if (info && local.initializer) lowerForContext(local.initializer, context, info.id);
+      const body = context.definition.bodyStatements.find((candidate) => candidate.statementId === local.statementId);
+      if (info && local.initializer && body && moduleBodyStatementIsReachable(context, body)) {
+        lowerForContext(local.initializer, context, info.id);
+      }
     }
   }
 
@@ -993,7 +1049,9 @@ export const compileModuleScalarRuntime = ({
     });
   };
   for (const context of contextsByKey.values()) {
+    if (!contextIsReachable(context)) continue;
     for (const body of context.definition.bodyStatements) {
+      if (!moduleBodyStatementIsReachable(context, body)) continue;
       if (body.statementKind === "set") {
         const statement = statements[body.statementIndex];
         const info = body.scalarTarget?.kind === "moduleLocal" ? bindingInfoForTarget(body.scalarTarget, context) : undefined;
@@ -1167,6 +1225,7 @@ export const compileModuleScalarRuntime = ({
           ...owner,
           ownerStatementId: moduleOwnerIdFor(path, owner.ownerStatementId),
           scopeId: moduleScopeIdFor(path, owner.scopeId),
+          exitSourceOrder: scopeExitOrderById.get(moduleScopeIdFor(path, owner.scopeId)) ?? owner.exitSourceOrder,
           ...(iterations.get(owner.ownerStatementId)?.id
             ? { iterationBindingId: iterations.get(owner.ownerStatementId)!.id }
             : {})
@@ -1174,7 +1233,8 @@ export const compileModuleScalarRuntime = ({
       : {
           ...owner,
           ownerStatementId: moduleOwnerIdFor(path, owner.ownerStatementId),
-          scopeId: moduleScopeIdFor(path, owner.scopeId)
+          scopeId: moduleScopeIdFor(path, owner.scopeId),
+          exitSourceOrder: scopeExitOrderById.get(moduleScopeIdFor(path, owner.scopeId)) ?? owner.exitSourceOrder
         };
   };
   const controlForContextScope = (context: InstanceContext, sourceScopeId: string): BindingControlMetadata => {
@@ -1196,7 +1256,7 @@ export const compileModuleScalarRuntime = ({
     const owner = ownerChain.at(-1);
     return {
       scopeId: moduleScopeIdFor(context.path, sourceScopeId),
-      scopeExitSourceOrder: sourceControl.scopeExitSourceOrder,
+      scopeExitSourceOrder: scopeExitOrderById.get(moduleScopeIdFor(context.path, sourceScopeId)) ?? sourceControl.scopeExitSourceOrder,
       ownerChain,
       kind: owner?.kind ?? "linear"
     };
@@ -1205,6 +1265,7 @@ export const compileModuleScalarRuntime = ({
   // path. The document control map is rebuilt by dslDocument && merged
   // separately; materialized module owners use the explicit qualified IDs.
   for (const context of contextsByKey.values()) {
+    if (!contextIsReachable(context)) continue;
     const relevantScopeIds = new Set<string>([context.bodyScopeId]);
     for (const body of context.definition.bodyStatements) {
       relevantScopeIds.add(sourceScopeIndex?.scopeOfStatement.get(body.statementIndex) ?? context.bodyScopeId);
@@ -1222,6 +1283,7 @@ export const compileModuleScalarRuntime = ({
       });
     }
     for (const body of context.definition.bodyStatements) {
+      if (!moduleBodyStatementIsReachable(context, body)) continue;
       if (body.statementKind !== "element") continue;
       const runtime = bodyRuntimeEntry(context, body);
       if (!runtime) continue;
@@ -1240,12 +1302,27 @@ export const compileModuleScalarRuntime = ({
     }
   }
 
+  const scalarExecutionPositionByRuntimeElementId = new Map(elementOrderById);
+  for (const entry of moduleMaterialization.executionStatements) {
+    if (!entry.runtimeIdentity || scalarExecutionPositionByRuntimeElementId.has(entry.runtimeElementId)) continue;
+    const context = contextsByKey.get(pathKey(entry.instancePath));
+    const body = entry.runtimeIdentity.kind === "moduleBody"
+      ? context?.definition.bodyStatements.find((candidate) => candidate.statementId === entry.sourceStatementId)
+      : undefined;
+    if (context && (!contextIsReachable(context) || (body && !moduleBodyStatementIsReachable(context, body)))) {
+      // Unreachable materialized placeholders must not advance the scalar
+      // cursor into a later concrete module instance before their conditional
+      // owner has been evaluated.
+      scalarExecutionPositionByRuntimeElementId.set(entry.runtimeElementId, 0);
+    }
+  }
+
   return {
     bindingAnalysis: combinedAnalysis,
     scalarProgram,
     moduleSetStatements: moduleSets,
     controlByScopeId,
-    scalarExecutionPositionByRuntimeElementId: elementOrderById,
+    scalarExecutionPositionByRuntimeElementId,
     scalarExecutionPositionByStatementIndex: sourceOrderByStatementIndex,
     materializedPropertyBindings,
     materializedNumericBindings,

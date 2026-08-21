@@ -111,18 +111,39 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("does not lower an omitted optional value from a compound presence guard", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "",
+      "module M(",
+      "  value?: number,",
+      ") {",
+      "  if (hasValue(@value) and @value > 0) {",
+      "    const okay: number = @value",
+      "  }",
+      "}",
+      "",
+      "instance Use = M()"
+    ].join("\n"));
+    expectValid(compiled);
+    expect(compiled.bindingIssueDiagnostics ?? []).toEqual([]);
+    expect(evaluateCompiled(compiled).errors).toEqual([]);
+  });
+
   it("keeps omitted optional scalars absent and materializes supplied values", () => {
     const compiled = compileWithIds([
       "nui 4",
       "module M(value?: number) {",
-      "  if (hasValue(@value)) {",
-      "    point P = coordinate(x: @value, y: 0)",
+      "  if (hasValue(@value) and @value > 0) {",
+      "    const okay: number = @value",
+      "    point P = coordinate(x: @okay, y: 0)",
       "  }",
       "}",
       "instance Absent = M()",
       "instance Present = M(value: 4)"
     ].join("\n"));
     expectValid(compiled);
+    expect(compiled.bindingIssueDiagnostics ?? []).toEqual([]);
     const result = evaluateCompiled(compiled);
     expect(result.errors).toEqual([]);
     const points = compiled.document!.elements.filter((element) => element.name === "P");
@@ -133,6 +154,22 @@ describe("module scalar runtime integration", () => {
     ]);
     const parameterBindings = compiled.bindingAnalysis!.catalog.bindings.filter((binding) => binding.name === "value");
     expect(parameterBindings).toHaveLength(1);
+  });
+
+  it("does not lower an else-local when a negated optional presence guard is false", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (not hasValue(@value)) {",
+      "  } else {",
+      "    const okay: number = @value",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expectValid(compiled);
+    expect(compiled.bindingIssueDiagnostics ?? []).toEqual([]);
+    expect(evaluateCompiled(compiled).errors).toEqual([]);
   });
 
   it("evaluates hasValue in a boolean default per concrete module instance", () => {
