@@ -29,6 +29,7 @@ import { minimumCanvasPanForBounds } from "../geometry/canvasViewportReveal";
 import { getSelectedElementIds } from "../commands/commandRuntime";
 import { resolveDisabledBakeTargetIds } from "../commands/bakeGeometry";
 import { replaceCanvasSelection } from "../commands/selectionCommands";
+import { vscodeBakeOperationResultFromCommand } from "./vscodeBakeOperationResult";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -233,9 +234,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
           canvasHistory: requestCanvasHistory
         });
-        if (typeof result === "object" && result !== null && "status" in result && result.status === "applied") {
-          postCanvasCommit();
-        }
+        const operationResult = vscodeBakeOperationResultFromCommand(result);
+        if (!operationResult) return;
+        if (operationResult.status === "applied") postCanvasCommit();
+        api.postMessage({
+          type: "bakeOperationResult",
+          surface: "canvas",
+          ...operationResult
+        });
       };
 
       if (disabledTargetIds.length === 0) {
@@ -316,9 +322,18 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             bakeDisabledEvaluationIsCurrent: true
           } : {})
         });
-        const applied = typeof result === "object" && result !== null && "status" in result && result.status === "applied";
+        const operationResult = vscodeBakeOperationResultFromCommand(result);
+        const applied = operationResult?.status === "applied";
         if (applied) postCanvasCommit();
         api.postMessage({ type: "bakeSourceResult", requestId: message.requestId, status: applied ? "applied" : "nothing" });
+        if (operationResult) {
+          api.postMessage({
+            type: "bakeOperationResult",
+            surface: "source",
+            requestId: message.requestId,
+            ...operationResult
+          });
+        }
       };
 
       if (disabledTargetIds.length === 0) {
