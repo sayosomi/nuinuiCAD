@@ -83,6 +83,16 @@ export type DslCompletionQueryInput = {
   source: SourceSnapshot;
   position: number;
   semantic?: DslCompletionSemanticSnapshot;
+  /** Completion-only proof for a dirty live source. The live document owns
+   * syntax/context while the last-good document owns Module semantics. */
+  recovery?: DslCompletionRecoveryInput;
+};
+
+export type DslCompletionRecoveryInput = {
+  liveCompiled: CompiledDslDocument;
+  lastGoodCompiled: CompiledDslDocument;
+  /** Live statement index -> reconciler-owned last-good statement identity. */
+  mappedStatementIds: ReadonlyMap<number, string>;
 };
 
 export type DslCompletionQueryResult = {
@@ -137,6 +147,50 @@ const currentStatementIndex = (compiled: CompiledDslDocument, position: number):
   compiled.statements.findIndex((statement) =>
     position >= statement.documentRange.from && position <= statement.documentRange.to
   );
+
+const recoveredModuleStatementAt = (
+  recovery: DslCompletionRecoveryInput | undefined,
+  position: number
+): { compiled: CompiledDslDocument; statementIndex: number } | null => {
+  if (!recovery || !recovery.lastGoodCompiled.statementMap || !recovery.lastGoodCompiled.moduleSemanticAnalysis) return null;
+  const liveStatementIndex = currentStatementIndex(recovery.liveCompiled, position);
+  if (liveStatementIndex < 0) return null;
+  const liveStatement = recovery.liveCompiled.statements[liveStatementIndex];
+  if (liveStatement?.kind !== "moduleInstance") return null;
+
+  const statementId = recovery.mappedStatementIds.get(liveStatementIndex);
+  if (!statementId) return null;
+  const statementIndex = recovery.lastGoodCompiled.statementMap.statementIndexByStatementId?.get(statementId);
+  if (statementIndex === undefined) return null;
+  const lastGoodStatement = recovery.lastGoodCompiled.statements[statementIndex];
+  if (lastGoodStatement?.kind !== "moduleInstance") return null;
+
+  const instance = recovery.lastGoodCompiled.moduleSemanticAnalysis.instancesByStatementId.get(statementId);
+  const definitionStatementId = instance?.callee?.definitionStatementId;
+  if (!definitionStatementId) return null;
+  const definitionIndex = recovery.lastGoodCompiled.statementMap.statementIndexByStatementId?.get(definitionStatementId);
+  if (definitionIndex === undefined || recovery.lastGoodCompiled.statements[definitionIndex]?.kind !== "moduleDefinition") return null;
+  if (!recovery.lastGoodCompiled.moduleSemanticAnalysis.definitionsByStatementId.has(definitionStatementId)) return null;
+
+  // The live callee must resolve to a definition which inherited that exact
+  // last-good identity. A matching call/instance name alone is insufficient.
+  const liveNamespace = recovery.liveCompiled.sourceLexicalNamespace;
+  if (!liveNamespace) return null;
+  const liveCallee = resolveSourceLexicalDeclaration(liveNamespace, liveStatementIndex, liveStatement.moduleName);
+  if (liveCallee.kind !== "resolved" || liveCallee.declaration.kind !== "moduleDefinition") return null;
+  if (recovery.mappedStatementIds.get(liveCallee.declaration.statementIndex) !== definitionStatementId) return null;
+
+  return { compiled: recovery.lastGoodCompiled, statementIndex };
+};
+
+const recoveryIsExact = (
+  source: SourceSnapshot,
+  recovery: DslCompletionRecoveryInput | undefined
+) => Boolean(
+  recovery &&
+  recovery.liveCompiled.spans.sourceMap.sourceRevision === source.sourceRevision &&
+  recovery.liveCompiled.spans.sourceMap.source === source.normalizedSource
+);
 
 const statementIndexFor = (
   compiled: CompiledDslDocument | undefined,
@@ -410,7 +464,8 @@ const moduleCandidatesAt = (
   semantic: DslCompletionSemanticSnapshot | undefined,
   compiled: CompiledDslDocument | undefined,
   exact: boolean,
-  statementIndex: number
+  statementIndex: number,
+  recovery: DslCompletionRecoveryInput | undefined
 ) => {
   if (context.kind === "moduleQualifiedMember" && compiled && exact) {
     const sourceCandidates = sourceGeometryQualifiedMembers(
@@ -421,7 +476,6 @@ const moduleCandidatesAt = (
     );
     if (sourceCandidates !== null) return sourceCandidates;
   }
-  if (!compiled || !semantic || !exact || (context.kind !== "moduleCallee" && !compiled.moduleSemanticAnalysis)) return [];
   const moduleKind = context.kind === "moduleCallee"
     ? "callee"
     : context.kind === "moduleArgumentLabel"
@@ -431,14 +485,14 @@ const moduleCandidatesAt = (
         : context.kind === "moduleQualifiedMember"
           ? "qualifiedMember"
           : "reference";
-  return moduleCompletionCandidates({
-    compiled,
+  const request = (semanticCompiled: CompiledDslDocument, semanticStatementIndex?: number) => moduleCompletionCandidates({
+    compiled: semanticCompiled,
     cursorPosition: position,
     kind: moduleKind,
     sourceText: sourceTextForLogicalInput(input),
     logicalCursorPosition: input.localPosition,
     liveStatementText: input.lineText,
-    ...(statementIndex >= 0 ? { statementIndex } : {}),
+    ...(semanticStatementIndex !== undefined ? { statementIndex: semanticStatementIndex } : {}),
     ...(context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember"
       ? { argumentIndex: context.argumentIndex }
       : {}),
@@ -448,6 +502,18 @@ const moduleCandidatesAt = (
       ...(context.expectedScalarType ? { expectedScalarType: context.expectedScalarType } : {})
     } : {})
   }).map(moduleCandidate);
+
+  // Exact semantic snapshots remain authoritative whenever they can answer.
+  // A fatal current compile may still be exact in source/revision but lack the
+  // Module semantic instance needed for a transient argument-label site.
+  if (compiled && semantic && exact && (context.kind === "moduleCallee" || compiled.moduleSemanticAnalysis)) {
+    const candidates = request(compiled, statementIndex >= 0 ? statementIndex : undefined);
+    if (candidates.length > 0 || context.kind !== "moduleArgumentLabel") return candidates;
+  }
+
+  if (context.kind !== "moduleArgumentLabel") return [];
+  const recovered = recoveredModuleStatementAt(recovery, position);
+  return recovered ? request(recovered.compiled, recovered.statementIndex) : [];
 };
 
 const sourceTextForLogicalInput = (
@@ -529,7 +595,8 @@ const queryCandidates = (
   semantic: DslCompletionSemanticSnapshot | undefined,
   compiled: CompiledDslDocument | undefined,
   exact: boolean,
-  statementIndex: number
+  statementIndex: number,
+  recovery: DslCompletionRecoveryInput | undefined
 ) => {
   if (context.kind === "keyword") return context.options.map((label) => ({ kind: "keyword" as const, label }));
   if (context.kind === "construction") return constructionCompletionCandidates(context.category).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
@@ -538,7 +605,7 @@ const queryCandidates = (
   if (context.kind === "moduleParameterType") return dslModuleParameterTypeNames.map((label) => ({ kind: "type" as const, label, identity: label }));
   if (context.kind === "numericTypeOption") return context.options.map((label) => ({ kind: "argumentName" as const, label, identity: label }));
   if (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember" || context.kind === "moduleReference") {
-    return moduleCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex);
+    return moduleCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex, recovery);
   }
   if (context.kind === "elementParameter") {
     return compiled && exact
@@ -596,7 +663,7 @@ const queryCandidates = (
  * result. If a semantic snapshot is not proven current, syntax candidates
  * remain available while source-semantic candidates are omitted.
  */
-export const queryDslCompletion = ({ source, position, semantic }: DslCompletionQueryInput): DslCompletionQueryResult | null => {
+export const queryDslCompletion = ({ source, position, semantic, recovery: requestedRecovery }: DslCompletionQueryInput): DslCompletionQueryResult | null => {
   if (source.normalizedSource.includes("\r") || position < 0 || position > source.normalizedSource.length) return null;
   const input = logicalInputAt(source, position);
   const startsInBlockComment = input.statement
@@ -606,8 +673,9 @@ export const queryDslCompletion = ({ source, position, semantic }: DslCompletion
   if (!context) return null;
   const compiled = semantic?.compiled;
   const exact = semanticIsExact(source, semantic);
+  const recovery = recoveryIsExact(source, requestedRecovery) ? requestedRecovery : undefined;
   const statementIndex = statementIndexFor(compiled, position, exact);
-  let candidates = queryCandidates(context, input, position, semantic, compiled, exact, statementIndex);
+  let candidates = queryCandidates(context, input, position, semantic, compiled, exact, statementIndex, recovery);
 
   // Module scalar references are intentionally additive to ordinary scalar
   // candidates, but only through the existing source semantic Module owner.
