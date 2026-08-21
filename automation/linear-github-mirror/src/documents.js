@@ -45,6 +45,9 @@ const DOCUMENTS_QUERY = `
   }
 `;
 
+const CREATE_VISIBILITY_ATTEMPTS = 12;
+const CREATE_VISIBILITY_DELAY_MS = 1_000;
+
 export function documentSafetySweepMessage(documentId) {
   return {
     source: "scheduled-document-safety-sweep",
@@ -109,7 +112,15 @@ export async function reconcileDocumentById(documentId, env, options = {}) {
   }
 
   await ensureGithubLabel(DOCUMENT_LABEL, env, gh);
-  if (issueNumber == null) issueNumber = await createGithubDocumentIssue(document, env, gh);
+  if (issueNumber == null) {
+    issueNumber = await createGithubDocumentIssue(document, env, gh);
+    await waitForGithubDocumentVisibility(document.id, issueNumber, env, {
+      githubFetch: gh,
+      sleep: options.sleep,
+      attempts: options.visibilityAttempts,
+      delayMs: options.visibilityDelayMs,
+    });
+  }
   await updateGithubDocumentIssue(issueNumber, document, env, gh);
   const comments = await fetchDocumentComments(document.id, env, queryLinear);
   await reconcileCommentsToGithubIssue(comments, issueNumber, env, { githubFetch: gh });
@@ -159,6 +170,32 @@ export function renderGithubDocumentBody(document) {
 export function extractLinearDocumentId(body) {
   const match = String(body ?? "").match(/<!--\s*linear-document-id:([^\s>]+)\s*-->/);
   return match?.[1] ?? null;
+}
+
+export async function waitForGithubDocumentVisibility(documentId, expectedIssueNumber, env, options = {}) {
+  const gh = options.githubFetch ?? githubFetch;
+  const sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const attempts = Number.isInteger(options.attempts) && options.attempts > 0
+    ? options.attempts
+    : CREATE_VISIBILITY_ATTEMPTS;
+  const delayMs = Number.isFinite(options.delayMs) && options.delayMs >= 0
+    ? options.delayMs
+    : CREATE_VISIBILITY_DELAY_MS;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const visibleIssueNumber = await findGithubDocumentIssueByLinearId(documentId, env, gh);
+    if (visibleIssueNumber === expectedIssueNumber) return visibleIssueNumber;
+    if (visibleIssueNumber != null) {
+      throw new Error(
+        `Linear document ${documentId} resolved to GitHub #${visibleIssueNumber} after creating #${expectedIssueNumber}`,
+      );
+    }
+    if (attempt < attempts) await sleep(delayMs);
+  }
+
+  throw new Error(
+    `GitHub document mirror #${expectedIssueNumber} was not visible after creation for Linear document ${documentId}`,
+  );
 }
 
 async function findGithubDocumentIssueByLinearId(documentId, env, gh) {
