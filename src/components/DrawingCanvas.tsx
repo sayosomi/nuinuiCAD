@@ -129,7 +129,8 @@ type CanvasOverlapSessionState = CanvasOverlapCandidateSession;
 const WHEEL_ZOOM_BASE = 1.1;
 const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
 const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
-const DEFERRED_DRAG_THRESHOLD_PX = 8;
+const DEFERRED_BEZIER_HANDLE_DRAG_THRESHOLD_PX = 3;
+const POINT_DRAG_THRESHOLD_PX = 8;
 const DEFERRED_POINTER_TIMEOUT_MS = 5000;
 const OVERLAP_WHEEL_THRESHOLD_PX = 24;
 
@@ -1004,7 +1005,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         return;
       }
       if (intent.pointerReleased) {
-        if (movement >= DEFERRED_DRAG_THRESHOLD_PX) {
+        if (movement >= DEFERRED_BEZIER_HANDLE_DRAG_THRESHOLD_PX) {
           hostAdapter.moveBezierHandleByDelta({
             elementId: handle.curveId,
             bezierHandleRole: handle.role,
@@ -1047,7 +1048,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
     const selectionMode = selectionModeFor(intent);
     const isPointCandidate = frontmostCandidate.kind === "point";
-    if (identityCandidates.length > 1 && (!isPointCandidate || (intent.pointerReleased && movement < DEFERRED_DRAG_THRESHOLD_PX))) {
+    if (identityCandidates.length > 1 && (!isPointCandidate || (intent.pointerReleased && movement < POINT_DRAG_THRESHOLD_PX))) {
       focusCanvas();
       openOverlapSession(screen, identityCandidates, selectionMode);
       return;
@@ -1070,7 +1071,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
     const dragBase = currentDocumentDragBase();
     if (intent.pointerReleased) {
-      if (movement >= DEFERRED_DRAG_THRESHOLD_PX) {
+      if (movement >= POINT_DRAG_THRESHOLD_PX) {
         const worldDelta = constrainedWorldDelta({
           screenDx: intent.latest.clientX - intent.start.clientX,
           screenDy: intent.latest.clientY - intent.start.clientY,
@@ -1246,7 +1247,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const screenDx = event.clientX - drag.startClientX;
     const screenDy = event.clientY - drag.startClientY;
     const movement = Math.hypot(screenDx, screenDy);
-    const dragActivated = drag.dragActivated || movement >= DEFERRED_DRAG_THRESHOLD_PX;
+    const dragActivated = drag.dragActivated || movement >= POINT_DRAG_THRESHOLD_PX;
     if (drag.overlapCandidates && drag.overlapSelectionBefore && !dragActivated) {
       const rect = event.currentTarget.getBoundingClientRect();
       const screen = {
@@ -1475,7 +1476,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       const screenDx = event.clientX - pointDrag.startClientX;
       const screenDy = event.clientY - pointDrag.startClientY;
       const movement = Math.hypot(screenDx, screenDy);
-      if (!pointDrag.dragActivated && movement < DEFERRED_DRAG_THRESHOLD_PX) return;
+      if (!pointDrag.dragActivated && movement < POINT_DRAG_THRESHOLD_PX) return;
 
       let activePointDrag = pointDrag;
       if (!pointDrag.dragActivated) {
