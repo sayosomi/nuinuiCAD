@@ -109,6 +109,12 @@ export type ModuleScalarExpressionSemantic = {
   references: readonly ModuleScalarReference[];
   geometryProperties: readonly ModuleGeometryPropertyReference[];
   geometryBuiltinArguments: readonly ModuleGeometryBuiltinArgumentSemantic[];
+  /** Validated `hasValue(@parameter)` facts, keyed by intrinsic call span. */
+  hasValueParameters: readonly {
+    span: DslSpan;
+    definitionStatementId: StatementIdentity;
+    parameterIndex: number;
+  }[];
 };
 
 export type ModuleGeometryBuiltinArgumentSemantic = {
@@ -161,6 +167,7 @@ export type ResolvedModuleParameter = {
   parameterIndex: number;
   name: string;
   type: DslModuleParameterType | null;
+  optional: boolean;
   required: boolean;
   defaultValue: string | null;
   defaultSpan: DslSpan | null;
@@ -180,6 +187,7 @@ export type ResolvedModuleParameterBinding = {
   argumentLabel: string | null;
   argumentSpan: DslSpan | null;
   usesDefault: boolean;
+  state: "requiredSupplied" | "requiredOmitted" | "defaultedOmitted" | "optionalSupplied" | "optionalOmitted";
   value: ModuleArgumentSemantic | null;
 };
 
@@ -237,6 +245,8 @@ export type ModuleBodyStatementSemantic = {
   geometryReferences: readonly ModuleGeometryReferenceSite[];
   textTemplateHoles: readonly ModuleTextTemplateHoleSite[];
   scalarTarget: ModuleScalarSourceTarget | null;
+  /** Optional module parameters proven present at this statement's lexical site. */
+  presenceParameterKeys: readonly string[];
 };
 
 export type ResolvedModuleCallee = {

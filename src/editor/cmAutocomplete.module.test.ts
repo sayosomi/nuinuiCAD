@@ -148,6 +148,26 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     ]));
   });
 
+  it("offers hasValue and optional parameters only in their valid completion contexts", async () => {
+    const source = [
+      "nui 4",
+      "module M(value?: number) {",
+      "  const outside: number = @",
+      "  if (hasValue(@value)) {",
+      "    const inside: number = @",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n");
+    const outside = await completionFor(source, source.indexOf("const outside") + "const outside: number = @".length);
+    expect(outside?.options.map((option) => option.label)).not.toContain("value");
+    const inside = await completionFor(source, source.indexOf("const inside") + "const inside: number = @".length);
+    expect(inside?.options.map((option) => option.label)).toContain("value");
+    const hasValue = await completionFor(source, source.indexOf("hasValue(@value") + "hasValue(@".length);
+    expect(hasValue?.options.map((option) => option.label)).toContain("value");
+    expect(hasValue?.options.map((option) => option.label)).toContain("hasValue");
+  });
+
   it("uses nested builtin argument types for boolean module scalar arguments", async () => {
     const lastGood = [
       "nui 4",

@@ -34,6 +34,7 @@ import type {
   ModuleScalarLocalDiagnostic,
   ModuleScalarReferenceResolution
 } from "./moduleScalarExpression";
+import { presenceFactsForSemanticFalse, presenceFactsForSemanticTruth } from "./moduleScalarExpression";
 
 export type ModuleBodyDefinition = {
   statement: Extract<DslStatement, { kind: "moduleDefinition" }>;
@@ -51,7 +52,9 @@ type AnalyzeExpression = (
   resolver: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution,
   bareResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null,
   geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution,
-  geometryBuiltinResolver?: ModuleGeometryBuiltinReferenceResolver
+  geometryBuiltinResolver?: ModuleGeometryBuiltinReferenceResolver,
+  resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution,
+  presenceFacts?: ReadonlySet<string>
 ) => ModuleScalarExpressionSemantic | null;
 type ResolveGeometry = (
   statementIndex: number,
@@ -63,9 +66,10 @@ type ResolveGeometry = (
     allowCoordinate?: boolean;
     allowNone?: boolean;
     role?: ModuleGeometryReferenceRole;
-    scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+    scalarResolver?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
     bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
     geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
+    presenceFacts?: ReadonlySet<string>;
   }
 ) => ModuleGeometryReferenceSemantic;
 type ResolvePlainScalarTarget = (
@@ -101,7 +105,8 @@ const textParameterSemantic = (raw: string, span: DslSpan): ModuleScalarExpressi
   type: { kind: "string" },
   references: [],
   geometryProperties: [],
-  geometryBuiltinArguments: []
+  geometryBuiltinArguments: [],
+  hasValueParameters: []
 });
 
 const isModuleScalarTarget = (target: ModuleSourceTarget | null): target is ModuleScalarSourceTarget =>
@@ -118,13 +123,14 @@ export const analyzeModuleBody = ({
   stableStatementIdByIndex,
   input,
   addLocal,
-  analyzeExpression,
+  analyzeExpression: analyzeSourceExpression,
   resolveGeometry,
   resolvePlainScalarTarget,
   resolveBodyScalar,
   resolveBodyBareScalar,
   resolveBodyGeometryProperty,
-  resolveBodyGeometryBuiltin
+  resolveBodyGeometryBuiltin,
+  resolveBodyHasValue
 }: {
   definition: ModuleBodyDefinition;
   statements: readonly DslStatement[];
@@ -134,15 +140,56 @@ export const analyzeModuleBody = ({
   analyzeExpression: AnalyzeExpression;
   resolveGeometry: ResolveGeometry;
   resolvePlainScalarTarget: ResolvePlainScalarTarget;
-  resolveBodyScalar: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+  resolveBodyScalar: (statementIndex: number, reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
   resolveBodyBareScalar: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveBodyGeometryProperty: (statementIndex: number, reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
   resolveBodyGeometryBuiltin: (statementIndex: number, reference: ModuleGeometryBuiltinReferenceInput) => ModuleGeometryReferenceSemantic;
+  resolveBodyHasValue: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
 }): ModuleBodySemanticResult => {
   const localScalars: NonNullable<ModuleDefinitionSemantic["localScalars"]>[number][] = [];
   const bodyStatements: ModuleBodyStatementSemantic[] = [];
   const exports: ResolvedModuleExport[] = [];
   const exportByName = new Map<string, ResolvedModuleExport>();
+  const conditionSemantics = new Map<number, ModuleScalarExpressionSemantic>();
+
+  const presenceFactsForStatement = (statementIndex: number): ReadonlySet<string> => {
+    const facts = new Set<string>();
+    let enclosing = statements[statementIndex]?.enclosing ?? null;
+    while (enclosing) {
+      const condition = conditionSemantics.get(enclosing.statementIndex);
+      if (condition) {
+        const branchFacts = enclosing.branch === "then"
+          ? presenceFactsForSemanticTruth(condition)
+          : presenceFactsForSemanticFalse(condition);
+        for (const fact of branchFacts) facts.add(fact);
+      }
+      enclosing = statements[enclosing.statementIndex]?.enclosing ?? null;
+    }
+    return facts;
+  };
+
+  const analyzeExpression = (
+    statementIndex: number,
+    raw: string,
+    span: DslSpan,
+    expectedType: ScalarType | null,
+    resolver: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution,
+    bareResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null,
+    geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution,
+    geometryBuiltinResolver?: ModuleGeometryBuiltinReferenceResolver,
+    resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution
+  ) => analyzeSourceExpression(
+    statementIndex,
+    raw,
+    span,
+    expectedType,
+    resolver,
+    bareResolver,
+    geometryPropertyResolver,
+    geometryBuiltinResolver,
+    resolveHasValue ?? ((reference) => resolveBodyHasValue(statementIndex, reference)),
+    presenceFactsForStatement(statementIndex)
+  );
 
   const registerExport = (entry: ResolvedModuleExport, span: DslSpan) => {
     if (exportByName.has(entry.name)) {
@@ -212,7 +259,7 @@ export const analyzeModuleBody = ({
         source.slice(hole.contentSpan.start, hole.contentSpan.end),
         hole.contentSpan,
         null,
-        (reference) => resolveBodyScalar(statementIndex, reference),
+        (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
         (reference) => resolveBodyBareScalar(statementIndex, reference),
         (reference) => resolveBodyGeometryProperty(statementIndex, reference),
         (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
@@ -243,9 +290,10 @@ export const analyzeModuleBody = ({
           {
             allowCoordinate: true,
             role: "pointReference",
-            scalarResolver: (reference) => resolveBodyScalar(statementIndex, reference),
+            scalarResolver: (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
             bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
-            geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+            geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+            presenceFacts: presenceFactsForStatement(statementIndex)
           }
         );
         addGeometry(bodySemantic, "intermediates:point", pointSpan, reference);
@@ -258,7 +306,7 @@ export const analyzeModuleBody = ({
           source.slice(fieldSpan.start, fieldSpan.end),
           fieldSpan,
           { kind: "number" },
-          (reference) => resolveBodyScalar(statementIndex, reference),
+          (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
           (reference) => resolveBodyBareScalar(statementIndex, reference),
           (reference) => resolveBodyGeometryProperty(statementIndex, reference),
           (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
@@ -279,7 +327,16 @@ export const analyzeModuleBody = ({
       });
     }
     const bodySemantic: ModuleBodyStatementSemantic | null = statementId
-      ? { statementId, statementIndex, statementKind: statement.kind, scalarExpressions: [], geometryReferences: [], textTemplateHoles: [], scalarTarget: null }
+      ? {
+          statementId,
+          statementIndex,
+          statementKind: statement.kind,
+          scalarExpressions: [],
+          geometryReferences: [],
+          textTemplateHoles: [],
+          scalarTarget: null,
+          presenceParameterKeys: [...presenceFactsForStatement(statementIndex)]
+        }
       : null;
 
     if (statement.kind === "typedDeclaration") {
@@ -291,7 +348,7 @@ export const analyzeModuleBody = ({
             statement.initializer,
             initializerSpan,
             statement.declaredType,
-            (reference) => resolveBodyScalar(statementIndex, reference),
+            (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
             undefined,
             (reference) => resolveBodyGeometryProperty(statementIndex, reference),
             (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
@@ -327,7 +384,7 @@ export const analyzeModuleBody = ({
         statement.expression,
         expressionSpan,
         target.type,
-        (reference) => resolveBodyScalar(statementIndex, reference),
+        (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
         undefined,
         (reference) => resolveBodyGeometryProperty(statementIndex, reference),
         (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
@@ -391,13 +448,14 @@ export const analyzeModuleBody = ({
                 addGeometry(bodySemantic, parameterKey, reference.span, reference);
               }
             } else {
-              const reference = resolveGeometry(statementIndex, definition.statementIndex, value, valueSpan, expected, {
+                const reference = resolveGeometry(statementIndex, definition.statementIndex, value, valueSpan, expected, {
                 allowCoordinate: parameter.allowCoordinate === true,
                 allowNone: parameter.allowNone,
                 role: parameter.kind === "reference" ? "pointReference" : parameter.kind === "lineEndpointReference" ? "lineEndpointReference" : "lineReference",
-                scalarResolver: (reference) => resolveBodyScalar(statementIndex, reference),
+                scalarResolver: (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
                 bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
-                geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+                geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+                presenceFacts: presenceFactsForStatement(statementIndex)
               });
               addGeometry(bodySemantic, parameterKey, valueSpan, reference);
             }
@@ -416,7 +474,7 @@ export const analyzeModuleBody = ({
                   value,
                   valueSpan,
                   expectedType,
-                  (reference) => resolveBodyScalar(statementIndex, reference),
+                  (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
                   (reference) => resolveBodyBareScalar(statementIndex, reference),
                   (reference) => resolveBodyGeometryProperty(statementIndex, reference),
                   (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
@@ -431,6 +489,10 @@ export const analyzeModuleBody = ({
         }
         if (bodySemantic) bodySemantic.scalarExpressions = [...bodySemantic.scalarExpressions].sort((left, right) => left.span.start - right.span.start);
       }
+    }
+    const condition = bodySemantic?.scalarExpressions.find((site) => site.parameterKey === "condition")?.expression;
+    if (statement.kind === "element" && statement.type === "conditionalGroup" && condition) {
+      conditionSemantics.set(statementIndex, condition);
     }
     if (bodySemantic) bodyStatements.push(bodySemantic);
   }

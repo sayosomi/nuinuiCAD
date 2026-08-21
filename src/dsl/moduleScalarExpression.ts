@@ -16,12 +16,86 @@ import type {
   ModuleSourceTarget
 } from "./moduleSemanticTypes";
 
+export const moduleParameterPresenceKey = (definitionStatementId: string, parameterIndex: number) =>
+  `${definitionStatementId}:${parameterIndex}`;
+
+export const presenceFactsForTruth = (ast: ScalarExpressionAst): ReadonlySet<string> => {
+  if (ast.kind === "group") return presenceFactsForTruth(ast.expression);
+  if (ast.kind === "unary" && ast.operator === "!") return presenceFactsForFalse(ast.operand);
+  if (ast.kind === "binary" && ast.operator === "&&") {
+    return new Set([...presenceFactsForTruth(ast.left), ...presenceFactsForTruth(ast.right)]);
+  }
+  if (ast.kind === "binary" && ast.operator === "||") return new Set();
+  return new Set();
+};
+
+export const presenceFactsForFalse = (ast: ScalarExpressionAst): ReadonlySet<string> => {
+  if (ast.kind === "group") return presenceFactsForFalse(ast.expression);
+  if (ast.kind === "unary" && ast.operator === "!") return presenceFactsForTruth(ast.operand);
+  if (ast.kind === "binary" && ast.operator === "&&") return presenceFactsForFalse(ast.left);
+  if (ast.kind === "binary" && ast.operator === "||") {
+    return new Set([...presenceFactsForFalse(ast.left), ...presenceFactsForFalse(ast.right)]);
+  }
+  return new Set();
+};
+
+const presenceFactsForResolvedAst = (
+  ast: ScalarExpressionAst,
+  hasValueKeyBySpan: ReadonlyMap<number, string>,
+  branch: "truth" | "false"
+): ReadonlySet<string> => {
+  const intrinsicKey = (ast.kind === "booleanLiteral" || (ast.kind === "call" && ast.name === "hasValue"))
+    ? hasValueKeyBySpan.get(ast.span.start)
+    : undefined;
+  if (intrinsicKey) return branch === "truth" ? new Set([intrinsicKey]) : new Set();
+  if (ast.kind === "group") return presenceFactsForResolvedAst(ast.expression, hasValueKeyBySpan, branch);
+  if (ast.kind === "call" && ast.name === "hasValue") {
+    const key = hasValueKeyBySpan.get(ast.span.start);
+    return key && branch === "truth" ? new Set([key]) : new Set();
+  }
+  if (ast.kind === "unary" && ast.operator === "!") {
+    return presenceFactsForResolvedAst(ast.operand, hasValueKeyBySpan, branch === "truth" ? "false" : "truth");
+  }
+  if (ast.kind === "binary" && ast.operator === "&&") {
+    return branch === "truth"
+      ? new Set([
+          ...presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "truth"),
+          ...presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "truth")
+        ])
+      : presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "false");
+  }
+  if (ast.kind === "binary" && ast.operator === "||") {
+    return branch === "false"
+      ? new Set([
+          ...presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "false"),
+          ...presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "false")
+        ])
+      : new Set();
+  }
+  return new Set();
+};
+
+export const presenceFactsForSemanticTruth = (semantic: ModuleScalarExpressionSemantic): ReadonlySet<string> =>
+  presenceFactsForResolvedAst(
+    semantic.ast,
+    new Map(semantic.hasValueParameters.map((entry) => [entry.span.start, moduleParameterPresenceKey(entry.definitionStatementId, entry.parameterIndex)])),
+    "truth"
+  );
+
+export const presenceFactsForSemanticFalse = (semantic: ModuleScalarExpressionSemantic): ReadonlySet<string> =>
+  presenceFactsForResolvedAst(
+    semantic.ast,
+    new Map(semantic.hasValueParameters.map((entry) => [entry.span.start, moduleParameterPresenceKey(entry.definitionStatementId, entry.parameterIndex)])),
+    "false"
+  );
+
 export type ModuleGeometryPropertyReferenceInput = {
   elementName: string;
   property: string;
   elementNameSpan: DslSpan;
   propertySpan: DslSpan;
   span: DslSpan;
+  presenceFacts?: ReadonlySet<string>;
 };
 
 export type ModuleScalarLocalDiagnostic = {
@@ -52,6 +126,7 @@ export type ModuleGeometryBuiltinReferenceInput = {
   name: string;
   span: DslSpan;
   expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+  presenceFacts?: ReadonlySet<string>;
 };
 
 export type ModuleGeometryBuiltinReferenceResolver = (
@@ -78,13 +153,16 @@ const resolveAndTypecheck = ({
   ast,
   expectedType,
   resolveReference,
+  resolveHasValue,
   resolveBareReference,
   resolveGeometryProperty,
-  resolveGeometryBuiltin
+  resolveGeometryBuiltin,
+  presenceFacts: initialPresenceFacts = new Set()
 }: {
   ast: ScalarExpressionAst;
   expectedType: ScalarType | null;
-  resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+  resolveReference: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
+  resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: {
     elementName: string;
@@ -92,8 +170,10 @@ const resolveAndTypecheck = ({
     elementNameSpan: DslSpan;
     propertySpan: DslSpan;
     span: DslSpan;
+    presenceFacts?: ReadonlySet<string>;
   }) => ModuleGeometryPropertyReferenceResolution;
   resolveGeometryBuiltin?: ModuleGeometryBuiltinReferenceResolver;
+  presenceFacts?: ReadonlySet<string>;
 }): { semantic: ModuleScalarExpressionSemantic; diagnostics: ModuleScalarLocalDiagnostic[] } => {
   const diagnostics: ModuleScalarLocalDiagnostic[] = [];
   const resolvedReferences: ModuleScalarReference[] = [];
@@ -101,18 +181,22 @@ const resolveAndTypecheck = ({
   const geometryBuiltinArguments: ModuleGeometryBuiltinArgumentSemantic[] = [];
   const resolvedTypes: ScalarExpressionResolvedReference[] = [];
   const resolvedChoiceTypes = new Map<number, ScalarType>();
+  const hasValueParameters: { span: DslSpan; definitionStatementId: string; parameterIndex: number }[] = [];
   let invalidGeometryProperty = false;
 
-  const resolveNodeReference = (node: Extract<ScalarExpressionAst, { kind: "reference" }>): ScalarType | null => {
+  const resolveNodeReference = (node: Extract<ScalarExpressionAst, { kind: "reference" }>, presenceFacts: ReadonlySet<string>): ScalarType | null => {
     const found = { name: node.name, span: node.span };
-    const resolution = resolveReference(found);
+    const resolution = resolveReference(found, presenceFacts);
     resolvedReferences.push({ ...found, nameSpan: node.nameSpan, target: resolution.target, resolution: resolution.resolution });
     if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
     resolvedTypes.push({ kind: "resolvedType", bindingId: null, type: resolution.target ? scalarTypeFromTarget(resolution.target, resolution) : null });
     return resolution.target ? scalarTypeFromTarget(resolution.target, resolution) : null;
   };
 
-  const resolve = (node: ScalarExpressionAst): ScalarExpressionAst => {
+  const presenceFactsFor = (node: ScalarExpressionAst, branch: "truth" | "false"): ReadonlySet<string> =>
+    presenceFactsForResolvedAst(node, new Map(hasValueParameters.map((entry) => [entry.span.start, moduleParameterPresenceKey(entry.definitionStatementId, entry.parameterIndex)])), branch);
+
+  const resolve = (node: ScalarExpressionAst, presenceFacts: ReadonlySet<string> = new Set()): ScalarExpressionAst => {
     switch (node.kind) {
       case "numberLiteral":
       case "stringLiteral":
@@ -132,9 +216,26 @@ const resolveAndTypecheck = ({
         return node;
       }
       case "reference":
-        resolveNodeReference(node);
+        resolveNodeReference(node, presenceFacts);
         return node;
       case "call": {
+        if (node.name === "hasValue" && resolveHasValue) {
+          const argument = node.args.length === 1 && node.args[0]?.kind === "positional" ? node.args[0].expression : null;
+          if (argument?.kind === "reference") {
+            const resolution = resolveHasValue({ name: argument.name, span: argument.span });
+            resolvedReferences.push({ name: argument.name, span: argument.span, nameSpan: argument.nameSpan, target: resolution.target, resolution: resolution.resolution });
+            if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
+            const target = resolution.target;
+            if (target?.kind === "parameter" && !resolution.diagnostic) {
+              hasValueParameters.push({ span: node.span, definitionStatementId: target.definitionStatementId, parameterIndex: target.parameterIndex });
+              return { kind: "booleanLiteral", span: node.span, value: false };
+            }
+            return { kind: "booleanLiteral", span: node.span, value: false };
+          } else {
+            diagnostics.push(localIssue("module-has-value-argument", node.span, "hasValue は optional module parameter の参照を1つだけ受け取ります。"));
+            return { kind: "booleanLiteral", span: node.span, value: false };
+          }
+        }
         const definition = getBuiltinFunctionDefinition(node.name);
         const signature = definition?.signatures.find((candidate) =>
           candidate.callingStyle === "positional" &&
@@ -159,7 +260,8 @@ const resolveAndTypecheck = ({
                 argumentIndex,
                 name: sourceArgument.kind === "reference" ? sourceArgument.name : `${sourceArgument.elementName}.${sourceArgument.property}`,
                 span: sourceArgument.span,
-                expectedGeometryType: parameterType
+                expectedGeometryType: parameterType,
+                presenceFacts
               });
               geometryBuiltinArguments.push({
                 builtinName: definition.name,
@@ -176,7 +278,7 @@ const resolveAndTypecheck = ({
               }
               return argument;
             }
-            return { ...argument, expression: resolve(sourceArgument) };
+            return { ...argument, expression: resolve(sourceArgument, presenceFacts) };
           })
         };
       }
@@ -193,7 +295,8 @@ const resolveAndTypecheck = ({
             property: node.property,
             elementNameSpan: node.elementNameSpan,
             propertySpan: node.propertySpan,
-            span: node.span
+            span: node.span,
+            presenceFacts
           });
           geometryProperties.push({
             geometryName: node.elementName,
@@ -208,13 +311,17 @@ const resolveAndTypecheck = ({
           if (!resolution.target) invalidGeometryProperty = true;
           return node;
         }
-      case "group": return { ...node, expression: resolve(node.expression) };
-      case "unary": return { ...node, operand: resolve(node.operand) };
-      case "binary": return { ...node, left: resolve(node.left), right: resolve(node.right) };
+      case "group": return { ...node, expression: resolve(node.expression, presenceFacts) };
+      case "unary": return { ...node, operand: resolve(node.operand, presenceFacts) };
+      case "binary": {
+        const left = resolve(node.left, presenceFacts);
+        const leftFacts = node.operator === "&&" ? presenceFactsFor(left, "truth") : node.operator === "||" ? presenceFactsFor(left, "false") : new Set<string>();
+        return { ...node, left, right: resolve(node.right, new Set([...presenceFacts, ...leftFacts])) };
+      }
     }
   };
 
-  const resolvedAst = resolve(ast);
+  const resolvedAst = resolve(ast, initialPresenceFacts);
   const geometryBuiltinArgumentTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>();
   for (const occurrence of geometryBuiltinArguments) {
     geometryBuiltinArgumentTargets.set(
@@ -252,7 +359,7 @@ const resolveAndTypecheck = ({
     ));
   }
   const type = diagnostics.length === 0 && !invalidGeometryProperty ? checked.type : null;
-  return { semantic: { ast, type, references: resolvedReferences, geometryProperties, geometryBuiltinArguments }, diagnostics };
+  return { semantic: { ast, type, references: resolvedReferences, geometryProperties, geometryBuiltinArguments, hasValueParameters }, diagnostics };
 };
 
 const typecheckGeometryTarget = (
@@ -290,18 +397,22 @@ export const parseAndCheckModuleScalarExpression = ({
   span,
   expectedType,
   resolveReference,
+  resolveHasValue,
   resolveBareReference,
   resolveGeometryProperty,
   resolveGeometryBuiltin,
+  presenceFacts,
   diagnostics
 }: {
   raw: string;
   span: DslSpan;
   expectedType: ScalarType | null;
-  resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+  resolveReference: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
+  resolveHasValue?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
   resolveGeometryBuiltin?: ModuleGeometryBuiltinReferenceResolver;
+  presenceFacts?: ReadonlySet<string>;
   diagnostics: ModuleScalarLocalDiagnostic[];
 }): ModuleScalarExpressionSemantic | null => {
   const parsed = parseScalarExpression(`${" ".repeat(span.start)}${raw}`, span);
@@ -313,9 +424,11 @@ export const parseAndCheckModuleScalarExpression = ({
     ast: parsed.ast,
     expectedType,
     resolveReference,
+    resolveHasValue,
     resolveBareReference,
     resolveGeometryProperty,
-    resolveGeometryBuiltin
+    resolveGeometryBuiltin,
+    presenceFacts
   });
   diagnostics.push(...checked.diagnostics);
   return checked.semantic;

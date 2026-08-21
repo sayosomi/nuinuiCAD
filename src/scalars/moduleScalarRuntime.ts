@@ -188,11 +188,38 @@ const bindingResolutionFor = (binding: Binding | undefined, name: string, statem
     ? { kind: "resolved", binding }
     : { kind: "undefined", name, scopeId: "module-runtime", statementIndex };
 
-const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic) => {
-  const astReferences = collectScalarExpressionReferences(semantic.ast);
+const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic, ast = semantic.ast) => {
+  const astReferences = collectScalarExpressionReferences(ast);
   return semantic.references.filter((reference) =>
     astReferences.some((astReference) => astReference.span.start === reference.span.start)
   );
+};
+
+const materializeHasValueAst = (
+  ast: ModuleScalarExpressionSemantic["ast"],
+  semantic: ModuleScalarExpressionSemantic,
+  hasValueForParameter: (definitionStatementId: string, parameterIndex: number) => boolean
+): ModuleScalarExpressionSemantic["ast"] => {
+  const intrinsic = ast.kind === "call" && ast.name === "hasValue"
+    ? semantic.hasValueParameters.find((entry) => entry.span.start === ast.span.start)
+    : undefined;
+  if (intrinsic) {
+    return { kind: "booleanLiteral", span: ast.span, value: hasValueForParameter(intrinsic.definitionStatementId, intrinsic.parameterIndex) };
+  }
+  switch (ast.kind) {
+    case "unary": return { ...ast, operand: materializeHasValueAst(ast.operand, semantic, hasValueForParameter) };
+    case "binary": return {
+      ...ast,
+      left: materializeHasValueAst(ast.left, semantic, hasValueForParameter),
+      right: materializeHasValueAst(ast.right, semantic, hasValueForParameter)
+    };
+    case "group": return { ...ast, expression: materializeHasValueAst(ast.expression, semantic, hasValueForParameter) };
+    case "call": return {
+      ...ast,
+      args: ast.args.map((argument) => ({ ...argument, expression: materializeHasValueAst(argument.expression, semantic, hasValueForParameter) }))
+    };
+    default: return ast;
+  }
 };
 
 const typecheckGeometryTargetFor = (
@@ -229,9 +256,11 @@ const lowerExpression = (
   bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
   catalogBindings: ReadonlyMap<BindingId, Binding>,
   geometryPropertyForTarget?: (target: ModuleGeometryPropertySourceTarget) => ModuleGeometryPropertyRuntimeTarget | undefined,
-  geometryBuiltinForTarget?: (occurrence: ModuleGeometryBuiltinArgumentSemantic) => ScalarExpressionResolvedGeometryTarget | undefined
+  geometryBuiltinForTarget?: (occurrence: ModuleGeometryBuiltinArgumentSemantic) => ScalarExpressionResolvedGeometryTarget | undefined,
+  hasValueForParameter: (definitionStatementId: string, parameterIndex: number) => boolean = () => false
 ): { expression: TypedScalarExpression; references: InitializerReference[] } => {
-  const references = semanticReferencesUsedByAst(semantic);
+  const runtimeAst = materializeHasValueAst(semantic.ast, semantic, hasValueForParameter);
+  const references = semanticReferencesUsedByAst(semantic, runtimeAst);
   const typecheckResolutions: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
   const semanticReferenceFor = (spanStart: number) => references.find((reference) => reference.span.start === spanStart);
   const geometryBuiltinFor = (spanStart: number) => semantic.geometryBuiltinArguments.find((occurrence) => occurrence.span.start === spanStart);
@@ -295,8 +324,8 @@ const lowerExpression = (
         return;
     }
   };
-  collectTypecheckResolutions(semantic.ast);
-  const checked = typecheckScalarExpression(semantic.ast, {
+  collectTypecheckResolutions(runtimeAst);
+  const checked = typecheckScalarExpression(runtimeAst, {
     expectedType: semantic.type,
     references: typecheckResolutions,
     geometryBuiltinArguments: geometryBuiltinArgumentTargets
@@ -307,7 +336,7 @@ const lowerExpression = (
       const resolved = semanticProperty?.target && geometryPropertyForTarget?.(semanticProperty.target);
       if (!resolved) return { node, references: [] };
       if (resolved.kind === "expression") {
-        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, geometryBuiltinForTarget);
+        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, geometryBuiltinForTarget, hasValueForParameter);
         return { node: lowered.expression, references: lowered.references };
       }
       return { node: { ...node, elementId: resolved.elementId, property: resolved.property, targetSourceOrder: resolved.targetSourceOrder ?? null }, references: [] };
@@ -488,6 +517,8 @@ export const compileModuleScalarRuntime = ({
     const iterations = new Map<string, BindingInfo>();
     const context = { key, path, instance, definition, parentKey, scopeId, bodyScopeId, parameters, locals, iterations } as InstanceContext;
     for (const parameter of definition.parameters) {
+      const parameterBinding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
+      if (parameter.optional && parameterBinding?.state === "optionalOmitted") continue;
       const type = scalarTypeOf(parameter.type);
       if (!type) continue;
       const id = bindingIdFor("parameter", context, String(parameter.parameterIndex));
@@ -610,6 +641,17 @@ export const compileModuleScalarRuntime = ({
         ?.iterations.get(target.statementId);
     }
     return undefined;
+  };
+
+  const hasValueForParameter = (current: InstanceContext, definitionStatementId: string, parameterIndex: number): boolean => {
+    let cursor: InstanceContext | undefined = current;
+    while (cursor) {
+      if (cursor.definition.statementId === definitionStatementId) {
+        return cursor.instance.parameterBindings.find((binding) => binding.parameterIndex === parameterIndex)?.state === "optionalSupplied";
+      }
+      cursor = cursor.parentKey ? contextsByKey.get(cursor.parentKey) : undefined;
+    }
+    return false;
   };
 
   const events: RuntimeEvent[] = [];
@@ -861,7 +903,8 @@ export const compileModuleScalarRuntime = ({
       (target) => resolvedBindingForContext(target, context),
       bindingsById,
       (target) => resolvedGeometryPropertyForContext(target, context),
-      (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context)
+      (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+      (definitionStatementId, parameterIndex) => hasValueForParameter(context, definitionStatementId, parameterIndex)
     );
     moduleInitializers.set(ownerBindingId, lowered.expression);
     for (const reference of lowered.references) moduleReferences.push({ ...reference, fromBindingId: ownerBindingId });
@@ -917,7 +960,8 @@ export const compileModuleScalarRuntime = ({
         (target) => resolvedBindingForContext(target, context),
         bindingsById,
         (target) => resolvedGeometryPropertyForContext(target, context),
-        (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context)
+        (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+        (definitionStatementId, parameterIndex) => hasValueForParameter(context, definitionStatementId, parameterIndex)
       );
       for (const reference of lowered.references) {
         if (reference.resolution.kind !== "resolved" || reference.resolution.binding.kind !== "typed" || !reference.span) continue;
@@ -961,7 +1005,8 @@ export const compileModuleScalarRuntime = ({
             (target) => resolvedBindingForContext(target, context),
             bindingsById,
             (target) => resolvedGeometryPropertyForContext(target, context),
-            (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context)
+            (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+            (definitionStatementId, parameterIndex) => hasValueForParameter(context, definitionStatementId, parameterIndex)
           );
           moduleSets.push({
             statementId: body.statementId,
@@ -991,7 +1036,8 @@ export const compileModuleScalarRuntime = ({
           (target) => resolvedBindingForContext(target, context),
           bindingsById,
           (target) => resolvedGeometryPropertyForContext(target, context),
-          (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context)
+          (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+          (definitionStatementId, parameterIndex) => hasValueForParameter(context, definitionStatementId, parameterIndex)
         );
         if (element.type === "conditionalGroup" && site.parameterKey === "condition") {
           materializedConditionalGroupConditions.push({ elementId: runtime.elementId, expression: loweredSiteExpression.expression });

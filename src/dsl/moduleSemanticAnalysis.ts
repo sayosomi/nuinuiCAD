@@ -16,6 +16,7 @@ import {
 } from "./sourceLexicalNamespaceIndex";
 import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
 import {
+  moduleParameterPresenceKey,
   parseAndCheckModuleScalarExpression,
   type ModuleGeometryBuiltinReferenceResolver,
   type ModuleGeometryPropertyReferenceInput,
@@ -266,7 +267,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       parameterIndex,
       name: parameter.name,
       type: parameter.type,
-      required: parameter.defaultValue === null,
+      optional: parameter.optional,
+      required: !parameter.optional && parameter.defaultValue === null,
       defaultValue: parameter.defaultValue,
       defaultSpan: parameter.defaultSpan,
       defaultExpression: null
@@ -356,7 +358,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     ownerIndex: number | null,
     name: string,
     boundaryOwnerIndex: number | null = ownerIndex,
-    referenceSpan: DslSpan = { start: 0, end: name.length }
+    referenceSpan: DslSpan = { start: 0, end: name.length },
+    presenceFacts: ReadonlySet<string> = new Set()
   ): ReferenceResolution => {
     // Scalar AST reference spans include the leading `@`, while the
     // qualified-module resolver's source spans are defined over the path
@@ -429,7 +432,19 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
     if (lookup.kind === "parameter") {
       const type = scalarTypeOf(lookup.parameter.parameter.type);
-      if (type) return { target: scalarParameterTarget(lookup.definition, lookup.parameter), type, resolution: "resolved" };
+      if (type) {
+        const target = scalarParameterTarget(lookup.definition, lookup.parameter);
+        if (!target || target.kind !== "parameter") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-scalar-geometry-reference", referenceSpan, `scalar expression では geometry parameter「${name}」を参照できません。`) };
+        if (lookup.parameter.parameter.optional && !presenceFacts.has(moduleParameterPresenceKey(target.definitionStatementId, target.parameterIndex))) {
+          return {
+            target,
+            type: null,
+            resolution: "invalid",
+            diagnostic: issue("module-optional-value-required", referenceSpan, `optional module parameter「${name}」は hasValue(@${name}) で存在を確認してから参照してください。`)
+          };
+        }
+        return { target, type, resolution: "resolved" };
+      }
       const geometryTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       return { target: geometryTarget, type: null, resolution: "invalid", diagnostic: issue("module-scalar-geometry-reference", { start: 0, end: 0 }, `scalar expression では geometry parameter「${name}」を参照できません。`) };
     }
@@ -467,11 +482,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   const resolveDefaultScalar = (definition: DefinitionState, parameterIndex: number, reference: { name: string; span: DslSpan }): ReferenceResolution => {
     const ownParameter = definition.parameterByName.get(reference.name);
-    if (ownParameter) {
+      if (ownParameter) {
       if (ownParameter.index >= parameterIndex) {
         return { target: null, type: null, resolution: "forward", diagnostic: issue("module-default-parameter-order", reference.span, `default は earlier parameter のみ参照できます:「${reference.name}」。`) };
       }
       const type = scalarTypeOf(ownParameter.parameter.type);
+      if (ownParameter.parameter.optional) {
+        return { target: scalarParameterTarget(definition, ownParameter), type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.name}」は default で直接参照できません。hasValue(@${reference.name}) を使用してください。`) };
+      }
       return type
         ? { target: scalarParameterTarget(definition, ownParameter), type, resolution: "resolved" }
         : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalar parameterではありません。`) };
@@ -490,6 +508,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       : resolveModuleLexicalDeclaration(definition.statementIndex, null, reference.name, enclosingDefinitions);
     if (lookup.kind === "parameter") {
       const type = scalarTypeOf(lookup.parameter.parameter.type);
+      if (lookup.parameter.parameter.optional) {
+        return { target: scalarParameterTarget(lookup.definition, lookup.parameter), type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.name}」は default で直接参照できません。hasValue(@${reference.name}) を使用してください。`) };
+      }
       return type
         ? { target: scalarParameterTarget(lookup.definition, lookup.parameter), type, resolution: "resolved" }
         : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalarではありません。`) };
@@ -520,12 +541,40 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalar bindingではありません。`) };
   };
 
-  const resolveBodyScalar = (statementIndex: number, ownerIndex: number, reference: { name: string; span: DslSpan }): ReferenceResolution => {
-    const resolution = resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span);
+  const resolveBodyScalar = (statementIndex: number, ownerIndex: number, reference: { name: string; span: DslSpan }, presenceFacts: ReadonlySet<string> = new Set()): ReferenceResolution => {
+    const resolution = resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, presenceFacts);
     if (resolution.diagnostic && resolution.diagnostic.span.start === 0 && resolution.diagnostic.span.end === 0) {
       return { ...resolution, diagnostic: { ...resolution.diagnostic, span: reference.span } };
     }
     return resolution;
+  };
+
+  const resolveHasValue = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    reference: { name: string; span: DslSpan }
+  ): ReferenceResolution => {
+    const path = parseDslReferenceToken(reference.name);
+    const directDefinition = ownerIndex === null ? undefined : stateByIndex.get(ownerIndex);
+    const directParameter = path.segments.length === 1 ? directDefinition?.parameterByName.get(reference.name) : undefined;
+    const lookup = directParameter
+      ? { kind: "parameter" as const, definition: directDefinition!, parameter: directParameter }
+      : path.segments.length > 1
+      ? resolveModuleLexicalPath(statementIndex, ownerIndex, path)
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, reference.name);
+    if (lookup.kind !== "parameter") {
+      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-has-value-argument", reference.span, "hasValue は optional module parameter の参照を1つだけ受け取ります。") };
+    }
+    if (!lookup.parameter.parameter.optional) {
+      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-has-value-parameter", reference.span, `hasValue の対象「${reference.name}」は optional module parameter ではありません。`) };
+    }
+    const target = scalarTypeOf(lookup.parameter.parameter.type)
+      ? scalarParameterTarget(lookup.definition, lookup.parameter)
+      : geometryParameterTarget(lookup.definition, lookup.parameter);
+    if (!target) {
+      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-has-value-parameter", reference.span, `hasValue の対象「${reference.name}」は scalar または geometry の optional module parameter ではありません。`) };
+    }
+    return { target, type: scalarTypeOf(lookup.parameter.parameter.type), resolution: "resolved" };
   };
 
   const resolveBodyBareScalar = (statementIndex: number, ownerIndex: number, reference: { name: string; span: DslSpan }): ReferenceResolution | null => {
@@ -543,10 +592,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     raw: string,
     span: DslSpan,
     expectedType: ScalarType | null,
-    resolver: (reference: { name: string; span: DslSpan }) => ReferenceResolution,
+    resolver: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ReferenceResolution,
     bareResolver?: (reference: { name: string; span: DslSpan }) => ReferenceResolution | null,
     geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution,
-    geometryBuiltinResolver?: ModuleGeometryBuiltinReferenceResolver
+    geometryBuiltinResolver?: ModuleGeometryBuiltinReferenceResolver,
+    resolveHasValue?: (reference: { name: string; span: DslSpan }) => ReferenceResolution,
+    presenceFacts: ReadonlySet<string> = new Set()
   ) => {
     const local: LocalDiagnostic[] = [];
     const semantic = parseAndCheckModuleScalarExpression({
@@ -554,14 +605,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       span,
       expectedType,
       resolveReference: (reference) => {
-        const resolution = resolver(reference);
+        const resolution = resolver(reference, presenceFacts);
         return resolution.diagnostic
           ? { ...resolution, diagnostic: { ...resolution.diagnostic, span: reference.span } }
           : resolution;
       },
+      resolveHasValue,
       resolveBareReference: bareResolver,
       resolveGeometryProperty: geometryPropertyResolver,
       resolveGeometryBuiltin: geometryBuiltinResolver,
+      presenceFacts,
       diagnostics: local
     });
     for (const diagnostic of local) addLocal(statementIndex, diagnostic);
@@ -583,7 +636,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         parameter.defaultValue,
         defaultSpan,
         scalarType,
-        (reference) => resolveDefaultScalar(definition, parameterIndex, reference)
+        (reference) => resolveDefaultScalar(definition, parameterIndex, reference),
+        undefined,
+        undefined,
+        undefined,
+        (reference) => resolveHasValue(definition.statementIndex, definition.statementIndex, reference)
       );
       parameter.defaultExpression = semantic;
     }
@@ -755,9 +812,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     component: "x" | "y",
     span: DslSpan,
     options: {
-      scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+      scalarResolver?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
       bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
       geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
+      presenceFacts?: ReadonlySet<string>;
     }
   ): ModuleScalarExpressionSemantic | null => {
     const componentSpan = coordinateComponent(source, span, component);
@@ -767,9 +825,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       source.slice(componentSpan.start, componentSpan.end),
       componentSpan,
       { kind: "number" },
-      options.scalarResolver ?? ((reference) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span)),
+      options.scalarResolver ?? ((reference, presenceFacts) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, presenceFacts)),
       options.bareScalarResolver,
-      options.geometryPropertyResolver
+      options.geometryPropertyResolver,
+      undefined,
+      undefined,
+      options.presenceFacts
     );
   };
 
@@ -784,9 +845,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       allowCoordinate?: boolean;
       allowNone?: boolean;
       role?: ModuleGeometryReferenceRole;
-      scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+      scalarResolver?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
       bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
       geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
+      presenceFacts?: ReadonlySet<string>;
     } = {}
   ): ModuleGeometryReferenceSemantic => {
     const trimmed = rawValue.trim();
@@ -911,6 +973,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`));
         return semantic(null, "invalid", null, derivedRole);
       }
+      if (lookup.parameter.parameter.optional && !options.presenceFacts?.has(moduleParameterPresenceKey(parameterTarget.definitionStatementId, parameterTarget.parameterIndex))) {
+        addLocal(statementIndex, issue("module-optional-value-required", baseSpan, `optional module parameter「${base}」は hasValue(@${base}) で存在を確認してから参照してください。`));
+        return semantic(null, "invalid", null, derivedRole);
+      }
       return semantic(pointTarget, "resolved", null, derivedRole);
     }
     if (lookup.kind === "undefined") {
@@ -1027,6 +1093,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           type: null,
           resolution: "invalid",
           diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometry parameterではありません。`)
+        };
+      }
+      if (lookup.parameter.parameter.optional && !reference.presenceFacts?.has(moduleParameterPresenceKey(parameterTarget.definitionStatementId, parameterTarget.parameterIndex))) {
+        return {
+          target: { ...parameterTarget, kind: "parameterProperty", property: reference.property },
+          type: null,
+          resolution: "invalid",
+          diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.elementName}」は hasValue(@${reference.elementName}) で存在を確認してから参照してください。`)
         };
       }
       return {
@@ -1202,7 +1276,41 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (sites.length) rootGeometryReferencesByStatementId.set(statementIdAt(stableStatementIdByIndex, statementIndex), sites);
   }
 
+  const presenceFactsByStatementIndex = new Map<number, ReadonlySet<string>>();
   const instances: ModuleInstanceSemantic[] = [];
+  // Body semantic analysis needs instance -> callee identity to resolve
+  // qualified exports, while full argument analysis waits for branch facts.
+  // Seed the existing instance collection with those identities first; the
+  // complete pass below replaces these shells with normalized bindings.
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (statement.kind !== "moduleInstance") continue;
+    const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+    const lookup = ownerIndex === null
+      ? sourceDeclarationResolution(sourceNamespace, statementIndex, statement.moduleName)
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, statement.moduleName);
+    const callee = lookup.kind === "resolved" && lookup.declaration.kind === "moduleDefinition" && lookup.declaration.statement.kind === "moduleDefinition"
+      ? { definitionStatementId: statementIdAt(stableStatementIdByIndex, lookup.declaration.statementIndex), definitionStatementIndex: lookup.declaration.statementIndex, name: lookup.declaration.name }
+      : null;
+    const calleeResolution: ModuleInstanceSemantic["calleeResolution"] = callee
+      ? "resolved"
+      : lookup.kind === "forward"
+        ? "forward"
+        : lookup.kind === "ambiguous"
+          ? "ambiguous"
+          : lookup.kind === "parameter" || lookup.kind === "iteration" || lookup.kind === "resolved"
+            ? "notModule"
+            : "undefined";
+    instances.push({
+      statementId: statementIdAt(stableStatementIdByIndex, statementIndex),
+      statementIndex,
+      name: statement.name,
+      callerModuleDefinitionStatementId: ownerIndex === null ? null : stateByIndex.get(ownerIndex)?.statementId ?? null,
+      callee,
+      calleeResolution,
+      parameterBindings: []
+    });
+  }
+  const analyzeInstances = () => {
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "moduleInstance") continue;
     const statementId = statementIdAt(stableStatementIdByIndex, statementIndex);
@@ -1257,20 +1365,38 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         const argument = argumentIndex === undefined ? undefined : statement.arguments[argumentIndex];
         if (!argument) {
           if (parameter.required) addLocal(statementIndex, issue("module-missing-argument", statement.moduleNameSpan ?? statement.keywordSpan, `required argument「${parameter.name}」がありません。`));
-          parameterBindings.push({ parameterIndex: parameter.parameterIndex, parameterName: parameter.name, parameterType: parameter.type, argumentIndex: null, argumentLabel: null, argumentSpan: null, usesDefault: true, value: parameter.defaultExpression ? { kind: "scalar", expression: parameter.defaultExpression } : null });
+          const state = parameter.optional
+            ? "optionalOmitted"
+            : parameter.defaultValue !== null
+              ? "defaultedOmitted"
+              : "requiredOmitted";
+          parameterBindings.push({
+            parameterIndex: parameter.parameterIndex,
+            parameterName: parameter.name,
+            parameterType: parameter.type,
+            argumentIndex: null,
+            argumentLabel: null,
+            argumentSpan: null,
+            usesDefault: state === "defaultedOmitted",
+            state,
+            value: state === "defaultedOmitted" && parameter.defaultExpression
+              ? { kind: "scalar", expression: parameter.defaultExpression }
+              : null
+          });
           continue;
         }
         const parameterScalarType = scalarTypeOf(parameter.type);
         let value: ModuleArgumentSemantic | null = null;
         if (parameterScalarType) {
+          const presenceFacts = presenceFactsByStatementIndex.get(statementIndex) ?? new Set<string>();
           const expression = analyzeExpression(
             statementIndex,
             argument.value,
             argument.valueSpan,
             parameterScalarType,
-            (reference) => ownerIndex === null
-              ? resolveSourceScalar(statementIndex, null, reference.name, null)
-              : resolveBodyScalar(statementIndex, ownerIndex, reference),
+            (reference, facts) => ownerIndex === null
+              ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts)
+              : resolveBodyScalar(statementIndex, ownerIndex, reference, facts),
             undefined,
             (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
             (reference) => resolveGeometry(
@@ -1281,9 +1407,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               reference.expectedGeometryType,
               {
                 expectedInterfaceType: reference.expectedGeometryType,
-                role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
+                role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference",
+                presenceFacts
               }
-            )
+            ),
+            (reference) => resolveHasValue(statementIndex, ownerIndex, reference),
+            presenceFacts
           );
           value = expression ? { kind: "scalar", expression } : null;
         } else {
@@ -1298,17 +1427,28 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
                 argument.value,
                 argument.valueSpan,
                 parameterGeometryKind,
-                { expectedInterfaceType: parameterInterfaceType }
+                { expectedInterfaceType: parameterInterfaceType, presenceFacts: presenceFactsByStatementIndex.get(statementIndex) }
               )
             };
           }
         }
-        parameterBindings.push({ parameterIndex: parameter.parameterIndex, parameterName: parameter.name, parameterType: parameter.type, argumentIndex: argumentIndex ?? null, argumentLabel: argument.label, argumentSpan: argument.valueSpan, usesDefault: false, value });
+        parameterBindings.push({
+          parameterIndex: parameter.parameterIndex,
+          parameterName: parameter.name,
+          parameterType: parameter.type,
+          argumentIndex: argumentIndex ?? null,
+          argumentLabel: argument.label,
+          argumentSpan: argument.valueSpan,
+          usesDefault: false,
+          state: parameter.optional ? "optionalSupplied" : "requiredSupplied",
+          value
+        });
       }
     }
     const semantic: ModuleInstanceSemantic = { statementId, statementIndex, name: statement.name, callerModuleDefinitionStatementId: owner?.statementId ?? null, callee, calleeResolution, parameterBindings };
     instances.push(semantic);
   }
+  };
 
   // Root typed declarations are owned by the ordinary scalar analyzer, but a
   // qualified module scalar reference still needs the Module source identity
@@ -1377,7 +1517,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       analyzeExpression,
       resolveGeometry,
       resolvePlainScalarTarget,
-      resolveBodyScalar: (statementIndex, reference) => resolveBodyScalar(statementIndex, definition.statementIndex, reference),
+      resolveBodyScalar: (statementIndex, reference, presenceFacts) => resolveBodyScalar(statementIndex, definition.statementIndex, reference, presenceFacts),
       resolveBodyBareScalar: (statementIndex, reference) => resolveBodyBareScalar(statementIndex, definition.statementIndex, reference),
       resolveBodyGeometryProperty: (statementIndex, reference) => resolveGeometryProperty(statementIndex, definition.statementIndex, reference),
       resolveBodyGeometryBuiltin: (statementIndex, reference) => resolveGeometry(
@@ -1388,14 +1528,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         reference.expectedGeometryType,
         {
           expectedInterfaceType: reference.expectedGeometryType,
-          role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
+          role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference",
+          presenceFacts: reference.presenceFacts
         }
-      )
+      ),
+      resolveBodyHasValue: (statementIndex, reference) => resolveHasValue(statementIndex, definition.statementIndex, reference)
     });
     localScalarsByDefinition.set(definition.statementIndex, body.localScalars);
     bodyStatementsByDefinition.set(definition.statementIndex, body.bodyStatements);
     exportsByDefinition.set(definition.statementIndex, body.exports);
+    for (const statement of body.bodyStatements) presenceFactsByStatementIndex.set(statement.statementIndex, new Set(statement.presenceParameterKeys));
   }
+
+  instances.length = 0;
+  analyzeInstances();
 
   const semanticDefinitions: ModuleDefinitionSemantic[] = definitionStates.map((definition) => ({
     statementId: definition.statementId,

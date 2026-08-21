@@ -6,6 +6,8 @@ export type ScannedArg = {
   key: string | null;
   /** The bare key, without its trailing colon. */
   keySpan: DslSpan | null;
+  /** Module-definition-only optional marker after the key. */
+  optionalSpan?: DslSpan;
   value: string;
   valueSpan: DslSpan;
   /** See MISSING_ATTRIBUTE_VALUE_CODE below. */
@@ -29,7 +31,12 @@ type NamedArgBoundary = {
   key: string;
   keySpan: DslSpan;
   colon: number;
+  optionalSpan: DslSpan | null;
   missingSpaceAfterColon: boolean;
+};
+
+export type ScanCallArgsOptions = {
+  allowOptionalKeys?: boolean;
 };
 
 type ArgumentSegment = {
@@ -57,7 +64,7 @@ const trimSpan = (source: string, span: DslSpan): DslSpan => {
 };
 
 /** Finds whitespace-led `key:` boundaries for recovery && diagnostics. */
-const namedArgBoundaries = (source: string, callSpan: DslSpan): NamedArgBoundary[] => {
+const namedArgBoundaries = (source: string, callSpan: DslSpan, options: ScanCallArgsOptions): NamedArgBoundary[] => {
   const boundaries: NamedArgBoundary[] = [];
   let quote: string | null = null;
   let depth = 0;
@@ -87,15 +94,18 @@ const namedArgBoundaries = (source: string, callSpan: DslSpan): NamedArgBoundary
     ) continue;
 
     let keyEnd = index + 1;
-    while (keyEnd < callSpan.end && isIdentifierPart(source[keyEnd])) keyEnd += 1;
+    while (keyEnd < callSpan.end && isIdentifierPart(source[keyEnd]) && source[keyEnd] !== "?") keyEnd += 1;
+    const optional = options.allowOptionalKeys === true && source[keyEnd] === "?" && source[keyEnd + 1] === ":";
+    const colon = optional ? keyEnd + 1 : keyEnd;
     // `::` belongs to a qualified reference, not an argument boundary.
-    if (source[keyEnd] !== ":" || source[keyEnd + 1] === ":") continue;
+    if (source[colon] !== ":" || source[colon + 1] === ":") continue;
 
-    const valueStart = keyEnd + 1;
+    const valueStart = colon + 1;
     boundaries.push({
       key: source.slice(index, keyEnd),
       keySpan: { start: index, end: keyEnd },
-      colon: keyEnd,
+      colon,
+      optionalSpan: optional ? { start: keyEnd, end: keyEnd + 1 } : null,
       missingSpaceAfterColon: valueStart < callSpan.end && !isWhitespace(source[valueStart]),
     });
   }
@@ -145,6 +155,7 @@ const addNamedArg = (
   args.push({
     key: boundary.key,
     keySpan: boundary.keySpan,
+    ...(boundary.optionalSpan ? { optionalSpan: boundary.optionalSpan } : {}),
     value: source.slice(valueSpan.start, valueSpan.end),
     valueSpan,
     ...(isEmpty ? { rawValueSpan } : {}),
@@ -172,6 +183,7 @@ const addNamedArg = (
 export const scanCallArgs = (
   logicalText: string,
   callSpan: DslSpan,
+  options: ScanCallArgsOptions = {},
 ): { args: ScannedArg[]; errors: DslArgScanError[] } => {
   const args: ScannedArg[] = [];
   const errors: DslArgScanError[] = [];
@@ -196,7 +208,7 @@ export const scanCallArgs = (
 
     // Keep the segment's outer whitespace for an empty value's rawValueSpan.
     // Completion relies on that span when a delete leaves `key: , next:`.
-    const boundaries = namedArgBoundaries(logicalText, segment.span);
+    const boundaries = namedArgBoundaries(logicalText, segment.span, options);
     const firstNamedStart = boundaries[0]?.keySpan.start ?? trimmed.end;
     const positionalSpan = trimSpan(logicalText, { start: trimmed.start, end: firstNamedStart });
     if (positionalSpan.start !== positionalSpan.end) {

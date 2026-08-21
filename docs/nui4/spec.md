@@ -587,9 +587,29 @@ Module arguments are named-only. A parameter may be `point`, `line`, `path`,
 parameters are resolved external targets exposed inside the module as
 read-only aliases. A geometry parameter cannot be a mutation target.
 
-Only scalar parameters may have defaults. A scalar default may reference only
-parameters declared earlier in the same module signature. Geometry parameter
-defaults are forbidden.
+Any scalar or geometry parameter may be optional by writing `name?: type`.
+Optional parameters cannot also have a default. Omission is an intentional
+absent value: it is not `none`, `null`, or a runtime value, and an omitted
+scalar has no eager initializer or binding. Required, defaulted, and optional
+parameters retain their source-order slots; named instance arguments may be
+written in any order.
+
+Only non-optional scalar parameters may have defaults. A scalar default may
+reference only earlier parameters in the same signature, and an optional
+parameter cannot be read directly from a default. `hasValue(@parameter)` is
+valid in a boolean default and is the only presence test for an optional
+parameter.
+
+Inside a module body, `hasValue(@parameter)` accepts exactly one optional scalar
+or geometry parameter and returns `boolean`. Its result may narrow presence in
+the same lexical descendant: a true `if` branch, the right-hand side of `and`,
+and the false branch of `or` prove presence. `not` reverses the fact. Facts do
+not escape the branch, do not flow through boolean aliases, and do not prove
+presence in the other branch. Scalar reads, geometry reads and properties,
+builtin operands, construction values, templates, and passing an optional
+value to another module require such proof. Supplying an optional argument
+materializes the ordinary value with its declared type; omitting it remains
+absent.
 
 The existing Module v1 evaluation-limit atomicity is retained: an instance is
 evaluated as an atomic module operation within its evaluation limit, and a

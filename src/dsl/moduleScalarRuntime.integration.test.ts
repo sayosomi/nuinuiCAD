@@ -111,6 +111,53 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("keeps omitted optional scalars absent and materializes supplied values", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (hasValue(@value)) {",
+      "    point P = coordinate(x: @value, y: 0)",
+      "  }",
+      "}",
+      "instance Absent = M()",
+      "instance Present = M(value: 4)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const points = compiled.document!.elements.filter((element) => element.name === "P");
+    expect(points).toHaveLength(2);
+    expect(points.map((point) => result.computedGeometry.get(point.id))).toEqual([
+      undefined,
+      expect.objectContaining({ kind: "point", x: 4, y: 0 })
+    ]);
+    const parameterBindings = compiled.bindingAnalysis!.catalog.bindings.filter((binding) => binding.name === "value");
+    expect(parameterBindings).toHaveLength(1);
+  });
+
+  it("evaluates hasValue in a boolean default per concrete module instance", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number, enabled: boolean = hasValue(@value)) {",
+      "  let marker: number = 0",
+      "  if (@enabled) {",
+      "    set marker = 1",
+      "    point P = coordinate(x: @marker, y: 0)",
+      "  }",
+      "}",
+      "instance Absent = M()",
+      "instance Present = M(value: 4)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const points = compiled.document!.elements.filter((element) => element.name === "P");
+    expect(points.map((point) => result.computedGeometry.get(point.id))).toEqual([
+      undefined,
+      expect.objectContaining({ kind: "point", x: 1, y: 0 })
+    ]);
+  });
+
   it("carries lowered module numeric expressions through typed runtime materialization", () => {
     const compiled = compileWithIds([
       "nui 4",
