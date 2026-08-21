@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
-import {
+import worker, {
+  enqueueSafetySweep,
   extractIssueId,
   githubIssueNumberFromAttachments,
   githubStateFromLinearState,
@@ -9,6 +11,7 @@ import {
   legacyGithubIssueNumber,
   priorityName,
   renderGithubBody,
+  safetySweepMessage,
   shouldMirrorIssue,
   shouldQueuePayload,
   summarizeRelations,
@@ -124,4 +127,59 @@ test("Linear HMAC signature verification uses the raw body", async () => {
   const signature = createHmac("sha256", secret).update(body).digest("hex");
   assert.equal(await verifyLinearSignature(body, signature, secret), true);
   assert.equal(await verifyLinearSignature(`${body} `, signature, secret), false);
+});
+
+test("scheduled safety sweep message reuses Issue reconciliation routing", () => {
+  const message = safetySweepMessage("issue-a");
+  assert.equal(message.source, "scheduled-safety-sweep");
+  assert.equal(extractIssueId(message.payload), "issue-a");
+  assert.equal(shouldQueuePayload(message.payload), true);
+});
+
+test("scheduled safety sweep paginates archived team issues and enqueues each issue", async () => {
+  const queryCalls = [];
+  const sent = [];
+  const pages = [
+    {
+      team: {
+        issues: {
+          nodes: [{ id: "issue-a" }, { id: "issue-b" }],
+          pageInfo: { hasNextPage: true, endCursor: "next-page" },
+        },
+      },
+    },
+    {
+      team: {
+        issues: {
+          nodes: [{ id: "issue-c" }],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  ];
+  const env = { LINEAR_TEAM_ID: "team-a" };
+  const enqueued = await enqueueSafetySweep(env, {
+    linearGraphql: async (query, variables) => {
+      queryCalls.push({ query, variables });
+      return pages.shift();
+    },
+    send: async (message) => {
+      sent.push(message);
+    },
+  });
+
+  assert.equal(enqueued, 3);
+  assert.deepEqual(queryCalls.map((call) => call.variables), [
+    { id: "team-a", after: null },
+    { id: "team-a", after: "next-page" },
+  ]);
+  assert.match(queryCalls[0].query, /includeArchived: true/);
+  assert.deepEqual(sent.map((message) => extractIssueId(message.payload)), ["issue-a", "issue-b", "issue-c"]);
+});
+
+test("Worker exposes a scheduled handler and Wrangler deploys it every 12 hours", async () => {
+  assert.equal(typeof worker.scheduled, "function");
+  const configText = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+  const config = JSON.parse(configText);
+  assert.deepEqual(config.triggers?.crons, ["0 */12 * * *"]);
 });
