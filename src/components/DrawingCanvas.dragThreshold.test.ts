@@ -236,6 +236,51 @@ describe("DrawingCanvas point drag activation threshold", () => {
     expect(Math.abs(commitAction?.dy ?? Number.NaN)).toBe(0);
   });
 
+  it("keeps drag activated after crossing the threshold and returning close to the start", () => {
+    const movePointElementByDelta = vi.fn();
+    const { viewport } = renderCanvas({ movePointElementByDelta });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: pointScreen.x,
+      clientY: pointScreen.y,
+      pointerId: 4
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: pointScreen.x + 4,
+      clientY: pointScreen.y,
+      pointerId: 4
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: pointScreen.x + 2,
+      clientY: pointScreen.y,
+      pointerId: 4
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: pointScreen.x + 2,
+      clientY: pointScreen.y,
+      pointerId: 4
+    });
+
+    expect(movePointElementByDelta).toHaveBeenCalledTimes(3);
+    expect(movePointElementByDelta.mock.calls[0]?.[0]).toMatchObject({
+      dx: 4,
+      commitMode: "preview"
+    });
+    expect(movePointElementByDelta.mock.calls[1]?.[0]).toMatchObject({
+      dx: 2,
+      commitMode: "preview"
+    });
+    expect(movePointElementByDelta.mock.calls[2]?.[0]).toMatchObject({
+      dx: 2,
+      commitMode: "commit"
+    });
+  });
+
   it("preserves X axis locking after the drag threshold is crossed", () => {
     const movePointElementByDelta = vi.fn();
     const { viewport } = renderCanvas({ movePointElementByDelta });
