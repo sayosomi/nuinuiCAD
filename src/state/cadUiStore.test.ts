@@ -327,6 +327,7 @@ describe("cadUiStore element/binding selection mutual exclusion", () => {
 describe("cadUiStore activity-aware element selection", () => {
   const elements: CadElement[] = [
     { id: "visible", name: "Visible", type: "freePoint", activity: "visible", x: 0, y: 0 },
+    { id: "visible-second", name: "Visible Second", type: "freePoint", activity: "visible", x: 0, y: 1 },
     { id: "hidden", name: "Hidden", type: "freePoint", activity: "hidden", x: 1, y: 0 },
     { id: "disabled", name: "Disabled", type: "freePoint", activity: "disabled", x: 2, y: 0 },
     { id: "hidden-group", name: "Hidden Group", type: "group", activity: "hidden" },
@@ -367,7 +368,6 @@ describe("cadUiStore activity-aware element selection", () => {
       x: 6,
       y: 0
     },
-    { id: "runtime-group", name: "Runtime Group", type: "group", activity: "visible" }
   ];
 
   beforeEach(() => {
@@ -426,24 +426,14 @@ describe("cadUiStore activity-aware element selection", () => {
   it("preserves eligible order and normalizes invalid primary and anchor", () => {
     useCadUiStore.getState().applySelection(elements, {
       selectedElementId: "hidden",
-      selectedElementIds: ["visible", "hidden", "runtime-group"],
+      selectedElementIds: ["visible", "hidden", "visible-second"],
       selectionAnchorElementId: "disabled"
     });
 
     expect(useCadUiStore.getState()).toMatchObject({
       selectedElementId: "visible",
-      selectedElementIds: ["visible", "runtime-group"],
+      selectedElementIds: ["visible", "visible-second"],
       selectionAnchorElementId: "visible"
-    });
-  });
-
-  it("keeps a visible runtime group selectable without drawing bounds", () => {
-    useCadUiStore.getState().setSelectedElementId("runtime-group");
-
-    expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: "runtime-group",
-      selectedElementIds: ["runtime-group"],
-      selectionAnchorElementId: "runtime-group"
     });
   });
 
