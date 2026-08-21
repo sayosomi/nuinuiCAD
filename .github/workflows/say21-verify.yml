@@ -47,7 +47,6 @@ jobs:
           end = next(i for i in range(start + 1, len(source)) if source[i].strip() == 'PY')
           script = '\n'.join(line[10:] if line.startswith('          ') else line for line in source[start + 1:end]) + '\n'
 
-          # The current registry keeps segment/polar specs as compact one-liners.
           patch_start = script.index('replace("src/dsl/dslConstructions.ts"')
           patch_end = script.index('\n\nreplace("src/model/elementNames.ts"', patch_start)
           registry_patch = '''replace("src/dsl/dslConstructions.ts", ''' + "'''" + '''  { category: "line", construction: "polar", elementType: "angleLengthLine", args: [required("start", "startPoint"), arg("angle", "angleDeg"), arg("length")] },\\n''' + "'''" + ''', ''' + "'''" + '''  { category: "line", construction: "polar", elementType: "angleLengthLine", args: [required("start", "startPoint"), arg("angle", "angleDeg"), arg("length")] },\\n  {\\n    category: "line",\\n    construction: "commonTangent",\\n    elementType: "commonTangentLine",\\n    args: [required("first", "firstLineId"), required("second", "secondLineId"), required("kind"), required("side")],\\n  },\\n''' + "'''" + ''')'''
@@ -59,14 +58,16 @@ jobs:
           python3 <<'PY' 2>&1 | tee -a "$LOG"
           from pathlib import Path
 
-          # The acceptance source must use distinct supporting circles.
           p = Path('src/geometry/commonTangentEvaluator.test.ts')
           text = p.read_text()
           text = text.replace('"point A1 = coordinate(x: 20, y: 0)",\n      "point A2 = coordinate(x: 0, y: 20)",\n      "point A3 = coordinate(x: -20, y: 0)",',
                               '"point A1 = coordinate(x: 80, y: 0)",\n      "point A2 = coordinate(x: 60, y: 20)",\n      "point A3 = coordinate(x: 40, y: 0)",')
+          text = text.replace('startAngle:', 'start:').replace('endAngle:', 'end:')
           p.write_text(text)
 
-          # Match the production Rust line-angle convention exactly.
+          p = Path('test/fixtures/evaluation/nui4-common-tangent.nui')
+          p.write_text(p.read_text().replace('startAngle:', 'start:').replace('endAngle:', 'end:'))
+
           p = Path('src-tauri/src/evaluation/common_tangent_evaluator.rs')
           text = p.read_text()
           text = text.replace('use super::math::CIRCLE_EPSILON;', 'use super::math::{angle_from_to, CIRCLE_EPSILON};')
