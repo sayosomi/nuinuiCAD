@@ -22,8 +22,8 @@ export type BakeOutputTarget = {
 };
 
 export type BakeNotificationTarget = {
-  showWarningMessage: (message: string, action: string) => Promise<string | undefined>;
-  showErrorMessage: (message: string, action: string) => Promise<string | undefined>;
+  showWarningMessage: (message: string, action: string) => PromiseLike<string | undefined>;
+  showErrorMessage: (message: string, action: string) => PromiseLike<string | undefined>;
 };
 
 const aggregateReasonCodes = (skippedTargets: readonly BakeSkippedTarget[]): string => {
