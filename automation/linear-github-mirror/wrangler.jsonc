@@ -1,0 +1,36 @@
+{
+  "name": "nuinuicad-linear-github-mirror",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-08-21",
+  "vars": {
+    "LINEAR_TEAM_ID": "1dc56742-6e6c-4cc5-9fa6-95e2641c9a2c",
+    "LINEAR_INITIATIVE_ID": "635dd66c-cd88-46be-bd0b-64bbbe7cf18c",
+    "GITHUB_OWNER": "sayosomi",
+    "GITHUB_REPO": "nuinuiCAD"
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "LINEAR_EVENTS",
+        "queue": "nuinuicad-linear-events"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "nuinuicad-linear-events",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 10,
+        "retry_delay": 60,
+        "dead_letter_queue": "nuinuicad-linear-events-dlq",
+        "max_concurrency": 1
+      }
+    ]
+  },
+  "triggers": {
+    "crons": ["0 */12 * * *"]
+  },
+  "observability": {
+    "enabled": true
+  }
+}
