@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useState } from "react";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";
 import type {
@@ -77,23 +77,42 @@ export const useRevisionCoherentCanvasPresentation = ({
   compiledDocumentRevision: number;
   evaluationState?: EvaluationEngineState;
 }) => {
-  const lastStableRef = useRef<CanvasRevisionPresentationSnapshot | null>(null);
+  const [lastStable, setLastStable] = useState<CanvasRevisionPresentationSnapshot | null>(null);
   const resolved = resolveRevisionCoherentCanvasPresentation({
     current,
     compiledDocumentRevision,
     evaluationState,
-    lastStable: lastStableRef.current
+    lastStable
   });
+  const isStale = evaluationState?.isStale;
+  const evaluationRevision = evaluationState?.evaluationRevision;
+  const evaluationRequestRevision = evaluationState?.evaluationRequestRevision;
 
   useLayoutEffect(() => {
     if (!evaluationState) return;
-    if (evaluationState.isStale || evaluationState.evaluationRevision !== compiledDocumentRevision) return;
-    lastStableRef.current = {
-      evaluationRevision: evaluationState.evaluationRevision,
-      evaluationRequestRevision: evaluationState.evaluationRequestRevision,
-      inputs: current
-    };
-  }, [compiledDocumentRevision, current, evaluationState]);
+    if (isStale || evaluationRevision !== compiledDocumentRevision) return;
+    setLastStable((previous) => {
+      if (
+        previous?.evaluationRevision === evaluationRevision &&
+        previous.evaluationRequestRevision === evaluationRequestRevision &&
+        previous.inputs === current
+      ) {
+        return previous;
+      }
+      return {
+        evaluationRevision,
+        evaluationRequestRevision,
+        inputs: current
+      };
+    });
+  }, [
+    compiledDocumentRevision,
+    current,
+    evaluationRevision,
+    evaluationRequestRevision,
+    evaluationState,
+    isStale
+  ]);
 
   return resolved;
 };
