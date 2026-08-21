@@ -714,15 +714,16 @@ describe("Task 26 text template wiring", () => {
     ]);
   });
 
-  it("keeps the last-good document (null) and surfaces interpolation-type-mismatch for a boolean hole", () => {
+  it("accepts a boolean hole and stores the compiled boolean template", () => {
     const compiled = compileDslDocument(
       ["nui 4", "let 表示する: boolean = true", 'text T = label(text: "flag ${@表示する}", anchor: none, size: 3)'].join("\n"),
       { assignedStatementIds: new Map([[1, "test:flag"]]) }
     );
-    expect(compiled.document).toBeNull();
-    expect(compiled.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ severity: "error", code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE })])
-    );
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE)).toBe(false);
+    const template = compiled.textTemplates?.get(propertyBindingOccurrenceKey(2, "text"));
+    expect(template).toBeDefined();
+    expect(template?.segments.some((segment) => segment.kind === "hole" && segment.holeKind === "boolean")).toBe(true);
   });
 
   it("keeps the last-good document (null) and surfaces unterminated-interpolation for an unclosed hole", () => {
