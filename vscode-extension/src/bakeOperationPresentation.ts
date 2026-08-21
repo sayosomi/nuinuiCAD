@@ -63,7 +63,8 @@ export const bakeOperationNotificationFor = (
 
 const stableDiagnosticDetail = (diagnostic: unknown): string => {
   try {
-    return JSON.stringify(diagnostic);
+    const serialized = JSON.stringify(diagnostic);
+    return serialized ?? String(diagnostic);
   } catch {
     return String(diagnostic);
   }
