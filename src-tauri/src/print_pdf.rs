@@ -45,11 +45,34 @@ fn page_point(point: OutputPoint, origin: OutputPoint) -> (String, String) {
     )
 }
 
+// This is a deliberately conservative subset of the code points mapped by the
+// fixed /UniJIS-UCS2-H path used below. Keep this table encoder-owned and do
+// not widen a range without verifying that the corresponding CMap entry exists.
+const PDF_UCS2_SUPPORTED_RANGES: &[(u32, u32)] = &[
+    (0x0020, 0x007E), // printable ASCII
+    (0x3041, 0x3094), // hiragana
+    (0x309B, 0x309E), // hiragana iteration marks and voiced marks
+    (0x30A1, 0x30FE), // katakana and iteration marks
+    (0x65E5, 0x65E5), // 日
+    (0x672C, 0x672C), // 本
+];
+
+fn pdf_ucs2_cmap_supports(code: u32) -> bool {
+    PDF_UCS2_SUPPORTED_RANGES
+        .iter()
+        .any(|&(start, end)| (start..=end).contains(&code))
+}
+
 fn pdf_ucs2_hex(character: char) -> Result<String, String> {
     let code = character as u32;
     if code > u16::MAX as u32 {
         return Err(format!(
             "PDF text character U+{code:04X} is not representable by /UniJIS-UCS2-H"
+        ));
+    }
+    if !pdf_ucs2_cmap_supports(code) {
+        return Err(format!(
+            "PDF text character U+{code:04X} is not mapped by /UniJIS-UCS2-H"
         ));
     }
     Ok(format!("<{code:04X}>"))
@@ -701,6 +724,15 @@ mod tests {
     }
 
     #[test]
+    fn emits_supported_ucs2_codes() {
+        assert_eq!(pdf_ucs2_hex('A').expect("ASCII should encode"), "<0041>");
+        assert_eq!(
+            pdf_ucs2_hex('日').expect("Japanese text should encode"),
+            "<65E5>"
+        );
+    }
+
+    #[test]
     fn emits_exact_ucs2_codes_for_latin_and_japanese_text() {
         assert_eq!(
             pdf_text_array("AB", &[2.48, 2.48], 4.96, 4.0).expect("Latin text should encode"),
@@ -710,6 +742,15 @@ mod tests {
             pdf_text_array("日本", &[4.0, 4.0], 8.0, 4.0).expect("Japanese text should encode"),
             "[<65E5> 0 <672C> 0] TJ"
         );
+    }
+
+    #[test]
+    fn rejects_unsupported_bmp_text_explicitly() {
+        let error =
+            pdf_ucs2_hex('\u{0627}').expect_err("unmapped BMP text should not be silently encoded");
+        assert!(error.contains("U+0627"));
+        assert!(error.contains("not mapped"));
+        assert!(error.contains("UniJIS-UCS2-H"));
     }
 
     #[test]
@@ -781,6 +822,31 @@ mod tests {
         assert!(!text.contains("FEFF"));
         assert!((text_payload.bounds.width - relative.width).abs() < 1e-9);
         assert!((text_payload.bounds.height - relative.height).abs() < 1e-9);
+    }
+
+    #[test]
+    fn full_pdf_build_propagates_unsupported_text_error() {
+        let mut unsupported_payload = payload();
+        unsupported_payload.drawables.push(OutputDrawable::Text {
+            element_id: "unsupported-text".to_owned(),
+            name: "unsupported-text".to_owned(),
+            text: "ا".to_owned(),
+            anchor: OutputPoint { x: 20.0, y: 30.0 },
+            font_size_mm: 4.0,
+            width_mm: 4.0,
+            line_widths_mm: vec![4.0],
+            line_advances_mm: vec![vec![4.0]],
+            line_height_mm: 4.8,
+            rotation_deg: 0.0,
+            mirror_x: false,
+            color_hex: "#31322f".to_owned(),
+        });
+
+        let error = build_print_pdf(&unsupported_payload)
+            .expect_err("full PDF build should reject unmapped BMP text");
+        assert!(error.contains("U+0627"));
+        assert!(error.contains("not mapped"));
+        assert!(error.contains("UniJIS-UCS2-H"));
     }
 
     #[test]
