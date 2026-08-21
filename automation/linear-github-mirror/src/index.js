@@ -38,6 +38,17 @@ const ISSUE_QUERY = `
   }
 `;
 
+const TEAM_ISSUES_QUERY = `
+  query MirrorTeamIssues($id: String!, $after: String) {
+    team(id: $id) {
+      issues(first: 50, after: $after, includeArchived: true) {
+        nodes { id }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`;
+
 const ATTACHMENT_CREATE_MUTATION = `
   mutation AttachGithubIssue($input: AttachmentCreateInput!) {
     attachmentCreate(input: $input) {
@@ -98,6 +109,10 @@ export default {
       }
     }
   },
+
+  async scheduled(_controller, env) {
+    await enqueueSafetySweep(env);
+  },
 };
 
 export function shouldQueuePayload(payload) {
@@ -112,6 +127,43 @@ export function extractIssueId(payload) {
   if (!data || typeof data !== "object") return null;
   if (payload.type === "Issue" && typeof data.id === "string") return data.id;
   return null;
+}
+
+export function safetySweepMessage(issueId) {
+  return {
+    source: "scheduled-safety-sweep",
+    payload: {
+      type: "Issue",
+      action: "reconcile",
+      data: { id: issueId },
+    },
+  };
+}
+
+export async function enqueueSafetySweep(env, dependencies = {}) {
+  const queryLinear = dependencies.linearGraphql ?? linearGraphql;
+  const send = dependencies.send ?? ((message) => env.LINEAR_EVENTS.send(message));
+  let after = null;
+  let enqueued = 0;
+
+  while (true) {
+    const data = await queryLinear(TEAM_ISSUES_QUERY, { id: env.LINEAR_TEAM_ID, after }, env);
+    const issues = data.team?.issues;
+    if (!issues) break;
+
+    for (const issue of issues.nodes ?? []) {
+      if (typeof issue?.id !== "string") continue;
+      await send(safetySweepMessage(issue.id));
+      enqueued += 1;
+    }
+
+    if (!issues.pageInfo?.hasNextPage) break;
+    after = issues.pageInfo?.endCursor ?? null;
+    if (!after) throw new Error("Linear team issue pagination reported a next page without an end cursor");
+  }
+
+  console.log("Scheduled Linear safety sweep enqueued", { enqueued });
+  return enqueued;
 }
 
 export async function mirrorPayload(payload, env) {
