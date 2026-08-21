@@ -102,6 +102,7 @@ describe("inspectNuiDocument", () => {
     expect(diagnostic).toBeDefined();
     expect(diagnostic!.relatedInformation).toHaveLength(1);
     const related = diagnostic!.relatedInformation![0]!;
+    expect(related.physicalSpan.segments).toHaveLength(1);
     expect(rangeText(source, related.range)).toBe("required");
     expect(related.range.segments[0]!.from.line).toBe(2);
     expect(related.range.segments[0]!.from.column).toBeGreaterThan(1);

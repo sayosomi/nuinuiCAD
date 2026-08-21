@@ -48,6 +48,11 @@ const cases = [
     expected: flags({ workflow: true })
   },
   {
+    name: "MCP server source and tests",
+    paths: ["mcp-server/src/server.ts", "mcp-server/test/stdio.test.ts"],
+    expected: flags({ node: true })
+  },
+  {
     name: "ordinary Canvas/UI TypeScript",
     paths: ["src/components/Canvas.tsx"],
     expected: flags({ node: true, vscode: true })

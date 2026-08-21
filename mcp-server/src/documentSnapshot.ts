@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { AutomationDocument } from "../../src/document/automationDocument";
-import type { DslDiagnostic, DslStatement } from "../../src/dsl/dslTypes";
+import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslStatement } from "../../src/dsl/dslTypes";
 import type { DslPhysicalSpan } from "../../src/dsl/logicalStatementSourceMap";
 import type { CadElement } from "../../src/types/geometry";
 
@@ -22,24 +22,12 @@ export type SourceRangeDto = {
   segments: SourceRangeSegmentDto[];
 };
 
-export type DiagnosticDto = {
-  severity: DslDiagnostic["severity"];
-  message: string;
-  line: number;
-  column: number;
+export type DiagnosticDto = Omit<DslDiagnostic, "sourceRevision" | "relatedInformation"> & {
   sourceRevision: number;
-  code?: string;
   range?: SourceRangeDto;
-  relatedInformation?: Array<{
-    message: string;
+  relatedInformation?: Array<DslDiagnosticRelatedInformation & {
     range: SourceRangeDto;
   }>;
-  bindingId?: string;
-  elementId?: string;
-  propertyKey?: string;
-  origin?: "runtime";
-  expectedType?: DslDiagnostic["expectedType"];
-  actualType?: DslDiagnostic["actualType"];
 };
 
 export type DeclarationSummaryDto = {
@@ -138,31 +126,24 @@ const diagnosticDto = (
   currentSourceRevision: number,
   normalizedSource: string,
   lineStarts: readonly number[]
-): DiagnosticDto => ({
-  severity: diagnostic.severity,
-  message: diagnostic.message,
-  line: diagnostic.line,
-  column: diagnostic.column,
-  sourceRevision: diagnostic.sourceRevision ?? currentSourceRevision,
-  ...(diagnostic.code ? { code: diagnostic.code } : {}),
-  ...(diagnostic.physicalSpan
-    ? { range: rangeDto(diagnostic.physicalSpan, normalizedSource, lineStarts) }
-    : {}),
-  ...(diagnostic.relatedInformation
-    ? {
-        relatedInformation: diagnostic.relatedInformation.map((related) => ({
-          message: related.message,
-          range: rangeDto(related.physicalSpan, normalizedSource, lineStarts)
-        }))
-      }
-    : {}),
-  ...(diagnostic.bindingId ? { bindingId: diagnostic.bindingId } : {}),
-  ...(diagnostic.elementId ? { elementId: diagnostic.elementId } : {}),
-  ...(diagnostic.propertyKey ? { propertyKey: diagnostic.propertyKey } : {}),
-  ...(diagnostic.origin ? { origin: diagnostic.origin } : {}),
-  ...(diagnostic.expectedType ? { expectedType: diagnostic.expectedType } : {}),
-  ...(diagnostic.actualType ? { actualType: diagnostic.actualType } : {})
-});
+): DiagnosticDto => {
+  const { relatedInformation, sourceRevision, ...rest } = diagnostic;
+  return {
+    ...rest,
+    sourceRevision: sourceRevision ?? currentSourceRevision,
+    ...(diagnostic.physicalSpan
+      ? { range: rangeDto(diagnostic.physicalSpan, normalizedSource, lineStarts) }
+      : {}),
+    ...(relatedInformation
+      ? {
+          relatedInformation: relatedInformation.map((related) => ({
+            ...related,
+            range: rangeDto(related.physicalSpan, normalizedSource, lineStarts)
+          }))
+        }
+      : {})
+  };
+};
 
 const declarationSummary = (statement: DslStatement): DeclarationSummaryDto | null => {
   if (["version", "set", "atStop", "activeView", "place", "modifierProfileBlock", "modifierProperty", "blockEnd", "blockElse"].includes(statement.kind)) {
