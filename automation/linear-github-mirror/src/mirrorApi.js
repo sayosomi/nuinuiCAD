@@ -29,7 +29,7 @@ export async function githubFetch(path, init, env) {
       Authorization: `Bearer ${env.GITHUB_TOKEN}`,
       "Content-Type": "application/json",
       "X-GitHub-Api-Version": GITHUB_API_VERSION,
-      "User-Agent": "nuinuiCAD-linear-github-mirror",
+      "User-Agent": "nuinuicad-linear-github-mirror",
       ...(init?.headers ?? {}),
     },
   });
@@ -40,12 +40,30 @@ export async function githubFetch(path, init, env) {
 }
 
 export async function findGithubIssueByMarker(marker, env, gh = githubFetch) {
-  const query = `repo:${env.GITHUB_OWNER}/${env.GITHUB_REPO} is:issue in:body \"${marker}\"`;
-  const result = await gh(`/search/issues?q=${encodeURIComponent(query)}&per_page=10`, {}, env);
-  const items = Array.isArray(result?.items) ? result.items : [];
-  if (items.length === 0) return null;
-  if (items.length > 1) throw new Error(`Multiple GitHub issues contain mirror marker ${marker}`);
-  return items[0].number;
+  const matches = [];
+  const labelFilter = marker.startsWith(DOCUMENT_MARKER_PREFIX)
+    ? `&labels=${encodeURIComponent(DOCUMENT_LABEL)}`
+    : "";
+  const needle = `<!-- ${marker} -->`;
+
+  for (let page = 1; ; page += 1) {
+    const rows = await gh(
+      `/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/issues?state=all&per_page=100&page=${page}${labelFilter}`,
+      {},
+      env,
+    );
+    if (!Array.isArray(rows)) break;
+    for (const issue of rows) {
+      if (String(issue?.body ?? "").includes(needle) && Number.isInteger(issue?.number)) {
+        matches.push(issue.number);
+      }
+    }
+    if (rows.length < 100) break;
+  }
+
+  if (matches.length === 0) return null;
+  if (matches.length > 1) throw new Error(`Multiple GitHub issues contain mirror marker ${marker}`);
+  return matches[0];
 }
 
 export async function ensureGithubLabel(name, env, gh = githubFetch) {
