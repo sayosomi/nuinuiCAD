@@ -5,7 +5,11 @@ import {
   canvasSelectionForElement,
   canvasSelectionSnapshot,
   finalizeCanvasSelectionSession,
-  previewCanvasSelection
+  previewCanvasSelection,
+  replaceCanvasSelection,
+  selectAllElements,
+  selectElement,
+  selectElementByOffset
 } from "./selectionCommands";
 
 const elements = [
@@ -96,5 +100,56 @@ describe("ephemeral Canvas overlap selection", () => {
     finalizeCanvasSelectionSession(before);
 
     expect(useCadDocumentStore.getState().selectionPast).toEqual([]);
+  });
+
+  it("filters hidden and disabled targets across replace, range, toggle, and navigation", () => {
+    const mixedElements = elements.map((element) =>
+      element.id === "b"
+        ? { ...element, activity: "hidden" as const }
+        : element.id === "c"
+          ? { ...element, activity: "disabled" as const }
+          : element
+    );
+    useCadDocumentStore.setState({ elements: mixedElements });
+    useCadUiStore.getState().setSelectedElementId("a");
+
+    expect(canvasSelectionForElement(mixedElements, canvasSelectionSnapshot(), "b", "replace"))
+      .toBeNull();
+    expect(canvasSelectionForElement(mixedElements, canvasSelectionSnapshot(), "c", "toggle"))
+      .toBeNull();
+    expect(canvasSelectionForElement(mixedElements, canvasSelectionSnapshot(), "c", "range"))
+      .toBeNull();
+    expect(replaceCanvasSelection(["b", "a", "c"], "c", true)).toBe(true);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "a",
+      selectedElementIds: ["a"],
+      selectionAnchorElementId: "a"
+    });
+
+    selectAllElements();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(["a"]);
+    selectElementByOffset(1);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(["a"]);
+    selectElement("b", "replace", true);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(["a"]);
+  });
+
+  it("does not resurrect a hidden target through Canvas selection Undo/Redo", () => {
+    selectElement("b", "replace");
+    selectElement("a", "replace", true);
+    useCadDocumentStore.setState({
+      elements: elements.map((element) =>
+        element.id === "b" ? { ...element, activity: "hidden" as const } : element
+      )
+    });
+
+    expect(useCadDocumentStore.getState().undoCanvasSelection()).toBe(true);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
+    expect(useCadDocumentStore.getState().redoCanvasSelection()).toBe(true);
+    expect(useCadUiStore.getState().selectedElementId).toBe("a");
   });
 });

@@ -108,4 +108,58 @@ describe("activity commands", () => {
     expect(elementNamed("A")).toMatchObject({ activity: "hidden" });
     expect(elementById("W")).toMatchObject({ activity: "visible" });
   });
+
+  it("prunes a selected element when it is hidden or disabled without adding selection history", () => {
+    const pointA = elementNamed("A");
+    useCadUiStore.getState().setSelectedElementId(pointA.id);
+    const selectionHistoryBefore = useCadDocumentStore.getState().selectionPast.length;
+
+    setElementActivity(pointA.id, "hidden");
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(selectionHistoryBefore);
+
+    // The same transition remains eligible for the disabled state once the
+    // document is restored by Undo; the direct command itself is covered here.
+    useCadDocumentStore.getState().undo();
+    expect(useCadUiStore.getState().selectedElementId).toBe(pointA.id);
+    setElementActivity(pointA.id, "disabled");
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(selectionHistoryBefore);
+  });
+
+  it("keeps the eligible members and order when one multi-selected member is hidden", () => {
+    const pointA = elementNamed("A");
+    const pointB = elementNamed("B");
+    useCadUiStore.getState().setSelectedElementIds([pointA.id, pointB.id], pointA.id);
+
+    setElementActivity(pointA.id, "hidden");
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: pointB.id,
+      selectedElementIds: [pointB.id],
+      selectionAnchorElementId: pointB.id
+    });
+  });
+
+  it("reconciles selection when a Drawing Modifier changes effective activity", () => {
+    const pointA = elementNamed("A");
+    useCadUiStore.getState().setSelectedElementId(pointA.id);
+    const elements = useCadDocumentStore.getState().elements.map((element) =>
+      element.id === pointA.id ? { ...element, modifierNames: ["hide"] } : element
+    );
+
+    const result = useCadDocumentStore.getState().commitDocumentChange({
+      elements,
+      modifiers: [{ name: "hide", state: "hidden" }]
+    });
+
+    expect(result.status).toBe("applied");
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+  });
 });

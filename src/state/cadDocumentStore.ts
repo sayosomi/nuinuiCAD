@@ -1106,7 +1106,9 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
 }));
 
 useCadDocumentStore.subscribe((state, previous) => {
-  if (state.doc.document.elements === previous.doc.document.elements) return;
+  const elementsChanged = state.doc.document.elements !== previous.doc.document.elements;
+  const drawingModifiersChanged = state.doc.document.modifiers !== previous.doc.document.modifiers;
+  if (!elementsChanged && !drawingModifiersChanged) return;
   useCadUiStore.getState().pruneGroupFold(new Set(state.doc.document.elements.map((element) => element.id)));
   useCadUiStore.getState().reconcileSelectionWithElements(state.doc.document.elements);
 });
