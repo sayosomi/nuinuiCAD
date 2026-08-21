@@ -604,8 +604,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       raw,
       span,
       expectedType,
-      resolveReference: (reference) => {
-        const resolution = resolver(reference, presenceFacts);
+      resolveReference: (reference, expressionPresenceFacts) => {
+        const resolution = resolver(reference, expressionPresenceFacts ?? presenceFacts);
         return resolution.diagnostic
           ? { ...resolution, diagnostic: { ...resolution.diagnostic, span: reference.span } }
           : resolution;

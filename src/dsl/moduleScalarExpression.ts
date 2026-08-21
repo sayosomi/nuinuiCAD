@@ -19,30 +19,18 @@ import type {
 export const moduleParameterPresenceKey = (definitionStatementId: string, parameterIndex: number) =>
   `${definitionStatementId}:${parameterIndex}`;
 
-export const presenceFactsForTruth = (ast: ScalarExpressionAst): ReadonlySet<string> => {
-  if (ast.kind === "group") return presenceFactsForTruth(ast.expression);
-  if (ast.kind === "unary" && ast.operator === "!") return presenceFactsForFalse(ast.operand);
-  if (ast.kind === "binary" && ast.operator === "&&") {
-    return new Set([...presenceFactsForTruth(ast.left), ...presenceFactsForTruth(ast.right)]);
-  }
-  if (ast.kind === "binary" && ast.operator === "||") return new Set();
-  return new Set();
-};
+type PresenceFactBranch = "truth" | "false";
 
-export const presenceFactsForFalse = (ast: ScalarExpressionAst): ReadonlySet<string> => {
-  if (ast.kind === "group") return presenceFactsForFalse(ast.expression);
-  if (ast.kind === "unary" && ast.operator === "!") return presenceFactsForTruth(ast.operand);
-  if (ast.kind === "binary" && ast.operator === "&&") return presenceFactsForFalse(ast.left);
-  if (ast.kind === "binary" && ast.operator === "||") {
-    return new Set([...presenceFactsForFalse(ast.left), ...presenceFactsForFalse(ast.right)]);
-  }
-  return new Set();
-};
+const unionPresenceFacts = (...factSets: readonly ReadonlySet<string>[]): ReadonlySet<string> =>
+  new Set(factSets.flatMap((facts) => [...facts]));
+
+const intersectPresenceFacts = (left: ReadonlySet<string>, right: ReadonlySet<string>): ReadonlySet<string> =>
+  new Set([...left].filter((fact) => right.has(fact)));
 
 const presenceFactsForResolvedAst = (
   ast: ScalarExpressionAst,
   hasValueKeyBySpan: ReadonlyMap<number, string>,
-  branch: "truth" | "false"
+  branch: PresenceFactBranch
 ): ReadonlySet<string> => {
   const intrinsicKey = (ast.kind === "booleanLiteral" || (ast.kind === "call" && ast.name === "hasValue"))
     ? hasValueKeyBySpan.get(ast.span.start)
@@ -57,23 +45,33 @@ const presenceFactsForResolvedAst = (
     return presenceFactsForResolvedAst(ast.operand, hasValueKeyBySpan, branch === "truth" ? "false" : "truth");
   }
   if (ast.kind === "binary" && ast.operator === "&&") {
+    const leftTruth = presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "truth");
+    const leftFalse = presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "false");
+    const rightTruth = presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "truth");
+    const rightFalse = presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "false");
     return branch === "truth"
-      ? new Set([
-          ...presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "truth"),
-          ...presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "truth")
-        ])
-      : presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "false");
+      ? unionPresenceFacts(leftTruth, rightTruth)
+      : intersectPresenceFacts(leftFalse, unionPresenceFacts(leftTruth, rightFalse));
   }
   if (ast.kind === "binary" && ast.operator === "||") {
+    const leftTruth = presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "truth");
+    const leftFalse = presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "false");
+    const rightTruth = presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "truth");
+    const rightFalse = presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "false");
     return branch === "false"
-      ? new Set([
-          ...presenceFactsForResolvedAst(ast.left, hasValueKeyBySpan, "false"),
-          ...presenceFactsForResolvedAst(ast.right, hasValueKeyBySpan, "false")
-        ])
-      : new Set();
+      ? unionPresenceFacts(leftFalse, rightFalse)
+      : intersectPresenceFacts(leftTruth, unionPresenceFacts(leftFalse, rightTruth));
   }
   return new Set();
 };
+
+const emptyPresenceFactKeys = new Map<number, string>();
+
+export const presenceFactsForTruth = (ast: ScalarExpressionAst): ReadonlySet<string> =>
+  presenceFactsForResolvedAst(ast, emptyPresenceFactKeys, "truth");
+
+export const presenceFactsForFalse = (ast: ScalarExpressionAst): ReadonlySet<string> =>
+  presenceFactsForResolvedAst(ast, emptyPresenceFactKeys, "false");
 
 export const presenceFactsForSemanticTruth = (semantic: ModuleScalarExpressionSemantic): ReadonlySet<string> =>
   presenceFactsForResolvedAst(

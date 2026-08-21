@@ -59,6 +59,89 @@ describe("module semantic analysis", () => {
     expect(compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === 6)?.presenceParameterKeys).toEqual([]);
   });
 
+  it("does not narrow an unsafe compound AND false branch", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (not hasValue(@value) and false) {",
+      "  } else {",
+      "    const bad: number = @value",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+  });
+
+  it("keeps direct negated hasValue guards narrowing the else branch", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (not hasValue(@value)) {",
+      "  } else {",
+      "    const okay: number = @value",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("keeps OR RHS short-circuit presence proof and rejects the unsafe direction", () => {
+    const valid = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (not hasValue(@value) or @value > 0) {",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(valid.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const invalid = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (hasValue(@value) or @value > 0) {",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(invalid.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+  });
+
+  it("keeps AND RHS short-circuit presence proof valid", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (hasValue(@value) and @value > 0) {",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("retains a presence fact shared by every compound OR true path", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (hasValue(@value) or hasValue(@value)) {",
+      "    const okay: number = @value",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
   it("requires presence when forwarding an optional value to another module", () => {
     const guarded = compileWithIds([
       "nui 4",
