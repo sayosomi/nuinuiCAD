@@ -11,7 +11,8 @@ import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 
 const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
-  hostAdapter: null as CanvasHostAdapter | null
+  hostAdapter: null as CanvasHostAdapter | null,
+  canvasFocusRef: null as { current: HTMLDivElement | null } | null
 }));
 
 vi.mock("../commands/commands", () => ({
@@ -21,11 +22,19 @@ vi.mock("../commands/commands", () => ({
 vi.mock("../components/DrawingCanvas", async () => {
   const React = await import("react");
   return {
-    DrawingCanvas: React.forwardRef((_props: { hostAdapter: CanvasHostAdapter }, ref) => {
+    DrawingCanvas: React.forwardRef((_props: {
+      hostAdapter: CanvasHostAdapter;
+      canvasFocusRef: { current: HTMLDivElement | null };
+    }, ref) => {
       void ref;
       const props = _props;
       mocks.hostAdapter = props.hostAdapter;
-      return null;
+      mocks.canvasFocusRef = props.canvasFocusRef;
+      return React.createElement("div", {
+        "data-testid": "drawing-canvas",
+        ref: props.canvasFocusRef,
+        "data-vscode-context": props.hostAdapter.canvasContextMenuData
+      });
     })
   };
 });
@@ -33,6 +42,7 @@ vi.mock("../components/DrawingCanvas", async () => {
 afterEach(() => {
   mocks.dispatchCommand.mockReset();
   mocks.hostAdapter = null;
+  mocks.canvasFocusRef = null;
 });
 
 const makeEvaluationState = (
@@ -75,6 +85,45 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it.each([
+    ["blank", false],
+    ["blank", true],
+    ["element", false],
+    ["element", true]
+  ] as const)("projects %s Canvas context with selection=%s", (kind, hasSelection) => {
+    useCadUiStore.setState({ selectedElementIds: hasSelection ? ["selected"] : [] });
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+    const viewport = screen.getByTestId("drawing-canvas");
+
+    adapter.publishCanvasContextMenu?.({ kind });
+
+    expect(JSON.parse(viewport.getAttribute("data-vscode-context")!)).toEqual({
+      webviewSection: kind,
+      "nuinuiCAD.canvasHasSelection": hasSelection,
+      preventDefaultContextMenuItems: true
+    });
+  });
+
+  it("refreshes Canvas context from current selection across blank and element transitions", () => {
+    useCadUiStore.setState({ selectedElementIds: [] });
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+    const viewport = screen.getByTestId("drawing-canvas");
+    const context = () => JSON.parse(viewport.getAttribute("data-vscode-context")!);
+
+    adapter.publishCanvasContextMenu?.({ kind: "blank" });
+    expect(context()).toMatchObject({ webviewSection: "blank", "nuinuiCAD.canvasHasSelection": false });
+
+    useCadUiStore.setState({ selectedElementIds: ["selected"] });
+    adapter.publishCanvasContextMenu?.({ kind: "element" });
+    expect(context()).toMatchObject({ webviewSection: "element", "nuinuiCAD.canvasHasSelection": true });
+
+    useCadUiStore.setState({ selectedElementIds: [] });
+    adapter.publishCanvasContextMenu?.({ kind: "blank" });
+    expect(context()).toMatchObject({ webviewSection: "blank", "nuinuiCAD.canvasHasSelection": false });
+  });
+
   it("renders the closed Ribbon surface from shared Canvas state and routes only allowed commands", () => {
     useCadUiStore.setState({
       selectedElementIds: [],

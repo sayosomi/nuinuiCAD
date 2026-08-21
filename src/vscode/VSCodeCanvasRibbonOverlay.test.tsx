@@ -9,6 +9,7 @@ import {
   VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH,
   vscodeCanvasStatusPresentationFor
 } from "./vscodeCanvasRibbonStatus";
+import { vscodeCanvasRibbonContextData } from "./protocol";
 
 const ribbonWithStatus: VscodeCanvasRibbon[] = [{
   id: "ribbon",
@@ -113,6 +114,10 @@ describe("VSCodeCanvasRibbonOverlay Canvas status", () => {
   it("formats zoom as an integer percent and starts with unavailable coordinates", () => {
     renderStatus({ panX: 20, panY: -10, zoom: 1.234 });
 
+    expect(document.querySelector(".command-ribbon")).toHaveAttribute(
+      "data-vscode-context",
+      vscodeCanvasRibbonContextData
+    );
     expect(screen.getByRole("status", {
       name: "Canvas status: ZOOM: 123%, X: —, Y: —"
     })).toBeInTheDocument();

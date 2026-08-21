@@ -54,6 +54,7 @@ export type CommandRibbonPresentation = {
 export type CommandRibbonViewProps = {
   ribbon: CommandRibbonPresentation;
   className?: string;
+  contextMenuData?: string;
   dragging?: boolean;
   viewportAwareTooltips?: boolean;
   tooltipBoundaryRef?: RefObject<HTMLElement | null>;
@@ -74,6 +75,7 @@ const tooltipIdFor = (ribbonId: string, itemId: string): string =>
 export const CommandRibbonView = ({
   ribbon,
   className = "",
+  contextMenuData,
   dragging = false,
   viewportAwareTooltips = false,
   tooltipBoundaryRef,
@@ -183,6 +185,7 @@ export const CommandRibbonView = ({
         className
       ].filter(Boolean).join(" ")}
       data-ribbon-id={ribbon.id}
+      data-vscode-context={contextMenuData}
       onPointerDown={(event) => event.stopPropagation()}
       onWheel={(event) => event.stopPropagation()}
     >
