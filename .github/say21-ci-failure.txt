@@ -15,116 +15,35 @@ Run `npm audit` for details.
 
 [1m[30m[46m RUN [49m[39m[22m [36mv4.1.9 [39m[90m/home/runner/work/nuinuiCAD/nuinuiCAD[39m
 
- [31m❯[39m src/geometry/commonTangentEvaluator.test.ts [2m([22m[2m7 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[32m 67[2mms[22m[39m
-     [32m✓[39m evaluates external left/right from full supporting circles[32m 33[2mms[22m[39m
-     [32m✓[39m evaluates internal left/right from full supporting circles[32m 5[2mms[22m[39m
-[31m     [31m×[31m round-trips the canonical DSL construction[39m[32m 16[2mms[22m[39m
+ [31m❯[39m src/geometry/commonTangentEvaluator.test.ts [2m([22m[2m7 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 72[2mms[22m[39m
+     [32m✓[39m evaluates external left/right from full supporting circles[32m 38[2mms[22m[39m
+     [32m✓[39m evaluates internal left/right from full supporting circles[32m 6[2mms[22m[39m
+     [32m✓[39m round-trips the canonical DSL construction[32m 8[2mms[22m[39m
      [32m✓[39m uses first->second orientation when arguments are swapped[32m 5[2mms[22m[39m
-[31m     [31m×[31m accepts arc/through/corner outputs rather than authored arc type only[39m[32m 5[2mms[22m[39m
-     [32m✓[39m reports exact non-arc, invalid-radius, concentric/coincident, missing-kind, and collapsed diagnostics[32m 1[2mms[22m[39m
+[31m     [31m×[31m accepts arc/through/corner outputs rather than authored arc type only[39m[32m 11[2mms[22m[39m
+     [32m✓[39m reports exact non-arc, invalid-radius, concentric/coincident, missing-kind, and collapsed diagnostics[32m 2[2mms[22m[39m
      [32m✓[39m steps kind and side forward/backward with wrap[32m 0[2mms[22m[39m
 
-[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
-
-[41m[1m FAIL [22m[49m src/geometry/commonTangentEvaluator.test.ts[2m > [22mcommonTangent[2m > [22mround-trips the canonical DSL construction
-[31m[1mAssertionError[22m: expected 'nui 4\n\ncolor pattern-black ("#31322…' to contain 'line T = commonTangent(first: @A, sec…'[39m
-
-[32m- Expected[39m
-[31m+ Received[39m
-
-[32m- line T = commonTangent(first: @A, second: @B, kind: internal, side: right)[39m
-[31m+ nui 4[39m
-[31m+[39m
-[31m+ color pattern-black ("#31322f", name: "基本線", default: true)[39m
-[31m+ color cut-red ("#b42318", name: "裁断線")[39m
-[31m+ color guide-blue ("#2563eb", name: "補助線")[39m
-[31m+ color mark-green ("#15803d", name: "印")[39m
-[31m+ color note-amber ("#b45309", name: "注記")[39m
-[31m+[39m
-[31m+ view 通常表示 (id: default, default: true)[39m
-[31m+ activeView default[39m
-[31m+[39m
-[31m+ point C1 = coordinate([39m
-[31m+   x: 0,[39m
-[31m+   y: 0,[39m
-[31m+ )[39m
-[31m+ point C2 = coordinate([39m
-[31m+   x: 60,[39m
-[31m+   y: 0,[39m
-[31m+ )[39m
-[31m+ arc A = arc([39m
-[31m+   center: @C1,[39m
-[31m+   radius: 20,[39m
-[31m+   start: 40,[39m
-[31m+   end: 80,[39m
-[31m+ )[39m
-[31m+ arc B = arc([39m
-[31m+   center: @C2,[39m
-[31m+   radius: 10,[39m
-[31m+   start: 210,[39m
-[31m+   end: 250,[39m
-[31m+ )[39m
-[31m+ line T = commonTangent([39m
-[31m+ [7m  [27mfirst: @A,[39m
-[31m+ [7m [27m second: @B,[39m
-[31m+ [7m [27m kind: internal,[39m
-[31m+ [7m [27m side: right[7m,[27m[39m
-[31m+ )[39m
-
-[36m [2m❯[22m src/geometry/commonTangentEvaluator.test.ts:[2m61:18[22m[39m
-    [90m 59|[39m     const tangent = document.elements.find((element) => element.name =…
-    [90m 60|[39m     expect(tangent).toMatchObject({ type: "commonTangentLine", kind: "…
-    [90m 61|[39m     expect(text).toContain("line T = commonTangent(first: @A, second: …
-    [90m   |[39m                  [31m^[39m
-    [90m 62|[39m     expect(parsed.elements.find((element) => element.name === "T")).to…
-    [90m 63|[39m   })[33m;[39m
-
-[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
 
 [41m[1m FAIL [22m[49m src/geometry/commonTangentEvaluator.test.ts[2m > [22mcommonTangent[2m > [22maccepts arc/through/corner outputs rather than authored arc type only
-[31m[1mAssertionError[22m: expected [ { severity: 'error', …(5) } ] to deeply equal [][39m
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'id')[39m
+[36m [2m❯[22m evaluateSource src/geometry/commonTangentEvaluator.test.ts:[2m27:85[22m[39m
+    [90m 25|[39m     statementInfoByElementId[33m:[39m compiled[33m.[39mstatementMap[33m![39m[33m.[39mbyElementId
+    [90m 26|[39m   })[33m;[39m
+    [90m 27|[39m   return { compiled, tangent, result, geometry: result.computedGeometr…
+    [90m   |[39m                                                                                     [31m^[39m
+    [90m 28|[39m }[33m;[39m
+    [90m 29|[39m
+[90m [2m❯[22m src/geometry/commonTangentEvaluator.test.ts:[2m95:24[22m[39m
 
-[32m- Expected[39m
-[31m+ Received[39m
-
-[32m- [][39m
-[31m+ [[39m
-[31m+   {[39m
-[31m+     "column": 1,[39m
-[31m+     "line": 13,[39m
-[31m+     "message": "construction「corner」に引数「intersectionIndex」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",[39m
-[31m+     "physicalSpan": {[39m
-[31m+       "segments": [[39m
-[31m+         {[39m
-[31m+           "from": 538,[39m
-[31m+           "to": 555,[39m
-[31m+         },[39m
-[31m+       ],[39m
-[31m+       "sourceRevision": 0,[39m
-[31m+     },[39m
-[31m+     "severity": "error",[39m
-[31m+     "sourceRevision": 0,[39m
-[31m+   },[39m
-[31m+ ][39m
-
-[36m [2m❯[22m evaluateSource src/geometry/commonTangentEvaluator.test.ts:[2m21:76[22m[39m
-    [90m 19|[39m [35mconst[39m evaluateSource [33m=[39m (source[33m:[39m string) [33m=>[39m {
-    [90m 20|[39m   [35mconst[39m compiled [33m=[39m [34mcompileDslDocument[39m(source)[33m;[39m
-    [90m 21|[39m   expect(compiled.diagnostics.filter((item) => item.severity === "erro…
-    [90m   |[39m                                                                            [31m^[39m
-    [90m 22|[39m   [34mexpect[39m(compiled[33m.[39mdocument)[33m.[39mnot[33m.[39m[34mtoBeNull[39m()[33m;[39m
-    [90m 23|[39m   const tangent = compiled.document!.elements.find((element) => elemen…
-[90m [2m❯[22m src/geometry/commonTangentEvaluator.test.ts:[2m91:24[22m[39m
-
-[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
 
 
 [2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
-[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m5 passed[39m[22m[90m (7)[39m
-[2m   Start at [22m 17:48:46
-[2m   Duration [22m 1.99s[2m (transform 902ms, setup 96ms, import 1.02s, tests 67ms, environment 663ms)[22m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m6 passed[39m[22m[90m (7)[39m
+[2m   Start at [22m 17:50:08
+[2m   Duration [22m 2.06s[2m (transform 957ms, setup 105ms, import 1.08s, tests 72ms, environment 667ms)[22m
 
 
-::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/geometry/commonTangentEvaluator.test.ts,title=src/geometry/commonTangentEvaluator.test.ts > commonTangent > round-trips the canonical DSL construction,line=61,column=18::AssertionError: expected 'nui 4\n\ncolor pattern-black ("#31322…' to contain 'line T = commonTangent(first: @A, sec…'%0A%0A- Expected%0A+ Received%0A%0A- line T = commonTangent(first: @A, second: @B, kind: internal, side: right)%0A+ nui 4%0A+%0A+ color pattern-black ("#31322f", name: "基本線", default: true)%0A+ color cut-red ("#b42318", name: "裁断線")%0A+ color guide-blue ("#2563eb", name: "補助線")%0A+ color mark-green ("#15803d", name: "印")%0A+ color note-amber ("#b45309", name: "注記")%0A+%0A+ view 通常表示 (id: default, default: true)%0A+ activeView default%0A+%0A+ point C1 = coordinate(%0A+   x: 0,%0A+   y: 0,%0A+ )%0A+ point C2 = coordinate(%0A+   x: 60,%0A+   y: 0,%0A+ )%0A+ arc A = arc(%0A+   center: @C1,%0A+   radius: 20,%0A+   start: 40,%0A+   end: 80,%0A+ )%0A+ arc B = arc(%0A+   center: @C2,%0A+   radius: 10,%0A+   start: 210,%0A+   end: 250,%0A+ )%0A+ line T = commonTangent(%0A+   first: @A,%0A+   second: @B,%0A+   kind: internal,%0A+   side: right,%0A+ )%0A%0A ❯ src/geometry/commonTangentEvaluator.test.ts:61:18%0A%0A
-
-::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/geometry/commonTangentEvaluator.test.ts,title=src/geometry/commonTangentEvaluator.test.ts > commonTangent > accepts arc/through/corner outputs rather than authored arc type only,line=21,column=76::AssertionError: expected [ { severity: 'error', …(5) } ] to deeply equal []%0A%0A- Expected%0A+ Received%0A%0A- []%0A+ [%0A+   {%0A+     "column": 1,%0A+     "line": 13,%0A+     "message": "construction「corner」に引数「intersectionIndex」はありません。候補: end1、end2、radius、index、state、color、steps、id、roles、parent、branch。",%0A+     "physicalSpan": {%0A+       "segments": [%0A+         {%0A+           "from": 538,%0A+           "to": 555,%0A+         },%0A+       ],%0A+       "sourceRevision": 0,%0A+     },%0A+     "severity": "error",%0A+     "sourceRevision": 0,%0A+   },%0A+ ]%0A%0A ❯ evaluateSource src/geometry/commonTangentEvaluator.test.ts:21:76%0A ❯ src/geometry/commonTangentEvaluator.test.ts:91:24%0A%0A
+::error file=/home/runner/work/nuinuiCAD/nuinuiCAD/src/geometry/commonTangentEvaluator.test.ts,title=src/geometry/commonTangentEvaluator.test.ts > commonTangent > accepts arc/through/corner outputs rather than authored arc type only,line=27,column=85::TypeError: Cannot read properties of undefined (reading 'id')%0A ❯ evaluateSource src/geometry/commonTangentEvaluator.test.ts:27:85%0A ❯ src/geometry/commonTangentEvaluator.test.ts:95:24%0A%0A
