@@ -1643,7 +1643,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   }));
 
   const callEdges = moduleCallEdges(instances);
-  const recursionCycles = moduleRecursionCycles(callEdges);
+  const recursionCycles = moduleRecursionCycles(semanticDefinitions, callEdges);
   const recursionInstancesByStatementId = new Map(instances.map((instance) => [instance.statementId, instance] as const));
   for (const instance of instances) {
     const cycle = recursionCycles.get(instance.statementId);
