@@ -1302,19 +1302,39 @@ export const compileModuleScalarRuntime = ({
     }
   }
 
-  const scalarExecutionPositionByRuntimeElementId = new Map(elementOrderById);
+  const scalarExecutionPositionByRuntimeElementId = new Map<ElementId, number>();
+  const lastScalarExecutionPositionByExecutionUnit = new Map<number, number>();
   for (const entry of moduleMaterialization.executionStatements) {
-    if (!entry.runtimeIdentity || scalarExecutionPositionByRuntimeElementId.has(entry.runtimeElementId)) continue;
+    const scalarExecutionPosition = elementOrderById.get(entry.runtimeElementId);
+    if (scalarExecutionPosition !== undefined) {
+      scalarExecutionPositionByRuntimeElementId.set(entry.runtimeElementId, scalarExecutionPosition);
+      lastScalarExecutionPositionByExecutionUnit.set(entry.executionUnitStatementIndex, scalarExecutionPosition);
+      continue;
+    }
+
+    if (!entry.runtimeIdentity) {
+      throw new Error(`moduleScalarRuntime: missing scalar execution position for root element ${entry.runtimeElementId}`);
+    }
     const context = contextsByKey.get(pathKey(entry.instancePath));
     const body = entry.runtimeIdentity.kind === "moduleBody"
       ? context?.definition.bodyStatements.find((candidate) => candidate.statementId === entry.sourceStatementId)
       : undefined;
-    if (context && (!contextIsReachable(context) || (body && !moduleBodyStatementIsReachable(context, body)))) {
-      // Unreachable materialized placeholders must not advance the scalar
-      // cursor into a later concrete module instance before their conditional
-      // owner has been evaluated.
-      scalarExecutionPositionByRuntimeElementId.set(entry.runtimeElementId, 0);
+    if (!context || (contextIsReachable(context) && (!body || moduleBodyStatementIsReachable(context, body)))) {
+      throw new Error(`moduleScalarRuntime: missing scalar execution position for reachable materialized element ${entry.runtimeElementId}`);
     }
+
+    // Unreachable materialized placeholders must not advance the scalar
+    // cursor into a later concrete module instance before their conditional
+    // owner has been evaluated. Reuse only the latest position already seen
+    // in this execution unit; borrowing from another unit would change the
+    // mutation timeline for the placeholder.
+    const lastScalarExecutionPosition = lastScalarExecutionPositionByExecutionUnit.get(entry.executionUnitStatementIndex);
+    if (lastScalarExecutionPosition === undefined) {
+      throw new Error(
+        `moduleScalarRuntime: unreachable materialized element ${entry.runtimeElementId} has no prior scalar execution position in execution unit ${entry.executionUnitStatementIndex}`
+      );
+    }
+    scalarExecutionPositionByRuntimeElementId.set(entry.runtimeElementId, lastScalarExecutionPosition);
   }
 
   return {

@@ -41,6 +41,24 @@ const independentInstancesSource = [
   "instance True = M(enabled: true)"
 ].join("\n");
 
+const optionalModuleBodySource = [
+  "nui 4",
+  "",
+  "module M(value?: number) {",
+  "  if (hasValue(@value) and @value > 0) {",
+  "    point P = coordinate(",
+  "      x: @value,",
+  "      y: 10,",
+  "    )",
+  "  }",
+  "}",
+  "",
+  "instance Absent = M()",
+  "instance Present = M(",
+  "  value: 30,",
+  ")"
+].join("\n");
+
 const evaluatedPoints = (fixture: ReturnType<typeof fixtureFromSource>, payload: ReturnType<typeof evaluateWithRustFixture>) => {
   const result = evaluationPayloadToResult(payload);
   return fixture.elements.filter((element) => element.name === "P").map((element) => result.computedGeometry.get(element.id));
@@ -108,6 +126,27 @@ describe("Rust-first Module conditional set runtime", () => {
       JSON.stringify(version.control).includes("conditionalBranch")
     )).toBe(true);
     expect(input.bindingVersions?.conditionalOwners).toHaveLength(2);
+  }, 30000);
+
+  it("evaluates omitted and supplied optional module bodies through Rust first", () => {
+    const fixture = fixtureFromSource(optionalModuleBodySource);
+    const options = optionsFor(fixture);
+    const input = buildRustEvaluationInput(fixture.elements, options);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(process.cwd(), fixture);
+
+    expect(fixture.compiled?.diagnostics).toEqual([]);
+    expect(fixture.compiled?.bindingIssueDiagnostics ?? []).toEqual([]);
+    expect(input.bindingVersions).toBeDefined();
+    expect(input.conditionExpressions).toBeDefined();
+    expect(rustPayload.errors).toEqual([]);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const result = evaluationPayloadToResult(rustPayload);
+    const points = fixture.elements.filter((element) => element.name === "P");
+    expect(points).toHaveLength(2);
+    expect(result.computedGeometry.get(points[0].id)).toBeUndefined();
+    expect(result.computedGeometry.get(points[1].id)).toMatchObject({ kind: "point", x: 30, y: 10 });
   }, 30000);
 
   it("evaluates the convex-notch manual fixture through the Rust/parity payload", () => {
