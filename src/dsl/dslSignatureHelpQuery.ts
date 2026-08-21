@@ -11,6 +11,7 @@ import { userFacingConstructionArgumentSpecs } from "./dslCallCompletionCandidat
 import type { CompiledDslDocument } from "./dslDocument";
 import type { DslModuleParameterType } from "./dslTypes";
 import type { SourceSnapshot } from "./logicalStatementSourceMap";
+import { createCadElement } from "../model/elementFactory";
 import {
   getBuiltinFunctionDefinition,
   type BuiltinFunctionDefinition,
@@ -21,12 +22,14 @@ import {
   scalarTypeForParameterDefinition,
   type ParameterDefinition
 } from "../parameters/parameterDefinitions";
+import { getParameterValue } from "../parameters/parameterAccess";
+import type { CadElementType } from "../types/geometry";
 import type { ScalarType } from "../scalars/types";
 
 export type DslSignatureHelpDocumentation = {
-  /** Existing metadata, not localized text. The VS Code adapter selects it. */
-  en: string;
-  ja?: string;
+  /** Stable localization key; the host presentation layer selects the locale. */
+  key: string;
+  parameters?: Readonly<Record<string, string | number | boolean>>;
 };
 
 export type DslSignatureHelpParameter = {
@@ -92,36 +95,120 @@ const allowedValuesFor = (type: ScalarType | null | undefined): readonly string[
   return undefined;
 };
 
+const parameterTypeFor = (definition: ParameterDefinition): string | undefined => {
+  const scalarType = scalarTypeForParameterDefinition(definition);
+  if (scalarType) return scalarTypeName(scalarType);
+  switch (definition.kind) {
+    case "reference":
+      return "point";
+    case "lineReference":
+      return "line";
+    default:
+      // `lineEndpointReference` and `lineReferenceList` have no single
+      // established nui4 type spelling. Their documentation carries the
+      // structural meaning instead of presenting an invented type.
+      return undefined;
+  }
+};
+
+const constructionDefaults = new Map<CadElementType, ReturnType<typeof createCadElement>>();
+
+const constructionDefaultFor = (
+  elementType: CadElementType,
+  definition: ParameterDefinition
+): string | undefined => {
+  if (definition.kind !== "number" && definition.kind !== "boolean" && definition.kind !== "choice") {
+    return undefined;
+  }
+  let element = constructionDefaults.get(elementType);
+  if (!element) {
+    element = createCadElement(elementType, [], { createId: (type) => `signature-help-${type}` });
+    constructionDefaults.set(elementType, element);
+  }
+  const value = getParameterValue(element, definition.key);
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+    ? String(value)
+    : undefined;
+};
+
+const genericParameterDocumentationKeyFor = (definition: ParameterDefinition): string => {
+  switch (definition.kind) {
+    case "reference":
+      return "signatureHelp.parameter.pointReference";
+    case "lineEndpointReference":
+      return "signatureHelp.parameter.lineEndpointReference";
+    case "lineReference":
+      return "signatureHelp.parameter.lineReference";
+    case "lineReferenceList":
+      return "signatureHelp.parameter.lineReferenceList";
+    case "number":
+      return "signatureHelp.parameter.number";
+    case "boolean":
+      return "signatureHelp.parameter.boolean";
+    case "choice":
+      return "signatureHelp.parameter.choice";
+    case "text":
+      return "signatureHelp.parameter.text";
+    case "color":
+      return "signatureHelp.parameter.color";
+  }
+};
+
+const constructionParameterDocumentationKeyFor = (
+  category: string,
+  construction: string,
+  argName: string,
+  definition: ParameterDefinition | undefined
+): string => {
+  if (category === "point" && construction === "coordinate" && argName === "x") {
+    return "signatureHelp.construction.point.coordinate.x";
+  }
+  if (category === "point" && construction === "coordinate" && argName === "y") {
+    return "signatureHelp.construction.point.coordinate.y";
+  }
+  if (category === "line" && construction === "segment" && argName === "start") {
+    return "signatureHelp.construction.line.segment.start";
+  }
+  if (category === "line" && construction === "segment" && argName === "end") {
+    return "signatureHelp.construction.line.segment.end";
+  }
+  if (category === "line" && construction === "offset" && argName === "distance") {
+    return "signatureHelp.construction.line.offset.distance";
+  }
+  if (category === "line" && construction === "offset" && argName === "side") {
+    return "signatureHelp.construction.line.offset.side";
+  }
+  if (category === "line" && construction === "offset" && argName === "closed") {
+    return "signatureHelp.construction.line.offset.closed";
+  }
+  return definition
+    ? genericParameterDocumentationKeyFor(definition)
+    : "signatureHelp.parameter.argument";
+};
+
 const parameterMetadataFor = (
   definition: ParameterDefinition,
+  elementType: CadElementType,
   identity: string,
   name: string,
   optional: boolean,
-  positional: boolean
+  positional: boolean,
+  documentationKey: string
 ): DslSignatureHelpParameter => {
   const scalarType = scalarTypeForParameterDefinition(definition);
-  const type = scalarType
-    ? scalarTypeName(scalarType)
-    : definition.kind === "reference"
-      ? "point"
-      : definition.kind === "lineEndpointReference"
-        ? "line endpoint"
-        : definition.kind === "lineReference" || definition.kind === "lineReferenceList"
-          ? "line"
-          : definition.kind;
+  const type = parameterTypeFor(definition);
+  const defaultValue = constructionDefaultFor(elementType, definition);
   return {
     identity,
     name,
     type,
     optional,
     positional,
-    ...(definition.emptyInputDefaultValue !== undefined
-      ? { defaultValue: String(definition.emptyInputDefaultValue) }
+    ...(defaultValue !== undefined
+      ? { defaultValue }
       : {}),
     ...(allowedValuesFor(scalarType) ? { allowedValues: allowedValuesFor(scalarType) } : {}),
-    ...(definition.label !== name
-      ? { documentation: { en: name, ja: definition.label } }
-      : {})
+    documentation: { key: documentationKey }
   };
 };
 
@@ -133,13 +220,19 @@ const builtinParameter = (
 ): DslSignatureHelpParameter => {
   const named = "name" in parameter ? parameter.name : `arg${parameterIndex + 1}`;
   const scalarType = typeof parameter.type === "string" ? null : parameter.type;
+  const documentationKey = "name" in parameter
+    ? `signatureHelp.builtin.${callableName}.${named}`
+    : typeof parameter.type === "string"
+      ? `signatureHelp.parameter.${parameter.type}`
+      : `signatureHelp.parameter.${parameter.type.kind}`;
   return {
     identity: `builtin:${callableName}:${signatureIndex}:${parameterIndex}`,
     name: named,
     type: builtinTypeName(parameter.type),
     optional: false,
     positional: !("name" in parameter),
-    ...(allowedValuesFor(scalarType) ? { allowedValues: allowedValuesFor(scalarType) } : {})
+    ...(allowedValuesFor(scalarType) ? { allowedValues: allowedValuesFor(scalarType) } : {}),
+    documentation: { key: documentationKey }
   };
 };
 
@@ -151,7 +244,8 @@ const builtinSignaturesFor = (definition: BuiltinFunctionDefinition): readonly D
     parameters: signature.parameters.map((parameter, parameterIndex) =>
       builtinParameter(definition.name, signatureIndex, parameterIndex, parameter)
     ),
-    returnType: builtinTypeName(signature.returnType)
+    returnType: builtinTypeName(signature.returnType),
+    documentation: { key: `signatureHelp.builtin.${definition.name}` }
   }));
 
 const constructionContext = (authoring: DslCallAuthoringContext): DslCallCompletionContext & { kind: "argument" } | null => {
@@ -166,6 +260,7 @@ const constructionSignatureFor = (
   if (!context) return null;
   const specs = userFacingConstructionArgumentSpecs(context.spec);
   const metadata = dslCompletionMetadataForType(context.spec.elementType);
+  const constructionName = context.spec.construction || context.spec.category;
   const parameters = specs.map((arg) => {
     const parameterKey = arg.parameterKey ?? arg.arg;
     const metadataParameter = metadata.parameters.find((candidate) =>
@@ -176,16 +271,31 @@ const constructionSignatureFor = (
     return metadataParameter
       ? parameterMetadataFor(
           metadataParameter.definition,
+          context.spec.elementType,
           `construction:${context.spec.category}:${context.spec.construction}:${arg.arg}`,
           arg.arg,
           !arg.required,
-          Boolean(arg.positional)
+          Boolean(arg.positional),
+          constructionParameterDocumentationKeyFor(
+            context.spec.category,
+            context.spec.construction,
+            arg.arg,
+            metadataParameter.definition
+          )
         )
       : {
           identity: `construction:${context.spec.category}:${context.spec.construction}:${arg.arg}`,
           name: arg.arg,
           optional: !arg.required,
-          positional: Boolean(arg.positional)
+          positional: Boolean(arg.positional),
+          documentation: {
+            key: constructionParameterDocumentationKeyFor(
+              context.spec.category,
+              context.spec.construction,
+              arg.arg,
+              undefined
+            )
+          }
         };
   });
   return {
@@ -193,10 +303,7 @@ const constructionSignatureFor = (
     name: authoring.callee.name,
     callingStyle: "construction",
     parameters,
-    documentation: {
-      en: context.spec.category === "mutation" ? "Mutation" : "Construction",
-      ja: context.spec.category === "mutation" ? "変更" : "構築"
-    }
+    documentation: { key: `signatureHelp.construction.${context.spec.category}.${constructionName}` }
   };
 };
 
@@ -228,6 +335,7 @@ const moduleSignatureFor = (
     identity: `module:${definition.statementId}`,
     name: definition.name,
     callingStyle: "module",
+    documentation: { key: "signatureHelp.module" },
     parameters: definition.parameters.map((parameter) => ({
       identity: `module:${definition.statementId}:${parameter.parameterIndex}`,
       name: parameter.name,
@@ -236,7 +344,8 @@ const moduleSignatureFor = (
       ...(parameter.defaultValue !== null ? { defaultValue: parameter.defaultValue } : {}),
       ...(allowedValuesFor(scalarModuleType(parameter.type))
         ? { allowedValues: allowedValuesFor(scalarModuleType(parameter.type)) }
-        : {})
+        : {}),
+      documentation: { key: "signatureHelp.module.parameter" }
     }))
   };
 };

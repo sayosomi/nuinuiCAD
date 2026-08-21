@@ -7,7 +7,11 @@ import {
   type DslSignatureHelpSignature
 } from "../../src/dsl/dslSignatureHelpQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import { resolveLocale, type SupportedLocale } from "./localization";
+import {
+  createTranslator,
+  resolveLocale,
+  signatureHelpTranslationCatalog
+} from "./localization";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { normalizedOffsetAt } from "./sourceOffsetAdapter";
 
@@ -22,10 +26,10 @@ const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/
 
 const localizedDocumentation = (
   documentation: DslSignatureHelpDocumentation | undefined,
-  locale: SupportedLocale
+  translate: ReturnType<typeof createTranslator>
 ): string | undefined => {
   if (!documentation) return undefined;
-  return locale === "ja" ? documentation.ja ?? documentation.en : documentation.en;
+  return translate(documentation.key, documentation.parameters);
 };
 
 const parameterLabel = (
@@ -36,43 +40,59 @@ const parameterLabel = (
   const optional = parameter.optional ? "?" : "";
   const prefix = signature.callingStyle === "positional"
     ? optional
-    : `${parameter.name}${optional}${type ? ": " : ""}`;
+    : `${parameter.name}${optional}:`;
   const defaultValue = parameter.defaultValue === undefined ? "" : ` = ${parameter.defaultValue}`;
   const allowedValues = parameter.allowedValues && parameter.allowedValues.length > 0
     ? ` [${parameter.allowedValues.join(" / ")}]`
     : "";
-  return `${prefix}${type}${defaultValue}${allowedValues}`;
+  const renderedType = type
+    ? signature.callingStyle === "positional" ? type : ` ${type}`
+    : "";
+  return `${prefix}${renderedType}${defaultValue}${allowedValues}`;
 };
 
 const parameterDocumentation = (
   parameter: DslSignatureHelpParameter,
-  locale: SupportedLocale
-): string | undefined => localizedDocumentation(parameter.documentation, locale);
+  translate: ReturnType<typeof createTranslator>
+): string | undefined => localizedDocumentation(parameter.documentation, translate);
 
-const signatureLabel = (
+const signatureLabelParts = (
   signature: DslSignatureHelpSignature
-): string => `${signature.name}(${signature.parameters.map((parameter) => parameterLabel(parameter, signature)).join(", ")})${signature.returnType ? ` -> ${signature.returnType}` : ""}`;
+): { label: string; parameterRanges: readonly [number, number][] } => {
+  let label = `${signature.name}(`;
+  const parameterRanges: [number, number][] = [];
+  signature.parameters.forEach((parameter, index) => {
+    if (index > 0) label += ", ";
+    const start = label.length;
+    label += parameterLabel(parameter, signature);
+    parameterRanges.push([start, label.length]);
+  });
+  label += ")";
+  if (signature.returnType) label += ` -> ${signature.returnType}`;
+  return { label, parameterRanges };
+};
 
 export const projectDslSignatureHelp = (
   result: DslSignatureHelpQueryResult,
   displayLanguage: string
 ): vscode.SignatureHelp => {
-  const locale = resolveLocale(displayLanguage);
+  const translate = createTranslator(signatureHelpTranslationCatalog, resolveLocale(displayLanguage));
   const signatures = result.signatures.map((signature) => {
+    const labelParts = signatureLabelParts(signature);
     const information = new vscode.SignatureInformation(
-      signatureLabel(signature),
-      localizedDocumentation(signature.documentation, locale)
+      labelParts.label,
+      localizedDocumentation(signature.documentation, translate)
     );
-    information.parameters = signature.parameters.map((parameter) => new vscode.ParameterInformation(
-      parameterLabel(parameter, signature),
-      parameterDocumentation(parameter, locale)
+    information.parameters = signature.parameters.map((parameter, index) => new vscode.ParameterInformation(
+      labelParts.parameterRanges[index]!,
+      parameterDocumentation(parameter, translate)
     ));
     return information;
   });
   const help = new vscode.SignatureHelp();
   help.signatures = signatures;
   help.activeSignature = result.activeSignature;
-  if (result.activeParameter !== undefined) help.activeParameter = result.activeParameter;
+  help.activeParameter = result.activeParameter ?? signatures[result.activeSignature]?.parameters.length ?? 0;
   return help;
 };
 

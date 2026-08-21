@@ -51,6 +51,23 @@ describe("DSL Signature Help query", () => {
     expect(mutation?.signatures[0]?.parameters.map((parameter) => parameter.name)).toEqual([
       "targets", "from", "to", "scale", "angleDeg", "mirrorX", "state", "steps"
     ]);
+    expect(mutation?.signatures[0]?.parameters[0]).toMatchObject({
+      type: undefined,
+      documentation: { key: "signatureHelp.parameter.lineReferenceList" }
+    });
+  });
+
+  it("projects canonical construction defaults and boolean choices", () => {
+    const result = queryAt("nui 4\nline L = offset(sources: ");
+    const parameters = result?.signatures[0]?.parameters ?? [];
+    const closed = parameters.find((parameter) => parameter.name === "closed");
+
+    expect(closed).toMatchObject({
+      type: "boolean",
+      defaultValue: "false",
+      allowedValues: ["true", "false"],
+      documentation: { key: "signatureHelp.construction.line.offset.closed" }
+    });
   });
 
   it("does not guess unknown construction names, comma gaps, or out-of-range arguments", () => {

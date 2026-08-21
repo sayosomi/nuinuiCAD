@@ -5,7 +5,7 @@ vi.mock("vscode", () => {
     constructor(public readonly line: number, public readonly character: number) {}
   }
   class ParameterInformation {
-    constructor(public readonly label: string, public readonly documentation?: string) {}
+    constructor(public readonly label: string | [number, number], public readonly documentation?: string) {}
   }
   class SignatureInformation {
     parameters: ParameterInformation[] = [];
@@ -15,7 +15,7 @@ vi.mock("vscode", () => {
   class SignatureHelp {
     signatures: SignatureInformation[] = [];
     activeSignature = 0;
-    activeParameter?: number;
+    activeParameter = 0;
   }
   return {
     Position,
@@ -93,6 +93,7 @@ describe("VS Code native nui Signature Help provider", () => {
     ]);
     expect(help?.activeSignature).toBe(1);
     expect(help?.activeParameter).toBe(1);
+    expect(help?.signatures[1]?.parameters[1]?.label).toEqual([14, 20]);
   });
 
   it("preserves named-only builtin parameters", () => {
@@ -104,14 +105,15 @@ describe("VS Code native nui Signature Help provider", () => {
 
   it("projects construction and mutation signatures without serializer arguments", () => {
     const construction = helpFor("nui 4\npoint P = coordinate(x: ");
-    expect(construction?.signatures[0]?.label).toContain("coordinate(x?: number, y?: number");
+    expect(construction?.signatures[0]?.label).toContain("coordinate(x?: number = 0, y?: number = 0");
     expect(construction?.signatures[0]?.label).not.toContain("id");
     expect(construction?.activeParameter).toBe(0);
 
     const mutation = helpFor("nui 4\nmove(targets: @P, ");
-    expect(mutation?.signatures[0]?.label).toContain("targets: line");
+    expect(mutation?.signatures[0]?.label).toContain("targets:");
+    expect(mutation?.signatures[0]?.label).not.toContain("targets: line");
     expect(mutation?.signatures[0]?.label).not.toContain("parent");
-    expect(mutation?.activeParameter).toBeUndefined();
+    expect(mutation?.activeParameter).toBe(mutation?.signatures[0]?.parameters.length);
   });
 
   it("projects exact Module defaults, optionality, and choices", () => {
@@ -127,14 +129,48 @@ describe("VS Code native nui Signature Help provider", () => {
     expect(help?.signatures[0]?.label).toContain("value: number");
     expect(help?.signatures[0]?.label).toContain("side?: choice(left, right)");
     expect(help?.signatures[0]?.label).toContain("count: number = 2");
-    expect(help?.activeParameter).toBeUndefined();
+    expect(help?.activeParameter).toBe(help?.signatures[0]?.parameters.length);
   });
 
   it("localizes signature documentation and falls back to English", () => {
     const source = "nui 4\npoint P = coordinate(";
-    expect(helpFor(source, "ja")?.signatures[0]?.documentation).toBe("構築");
-    expect(helpFor(source, "en")?.signatures[0]?.documentation).toBe("Construction");
-    expect(helpFor(source, "fr-FR")?.signatures[0]?.documentation).toBe("Construction");
+    expect(helpFor(source, "ja-JP")?.signatures[0]?.documentation).toBe("座標に点を作成します。");
+    expect(helpFor(source, "ja")?.signatures[0]?.parameters[0]?.documentation).toBe("点のX座標です。");
+    expect(helpFor(source, "en")?.signatures[0]?.documentation).toBe("Creates a point at coordinates.");
+    expect(helpFor(source, "fr-FR")?.signatures[0]?.documentation).toBe("Creates a point at coordinates.");
+  });
+
+  it("projects unknown active parameters outside the active signature", () => {
+    const cases = [
+      helpFor("nui 4\nconst value: number = spreadAngle(length: 100, "),
+      helpFor("nui 4\nconst value: number = spreadAngle(typo: "),
+      helpFor("nui 4\nconst value: number = round(1, 2, ")
+    ];
+
+    for (const help of cases) {
+      const activeSignature = help?.signatures[help.activeSignature ?? 0];
+      expect(help?.activeParameter).toBe(activeSignature?.parameters.length);
+      expect(help?.activeParameter).not.toBe(0);
+    }
+  });
+
+  it("presents canonical construction defaults and boolean choices", () => {
+    const help = helpFor("nui 4\nline L = offset(sources: ");
+    const label = help?.signatures[0]?.label ?? "";
+
+    expect(label).toContain("closed?: boolean = false");
+    expect(label).toContain("[true / false]");
+  });
+
+  it("presents callable and active-parameter documentation from the catalog", () => {
+    const segment = helpFor("nui 4\nline L = segment(start: ");
+    expect(segment?.signatures[0]?.documentation).toBe("Creates a line segment.");
+    expect(segment?.signatures[0]?.parameters[0]?.documentation).toBe("Start point of the segment.");
+
+    const offset = helpFor("nui 4\nline L = offset(sources: @Base, closed: ");
+    expect(offset?.signatures[0]?.documentation).toBe("Creates an offset line.");
+    expect(offset?.activeParameter).toBe(3);
+    expect(offset?.signatures[0]?.parameters[3]?.documentation).toBe("Whether the offset result is closed.");
   });
 
   it("supports incomplete and nested calls, selecting the innermost callable", () => {
