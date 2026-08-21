@@ -77,6 +77,7 @@ const imageBounds = (images: readonly ComputedImage[]): CanvasDrawingBounds | nu
  * Resolve the exact-current Canvas geometry owned by one concrete Module instance.
  *
  * Recursive membership comes from the evaluator-owned materialization snapshot.
+ * Generated for-group rows inherit ownership from their materialized template.
  * Canvas visibility comes from the same activity/profile owner as DrawingCanvas.
  * Fit Drawing intentionally excludes reference images, so this helper adds image
  * corners only for the instance-specific aggregate without changing Fit Drawing.
@@ -102,9 +103,19 @@ export const moduleInstanceCanvasGeometry = ({
     activeVisibilityProfileId
   });
   const elementById = new Map(elements.map((element) => [element.id, element]));
-  const renderableDescendantIds = snapshot.descendantIds.filter((id) => {
+  const staticDescendantIds = new Set(snapshot.descendantIds);
+  const generatedTemplateIdById = new Map<ElementId, ElementId>(
+    (evaluation.forGroupGeneratedRows ?? [])
+      .filter((row) => staticDescendantIds.has(row.templateElementId))
+      .map((row) => [row.generatedElementId, row.templateElementId])
+  );
+  const descendantIds = [...new Set([
+    ...snapshot.descendantIds,
+    ...generatedTemplateIdById.keys()
+  ])];
+  const renderableDescendantIds = descendantIds.filter((id) => {
     if (!visibleIds.has(id) || !evaluation.computedGeometry.has(id)) return false;
-    const element = elementById.get(id);
+    const element = elementById.get(id) ?? elementById.get(generatedTemplateIdById.get(id) ?? "");
     return Boolean(element && !runtimeOnlyElementTypes.has(element.type));
   });
 
@@ -136,7 +147,7 @@ export const moduleInstanceCanvasGeometry = ({
 
   return {
     instanceId,
-    descendantIds: [...snapshot.descendantIds],
+    descendantIds,
     renderableDescendantIds,
     bounds
   };
