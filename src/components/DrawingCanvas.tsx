@@ -1263,6 +1263,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       );
       return;
     }
+    if (movement < DEFERRED_DRAG_THRESHOLD_PX) {
+      pointDragRef.current = null;
+      setPointDragFeedback(null);
+      setIsPointDragging(false);
+      return;
+    }
     if (drag.overlapSelectionBefore) {
       finalizeOverlapSelection(drag.overlapSelectionBefore);
     }
@@ -1463,14 +1469,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         return;
       }
 
-      claimPointerMoveEntry(pointerMoveEntry, "point");
-      event.preventDefault();
       const screenDx = event.clientX - pointDrag.startClientX;
       const screenDy = event.clientY - pointDrag.startClientY;
-      if (
-        pointDrag.overlapSelectionBefore &&
-        Math.hypot(screenDx, screenDy) >= DEFERRED_DRAG_THRESHOLD_PX
-      ) {
+      const movement = Math.hypot(screenDx, screenDy);
+      if (movement < DEFERRED_DRAG_THRESHOLD_PX) return;
+
+      claimPointerMoveEntry(pointerMoveEntry, "point");
+      event.preventDefault();
+      if (pointDrag.overlapSelectionBefore) {
         finalizeOverlapSelection(pointDrag.overlapSelectionBefore);
         pointDragRef.current = {
           ...pointDrag,
