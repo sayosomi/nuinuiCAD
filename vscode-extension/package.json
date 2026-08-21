@@ -94,8 +94,44 @@
       ],
       "webview/context": [
         {
+          "command": "nuinuiCAD.fitDrawing",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.resetCanvasView",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.toggleCanvasPointNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.toggleCanvasGeometryNames",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.toggleCanvasPoints",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.editCanvasRibbon",
+          "when": "webviewId == 'nuinuiCAD.canvas' && (webviewSection == 'blank' || webviewSection == 'ribbon')"
+        },
+        {
+          "command": "nuinuiCAD.clearCanvasSelection",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection"
+        },
+        {
           "command": "nuinuiCAD.goToSourceDefinition",
-          "when": "webviewId == 'nuinuiCAD.canvas'"
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
+        },
+        {
+          "command": "nuinuiCAD.bakeCurrentShape",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
+        },
+        {
+          "command": "nuinuiCAD.bakeBaseShape",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
         }
       ],
       "editor/context": [

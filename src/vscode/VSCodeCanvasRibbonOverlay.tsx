@@ -23,6 +23,7 @@ import {
   type VscodeCanvasWorldPoint,
   vscodeCanvasStatusPresentationFor
 } from "./vscodeCanvasRibbonStatus";
+import { vscodeCanvasRibbonContextData } from "./protocol";
 
 export type VSCodeCanvasRibbonOverlayProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
@@ -162,6 +163,7 @@ export const VSCodeCanvasRibbonOverlay = ({
       viewportSize={viewportSize}
       iconResolver={resolveVscodeLucideIcon}
       viewportAwareTooltips
+      contextMenuData={vscodeCanvasRibbonContextData}
       onCommand={onCommand}
       onPositionCommit={onPositionCommit}
     />

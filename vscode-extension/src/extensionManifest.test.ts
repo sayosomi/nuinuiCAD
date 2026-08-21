@@ -73,6 +73,9 @@ const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && reso
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
+const canvasBlankWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'";
+const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
+const canvasRibbonWhen = "webviewId == 'nuinuiCAD.canvas' && (webviewSection == 'blank' || webviewSection == 'ribbon')";
 
 async function readManifest(): Promise<ExtensionManifest> {
   return JSON.parse(await readFile(manifestPath, "utf8")) as ExtensionManifest;
@@ -139,9 +142,20 @@ describe("VS Code extension manifest command contributions", () => {
   it("adds the exact Source and Canvas context menu conditions", async () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.menus).toMatchObject({
-      "webview/context": [{ command: "nuinuiCAD.goToSourceDefinition", when: "webviewId == 'nuinuiCAD.canvas'" }],
       "editor/context": [{ command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen }]
     });
+    expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
+      { command: "nuinuiCAD.fitDrawing", when: canvasBlankWhen },
+      { command: "nuinuiCAD.resetCanvasView", when: canvasBlankWhen },
+      { command: "nuinuiCAD.toggleCanvasPointNames", when: canvasBlankWhen },
+      { command: "nuinuiCAD.toggleCanvasGeometryNames", when: canvasBlankWhen },
+      { command: "nuinuiCAD.toggleCanvasPoints", when: canvasBlankWhen },
+      { command: "nuinuiCAD.editCanvasRibbon", when: canvasRibbonWhen },
+      { command: "nuinuiCAD.clearCanvasSelection", when: `${canvasBlankWhen} && nuinuiCAD.canvasHasSelection` },
+      { command: "nuinuiCAD.goToSourceDefinition", when: canvasElementWhen },
+      { command: "nuinuiCAD.bakeCurrentShape", when: canvasElementWhen },
+      { command: "nuinuiCAD.bakeBaseShape", when: canvasElementWhen }
+    ]);
     expect(manifest.contributes?.menus?.commandPalette?.some(({ command }) =>
       command === "nuinuiCAD.toggleCanvasElementNames")).toBe(true);
     expect(manifest.contributes?.menus?.commandPalette ?? []).toContainEqual({
@@ -150,8 +164,7 @@ describe("VS Code extension manifest command contributions", () => {
     });
     for (const menuId of ["webview/context", "editor/context"] as const) {
       const contextCommands = (manifest.contributes?.menus?.[menuId] ?? []).map(({ command }) => command);
-      expect(contextCommands).not.toContain("nuinuiCAD.toggleCanvasPointNames");
-      expect(contextCommands).not.toContain("nuinuiCAD.toggleCanvasGeometryNames");
+      expect(contextCommands).not.toContain("nuinuiCAD.toggleCanvasElementNames");
     }
   });
 });

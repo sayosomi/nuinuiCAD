@@ -362,6 +362,34 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("classifies context-menu hits through the existing hit-test without selecting or suppressing the native menu", () => {
+    const publishCanvasContextMenu = vi.fn();
+    const { viewport } = renderWithHostAdapter({ publishCanvasContextMenu });
+    const selectionBefore = [...useCadUiStore.getState().selectedElementIds];
+
+    const blankContextMenu = new MouseEvent("contextmenu", {
+      bubbles: true,
+      clientX: 10,
+      clientY: 10
+    });
+    const blankPreventDefault = vi.spyOn(blankContextMenu, "preventDefault");
+    viewport.dispatchEvent(blankContextMenu);
+
+    const elementContextMenu = new MouseEvent("contextmenu", {
+      bubbles: true,
+      clientX: 300,
+      clientY: 250
+    });
+    const elementPreventDefault = vi.spyOn(elementContextMenu, "preventDefault");
+    viewport.dispatchEvent(elementContextMenu);
+
+    expect(publishCanvasContextMenu).toHaveBeenNthCalledWith(1, { kind: "blank" });
+    expect(publishCanvasContextMenu).toHaveBeenNthCalledWith(2, { kind: "element" });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(selectionBefore);
+    expect(blankPreventDefault).not.toHaveBeenCalled();
+    expect(elementPreventDefault).not.toHaveBeenCalled();
+  });
+
   it("opens an overlap candidate session for a short multi-hit point click and commits one final selection transition", () => {
     const previewCanvasSelection = vi.fn();
     const finalizeCanvasSelectionSession = vi.fn();

@@ -23,6 +23,7 @@ export type CommandRibbonFloatingOverlayProps = {
   viewportSize: ViewportSize;
   iconResolver: (iconName: string) => import("lucide-react").LucideIcon;
   viewportAwareTooltips?: boolean;
+  contextMenuData?: string;
   onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
   onPositionChange?: (ribbonId: string, position: RibbonPosition) => void;
   onPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
@@ -44,6 +45,7 @@ export const CommandRibbonFloatingOverlay = ({
   viewportSize,
   iconResolver,
   viewportAwareTooltips = false,
+  contextMenuData,
   onCommand,
   onPositionChange,
   onPositionCommit,
@@ -215,6 +217,7 @@ export const CommandRibbonFloatingOverlay = ({
           >
             <CommandRibbonView
               ribbon={ribbon}
+              contextMenuData={contextMenuData}
               iconResolver={iconResolver}
               viewportAwareTooltips={viewportAwareTooltips}
               tooltipBoundaryRef={viewportAwareTooltips ? overlayRef : undefined}
