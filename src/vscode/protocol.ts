@@ -1,3 +1,4 @@
+import type { BakeOperationSummary } from "../commands/bakeOperationResult";
 import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixtureManifest";
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
 import type { LineSplice } from "../document/textPatch";
@@ -37,6 +38,11 @@ export type VscodeRustEvaluationRequest = {
 
 export type VscodeDocumentChangeReason = "edit" | "undo" | "redo";
 
+export type VscodeBakeOperationResult = {
+  status: "applied" | "nothing";
+  summary: BakeOperationSummary;
+};
+
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
@@ -45,6 +51,8 @@ export type VscodeToExtensionMessage =
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
   | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "stale" | "focused" }
   | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }
+  | ({ type: "bakeOperationResult"; surface: "source"; requestId: number } & VscodeBakeOperationResult)
+  | ({ type: "bakeOperationResult"; surface: "canvas" } & VscodeBakeOperationResult)
   | VscodeRustEvaluationRequest
   | {
       type: "canvasCommit";
