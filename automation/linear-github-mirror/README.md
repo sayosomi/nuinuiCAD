@@ -64,6 +64,8 @@ Mapping resolution is deterministic and idempotent:
 
 The HTTP handler only authenticates, validates freshness, and enqueues. The Queue consumer performs Linear/GitHub API calls with retries, a dead-letter queue, batch size 1, and max concurrency 1.
 
+GitHub issue discovery for hidden mirror markers uses repository issue listing rather than Search API indexing. After creating a Document mirror, the consumer waits until that marker is visible before completing the Queue message. This prevents a second queued webhook for the same new Document from creating a duplicate mirror during GitHub read-after-write propagation.
+
 A Cloudflare Cron Trigger runs every 12 hours (`0 */12 * * *`, UTC). It reconciles all Sayosomi Issues and all accessible Linear Documents, filters Documents to the nuinuiCAD Initiative subtree, reconciles managed comments, and closes orphaned managed Document mirrors. This catches webhook gaps and relation/comment-only changes.
 
 ## Required secrets and variables
@@ -122,16 +124,15 @@ node --check src/documents.js
 node --check src/extensions.js
 ```
 
-Manual production checks after deploying the Comment / Document extension:
+Production verification completed on 2026-08-21:
 
-1. Add a Linear Issue comment and confirm the corresponding GitHub Issue gets it.
-2. Edit that Linear comment and confirm the same GitHub comment is updated.
-3. Remove that Linear comment and confirm the managed GitHub comment is removed.
-4. Create a temporary Document under the nuinuiCAD Initiative and confirm a `Linear Document` GitHub Issue is created.
-5. Edit the Document title/body and confirm the GitHub mirror follows.
-6. Add a Document comment and confirm it appears on the Document mirror Issue.
-7. Archive or trash the Document and confirm the mirror closes as `not planned`.
-8. Confirm GitHub-only comments/edits do not flow back to Linear.
-9. Confirm the deploy still lists schedule `0 */12 * * *`, Queue producer, and Queue consumer.
+- Issue create/update/state/close-reason reconciliation passed.
+- Linear Issue comment create/edit/remove passed.
+- Document mirror create/update passed.
+- Existing Document comments were reconciled to the Document mirror Issue.
+- A fresh Document mirror creation produced exactly one canonical GitHub Issue after the duplicate-create guard was added.
+- GitHub-side title edits did not flow back to Linear.
+- Cloudflare deployment listed schedule `0 */12 * * *`, Queue producer, and Queue consumer.
+- The old ChatGPT `Legacy Issue Mirror` automation is disabled.
 
-The Issue-only production cutover was verified on 2026-08-21, and the old ChatGPT `Legacy Issue Mirror` automation is disabled. Comment / Document mirroring is not production-complete until its redeploy and manual checks pass.
+Archive/trashed/remove handling remains implemented in the same Document reconciliation path. The current ChatGPT Linear connector does not expose a Document archive/remove mutation, so that specific production mutation was not exercised by the smoke test.
