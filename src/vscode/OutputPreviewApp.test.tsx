@@ -54,9 +54,20 @@ type TestOutput = {
 
 const planFor = (output: TestOutput): OutputPlan => {
   const isPrint = output.paper !== undefined;
-  const margin = isPrint
-    ? typeof output.overlap === "number" ? output.overlap : 1
-    : typeof output.margin === "number" ? output.margin : 1;
+  const overlap = isPrint && typeof output.overlap === "number" ? output.overlap : 0;
+  const paperWidthMm = 60;
+  const paperHeightMm = 60;
+  const strideXmm = paperWidthMm - 2 * overlap;
+  const strideYmm = paperHeightMm - 2 * overlap;
+
+  const joiningLabel = (centerX: number) => ({
+    text: "1",
+    fontSizeMm: 3,
+    rotationDeg: 90,
+    center: { x: centerX, y: paperHeightMm / 2 },
+    widthMm: 1.86,
+    advancesMm: [1.86]
+  });
   const drawable = {
     kind: "line" as const,
     elementId: "AB",
@@ -70,15 +81,33 @@ const planFor = (output: TestOutput): OutputPlan => {
       index: 0,
       column: 0,
       row: 0,
-      origin: { x: -margin, y: -margin },
-      guides: [{ axis: "vertical" as const, positionMm: 50, label: "", labelFontSizeMm: 0, labelRotationDeg: 0, labelCenter: { x: 0, y: 0 }, labelWidthMm: 0, labelAdvancesMm: [] }]
+      origin: { x: -overlap, y: -overlap },
+      guides: overlap > 0 ? [
+        { axis: "vertical" as const, positionMm: overlap },
+        {
+          axis: "vertical" as const,
+          positionMm: paperWidthMm - overlap,
+          label: joiningLabel(paperWidthMm - overlap / 2)
+        },
+        { axis: "horizontal" as const, positionMm: overlap },
+        { axis: "horizontal" as const, positionMm: paperHeightMm - overlap }
+      ] : []
     },
     {
       index: 1,
       column: 1,
       row: 0,
-      origin: { x: 80 - margin, y: -margin },
-      guides: [{ axis: "vertical" as const, positionMm: 50, label: "", labelFontSizeMm: 0, labelRotationDeg: 0, labelCenter: { x: 0, y: 0 }, labelWidthMm: 0, labelAdvancesMm: [] }]
+      origin: { x: -overlap + strideXmm, y: -overlap },
+      guides: overlap > 0 ? [
+        {
+          axis: "vertical" as const,
+          positionMm: overlap,
+          label: joiningLabel(overlap / 2)
+        },
+        { axis: "vertical" as const, positionMm: paperWidthMm - overlap },
+        { axis: "horizontal" as const, positionMm: overlap },
+        { axis: "horizontal" as const, positionMm: paperHeightMm - overlap }
+      ] : []
     }
   ];
   return {
@@ -96,14 +125,11 @@ const planFor = (output: TestOutput): OutputPlan => {
           print: {
             paper: "a4" as const,
             orientation: "portrait" as const,
-            paperWidthMm: 100,
-            paperHeightMm: 100,
-            marginMm: margin,
-            overlapMm: 20,
-            effectiveWidthMm: 60,
-            effectiveHeightMm: 60,
-            strideXmm: 80,
-            strideYmm: 80,
+            paperWidthMm,
+            paperHeightMm,
+            overlapMm: overlap,
+            strideXmm,
+            strideYmm,
             columns: 2,
             rows: 1,
             pages
@@ -369,6 +395,12 @@ describe("Output Preview application", () => {
       "geometry",
       "page-boundary",
       "page-boundary",
+      "overlap-guide",
+      "overlap-guide",
+      "overlap-guide",
+      "overlap-guide",
+      "overlap-guide",
+      "overlap-guide",
       "overlap-guide",
       "overlap-guide"
     ]);
