@@ -158,6 +158,17 @@
               "end": "\\)",
               "patterns": [
                 {
+                  "captures": {
+                    "1": {
+                      "name": "variable.parameter.nui"
+                    },
+                    "2": {
+                      "name": "keyword.operator.optional.nui"
+                    }
+                  },
+                  "match": "([\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?)(\\?)(?=\\s*:)"
+                },
+                {
                   "include": "#expression"
                 },
                 {

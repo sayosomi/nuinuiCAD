@@ -124,10 +124,12 @@ export const createNuiCompletionProvider = (
       sourceRevision: session.getSourceRevision()
     };
     const semantic = session.completionSemanticSnapshot(source);
+    const recovery = session.completionRecoverySnapshot(source);
     const result = queryDslCompletion({
       source,
       position: normalizedOffsetAt(normalizedSource, position),
-      ...(semantic ? { semantic } : {})
+      ...(semantic ? { semantic } : {}),
+      ...(recovery ? { recovery } : {})
     });
     if (!result) return [];
 

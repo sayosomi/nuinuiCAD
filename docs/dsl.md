@@ -336,9 +336,12 @@ original Bezierとsplit/trim/extend後もBezier kindの結果を受け付けま�
 ```text
 module Panel(
   base: point,
-  seam: number,
+  seam?: number,
+  label?: string,
 ) {
-  const halfSeam: number = @seam / 2
+  if (hasValue(@seam)) {
+    const halfSeam: number = @seam / 2
+  }
 
   export line outline = segment(
     start: @base,
@@ -347,8 +350,8 @@ module Panel(
 }
 
 instance front(state: hidden) = Panel(
-  base: @A,
   seam: @seam,
+  base: @A,
 )
 
 reverse(
@@ -357,6 +360,20 @@ reverse(
 ```
 
 モジュールは外側の値を暗黙 capture しません。必要な値は signature の parameter として渡します。`export` された値は `@front::name` で参照できます。
+
+scalar / geometry parameter は `name?: type` で optional にできます。optional と
+default (`=`) は併用できません。instance の named argument は parameter の
+宣言順に揃える必要がなく、未指定 optional は意図的な absent value になります。
+これは `none`、`null`、または runtime の値ではなく、scalar の initializer / binding
+も生成されません。
+
+module body では `hasValue(@parameter)` が optional parameter 1つだけを受け取り、
+presence を boolean で返します。`if` の true branch、`and` の右辺、`or` の false
+branch ではその parameter を参照できます。`not` は条件を反転します。presence は
+branch の外へ漏れず、boolean alias 経由では narrowing されません。scalar / geometry
+reference、geometry property、builtin operand、construction parameter、template hole、
+別 module への optional argument には同じ presence proof が必要です。default では
+optional parameter を直接読めませんが、boolean default 内の `hasValue` は使えます。
 
 ## 文字列、停止、layout / print / svg
 

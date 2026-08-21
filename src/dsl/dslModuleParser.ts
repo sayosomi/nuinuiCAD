@@ -161,6 +161,9 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
   if (defaultSpan && defaultSpan.start === defaultSpan.end) {
     diagnostic(diagnostics, "module parameter の default には `=` の後に値が必要です。", defaultSpan);
   }
+  if (arg.optionalSpan && equals >= 0) {
+    diagnostic(diagnostics, "optional module parameter には default を指定できません。", defaultSpan ?? arg.valueSpan, "module-optional-default-conflict");
+  }
 
   const parsedType = typeSpan.start === typeSpan.end
     ? { type: null, choiceOptionSpans: [] as DslSpan[] }
@@ -168,6 +171,8 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
   return {
     kind: "moduleParameter",
     ...name,
+    optional: Boolean(arg.optionalSpan),
+    optionalSpan: arg.optionalSpan ?? null,
     type: parsedType.type,
     typeSpan: typeSpan.start === typeSpan.end ? null : typeSpan,
     choiceOptionSpans: parsedType.choiceOptionSpans,
@@ -222,9 +227,10 @@ const instanceOptionFromArg = (
 const parseList = <T>(
   source: string,
   span: DslSpan,
-  map: (arg: ScannedArg, diagnostics: DslModuleDiagnostic[]) => T
+  map: (arg: ScannedArg, diagnostics: DslModuleDiagnostic[]) => T,
+  options: { allowOptionalKeys?: boolean } = {}
 ): { values: T[]; diagnostics: DslModuleDiagnostic[] } => {
-  const scanned = scanCallArgs(source, span);
+  const scanned = scanCallArgs(source, span, options);
   const diagnostics = scanned.errors.map((error) => ({ message: error.message, span: error.span, ...(error.code ? { code: error.code } : {}) }));
   const values = scanned.args.map((arg) => map(arg, diagnostics));
   return { values, diagnostics };
@@ -265,7 +271,8 @@ const definition = (logicalText: string, options: ParseDslModuleOptions): DslMod
   const parsed = parseList(
     logicalText,
     parameterSpan,
-    (arg, listDiagnostics) => parameterFromArg(logicalText, arg, listDiagnostics)
+    (arg, listDiagnostics) => parameterFromArg(logicalText, arg, listDiagnostics),
+    { allowOptionalKeys: true }
   );
   diagnostics.push(...parsed.diagnostics);
   const opensBlock = Boolean(options.opensBlock || inlineBlock);

@@ -17,7 +17,7 @@ const stopKeywords = new Set(["stop"]);
 // followed by a separate `.length` (this file's ASCII-only identifier
 // limitation is unchanged either way - not fixed, not worsened).
 const tokenPattern =
-  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=:\s)|-?\d+(?:\.\d+)?|==|!=|>=|<=|[-={}()[\],;*/^%+]|@?[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
+  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=\??:\s)|-?\d+(?:\.\d+)?|==|!=|>=|<=|[-={}()[\],;*/^%+?]|@?[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
 
 const classify = (text: string): DslTokenKind => {
   if (text.startsWith("\"") || text.startsWith("'")) return "string";
@@ -71,7 +71,7 @@ const highlightDslCode = (code: string): DslHighlightToken[] => {
     const start = match.index ?? cursor;
     pushText(tokens, "plain", code.slice(cursor, start));
     const kind =
-      /^[A-Za-z_][\w:-]*$/.test(text) && code[start + text.length] === ":" && code[start + text.length + 1] === " "
+      /^[A-Za-z_][\w:-]*$/.test(text) && (code[start + text.length] === ":" || (code[start + text.length] === "?" && code[start + text.length + 1] === ":")) && code[start + text.length + (code[start + text.length] === "?" ? 2 : 1)] === " "
         ? "attributeKey"
         : head && start === head.start && start + text.length === head.end
           ? "keyword"

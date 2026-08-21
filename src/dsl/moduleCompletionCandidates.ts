@@ -147,6 +147,28 @@ const bodyNames = (compiled: CompiledDslDocument, statementIndex: number, scopeI
   ])];
 };
 
+const insideHasValueArgument = (request?: ModuleCompletionRequest): boolean => {
+  const source = request?.liveStatementText;
+  const cursor = request?.logicalCursorPosition;
+  if (!source || cursor === undefined) return false;
+  const prefix = source.slice(0, cursor);
+  const open = prefix.lastIndexOf("hasValue(");
+  return open >= 0 && prefix.slice(open).indexOf(")") < 0;
+};
+
+const optionalParameterIsAvailable = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  parameter: { optional: boolean; definitionStatementId: string; parameterIndex: number },
+  request?: ModuleCompletionRequest
+) => {
+  if (!parameter.optional) return true;
+  if (insideHasValueArgument(request)) return true;
+  const owner = currentModuleDefinition(compiled, statementIndex, request?.scopeId);
+  const body = owner?.bodyStatements.find((candidate) => candidate.statementIndex === statementIndex);
+  return body?.presenceParameterKeys.includes(`${parameter.definitionStatementId}:${parameter.parameterIndex}`) ?? false;
+};
+
 const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: DslModuleParameterType | ScalarType | null | undefined, request?: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const expectedType = scalarTypeOf(expected);
   const result: ModuleCompletionCandidate[] = [];
@@ -168,6 +190,10 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
         identity: definition.name
       })));
   }
+  if (request?.kind === "reference" && (!expectedType || expectedType.kind === "boolean")) {
+    result.push({ kind: "builtin", label: "hasValue", detail: "hasValue(@optionalParameter) -> boolean", identity: "hasValue" });
+  }
+  const hasValueArgument = insideHasValueArgument(request);
   for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
     const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);
     if (!resolved) continue;
@@ -178,7 +204,11 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
     }
     if (lookup.kind === "parameter") {
       const type = scalarTypeOf(lookup.parameter.value.type);
-      if (type && (!expectedType || isScalarTypeAssignable(type, expectedType))) result.push({ kind: "binding", label: name, identity: `module-parameter:${name}` });
+      if (type && (!expectedType || isScalarTypeAssignable(type, expectedType)) && optionalParameterIsAvailable(compiled, statementIndex, lookup.parameter.value, request)) {
+        result.push({ kind: "binding", label: name, identity: `module-parameter:${name}` });
+      } else if (hasValueArgument && lookup.parameter.value.optional) {
+        result.push({ kind: parameterGeometryKind(lookup.parameter.value.type) ? "geometry" : "binding", label: name, identity: `module-parameter:${name}` });
+      }
       continue;
     }
     if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration" || lookup.declaration.statement.kind !== "typedDeclaration") continue;
@@ -198,7 +228,9 @@ const geometryCompletions = (compiled: CompiledDslDocument, statementIndex: numb
     if (!resolved) continue;
     const { lookup } = resolved;
     if (lookup.kind === "parameter") {
-      if (parameterGeometryKind(lookup.parameter.value.type) === expected) result.push({ kind: "geometry", label: name, identity: `module-parameter:${name}` });
+      if (parameterGeometryKind(lookup.parameter.value.type) === expected && optionalParameterIsAvailable(compiled, statementIndex, lookup.parameter.value, request)) {
+        result.push({ kind: "geometry", label: name, identity: `module-parameter:${name}` });
+      }
       continue;
     }
     if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry" || lookup.declaration.statement.kind !== "element") continue;
@@ -230,7 +262,9 @@ const geometryInterfaceCompletions = (
     const { lookup } = resolved;
     if (lookup.kind === "parameter") {
       const actual = moduleGeometryInterfaceTypeOf(lookup.parameter.value.type);
-      if (isModuleGeometryInterfaceAssignable(actual, expected)) result.push({ kind: "geometry", label: name, identity: `module-parameter:${name}` });
+      if (isModuleGeometryInterfaceAssignable(actual, expected) && optionalParameterIsAvailable(compiled, statementIndex, lookup.parameter.value, request)) {
+        result.push({ kind: "geometry", label: name, identity: `module-parameter:${name}` });
+      }
       continue;
     }
     if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry" || lookup.declaration.statement.kind !== "element") continue;

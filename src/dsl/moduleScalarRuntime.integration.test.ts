@@ -4,6 +4,8 @@ import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRun
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "../geometry/textTemplateRuntime";
 import { evaluateElements } from "../geometry/evaluate";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
+import { buildRustEvaluationInput } from "../geometry/rustEvaluationInput";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { compileDslDocument } from "./dslDocument";
@@ -111,6 +113,152 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module scalar runtime integration", () => {
+  it("does not lower an omitted optional value from a compound presence guard", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "",
+      "module M(",
+      "  value?: number,",
+      ") {",
+      "  if (hasValue(@value) and @value > 0) {",
+      "    const okay: number = @value",
+      "  }",
+      "}",
+      "",
+      "instance Use = M()"
+    ].join("\n"));
+    expectValid(compiled);
+    expect(compiled.bindingIssueDiagnostics ?? []).toEqual([]);
+    expect(evaluateCompiled(compiled).errors).toEqual([]);
+  });
+
+  it("keeps omitted optional scalars absent and materializes supplied values", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (hasValue(@value) and @value > 0) {",
+      "    const okay: number = @value",
+      "    point P = coordinate(x: @okay, y: 0)",
+      "  }",
+      "}",
+      "instance Absent = M()",
+      "instance Present = M(value: 4)"
+    ].join("\n"));
+    expectValid(compiled);
+    expect(compiled.bindingIssueDiagnostics ?? []).toEqual([]);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const points = compiled.document!.elements.filter((element) => element.name === "P");
+    expect(points).toHaveLength(2);
+    expect(points.map((point) => result.computedGeometry.get(point.id))).toEqual([
+      undefined,
+      expect.objectContaining({ kind: "point", x: 4, y: 0 })
+    ]);
+    const parameterBindings = compiled.bindingAnalysis!.catalog.bindings.filter((binding) => binding.name === "value");
+    expect(parameterBindings).toHaveLength(1);
+  });
+
+  it("keeps omitted optional module placeholders monotonic in the Rust mutation payload", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "",
+      "module M(value?: number) {",
+      "  if (hasValue(@value) and @value > 0) {",
+      "    point P = coordinate(",
+      "      x: @value,",
+      "      y: 10,",
+      "    )",
+      "  }",
+      "}",
+      "",
+      "instance Absent = M()",
+      "instance Present = M(",
+      "  value: 30,",
+      ")"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.bindingIssueDiagnostics ?? []).toEqual([]);
+    const document = compiled.document;
+    const statementMap = compiled.statementMap;
+    const majorVersion = compiled.majorVersion;
+    if (!document || !statementMap || majorVersion === null) {
+      throw new Error("expected a compiled document");
+    }
+
+    const options = buildEvaluationOptions({
+      compiledDocument: { ...compiled, document, statementMap, majorVersion },
+      evaluationLimitIndex: document.evaluationLimitIndex
+    });
+    const input = buildRustEvaluationInput(document.elements, options);
+    expect(input.bindingVersions).toBeDefined();
+    expect(input.conditionExpressions).toBeDefined();
+
+    const sourceOrders = input.bindingVersions!.elementSourceOrders;
+    expect(sourceOrders).toHaveLength(document.elements.length);
+    expect(sourceOrders.map((entry) => entry.sourceOrder)).toEqual([0, 1, 1, 2, 4, 5]);
+    for (let index = 1; index < sourceOrders.length; index += 1) {
+      expect(sourceOrders[index].sourceOrder).toBeGreaterThanOrEqual(sourceOrders[index - 1].sourceOrder);
+    }
+
+    const executionUnits = input.bindingVersions!.elementSourceExecutionUnits;
+    expect(executionUnits).toBeDefined();
+    for (let index = 1; index < sourceOrders.length; index += 1) {
+      if (sourceOrders[index].sourceOrder === sourceOrders[index - 1].sourceOrder) {
+        expect(executionUnits![index].executionUnit).toBe(executionUnits![index - 1].executionUnit);
+      }
+    }
+
+    const points = document.elements.filter((element) => element.name === "P");
+    const absentInstance = document.elements.find((element) => element.name === "Absent");
+    const presentInstance = document.elements.find((element) => element.name === "Present");
+    expect(points).toHaveLength(2);
+    expect(absentInstance).toBeDefined();
+    expect(presentInstance).toBeDefined();
+    const sourceOrderByElementId = new Map(sourceOrders.map((entry) => [entry.elementId, entry.sourceOrder]));
+    expect(sourceOrderByElementId.get(points[0].id)).toBeLessThan(sourceOrderByElementId.get(presentInstance!.id)!);
+    expect(sourceOrderByElementId.get(presentInstance!.id)).toBeLessThan(sourceOrderByElementId.get(points[1].id)!);
+    expect(sourceOrderByElementId.get(points[1].id)).toBe(compiled.scalarExecutionPositionByRuntimeElementId!.get(points[1].id));
+  });
+
+  it("does not lower an else-local when a negated optional presence guard is false", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (not hasValue(@value)) {",
+      "  } else {",
+      "    const okay: number = @value",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expectValid(compiled);
+    expect(compiled.bindingIssueDiagnostics ?? []).toEqual([]);
+    expect(evaluateCompiled(compiled).errors).toEqual([]);
+  });
+
+  it("evaluates hasValue in a boolean default per concrete module instance", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number, enabled: boolean = hasValue(@value)) {",
+      "  let marker: number = 0",
+      "  if (@enabled) {",
+      "    set marker = 1",
+      "    point P = coordinate(x: @marker, y: 0)",
+      "  }",
+      "}",
+      "instance Absent = M()",
+      "instance Present = M(value: 4)"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const points = compiled.document!.elements.filter((element) => element.name === "P");
+    expect(points.map((point) => result.computedGeometry.get(point.id))).toEqual([
+      undefined,
+      expect.objectContaining({ kind: "point", x: 1, y: 0 })
+    ]);
+  });
+
   it("carries lowered module numeric expressions through typed runtime materialization", () => {
     const compiled = compileWithIds([
       "nui 4",

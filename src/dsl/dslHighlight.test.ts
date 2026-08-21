@@ -18,6 +18,16 @@ describe("DSL highlighting", () => {
     );
   });
 
+  it("highlights optional module parameter punctuation separately from its name", () => {
+    expect(highlightDslLine("module M(value?: number) {" )).toEqual(
+      expect.arrayContaining([
+        { kind: "attributeKey", text: "value" },
+        { kind: "operator", text: "?" },
+        { kind: "reference", text: "number" }
+      ])
+    );
+  });
+
   it("classifies strings and references", () => {
     expect(tokenKinds("text Label = label(text: \"前中心\", anchor: A.start, size: 4)")).toEqual(
       expect.arrayContaining(["keyword", "string", "attributeKey", "reference", "number"])

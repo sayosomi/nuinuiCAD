@@ -1447,7 +1447,8 @@ export const compileDslDocument = (
     const hasModuleTypedNumericBindings = moduleScalarCompilation.materializedNumericBindings.some(
       (entry) => entry.binding.typedExpression !== undefined
     );
-    if (documentScalarAnalysis || hasModuleScalarBindings || hasModuleTypedNumericBindings) {
+    const hasModuleTypedConditionalGroupConditions = moduleScalarCompilation.materializedConditionalGroupConditions.length > 0;
+    if (documentScalarAnalysis || hasModuleScalarBindings || hasModuleTypedNumericBindings || hasModuleTypedConditionalGroupConditions) {
       scalarAnalysis = documentScalarAnalysis
         ? { ...documentScalarAnalysis, bindingAnalysis: moduleScalarCompilation.bindingAnalysis }
         : {

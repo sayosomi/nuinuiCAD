@@ -12,6 +12,228 @@ const moduleBodyAt = (compiled: ReturnType<typeof compileWithIds>, statementInde
   compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === statementIndex)!;
 
 describe("module semantic analysis", () => {
+  it("requires optional scalar presence proof and narrows a guarded branch", () => {
+    const unguarded = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  const copy: number = @value",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(unguarded.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+
+    const guarded = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (hasValue(@value)) {",
+      "    const copy: number = @value",
+      "  } else {",
+      "    const fallback: number = 0",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(guarded.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === 3)?.presenceParameterKeys).toEqual(["statement:test:1:0"]);
+  });
+
+  it("supports hasValue flow for boolean operators without leaking facts", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (hasValue(@value) and @value > 0) {",
+      "    const okay: number = @value",
+      "  }",
+      "  if (hasValue(@value) or true) {",
+      "    const notOkay: number = @value",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+    expect(compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === 3)?.presenceParameterKeys).toEqual(["statement:test:1:0"]);
+    expect(compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === 6)?.presenceParameterKeys).toEqual([]);
+  });
+
+  it("does not narrow an unsafe compound AND false branch", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (not hasValue(@value) and false) {",
+      "  } else {",
+      "    const bad: number = @value",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+  });
+
+  it("keeps direct negated hasValue guards narrowing the else branch", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (not hasValue(@value)) {",
+      "  } else {",
+      "    const okay: number = @value",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("keeps OR RHS short-circuit presence proof and rejects the unsafe direction", () => {
+    const valid = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (not hasValue(@value) or @value > 0) {",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(valid.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const invalid = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (hasValue(@value) or @value > 0) {",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(invalid.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+  });
+
+  it("keeps AND RHS short-circuit presence proof valid", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (hasValue(@value) and @value > 0) {",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("retains a presence fact shared by every compound OR true path", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number) {",
+      "  if (hasValue(@value) or hasValue(@value)) {",
+      "    const okay: number = @value",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("requires presence when forwarding an optional value to another module", () => {
+    const guarded = compileWithIds([
+      "nui 4",
+      "module Inner(value?: number) {",
+      "}",
+      "module Outer(value?: number) {",
+      "  if (hasValue(@value)) {",
+      "    instance child = Inner(value: @value)",
+      "  }",
+      "}",
+      "instance Use = Outer()"
+    ].join("\n"));
+    expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const unguarded = compileWithIds([
+      "nui 4",
+      "module Inner(value?: number) {",
+      "}",
+      "module Outer(value?: number) {",
+      "  instance child = Inner(value: @value)",
+      "}",
+      "instance Use = Outer()"
+    ].join("\n"));
+    expect(unguarded.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+  });
+
+  it("applies the same proof rule to optional geometry properties", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "point Input = coordinate(x: 3, y: 4)",
+      "module M(anchor?: point) {",
+      "  if (hasValue(@anchor)) {",
+      "    const x: number = @anchor.x",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const invalid = compileWithIds([
+      "nui 4",
+      "module M(anchor?: point) {",
+      "  const x: number = @anchor.x",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(invalid.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+  });
+
+  it("allows hasValue in boolean defaults while rejecting direct optional default reads", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(value?: number, flag: boolean = hasValue(@value)) {",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis!.definitions[0].parameters[1].defaultExpression).toMatchObject({
+      type: { kind: "boolean" },
+      hasValueParameters: [{ parameterIndex: 0 }]
+    });
+
+    const invalid = compileWithIds([
+      "nui 4",
+      "module M(value?: number, flag: boolean = @value) {",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(invalid.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+  });
+
+  it("records required, defaulted, and optional argument states in parameter order", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(required: number, fallback: number = 2, optional?: number) {",
+      "}",
+      "instance Use = M(required: 1)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis!.instances[0].parameterBindings.map((binding) => [binding.parameterName, binding.state, binding.usesDefault])).toEqual([
+      ["required", "requiredSupplied", false],
+      ["fallback", "defaultedOmitted", true],
+      ["optional", "optionalOmitted", false]
+    ]);
+  });
+
   it("keeps module geometry builtin operands separate from scalar references", () => {
     const compiled = compileWithIds([
       "nui 4",

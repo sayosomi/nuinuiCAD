@@ -61,6 +61,31 @@ describe("DSL module source AST", () => {
     expect(parsed.statements[3].enclosing).toEqual({ statementIndex: 2, branch: "then" });
   });
 
+  it("parses optional module parameter markers without including `?` in the name span", () => {
+    const source = [
+      "nui 4",
+      "module M(value?: number, anchor?: point) {",
+      "}"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 9 });
+    expect(parsed.diagnostics).toEqual([]);
+    const definition = moduleDefinition(parsed.statements)!;
+    expect(definition.parameters).toMatchObject([
+      { name: "value", optional: true, type: { kind: "number" } },
+      { name: "anchor", optional: true, type: { kind: "point" } }
+    ]);
+    const value = definition.parameters[0];
+    expect(source.slice(value.namePhysicalSpan!.segments[0].from, value.namePhysicalSpan!.segments[0].to)).toBe("value");
+    expect(source.slice(value.optionalPhysicalSpan!.segments[0].from, value.optionalPhysicalSpan!.segments[0].to)).toBe("?");
+  });
+
+  it("rejects optional parameters with defaults", () => {
+    const parsed = parseDsl("nui 4\nmodule M(value?: number = 1) {\n}");
+    expect(parsed.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-default-conflict" })
+    ]));
+  });
+
   it("parses path as a real geometry interface and keeps geometry defaults invalid", () => {
     const parsed = parseDsl([
       "nui 4",

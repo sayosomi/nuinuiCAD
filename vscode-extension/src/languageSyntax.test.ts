@@ -344,6 +344,28 @@ describe("nui VS Code language foundation", () => {
     await expectScope("-2 ^ 2", "2", "constant.numeric.nui");
   });
 
+  it("highlights optional Module parameters without broadening ?", async () => {
+    const optionalModule = "module M(value?: number) {";
+    await expectScope(optionalModule, "value", "variable.parameter.nui");
+    await expectScope(
+      optionalModule,
+      "?",
+      "keyword.operator.optional.nui"
+    );
+    await expectScope(optionalModule, "number", "storage.type.nui");
+
+    const requiredModule = "module M(value: number) {";
+    await expectScope(requiredModule, "value", "variable.parameter.nui");
+    await expectScope(requiredModule, "number", "storage.type.nui");
+
+    const outsideModuleParameter = "const x = value? + 1";
+    await expectNotScope(
+      outsideModuleParameter,
+      "?",
+      "keyword.operator.optional.nui"
+    );
+  });
+
   it("keeps const/let annotations in the normal type-position grammar", async () => {
     const constNumber = "const seam: number = 5";
     await expectScope(constNumber, "const", "storage.modifier.nui");
