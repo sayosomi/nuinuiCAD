@@ -46,6 +46,22 @@ const stringHoleSegment = (bindingId: string): TextTemplateSegment => ({
   } satisfies TypedScalarExpression
 });
 
+const booleanHoleSegment = (bindingId: string): TextTemplateSegment => ({
+  kind: "hole",
+  holeKind: "boolean",
+  span: span(0, 1),
+  contentSpan: span(0, 1),
+  cookedInsertOffset: 0,
+  expression: {
+    kind: "reference",
+    span: span(0, 0),
+    nameSpan: span(0, 0),
+    name: bindingId,
+    bindingId,
+    type: { kind: "boolean" }
+  } satisfies TypedScalarExpression
+});
+
 const templateOf = (segments: readonly TextTemplateSegment[]): TextTemplateAst => ({
   span: span(0, 0),
   quote: '"',
@@ -80,11 +96,13 @@ describe("toRustTextTemplateSegments", () => {
     expect(toRustTextTemplateSegments(templateOf([
       literalSegment("hi"),
       numericHoleSegment("@AB.length"),
-      stringHoleSegment("binding:x")
+      stringHoleSegment("binding:x"),
+      booleanHoleSegment("binding:enabled")
     ]))).toEqual([
       { kind: "literal", cooked: "hi" },
       { kind: "hole", holeKind: "numeric", raw: "@AB.length" },
-      expect.objectContaining({ kind: "hole", holeKind: "string" })
+      expect.objectContaining({ kind: "hole", holeKind: "string" }),
+      expect.objectContaining({ kind: "hole", holeKind: "boolean" })
     ]);
   });
 });

@@ -163,13 +163,55 @@ describe("compileTextTemplates: typed holes", () => {
     expect(template.dependencies.map((dependency) => dependency.name).sort()).toEqual(["幅", "高さ"].sort());
   });
 
-  it("boolean-typed hole is interpolation-type-mismatch", () => {
+  it("boolean binding is accepted as a boolean hole", () => {
     const compiled = compileTemplatesFor([
       "let 表示する: boolean = true",
       'text T = label(text: "flag ${@表示する}", anchor: none, size: 3)'
     ].join("\n"));
-    expect(compiled.diagnostics).toHaveLength(1);
-    expect(compiled.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE);
+    expect(compiled.diagnostics).toEqual([]);
+    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "text"))!;
+    expect(holeAt(template, 0).holeKind).toBe("boolean");
+  });
+
+  it("boolean literal is accepted as a reference-free boolean hole", () => {
+    const compiled = compileTemplatesFor([
+      "const _unused: number = 0",
+      'text T = label(text: "flag ${false}", anchor: none, size: 3)'
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "text"))!;
+    expect(holeAt(template, 0).holeKind).toBe("boolean");
+  });
+
+  it("boolean comparison is accepted as a boolean hole", () => {
+    const compiled = compileTemplatesFor([
+      "const left: number = 1",
+      "const right: number = 2",
+      'text T = label(text: "ordered ${@left < @right}", anchor: none, size: 3)'
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(2, "text"))!;
+    expect(holeAt(template, 0).holeKind).toBe("boolean");
+  });
+
+  it("not-expression is accepted as a boolean hole", () => {
+    const compiled = compileTemplatesFor([
+      "const enabled: boolean = true",
+      'text T = label(text: "disabled ${not @enabled}", anchor: none, size: 3)'
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "text"))!;
+    expect(holeAt(template, 0).holeKind).toBe("boolean");
+  });
+
+  it("boolean-returning isClose builtin is accepted as a boolean hole", () => {
+    const compiled = compileTemplatesFor([
+      "const value: number = 10",
+      'text T = label(text: "close ${isClose(@value, 10, 0.5)}", anchor: none, size: 3)'
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "text"))!;
+    expect(holeAt(template, 0).holeKind).toBe("boolean");
   });
 
   it("choice-typed hole is interpolation-type-mismatch", () => {
@@ -179,15 +221,7 @@ describe("compileTextTemplates: typed holes", () => {
     ].join("\n"));
     expect(compiled.diagnostics).toHaveLength(1);
     expect(compiled.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE);
-  });
-
-  it("literal true/false hole (no binding) still typechecks as boolean mismatch", () => {
-    const compiled = compileTemplatesFor([
-      "const _unused: number = 0",
-      'text T = label(text: "flag ${true}", anchor: none, size: 3)'
-    ].join("\n"));
-    expect(compiled.diagnostics).toHaveLength(1);
-    expect(compiled.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE);
+    expect(compiled.diagnostics[0].message).toContain("boolean");
   });
 
   it("undefined reference is text-template-hole-unresolved", () => {
@@ -314,6 +348,25 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
     });
     expect(result.diagnostics).toHaveLength(1);
     expect(result.diagnostics[0].code).toBe(TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE);
+  });
+
+  it("reference-free boolean interpolation works with zero typed declarations", () => {
+    const source = 'text T = label(text: "${false} ${1 < 2}", anchor: none, size: 3)';
+    const parsed = parseDsl(source);
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+    const result = compileTextTemplates({
+      statements: parsed.statements,
+      elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+      elements: compiled.elements,
+      bindingAnalysis: undefined,
+      spans: { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom }
+    });
+    expect(result.diagnostics).toEqual([]);
+    const template = result.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(0, "text"))!;
+    expect(template.segments.filter((segment) => segment.kind === "hole")).toEqual([
+      expect.objectContaining({ holeKind: "boolean" }),
+      expect.objectContaining({ holeKind: "boolean" })
+    ]);
   });
 
 });

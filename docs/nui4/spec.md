@@ -710,6 +710,12 @@ text note = label(
 )
 ```
 
+The root type of a typed interpolation hole must be `string`, `number`, or
+`boolean`. A boolean hole is rendered as the lowercase text `true` or `false`.
+This is text-template-local presentation behavior, not a general implicit
+boolean-to-string conversion in nui4. `choice(...)` interpolation remains
+unsupported.
+
 The old `{@name}` interpolation is removed. Ordinary `{` and `}` in text are
 literal characters; nui4 does not require a special escape merely to write
 literal braces.

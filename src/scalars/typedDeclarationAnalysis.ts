@@ -65,7 +65,18 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
     case "unary":
       return ast.operator === "!" || containsNonNumericScalarSyntax(ast.operand);
     case "binary":
-      return containsNonNumericScalarSyntax(ast.left) || containsNonNumericScalarSyntax(ast.right);
+      return (
+        ast.operator === "||" ||
+        ast.operator === "&&" ||
+        ast.operator === "==" ||
+        ast.operator === "!=" ||
+        ast.operator === "<" ||
+        ast.operator === "<=" ||
+        ast.operator === ">" ||
+        ast.operator === ">=" ||
+        containsNonNumericScalarSyntax(ast.left) ||
+        containsNonNumericScalarSyntax(ast.right)
+      );
     case "group":
       return containsNonNumericScalarSyntax(ast.expression);
     default:

@@ -28,7 +28,7 @@ use serde_json::{Map, Value};
 use super::expression_payload::validate_typed_expression_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
-use super::types::{ScalarType, TypedScalarExpression};
+use super::types::{ScalarType, TypedBuiltinArgument, TypedScalarExpression};
 use crate::evaluation::types::ElementId;
 
 #[derive(Debug)]
@@ -37,12 +37,7 @@ pub(crate) enum ValidatedTextTemplateSegment {
     NumericExpressionHole { raw: String },
     StringHole { expression: TypedScalarExpression },
     NumberHole { expression: TypedScalarExpression },
-}
-
-impl ValidatedTextTemplateSegment {
-    pub(crate) fn is_typed_hole(&self) -> bool {
-        matches!(self, Self::StringHole { .. } | Self::NumberHole { .. })
-    }
+    BooleanHole { expression: TypedScalarExpression },
 }
 
 #[derive(Debug)]
@@ -79,6 +74,57 @@ fn root_type(expression: &TypedScalarExpression) -> Option<ScalarType> {
         TypedScalarExpression::Binary { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Group { r#type, .. } => r#type.clone(),
         TypedScalarExpression::Call { r#type, .. } => r#type.clone(),
+    }
+}
+
+/// Returns whether evaluating this typed expression can require a scalar
+/// binding lookup. The expression decoder and evaluator are intentionally
+/// iterative for deep-tree stack safety; keep this inspection iterative too.
+/// Geometry-reference call arguments are already resolved geometry targets and
+/// never consult the scalar binding resolver, so only scalar call arguments are
+/// added to the work list.
+fn requires_scalar_runtime(expression: &TypedScalarExpression) -> bool {
+    let mut work = vec![expression];
+    while let Some(node) = work.pop() {
+        match node {
+            TypedScalarExpression::Reference {
+                binding_id: Some(_),
+                r#type: Some(_),
+                ..
+            } => return true,
+            TypedScalarExpression::Unary { operand, .. } => work.push(operand),
+            TypedScalarExpression::Binary { left, right, .. } => {
+                work.push(left);
+                work.push(right);
+            }
+            TypedScalarExpression::Group { expression, .. } => work.push(expression),
+            TypedScalarExpression::Call { args, .. } => {
+                for argument in args {
+                    if let TypedBuiltinArgument::Scalar { expression } = argument {
+                        work.push(expression);
+                    }
+                }
+            }
+            TypedScalarExpression::NumberLiteral { .. }
+            | TypedScalarExpression::StringLiteral { .. }
+            | TypedScalarExpression::BooleanLiteral { .. }
+            | TypedScalarExpression::ChoiceLiteral { .. }
+            | TypedScalarExpression::Reference { .. }
+            | TypedScalarExpression::GeometryProperty { .. } => {}
+        }
+    }
+    false
+}
+
+fn segment_requires_scalar_runtime(segment: &ValidatedTextTemplateSegment) -> bool {
+    match segment {
+        ValidatedTextTemplateSegment::StringHole { expression }
+        | ValidatedTextTemplateSegment::NumberHole { expression }
+        | ValidatedTextTemplateSegment::BooleanHole { expression } => {
+            requires_scalar_runtime(expression)
+        }
+        ValidatedTextTemplateSegment::Literal { .. }
+        | ValidatedTextTemplateSegment::NumericExpressionHole { .. } => false,
     }
 }
 
@@ -127,7 +173,7 @@ fn decode_hole_segment(
             .to_owned();
             Ok(ValidatedTextTemplateSegment::NumericExpressionHole { raw })
         }
-        "string" | "number" => {
+        "string" | "number" | "boolean" => {
             reject_unexpected_fields(
                 object,
                 &["kind", "holeKind", "expression"],
@@ -138,10 +184,11 @@ fn decode_hole_segment(
                 "expression",
                 "text template typed hole segment",
             )?)?;
-            let expected_root = if hole_kind == "string" {
-                ScalarType::String
-            } else {
-                ScalarType::Number
+            let expected_root = match hole_kind {
+                "string" => ScalarType::String,
+                "number" => ScalarType::Number,
+                "boolean" => ScalarType::Boolean,
+                _ => unreachable!("hole kind was matched above"),
             };
             if root_type(&expression) != Some(expected_root) {
                 return Err(issue(
@@ -151,10 +198,11 @@ fn decode_hole_segment(
                     ),
                 ));
             }
-            Ok(if hole_kind == "string" {
-                ValidatedTextTemplateSegment::StringHole { expression }
-            } else {
-                ValidatedTextTemplateSegment::NumberHole { expression }
+            Ok(match hole_kind {
+                "string" => ValidatedTextTemplateSegment::StringHole { expression },
+                "number" => ValidatedTextTemplateSegment::NumberHole { expression },
+                "boolean" => ValidatedTextTemplateSegment::BooleanHole { expression },
+                _ => unreachable!("hole kind was matched above"),
             })
         }
         _ => Err(issue(
@@ -236,17 +284,12 @@ fn decode_text_template(
 }
 
 /// Decodes and validates the whole `text_templates` array. `scalar_runtime_present`
-/// gates the one cross-cutting invariant this module enforces beyond
-/// per-entry shape: a typed (`string`/`number`) hole can only ever exist
-/// because a typed declaration exists, which implies either `scalar_program`
-/// or Task 32's `binding_versions` - if neither runtime payload is present
-/// but a typed hole is present
-/// anywhere in the payload, that is a caller-contract violation and the
-/// whole call fails closed (never a silent fallback to numeric expression evaluation).
-/// A payload containing only `"numeric"` holes and literals is valid with no
-/// `scalar_program` - Task 26 compiles a template for every nui4
-/// `label(text:...)` occurrence regardless of whether the document has any
-/// typed declaration at all.
+/// gates the cross-cutting invariant this module enforces beyond per-entry
+/// shape: a typed expression requires a scalar runtime only when it contains a
+/// resolved scalar reference that the evaluator may need to bind. Reference-free
+/// typed expressions (including boolean literals/comparisons) are safe without
+/// `scalar_program` or `binding_versions`; a typed expression containing a
+/// binding reference without either runtime payload fails closed.
 pub(crate) fn validate_text_templates_payload(
     json: &Value,
     element_type_by_id: &HashMap<&str, &str>,
@@ -269,12 +312,12 @@ pub(crate) fn validate_text_templates_payload(
             template
                 .segments
                 .iter()
-                .any(ValidatedTextTemplateSegment::is_typed_hole)
+                .any(segment_requires_scalar_runtime)
         })
     {
         return Err(issue(
             Code::TypedHoleRequiresScalarRuntime,
-            "a typed text template hole requires a scalar program or binding versions to be present",
+            "a text template typed expression with a scalar binding reference requires a scalar program or binding versions to be present",
         ));
     }
     Ok(decoded)

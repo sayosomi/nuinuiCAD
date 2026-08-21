@@ -32,6 +32,15 @@ const numberReference = (name: string, bindingId: string): TypedScalarExpression
   type: { kind: "number" }
 });
 
+const booleanReference = (name: string, bindingId: string): TypedScalarExpression => ({
+  kind: "reference",
+  span: span(0, 0),
+  nameSpan: span(0, 0),
+  name,
+  bindingId,
+  type: { kind: "boolean" }
+});
+
 const stringHole = (bindingId: string, holeSpanEnd = 1): TextTemplateSegment => ({
   kind: "hole",
   holeKind: "string",
@@ -48,6 +57,15 @@ const numberHole = (bindingId: string, holeSpanEnd = 1): TextTemplateSegment => 
   contentSpan: span(0, holeSpanEnd),
   cookedInsertOffset: 0,
   expression: numberReference(bindingId, bindingId)
+});
+
+const booleanHole = (bindingId: string, holeSpanEnd = 1): TextTemplateSegment => ({
+  kind: "hole",
+  holeKind: "boolean",
+  span: span(0, holeSpanEnd),
+  contentSpan: span(0, holeSpanEnd),
+  cookedInsertOffset: 0,
+  expression: booleanReference(bindingId, bindingId)
 });
 
 const numericExpressionHoleSegment = (raw: string): TextTemplateSegment => ({
@@ -83,6 +101,7 @@ const okEnvironment = (values: Record<string, ScalarEvaluation>): ScalarEvaluati
 
 const okString = (value: string): ScalarEvaluation => ({ status: "ok", type: { kind: "string" }, value: { kind: "string", value } });
 const okNumber = (value: number): ScalarEvaluation => ({ status: "ok", type: { kind: "number" }, value: { kind: "number", value } });
+const okBoolean = (value: boolean): ScalarEvaluation => ({ status: "ok", type: { kind: "boolean" }, value: { kind: "boolean", value } });
 const poisoned = (bindingId: string, issueCode = "evaluation-divide-by-zero"): ScalarEvaluation => ({
   status: "error",
   type: { kind: "number" },
@@ -120,6 +139,27 @@ describe("evaluateTextTemplate", () => {
     const ast = templateOf([numberHole("binding:length")]);
     const environment = okEnvironment({ "binding:length": okNumber(30.41421356) });
     expect(evaluateTextTemplate(ast, environment, alwaysOkNumericExpressionHole, formatNumber)).toEqual({ status: "ok", text: "30.414" });
+  });
+
+  it("boolean holes append lowercase true and false", () => {
+    const ast = templateOf([booleanHole("binding:true"), literalSegment(","), booleanHole("binding:false")]);
+    const environment = okEnvironment({ "binding:true": okBoolean(true), "binding:false": okBoolean(false) });
+    expect(evaluateTextTemplate(ast, environment, alwaysOkNumericExpressionHole, formatNumber)).toEqual({
+      status: "ok",
+      text: "true,false"
+    });
+  });
+
+  it("fails closed when a boolean hole's typed expression evaluation fails", () => {
+    const ast = templateOf([booleanHole("binding:poisoned")]);
+    const result = evaluateTextTemplate(
+      ast,
+      okEnvironment({ "binding:poisoned": poisoned("binding:poisoned", "evaluation-boolean-failed") }),
+      alwaysOkNumericExpressionHole,
+      formatNumber
+    );
+    expect(result).toMatchObject({ status: "error", error: { origin: "typed", dependencyId: "binding:poisoned" } });
+    if (result.status === "error") expect(result.error.message).toContain("evaluation-boolean-failed");
   });
 
   it("delegates numeric-expression holes to the injected callback and splices its text in", () => {
