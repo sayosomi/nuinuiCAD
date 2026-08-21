@@ -55,16 +55,44 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     );
   }, 30000);
 
-  it("evaluates Label and Bare through the Rust-first declarations/templates fixture", () => {
+  it("evaluates Label, Bare, and Boolean through the Rust-first declarations/templates fixture", () => {
     const fixture = readParityFixture(repoRoot, "nui4-declarations-templates.nui");
-    const result = evaluationPayloadToResult(evaluateWithRustFixture(repoRoot, fixture));
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
     const label = fixture.elements.find((element) => element.type === "text" && element.name === "Label")!;
     const bare = fixture.elements.find((element) => element.type === "text" && element.name === "Bare")!;
+    const boolean = fixture.elements.find((element) => element.type === "text" && element.name === "Boolean")!;
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
-    expect(result.errors.filter((error) => error.elementId === label.id || error.elementId === bare.id)).toEqual([]);
-    expect(result.computedGeometry.get(label.id)).toMatchObject({ kind: "text", text: "{draft} 前身頃 12.346\n" });
-    expect(result.computedGeometry.get(bare.id)).toMatchObject({ kind: "text", text: "前身頃" });
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const result of [ts, rust]) {
+      expect(result.errors.filter((error) => [label.id, bare.id, boolean.id].includes(error.elementId))).toEqual([]);
+      expect(result.computedGeometry.get(label.id)).toMatchObject({ kind: "text", text: "{draft} 前身頃 12.346\n" });
+      expect(result.computedGeometry.get(bare.id)).toMatchObject({ kind: "text", text: "前身頃" });
+      expect(result.computedGeometry.get(boolean.id)).toMatchObject({ kind: "text", text: "true false true true" });
+    }
+  }, 30000);
+
+  it("evaluates reference-free boolean templates through the Rust production boundary", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-reference-free-boolean-template.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const booleanLiteral = fixture.elements.find((element) => element.type === "text" && element.name === "BooleanLiteral")!;
+    const booleanCall = fixture.elements.find((element) => element.type === "text" && element.name === "BooleanCall")!;
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const result of [ts, rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(booleanLiteral.id)).toMatchObject({ kind: "text", text: "false" });
+      expect(result.computedGeometry.get(booleanCall.id)).toMatchObject({ kind: "text", text: "true" });
+    }
   }, 30000);
 
   it("keeps tangentOffset curveSide literal, choice binding, and pathReverse parity", () => {

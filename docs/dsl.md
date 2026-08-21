@@ -378,6 +378,11 @@ optional parameter を直接読めませんが、boolean default 内の `hasValu
 ## 文字列、停止、layout / print / svg
 
 文字列の補間は `${...}` です。中の式も通常の nui4 参照・型付き式として評価されます。
+typed interpolation hole の結果型は `string`、`number`、または `boolean` です。
+`boolean` は text-template 内だけで lowercase の `true` / `false` に表示します。
+これは text-template-local な presentation behavior であり、nui4 全体の
+一般的な boolean -> string 暗黙変換ではありません。`choice(...)` の補間は
+引き続き未対応です。
 
 ```text
 text note = label(

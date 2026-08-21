@@ -24,12 +24,41 @@ fn number_literal_expression(value: f64) -> serde_json::Value {
     json!({"kind": "numberLiteral", "span": {"start": 0, "end": 1}, "value": value, "type": {"kind": "number"}})
 }
 
+fn boolean_literal_expression(value: bool) -> serde_json::Value {
+    json!({"kind": "booleanLiteral", "span": {"start": 0, "end": 1}, "value": value, "type": {"kind": "boolean"}})
+}
+
+fn string_reference_expression(binding_id: &str) -> serde_json::Value {
+    json!({"kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1}, "name": binding_id, "bindingId": binding_id, "type": {"kind": "string"}})
+}
+
+fn number_reference_expression(binding_id: &str) -> serde_json::Value {
+    json!({"kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1}, "name": binding_id, "bindingId": binding_id, "type": {"kind": "number"}})
+}
+
+fn boolean_reference_expression(binding_id: &str) -> serde_json::Value {
+    json!({"kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1}, "name": binding_id, "bindingId": binding_id, "type": {"kind": "boolean"}})
+}
+
+fn boolean_comparison_expression() -> serde_json::Value {
+    json!({
+        "kind": "binary", "span": {"start": 0, "end": 5}, "operator": "<",
+        "left": number_literal_expression(1.0),
+        "right": number_literal_expression(2.0),
+        "type": {"kind": "boolean"}
+    })
+}
+
 fn string_hole_segment(expression: serde_json::Value) -> serde_json::Value {
     json!({"kind": "hole", "holeKind": "string", "expression": expression})
 }
 
 fn number_hole_segment(expression: serde_json::Value) -> serde_json::Value {
     json!({"kind": "hole", "holeKind": "number", "expression": expression})
+}
+
+fn boolean_hole_segment(expression: serde_json::Value) -> serde_json::Value {
+    json!({"kind": "hole", "holeKind": "boolean", "expression": expression})
 }
 
 fn template(element_id: &str, segments: Vec<serde_json::Value>) -> serde_json::Value {
@@ -75,19 +104,55 @@ fn accepts_a_typed_number_hole_when_a_scalar_program_is_present() {
 }
 
 #[test]
-fn rejects_a_typed_string_hole_when_no_scalar_program_is_present() {
+fn rejects_a_typed_string_hole_with_a_binding_reference_when_no_scalar_program_is_present() {
     let payload = json!([template(
         "label-1",
-        vec![string_hole_segment(string_literal_expression("front"))]
+        vec![string_hole_segment(string_reference_expression(
+            "binding:label"
+        ))]
     )]);
     assert!(validate_text_templates_payload(&payload, &text_type_map(), false).is_err());
 }
 
 #[test]
-fn rejects_a_typed_number_hole_when_no_scalar_program_is_present() {
+fn rejects_a_typed_number_hole_with_a_binding_reference_when_no_scalar_program_is_present() {
     let payload = json!([template(
         "label-1",
-        vec![number_hole_segment(number_literal_expression(3.0))]
+        vec![number_hole_segment(number_reference_expression(
+            "binding:count"
+        ))]
+    )]);
+    assert!(validate_text_templates_payload(&payload, &text_type_map(), false).is_err());
+}
+
+#[test]
+fn accepts_a_boolean_hole_when_a_scalar_program_is_present() {
+    let payload = json!([template(
+        "label-1",
+        vec![boolean_hole_segment(boolean_literal_expression(true))]
+    )]);
+    assert!(validate_text_templates_payload(&payload, &text_type_map(), true).is_ok());
+}
+
+#[test]
+fn accepts_reference_free_boolean_holes_without_a_scalar_runtime() {
+    let payload = json!([template(
+        "label-1",
+        vec![
+            boolean_hole_segment(boolean_literal_expression(false)),
+            boolean_hole_segment(boolean_comparison_expression())
+        ]
+    )]);
+    assert!(validate_text_templates_payload(&payload, &text_type_map(), false).is_ok());
+}
+
+#[test]
+fn rejects_a_boolean_hole_with_a_binding_reference_without_a_scalar_runtime() {
+    let payload = json!([template(
+        "label-1",
+        vec![boolean_hole_segment(boolean_reference_expression(
+            "binding:enabled"
+        ))]
     )]);
     assert!(validate_text_templates_payload(&payload, &text_type_map(), false).is_err());
 }
@@ -111,8 +176,17 @@ fn rejects_a_number_hole_whose_expression_root_type_is_string() {
 }
 
 #[test]
+fn rejects_a_boolean_hole_whose_expression_root_type_is_number() {
+    let payload = json!([template(
+        "label-1",
+        vec![boolean_hole_segment(number_literal_expression(3.0))]
+    )]);
+    assert!(validate_text_templates_payload(&payload, &text_type_map(), true).is_err());
+}
+
+#[test]
 fn rejects_an_unknown_hole_kind() {
-    let segment = json!({"kind": "hole", "holeKind": "boolean", "raw": "true"});
+    let segment = json!({"kind": "hole", "holeKind": "mystery", "raw": "true"});
     let payload = json!([template("label-1", vec![segment])]);
     assert!(validate_text_templates_payload(&payload, &text_type_map(), false).is_err());
 }

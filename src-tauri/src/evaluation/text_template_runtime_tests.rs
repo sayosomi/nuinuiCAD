@@ -58,6 +58,10 @@ fn number_hole_segment(expression: Value) -> Value {
     json!({"kind": "hole", "holeKind": "number", "expression": expression})
 }
 
+fn boolean_hole_segment(expression: Value) -> Value {
+    json!({"kind": "hole", "holeKind": "boolean", "expression": expression})
+}
+
 fn string_literal_expr(value: &str) -> Value {
     json!({"kind": "stringLiteral", "span": {"start": 0, "end": 1}, "value": value, "type": {"kind": "string"}})
 }
@@ -66,12 +70,20 @@ fn number_literal_expr(value: f64) -> Value {
     json!({"kind": "numberLiteral", "span": {"start": 0, "end": 1}, "value": value, "type": {"kind": "number"}})
 }
 
+fn boolean_literal_expr(value: bool) -> Value {
+    json!({"kind": "booleanLiteral", "span": {"start": 0, "end": 1}, "value": value, "type": {"kind": "boolean"}})
+}
+
 fn string_reference_expr(binding_id: &str) -> Value {
     json!({"kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1}, "name": binding_id, "bindingId": binding_id, "type": {"kind": "string"}})
 }
 
 fn number_reference_expr(binding_id: &str) -> Value {
     json!({"kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1}, "name": binding_id, "bindingId": binding_id, "type": {"kind": "number"}})
+}
+
+fn boolean_reference_expr(binding_id: &str) -> Value {
+    json!({"kind": "reference", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1}, "name": binding_id, "bindingId": binding_id, "type": {"kind": "boolean"}})
 }
 
 fn string_statement(binding_id: &str, initializer: Value) -> Value {
@@ -91,6 +103,16 @@ fn number_statement(binding_id: &str, initializer: Value) -> Value {
         "scopeId": "root",
         "sourceOrder": 0,
         "declaration": {"bindingKind": "const", "declaredType": {"kind": "number"}, "initializer": initializer}
+    })
+}
+
+fn boolean_statement(binding_id: &str, initializer: Value) -> Value {
+    json!({
+        "kind": "declare",
+        "bindingId": binding_id,
+        "scopeId": "root",
+        "sourceOrder": 0,
+        "declaration": {"bindingKind": "const", "declaredType": {"kind": "boolean"}, "initializer": initializer}
     })
 }
 
@@ -189,6 +211,28 @@ fn substitutes_a_typed_number_hole_and_formats_it() {
     ));
     assert!(result.errors.is_empty());
     assert_eq!(text_value(&result, "t"), "12");
+}
+
+#[test]
+fn substitutes_typed_boolean_holes_as_lowercase_true_and_false() {
+    let result = evaluate_document_input(input(
+        vec![text_element("t")],
+        Some(program(vec![boolean_statement(
+            "binding:enabled",
+            boolean_literal_expr(true),
+        )])),
+        Some(json!([text_template_entry(
+            "t",
+            vec![
+                boolean_hole_segment(boolean_reference_expr("binding:enabled")),
+                literal_segment(","),
+                boolean_hole_segment(boolean_literal_expr(false)),
+            ]
+        )])),
+        None,
+    ));
+    assert!(result.errors.is_empty());
+    assert_eq!(text_value(&result, "t"), "true,false");
 }
 
 #[test]

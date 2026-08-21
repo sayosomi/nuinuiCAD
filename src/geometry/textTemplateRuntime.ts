@@ -60,7 +60,7 @@ export const buildTextTemplateEntriesByElementId = (
 export type RustTextTemplateSegment =
   | { kind: "literal"; cooked: string }
   | { kind: "hole"; holeKind: "numeric"; raw: string }
-  | { kind: "hole"; holeKind: "string" | "number"; expression: TypedScalarExpression };
+  | { kind: "hole"; holeKind: "string" | "number" | "boolean"; expression: TypedScalarExpression };
 
 export const toRustTextTemplateSegments = (ast: TextTemplateAst): RustTextTemplateSegment[] =>
   ast.segments.map((segment): RustTextTemplateSegment => {
