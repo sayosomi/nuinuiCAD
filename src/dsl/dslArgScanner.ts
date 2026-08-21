@@ -58,7 +58,6 @@ type NamedArgBoundary = {
   keySpan: DslSpan;
   colon: number;
   optionalSpan: DslSpan | null;
-  missingSpaceAfterColon: boolean;
 };
 
 export type ScanCallArgsOptions = {
@@ -179,13 +178,11 @@ const namedArgBoundaries = (source: string, callSpan: DslSpan, options: ScanCall
     // `::` belongs to a qualified reference, not an argument boundary.
     if (source[colon] !== ":" || source[colon + 1] === ":") continue;
 
-    const valueStart = colon + 1;
     boundaries.push({
       key: source.slice(index, keyEnd),
       keySpan: { start: index, end: keyEnd },
       colon,
       optionalSpan: optional ? { start: keyEnd, end: keyEnd + 1 } : null,
-      missingSpaceAfterColon: valueStart < callSpan.end && !isWhitespace(source[valueStart]),
     });
   }
   return boundaries;
@@ -225,12 +222,6 @@ const addNamedArg = (
     valueSpan,
     ...(isEmpty ? { rawValueSpan } : {}),
   });
-  if (boundary.missingSpaceAfterColon) {
-    errors.push({
-      message: `引数「${boundary.key}」の「:」の後には空白が必要です。`,
-      span: { start: boundary.colon, end: boundary.colon + 1 },
-    });
-  }
   if (isEmpty) {
     errors.push({
       message: `引数「${boundary.key}」の値がありません。`,
