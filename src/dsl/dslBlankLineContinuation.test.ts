@@ -74,6 +74,22 @@ describe("blank lines inside multiline calls", () => {
     )).toBe(true);
   });
 
+  it("keeps unrelated assignments fail-closed even inside a module parameter recovery window", () => {
+    const source = [
+      "module M(",
+      "  value: number,",
+      "",
+      "const next: number = 1",
+      ") {",
+      "}"
+    ].join("\n");
+    const map = createLogicalStatementSourceMap({ normalizedSource: source, sourceRevision: 13 });
+
+    expect(map.invalidContinuationLines).toContain(2);
+    expect(map.statements[0]?.range.endLine).toBe(2);
+    expect(map.statements.some((statement) => statement.logicalText.startsWith("const next"))).toBe(true);
+  });
+
   it("keeps nested parenthesis/list delimiters quote-safe across a blank line", () => {
     const source = [
       "line L = offset(",
