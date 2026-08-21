@@ -72,6 +72,7 @@ jobs:
               ('intersectionIndex: 0', 'index: 0'),
               ('first: Direct, second: Through', 'first: @Direct, second: @Through'),
               ('first: Direct, second: Corner', 'first: @Direct, second: @Corner'),
+              ('line T1 = commonTangent', 'line T = commonTangent'),
           ]:
               text = text.replace(old, new)
           text = text.replace('expect(text).toContain("line T = commonTangent(first: @A, second: @B, kind: internal, side: right)");',
