@@ -34,6 +34,8 @@ const EMPTY_CANVAS_PRESENTATION: CanvasRevisionPresentationInputs = {
   moduleSemanticContext: {}
 };
 
+const stableCanvasPresentationByInstance = new WeakMap<object, CanvasRevisionPresentationSnapshot>();
+
 export const resolveRevisionCoherentCanvasPresentation = ({
   current,
   compiledDocumentRevision,
@@ -77,7 +79,8 @@ export const useRevisionCoherentCanvasPresentation = ({
   compiledDocumentRevision: number;
   evaluationState?: EvaluationEngineState;
 }) => {
-  const [lastStable, setLastStable] = useState<CanvasRevisionPresentationSnapshot | null>(null);
+  const [instanceKey] = useState<object>(() => ({}));
+  const lastStable = stableCanvasPresentationByInstance.get(instanceKey) ?? null;
   const resolved = resolveRevisionCoherentCanvasPresentation({
     current,
     compiledDocumentRevision,
@@ -95,25 +98,17 @@ export const useRevisionCoherentCanvasPresentation = ({
       evaluationRequestRevision === undefined ||
       evaluationRevision !== compiledDocumentRevision
     ) return;
-    setLastStable((previous) => {
-      if (
-        previous?.evaluationRevision === evaluationRevision &&
-        previous.evaluationRequestRevision === evaluationRequestRevision &&
-        previous.inputs === current
-      ) {
-        return previous;
-      }
-      return {
-        evaluationRevision,
-        evaluationRequestRevision,
-        inputs: current
-      };
+    stableCanvasPresentationByInstance.set(instanceKey, {
+      evaluationRevision,
+      evaluationRequestRevision,
+      inputs: current
     });
   }, [
     compiledDocumentRevision,
     current,
     evaluationRevision,
     evaluationRequestRevision,
+    instanceKey,
     isStale
   ]);
 
