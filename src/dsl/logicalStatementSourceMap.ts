@@ -1,3 +1,8 @@
+import { matchingDslDelimiter, scanDslNesting } from "./dslArgScanner";
+import {
+  isUnsafeDslContinuationFragment,
+  isUnsafeDslPostDelimiterFragment
+} from "./dslStatementKeywords";
 import { scanDslSource, type DslLexedLine } from "./dslTokens";
 
 export type SourceRevision = number;
@@ -89,6 +94,20 @@ const lineStarts = (source: string) => {
   return starts;
 };
 
+const lineIndexAt = (starts: readonly number[], position: number) => {
+  let low = 0;
+  let high = starts.length - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    if (starts[middle]! <= position) low = middle + 1;
+    else high = middle - 1;
+  }
+  return Math.max(0, high);
+};
+
+const codeSourceFor = (lexicalLines: readonly DslLexedLine[]) =>
+  lexicalLines.map((line) => line.code).join("\n");
+
 const structuralKind = (code: string): LogicalStatement["structural"] => {
   const trimmed = code.trim();
   if (trimmed === "{") return "open";
@@ -97,24 +116,48 @@ const structuralKind = (code: string): LogicalStatement["structural"] => {
   return null;
 };
 
-/** Net depth-zero-relative change in unclosed `(`/`[` nesting contributed by
- * a single line's code (quote-aware; `)`/`]` inside a quoted string do not
- * count). A statement's call envelope continues onto the next physical line
- * while the running depth across its lines so far is still above zero. */
-const netDepthDelta = (code: string) => {
-  let depth = 0;
-  let quote: string | null = null;
-  for (let index = 0; index < code.length; index += 1) {
-    const char = code[index];
-    if ((char === "\"" || char === "'") && code[index - 1] !== "\\") {
-      quote = quote === char ? null : quote ?? char;
-      continue;
-    }
-    if (quote) continue;
-    if (char === "(" || char === "[") depth += 1;
-    else if (char === ")" || char === "]") depth -= 1;
+/**
+ * A blank line is harmless only when the currently-open outer delimiter has a
+ * real matching closer later in the same safe statement envelope. This is the
+ * strict-parser counterpart of dslCallAuthoringContext's tolerant recovery:
+ * both use the shared nesting/delimiter scanner and continuation safety rules.
+ */
+const canContinueAcrossBlank = (
+  codeSource: string,
+  lexicalLines: readonly DslLexedLine[],
+  starts: readonly number[],
+  cursor: number,
+  nesting: ReturnType<typeof scanDslNesting>,
+  allowModuleParameterFragments: boolean
+) => {
+  const opener = nesting.unmatchedOpeners[0];
+  if (!opener) return false;
+  const closePhysical = matchingDslDelimiter(codeSource, opener.index);
+  if (closePhysical < 0) return false;
+  const closeLine = lineIndexAt(starts, closePhysical);
+
+  for (let index = cursor + 1; index <= closeLine; index += 1) {
+    const candidate = lexicalLines[index];
+    if (!candidate) return false;
+    // Preserve SAY-92's fail-closed boundary: a comment-only physical line
+    // beyond the blank does not prove that later code belongs to this call.
+    if (candidate.codeText.trim() === "" && candidate.text.trim() !== "") return false;
+    if (structuralKind(candidate.codeText) !== null) return false;
+
+    const lineStart = starts[index]!;
+    const lineEnd = starts[index + 1] ?? codeSource.length;
+    const codeBeforeClose = index === closeLine
+      ? codeSource.slice(lineStart, closePhysical)
+      : codeSource.slice(lineStart, lineEnd);
+    if (isUnsafeDslContinuationFragment(codeBeforeClose, {
+      allowModuleParameterFragment: allowModuleParameterFragments
+    })) return false;
   }
-  return depth;
+
+  const closeLineEnd = starts[closeLine + 1] ?? codeSource.length;
+  return !isUnsafeDslPostDelimiterFragment(
+    codeSource.slice(closePhysical + 1, closeLineEnd)
+  );
 };
 
 /**
@@ -130,6 +173,7 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
   const lines = source.split("\n");
   const lexical = scanDslSource(source);
   const lexicalLines = lexical.lines;
+  const codeSource = codeSourceFor(lexicalLines);
   const starts = lineStarts(source);
   const statements: LogicalStatement[] = [];
   const invalidContinuationLines: number[] = [];
@@ -153,14 +197,11 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
     const segments: DslPhysicalSegment[] = [];
     const continuationLines: number[] = [];
     let cursor = index;
-    let depth = 0;
     while (true) {
       const line = lexicalLines[cursor]!;
-      // A full-line comment inside an otherwise-open call contributes no
-      // code (and no depth change) but still belongs to the statement's
-      // physical line range. A truly blank line is never absorbed here: it
-      // is caught by the blank/structural lookahead below instead, which
-      // reports an unclosed call rather than silently swallowing the line.
+      // Full-line comments and safely-contained blank lines contribute no
+      // logical code fragment, but remain inside the statement's physical line
+      // range. Real code segments keep their exact physical offsets.
       const isCommentOnlyLine = line.codeText.trim() === "" && line.text.trim() !== "";
       if (!isCommentOnlyLine && line.codeText.trim()) {
         for (const codeSegment of line.codeSegments) {
@@ -178,18 +219,41 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
           });
         }
       }
-      depth += netDepthDelta(line.codeText);
-      const continues = depth > 0;
+
+      const lineEnd = starts[cursor]! + line.text.length;
+      const nesting = scanDslNesting(codeSource, {
+        start: starts[firstLine]!,
+        end: lineEnd
+      });
+      const continues = nesting.unmatchedOpeners.length > 0;
       if (!continues) break;
+
       const next = cursor + 1;
-      const nextLine = next < lines.length ? lines[next] : null;
-      const nextIsBlank = nextLine === null || nextLine.trim() === "";
-      const nextCode = nextLine !== null ? lexicalLines[next]!.codeText : "";
-      const nextIsStructural = nextLine !== null && structuralKind(nextCode) !== null;
-      if (nextIsBlank || nextIsStructural) {
-        // Containment boundary: a blank line, a structural line, || EOF
-        // terminates an unclosed call as an error scoped to this statement
-        // only, instead of swallowing the rest of the document.
+      if (next >= lines.length) {
+        invalidContinuationLines.push(cursor + 1);
+        break;
+      }
+      const nextLine = lines[next]!;
+      const nextCode = lexicalLines[next]!.codeText;
+      const nextIsBlank = nextLine.trim() === "";
+      const nextIsStructural = structuralKind(nextCode) !== null;
+      const allowModuleParameterFragments =
+        nesting.unmatchedOpeners.length === 1 &&
+        /^\s*module(?:\s|$)/.test(lexicalLines[firstLine]!.codeText);
+      if (
+        nextIsStructural ||
+        (nextIsBlank && !canContinueAcrossBlank(
+          codeSource,
+          lexicalLines,
+          starts,
+          cursor,
+          nesting,
+          allowModuleParameterFragments
+        ))
+      ) {
+        // Containment boundary: structural syntax, EOF, or a blank line whose
+        // later closer cannot be proven safe terminates this incomplete
+        // statement without swallowing unrelated following code.
         invalidContinuationLines.push(cursor + 1);
         break;
       }

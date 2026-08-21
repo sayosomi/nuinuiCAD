@@ -13,7 +13,10 @@ import {
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
 import { dslModuleCompletionContextAt } from "./dslModuleCompletionContext";
-import { dslStatementKeywordCompletions } from "./dslParser";
+import {
+  isUnsafeDslContinuationFragment,
+  isUnsafeDslPostDelimiterFragment
+} from "./dslStatementKeywords";
 import { getBuiltinFunctionDefinition } from "../scalars/builtinFunctions";
 import { isBareDslIdentifierChar } from "./dslTokens";
 
@@ -325,13 +328,7 @@ const strictCallAuthoringContextAt = (
   };
 };
 
-const isUnsafeCurrentFragment = (fragment: string) => {
-  const trimmed = fragment.trim();
-  if (!trimmed) return false;
-  if (/[{};]/.test(trimmed) || /(^|[^=!<>])=([^=]|$)/.test(trimmed)) return true;
-  const leadingKeyword = /^[A-Za-z_][A-Za-z0-9_]*/.exec(trimmed)?.[0];
-  return leadingKeyword !== undefined && dslStatementKeywordCompletions.some((keyword) => keyword === leadingKeyword);
-};
+const isUnsafeCurrentFragment = isUnsafeDslContinuationFragment;
 
 const appendPhysicalSegment = (
   parts: string[],
@@ -375,10 +372,11 @@ const physicalRangeForLogical = (
 export const projectDslCallAuthoringRange = physicalRangeForLogical;
 
 /**
- * Projects an incomplete call across the one blank line where strict logical
- * statement containment deliberately stops. The projection is only accepted
- * when the strict source map identifies the originating incomplete statement
- * and no unrelated code crosses the recovery window.
+ * Projects a genuinely incomplete call beyond the strict statement boundary.
+ * Balanced blank-line continuations are now owned by the strict source map;
+ * this tolerant projection remains for mid-edit states where no safe closer is
+ * yet provable. It is accepted only when no unrelated code crosses the
+ * recovery window.
  */
 export const dslCallAuthoringContextAt = (
   snapshot: SourceSnapshot,
@@ -447,7 +445,7 @@ export const dslCallAuthoringContextAt = (
       if (isUnsafeCurrentFragment(codeBeforeClose)) return null;
     }
     const closeLineEnd = starts[closeLine + 1] ?? map.source.length;
-    if (isUnsafeCurrentFragment(codeSource.slice(closePhysical + 1, closeLineEnd))) return null;
+    if (isUnsafeDslPostDelimiterFragment(codeSource.slice(closePhysical + 1, closeLineEnd))) return null;
   } else {
     for (let index = lineIndex + 1; index < map.lexicalLines.length; index += 1) {
       const candidateLine = map.lexicalLines[index];

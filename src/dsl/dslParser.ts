@@ -38,48 +38,9 @@ import {
 import { parseDslExportStatement } from "./dslExportParser";
 import { isCompilableDslStatement } from "./dslCompilationGuard";
 import { parseDslSourceReference } from "./dslReferenceTokens";
+import { dslStatementKeywords } from "./dslStatementKeywords";
 
-/**
- * Statement-leading spellings accepted by this parser. Keeping these constants
- * next to the dispatch below makes the parser, rather than an editor-side
- * keyword list, the source of truth for completion.
- */
-export const dslStatementKeywords = {
-  stop: "stop",
-  version: "nui",
-  for: "for",
-  place: "place",
-  role: "role",
-  profile: "profile",
-  view: "view",
-  activeView: "activeView",
-  layout: "layout",
-  print: "print",
-  svg: "svg",
-  color: "color",
-  conditional: "if",
-  constDeclaration: "const",
-  letDeclaration: "let",
-  setStatement: "set",
-  reverseStatement: "reverse",
-  edge: "edge",
-  extend: "extend",
-  move: "move",
-  mirrorMove: "mirrorMove",
-  point: "point",
-  line: "line",
-  curve: "curve",
-  arc: "arc",
-  text: "text",
-  image: "image",
-  group: "group",
-  module: "module",
-  modifier: "modifier",
-  instance: "instance",
-  export: "export"
-} as const;
-
-export const dslStatementKeywordCompletions = Object.values(dslStatementKeywords);
+export { dslStatementKeywordCompletions, dslStatementKeywords } from "./dslStatementKeywords";
 
 // category キーワードは P3(dslCallParser)へ、設定文キーワードは P4(dslSettingsParser)へ。
 // 集合は互いに素(重複キーワードなし)。
@@ -1137,13 +1098,12 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   for (const line of sourceMap.invalidContinuationLines) {
     // Same UNCLOSED_CALL_CODE as dslCallParser.ts's own "closing `)` not
     // found" diagnostic - this is the multi-line-join layer's version of the
-    // identical condition (a call's depth never returns to 0 before EOF, a
-    // blank line, || a structural line ends the continuation search). A
-    // single-line probe parse (dslLineElementStatement) reaches this branch
-    // whenever the probed text's own call is unclosed at end-of-text, which
-    // is exactly the mid-edit shape its carve-out already tolerates for this
-    // code; full-document severity is unaffected either way.
-    diagnostics.push(diagnostic(line, "呼び出しの「(」が閉じられていません。空行やブロック区切りより前に「)」で閉じてください。", UNCLOSED_CALL_CODE));
+    // same fail-closed condition when a call cannot safely reach its matching
+    // closer before EOF or another containment boundary. A single-line probe
+    // parse (dslLineElementStatement) reaches this branch whenever the probed
+    // text's own call is unclosed at end-of-text; full-document severity is
+    // unaffected either way.
+    diagnostics.push(diagnostic(line, "呼び出しの「(」が閉じられていません。同じ文の中で「)」で閉じてください。", UNCLOSED_CALL_CODE));
   }
   for (let index = 0; index < sourceMap.statements.length; index += 1) {
     const logical = sourceMap.statements[index];

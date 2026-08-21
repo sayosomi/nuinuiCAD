@@ -84,9 +84,11 @@ const matchingCloserFor = (delimiter: DslNestingDelimiter): DslNestingCloser["de
   delimiter === "(" ? ")" : "]";
 
 /**
- * Shared quote-aware call/list nesting scan. Call argument recovery, tolerant
- * authoring, and future signature-help consumers must use this structure
- * instead of maintaining independent parenthesis/comma walkers.
+ * Shared quote-aware call/list nesting scan. Strings are physical-line-local,
+ * matching scanDslSource: an unterminated quote never masks delimiters on the
+ * following line. Call argument recovery, tolerant authoring, and future
+ * signature-help consumers must use this structure instead of maintaining
+ * independent parenthesis/comma walkers.
  */
 export const scanDslNesting = (
   source: string,
@@ -101,6 +103,11 @@ export const scanDslNesting = (
 
   for (let index = span.start; index < span.end; index += 1) {
     const character = source[index]!;
+    if (character === "\n") {
+      quote = null;
+      if (stack.length === 0) topLevelPositions.add(index);
+      continue;
+    }
     if (quote) {
       if (character === quote && !isEscaped(source, index)) quote = null;
       continue;
