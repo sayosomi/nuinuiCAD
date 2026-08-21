@@ -486,6 +486,7 @@ Primary:
 - `vscode-extension/src/extension.ts`
 - `vscode-extension/src/languageAnalysisSession.ts`
 - `vscode-extension/src/completionProvider.ts`
+- `vscode-extension/src/signatureHelpProvider.ts`
 - `vscode-extension/src/definitionProvider.ts`
 - `vscode-extension/src/referenceProvider.ts`
 - `vscode-extension/src/documentSymbolProvider.ts`
@@ -611,6 +612,7 @@ VS Code TextDocument
 → URI-scoped language analysis session / AutomationDocument
 ├→ compiler diagnostics → DiagnosticCollection
 ├→ queryDslCompletion → CompletionItemProvider
+├→ queryDslSignatureHelp → SignatureHelpProvider
 ├→ queryDslDefinition → DefinitionProvider
 ├→ queryDslReferences → ReferenceProvider
 ├→ queryDslDocumentSymbols → DocumentSymbolProvider
@@ -625,7 +627,10 @@ current source-structure snapshot access. `compilerDiagnostics.ts` remains the d
 conversion adapter. `completionProvider.ts` only normalizes VS Code positions,
 projects `queryDslCompletion` candidates to `CompletionItem`s, and supplies
 host insertion behavior; completion semantics, filtering, ranking, and
-truncation remain owned by the production query. `definitionProvider.ts` keeps
+truncation remain owned by the production query. `signatureHelpProvider.ts`
+projects the host-neutral `queryDslSignatureHelp` result to the standard VS Code
+signature-help objects and uses the session's dedicated exact current-source
+Module semantic snapshot; it does not recover stale Module metadata. `definitionProvider.ts` keeps
 the VS Code adapter thin: it synchronizes the current `TextDocument`, converts
 UTF-16 raw offsets across CRLF normalization, delegates semantic resolution to
 `queryDslDefinition`, and projects its exact ranges to a same-document

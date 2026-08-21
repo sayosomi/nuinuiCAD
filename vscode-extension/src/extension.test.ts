@@ -86,6 +86,7 @@ const mocks = vi.hoisted(() => ({
   diagnosticCollections: [] as TestDiagnosticCollection[],
   contexts: [] as Array<{ subscriptions: Array<{ dispose: () => void }> }>,
   completionRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
+  signatureHelpRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
   definitionRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   renameRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   referenceRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
@@ -102,6 +103,7 @@ const mocks = vi.hoisted(() => ({
   createWebviewPanel: vi.fn(),
   createDiagnosticCollection: vi.fn(),
   registerCompletionItemProvider: vi.fn(),
+  registerSignatureHelpProvider: vi.fn(),
   registerDefinitionProvider: vi.fn(),
   registerRenameProvider: vi.fn(),
   registerReferenceProvider: vi.fn(),
@@ -209,6 +211,7 @@ vi.mock("vscode", () => {
     languages: {
       createDiagnosticCollection: mocks.createDiagnosticCollection,
       registerCompletionItemProvider: mocks.registerCompletionItemProvider,
+      registerSignatureHelpProvider: mocks.registerSignatureHelpProvider,
       registerDefinitionProvider: mocks.registerDefinitionProvider,
       registerRenameProvider: mocks.registerRenameProvider,
       registerReferenceProvider: mocks.registerReferenceProvider,
@@ -441,6 +444,11 @@ const setup = (
     mocks.completionRegistrations.push({ selector, provider, triggerCharacters, disposable: registration });
     return registration;
   });
+  mocks.registerSignatureHelpProvider.mockImplementation((selector: unknown, provider: unknown, ...triggerCharacters: string[]) => {
+    const registration = disposable();
+    mocks.signatureHelpRegistrations.push({ selector, provider, triggerCharacters, disposable: registration });
+    return registration;
+  });
   mocks.registerDefinitionProvider.mockImplementation((selector: unknown, provider: unknown) => {
     const registration = disposable();
     mocks.definitionRegistrations.push({ selector, provider, disposable: registration });
@@ -575,6 +583,7 @@ afterEach(() => {
   mocks.diagnosticCollections.length = 0;
   mocks.contexts.length = 0;
   mocks.completionRegistrations.length = 0;
+  mocks.signatureHelpRegistrations.length = 0;
   mocks.definitionRegistrations.length = 0;
   mocks.renameRegistrations.length = 0;
   mocks.referenceRegistrations.length = 0;
@@ -588,6 +597,7 @@ afterEach(() => {
   mocks.createWebviewPanel.mockReset();
   mocks.createDiagnosticCollection.mockReset();
   mocks.registerCompletionItemProvider.mockReset();
+  mocks.registerSignatureHelpProvider.mockReset();
   mocks.registerDefinitionProvider.mockReset();
   mocks.registerRenameProvider.mockReset();
   mocks.registerReferenceProvider.mockReset();
@@ -606,6 +616,16 @@ afterEach(() => {
 });
 
 describe("VS Code production document lifecycle", () => {
+  it("registers the standard file-backed nui Signature Help provider", () => {
+    setup();
+
+    expect(mocks.signatureHelpRegistrations).toHaveLength(1);
+    expect(mocks.signatureHelpRegistrations[0]).toMatchObject({
+      selector: { language: "nui", scheme: "file" },
+      triggerCharacters: ["(", ",", ":"]
+    });
+  });
+
   it("registers and opens the Output Preview production surface", () => {
     setup();
 

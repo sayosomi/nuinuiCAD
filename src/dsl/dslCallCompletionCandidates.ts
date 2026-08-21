@@ -29,7 +29,12 @@ const userFacingCommonArgumentNames = new Set([
   "steps",
 ]);
 
-const completionArgumentSpecs = (spec: DslConstructionSpec) => {
+/**
+ * The user-facing construction argument projection is shared by Completion
+ * and Signature Help. Serializer/runtime-owned arguments remain deliberately
+ * outside this projection.
+ */
+export const userFacingConstructionArgumentSpecs = (spec: DslConstructionSpec): readonly DslConstructionSpec["args"][number][] => {
   const byName = new Map(spec.args.map((arg) => [arg.arg, arg]));
   for (const arg of commonArgSpecs) {
     if (arg.arg === "color" && spec.category === MUTATION_CATEGORY) continue;
@@ -56,7 +61,7 @@ export const argumentCompletionCandidates = (
       .filter((group) => group.some((arg) => usedArgumentNames.has(arg)))
       .flat(),
   );
-  return completionArgumentSpecs(spec)
+  return userFacingConstructionArgumentSpecs(spec)
     .filter((arg) => !arg.positional && !usedArgumentNames.has(arg.arg) && !excludedExclusiveArgumentNames.has(arg.arg))
     .map((arg) => ({
       label: arg.arg,

@@ -19,6 +19,11 @@ import {
   nuiCompletionTriggerCharacters
 } from "./completionProvider";
 import {
+  createNuiSignatureHelpProvider,
+  nuiSignatureHelpSelector,
+  nuiSignatureHelpTriggerCharacters
+} from "./signatureHelpProvider";
+import {
   createNuiDefinitionProvider,
   nuiDefinitionSelector
 } from "./definitionProvider";
@@ -514,6 +519,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
     createNuiCompletionProvider(languageAnalysisSessionFor),
     ...nuiCompletionTriggerCharacters
   );
+  const signatureHelpProvider = vscode.languages.registerSignatureHelpProvider(
+    nuiSignatureHelpSelector,
+    createNuiSignatureHelpProvider(languageAnalysisSessionFor),
+    ...nuiSignatureHelpTriggerCharacters
+  );
   const definitionProvider = vscode.languages.registerDefinitionProvider(
     nuiDefinitionSelector,
     createNuiDefinitionProvider(languageAnalysisSessionFor)
@@ -546,6 +556,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     compilerDiagnosticCloseListener,
     disposeCompilerDiagnosticSessions,
     completionProvider,
+    signatureHelpProvider,
     definitionProvider,
     renameProvider,
     referenceProvider,

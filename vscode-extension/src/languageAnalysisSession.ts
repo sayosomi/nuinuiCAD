@@ -4,6 +4,7 @@ import type { DslDefinitionSemanticSnapshot } from "../../src/dsl/dslDefinitionQ
 import type { DslFoldingQueryInput } from "../../src/dsl/dslFoldingQuery";
 import type { DslReferencesSemanticSnapshot } from "../../src/dsl/dslReferencesQuery";
 import type { DslRenameSemanticSnapshot } from "../../src/dsl/dslRenameQuery";
+import type { DslSignatureHelpSemanticSnapshot } from "../../src/dsl/dslSignatureHelpQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import { reconcileStatements } from "../../src/document/statementReconciler";
 import {
@@ -56,6 +57,9 @@ export type NuiLanguageAnalysisSession = {
   completionRecoverySnapshot: (
     source: SourceSnapshot
   ) => DslCompletionRecoveryInput | undefined;
+  signatureHelpSemanticSnapshot: (
+    source: SourceSnapshot
+  ) => DslSignatureHelpSemanticSnapshot | undefined;
   definitionSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslDefinitionSemanticSnapshot | undefined;
@@ -142,6 +146,26 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     };
   };
 
+  const signatureHelpSemanticSnapshot = (
+    source: SourceSnapshot
+  ): DslSignatureHelpSemanticSnapshot | undefined => {
+    const state = document.getState();
+    const currentRawSource = document.getSource();
+    const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
+
+    if (
+      source.normalizedSource !== normalizedCurrentSource ||
+      source.sourceRevision !== currentSourceRevision() ||
+      state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource
+    ) return undefined;
+
+    return {
+      sourceRevision: source.sourceRevision,
+      sourceText: normalizedCurrentSource,
+      compiled: state.currentCompiled
+    };
+  };
+
   const sourceStructureSnapshot = (
     source: SourceSnapshot
   ): NuiFoldingSyntaxSnapshot | undefined => {
@@ -190,6 +214,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
         ? completionRecovery
         : undefined;
     },
+    signatureHelpSemanticSnapshot,
     definitionSemanticSnapshot: semanticSnapshotFor,
     referencesSemanticSnapshot: semanticSnapshotFor,
     renameSemanticSnapshot: semanticSnapshotFor,
