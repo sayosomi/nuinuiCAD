@@ -62,12 +62,13 @@ fn push_numeric_expression_hole_error(
 }
 
 struct TextTemplateRuntimeContext<'a> {
-    /// `None` whenever the document has no scalar runtime at all - only
-    /// legitimate when `template` is numeric-expression/literal-only, a case
-    /// `text_template_payload.rs`'s decode explicitly allows. If a typed
-    /// hole is ever actually walked with `resolver: None`, that is a decode
-    /// invariant violation, not a normal runtime outcome - see
-    /// `lookup_binding`'s `.expect`.
+    /// `None` is valid whenever the template's typed expressions do not contain
+    /// a resolved scalar reference that needs binding lookup. Reference-free
+    /// typed expressions, including boolean literals and comparisons, use the
+    /// existing evaluator without a resolver. The payload decoder rejects a
+    /// template with such a reference when no scalar runtime is present. The
+    /// expect below therefore protects the narrower invariant that evaluation
+    /// reaches a binding reference only with a resolver available.
     resolver: Option<&'a dyn ScalarDocumentBindingResolver>,
     element: &'a Value,
     local_variables: &'a (HashMap<String, f64>, HashMap<String, String>),
@@ -78,7 +79,7 @@ impl ScalarEvaluationEnvironment for TextTemplateRuntimeContext<'_> {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         let resolver = self
             .resolver
-            .expect("scalar binding resolver must exist when a text template has a typed hole");
+            .expect("scalar binding resolver must exist when typed text evaluation reaches a binding reference");
         resolver.resolve_binding(binding_id, self.state)
     }
 }

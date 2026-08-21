@@ -51,13 +51,21 @@ export type TextTemplateNumberHoleSegment = TextTemplateHoleSegmentBase & {
   readonly holeKind: "number";
   readonly expression: TypedScalarExpression;
 };
+export type TextTemplateBooleanHoleSegment = TextTemplateHoleSegmentBase & {
+  readonly holeKind: "boolean";
+  readonly expression: TypedScalarExpression;
+};
 /** A raw numeric expression evaluated in the text element's geometry/local
  * numeric context, independently of the typed binding catalog. */
 export type TextTemplateNumericExpressionHoleSegment = TextTemplateHoleSegmentBase & {
   readonly holeKind: "numeric";
   readonly raw: string;
 };
-export type TextTemplateHoleSegment = TextTemplateStringHoleSegment | TextTemplateNumberHoleSegment | TextTemplateNumericExpressionHoleSegment;
+export type TextTemplateHoleSegment =
+  | TextTemplateStringHoleSegment
+  | TextTemplateNumberHoleSegment
+  | TextTemplateBooleanHoleSegment
+  | TextTemplateNumericExpressionHoleSegment;
 export type TextTemplateSegment = TextTemplateLiteralSegment | TextTemplateHoleSegment;
 
 /** One resolved `@name` reference inside a typed hole - flat &&
@@ -191,12 +199,12 @@ export const analyzeTextTemplate = (
     }
     const ast = hole.ast;
 
-    // A hole with no references, || whose every reference resolves to a
-    // non-typed catalog kind (iteration), || whose
-    // references cannot be resolved at all (no binding catalog present -
-    // canResolve is false) stays in the numeric-expression path, exactly
-    // like a bare numeric-expression property. Only a hole with at least one
-    // genuinely typed reference goes through strict typed-hole handling below.
+    // A syntactically numeric hole with no references, whose every reference
+    // resolves to a non-typed catalog kind (iteration), or whose references
+    // cannot be resolved at all (no binding catalog present - canResolve is
+    // false) stays in the numeric-expression path, exactly like a bare
+    // numeric-expression property. A hole with typed-only syntax goes through
+    // strict typed-hole handling below even without references.
     const isNumericEligible =
       !containsNonNumericScalarSyntax(ast) &&
       (hole.references.length === 0 ||
@@ -269,12 +277,14 @@ export const analyzeTextTemplate = (
       segments.push({ kind: "hole", holeKind: "string", ...holeSegmentBase, expression: checked.typed });
     } else if (checked.type?.kind === "number") {
       segments.push({ kind: "hole", holeKind: "number", ...holeSegmentBase, expression: checked.typed });
+    } else if (checked.type?.kind === "boolean") {
+      segments.push({ kind: "hole", holeKind: "boolean", ...holeSegmentBase, expression: checked.typed });
     } else {
       const actual = checked.type ? describeScalarType(checked.type) : "unresolved";
       diagnostics.push({
         span: hole.raw.contentSpan,
         code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE,
-        message: `テキスト埋め込みはstringまたはnumberである必要があります(実際: ${actual})。`
+        message: `テキスト埋め込みはstring、number、またはbooleanである必要があります(実際: ${actual})。`
       });
     }
   }

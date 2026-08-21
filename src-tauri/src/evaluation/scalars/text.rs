@@ -129,6 +129,24 @@ where
                     }
                 }
             }
+            ValidatedTextTemplateSegment::BooleanHole { expression } => {
+                match evaluate_typed_expression(expression, &*context) {
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Boolean(value),
+                        ..
+                    } => text.push_str(if value { "true" } else { "false" }),
+                    ScalarEvaluation::Ok { .. } => {
+                        return Err(typed_error(
+                            "テキスト埋め込みの値がboolean型ではありません。".to_owned(),
+                        ))
+                    }
+                    ScalarEvaluation::Error { issue_code, .. } => {
+                        return Err(typed_error(format!(
+                            "テキスト埋め込みに紐づく変数の評価に失敗しました({issue_code})。"
+                        )))
+                    }
+                }
+            }
         }
     }
 
