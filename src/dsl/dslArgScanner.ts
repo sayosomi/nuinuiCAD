@@ -20,6 +20,32 @@ export type DslArgScanError = {
   code?: string;
 };
 
+export type DslNestingDelimiter = "(" | "[";
+
+export type DslNestingOpener = {
+  delimiter: DslNestingDelimiter;
+  index: number;
+};
+
+export type DslNestingCloser = {
+  delimiter: ")" | "]";
+  index: number;
+};
+
+export type DslMatchedDelimiter = {
+  open: DslNestingOpener;
+  close: DslNestingCloser;
+};
+
+export type DslNestingScan = {
+  matchedDelimiters: readonly DslMatchedDelimiter[];
+  unmatchedOpeners: readonly DslNestingOpener[];
+  unmatchedClosers: readonly DslNestingCloser[];
+  /** Positions whose delimiter nesting is zero before the character. */
+  topLevelPositions: ReadonlySet<number>;
+  topLevelCommas: readonly number[];
+};
+
 /** A well-formed but currently-empty named value while the user is editing. */
 export const MISSING_ATTRIBUTE_VALUE_CODE = "missing-attribute-value";
 /** nui4 requires this token before every subsequent call argument. */
@@ -55,6 +81,76 @@ const isEscaped = (source: string, index: number) => {
   return backslashCount % 2 === 1;
 };
 
+const matchingCloserFor = (delimiter: DslNestingDelimiter): DslNestingCloser["delimiter"] =>
+  delimiter === "(" ? ")" : "]";
+
+/**
+ * Shared quote-aware call/list nesting scan. Call argument recovery, tolerant
+ * authoring, and future signature-help consumers must use this structure
+ * instead of maintaining independent parenthesis/comma walkers.
+ */
+export const scanDslNesting = (
+  source: string,
+  span: DslSpan = { start: 0, end: source.length }
+): DslNestingScan => {
+  const matchedDelimiters: DslMatchedDelimiter[] = [];
+  const unmatchedClosers: DslNestingCloser[] = [];
+  const stack: DslNestingOpener[] = [];
+  const topLevelPositions = new Set<number>();
+  const topLevelCommas: number[] = [];
+  let quote: string | null = null;
+
+  for (let index = span.start; index < span.end; index += 1) {
+    const character = source[index]!;
+    if (quote) {
+      if (character === quote && !isEscaped(source, index)) quote = null;
+      continue;
+    }
+    if ((character === '"' || character === "'") && !isEscaped(source, index)) {
+      quote = character;
+      continue;
+    }
+
+    if (stack.length === 0) topLevelPositions.add(index);
+    if (character === "(" || character === "[") {
+      stack.push({ delimiter: character, index });
+    } else if (character === ")" || character === "]") {
+      const opener = stack.at(-1);
+      if (!opener || matchingCloserFor(opener.delimiter) !== character) {
+        unmatchedClosers.push({ delimiter: character, index });
+      } else {
+        stack.pop();
+        matchedDelimiters.push({ open: opener, close: { delimiter: character, index } });
+      }
+    } else if (character === "," && stack.length === 0) {
+      topLevelCommas.push(index);
+    }
+  }
+
+  return {
+    matchedDelimiters,
+    unmatchedOpeners: stack,
+    unmatchedClosers,
+    topLevelPositions,
+    topLevelCommas
+  };
+};
+
+export const matchingDslDelimiter = (
+  source: string,
+  open: number,
+  end = source.length
+): number => {
+  const delimiter = source[open];
+  if (delimiter !== "(" && delimiter !== "[") return -1;
+  const scan = scanDslNesting(source, { start: open, end });
+  const pair = scan.matchedDelimiters.find((candidate) =>
+    candidate.open.index === open && candidate.open.delimiter === delimiter
+  );
+  if (!pair || scan.unmatchedClosers.some((closer) => closer.index <= pair.close.index)) return -1;
+  return pair.close.index;
+};
+
 const trimSpan = (source: string, span: DslSpan): DslSpan => {
   let start = span.start;
   let end = span.end;
@@ -66,29 +162,12 @@ const trimSpan = (source: string, span: DslSpan): DslSpan => {
 /** Finds whitespace-led `key:` boundaries for recovery && diagnostics. */
 const namedArgBoundaries = (source: string, callSpan: DslSpan, options: ScanCallArgsOptions): NamedArgBoundary[] => {
   const boundaries: NamedArgBoundary[] = [];
-  let quote: string | null = null;
-  let depth = 0;
+  const nesting = scanDslNesting(source, callSpan);
 
   for (let index = callSpan.start; index < callSpan.end; index += 1) {
     const character = source[index];
-    if (quote) {
-      if (character === quote && !isEscaped(source, index)) quote = null;
-      continue;
-    }
-    if ((character === '"' || character === "'") && !isEscaped(source, index)) {
-      quote = character;
-      continue;
-    }
-    if (character === "(" || character === "[") {
-      depth += 1;
-      continue;
-    }
-    if (character === ")" || character === "]") {
-      depth -= 1;
-      continue;
-    }
     if (
-      depth !== 0 ||
+      !nesting.topLevelPositions.has(index) ||
       !isIdentifierStart(character) ||
       (index > callSpan.start && !isWhitespace(source[index - 1]))
     ) continue;
@@ -115,28 +194,14 @@ const namedArgBoundaries = (source: string, callSpan: DslSpan, options: ScanCall
 /** Splits only depth-zero commas; commas in strings, arrays, && nested calls stay in values. */
 const argumentSegments = (source: string, callSpan: DslSpan): ArgumentSegment[] => {
   const segments: ArgumentSegment[] = [];
-  let quote: string | null = null;
-  let depth = 0;
+  const nesting = scanDslNesting(source, callSpan);
   let start = callSpan.start;
   let precedingComma: number | null = null;
 
-  for (let index = callSpan.start; index < callSpan.end; index += 1) {
-    const character = source[index];
-    if (quote) {
-      if (character === quote && !isEscaped(source, index)) quote = null;
-      continue;
-    }
-    if ((character === '"' || character === "'") && !isEscaped(source, index)) {
-      quote = character;
-    } else if (character === "(" || character === "[") {
-      depth += 1;
-    } else if (character === ")" || character === "]") {
-      depth -= 1;
-    } else if (character === "," && depth === 0) {
-      segments.push({ span: { start, end: index }, precedingComma });
-      start = index + 1;
-      precedingComma = index;
-    }
+  for (const index of nesting.topLevelCommas) {
+    segments.push({ span: { start, end: index }, precedingComma });
+    start = index + 1;
+    precedingComma = index;
   }
   segments.push({ span: { start, end: callSpan.end }, precedingComma });
   return segments;
