@@ -146,7 +146,7 @@ describe("DSL nui 4 settings registry", () => {
     expect(settingsSpecFor("view")).toMatchObject({ allowsDynamicArgs: true });
     expect(settingsSpecFor("layout")?.args.map((arg) => arg.arg)).toEqual(["scale"]);
     expect(settingsSpecFor("print")?.args.map((arg) => arg.arg)).toEqual([
-      "layout", "profile", "paper", "orientation", "margin", "overlap",
+      "layout", "profile", "paper", "orientation", "overlap",
     ]);
     expect(settingsSpecFor("svg")?.args.map((arg) => arg.arg)).toEqual(["layout", "profile", "margin"]);
     expect(settingsSpecFor("place")).toMatchObject({

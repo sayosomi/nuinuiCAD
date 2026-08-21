@@ -33,7 +33,7 @@ const simpleSource = (extra: string[] = []) => sourceFor([
   "layout L {",
   "  place @G(at: (0, 0))",
   "}",
-  "print P(layout: @L, paper: a4, margin: 10, overlap: 10)",
+  "print P(layout: @L, paper: a4, overlap: 10)",
   "svg S(layout: @L, margin: 5)"
 ]);
 
@@ -365,7 +365,7 @@ describe("SAY-64 output core", () => {
     expect(svg.viewBox).toEqual({ x: 0, y: 0, width: svg.widthMm, height: svg.heightMm });
   });
 
-  it("computes effective areas, strides, and page counts for every A4/A3 orientation", () => {
+  it("computes physical first-page areas, strides, and page counts for every A4/A3 orientation", () => {
     const cases = [
       { paper: "a4", orientation: "portrait", paperWidthMm: 210, paperHeightMm: 297, columns: 4, rows: 2 },
       { paper: "a4", orientation: "landscape", paperWidthMm: 297, paperHeightMm: 210, columns: 3, rows: 3 },
@@ -382,26 +382,26 @@ describe("SAY-64 output core", () => {
         "layout L {",
         "  place @G(at: (0, 0))",
         "}",
-        `print P(layout: @L, paper: ${testCase.paper}, orientation: ${testCase.orientation}, margin: 10, overlap: 10)`
+        `print P(layout: @L, paper: ${testCase.paper}, orientation: ${testCase.orientation}, overlap: 10)`
       ]);
       const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
       const print = plan.print!;
-      const effectiveWidthMm = testCase.paperWidthMm - 20;
-      const effectiveHeightMm = testCase.paperHeightMm - 20;
-      const strideXmm = effectiveWidthMm - 10;
-      const strideYmm = effectiveHeightMm - 10;
-      const expectedColumns = plan.renderedBounds.width <= effectiveWidthMm
+      const firstUsableWidthMm = testCase.paperWidthMm - 20;
+      const firstUsableHeightMm = testCase.paperHeightMm - 20;
+      const strideXmm = testCase.paperWidthMm - 10;
+      const strideYmm = testCase.paperHeightMm - 10;
+      const expectedColumns = plan.renderedBounds.width <= firstUsableWidthMm
         ? 1
-        : 1 + Math.ceil((plan.renderedBounds.width - effectiveWidthMm) / strideXmm);
-      const expectedRows = plan.renderedBounds.height <= effectiveHeightMm
+        : 1 + Math.ceil((plan.renderedBounds.width - firstUsableWidthMm) / strideXmm);
+      const expectedRows = plan.renderedBounds.height <= firstUsableHeightMm
         ? 1
-        : 1 + Math.ceil((plan.renderedBounds.height - effectiveHeightMm) / strideYmm);
+        : 1 + Math.ceil((plan.renderedBounds.height - firstUsableHeightMm) / strideYmm);
 
       expect(print).toMatchObject({
         paperWidthMm: testCase.paperWidthMm,
         paperHeightMm: testCase.paperHeightMm,
-        effectiveWidthMm,
-        effectiveHeightMm,
+        firstUsableWidthMm,
+        firstUsableHeightMm,
         strideXmm,
         strideYmm,
         columns: testCase.columns,
@@ -410,11 +410,26 @@ describe("SAY-64 output core", () => {
       expect(expectedColumns).toBe(testCase.columns);
       expect(expectedRows).toBe(testCase.rows);
       expect(print.pages).toHaveLength(testCase.columns * testCase.rows);
-      expect(plan.rustPayload).toMatchObject({ stride: { x: strideXmm, y: strideYmm } });
+      expect(plan.rustPayload).toMatchObject({ overlapMm: 10, stride: { x: strideXmm, y: strideYmm } });
+      expect(plan.rustPayload).not.toHaveProperty("marginMm");
       expect(plan.rustPayload).not.toHaveProperty("stride.xMm");
       expect(plan.rustPayload).not.toHaveProperty("stride.yMm");
       expect(print.pages.map((page) => page.index)).toEqual(print.pages.map((_, index) => index));
       expect(print.pages[0].origin).toEqual({ x: plan.renderedBounds.minX - 10, y: plan.renderedBounds.minY - 10 });
+      expect(print.pages[0].origin.x + 10).toBeCloseTo(plan.renderedBounds.minX);
+      expect(print.pages[0].origin.y + 10).toBeCloseTo(plan.renderedBounds.minY);
+      if (testCase.columns > 1) {
+        const first = print.pages[0];
+        const adjacent = print.pages[1];
+        expect(adjacent.origin.x - first.origin.x).toBe(strideXmm);
+        expect(first.origin.x + testCase.paperWidthMm - adjacent.origin.x).toBe(10);
+      }
+      if (testCase.rows > 1) {
+        const first = print.pages[0];
+        const adjacent = print.pages[testCase.columns];
+        expect(adjacent.origin.y - first.origin.y).toBe(strideYmm);
+        expect(first.origin.y + testCase.paperHeightMm - adjacent.origin.y).toBe(10);
+      }
     }
   });
 
@@ -427,7 +442,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "print P(layout: @L, paper: a4, margin: 10, overlap: 1)"
+      "print P(layout: @L, paper: a4, overlap: 1)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     const guides = plan.print!.pages.flatMap((page) => page.guides);
@@ -435,16 +450,18 @@ describe("SAY-64 output core", () => {
     expect(guides.some((guide) => guide.label === "AA")).toBe(true);
     expect(guides.filter((guide) => guide.axis === "vertical").every((guide) => guide.labelRotationDeg === 90)).toBe(true);
     expect(guides.filter((guide) => guide.axis === "horizontal").every((guide) => guide.labelRotationDeg === 0)).toBe(true);
+    expect(new Set(guides.filter((guide) => guide.axis === "vertical").map((guide) => guide.positionMm))).toEqual(new Set([1, 209]));
+    expect(new Set(guides.filter((guide) => guide.axis === "horizontal").map((guide) => guide.positionMm))).toEqual(new Set([1, 296]));
     const verticalPairs = new Map<string, string[]>();
     const horizontalPairs = new Map<string, string[]>();
     for (const page of plan.print!.pages) {
       for (const guide of page.guides) {
         if (guide.axis === "vertical") {
-          const boundary = guide.positionMm === plan.print!.marginMm + plan.print!.overlapMm ? page.column - 1 : page.column;
+          const boundary = guide.positionMm === plan.print!.overlapMm ? page.column - 1 : page.column;
           const key = `${page.row}:${boundary}`;
           verticalPairs.set(key, [...(verticalPairs.get(key) ?? []), guide.label]);
         } else {
-          const boundary = guide.positionMm === plan.print!.marginMm + plan.print!.overlapMm ? page.row - 1 : page.row;
+          const boundary = guide.positionMm === plan.print!.overlapMm ? page.row - 1 : page.row;
           const key = `${boundary}:${page.column}`;
           horizontalPairs.set(key, [...(horizontalPairs.get(key) ?? []), guide.label]);
         }
@@ -458,41 +475,40 @@ describe("SAY-64 output core", () => {
     expect(guides.every((guide) => guide.labelFontSizeMm <= 3)).toBe(true);
     expect(guides.every((guide) => {
       if (guide.axis === "vertical") {
-        const expectedX = guide.positionMm === plan.print!.marginMm + plan.print!.overlapMm
-          ? plan.print!.marginMm + plan.print!.overlapMm / 2
-          : plan.print!.paperWidthMm - plan.print!.marginMm - plan.print!.overlapMm / 2;
+        const expectedX = guide.positionMm === plan.print!.overlapMm
+          ? plan.print!.overlapMm / 2
+          : plan.print!.paperWidthMm - plan.print!.overlapMm / 2;
         return guide.labelCenter.x === expectedX && guide.labelCenter.y === plan.print!.paperHeightMm / 2;
       }
-      const expectedY = guide.positionMm === plan.print!.marginMm + plan.print!.overlapMm
-        ? plan.print!.marginMm + plan.print!.overlapMm / 2
-        : plan.print!.paperHeightMm - plan.print!.marginMm - plan.print!.overlapMm / 2;
+      const expectedY = guide.positionMm === plan.print!.overlapMm
+        ? plan.print!.overlapMm / 2
+        : plan.print!.paperHeightMm - plan.print!.overlapMm / 2;
       return guide.labelCenter.x === plan.print!.paperWidthMm / 2 && guide.labelCenter.y === expectedY;
     })).toBe(true);
     for (const page of plan.print!.pages) {
-      if (page.column === 0) expect(page.guides.some((guide) => guide.axis === "vertical" && guide.positionMm === 11)).toBe(false);
-      if (page.row === 0) expect(page.guides.some((guide) => guide.axis === "horizontal" && guide.positionMm === 11)).toBe(false);
+      if (page.column === 0) expect(page.guides.some((guide) => guide.axis === "vertical" && guide.positionMm === 1)).toBe(false);
+      if (page.row === 0) expect(page.guides.some((guide) => guide.axis === "horizontal" && guide.positionMm === 1)).toBe(false);
     }
   });
 
-  it("keeps a long joining label inside the effective overlap strip with a large margin", () => {
-    const marginMm = 147.5;
+  it("keeps a long joining label inside the physical overlap strip", () => {
     const overlapMm = 1.99;
     const paperWidthMm = 297;
     const paperHeightMm = 420;
     const doc = sourceFor([
       "nui 4",
       "group G {",
-      "  line Large = segment(start: (0, 0), end: (2.3, 130))",
+      "  line Large = segment(start: (0, 0), end: (2.3, 500))",
       "}",
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      `print P(layout: @L, paper: a3, orientation: portrait, margin: ${marginMm}, overlap: ${overlapMm})`
+      `print P(layout: @L, paper: a3, orientation: portrait, overlap: ${overlapMm})`
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     const guide = plan.print!.pages
       .flatMap((page) => page.guides)
-      .find((candidate) => candidate.axis === "horizontal" && candidate.label === "AA");
+      .find((candidate) => candidate.axis === "horizontal");
     if (!guide) throw new Error("missing long horizontal joining label");
 
     const relativeBounds = outputDrawableBounds({
@@ -520,15 +536,64 @@ describe("SAY-64 output core", () => {
       maxX: relativeBounds.maxX + centeredAnchor.x,
       maxY: relativeBounds.maxY + centeredAnchor.y
     };
-    const effectiveWidthMm = paperWidthMm - 2 * marginMm;
-    const stripMinY = guide.positionMm === marginMm + overlapMm
-      ? marginMm
-      : paperHeightMm - marginMm - overlapMm;
+    const stripMinY = guide.positionMm === overlapMm
+      ? 0
+      : paperHeightMm - overlapMm;
 
-    expect(absoluteBounds.minX).toBeGreaterThanOrEqual(marginMm - 1e-9);
-    expect(absoluteBounds.maxX).toBeLessThanOrEqual(marginMm + effectiveWidthMm + 1e-9);
+    expect(absoluteBounds.minX).toBeGreaterThanOrEqual(-1e-9);
+    expect(absoluteBounds.maxX).toBeLessThanOrEqual(paperWidthMm + 1e-9);
     expect(absoluteBounds.minY).toBeGreaterThanOrEqual(stripMinY - 1e-9);
     expect(absoluteBounds.maxY).toBeLessThanOrEqual(stripMinY + overlapMm + 1e-9);
+  });
+
+  it("uses the first usable dimensions as the one-page threshold and physical strides after it", () => {
+    const onePageDoc = simpleSource();
+    const onePage = buildOutputPlan({
+      compiledDocument: onePageDoc,
+      output: output(onePageDoc, "P"),
+      evaluation: evaluationFor(onePageDoc)
+    });
+    expect(onePage.print).toMatchObject({
+      firstUsableWidthMm: 190,
+      firstUsableHeightMm: 277,
+      columns: 1,
+      rows: 1
+    });
+
+    const transitionDoc = sourceFor([
+      "nui 4",
+      "group G {",
+      "  line Large = segment(start: (0, 0), end: (190, 277))",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "print P(layout: @L, paper: a4, overlap: 10)"
+    ]);
+    const transition = buildOutputPlan({
+      compiledDocument: transitionDoc,
+      output: transitionDoc.document.printOutputs[0],
+      evaluation: evaluationFor(transitionDoc)
+    });
+    expect(transition.print).toMatchObject({ columns: 2, rows: 2, strideXmm: 200, strideYmm: 287 });
+    expect(transition.print!.pages[1].origin.x - transition.print!.pages[0].origin.x).toBe(200);
+    expect(transition.print!.pages[2].origin.y - transition.print!.pages[0].origin.y).toBe(287);
+  });
+
+  it("emits no joining guides or labels when physical overlap is zero", () => {
+    const doc = sourceFor([
+      "nui 4",
+      "group G {",
+      "  line Large = segment(start: (0, 0), end: (500, 500))",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "print P(layout: @L, paper: a4, overlap: 0)"
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
+    expect(plan.print!.pages.length).toBeGreaterThan(1);
+    expect(plan.print!.pages.every((page) => page.guides.length === 0)).toBe(true);
   });
 
   it("owns the fixed output palette and preserves fixed modifier colors", () => {

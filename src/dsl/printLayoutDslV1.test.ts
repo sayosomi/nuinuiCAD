@@ -19,7 +19,7 @@ const validSource = [
   "}",
   "layout 空レイアウト {",
   "}",
-  "print 家庭用A4(layout: @型紙, profile: @印刷用, paper: a4, orientation: portrait, margin: 10, overlap: 10)",
+  "print 家庭用A4(layout: @型紙, profile: @印刷用, paper: a4, orientation: portrait, overlap: 10)",
   "svg 型紙SVG(layout: @型紙, profile: @SVG用)",
 ].join("\n");
 
@@ -59,9 +59,9 @@ describe("SAY-63 print layout DSL v1", () => {
     expect(compiled.document?.printOutputs[0]).toMatchObject({
       paper: "a4",
       orientation: "portrait",
-      margin: 10,
       overlap: 10,
     });
+    expect(compiled.document?.printOutputs[0]).not.toHaveProperty("margin");
     expect(compiled.document?.svgOutputs[0]).toMatchObject({ margin: 0 });
     expect(compiled.document?.printOutputs[0].profileId).toBe(
       compiled.document?.drawingProfiles?.find((profile) => profile.name === "印刷用")?.id
@@ -77,6 +77,16 @@ describe("SAY-63 print layout DSL v1", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.document?.layouts).toHaveLength(1);
     expect(compiled.document?.layouts[0]).toMatchObject({ name: "空レイアウト", scale: 1, placements: [] });
+  });
+
+  it("rejects the removed print margin attribute through normal DSL validation", () => {
+    const compiled = compileDslDocument([
+      "nui 4",
+      "layout L {",
+      "}",
+      "print P(layout: @L, paper: a4, margin: 10, overlap: 10)"
+    ].join("\n"));
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.includes("引数「margin」"))).toBe(true);
   });
 
   it("preserves the canonical source model through serialization", () => {
@@ -144,7 +154,7 @@ describe("SAY-63 print layout DSL v1", () => {
       "layout L(scale: 0) {",
       "  place @G(at: (0, 0))",
       "}",
-      "print P(layout: @L, paper: a4, margin: 200, overlap: 100)",
+      "print P(layout: @L, paper: a4, overlap: 200)",
       "svg S(layout: @L, margin: -1)",
     ].join("\n");
     const diagnostics = errors(source);
@@ -168,7 +178,7 @@ describe("SAY-63 print layout DSL v1", () => {
       line.startsWith("layout") ? line : "layout L {",
       line.startsWith("layout") ? "}" : line,
       line.startsWith("layout") ? "" : "}",
-      "print P(layout: @L, paper: a4, margin: @finite, overlap: @finite)",
+      "print P(layout: @L, paper: a4, overlap: @finite)",
       "svg S(layout: @L, margin: @finite)"
     ].filter((item) => item !== "").join("\n");
     const diagnostics = errors(source);
@@ -182,7 +192,7 @@ describe("SAY-63 print layout DSL v1", () => {
       "layout L(scale: @finite) {",
       "  place @G(at: (0, 0), scale: @finite, angle: @finite)",
       "}",
-      "print P(layout: @L, paper: a4, margin: @finite, overlap: @finite)",
+      "print P(layout: @L, paper: a4, overlap: @finite)",
       "svg S(layout: @L, margin: @finite)"
     ].join("\n");
     const expressionCompiled = compileDslDocument(expressionSource, {
@@ -220,7 +230,7 @@ describe("SAY-63 print layout DSL v1", () => {
       "layout L {",
       "  place @Outer::Inner(origin: @Outer::Inner::Origin, at: (1, 2))",
       "}",
-      "print Paper(layout: @L, profile: @P, paper: a4, margin: 10, overlap: 0)",
+      "print Paper(layout: @L, profile: @P, paper: a4, overlap: 0)",
       "svg Vector(layout: @L, profile: @P, margin: 0)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -241,14 +251,14 @@ describe("SAY-63 print layout DSL v1", () => {
       "layout L {",
       "  place @missingGroup(origin: @missingOrigin, at: (0, 0))",
       "}",
-      "print Paper(layout: @missingLayout, profile: @missingProfile, paper: a4, margin: 0, overlap: 0)",
+      "print Paper(layout: @missingLayout, profile: @missingProfile, paper: a4, overlap: 0)",
       "svg Vector(layout: @missingLayout, profile: @missingProfile, margin: 0)"
     ].join("\n"));
     expect(undefinedReferences.diagnostics.filter((diagnostic) => diagnostic.message.includes("未定義の参照"))).not.toHaveLength(0);
 
     const forward = compileWithStatementIds([
       "nui 4",
-      "print Paper(layout: @Later, paper: a4, margin: 0, overlap: 0)",
+      "print Paper(layout: @Later, paper: a4, overlap: 0)",
       "layout Later {",
       "}"
     ].join("\n"));
@@ -264,7 +274,7 @@ describe("SAY-63 print layout DSL v1", () => {
       "layout L {",
       "  place @G(origin: @H, at: (0, 0))",
       "}",
-      "print Paper(layout: @G, profile: @L, paper: a4, margin: 0, overlap: 0)"
+      "print Paper(layout: @G, profile: @L, paper: a4, overlap: 0)"
     ].join("\n"));
     expect(wrongKind.diagnostics.some((diagnostic) => diagnostic.message.includes("layout ではありません"))).toBe(true);
     expect(wrongKind.diagnostics.some((diagnostic) => diagnostic.message.includes("profile ではありません"))).toBe(true);
@@ -281,13 +291,12 @@ describe("SAY-63 print layout DSL v1", () => {
       "layout L(scale: @n) {",
       "  place @G(at: (0, 0), scale: @n, angle: @n)",
       "}",
-      "print Paper(layout: @L, profile: @P, paper: a4, margin: @n, overlap: @n)",
+      "print Paper(layout: @L, profile: @P, paper: a4, overlap: @n)",
       "svg Vector(layout: @L, profile: @P, margin: @n)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.document?.layouts[0].scale).toMatchObject({ kind: "expression" });
     expect(compiled.document?.layouts[0].placements[0].scale).toMatchObject({ kind: "expression" });
-    expect(compiled.document?.printOutputs[0].margin).toMatchObject({ kind: "expression" });
     expect(compiled.document?.svgOutputs[0].margin).toMatchObject({ kind: "expression" });
   });
 
@@ -317,7 +326,7 @@ describe("SAY-63 print layout DSL v1", () => {
       "group G {",
       "}",
       ...layoutBeforeDeclaration,
-      `print Paper(layout: @L, profile: @P, paper: a4, margin: ${reference}, overlap: ${reference})`,
+      `print Paper(layout: @L, profile: @P, paper: a4, overlap: ${reference})`,
       `svg Vector(layout: @L, profile: @P, margin: ${reference})`,
       ...(reference === "@later" ? declarations : [])
     ];

@@ -391,12 +391,19 @@ print 家庭用A4(
   layout: @型紙,
   paper: a4,
   orientation: portrait,
-  margin: 10,
   overlap: 10,
 )
 
 svg 型紙SVG(layout: @型紙, margin: 0)
 ```
+
+`print.overlap` is the physical overlap between adjacent paper sheets and the
+outer inset on an edge without a neighboring sheet. It must be non-negative;
+for paper width `W` and height `H`, the first page holds `W - 2*overlap` by
+`H - 2*overlap`, and adjacent page origins advance by `W - overlap` and
+`H - overlap`. Print declarations do not have a `margin` attribute; `margin`
+remains an SVG-only option. Joining guides and labels are emitted only on
+shared edges, not on outer edges; an overlap of `0` emits none.
 
 ## 編集と診断
 

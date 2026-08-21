@@ -671,18 +671,16 @@ export const buildSourceOutputModel = ({
       if (paper !== "a4" && paper !== "a3") diagnostics.push(diagnostic(statement.line, "print paper は a4 または a3 で指定してください。"));
       const orientationSource = attr(statement.attrs, "orientation") ?? "portrait";
       if (orientationSource !== "portrait" && orientationSource !== "landscape") diagnostics.push(diagnostic(statement.line, "orientation は portrait / landscape で指定してください。"));
-      const marginSource = attr(statement.attrs, "margin") ?? "10";
       const overlapSource = attr(statement.attrs, "overlap") ?? "0";
-      const marginLiteral = numericLiteral(marginSource);
       const overlapLiteral = numericLiteral(overlapSource);
-      if (marginLiteral !== null && marginLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "print margin は 0 以上で指定してください。"));
       if (overlapLiteral !== null && overlapLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "print overlap は 0 以上で指定してください。"));
-      if (marginLiteral !== null && overlapLiteral !== null && marginLiteral.finite && overlapLiteral.finite && (paper === "a4" || paper === "a3")) {
+      if (overlapLiteral !== null && overlapLiteral.finite && (paper === "a4" || paper === "a3")) {
         const base = paperDimensions[paper];
-        const width = (orientationSource === "landscape" ? base.height : base.width) - marginLiteral.value * 2;
-        const height = (orientationSource === "landscape" ? base.width : base.height) - marginLiteral.value * 2;
-        if (width <= 0 || height <= 0) diagnostics.push(diagnostic(statement.line, "print の有効な用紙幅・高さは 0 より大きくしてください。"));
-        if (overlapLiteral.value >= width || overlapLiteral.value >= height) diagnostics.push(diagnostic(statement.line, "print overlap は有効な幅・高さより小さくしてください。"));
+        const width = orientationSource === "landscape" ? base.height : base.width;
+        const height = orientationSource === "landscape" ? base.width : base.height;
+        if (width - overlapLiteral.value * 2 <= 0 || height - overlapLiteral.value * 2 <= 0) {
+          diagnostics.push(diagnostic(statement.line, "print の overlap に対する有効な用紙幅・高さは 0 より大きくしてください。"));
+        }
       }
       printOutputs.push({
         id: outputId,
@@ -691,7 +689,6 @@ export const buildSourceOutputModel = ({
         ...(profileId ? { profileId } : {}),
         paper: paper === "a3" ? "a3" : "a4",
         orientation: orientationSource === "landscape" ? "landscape" : "portrait",
-        margin: normalizedNumeric(marginSource, elements, nameContext),
         overlap: normalizedNumeric(overlapSource, elements, nameContext)
       });
     } else {

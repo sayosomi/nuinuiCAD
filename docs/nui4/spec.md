@@ -730,7 +730,6 @@ print 家庭用A4(
   profile: @印刷用,
   paper: a4,
   orientation: portrait,
-  margin: 10,
   overlap: 10,
 )
 
@@ -742,11 +741,15 @@ svg 型紙SVG(
 ```
 
 Defaults are `layout.scale = 1`, target-group local origin, inherited place
-scale, `place.angle = 0`, `place.mirror = false`, portrait orientation,
-10 mm print margin, and 0 mm SVG margin. Literal scales must be finite and
-positive. Print margins and overlap must be non-negative; the effective paper
-width and height must remain positive and overlap must be smaller than both.
-Literal angles are normalized to `[0, 360)`.
+scale, `place.angle = 0`, `place.mirror = false`, portrait orientation, and
+0 mm SVG margin. `print.overlap` is required and must be finite and
+non-negative. It is the physical overlap between adjacent sheets and the
+outer inset on an edge without a neighboring sheet. For oriented paper width
+`W` and height `H`, the first usable dimensions are `W - 2*overlap` and
+`H - 2*overlap`, and page origins advance by `W - overlap` and
+`H - overlap`; both first usable dimensions must be positive. Print declarations
+do not accept `margin`; `margin` remains an SVG-only attribute. Literal scales
+must be finite and positive. Literal angles are normalized to `[0, 360)`.
 
 ## Choice literals and arrays
 
@@ -934,7 +937,7 @@ layout A4(scale: 1) {
   place @front::outline(at: (10, 10), angle: 0, mirror: false)
 }
 
-print 家庭用A4(layout: @A4, paper: a4, orientation: portrait, margin: 10, overlap: 10)
+print 家庭用A4(layout: @A4, paper: a4, orientation: portrait, overlap: 10)
 svg 型紙SVG(layout: @A4, margin: 0)
 
 stop
