@@ -12,24 +12,17 @@ export type OutputPreviewCandidate = {
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
-const lineStartsFor = (sourceText: string): number[] => {
-  const starts = [0];
-  for (const match of sourceText.matchAll(/\n/g)) starts.push((match.index ?? 0) + 1);
-  return starts;
-};
-
 const sourceRangeForStatement = (
   sourceText: string,
-  statement: { range: { startLine: number; endLine: number } }
+  statement: { statementIndex: number },
+  compiled: CompiledDslDocument
 ): NormalizedSourceRange | null => {
   const normalizedSource = normalizedSourceFor(sourceText);
-  const starts = lineStartsFor(normalizedSource);
-  const startLine = statement.range.startLine - 1;
-  const endLine = statement.range.endLine - 1;
-  if (startLine < 0 || endLine < startLine || startLine >= starts.length || endLine >= starts.length) return null;
-  const from = starts[startLine];
-  const nextLineStart = starts[endLine + 1];
-  const to = nextLineStart === undefined ? normalizedSource.length : nextLineStart - 1;
+  const sourceMap = compiled.spans.sourceMap;
+  if (sourceMap.source !== normalizedSource) return null;
+  const sourceStatement = sourceMap.statements[statement.statementIndex];
+  if (!sourceStatement || sourceStatement.range.sourceRevision !== sourceMap.sourceRevision) return null;
+  const { from, to } = sourceStatement.range;
   return to > from ? { from, to } : null;
 };
 
@@ -41,7 +34,7 @@ const candidateFrom = (
 ): OutputPreviewCandidate | null => {
   const statement = compiled.statementMap?.byKey.get(`${kind}:${output.id}`);
   if (!statement) return null;
-  const sourceRange = sourceRangeForStatement(sourceText, statement);
+  const sourceRange = sourceRangeForStatement(sourceText, statement, compiled);
   if (!sourceRange) return null;
   return {
     key: `${kind}:${output.id}`,

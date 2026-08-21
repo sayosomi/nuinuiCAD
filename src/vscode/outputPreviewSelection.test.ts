@@ -17,8 +17,34 @@ const source = [
   "print Paper(layout: @L, paper: a4, margin: 10, overlap: 5)"
 ].join("\n");
 
+const multilineOutputSource = [
+  "nui 4",
+  "group G {",
+  "  line AB = segment(start: (0, 0), end: (10, 0))",
+  "}",
+  "layout L {",
+  "  place @G(at: (0, 0))",
+  "}",
+  "print Paper(",
+  "  layout: @L,",
+  "  paper: a4,",
+  "  margin: 10,",
+  "  overlap: 5,",
+  ")",
+  "svg Vector(",
+  "  layout: @L,",
+  "  margin: 2,",
+  ")"
+].join("\n");
+
 const compiledForSource = () => {
   const result = compileFreshCanonicalText(source);
+  if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
+  return result.currentCompiled;
+};
+
+const compiledForMultilineOutputSource = () => {
+  const result = compileFreshCanonicalText(multilineOutputSource);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.currentCompiled;
 };
@@ -60,5 +86,48 @@ describe("Output Preview output selection", () => {
       existingKey: "missing"
     })?.kind).toBe("svg");
     expect(selectOutputPreviewCandidate({ candidates: [], cursorOffset: 0, existingKey: null })).toBeNull();
+  });
+
+  it("owns the complete physical range for multi-line print and svg declarations", () => {
+    const compiled = compiledForMultilineOutputSource();
+    const candidates = outputPreviewCandidatesFor(multilineOutputSource, compiled);
+    const printStart = multilineOutputSource.indexOf("print Paper(");
+    const printEnd = multilineOutputSource.indexOf(")\nsvg Vector") + 1;
+    const svgStart = multilineOutputSource.indexOf("svg Vector(");
+    const svgEnd = multilineOutputSource.length;
+
+    expect(candidates).toHaveLength(2);
+    expect(candidates[0]?.sourceRange).toEqual({ from: printStart, to: printEnd });
+    expect(candidates[1]?.sourceRange).toEqual({ from: svgStart, to: svgEnd });
+
+    for (const offset of [
+      multilineOutputSource.indexOf("print Paper("),
+      multilineOutputSource.indexOf("layout: @L", printStart),
+      multilineOutputSource.indexOf("overlap: 5", printStart),
+      multilineOutputSource.indexOf(")\nsvg Vector")
+    ]) {
+      expect(selectOutputPreviewCandidate({
+        candidates,
+        cursorOffset: offset,
+        existingKey: null
+      })?.key).toBe(candidates[0]?.key);
+    }
+
+    const svgFinalLine = multilineOutputSource.lastIndexOf(")");
+    expect(selectOutputPreviewCandidate({
+      candidates,
+      cursorOffset: svgFinalLine,
+      existingKey: null
+    })?.key).toBe(candidates[1]?.key);
+  });
+
+  it("uses the complete declaration range for selected-output source navigation", () => {
+    const candidates = outputPreviewCandidatesFor(multilineOutputSource, compiledForMultilineOutputSource());
+    const selected = candidates[1]!;
+
+    expect(selected.sourceRange).toEqual({
+      from: multilineOutputSource.indexOf("svg Vector("),
+      to: multilineOutputSource.length
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { DslDiagnostic } from "../dsl/dslTypes";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
 import {
@@ -38,6 +39,33 @@ type OutputPreviewEvaluationState = {
 
 type PanState = { pointerId: number; lastX: number; lastY: number };
 
+const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
+
+export const outputPreviewDiagnosticSourceRangeFor = (
+  sourceText: string,
+  currentSourceRevision: number | null,
+  diagnostic: DslDiagnostic | undefined
+): { from: number; to: number } | null => {
+  if (!diagnostic) return null;
+  const navigationTarget = diagnostic.navigationTarget;
+  if (navigationTarget && navigationTarget.kind !== "sourceSpan") return null;
+  const physicalSpan = navigationTarget?.kind === "sourceSpan"
+    ? navigationTarget.physicalSpan
+    : diagnostic.physicalSpan;
+  if (!physicalSpan || currentSourceRevision === null || physicalSpan.sourceRevision !== currentSourceRevision || physicalSpan.segments.length !== 1) return null;
+  const segment = physicalSpan.segments[0];
+  const normalizedSource = normalizedSourceFor(sourceText);
+  if (
+    !segment ||
+    !Number.isInteger(segment.from) ||
+    !Number.isInteger(segment.to) ||
+    segment.from < 0 ||
+    segment.to <= segment.from ||
+    segment.to > normalizedSource.length
+  ) return null;
+  return { from: segment.from, to: segment.to };
+};
+
 const diagnosticMessageFor = (state: ReturnType<typeof useCadDocumentStore.getState>): string =>
   state.diagnostics[0]?.message ?? state.bindingIssueDiagnostics[0]?.message ?? "The current source cannot produce a valid output plan.";
 
@@ -56,6 +84,7 @@ const outputTextSvg = (
     <text
       key={`${drawable.elementId}-${drawable.anchor.x}-${drawable.anchor.y}`}
       transform={outputPreviewTextTransformFor(drawable, size, viewport)}
+      data-output-preview-layer="geometry"
       fill={drawable.colorHex}
       fontFamily="HeiseiKakuGo-W5, sans-serif"
       fontSize={drawable.fontSizeMm}
@@ -88,6 +117,7 @@ const drawableSvg = (
     <path
       key={`${drawable.elementId}-${drawable.kind}-${path}`}
       d={path}
+      data-output-preview-layer="geometry"
       fill="none"
       stroke={drawable.stroke.colorHex}
       strokeWidth={drawable.stroke.widthMm * viewport.zoom}
@@ -122,7 +152,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const panRef = useRef<PanState | null>(null);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const pendingOpenOffsetRef = useRef<number | null>(null);
-  const fittedPlanIdentityRef = useRef<string | null>(null);
+  const selectionGenerationRef = useRef(0);
+  const fittedSelectionTokenRef = useRef<string | null>(null);
   const selectedOutputKeyRef = useRef<string | null>(selectedOutputKey);
   const latestPlanRef = useRef<OutputPlan | null>(null);
   const fitPlanRef = useRef<(plan: OutputPlan | null) => boolean>(() => false);
@@ -143,6 +174,13 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     return true;
   }, [viewportSize]);
 
+  const updateSelectedOutputKey = useCallback((nextKey: string | null) => {
+    if (selectedOutputKeyRef.current === nextKey) return;
+    selectedOutputKeyRef.current = nextKey;
+    selectionGenerationRef.current += 1;
+    setSelectedOutputKey(nextKey);
+  }, []);
+
   const applyOpenSelection = useCallback((cursorOffset: number) => {
     const state = useCadDocumentStore.getState();
     if (state.sourceText !== state.docText) {
@@ -156,8 +194,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       existingKey: selectedOutputKeyRef.current
     });
     pendingOpenOffsetRef.current = null;
-    setSelectedOutputKey(selected?.key ?? null);
-  }, []);
+    updateSelectedOutputKey(selected?.key ?? null);
+  }, [updateSelectedOutputKey]);
 
   useEffect(() => {
     selectedOutputKeyRef.current = selectedOutputKey;
@@ -183,8 +221,14 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     }
   }, [applyOpenSelection, candidates, sourceIsCurrent]);
 
-  const effectiveSelectedOutputKey = outputPreviewCandidateForKey(candidates, selectedOutputKey)?.key ?? candidates[0]?.key ?? null;
-  const selectedCandidate = outputPreviewCandidateForKey(candidates, effectiveSelectedOutputKey);
+  useEffect(() => {
+    const fallbackKey = candidates[0]?.key ?? null;
+    const currentKey = selectedOutputKeyRef.current;
+    if (outputPreviewCandidateForKey(candidates, currentKey) || currentKey === fallbackKey) return;
+    updateSelectedOutputKey(fallbackKey);
+  }, [candidates, selectedOutputKey, updateSelectedOutputKey]);
+
+  const selectedCandidate = outputPreviewCandidateForKey(candidates, selectedOutputKey);
 
   useEffect(() => {
     let cancelled = false;
@@ -225,9 +269,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     const plan = activePlan;
     if (!plan) return;
     const identity = `${plan.kind}:${plan.outputId}`;
-    if (fittedPlanIdentityRef.current === identity) return;
-    if (fitPlan(plan)) fittedPlanIdentityRef.current = identity;
-  }, [activePlan, fitPlan, sourceIsCurrent]);
+    const fitToken = `${selectionGenerationRef.current}:${identity}`;
+    if (fittedSelectionTokenRef.current === fitToken) return;
+    if (fitPlan(plan)) fittedSelectionTokenRef.current = fitToken;
+  }, [activePlan, fitPlan, sourceIsCurrent, selectedOutputKey]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
@@ -285,7 +330,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 1) return;
     event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     panRef.current = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY };
   };
 
@@ -304,17 +349,28 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     if (panRef.current?.pointerId === event.pointerId) panRef.current = null;
   };
 
-  const navigateToSelectedOutput = () => {
+  const navigateToSourceRange = (range: { from: number; to: number } | null) => {
     const documentVersion = latestHostDocumentVersionRef.current;
-    if (!selectedCandidate || documentVersion === null) return;
+    if (!range || documentVersion === null) return;
     api.postMessage({
       type: "outputPreviewSourceNavigation",
       documentVersion,
-      range: selectedCandidate.sourceRange
+      range
     });
   };
 
+  const navigateToSelectedOutput = () => navigateToSourceRange(selectedCandidate?.sourceRange ?? null);
+
   const plan = activePlan;
+  const currentDiagnostic = [...diagnostics, ...bindingIssueDiagnostics].find((diagnostic) => diagnostic.severity === "error") ?? diagnostics[0] ?? bindingIssueDiagnostics[0];
+  const diagnosticSourceRange = !sourceIsCurrent
+    ? outputPreviewDiagnosticSourceRangeFor(
+        sourceText,
+        currentDiagnostic?.sourceRevision ?? currentDiagnostic?.physicalSpan?.sourceRevision ?? null,
+        currentDiagnostic
+      )
+    : null;
+  const sourceNavigationRange = diagnosticSourceRange ?? selectedCandidate?.sourceRange ?? null;
   const previewError = sourceIsCurrent
     ? selectedCandidate && evaluationState.outputKey === selectedCandidate.key ? evaluationState.error : null
     : diagnosticMessageFor({ ...useCadDocumentStore.getState(), diagnostics, bindingIssueDiagnostics });
@@ -342,8 +398,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         </button>
         <select
           aria-label="Output"
-          value={effectiveSelectedOutputKey ?? ""}
-          onChange={(event) => setSelectedOutputKey(event.target.value || null)}
+          value={selectedOutputKey ?? ""}
+          onChange={(event) => updateSelectedOutputKey(event.target.value || null)}
           disabled={candidates.length === 0}
         >
           {candidates.length === 0 ? <option value="">No outputs</option> : null}
@@ -373,7 +429,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           <div className="output-preview-state output-preview-error" role="alert">
             <strong>Output Preview unavailable</strong>
             <span>{previewError}</span>
-            {selectedCandidate ? <button type="button" onClick={navigateToSelectedOutput}>Go to source</button> : null}
+            {sourceNavigationRange ? <button type="button" onClick={() => navigateToSourceRange(sourceNavigationRange)}>Go to source</button> : null}
           </div>
         ) : !selectedCandidate ? (
           <div className="output-preview-state" role="status">
@@ -382,10 +438,11 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           </div>
         ) : plan ? (
           <svg className="output-preview-plane" width="100%" height="100%" aria-label="Output preview">
-            {paperRect ? <rect {...paperRect} fill="#ffffff" /> : null}
-            {pageRects.map((page, index) => <rect key={`page-${index}`} {...page} fill="#ffffff" stroke="#9aa0a6" strokeWidth={1} />)}
-            {guideLines.map((guide, index) => <line key={`guide-${index}`} {...guide} stroke="#70757a" strokeWidth={1} strokeDasharray="6 4" />)}
+            {paperRect ? <rect {...paperRect} data-output-preview-layer="output-fill" fill="#ffffff" /> : null}
+            {pageRects.map((page, index) => <rect key={`page-fill-${index}`} {...page} data-output-preview-layer="page-fill" fill="#ffffff" />)}
             {plan.drawables.map((drawable) => drawableSvg(drawable, viewportSize, viewport))}
+            {pageRects.map((page, index) => <rect key={`page-boundary-${index}`} {...page} data-output-preview-layer="page-boundary" fill="none" stroke="#9aa0a6" strokeWidth={1} />)}
+            {guideLines.map((guide, index) => <line key={`guide-${index}`} {...guide} data-output-preview-layer="overlap-guide" stroke="#70757a" strokeWidth={1} strokeDasharray="6 4" />)}
           </svg>
         ) : null}
       </div>
