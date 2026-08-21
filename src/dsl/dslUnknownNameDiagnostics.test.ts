@@ -5,7 +5,7 @@ import type { DslDiagnostic } from "./dslTypes";
 
 const exactText = (source: string, diagnostic: DslDiagnostic): string => {
   expect(diagnostic.exactSpanOnly).toBe(true);
-  expect(diagnostic.physicalSpan?.segments, JSON.stringify(diagnostic)).toHaveLength(1);
+  expect(diagnostic.physicalSpan?.segments).toHaveLength(1);
   const segment = diagnostic.physicalSpan!.segments[0]!;
   return source.slice(segment.from, segment.to);
 };
