@@ -153,7 +153,7 @@ const isMainModule = (): boolean => {
 
 export const runNuinuiCadMcpStdioServer = async (): Promise<void> => {
   try {
-    await serveStdio(createNuinuiCadMcpServer);
+    await serveStdio(() => createNuinuiCadMcpServer());
   } finally {
     defaultEvaluationRuntime?.dispose();
     defaultEvaluationRuntime = null;
