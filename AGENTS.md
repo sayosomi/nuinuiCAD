@@ -50,6 +50,15 @@ durable product, engineering, and workflow policy. When a task-specific
 specification or plan exists, respect that Task contract. Do not duplicate a
 large architecture map in this file.
 
+Keep the authority roles distinct: source code is authoritative for **what the
+current implementation actually does**; a normative specification is
+authoritative for **what the product or language is intended to do**. A mismatch
+does not by itself authorize changing the normative spec to match the code.
+Treat the implementation as defective unless a newer authoritative product
+decision supersedes the spec. If current authorities do not uniquely establish
+which side is stale or wrong, stop and resolve the product contract rather than
+silently choosing one.
+
 If behavior changes at the architectural or product-policy level, update the
 appropriate durable document. If only a shortcut, label, parameter, or element
 field changes, update the source of truth instead.
@@ -321,6 +330,15 @@ check that can meaningfully detect regressions caused by the change. Do not run
 an expensive full suite merely by habit when the change cannot be meaningfully
 verified by it. Task-specific gates and gates explicitly requested by the user
 take precedence.
+
+Determine verification breadth from **affected ownership and dependency breadth,
+not diff size**. A small textual diff in a shared parser primitive, compiler,
+document/runtime boundary, evaluator path, or other reused owner can require a
+broad regression suite. A larger change can remain focused when it is isolated
+to one owner, the production path is exercised directly, and focused tests can
+reasonably cover the regression surface. Run the broader suite when a change can
+realistically break independent existing features even while the focused tests
+for the edited behavior still pass.
 
 For documentation, comments, or policy-only changes that do not change source
 code, configuration, generated artifacts, or runtime behavior, `git diff --check`
