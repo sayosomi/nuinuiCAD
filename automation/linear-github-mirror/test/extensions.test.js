@@ -14,6 +14,7 @@ import {
   extractLinearDocumentId,
   isDocumentInNuinuiCadScope,
   renderGithubDocumentBody,
+  waitForGithubDocumentVisibility,
 } from "../src/documents.js";
 import { shouldQueueExtendedPayload } from "../src/extensions.js";
 import { findGithubIssueByMarker } from "../src/mirrorApi.js";
@@ -164,6 +165,32 @@ test("marker lookup uses repository issue listing so new document mirrors are im
   assert.match(calls[0], /\/issues\?state=all/);
   assert.match(calls[0], /labels=Linear%20Document/);
   assert.equal(calls[0].includes("/search/issues"), false);
+});
+
+test("document creation waits for marker visibility before releasing the serialized queue", async () => {
+  let lookupCount = 0;
+  const sleeps = [];
+  const githubFetch = async () => {
+    lookupCount += 1;
+    if (lookupCount < 3) return [];
+    return [{ number: 273, body: "Document\n\n<!-- linear-document-id:doc-a -->" }];
+  };
+
+  const issueNumber = await waitForGithubDocumentVisibility(
+    "doc-a",
+    273,
+    { GITHUB_OWNER: "sayosomi", GITHUB_REPO: "nuinuiCAD" },
+    {
+      githubFetch,
+      attempts: 4,
+      delayMs: 250,
+      sleep: async (ms) => sleeps.push(ms),
+    },
+  );
+
+  assert.equal(issueNumber, 273);
+  assert.equal(lookupCount, 3);
+  assert.deepEqual(sleeps, [250, 250]);
 });
 
 test("Wrangler uses the extended Worker entrypoint", async () => {
