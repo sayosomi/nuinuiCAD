@@ -137,6 +137,41 @@ describe("moduleInstanceCanvasGeometry", () => {
     expect(result?.bounds).toEqual({ minX: 3, minY: 4, maxX: 3, maxY: 4 });
   });
 
+  it("expands visible for-group generated rows owned by an instance template", () => {
+    const evaluation: EvaluationResult = {
+      ...evaluationFor([point("generated", 50, 60)]),
+      effectiveVisibleElementIds: new Set(["generated"]),
+      forGroupGeneratedRows: [{
+        forGroupId: "for-group",
+        templateElementId: "template",
+        generatedElementId: "generated",
+        iterationIndex: 0,
+        variableName: "i",
+        variableValue: 0,
+        elementName: "generated",
+        elementType: "freePoint"
+      }]
+    };
+    const result = geometryFor({
+      instanceId: "instance",
+      elements: [
+        element("instance", "moduleInstance"),
+        element("for-group", "forGroup"),
+        element("template", "freePoint")
+      ],
+      evaluation,
+      materialization: materializationFor([{
+        instanceId: "instance",
+        endRuntimeIndex: 2,
+        descendantIds: ["template"]
+      }])
+    });
+
+    expect(result?.descendantIds).toEqual(["template", "generated"]);
+    expect(result?.renderableDescendantIds).toEqual(["generated"]);
+    expect(result?.bounds).toEqual({ minX: 50, minY: 60, maxX: 50, maxY: 60 });
+  });
+
   it("uses each concrete instance snapshot as the recursive descendant boundary", () => {
     const materialization = materializationFor([
       {
