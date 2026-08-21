@@ -12,13 +12,16 @@ const edge = (
   instanceStatementId
 });
 
+const definition = (statementId: string) => ({ statementId }) as ModuleDefinitionSemantic;
+
 const cycleCallSites = (
   cycles: ReadonlyMap<string, readonly ModuleCallEdge[]>,
   primary: string
 ) => cycles.get(primary)?.map((entry) => entry.instanceStatementId);
 
 describe("moduleRecursionCycles", () => {
-  it("returns one deterministic simple cycle per recursive call site and excludes outer callers", () => {
+  it("returns one deterministic simple cycle per existing recursion primary and excludes outer callers", () => {
+    const definitions = ["Outer", "A", "B", "C", "D"].map(definition);
     const edges = [
       edge("Outer", "A", "outer-a"),
       edge("A", "B", "a-b"),
@@ -28,7 +31,7 @@ describe("moduleRecursionCycles", () => {
       edge("D", "A", "d-a")
     ];
 
-    const cycles = moduleRecursionCycles(edges);
+    const cycles = moduleRecursionCycles(definitions, edges);
 
     expect([...cycles.keys()]).toEqual(["a-b", "b-c", "b-d", "c-a", "d-a"]);
     expect(cycleCallSites(cycles, "a-b")).toEqual(["a-b", "b-c", "c-a"]);
@@ -36,12 +39,32 @@ describe("moduleRecursionCycles", () => {
     expect(cycles.has("outer-a")).toBe(false);
   });
 
+  it("preserves the existing recursion diagnostic primary set in overlapping SCCs", () => {
+    const definitions = ["A", "B", "C"].map(definition);
+    const edges = [
+      edge("A", "B", "a-b"),
+      edge("B", "A", "b-a"),
+      edge("B", "C", "b-c"),
+      edge("C", "B", "c-b"),
+      edge("C", "A", "c-a"),
+      edge("A", "C", "a-c")
+    ];
+
+    const recursive = recursiveModuleInstanceIds(definitions, edges);
+    const cycles = moduleRecursionCycles(definitions, edges);
+
+    expect([...recursive]).toEqual(["a-b", "b-a", "b-c", "c-b", "c-a"]);
+    expect([...cycles.keys()]).toEqual([...recursive]);
+    expect(cycles.has("a-c")).toBe(false);
+  });
+
   it("keeps self recursion as a one-call-site cycle", () => {
+    const definitions = [definition("A")];
     const edges = [edge("A", "A", "self")];
 
-    const cycles = moduleRecursionCycles(edges);
+    const cycles = moduleRecursionCycles(definitions, edges);
 
     expect(cycleCallSites(cycles, "self")).toEqual(["self"]);
-    expect([...recursiveModuleInstanceIds([] as ModuleDefinitionSemantic[], edges)]).toEqual(["self"]);
+    expect([...recursiveModuleInstanceIds(definitions, edges)]).toEqual(["self"]);
   });
 });
