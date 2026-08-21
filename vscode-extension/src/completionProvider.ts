@@ -7,6 +7,9 @@ import {
 } from "../../src/dsl/dslCompletionQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { normalizedOffsetAt } from "./sourceOffsetAdapter";
+
+export { normalizedOffsetAt } from "./sourceOffsetAdapter";
 
 export const nuiCompletionSelector: vscode.DocumentSelector = {
   language: "nui",
@@ -37,15 +40,6 @@ const lineStartsFor = (sourceText: string): number[] => {
     if (sourceText[index] === "\n") starts.push(index + 1);
   }
   return starts;
-};
-
-export const normalizedOffsetAt = (normalizedSource: string, position: vscode.Position): number => {
-  const starts = lineStartsFor(normalizedSource);
-  const line = Math.min(Math.max(position.line, 0), starts.length - 1);
-  const lineStart = starts[line]!;
-  const lineEnd = line + 1 < starts.length ? starts[line + 1]! - 1 : normalizedSource.length;
-  const character = Math.min(Math.max(position.character, 0), lineEnd - lineStart);
-  return lineStart + character;
 };
 
 export const normalizedPositionAt = (normalizedSource: string, offset: number): vscode.Position => {

@@ -3,12 +3,16 @@ import {
   scanCallArgs,
   scanDslNesting
 } from "./dslArgScanner";
+import { dslCallCompletionContextAt } from "./dslCallCompletionContext";
 import { dslCompletionContextAt } from "./dslCompletionContext";
 import {
   createLogicalStatementSourceMap,
+  logicalOffsetToPhysical,
+  physicalToLogicalOffset,
   type LogicalStatement,
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
+import { dslModuleCompletionContextAt } from "./dslModuleCompletionContext";
 import { dslStatementKeywordCompletions } from "./dslParser";
 import { getBuiltinFunctionDefinition } from "../scalars/builtinFunctions";
 import { isBareDslIdentifierChar } from "./dslTokens";
@@ -35,6 +39,7 @@ export type DslCallAuthoringContext = {
     name: string;
     span: DslCallAuthoringRange;
     openParen: number;
+    logicalOpenParen: number;
   };
   call: {
     from: number;
@@ -131,6 +136,195 @@ const currentArgumentFrom = (
   };
 };
 
+type LogicalCallEnvelope = {
+  open: number;
+  close: number | null;
+  callee: DslCallAuthoringRange;
+  name: string;
+};
+
+const logicalSegmentsFor = (statement: LogicalStatement): DslCallAuthoringSourceSegment[] => {
+  let logicalFrom = 0;
+  return statement.segments.map((segment, index) => {
+    const result = {
+      logicalFrom,
+      logicalTo: logicalFrom + segment.to - segment.from,
+      physicalFrom: segment.from,
+      physicalTo: segment.to
+    };
+    logicalFrom = result.logicalTo + (index < statement.segments.length - 1 ? 1 : 0);
+    return result;
+  });
+};
+
+const callEnvelopesFor = (logicalText: string): LogicalCallEnvelope[] => {
+  const nesting = scanDslNesting(logicalText);
+  const matched = nesting.matchedDelimiters
+    .filter((pair) => pair.open.delimiter === "(")
+    .map((pair) => ({
+      open: pair.open.index,
+      close: pair.close.index
+    }));
+  const unmatched = nesting.unmatchedOpeners
+    .filter((opener) => opener.delimiter === "(")
+    .map((opener) => ({
+      open: opener.index,
+      close: null
+    }));
+  return [...matched, ...unmatched]
+    .map((candidate) => {
+      const callee = calleeSpanAt(logicalText, candidate.open);
+      return callee
+        ? { ...candidate, callee, name: logicalText.slice(callee.from, callee.to) }
+        : null;
+    })
+    .filter((candidate): candidate is LogicalCallEnvelope => candidate !== null);
+};
+
+const kindForStrictCall = (
+  logicalText: string,
+  call: LogicalCallEnvelope
+): DslCallAuthoringContext["kind"] | null => {
+  if (getBuiltinFunctionDefinition(call.name)) return "builtin";
+
+  const moduleContext = dslModuleCompletionContextAt(logicalText, call.open + 1);
+  if (
+    moduleContext?.kind === "moduleCallee" ||
+    moduleContext?.kind === "moduleArgumentLabel" ||
+    moduleContext?.kind === "moduleArgumentValue"
+  ) return "module";
+
+  return dslCallCompletionContextAt(logicalText, call.open + 1)?.kind === "argument"
+    ? "construction"
+    : null;
+};
+
+const projectLogicalRange = (
+  segments: readonly DslCallAuthoringSourceSegment[],
+  range: DslCallAuthoringRange,
+  fallback: number
+): DslCallAuthoringRange => {
+  const segment = segments.find((candidate) =>
+    range.from >= candidate.logicalFrom && range.to <= candidate.logicalTo
+  );
+  return segment
+    ? {
+        from: segment.physicalFrom + range.from - segment.logicalFrom,
+        to: segment.physicalFrom + range.to - segment.logicalFrom
+      }
+    : { from: fallback, to: fallback };
+};
+
+const strictStatementAt = (
+  snapshot: SourceSnapshot,
+  position: number,
+  map: ReturnType<typeof createLogicalStatementSourceMap>
+): { statement: LogicalStatement; logicalPosition: number } | null => {
+  const statement = [...map.statements].reverse().find((candidate) =>
+    position >= candidate.range.from && position <= candidate.range.to
+  );
+  if (!statement) return null;
+
+  const logicalPosition = physicalToLogicalOffset(map, statement, position);
+  if (logicalPosition !== null) return { statement, logicalPosition };
+
+  let logicalStart = 0;
+  for (let index = 0; index < statement.segments.length - 1; index += 1) {
+    const current = statement.segments[index]!;
+    const next = statement.segments[index + 1]!;
+    if (
+      position >= current.to &&
+      position <= next.from &&
+      snapshot.normalizedSource.slice(current.to, position).trim() === ""
+    ) return { statement, logicalPosition: logicalStart + current.to - current.from };
+    logicalStart += current.to - current.from + 1;
+  }
+
+  const lastSegment = statement.segments.at(-1);
+  if (
+    lastSegment &&
+    position >= lastSegment.to &&
+    position <= statement.range.to &&
+    snapshot.normalizedSource.slice(lastSegment.to, position).trim() === ""
+  ) return { statement, logicalPosition: statement.logicalText.length };
+  return null;
+};
+
+const strictCallAuthoringContextAt = (
+  snapshot: SourceSnapshot,
+  position: number,
+  map: ReturnType<typeof createLogicalStatementSourceMap>
+): DslCallAuthoringContext | null => {
+  const strict = strictStatementAt(snapshot, position, map);
+  if (!strict) return null;
+  const { statement, logicalPosition } = strict;
+  const calls = callEnvelopesFor(statement.logicalText)
+    .filter((call) => call.open < logicalPosition && (call.close === null || logicalPosition <= call.close))
+    .sort((left, right) => right.open - left.open);
+  const call = calls[0];
+  if (!call) return null;
+  const kind = kindForStrictCall(statement.logicalText, call);
+  if (!kind) return null;
+
+  const logicalSourceSegments = logicalSegmentsFor(statement);
+  const callEnd = call.close ?? statement.logicalText.length;
+  const logicalArgument = currentArgumentFrom(
+    statement.logicalText,
+    call.open,
+    callEnd,
+    logicalPosition,
+    kind
+  );
+  const physicalCallee = projectLogicalRange(logicalSourceSegments, call.callee, position);
+  const physicalOpen = logicalOffsetToPhysical(map, statement, call.open) ?? position;
+  const physicalClose = call.close === null
+    ? null
+    : logicalOffsetToPhysical(map, statement, call.close) ?? position;
+  const projectArgumentRange = (range: DslCallAuthoringRange) =>
+    projectLogicalRange(logicalSourceSegments, range, position);
+  const scanned = scanCallArgs(statement.logicalText, { start: call.open + 1, end: callEnd });
+
+  return {
+    kind,
+    callee: {
+      name: call.name,
+      span: physicalCallee,
+      openParen: physicalOpen,
+      logicalOpenParen: call.open
+    },
+    call: {
+      from: physicalCallee.from,
+      to: physicalClose === null ? position : physicalClose + 1,
+      closeParen: physicalClose
+    },
+    argument: {
+      index: logicalArgument.index,
+      segment: projectArgumentRange(logicalArgument.segment),
+      label: logicalArgument.label ? projectArgumentRange(logicalArgument.label) : null,
+      value: logicalArgument.value ? projectArgumentRange(logicalArgument.value) : null
+    },
+    usedArgumentNames: new Set(
+      scanned.args
+        .map((candidate) => candidate.key)
+        .filter((key): key is string => Boolean(key))
+    ),
+    sourceOrderAnchor: {
+      statementIndex: map.statements.indexOf(statement),
+      statementRange: {
+        from: statement.range.from,
+        to: statement.range.to,
+        startLine: statement.range.startLine,
+        endLine: statement.range.endLine
+      }
+    },
+    logicalText: statement.logicalText,
+    logicalCursorPosition: logicalPosition,
+    logicalSourceSegments,
+    sourcePosition: position,
+    sourceRevision: snapshot.sourceRevision
+  };
+};
+
 const isUnsafeCurrentFragment = (fragment: string) => {
   const trimmed = fragment.trim();
   if (!trimmed) return false;
@@ -192,6 +386,8 @@ export const dslCallAuthoringContextAt = (
 ): DslCallAuthoringContext | null => {
   if (snapshot.normalizedSource.includes("\r") || position < 0 || position > snapshot.normalizedSource.length) return null;
   const map = createLogicalStatementSourceMap(snapshot);
+  const strictCallContext = strictCallAuthoringContextAt(snapshot, position, map);
+  if (strictCallContext) return strictCallContext;
   const starts = lineStartsFor(map.source);
   const lineIndex = lineIndexAt(starts, position);
   const line = map.lexicalLines[lineIndex];
@@ -322,7 +518,12 @@ export const dslCallAuthoringContextAt = (
 
   return {
     kind,
-    callee: { name: calleeName, span: calleePhysical, openParen: openPhysical },
+    callee: {
+      name: calleeName,
+      span: calleePhysical,
+      openParen: openPhysical,
+      logicalOpenParen: openLogical
+    },
     call: { from: calleePhysical.from, to: closePhysical >= 0 ? closePhysical + 1 : Math.max(position, openPhysical + 1), closeParen: closePhysical >= 0 ? closePhysical : null },
     argument: {
       ...argument,
