@@ -43,11 +43,13 @@ describe("VS Code Bake operation result", () => {
         type: "bakeOperationResult",
         surface: "source",
         requestId: 7,
+        mode: "current",
         ...operationResult
       },
       {
         type: "bakeOperationResult",
         surface: "canvas",
+        mode: "base",
         ...operationResult
       }
     ];
