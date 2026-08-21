@@ -11,12 +11,6 @@ export type BakeCommandResult = {
   bakeSummary: BakeOperationSummary;
 };
 
-export const emptyBakeOperationSummary = (): BakeOperationSummary => ({
-  successfulTargetCount: 0,
-  skippedTargets: [],
-  skippedTargetCount: 0
-});
-
 export const bakeOperationSummaryForPlan = (plan: BakePlan): BakeOperationSummary => ({
   successfulTargetCount: plan.successfulTargetCount,
   skippedTargets: [...plan.skippedTargets],
