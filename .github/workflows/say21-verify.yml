@@ -111,10 +111,18 @@ jobs:
           text = text.replace('elements[1]["x"] = json!(10.0);', 'elements[1]["x"] = json!(30.0);')
           text = text.replace('elements[1]["x"] = json!(9.0);', 'elements[1]["x"] = json!(29.0);')
           p.write_text(text)
+
+          p = Path('src/dsl/dslConstructions.test.ts')
+          text = p.read_text()
+          marker = '  ["line", "polar", "angleLengthLine"],\n'
+          if marker not in text:
+              raise SystemExit('dslConstructions test marker not found')
+          text = text.replace(marker, marker + '  ["line", "commonTangent", "commonTangentLine"],\n', 1)
+          p.write_text(text)
           PY
 
           npm ci 2>&1 | tee -a "$LOG"
-          npx vitest run src/geometry/commonTangentEvaluator.test.ts 2>&1 | tee -a "$LOG"
+          npx vitest run src/geometry/commonTangentEvaluator.test.ts src/dsl/dslConstructions.test.ts 2>&1 | tee -a "$LOG"
           npm run build 2>&1 | tee -a "$LOG"
           npm run lint 2>&1 | tee -a "$LOG"
 
@@ -131,7 +139,7 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml common_tangent 2>&1 | tee -a "$LOG"
           cargo test --manifest-path src-tauri/Cargo.toml 2>&1 | tee -a "$LOG"
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings 2>&1 | tee -a "$LOG"
-          npm test 2>&1 | tee -a "$LOG"
+          npm test -- --pool=forks --maxWorkers=2 2>&1 | tee -a "$LOG"
           npm run test:parity 2>&1 | tee -a "$LOG"
 
           rm -f .github/workflows/say21-apply.yml .github/workflows/say21-verify.yml .github/say21-ci-failure.txt
@@ -143,6 +151,7 @@ jobs:
             .github/say21-ci-failure.txt \
             src/types/geometry.ts \
             src/dsl/dslConstructions.ts \
+            src/dsl/dslConstructions.test.ts \
             src/model/elementNames.ts \
             src/model/elementFactory.ts \
             src/parameters/parameterDefinitions.ts \
