@@ -45,19 +45,25 @@ fn page_point(point: OutputPoint, origin: OutputPoint) -> (String, String) {
     )
 }
 
-fn pdf_utf16_hex(value: &str) -> String {
-    let mut output = String::from("<FEFF");
-    for unit in value.encode_utf16() {
-        output.push_str(&format!("{unit:04X}"));
+fn pdf_ucs2_hex(character: char) -> Result<String, String> {
+    let code = character as u32;
+    if code > u16::MAX as u32 {
+        return Err(format!(
+            "PDF text character U+{code:04X} is not representable by /UniJIS-UCS2-H"
+        ));
     }
-    output.push('>');
-    output
+    Ok(format!("<{code:04X}>"))
 }
 
-fn color_operator(hex: &str) -> String {
+fn color_components(hex: &str) -> (f64, f64, f64) {
     let red = u8::from_str_radix(&hex[1..3], 16).unwrap_or(0) as f64 / 255.0;
     let green = u8::from_str_radix(&hex[3..5], 16).unwrap_or(0) as f64 / 255.0;
     let blue = u8::from_str_radix(&hex[5..7], 16).unwrap_or(0) as f64 / 255.0;
+    (red, green, blue)
+}
+
+fn color_operator(hex: &str) -> String {
+    let (red, green, blue) = color_components(hex);
     format!(
         "{} {} {} RG",
         pdf_number(red),
@@ -66,12 +72,26 @@ fn color_operator(hex: &str) -> String {
     )
 }
 
-fn dash_operator(stroke: &OutputStroke) -> &'static str {
-    match stroke.style.as_str() {
-        "dashed" => "[4 3] 0 d",
-        "dotted" => "[1 2] 0 d",
-        _ => "[] 0 d",
+fn non_stroking_color_operator(hex: &str) -> String {
+    let (red, green, blue) = color_components(hex);
+    format!(
+        "{} {} {} rg",
+        pdf_number(red),
+        pdf_number(green),
+        pdf_number(blue)
+    )
+}
+
+fn dash_operator_for_style(style: &str) -> String {
+    match style {
+        "dashed" => format!("[{} {}] 0 d", pdf_number(pt(4.0)), pdf_number(pt(3.0))),
+        "dotted" => format!("[{} {}] 0 d", pdf_number(pt(1.0)), pdf_number(pt(2.0))),
+        _ => "[] 0 d".to_owned(),
     }
+}
+
+fn dash_operator(stroke: &OutputStroke) -> String {
+    dash_operator_for_style(&stroke.style)
 }
 
 fn arc_cubic_segments(
@@ -160,7 +180,7 @@ fn push_stroked_path(
     origin: OutputPoint,
 ) {
     content.push_str(&format!(
-        "{} {} w {}\n",
+        "{} 1 J 1 j {} w {}\n",
         color_operator(&stroke.color_hex),
         pdf_number(pt(stroke.width_mm)),
         dash_operator(stroke)
@@ -215,11 +235,16 @@ fn centered_text_anchor(
     }
 }
 
-fn pdf_text_array(line: &str, advances_mm: &[f64], width_mm: f64, font_size_mm: f64) -> String {
+fn pdf_text_array(
+    line: &str,
+    advances_mm: &[f64],
+    width_mm: f64,
+    font_size_mm: f64,
+) -> Result<String, String> {
     let mut values = Vec::new();
     let mut measured_width_mm = 0.0;
     for (character, advance_mm) in line.chars().zip(advances_mm) {
-        values.push(pdf_utf16_hex(&character.to_string()));
+        values.push(pdf_ucs2_hex(character)?);
         let adjustment = 1000.0 - (*advance_mm / font_size_mm * 1000.0);
         values.push(pdf_number(adjustment));
         measured_width_mm += *advance_mm;
@@ -228,7 +253,7 @@ fn pdf_text_array(line: &str, advances_mm: &[f64], width_mm: f64, font_size_mm: 
     if correction_mm.abs() > 1e-9 {
         values.push(pdf_number(-correction_mm / font_size_mm * 1000.0));
     }
-    format!("[{}] TJ", values.join(" "))
+    Ok(format!("[{}] TJ", values.join(" ")))
 }
 
 fn push_text(
@@ -237,7 +262,7 @@ fn push_text(
     placement: PdfTextPlacement,
     color_hex: &str,
     origin: OutputPoint,
-) {
+) -> Result<(), String> {
     let angle = placement.rotation_deg * PI / 180.0;
     let sign = if placement.mirror_x { -1.0 } else { 1.0 };
     let a = angle.cos() * sign;
@@ -257,33 +282,42 @@ fn push_text(
             -(index as f64) * placement.line_height_mm,
             origin,
         );
+        let text_array = pdf_text_array(line, advances_mm, *width_mm, placement.font_size_mm)?;
         content.push_str(&format!(
             "BT {} /F1 {size} Tf {} {} {} {} {} {} Tm {} ET\n",
-            color_operator(color_hex),
+            non_stroking_color_operator(color_hex),
             pdf_number(a),
             pdf_number(b),
             pdf_number(c),
             pdf_number(d),
             pdf_number(pt(line_x)),
             pdf_number(pt(line_y)),
-            pdf_text_array(line, advances_mm, *width_mm, placement.font_size_mm)
+            text_array
         ));
     }
+    Ok(())
 }
 
-fn push_drawable(content: &mut String, drawable: &OutputDrawable, origin: OutputPoint) {
+fn push_drawable(
+    content: &mut String,
+    drawable: &OutputDrawable,
+    origin: OutputPoint,
+) -> Result<(), String> {
     match drawable {
         OutputDrawable::Line {
             start, end, stroke, ..
-        } => push_stroked_path(
-            content,
-            &OutputPathSegment::Line {
-                start: *start,
-                end: *end,
-            },
-            stroke,
-            origin,
-        ),
+        } => {
+            push_stroked_path(
+                content,
+                &OutputPathSegment::Line {
+                    start: *start,
+                    end: *end,
+                },
+                stroke,
+                origin,
+            );
+            Ok(())
+        }
         OutputDrawable::Bezier {
             start,
             control1,
@@ -291,17 +325,20 @@ fn push_drawable(content: &mut String, drawable: &OutputDrawable, origin: Output
             end,
             stroke,
             ..
-        } => push_stroked_path(
-            content,
-            &OutputPathSegment::Bezier {
-                start: *start,
-                control1: *control1,
-                control2: *control2,
-                end: *end,
-            },
-            stroke,
-            origin,
-        ),
+        } => {
+            push_stroked_path(
+                content,
+                &OutputPathSegment::Bezier {
+                    start: *start,
+                    control1: *control1,
+                    control2: *control2,
+                    end: *end,
+                },
+                stroke,
+                origin,
+            );
+            Ok(())
+        }
         OutputDrawable::Arc {
             center,
             radius,
@@ -309,23 +346,27 @@ fn push_drawable(content: &mut String, drawable: &OutputDrawable, origin: Output
             sweep_angle_deg,
             stroke,
             ..
-        } => push_stroked_path(
-            content,
-            &OutputPathSegment::Arc {
-                center: *center,
-                radius: *radius,
-                start_angle_deg: *start_angle_deg,
-                sweep_angle_deg: *sweep_angle_deg,
-            },
-            stroke,
-            origin,
-        ),
+        } => {
+            push_stroked_path(
+                content,
+                &OutputPathSegment::Arc {
+                    center: *center,
+                    radius: *radius,
+                    start_angle_deg: *start_angle_deg,
+                    sweep_angle_deg: *sweep_angle_deg,
+                },
+                stroke,
+                origin,
+            );
+            Ok(())
+        }
         OutputDrawable::OffsetLine {
             segments, stroke, ..
         } => {
             for segment in segments {
                 push_stroked_path(content, segment, stroke, origin);
             }
+            Ok(())
         }
         OutputDrawable::Text {
             text,
@@ -363,7 +404,7 @@ fn push_guide(
     paper_height_mm: f64,
     margin_mm: f64,
     overlap_mm: f64,
-) {
+) -> Result<(), String> {
     let guide_x = if guide.axis == "vertical" {
         guide.position_mm
     } else {
@@ -375,7 +416,10 @@ fn push_guide(
         0.0
     };
     let line_width = pdf_number(pt(PRINT_LINE_WIDTH_MM));
-    content.push_str(&format!("q 0 G {line_width} w [4 3] 0 d\n"));
+    content.push_str(&format!(
+        "q 0 G 1 J 1 j {line_width} w {}\n",
+        dash_operator_for_style("dashed")
+    ));
     if guide.axis == "vertical" {
         let x = pdf_number(pt(guide_x));
         content.push_str(&format!(
@@ -403,7 +447,7 @@ fn push_guide(
             },
             "#31322f",
             OutputPoint { x: 0.0, y: 0.0 },
-        );
+        )?;
     } else {
         let y = pdf_number(pt(guide_y));
         content.push_str(&format!(
@@ -431,16 +475,17 @@ fn push_guide(
             },
             "#31322f",
             OutputPoint { x: 0.0, y: 0.0 },
-        );
+        )?;
     }
     content.push_str(&format!(
         "% guide margin={} overlap={}\nQ\n",
         pdf_number(pt(margin_mm)),
         pdf_number(pt(overlap_mm))
     ));
+    Ok(())
 }
 
-fn page_content(payload: &ResolvedPrintOutputPayload, page_index: usize) -> String {
+fn page_content(payload: &ResolvedPrintOutputPayload, page_index: usize) -> Result<String, String> {
     let page = &payload.pages[page_index];
     let width = pdf_number(pt(payload.paper.width_mm));
     let height = pdf_number(pt(payload.paper.height_mm));
@@ -448,7 +493,7 @@ fn page_content(payload: &ResolvedPrintOutputPayload, page_index: usize) -> Stri
     content.push_str("q\n");
     content.push_str(&format!("0 0 {width} {height} re W n\n"));
     for drawable in &payload.drawables {
-        push_drawable(&mut content, drawable, page.origin);
+        push_drawable(&mut content, drawable, page.origin)?;
     }
     content.push_str("Q\n");
     for guide in &page.guides {
@@ -459,9 +504,9 @@ fn page_content(payload: &ResolvedPrintOutputPayload, page_index: usize) -> Stri
             payload.paper.height_mm,
             payload.margin_mm,
             payload.overlap_mm,
-        );
+        )?;
     }
-    content
+    Ok(content)
 }
 
 fn pdf_object(body: &str) -> Vec<u8> {
@@ -510,7 +555,7 @@ fn build_print_pdf(payload: &ResolvedPrintOutputPayload) -> Result<Vec<u8>, Stri
         "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /HeiseiKakuGo-W5 /DW 1000 /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 2 >> /FontDescriptor << /Type /FontDescriptor /FontName /HeiseiKakuGo-W5 /Flags 4 /FontBBox [-92 -250 1010 922] /ItalicAngle 0 /Ascent 752 /Descent -221 /CapHeight 737 /StemV 80 >> >>",
     ));
     for page_index in 0..page_count {
-        objects.push(stream_object(&page_content(payload, page_index)));
+        objects.push(stream_object(&page_content(payload, page_index)?));
     }
     let mut pdf = Vec::<u8>::new();
     pdf.extend_from_slice(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
@@ -601,6 +646,7 @@ mod tests {
         assert!(text.contains("/Kids [3 0 R 4 0 R]"));
         assert!(text.contains("/MediaBox [0 0 595.276 841.89]"));
         assert!(text.contains("0.192 0.196 0.184 RG"));
+        assert!(text.contains("0.192 0.196 0.184 RG 1 J 1 j 0.51 w [] 0 d"));
         let first_page_content = text
             .find("28.346 28.346 m 56.693 28.346 l")
             .expect("first page should place the line from its page origin");
@@ -615,6 +661,63 @@ mod tests {
         let mut invalid = payload();
         invalid.overlap_mm = 200.0;
         assert!(build_print_pdf(&invalid).is_err());
+    }
+
+    fn stroke_content(style: &str) -> String {
+        let mut content = String::new();
+        push_stroked_path(
+            &mut content,
+            &OutputPathSegment::Line {
+                start: OutputPoint { x: 0.0, y: 0.0 },
+                end: OutputPoint { x: 10.0, y: 0.0 },
+            },
+            &OutputStroke {
+                width_mm: 0.18,
+                style: style.to_owned(),
+                color_hex: "#31322f".to_owned(),
+            },
+            OutputPoint { x: 0.0, y: 0.0 },
+        );
+        content
+    }
+
+    #[test]
+    fn emits_round_line_cap_and_join_and_keeps_physical_stroke_width() {
+        let content = stroke_content("solid");
+        assert!(content.contains("1 J 1 j"));
+        assert!(content.contains("0.51 w"));
+    }
+
+    #[test]
+    fn converts_dashed_lengths_from_mm_to_pdf_points() {
+        let content = stroke_content("dashed");
+        assert!(content.contains("[11.339 8.504] 0 d"));
+    }
+
+    #[test]
+    fn converts_dotted_lengths_from_mm_to_pdf_points() {
+        let content = stroke_content("dotted");
+        assert!(content.contains("[2.835 5.669] 0 d"));
+    }
+
+    #[test]
+    fn emits_exact_ucs2_codes_for_latin_and_japanese_text() {
+        assert_eq!(
+            pdf_text_array("AB", &[2.48, 2.48], 4.96, 4.0).expect("Latin text should encode"),
+            "[<0041> 380 <0042> 380] TJ"
+        );
+        assert_eq!(
+            pdf_text_array("日本", &[4.0, 4.0], 8.0, 4.0).expect("Japanese text should encode"),
+            "[<65E5> 0 <672C> 0] TJ"
+        );
+    }
+
+    #[test]
+    fn rejects_text_outside_the_current_ucs2_cmap() {
+        let error = pdf_text_array("😀", &[4.0], 4.0, 4.0)
+            .expect_err("non-BMP text should not be silently encoded");
+        assert!(error.contains("U+1F600"));
+        assert!(error.contains("UniJIS-UCS2-H"));
     }
 
     #[test]
@@ -648,7 +751,7 @@ mod tests {
                 line_height_mm,
                 rotation_deg: 30.0,
                 mirror_x: true,
-                color_hex: "#31322f".to_owned(),
+                color_hex: "#336699".to_owned(),
             }],
             paper: crate::print_output::PaperSize {
                 width_mm: 210.0,
@@ -669,11 +772,13 @@ mod tests {
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.contains("/DW 1000"));
         assert!(text.contains(
-            "BT 0.192 0.196 0.184 RG /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 56.693 85.039 Tm [<FEFF0041> 380 <FEFF0042> 380] TJ ET"
+            "BT 0.2 0.4 0.6 rg /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 56.693 85.039 Tm [<0041> 380 <0042> 380] TJ ET"
         ));
         assert!(text.contains(
-            "BT 0.192 0.196 0.184 RG /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 63.496 73.256 Tm [<FEFF65E5> 0 <FEFF672C> 0] TJ ET"
+            "BT 0.2 0.4 0.6 rg /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 63.496 73.256 Tm [<65E5> 0 <672C> 0] TJ ET"
         ));
+        assert!(!text.contains("BT 0.2 0.4 0.6 RG"));
+        assert!(!text.contains("FEFF"));
         assert!((text_payload.bounds.width - relative.width).abs() < 1e-9);
         assert!((text_payload.bounds.height - relative.height).abs() < 1e-9);
     }
@@ -711,7 +816,7 @@ mod tests {
         let pdf = build_print_pdf(&resolved).expect("resolved guide center should build");
         let text = String::from_utf8_lossy(&pdf);
         let expected_text_marker = format!(
-            "BT 0.192 0.196 0.184 RG /F1 2.835 Tf 0 1 -1 0 {} {} Tm [<FEFF0031> 380] TJ ET",
+            "BT 0.192 0.196 0.184 rg /F1 2.835 Tf 0 1 -1 0 {} {} Tm [<0031> 380] TJ ET",
             pdf_number(pt(expected_anchor.x)),
             pdf_number(pt(expected_anchor.y))
         );
