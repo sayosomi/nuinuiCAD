@@ -143,6 +143,34 @@ describe("VS Code native nui completion provider", () => {
     expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["dx", "dy"]));
   });
 
+  it("offers tolerant call arguments across a blank line with physical insertion ranges", () => {
+    const constructionSource = "nui 4\npoint P = coordinate(\n  \n)";
+    const constructionItems = itemsFor(constructionSource, 2, 2);
+    expect(constructionItems.map((item) => item.label)).toEqual(expect.arrayContaining(["x", "y"]));
+
+    const builtinSource = "nui 4\nconst a: number = spreadAngle(\n  \n)";
+    const builtinItems = itemsFor(builtinSource, 2, 2);
+    expect(builtinItems.map((item) => item.label)).toEqual(["length", "spread"]);
+
+    const liveSource = optionalModuleSource.replace("instance Use = M()", "instance Use = M(\n  \n)");
+    const session = createLanguageAnalysisSession(optionalModuleSource);
+    const provider = createNuiCompletionProvider(() => session);
+    session.replaceSource(liveSource);
+    const moduleItems = provider.provideCompletionItems(
+      documentFor(liveSource) as vscode.TextDocument,
+      new vscode.Position(9, 2),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+    const value = moduleItems.find((item) => item.label === "value")!;
+    expect(moduleItems.map((item) => item.label)).toContain("value");
+    expect(value.insertText).toBe("value: ");
+    expect(value.range).toMatchObject({
+      start: { line: 9, character: 2 },
+      end: { line: 9, character: 2 }
+    });
+  });
+
   it("supports the manual E2E cases for incomplete argument, qualified member, and property completion", () => {
     const argumentSource = [
       "nui 4",

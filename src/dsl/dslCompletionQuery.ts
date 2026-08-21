@@ -8,6 +8,11 @@ import {
 } from "./dslCompletionContext";
 import { dslStatementElementType } from "./dslCompletionMetadata";
 import {
+  dslCallAuthoringContextAt,
+  projectDslCallAuthoringRange,
+  type DslCallAuthoringContext
+} from "./dslCallAuthoringContext";
+import {
   createLogicalStatementSourceMap,
   logicalOffsetToPhysical,
   physicalSpanForLogicalRange,
@@ -110,6 +115,7 @@ type LogicalInput = {
   lineNumber: number;
   map: ReturnType<typeof createLogicalStatementSourceMap>;
   statement: ReturnType<typeof createLogicalStatementSourceMap>["statements"][number] | null;
+  authoring?: DslCallAuthoringContext;
 };
 
 const lineNumberAt = (source: string, position: number) => {
@@ -150,10 +156,13 @@ const currentStatementIndex = (compiled: CompiledDslDocument, position: number):
 
 const recoveredModuleStatementAt = (
   recovery: DslCompletionRecoveryInput | undefined,
-  position: number
+  position: number,
+  statementIndexHint = -1
 ): { compiled: CompiledDslDocument; statementIndex: number } | null => {
   if (!recovery || !recovery.lastGoodCompiled.statementMap || !recovery.lastGoodCompiled.moduleSemanticAnalysis) return null;
-  const liveStatementIndex = currentStatementIndex(recovery.liveCompiled, position);
+  const liveStatementIndex = statementIndexHint >= 0
+    ? statementIndexHint
+    : currentStatementIndex(recovery.liveCompiled, position);
   if (liveStatementIndex < 0) return null;
   const liveStatement = recovery.liveCompiled.statements[liveStatementIndex];
   if (liveStatement?.kind !== "moduleInstance") return null;
@@ -512,8 +521,19 @@ const moduleCandidatesAt = (
   }
 
   if (context.kind !== "moduleArgumentLabel") return [];
-  const recovered = recoveredModuleStatementAt(recovery, position);
+  const recovered = recoveredModuleStatementAt(recovery, position, statementIndex);
   return recovered ? request(recovered.compiled, recovered.statementIndex) : [];
+};
+
+const statementIndexForAuthoring = (
+  compiled: CompiledDslDocument | undefined,
+  authoring: DslCallAuthoringContext | undefined,
+  exact: boolean
+) => {
+  if (!compiled || !authoring || !exact) return -1;
+  return compiled.statements.findIndex((statement) =>
+    statement.documentRange.from === authoring.sourceOrderAnchor.statementRange.from
+  );
 };
 
 const sourceTextForLogicalInput = (
@@ -665,16 +685,33 @@ const queryCandidates = (
  */
 export const queryDslCompletion = ({ source, position, semantic, recovery: requestedRecovery }: DslCompletionQueryInput): DslCompletionQueryResult | null => {
   if (source.normalizedSource.includes("\r") || position < 0 || position > source.normalizedSource.length) return null;
-  const input = logicalInputAt(source, position);
+  const strictInput = logicalInputAt(source, position);
+  const authoring = dslCallAuthoringContextAt(source, position);
+  const input: LogicalInput = authoring
+    ? {
+        lineText: authoring.logicalText,
+        localPosition: authoring.logicalCursorPosition,
+        lineStart: authoring.sourceOrderAnchor.statementRange.from,
+        lineNumber: authoring.sourceOrderAnchor.statementRange.startLine,
+        map: strictInput.map,
+        statement: null,
+        authoring
+      }
+    : strictInput;
   const startsInBlockComment = input.statement
     ? false
     : input.map.lexicalLines[input.lineNumber - 1]?.startsInBlockComment ?? false;
-  const context = dslCompletionContextAt(input.lineText, input.localPosition, startsInBlockComment);
+  const context = authoring
+    ? dslCompletionContextAt(input.lineText, input.localPosition)
+    : dslCompletionContextAt(input.lineText, input.localPosition, startsInBlockComment);
   if (!context) return null;
   const compiled = semantic?.compiled;
   const exact = semanticIsExact(source, semantic);
   const recovery = recoveryIsExact(source, requestedRecovery) ? requestedRecovery : undefined;
-  const statementIndex = statementIndexFor(compiled, position, exact);
+  const strictStatementIndex = statementIndexFor(compiled, position, exact);
+  const statementIndex = strictStatementIndex >= 0
+    ? strictStatementIndex
+    : statementIndexForAuthoring(compiled, authoring ?? undefined, exact);
   let candidates = queryCandidates(context, input, position, semantic, compiled, exact, statementIndex, recovery);
 
   // Module scalar references are intentionally additive to ordinary scalar
@@ -706,7 +743,9 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
   }
 
   const logicalRange = replacementRangeInLogicalText(input.lineText, context);
-  const replacementRange = projectReplacementRange(input, logicalRange);
+  const replacementRange = input.authoring
+    ? projectDslCallAuthoringRange(input.authoring, logicalRange)
+    : projectReplacementRange(input, logicalRange);
   if (!replacementRange) return null;
   return {
     context,

@@ -5,6 +5,7 @@ import {
   queryDslCompletion,
   type DslCompletionQueryResult
 } from "./dslCompletionQuery";
+import { createLanguageAnalysisSession } from "../../vscode-extension/src/languageAnalysisSession";
 
 const compileWithIds = (source: string, sourceRevision = 7): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -78,6 +79,66 @@ describe("queryDslCompletion", () => {
     expect(result?.category).toBe("typedInitializer");
     expect(labels(result)).toEqual(["length", "spread"]);
     expect(result?.candidates.every((candidate) => candidate.kind === "argumentName")).toBe(true);
+  });
+
+  it("keeps construction and builtin completion active across a blank line", () => {
+    const construction = "nui 4\npoint P = coordinate(\n  \n)";
+    const constructionPosition = construction.indexOf("  \n") + 2;
+    const constructionResult = queryIncomplete(construction, constructionPosition);
+    expect(constructionResult?.category).toBe("argument");
+    expect(labels(constructionResult)).toEqual(expect.arrayContaining(["x", "y"]));
+    expect(constructionResult && construction.slice(constructionResult.replacementRange.from, constructionResult.replacementRange.to)).toBe("");
+    expect(constructionResult?.replacementRange.from).toBe(constructionPosition);
+
+    const builtin = "nui 4\nconst a: number = spreadAngle(\n  \n)";
+    const builtinPosition = builtin.indexOf("  \n") + 2;
+    const builtinResult = queryIncomplete(builtin, builtinPosition);
+    expect(builtinResult?.category).toBe("typedInitializer");
+    expect(labels(builtinResult)).toEqual(["length", "spread"]);
+    expect(builtinResult?.replacementRange).toEqual({ from: builtinPosition, to: builtinPosition });
+  });
+
+  it("recovers tolerant Module labels only when the current callee keeps its identity", () => {
+    const lastGoodSource = [
+      "nui 4",
+      "module M(",
+      "  value: number,",
+      "  optional?: number,",
+      ") {",
+      "  if (hasValue(@optional)) {",
+      "    const probe: number = @optional",
+      "  }",
+      "}",
+      "instance Use = M(value: 1)"
+    ].join("\n");
+    const liveSource = lastGoodSource.replace("instance Use = M(value: 1)", "instance Use = M(\n  \n)");
+    const session = createLanguageAnalysisSession(lastGoodSource);
+    session.replaceSource(liveSource);
+    const sourceRevision = session.getSourceRevision();
+    const position = liveSource.indexOf("  \n") + 2;
+    const source = { normalizedSource: liveSource, sourceRevision };
+
+    const result = queryDslCompletion({
+      source,
+      position,
+      semantic: session.completionSemanticSnapshot(source),
+      recovery: session.completionRecoverySnapshot(source)
+    });
+    expect(result?.category).toBe("moduleArgumentLabel");
+    expect(labels(result)).toEqual(expect.arrayContaining(["value", "optional"]));
+
+    const changedCallee = liveSource.replace("instance Use = M(\n", "instance Use = Other(\n");
+    session.replaceSource(changedCallee);
+    const changedSource = { normalizedSource: changedCallee, sourceRevision: session.getSourceRevision() };
+    const changedPosition = changedCallee.indexOf("  \n") + 2;
+    const changed = queryDslCompletion({
+      source: changedSource,
+      position: changedPosition,
+      semantic: session.completionSemanticSnapshot(changedSource),
+      recovery: session.completionRecoverySnapshot(changedSource)
+    });
+    expect(labels(changed)).not.toContain("value");
+    expect(labels(changed)).not.toContain("optional");
   });
 
   it("returns typed scalar syntax candidates for numeric, boolean, string, and choice expressions", () => {
