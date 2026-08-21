@@ -22,6 +22,7 @@ import type {
   CanvasBezierHandleDragAction
 } from "../components/canvasHostAdapter";
 import { useModuleInstanceSelectionReconciliation } from "../components/useModuleInstanceSelectionReconciliation";
+import { useRevisionCoherentCanvasPresentation } from "../components/canvasRevisionPresentation";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 import {
   type VscodeCanvasRibbon
@@ -94,6 +95,28 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       sourceLexicalNamespace,
       statementInfoByElementId
     }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
+    const currentCanvasPresentation = useMemo(() => ({
+      elements,
+      canonicalElements,
+      evaluationLimitIndex,
+      palette,
+      visibilityProfiles,
+      activeVisibilityProfileId,
+      moduleSemanticContext
+    }), [
+      activeVisibilityProfileId,
+      canonicalElements,
+      elements,
+      evaluationLimitIndex,
+      moduleSemanticContext,
+      palette,
+      visibilityProfiles
+    ]);
+    const canvasPresentation = useRevisionCoherentCanvasPresentation({
+      current: currentCanvasPresentation,
+      compiledDocumentRevision,
+      evaluationState
+    });
 
     const ribbonCommandContext = useMemo(() => ({
       hasSelection: selectedElementIds.length > 0,
@@ -173,15 +196,15 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     }), [dragPreviewScheduler, postCanonicalSourceText]);
 
     const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
-      elements,
-      canonicalElements,
-      evaluationLimitIndex,
+      elements: canvasPresentation.elements,
+      canonicalElements: canvasPresentation.canonicalElements,
+      evaluationLimitIndex: canvasPresentation.evaluationLimitIndex,
       compiledDocumentRevision,
       canvasTheme,
-      palette,
-      visibilityProfiles,
-      activeVisibilityProfileId,
-      moduleSemanticContext,
+      palette: canvasPresentation.palette,
+      visibilityProfiles: canvasPresentation.visibilityProfiles,
+      activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
+      moduleSemanticContext: canvasPresentation.moduleSemanticContext,
       selectedElementId,
       selectedElementIds,
       selectionAnchorElementId,
@@ -263,6 +286,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       activeNumericReferencePickTarget,
       activePointPickTarget,
       activeVisibilityProfileId,
+      canvasPresentation,
       canvasViewport,
       canonicalElements,
       commandLineSession,
