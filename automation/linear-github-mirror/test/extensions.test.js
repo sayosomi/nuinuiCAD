@@ -154,6 +154,7 @@ test("marker lookup uses repository issue listing so new document mirrors are im
   const githubFetch = async (path) => {
     calls.push(path);
     return [
+      { number: 269, body: "Pull request\n\n<!-- linear-document-id:doc-a -->", pull_request: { url: "https://api.github.com/repos/sayosomi/nuinuiCAD/pulls/269" } },
       { number: 270, body: "Document\n\n<!-- linear-document-id:doc-a -->" },
       { number: 271, body: "Other document" },
     ];
@@ -170,21 +171,36 @@ test("marker lookup uses repository issue listing so new document mirrors are im
   assert.equal(calls[0].includes("/search/issues"), false);
 });
 
-test("issue marker lookup uses repository issue listing instead of Search API", async () => {
+test("issue marker lookup ignores pull requests and selects the matching issue", async () => {
   const calls = [];
   const githubFetch = async (path) => {
     calls.push(path);
-    return [{ number: 272, body: "Issue\n\n<!-- linear-issue-id:issue-a -->" }];
+    return [
+      { number: 272, body: "Pull request\n\n<!-- linear-issue-id:issue-a -->", pull_request: { url: "https://api.github.com/repos/sayosomi/nuinuiCAD/pulls/272" } },
+      { number: 273, body: "Issue\n\n<!-- linear-issue-id:issue-a -->" },
+    ];
   };
   const issueNumber = await findGithubIssueByMarker(
     "linear-issue-id:issue-a",
     { GITHUB_OWNER: "sayosomi", GITHUB_REPO: "nuinuiCAD" },
     githubFetch,
   );
-  assert.equal(issueNumber, 272);
+  assert.equal(issueNumber, 273);
   assert.equal(calls.length, 1);
   assert.match(calls[0], /\/issues\?state=all/);
   assert.equal(calls[0].includes("/search/issues"), false);
+});
+
+test("issue marker lookup returns no match when only a pull request contains the marker", async () => {
+  const githubFetch = async () => [
+    { number: 274, body: "Pull request\n\n<!-- linear-issue-id:issue-only-pr -->", pull_request: { url: "https://api.github.com/repos/sayosomi/nuinuiCAD/pulls/274" } },
+  ];
+  const issueNumber = await findGithubIssueByMarker(
+    "linear-issue-id:issue-only-pr",
+    { GITHUB_OWNER: "sayosomi", GITHUB_REPO: "nuinuiCAD" },
+    githubFetch,
+  );
+  assert.equal(issueNumber, null);
 });
 
 test("archived and trashed Documents close their existing mirrors as not planned", async () => {

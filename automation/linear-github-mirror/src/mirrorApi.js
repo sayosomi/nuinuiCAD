@@ -54,6 +54,7 @@ export async function findGithubIssueByMarker(marker, env, gh = githubFetch) {
     );
     if (!Array.isArray(rows)) break;
     for (const issue of rows) {
+      if (issue?.pull_request) continue;
       if (String(issue?.body ?? "").includes(needle) && Number.isInteger(issue?.number)) {
         matches.push(issue.number);
       }
