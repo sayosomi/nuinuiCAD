@@ -115,11 +115,18 @@ const initialize = async (session: ReturnType<typeof startServer>) => {
 };
 
 describe("nuinuiCAD MCP stdio server", () => {
-  it("initializes, lists only document_inspect, calls it, and keeps stdout protocol-only", async () => {
+  it("lists and calls inspect/definition/references with schema validation and protocol-only stdout", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "nuinuicad-mcp-stdio-"));
     temporaryDirectories.push(directory);
     const filePath = path.join(directory, "sample.nui");
-    await writeFile(filePath, "nui 4\npoint A = coordinate(x: 0, y: 0)", "utf8");
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 1, dy: 0)",
+      "point C = offset(from: @A, dx: 2, dy: 0)"
+    ].join("\n");
+    await writeFile(filePath, source, "utf8");
+    const semanticPosition = source.indexOf("@A") + "@A".length;
 
     const session = startServer();
     await initialize(session);
@@ -128,7 +135,11 @@ describe("nuinuiCAD MCP stdio server", () => {
     const listResponse = await session.responseFor(2);
     expect(listResponse.error).toBeUndefined();
     const tools = (listResponse.result as { tools?: Array<{ name: string }> } | undefined)?.tools;
-    expect(tools?.map((tool) => tool.name)).toEqual(["document_inspect"]);
+    expect(tools?.map((tool) => tool.name)).toEqual([
+      "document_inspect",
+      "document_definition",
+      "document_references"
+    ]);
 
     session.send({
       jsonrpc: "2.0",
@@ -136,14 +147,14 @@ describe("nuinuiCAD MCP stdio server", () => {
       method: "tools/call",
       params: { name: "document_inspect", arguments: { path: filePath } }
     });
-    const callResponse = await session.responseFor(3);
-    expect(callResponse.error).toBeUndefined();
-    const result = callResponse.result as {
+    const inspectResponse = await session.responseFor(3);
+    expect(inspectResponse.error).toBeUndefined();
+    const inspectResult = inspectResponse.result as {
       isError?: boolean;
       structuredContent?: { compileStatus?: string; currentSemantics?: { available?: boolean } };
     };
-    expect(result.isError).not.toBe(true);
-    expect(result.structuredContent).toMatchObject({
+    expect(inspectResult.isError).not.toBe(true);
+    expect(inspectResult.structuredContent).toMatchObject({
       compileStatus: "valid",
       currentSemantics: { available: true }
     });
@@ -152,11 +163,72 @@ describe("nuinuiCAD MCP stdio server", () => {
       jsonrpc: "2.0",
       id: 4,
       method: "tools/call",
+      params: {
+        name: "document_definition",
+        arguments: { path: filePath, position: semanticPosition }
+      }
+    });
+    const definitionResponse = await session.responseFor(4);
+    expect(definitionResponse.error).toBeUndefined();
+    expect(definitionResponse.result).toMatchObject({
+      structuredContent: {
+        status: "resolved",
+        indexing: { line: "one-based" }
+      }
+    });
+
+    session.send({
+      jsonrpc: "2.0",
+      id: 5,
+      method: "tools/call",
+      params: {
+        name: "document_references",
+        arguments: { path: filePath, position: semanticPosition }
+      }
+    });
+    const referencesResponse = await session.responseFor(5);
+    expect(referencesResponse.error).toBeUndefined();
+    const referencesResult = referencesResponse.result as {
+      structuredContent?: { status?: string; referenceRanges?: unknown[] };
+    };
+    expect(referencesResult.structuredContent?.status).toBe("resolved");
+    expect(referencesResult.structuredContent?.referenceRanges).toHaveLength(2);
+
+    session.send({
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
       params: { name: "document_inspect", arguments: {} }
     });
-    const invalidResponse = await session.responseFor(4);
-    expect(invalidResponse.error).toBeUndefined();
-    expect(invalidResponse.result).toMatchObject({ isError: true });
+    const invalidInspectResponse = await session.responseFor(6);
+    expect(invalidInspectResponse.error).toBeUndefined();
+    expect(invalidInspectResponse.result).toMatchObject({ isError: true });
+
+    session.send({
+      jsonrpc: "2.0",
+      id: 7,
+      method: "tools/call",
+      params: {
+        name: "document_definition",
+        arguments: { path: filePath, position: -1 }
+      }
+    });
+    const invalidPositionResponse = await session.responseFor(7);
+    expect(invalidPositionResponse.error).toBeUndefined();
+    expect(invalidPositionResponse.result).toMatchObject({ isError: true });
+
+    session.send({
+      jsonrpc: "2.0",
+      id: 8,
+      method: "tools/call",
+      params: {
+        name: "document_references",
+        arguments: { path: "relative.nui", position: 0 }
+      }
+    });
+    const invalidPathResponse = await session.responseFor(8);
+    expect(invalidPathResponse.error).toBeUndefined();
+    expect(invalidPathResponse.result).toMatchObject({ isError: true });
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(session.protocolNoise).toEqual([]);
