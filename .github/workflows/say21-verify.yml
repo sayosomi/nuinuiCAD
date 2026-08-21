@@ -101,6 +101,12 @@ jobs:
           if old not in text:
               raise SystemExit('Rust angle block not found')
           p.write_text(text.replace(old, new))
+
+          p = Path('src-tauri/src/evaluation/common_tangent_evaluator_tests.rs')
+          text = p.read_text()
+          text = text.replace('elements[1]["x"] = json!(10.0);', 'elements[1]["x"] = json!(30.0);')
+          text = text.replace('elements[1]["x"] = json!(9.0);', 'elements[1]["x"] = json!(29.0);')
+          p.write_text(text)
           PY
 
           npm ci 2>&1 | tee -a "$LOG"
