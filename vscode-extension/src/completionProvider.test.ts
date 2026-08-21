@@ -185,7 +185,18 @@ describe("VS Code native nui completion provider", () => {
       "",
       ")"
     ].join("\n");
-    const callLine = source.split("\n").findIndex((line) => line === "instance Use = M(") + 1;
+    const statementLine = source.split("\n").findIndex((line) => line === "instance Use = M(");
+    const sameLineItems = itemsFor(source, statementLine, "instance Use = M(".length);
+    const sameLineValue = sameLineItems.find((item) => item.label === "value")!;
+
+    expect(sameLineItems.map((item) => item.label)).toEqual(expect.arrayContaining(["value", "optional"]));
+    expect(sameLineValue.insertText).toBe("value: ");
+    expect(sameLineValue.range).toMatchObject({
+      start: { line: statementLine, character: "instance Use = M(".length },
+      end: { line: statementLine, character: "instance Use = M(".length }
+    });
+
+    const callLine = statementLine + 1;
     const items = itemsFor(source, callLine, 0);
     const value = items.find((item) => item.label === "value")!;
 
@@ -197,6 +208,11 @@ describe("VS Code native nui completion provider", () => {
     });
 
     const unresolvedSource = source.replace("instance Use = M(\n", "instance Use = Other(\n");
+    const unresolvedStatementLine = unresolvedSource.split("\n").findIndex((line) => line === "instance Use = Other(");
+    const unresolvedSameLineItems = itemsFor(unresolvedSource, unresolvedStatementLine, "instance Use = Other(".length);
+    expect(unresolvedSameLineItems.map((item) => item.label)).not.toContain("value");
+    expect(unresolvedSameLineItems.map((item) => item.label)).not.toContain("optional");
+
     const unresolvedCallLine = unresolvedSource.split("\n").findIndex((line) => line === "instance Use = Other(") + 1;
     const unresolvedItems = itemsFor(unresolvedSource, unresolvedCallLine, 0);
     expect(unresolvedItems.map((item) => item.label)).not.toContain("value");

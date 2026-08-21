@@ -185,6 +185,17 @@ describe("queryDslCompletion", () => {
     expect(result?.category).toBe("moduleArgumentLabel");
     expect(labels(result)).toEqual(["value", "optional"]);
 
+    const sameLinePosition = source.indexOf("instance Use = M(") + "instance Use = M(".length;
+    const sameLine = queryDslCompletion({
+      source: sourceSnapshot,
+      position: sameLinePosition,
+      semantic: session.completionSemanticSnapshot(sourceSnapshot),
+      recovery: session.completionRecoverySnapshot(sourceSnapshot)
+    });
+    expect(sameLine?.category).toBe("moduleArgumentLabel");
+    expect(labels(sameLine)).toEqual(["value", "optional"]);
+    expect(sameLine?.replacementRange).toEqual({ from: sameLinePosition, to: sameLinePosition });
+
     const unresolvedSource = source.replace("instance Use = M(\n", "instance Use = Other(\n");
     const unresolvedSession = createLanguageAnalysisSession(unresolvedSource);
     const unresolvedSnapshot = { normalizedSource: unresolvedSource, sourceRevision: unresolvedSession.getSourceRevision() };
@@ -199,6 +210,17 @@ describe("queryDslCompletion", () => {
     expect(unresolved?.category).toBe("moduleArgumentLabel");
     expect(labels(unresolved)).not.toContain("value");
     expect(labels(unresolved)).not.toContain("optional");
+
+    const unresolvedSameLinePosition = unresolvedSource.indexOf("instance Use = Other(") + "instance Use = Other(".length;
+    const unresolvedSameLine = queryDslCompletion({
+      source: unresolvedSnapshot,
+      position: unresolvedSameLinePosition,
+      semantic: unresolvedSession.completionSemanticSnapshot(unresolvedSnapshot),
+      recovery: unresolvedSession.completionRecoverySnapshot(unresolvedSnapshot)
+    });
+    expect(unresolvedSameLine?.category).toBe("moduleArgumentLabel");
+    expect(labels(unresolvedSameLine)).not.toContain("value");
+    expect(labels(unresolvedSameLine)).not.toContain("optional");
   });
 
   it("uses current-source Module parameters instead of stale last-good labels", () => {

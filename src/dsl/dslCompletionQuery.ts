@@ -213,16 +213,27 @@ const recoveredModuleStatementAt = (
 const currentModuleDefinitionParametersAt = (
   compiled: CompiledDslDocument,
   input: LogicalInput,
-  statementIndex: number
+  statementIndex: number,
+  exact: boolean
 ): readonly ModuleCompletionParameterMetadata[] | undefined => {
   const authoring = input.authoring;
   const namespace = compiled.sourceLexicalNamespace;
-  if (!authoring || authoring.kind !== "module" || !namespace || statementIndex < 0) return undefined;
+  if (!exact || !namespace || statementIndex < 0) return undefined;
 
-  const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, authoring.callee.name);
+  const calleeName = authoring
+    ? authoring.kind === "module"
+      ? authoring.callee.name
+      : undefined
+    : (() => {
+        const statement = compiled.statements[statementIndex];
+        return statement?.kind === "moduleInstance" ? statement.moduleName : undefined;
+      })();
+  if (!calleeName) return undefined;
+
+  const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, calleeName);
   if (lookup.kind !== "resolved" || lookup.declaration.kind !== "moduleDefinition") return undefined;
-  const definition = lookup.declaration.statement;
-  if (definition.kind !== "moduleDefinition") return undefined;
+  const definition = compiled.statements[lookup.declaration.statementIndex];
+  if (definition?.kind !== "moduleDefinition") return undefined;
 
   return definition.parameters.map((parameter, parameterIndex) => ({
     name: parameter.name,
@@ -564,10 +575,15 @@ const moduleCandidatesAt = (
   // Module semantic instance needed for a transient argument-label site.
   if (compiled && semantic && exact && (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || compiled.moduleSemanticAnalysis)) {
     const currentDefinitionParameters = context.kind === "moduleArgumentLabel"
-      ? currentModuleDefinitionParametersAt(compiled, input, statementIndex)
+      ? currentModuleDefinitionParametersAt(compiled, input, statementIndex, exact)
       : undefined;
+    // An ordinary same-line Module call has no tolerant authoring envelope to
+    // carry identity. If the exact compiled-instance proof cannot provide the
+    // current definition, fail closed rather than falling through to semantic
+    // or last-good Module parameter metadata.
+    if (context.kind === "moduleArgumentLabel" && !input.authoring && !currentDefinitionParameters) return [];
     const candidates = request(compiled, statementIndex >= 0 ? statementIndex : undefined, currentDefinitionParameters);
-    if (candidates.length > 0 || context.kind !== "moduleArgumentLabel") return candidates;
+    if (candidates.length > 0 || context.kind !== "moduleArgumentLabel" || !input.authoring) return candidates;
   }
 
   if (context.kind !== "moduleArgumentLabel") return [];
