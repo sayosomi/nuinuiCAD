@@ -24,6 +24,16 @@ export type CanvasRevisionPresentationSnapshot = {
   inputs: CanvasRevisionPresentationInputs;
 };
 
+const EMPTY_CANVAS_PRESENTATION: CanvasRevisionPresentationInputs = {
+  elements: [],
+  canonicalElements: [],
+  evaluationLimitIndex: 0,
+  palette: { colors: [], defaultColorId: "" },
+  visibilityProfiles: [],
+  activeVisibilityProfileId: null,
+  moduleSemanticContext: {}
+};
+
 export const resolveRevisionCoherentCanvasPresentation = ({
   current,
   compiledDocumentRevision,
@@ -46,11 +56,10 @@ export const resolveRevisionCoherentCanvasPresentation = ({
   ) {
     return lastStable.inputs;
   }
-  // A matching snapshot exists in every normal stale transition because the
-  // previous request was rendered before it could become stale. If a host is
-  // remounted mid-request, keep legacy fallback behavior rather than inventing
-  // document metadata for an evaluation we cannot identify.
-  return current;
+  // Never pair a stale evaluation with unrelated current-document metadata.
+  // Normal transitions have an exact lastStable match; a remount or otherwise
+  // unidentified stale request fails closed until a coherent evaluation arrives.
+  return EMPTY_CANVAS_PRESENTATION;
 };
 
 /**
