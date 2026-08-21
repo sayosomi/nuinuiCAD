@@ -122,18 +122,18 @@ describe("Module diagnostic related source information", () => {
     const source = [
       "nui 4",
       "module A() {",
+      "  module B() {",
+      "    instance toA = A()",
+      "  }",
       "  instance toB = B()",
-      "}",
-      "module B() {",
-      "  instance toA = A()",
       "}",
       "instance Use = A()"
     ].join("\n");
     const recursion = compileWithIds(source).diagnostics.filter((diagnostic) => diagnostic.code === "module-recursion");
 
     expect(recursion).toHaveLength(2);
-    expect(recursion.map((diagnostic) => spanText(source, diagnostic))).toEqual(["B", "A"]);
-    expect(recursion.map((diagnostic) => relatedTexts(source, diagnostic))).toEqual([["A"], ["B"]]);
+    expect(recursion.map((diagnostic) => spanText(source, diagnostic))).toEqual(["A", "B"]);
+    expect(recursion.map((diagnostic) => relatedTexts(source, diagnostic))).toEqual([["B"], ["A"]]);
   });
 
   it("does not duplicate the primary call site for self recursion", () => {
