@@ -90,7 +90,7 @@ describe("scanCallArgs", () => {
     expect(strictScan("call(x: 1,)").errors).toEqual([]);
   });
 
-  it("reports empty values and a missing space after a colon with precise spans", () => {
+  it("reports empty values while accepting compact named values with precise spans", () => {
     const source = "call(x: , y: 2, z:3)";
     const result = scan(source);
 
@@ -104,15 +104,17 @@ describe("scanCallArgs", () => {
       valueSpan: { start: source.indexOf("x:") + 3, end: source.indexOf("x:") + 3 },
       rawValueSpan: { start: source.indexOf("x:") + 2, end: source.indexOf("x:") + 3 },
     });
+    expect(result.args[2]).toEqual({
+      key: "z",
+      keySpan: spanOf(source, "z"),
+      value: "3",
+      valueSpan: spanOf(source, "3"),
+    });
     expect(result.errors).toEqual([
       {
         message: "引数「x」の値がありません。",
         span: { start: source.indexOf("x:") + 3, end: source.indexOf("x:") + 3 },
         code: "missing-attribute-value",
-      },
-      {
-        message: "引数「z」の「:」の後には空白が必要です。",
-        span: { start: source.indexOf("z:") + 1, end: source.indexOf("z:") + 2 },
       },
     ]);
   });
