@@ -131,4 +131,4 @@ Manual production smoke test after deploy:
 7. Confirm the Worker deploy output lists the `0 */12 * * *` scheduled trigger.
 8. Remove/archive the temporary Linear test issue as appropriate after verification.
 
-Production cutover was verified on 2026-08-21. The webhook smoke test passed, the scheduled `0 */12 * * *` trigger was deployed as Cloudflare Worker version `357c6ac2-2b9d-452b-b33e-5319c4089d9e`, and the old ChatGPT `Legacy Issue Mirror` automation was disabled. This Worker is the current automatic reconciliation owner.
+Production cutover was verified on 2026-08-21. The webhook smoke test passed, the scheduled `0 */12 * * *` trigger was deployed, and the old ChatGPT `Legacy Issue Mirror` automation was disabled. This Worker is the current automatic reconciliation owner.
