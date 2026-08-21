@@ -26,7 +26,10 @@ import {
 import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import { isValidPaletteColorId } from "../palette/palette";
 import { useCadDocumentStore, type SelectionSnapshot } from "../state/cadDocumentStore";
-import { useCadUiStore } from "../state/cadUiStore";
+import {
+  selectionEligibleElementIds,
+  useCadUiStore
+} from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
 import { getSelectedElement, getSelectedElementIds } from "./commandRuntime";
@@ -135,7 +138,10 @@ export const canvasSelectionForElement = (
   elementId: ElementId,
   selectionMode: CanvasSelectionMode
 ): SelectionSnapshot | null => {
-  if (!elements.some((element) => element.id === elementId)) return null;
+  const selectableIds = selectionEligibleElementIds(elements);
+  if (!selectableIds.has(elementId)) return null;
+  const selectableElements = elements.filter((element) => selectableIds.has(element.id));
+  const eligibleBeforeIds = selectionBefore.selectedElementIds.filter((id) => selectableIds.has(id));
 
   if (selectionMode === "replace") {
     return {
@@ -146,7 +152,7 @@ export const canvasSelectionForElement = (
   }
 
   if (selectionMode === "toggle") {
-    const selection = toggleSelectionIds([...elements], selectionBefore.selectedElementIds, elementId);
+    const selection = toggleSelectionIds([...selectableElements], eligibleBeforeIds, elementId);
     if (!selection) return null;
     return {
       selectedElementId: selection.selectedElementId,
@@ -155,8 +161,10 @@ export const canvasSelectionForElement = (
     };
   }
 
-  const anchorId = selectionBefore.selectionAnchorElementId ?? elementId;
-  const selectedElementIds = selectionRangeIds([...elements], anchorId, elementId);
+  const anchorId = selectionBefore.selectionAnchorElementId && selectableIds.has(selectionBefore.selectionAnchorElementId)
+    ? selectionBefore.selectionAnchorElementId
+    : elementId;
+  const selectedElementIds = selectionRangeIds([...selectableElements], anchorId, elementId);
   if (selectedElementIds.length === 0) return null;
   return {
     selectedElementId: elementId,
@@ -193,9 +201,10 @@ export const replaceCanvasSelection = (
   recordHistory = false
 ) => {
   const elements = useCadDocumentStore.getState().elements;
+  const selectableIds = selectionEligibleElementIds(elements);
   const requested = new Set(elementIds);
   const orderedIds = elements
-    .filter((element) => requested.has(element.id))
+    .filter((element) => requested.has(element.id) && selectableIds.has(element.id))
     .map((element) => element.id);
   if (orderedIds.length === 0) return false;
   const primaryId = primaryElementId && orderedIds.includes(primaryElementId)
@@ -216,8 +225,11 @@ export const clearCanvasSelection = (recordHistory = false) => {
 export const selectElementByOffset = (offset: number, recordHistory = false) => {
   const { elements } = useCadDocumentStore.getState();
   const { selectedElementId } = useCadUiStore.getState();
+  const selectableIds = selectionEligibleElementIds(elements);
+  const selectableOutlineElements = visibleOutlineElements(elements, useCadUiStore.getState().groupFoldById)
+    .filter((element) => selectableIds.has(element.id));
   const nextElementId = elementIdByOffset(
-    visibleOutlineElements(elements, useCadUiStore.getState().groupFoldById),
+    selectableOutlineElements,
     selectedElementId,
     offset
   );
@@ -230,7 +242,10 @@ export const selectElementByOffset = (offset: number, recordHistory = false) => 
 export const selectAllElements = (recordHistory = false) => {
   const { elements } = useCadDocumentStore.getState();
   const { selectedElementId } = useCadUiStore.getState();
-  const allElementIds = elements.map((element) => element.id);
+  const selectableIds = selectionEligibleElementIds(elements);
+  const allElementIds = elements
+    .filter((element) => selectableIds.has(element.id))
+    .map((element) => element.id);
   const primaryId =
     selectedElementId && allElementIds.includes(selectedElementId)
       ? selectedElementId
@@ -243,7 +258,9 @@ export const selectAllElements = (recordHistory = false) => {
 export const extendSelectionByOffset = (offset: number, recordHistory = false) => {
   const { elements } = useCadDocumentStore.getState();
   const { selectedElementId, selectionAnchorElementId } = useCadUiStore.getState();
-  const visibleElements = visibleOutlineElements(elements, useCadUiStore.getState().groupFoldById);
+  const selectableIds = selectionEligibleElementIds(elements);
+  const visibleElements = visibleOutlineElements(elements, useCadUiStore.getState().groupFoldById)
+    .filter((element) => selectableIds.has(element.id));
   const nextElementId = elementIdByOffset(visibleElements, selectedElementId, offset);
   if (!nextElementId) return;
 

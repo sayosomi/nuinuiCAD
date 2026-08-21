@@ -4,6 +4,7 @@ import { isElseExpanded, isFoldTargetExpanded, isGroupExpanded, isStatementExpan
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 import { startSession } from "../commands/commandLineSession";
 import type { CreationRecipe } from "../commands/creationRecipes";
+import type { CadElement } from "../types/geometry";
 
 const commandLineRecipe: CreationRecipe = {
   type: "line",
@@ -320,6 +321,134 @@ describe("cadUiStore element/binding selection mutual exclusion", () => {
     expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "binding", bindingId: "binding:x" });
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+  });
+});
+
+describe("cadUiStore activity-aware element selection", () => {
+  const elements: CadElement[] = [
+    { id: "visible", name: "Visible", type: "freePoint", activity: "visible", x: 0, y: 0 },
+    { id: "visible-second", name: "Visible Second", type: "freePoint", activity: "visible", x: 0, y: 1 },
+    { id: "hidden", name: "Hidden", type: "freePoint", activity: "hidden", x: 1, y: 0 },
+    { id: "disabled", name: "Disabled", type: "freePoint", activity: "disabled", x: 2, y: 0 },
+    { id: "hidden-group", name: "Hidden Group", type: "group", activity: "hidden" },
+    {
+      id: "hidden-child",
+      name: "Hidden Child",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "hidden-group",
+      x: 3,
+      y: 0
+    },
+    { id: "disabled-group", name: "Disabled Group", type: "group", activity: "disabled" },
+    {
+      id: "disabled-child",
+      name: "Disabled Child",
+      type: "freePoint",
+      activity: "visible",
+      parentGroupId: "disabled-group",
+      x: 4,
+      y: 0
+    },
+    {
+      id: "modifier-hidden",
+      name: "Modifier Hidden",
+      type: "freePoint",
+      activity: "visible",
+      modifierNames: ["hide"],
+      x: 5,
+      y: 0
+    },
+    {
+      id: "modifier-disabled",
+      name: "Modifier Disabled",
+      type: "freePoint",
+      activity: "visible",
+      modifierNames: ["disable"],
+      x: 6,
+      y: 0
+    },
+  ];
+
+  beforeEach(() => {
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.setState({ ...initialCadDocumentState(), elements });
+  });
+
+  it.each(["hidden", "disabled"] as const)("prunes directly %s elements", (activity) => {
+    useCadUiStore.getState().applySelection(elements, {
+      selectedElementId: activity,
+      selectedElementIds: [activity],
+      selectionAnchorElementId: activity
+    });
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
+  });
+
+  it("prunes children whose ancestor is hidden or disabled", () => {
+    useCadUiStore.getState().applySelection(elements, {
+      selectedElementId: "hidden-child",
+      selectedElementIds: ["hidden-child", "disabled-child"],
+      selectionAnchorElementId: "hidden-child"
+    });
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
+  });
+
+  it("uses Drawing Modifier state as selection activity", () => {
+    useCadDocumentStore.setState({
+      modifiers: [
+        { name: "hide", state: "hidden" },
+        { name: "disable", state: "disabled" }
+      ]
+    });
+    useCadUiStore.getState().applySelection(elements, {
+      selectedElementId: "modifier-hidden",
+      selectedElementIds: ["modifier-hidden", "modifier-disabled"],
+      selectionAnchorElementId: "modifier-disabled"
+    });
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
+  });
+
+  it("preserves eligible order and normalizes invalid primary and anchor", () => {
+    useCadUiStore.getState().applySelection(elements, {
+      selectedElementId: "hidden",
+      selectedElementIds: ["visible", "hidden", "visible-second"],
+      selectionAnchorElementId: "disabled"
+    });
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "visible",
+      selectedElementIds: ["visible", "visible-second"],
+      selectionAnchorElementId: "visible"
+    });
+  });
+
+  it("preserves the current selection for a direct hidden or disabled target attempt", () => {
+    useCadUiStore.getState().setSelectedElementId("visible");
+
+    useCadUiStore.getState().setSelectedElementId("hidden");
+    expect(useCadUiStore.getState().selectedElementId).toBe("visible");
+
+    useCadUiStore.getState().setSelectedElementId("disabled");
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "visible",
+      selectedElementIds: ["visible"],
+      selectionAnchorElementId: "visible"
+    });
   });
 });
 

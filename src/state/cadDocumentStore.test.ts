@@ -124,7 +124,7 @@ describe("cadDocumentStore file state", () => {
     };
     commitDocumentChangeAndSelect({
       elements: before.elements.map((element, index) =>
-        index === 0 ? { ...element, activity: "disabled" } : element
+        index === 1 ? { ...element, activity: "disabled" } : element
       )
     }, afterSelection);
 

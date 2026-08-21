@@ -7,11 +7,17 @@ import { useCadDocumentStore } from "./cadDocumentStore";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import type { CommandLineSession } from "../commands/commandLineSession";
 import type { SourceCreationInsertion } from "../commands/sourceCreationInsertion";
-import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
+import type {
+  CadElement,
+  DrawingModifierDefinition,
+  ElementId,
+  PointAnchor
+} from "../types/geometry";
 import { isGroupExpanded } from "../model/groups";
 import type { FoldTarget, GroupFoldById, GroupFoldState } from "../model/groups";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
+import { effectiveElementActivity, effectiveElementActivityById } from "../model/elementActivity";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
 export type MeasurementPointSlot = "point1" | "point2";
@@ -110,6 +116,31 @@ const uniqueElementIds = (ids: ElementId[]) => Array.from(new Set(ids));
 
 const currentDocumentElements = () => useCadDocumentStore.getState().elements;
 
+const currentDocumentDrawingModifiers = () => useCadDocumentStore.getState().modifiers ?? [];
+
+/**
+ * Shared Canvas/source selection eligibility. Activity is the only semantic
+ * gate here: selection does not depend on computed geometry, drawing bounds,
+ * evaluation order, or presentation-only visibility state.
+ */
+export const selectionEligibleElementIds = (
+  elements: readonly CadElement[],
+  drawingModifiers: readonly DrawingModifierDefinition[] = currentDocumentDrawingModifiers()
+) => {
+  const activities = effectiveElementActivityById(elements, drawingModifiers);
+  return new Set(
+    elements
+      .filter((element) => effectiveElementActivity(element, activities).activity === "visible")
+      .map((element) => element.id)
+  );
+};
+
+export const isElementSelectionEligible = (
+  elements: readonly CadElement[],
+  elementId: ElementId,
+  drawingModifiers: readonly DrawingModifierDefinition[] = currentDocumentDrawingModifiers()
+) => selectionEligibleElementIds(elements, drawingModifiers).has(elementId);
+
 export type CadElementSelection = {
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
@@ -129,13 +160,15 @@ export type CadSelectionSubject =
   | { kind: "binding"; bindingId: BindingId };
 
 const normalizedSelection = (
-  elements: CadElement[],
+  elements: readonly CadElement[],
   selection: CadElementSelection
 ): CadElementSelection => {
   const existingIds = new Set(elements.map((element) => element.id));
-  const selectedElementIds = uniqueElementIds(selection.selectedElementIds).filter((id) => existingIds.has(id));
+  const selectableIds = selectionEligibleElementIds(elements);
+  const selectedElementIds = uniqueElementIds(selection.selectedElementIds)
+    .filter((id) => existingIds.has(id) && selectableIds.has(id));
   const selectedElementId =
-    selection.selectedElementId && existingIds.has(selection.selectedElementId)
+    selection.selectedElementId && existingIds.has(selection.selectedElementId) && selectableIds.has(selection.selectedElementId)
       ? selection.selectedElementId
       : selectedElementIds[0] ?? null;
   const normalizedIds =
@@ -143,7 +176,9 @@ const normalizedSelection = (
       ? [...selectedElementIds, selectedElementId]
       : selectedElementIds;
   const selectionAnchorElementId =
-    selection.selectionAnchorElementId && existingIds.has(selection.selectionAnchorElementId)
+    selection.selectionAnchorElementId &&
+    existingIds.has(selection.selectionAnchorElementId) &&
+    selectableIds.has(selection.selectionAnchorElementId)
       ? selection.selectionAnchorElementId
       : selectedElementId;
   return {
@@ -600,14 +635,21 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
           })
     ),
   setSelectedElementId: (selectedElementId) =>
-    set(() => ({
-      ...normalizedSelection(currentDocumentElements(), {
-        selectedElementId,
-        selectedElementIds: selectedElementId ? [selectedElementId] : [],
-        selectionAnchorElementId: selectedElementId
-      }),
-      selectionSubject: { kind: "elements" }
-    })),
+    set(() => {
+      const elements = currentDocumentElements();
+      // A direct single-target attempt against an ineligible element is a
+      // no-op. In particular, it must not turn an existing valid selection
+      // into an implicit clear.
+      if (selectedElementId !== null && !isElementSelectionEligible(elements, selectedElementId)) return {};
+      return {
+        ...normalizedSelection(elements, {
+          selectedElementId,
+          selectedElementIds: selectedElementId ? [selectedElementId] : [],
+          selectionAnchorElementId: selectedElementId
+        }),
+        selectionSubject: { kind: "elements" }
+      };
+    }),
   setSelectedElementIds: (selectedElementIds, primaryId) =>
     set(() => ({
       ...normalizedSelection(currentDocumentElements(), {
