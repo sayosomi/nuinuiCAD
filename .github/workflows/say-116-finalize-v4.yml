@@ -95,3 +95,5 @@ jobs:
             src/dsl/dslUnknownNameDiagnostics.test.ts
           git commit -m "feat: finalize typo matcher diagnostics (SAY-116)"
           git push origin HEAD:sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
+
+# trigger-after-registration
