@@ -3,6 +3,7 @@ import {
   dslCallAuthoringContextAt,
   projectDslCallAuthoringRange
 } from "./dslCallAuthoringContext";
+import { dslStatementKeywordCompletions } from "./dslParser";
 
 const snapshotFor = (source: string) => ({ normalizedSource: source, sourceRevision: 1 });
 
@@ -91,7 +92,16 @@ describe("dslCallAuthoringContextAt", () => {
     const context = dslCallAuthoringContextAt(snapshotFor(source), position);
 
     expect(context?.usedArgumentNames).toEqual(new Set(["y"]));
-    expect(context?.argument.index).toBe(1);
+    expect(context?.argument.index).toBe(0);
+  });
+
+  it("uses the parser-owned statement keyword authority for tolerant boundaries", () => {
+    for (const keyword of dslStatementKeywordCompletions) {
+      const source = `nui 4\npoint P = coordinate(\n\n${keyword}\n)`;
+      const position = source.length - 1;
+
+      expect(dslCallAuthoringContextAt(snapshotFor(source), position), keyword).toBeNull();
+    }
   });
 
   it("fails closed for comments, quoted text, and unrelated code after the boundary", () => {

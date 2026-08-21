@@ -1,8 +1,7 @@
 import {
   matchingDslDelimiter,
   scanCallArgs,
-  scanDslNesting,
-  type ScannedArg
+  scanDslNesting
 } from "./dslArgScanner";
 import { dslCompletionContextAt } from "./dslCompletionContext";
 import {
@@ -10,6 +9,7 @@ import {
   type LogicalStatement,
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
+import { dslStatementKeywordCompletions } from "./dslParser";
 import { getBuiltinFunctionDefinition } from "../scalars/builtinFunctions";
 import { isBareDslIdentifierChar } from "./dslTokens";
 
@@ -99,7 +99,6 @@ const currentArgumentFrom = (
   open: number,
   end: number,
   position: number,
-  scanned: readonly ScannedArg[],
   kind: DslCallAuthoringContext["kind"]
 ): DslCallAuthoringArgument => {
   const commas = scanDslNesting(source, { start: open + 1, end }).topLevelCommas;
@@ -108,17 +107,7 @@ const currentArgumentFrom = (
   const segmentFrom = (previousComma ?? open) + 1;
   const segmentTo = nextComma ?? end;
   const segment = { from: segmentFrom, to: segmentTo };
-  const containingIndex = scanned.findIndex((argument) => {
-    const keyEnd = argument.keySpan?.end ?? -1;
-    const value = argument.valueSpan.start === argument.valueSpan.end && argument.rawValueSpan
-      ? argument.rawValueSpan
-      : argument.valueSpan;
-    return (
-      (argument.keySpan && position >= argument.keySpan.start && position <= keyEnd) ||
-      (position >= value.start && position <= value.end)
-    );
-  });
-  const index = containingIndex >= 0 ? containingIndex : scanned.length;
+  const index = commas.filter((comma) => comma < position).length;
   const prefixEnd = Math.min(position, segmentTo);
   const prefix = source.slice(segmentFrom, prefixEnd);
   const named = /^\s*([^\s"'#=()[\]{},;:]+)\s*:/.exec(prefix);
@@ -146,7 +135,8 @@ const isUnsafeCurrentFragment = (fragment: string) => {
   const trimmed = fragment.trim();
   if (!trimmed) return false;
   if (/[{};]/.test(trimmed) || /(^|[^=!<>])=([^=]|$)/.test(trimmed)) return true;
-  return /^(?:nui|module|instance|const|let|set|point|line|curve|arc|text|image|group|if|for|edge|extend|move|mirrorMove|reverse|place|layout|print|svg)(?:\s|$)/.test(trimmed);
+  const leadingKeyword = /^[A-Za-z_][A-Za-z0-9_]*/.exec(trimmed)?.[0];
+  return leadingKeyword !== undefined && dslStatementKeywordCompletions.some((keyword) => keyword === leadingKeyword);
 };
 
 const appendPhysicalSegment = (
@@ -323,7 +313,7 @@ export const dslCallAuthoringContextAt = (
   const logicalCursorPosition = logicalText.length;
   const contentEnd = closePhysical >= 0 ? closePhysical : Math.max(position, openPhysical + 1);
   const scanned = scanCallArgs(codeSource, { start: openPhysical + 1, end: contentEnd });
-  const argument = currentArgumentFrom(codeSource, openPhysical, contentEnd, position, scanned.args, kind);
+  const argument = currentArgumentFrom(codeSource, openPhysical, contentEnd, position, kind);
   const usedArgumentNames = new Set(
     scanned.args
       .map((candidate) => candidate.key)
