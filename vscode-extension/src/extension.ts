@@ -260,9 +260,9 @@ const activeEditorTabInput = (): vscode.Tab["input"] | undefined =>
   vscode.window.tabGroups.activeTabGroup.activeTab?.input;
 
 const nuiCanvasViewType = "nuinuiCAD.canvas";
-const dynamicNuiCanvasViewType = `mainThreadWebview-${nuinuiCAD.canvas}`;
+const dynamicNuiCanvasViewType = `mainThreadWebview-${nuiCanvasViewType}`;
 const nuiOutputPreviewViewType = "nuinuiCAD.outputPreview";
-const dynamicNuiOutputPreviewViewType = `mainThreadWebview-${nuinuiCAD.outputPreview}`;
+const dynamicNuiOutputPreviewViewType = `mainThreadWebview-${nuiOutputPreviewViewType}`;
 
 const providerViewTypeForTabInput = (viewType: string): string =>
   viewType === dynamicNuiCanvasViewType
