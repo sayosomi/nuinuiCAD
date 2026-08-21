@@ -15,7 +15,7 @@ const source = [
   "  place @G(at: (0, 0))",
   "}",
   "svg Vector(layout: @L, margin: 2)",
-  "print Paper(layout: @L, paper: a4, margin: 10, overlap: 5)"
+  "print Paper(layout: @L, paper: a4, overlap: 5)"
 ].join("\n");
 
 const multilineOutputSource = [
@@ -29,7 +29,6 @@ const multilineOutputSource = [
   "print Paper(",
   "  layout: @L,",
   "  paper: a4,",
-  "  margin: 10,",
   "  overlap: 5,",
   ")",
   "svg Vector(",

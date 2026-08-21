@@ -29,7 +29,6 @@ const source = [
   "print A(",
   "  layout: @L,",
   "  paper: a4,",
-  "  margin: 10,",
   "  overlap: 5,",
   ")",
   "svg B(",
@@ -39,7 +38,7 @@ const source = [
 ].join("\n");
 
 const printSourceWithoutB = source.slice(0, source.indexOf("svg B("));
-const repairedSource = source.replace("margin: 10", "margin: 20");
+const repairedSource = source.replace("overlap: 5", "overlap: 20");
 
 const bounds = { minX: 0, minY: 0, maxX: 20, maxY: 20, width: 20, height: 20 };
 
@@ -47,13 +46,16 @@ type TestOutput = {
   id: string;
   name: string;
   layoutId: string;
-  margin: number | { kind: "expression"; expression: string };
+  margin?: number | { kind: "expression"; expression: string };
   paper?: "a4" | "a3";
+  overlap?: number | { kind: "expression"; expression: string };
 };
 
 const planFor = (output: TestOutput): OutputPlan => {
   const isPrint = output.paper !== undefined;
-  const margin = typeof output.margin === "number" ? output.margin : 1;
+  const margin = isPrint
+    ? typeof output.overlap === "number" ? output.overlap : 1
+    : typeof output.margin === "number" ? output.margin : 1;
   const drawable = {
     kind: "line" as const,
     elementId: "AB",
@@ -198,8 +200,8 @@ describe("Output Preview application", () => {
     });
 
     const state = useCadDocumentStore.getState();
-    const from = source.indexOf("margin: 10");
-    const to = from + "margin: 10".length;
+    const from = source.indexOf("overlap: 5");
+    const to = from + "overlap: 5".length;
     useCadDocumentStore.setState({
       diagnostics: [{
         severity: "error",
@@ -207,7 +209,7 @@ describe("Output Preview application", () => {
         column: 3,
         message: "output value failed",
         physicalSpan: { segments: [{ from, to }], sourceRevision: state.currentSourceRevision },
-        navigationTarget: { kind: "property", occurrenceKey: "output:margin" }
+        navigationTarget: { kind: "property", occurrenceKey: "output:overlap" }
       }]
     });
 
