@@ -90,7 +90,9 @@ type DocumentSession = {
   inFlightCanvasNavigation: {
     requestId: number;
     documentVersion: number;
+    focusSent: boolean;
   } | null;
+  pendingCanvasFocus: { requestId: number } | null;
   pendingSourceDefinitionRequest: { requestId: number } | null;
 };
 
@@ -512,6 +514,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 
   const resync = (session: DocumentSession): void => {
+    session.pendingCanvasFocus = null;
     if (sessions.get(session.key) !== session || !isOpenDocument(session.document)) return;
     session.authoritativeDocumentVersion = null;
     postAuthoritativeDocument(session.panel, session.document);
@@ -527,9 +530,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
       canvasHistoryHandoffSession !== null
     ) return;
     session.pendingCanvasNavigation = null;
+    session.pendingCanvasFocus = null;
     session.inFlightCanvasNavigation = {
       requestId: pending.requestId,
-      documentVersion: pending.documentVersion
+      documentVersion: pending.documentVersion,
+      focusSent: false
     };
     void session.panel.webview.postMessage({
       type: "canvasNavigationRequest",
@@ -608,6 +613,24 @@ export const activate = (context: vscode.ExtensionContext): void => {
     clearCanvasHistoryHandoff(session);
   };
 
+  const flushPendingCanvasFocus = (session: DocumentSession): void => {
+    const pending = session.pendingCanvasFocus;
+    const inFlight = session.inFlightCanvasNavigation;
+    if (!pending) return;
+    if (!inFlight || inFlight.requestId !== pending.requestId) {
+      session.pendingCanvasFocus = null;
+      return;
+    }
+    if (!session.panel.active) return;
+    if (inFlight.focusSent) {
+      session.pendingCanvasFocus = null;
+      return;
+    }
+    session.pendingCanvasFocus = null;
+    inFlight.focusSent = true;
+    void session.panel.webview.postMessage({ type: "focusCanvas", requestId: pending.requestId } satisfies ExtensionToVscodeMessage);
+  };
+
   const handleCanvasNavigationResult = (
     session: DocumentSession,
     message: Extract<VscodeToExtensionMessage, { type: "canvasNavigationResult" }>
@@ -620,17 +643,22 @@ export const activate = (context: vscode.ExtensionContext): void => {
         session.inFlightCanvasHistory !== null ||
         canvasHistoryHandoffSession !== null
       ) {
+        session.pendingCanvasFocus = null;
         session.inFlightCanvasNavigation = null;
         return;
       }
+      if (inFlight.focusSent) return;
+      session.pendingCanvasFocus = { requestId: message.requestId };
       session.panel.reveal(vscode.ViewColumn.Beside, false);
-      void session.panel.webview.postMessage({ type: "focusCanvas", requestId: message.requestId } satisfies ExtensionToVscodeMessage);
+      flushPendingCanvasFocus(session);
       return;
     }
     if (message.status === "focused") {
+      session.pendingCanvasFocus = null;
       session.inFlightCanvasNavigation = null;
       return;
     }
+    session.pendingCanvasFocus = null;
     session.inFlightCanvasNavigation = null;
     deliverPendingCanvasNavigation(session);
   };
@@ -726,6 +754,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     session: DocumentSession,
     message: Extract<VscodeToExtensionMessage, { type: "canvasHistoryRequest" }>
   ): Promise<void> => {
+    session.pendingCanvasFocus = null;
     const postResult = (status: "completed" | "resynced" | "failed") => {
       void session.panel.webview.postMessage({
         type: "canvasHistoryResult",
@@ -736,6 +765,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     };
     let sourceEditorActivated = false;
     const failClosed = (status: "resynced" | "failed") => {
+      session.pendingCanvasFocus = null;
       session.inFlightCanvasHistory = null;
       resync(session);
       postResult(status);
@@ -772,6 +802,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       changeObserved: false,
       commandCompleted: false
     };
+    session.pendingCanvasFocus = null;
     canvasHistoryHandoffSession = session;
     try {
       await setCanvasHistoryHandoffContext(true);
@@ -808,6 +839,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (lastActiveCanvasSession === session) lastActiveCanvasSession = null;
     if (lastBakeSurface?.kind === "canvas" && lastBakeSurface.session === session) lastBakeSurface = null;
     session.inFlightCanvasHistory = null;
+    session.pendingCanvasFocus = null;
     clearCanvasHistoryHandoff(session);
     sessions.delete(session.key);
     disposeSessionListeners(session);
@@ -869,6 +901,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       pendingCanvasNavigation: null,
       pendingBake: null,
       inFlightCanvasNavigation: null,
+      pendingCanvasFocus: null,
       pendingSourceDefinitionRequest: null
     };
     sessions.set(key, session);
@@ -884,6 +917,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
           session.authoritativeDocumentVersion = null;
           session.pendingCanvasNavigation = null;
           session.pendingBake = null;
+          session.pendingCanvasFocus = null;
           session.inFlightCanvasNavigation = null;
           session.pendingSourceDefinitionRequest = null;
 
@@ -917,12 +951,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
         rememberBakeCanvas(session);
       }
       if (panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
+      flushPendingCanvasFocus(session);
     }));
 
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "webviewReady") {
         session.webviewReady = true;
         session.authoritativeDocumentVersion = null;
+        session.pendingCanvasFocus = null;
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
@@ -1133,6 +1169,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       documentVersion: document.version,
       normalizedSourceOffset
     };
+    session.pendingCanvasFocus = null;
     session.panel.reveal(vscode.ViewColumn.Beside, true);
     deliverPendingCanvasNavigation(session);
   };
