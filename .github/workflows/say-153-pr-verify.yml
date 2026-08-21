@@ -1,0 +1,139 @@
+name: SAY-153 PR Verify
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    if: github.head_ref == 'sayosomi/say-153-headless-mcp-foundation-stdio-server-document_inspect'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: sayosomi/say-153-headless-mcp-foundation-stdio-server-document_inspect
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Complete repository integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement target, found {count}")
+              file.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "scripts/ci/classifyChanges.mjs",
+              '''  if (path.startsWith("src/") ||
+              path.startsWith("test/") ||
+              path.startsWith("vscode-extension/") ||''',
+              '''  if (path.startsWith("src/") ||
+              path.startsWith("test/") ||
+              path.startsWith("mcp-server/") ||
+              path.startsWith("vscode-extension/") ||'''
+          )
+
+          replace_once(
+              "scripts/ci/classifyChanges.node-test.mjs",
+              '''  {
+              name: "ordinary Canvas/UI TypeScript",
+              paths: ["src/components/Canvas.tsx"],
+              expected: flags({ node: true, vscode: true })
+            },''',
+              '''  {
+              name: "MCP server source and tests",
+              paths: ["mcp-server/src/server.ts", "mcp-server/test/stdio.test.ts"],
+              expected: flags({ node: true })
+            },
+            {
+              name: "ordinary Canvas/UI TypeScript",
+              paths: ["src/components/Canvas.tsx"],
+              expected: flags({ node: true, vscode: true })
+            },'''
+          )
+
+          replace_once(
+              "ARCHITECTURE.md",
+              '''`AutomationDocument` は既存の parser、statement reconciler、compiler、Module
+            semantic / materialization path をそのまま利用し、materialized Module children
+            を source representation に flatten しない。Future Evaluation Context や
+            Headless Rust はこの architecture の current component ではない。
+
+            ### Compilation / source mutation''',
+              '''`AutomationDocument` は既存の parser、statement reconciler、compiler、Module
+            semantic / materialization path をそのまま利用し、materialized Module children
+            を source representation に flatten しない。Headless MCP の fresh file snapshot
+            もこの facade を利用し、fatal current source では `currentCompiled` の diagnostics
+            だけを返して last-good `doc` を current semantics として公開しない。
+
+            ### Headless MCP
+
+            Primary:
+
+            - `mcp-server/src/server.ts`
+            - `mcp-server/src/documentSnapshot.ts`
+
+            Repository-owned MCP server は Node の直接 entry
+            `mcp-server/dist/server.js` を stdio transport で起動する。stdout は MCP protocol
+            専用で、server diagnostics は stderr に出す。`document_inspect` は absolute
+            file-backed `.nui` を call ごとに disk から fresh read し、SHA-256 source identity、
+            exact-current compile status / diagnostics、compact declaration / element summary を
+            JSON-friendly DTO として返す。Mutable document registry、Rust evaluation、VS Code
+            attached observation、source mutation はこの boundary の owner ではない。
+
+            ### Compilation / source mutation'''
+          )
+          PY
+
+      - name: Update lockfile
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test change classifier
+        run: node --test scripts/ci/classifyChanges.node-test.mjs
+
+      - name: Focused MCP tests
+        run: npm test -- mcp-server/test/documentSnapshot.test.ts mcp-server/test/stdio.test.ts
+
+      - name: Build MCP
+        run: npm run build:mcp
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Diff check
+        run: git diff --check
+
+      - name: Commit verified integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- package-lock.json ARCHITECTURE.md scripts/ci/classifyChanges.mjs scripts/ci/classifyChanges.node-test.mjs
+          git rm .github/workflows/say-153-verify.yml .github/workflows/say-153-pr-verify.yml
+          git commit -m "chore: integrate and verify MCP server"
+          git push origin HEAD:sayosomi/say-153-headless-mcp-foundation-stdio-server-document_inspect
