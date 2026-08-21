@@ -30,6 +30,7 @@ import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
+import { vscodeCanvasContextDataFor } from "./protocol";
 
 type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -187,6 +188,15 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       activeNumericReferencePickTarget,
       activeLinePickTarget,
       commandLineSession,
+      canvasContextMenuData: vscodeCanvasContextDataFor("blank", selectedElementIds.length > 0),
+      publishCanvasContextMenu: ({ kind }) => {
+        const viewport = canvasFocusRef.current;
+        if (!viewport) return;
+        viewport.dataset.vscodeContext = vscodeCanvasContextDataFor(
+          kind,
+          useCadUiStore.getState().selectedElementIds.length > 0
+        );
+      },
       flushSourceEditorOnCanvasPointerDown: () => "clean",
       setCommandErrorMessage: (message) => useCadUiStore.getState().setCommandErrorMessage(message),
       focusSourceEditor: () => undefined,

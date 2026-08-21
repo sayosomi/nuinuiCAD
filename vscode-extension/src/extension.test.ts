@@ -619,6 +619,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor();
 
     expect(panel.webview.html).toContain('<body class="vscode-canvas-webview">');
+    expect(panel.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
   });
 
   it("reuses and reveals the existing panel when the same document command runs twice", () => {
@@ -1523,6 +1524,30 @@ describe("VS Code production document lifecycle", () => {
 });
 
 describe("VS Code explicit Canvas navigation lifecycle", () => {
+  const prepareNavigation = async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/navigation-focus.nui", "file:///tmp/navigation-focus.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 1, character: source.split("\n")[1]!.indexOf("A") };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    const navigationRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasNavigationRequest")
+      .at(-1) as { requestId: number };
+    return { document, panel, navigationRequest };
+  };
+
+  const focusMessagesFor = (panel: TestPanel) => panel.webview.postMessage.mock.calls
+    .map(([message]) => message)
+    .filter((message) => message?.type === "focusCanvas");
+
   it("does not open Canvas when the source cursor has no runtime target", () => {
     const source = "nui 4\n// comment only";
     const document = documentFor("/tmp/no-target.nui", "file:///tmp/no-target.nui", source);
@@ -1567,6 +1592,182 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       documentVersion: 1,
       normalizedSourceOffset: source.indexOf("A")
     });
+  });
+
+  it("defers Canvas focus while the destination panel is inactive", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+    panel.reveal.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+  });
+
+  it("flushes one deferred Canvas focus when the destination becomes active", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+
+    expect(focusMessagesFor(panel)).toEqual([{
+      type: "focusCanvas",
+      requestId: navigationRequest.requestId
+    }]);
+  });
+
+  it("does not duplicate deferred Canvas focus for repeated active view-state events", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+
+    panel.active = true;
+    const viewStateHandler = (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler;
+    viewStateHandler();
+    viewStateHandler();
+
+    expect(focusMessagesFor(panel)).toHaveLength(1);
+  });
+
+  it("sends Canvas focus immediately when the destination panel is already active", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.webview.postMessage.mockClear();
+    panel.reveal.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(focusMessagesFor(panel)).toEqual([{
+      type: "focusCanvas",
+      requestId: navigationRequest.requestId
+    }]);
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    expect(focusMessagesFor(panel)).toHaveLength(1);
+  });
+
+  it("clears deferred Canvas focus when navigation completes", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "focused"
+    });
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+  });
+
+  it("prevents a superseded deferred request from focusing the Canvas", async () => {
+    const { panel, navigationRequest: firstRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: firstRequest.requestId,
+      status: "ready"
+    });
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    const secondRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasNavigationRequest")
+      .at(-1) as { requestId: number };
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: firstRequest.requestId,
+      status: "ready"
+    });
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: secondRequest.requestId,
+      status: "ready"
+    });
+    expect(focusMessagesFor(panel)).toEqual([{
+      type: "focusCanvas",
+      requestId: secondRequest.requestId
+    }]);
+  });
+
+  it("prevents an invalidated deferred request from focusing after a document reset", async () => {
+    const { document, panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+    document.version = 2;
+    emitDocumentChange(document);
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+  });
+
+  it("clears deferred Canvas focus when navigation becomes stale", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "stale"
+    });
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+
+    expect(focusMessagesFor(panel)).toHaveLength(0);
   });
 
   it("keeps Reveal and Canvas-to-Source navigation isolated per document session", async () => {

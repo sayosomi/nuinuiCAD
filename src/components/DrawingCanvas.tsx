@@ -2,6 +2,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   RefObject,
   KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
   WheelEvent as ReactWheelEvent
 } from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState } from "react";
@@ -1405,6 +1406,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     hostAdapter.clearCanvasSelection();
   };
 
+  const handleContextMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const screen = {
+      x: event.clientX - rect.left - event.currentTarget.clientLeft,
+      y: event.clientY - rect.top - event.currentTarget.clientTop
+    };
+    hostAdapter.publishCanvasContextMenu?.({
+      kind: hitCandidatesAt(screen).length > 0 ? "element" : "blank"
+    });
+  };
+
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const pointerMoveEntry = capturePointerMoveEntry();
     if (pendingPointerStateRef.current.kind === "waiting") {
@@ -1535,7 +1547,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         ref={canvasFocusRef}
         tabIndex={-1}
         data-canvas-viewport="true"
+        data-vscode-context={hostAdapter.canvasContextMenuData}
         onKeyDown={handleCanvasKeyDown}
+        onContextMenu={handleContextMenu}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

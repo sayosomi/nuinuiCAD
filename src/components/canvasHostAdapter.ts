@@ -25,6 +25,8 @@ import type { CanvasTheme } from "./canvasTheme";
 export type CanvasCommitMode = "preview" | "commit";
 export type { CanvasSelectionMode };
 
+export type CanvasContextMenuKind = "blank" | "element";
+
 export type CanvasPointDragAction = {
   elementId: ElementId;
   dx: number;
@@ -78,6 +80,9 @@ export type CanvasHostAdapter = {
   showCanvasPoints: boolean;
   /** Whether the host wants the shared fixed Canvas controls/status chrome. */
   renderFixedCanvasChrome?: boolean;
+  /** Optional host projection for the semantic context of the latest right click. */
+  canvasContextMenuData?: string;
+  publishCanvasContextMenu?: (context: { kind: CanvasContextMenuKind }) => void;
   activePointPickTarget: ActivePointPickTarget | null;
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;

@@ -4,6 +4,31 @@ import type { LineSplice } from "../document/textPatch";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 
+export const vscodeWebviewSurfaceKinds = ["canvas", "outputPreview"] as const;
+export type VscodeWebviewSurfaceKind = (typeof vscodeWebviewSurfaceKinds)[number];
+
+export const vscodeWebviewSurfaceDataAttribute = "data-nuinui-surface";
+
+export type VscodeCanvasContextMenuKind = "blank" | "element" | "ribbon";
+
+export const vscodeCanvasContextDataFor = (
+  kind: VscodeCanvasContextMenuKind,
+  hasSelection: boolean
+): string => JSON.stringify({
+  webviewSection: kind,
+  "nuinuiCAD.canvasHasSelection": hasSelection,
+  preventDefaultContextMenuItems: true
+});
+
+export const vscodeCanvasRibbonContextData = vscodeCanvasContextDataFor("ribbon", false);
+
+export const isVscodeWebviewSurfaceKind = (value: unknown): value is VscodeWebviewSurfaceKind =>
+  typeof value === "string" &&
+  (vscodeWebviewSurfaceKinds as readonly string[]).includes(value);
+
+export const parseVscodeWebviewSurfaceKind = (value: unknown): VscodeWebviewSurfaceKind | null =>
+  isVscodeWebviewSurfaceKind(value) ? value : null;
+
 export type VscodeRustEvaluationRequest = {
   type: "rustEvaluationRequest";
   id: number;
