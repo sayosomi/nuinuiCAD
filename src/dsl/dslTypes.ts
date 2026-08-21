@@ -43,6 +43,11 @@ export type DslDiagnosticNavigationTarget =
    * no-ops rather than falling back to any other position. */
   | { kind: "sourceSpan"; physicalSpan: DslPhysicalSpan };
 
+export type DslDiagnosticRelatedInformation = {
+  message: string;
+  physicalSpan: DslPhysicalSpan;
+};
+
 export type DslDiagnostic = {
   severity: "error" | "warning";
   line: number;
@@ -50,6 +55,8 @@ export type DslDiagnostic = {
   message: string;
   sourceRevision?: SourceRevision;
   physicalSpan?: DslPhysicalSpan;
+  /** Exact current source locations that explain the diagnostic's direct cause. */
+  relatedInformation?: readonly DslDiagnosticRelatedInformation[];
   /** Stable machine-readable identifier (e.g. Quick Fix routing). Optional; most diagnostics don't set one yet. */
   code?: string;
   /** Task 15's declared/typechecked type context for a scalar-type-mismatch-style diagnostic. */
