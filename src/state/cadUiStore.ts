@@ -119,6 +119,21 @@ const currentDocumentElements = () => useCadDocumentStore.getState().elements;
 const currentDocumentDrawingModifiers = () => useCadDocumentStore.getState().modifiers ?? [];
 
 /**
+ * A live editor compile may intentionally publish a partial document while a
+ * recoverable error (notably missing-attribute-value) is still present. That
+ * snapshot is useful for diagnostics/completion, but it is not authoritative
+ * enough to prune Canvas selection. The next error-free editor snapshot runs
+ * normal reconciliation again, so intentional delete/hidden/disabled changes
+ * still clear selection once they are authoritative.
+ */
+const selectionReconciliationWaitsForEditorRecovery = () => {
+  const documentState = useCadDocumentStore.getState();
+  if (documentState.sourceUpdate.kind !== "editor") return false;
+  return documentState.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    documentState.bindingIssueDiagnostics.some((diagnostic) => diagnostic.severity === "error");
+};
+
+/**
  * Shared Canvas/source selection eligibility. Activity is the only semantic
  * gate here: selection does not depend on computed geometry, drawing bounds,
  * evaluation order, or presentation-only visibility state.
@@ -626,7 +641,9 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     set((state) =>
       // A typed binding is the active subject: element selection was deliberately
       // cleared (setSelectedBindingId) && must stay cleared on document recompile.
-      state.selectionSubject.kind === "binding"
+      // An errorful live-editor snapshot is likewise non-authoritative for
+      // selection pruning; the next error-free editor revision reconciles it.
+      state.selectionSubject.kind === "binding" || selectionReconciliationWaitsForEditorRecovery()
         ? {}
         : normalizedSelection(elements, {
             selectedElementId: state.selectedElementId,
