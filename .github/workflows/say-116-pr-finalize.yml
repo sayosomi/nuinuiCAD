@@ -43,8 +43,14 @@ jobs:
           anchor = "  });\n  const baseDiagnostics = ["
           insertion = "\n".join([
               "  });",
+              "  const exactCompilerUnknownNameDiagnosticCodes = new Set([",
+              "    \"unknown-type\",",
+              "    \"unknown-construction\",",
+              "    \"unknown-construction-argument\",",
+              "    \"undefined-geometry-reference\"",
+              "  ]);",
               "  const compilerDiagnosticsForDocument = compiled.diagnostics.map((diagnostic, index) =>",
-              "    diagnostic.code === \"undefined-geometry-reference\"",
+              "    exactCompilerUnknownNameDiagnosticCodes.has(diagnostic.code ?? \"\")",
               "      ? (projectedCompilerDiagnostics[index] ?? diagnostic)",
               "      : diagnostic",
               "  );",
