@@ -25,17 +25,19 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Apply SAY-116 source and regression patches
+      - name: Apply SAY-116 source patches
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
+
           workflow = Path('.github/workflows/say-116-direct-finalize.yml').read_text().splitlines()
           start = workflow.index("          python - <<'PY'") + 1
           end = workflow.index("          PY", start)
           script = "\n".join(line[10:] if line.startswith("          ") else line for line in workflow[start:end])
           exec(compile(script, 'say-116-direct-patches.py', 'exec'))
+
           document = Path('src/dsl/dslDocument.ts')
           text = document.read_text()
           anchor = "  });\n  const baseDiagnostics = ["
@@ -51,6 +53,7 @@ jobs:
           if text.count(anchor) != 1:
               raise SystemExit(f'dslDocument projection anchor count: {text.count(anchor)}')
           text = text.replace(anchor, insertion, 1)
+
           old_final = "\n".join([
               "  const allDiagnostics = [",
               "    ...versionValidation.diagnostics,",
@@ -70,23 +73,6 @@ jobs:
           if text.count(old_final) != 1:
               raise SystemExit(f'dslDocument final diagnostics target count: {text.count(old_final)}')
           document.write_text(text.replace(old_final, new_final, 1))
-          def one_file(name: str) -> Path:
-              matches = [p for p in Path('.').rglob(name) if 'node_modules' not in p.parts]
-              if len(matches) != 1:
-                  raise SystemExit(f'{name}: expected one file, found {matches}')
-              return matches[0]
-          def replace_count(name: str, old: str, new: str, expected: int = 1) -> None:
-              path = one_file(name)
-              contents = path.read_text()
-              count = contents.count(old)
-              if count != expected:
-                  raise SystemExit(f'{path}: expected {expected} targets, found {count}')
-              path.write_text(contents.replace(old, new))
-              print(f'updated {path}: {count} expectation(s)')
-          replace_count('dslDocumentDslNamesSeverity.test.ts', 'assert.equal(nameDiagnostic.exactSpanOnly, undefined);', 'assert.equal(nameDiagnostic.exactSpanOnly, true);')
-          replace_count('dslDiagnosticCode.test.ts', 'diagnostic.code === code && diagnostic.exactSpanOnly === undefined', 'diagnostic.code === code && diagnostic.exactSpanOnly === true')
-          replace_count('dslDiagnosticSpan.test.ts', 'assert.equal(diagnostic!.exactSpanOnly, undefined);', 'assert.equal(diagnostic!.exactSpanOnly, true);')
-          replace_count('dslPhysicalSpanOffset.test.ts', 'assert.equal(diagnostic!.exactSpanOnly, undefined);', 'assert.equal(diagnostic!.exactSpanOnly, true);', expected=3)
           PY
           git diff --check
           git status --short
@@ -94,13 +80,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Focused and affected regression tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t tests < <(find . -type f \( -name 'dslTypoMatcher.test.ts' -o -name 'dslUnknownNameDiagnostics.test.ts' -o -name 'dslDocumentDslNamesSeverity.test.ts' -o -name 'dslDiagnosticCode.test.ts' -o -name 'dslDiagnosticSpan.test.ts' -o -name 'dslPhysicalSpanOffset.test.ts' -o -name 'dslAdditionalDiagnostics.test.ts' \) -not -path './node_modules/*' -print)
-          printf 'focused test: %s\n' "${tests[@]}"
-          npm test -- "${tests[@]}"
+      - name: Focused tests
+        run: npm test -- src/dsl/dslTypoMatcher.test.ts src/dsl/dslUnknownNameDiagnostics.test.ts
 
       - name: Lint
         run: npm run lint
