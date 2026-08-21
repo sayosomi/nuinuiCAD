@@ -671,6 +671,26 @@ describe("VS Code production document lifecycle", () => {
     });
   });
 
+  it("keeps active Canvas document identity when another document already has an Output Preview", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA, [documentA, documentB]);
+    const canvasA = openPanelFor(editorA);
+    const previewB = openOutputPreviewPanelFor(editorB);
+    canvasA.active = true;
+    previewB.active = false;
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(3);
+    expect(mocks.createWebviewPanel.mock.calls.at(-1)?.[1]).toBe("a.nui — Output Preview");
+    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
+    expect(previewB.reveal).not.toHaveBeenCalled();
+  });
+
   it("opens Canvas for the active Output Preview document", () => {
     const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
     const editorA = editorFor(documentA);
@@ -683,6 +703,18 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
     expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
     expect(preview.reveal).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for an unrelated active webview instead of using the active text editor", () => {
+    setup();
+    mocks.activeTabInput = new mocks.TabInputWebview("unrelated.webview");
+
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD requires an active .nui Text Editor or Output Preview."
+    );
   });
 
   it("reveals an existing cross-surface target without duplicating it", () => {
@@ -834,6 +866,7 @@ describe("VS Code production document lifecycle", () => {
   it("reuses and reveals the existing panel when the same document command runs twice", () => {
     setup();
     const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputText(mocks.activeTextEditor!.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
 
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
@@ -1365,6 +1398,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorB];
     mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
@@ -1390,6 +1424,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorB];
     mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
@@ -1415,6 +1450,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorA, editorB];
     mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
@@ -1437,6 +1473,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorA, editorB];
     mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
@@ -1455,6 +1492,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorA, editorB];
     mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
@@ -1483,6 +1521,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorA, editorB];
     mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
@@ -1549,6 +1588,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorB];
     mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
@@ -1561,6 +1601,7 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorA;
     mocks.visibleTextEditors = [editorA];
     mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorA.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const reopened = mocks.panels[2]!;
     await messageHandlerFor(reopened)({ type: "webviewReady" });
@@ -1999,6 +2040,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorA, editorB];
     mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
 
@@ -2016,6 +2058,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     panelB.active = false;
     mocks.activeTextEditor = editorA;
     mocks.visibleTextEditors = [editorA, editorB];
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
     commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
     const request = panelA.webview.postMessage.mock.calls
       .map(([message]) => message)
@@ -2700,6 +2743,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorB];
     mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels.at(-1)!;
     panelA.webview.postMessage.mockClear();

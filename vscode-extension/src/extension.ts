@@ -1422,7 +1422,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     // Preserve the existing source-editor command behavior. The Output Preview
     // branch above is checked first so a stale activeTextEditor cannot
     // override a live cross-surface session.
-    const editor = activeNuiEditor();
+    const editor = activeNuiTextEditorForCommand();
     if (editor) {
       if (benchmarkConfig) {
         startBenchmark(editor);
