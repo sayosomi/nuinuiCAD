@@ -1,0 +1,412 @@
+name: SAY-116 Apply
+
+on:
+  push:
+    branches:
+      - sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Apply implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement target, found {count}")
+              file.write_text(text.replace(old, new, 1))
+
+          Path("src/dsl/dslTypoMatcher.ts").write_text(r'''export type DslTypoCandidateMatch = {
+            candidate: string;
+            distance: number;
+            sourceIndex: number;
+            caseOnly: boolean;
+          };
+
+          const codePoints = (value: string): string[] => Array.from(value);
+
+          /**
+           * Optimal-string-alignment Damerau-Levenshtein distance over Unicode
+           * code points. The supported one-step edits are insertion, deletion,
+           * substitution, and one adjacent transposition.
+           */
+          export const damerauLevenshteinDistance = (left: string, right: string): number => {
+            const a = codePoints(left);
+            const b = codePoints(right);
+            const rows = a.length + 1;
+            const columns = b.length + 1;
+            const matrix = Array.from({ length: rows }, () => Array<number>(columns).fill(0));
+
+            for (let row = 0; row < rows; row += 1) matrix[row]![0] = row;
+            for (let column = 0; column < columns; column += 1) matrix[0]![column] = column;
+
+            for (let row = 1; row < rows; row += 1) {
+              for (let column = 1; column < columns; column += 1) {
+                const substitutionCost = a[row - 1] === b[column - 1] ? 0 : 1;
+                let distance = Math.min(
+                  matrix[row - 1]![column]! + 1,
+                  matrix[row]![column - 1]! + 1,
+                  matrix[row - 1]![column - 1]! + substitutionCost
+                );
+                if (
+                  row > 1 &&
+                  column > 1 &&
+                  a[row - 1] === b[column - 2] &&
+                  a[row - 2] === b[column - 1]
+                ) {
+                  distance = Math.min(distance, matrix[row - 2]![column - 2]! + 1);
+                }
+                matrix[row]![column] = distance;
+              }
+            }
+
+            return matrix[a.length]![b.length]!;
+          };
+
+          export const dslTypoDistanceLimit = (typedText: string, candidate: string): number => {
+            const length = Math.max(codePoints(typedText).length, codePoints(candidate).length);
+            if (length <= 2) return 0;
+            if (length <= 4) return 1;
+            if (length <= 8) return 2;
+            return 3;
+          };
+
+          const isCaseOnlyCanonicalization = (typedText: string, candidate: string) =>
+            typedText !== candidate && typedText.toLowerCase() === candidate.toLowerCase();
+
+          export const matchDslTypoCandidate = (
+            typedText: string,
+            candidate: string,
+            sourceIndex = 0
+          ): DslTypoCandidateMatch | null => {
+            if (typedText === candidate) return null;
+            const caseOnly = isCaseOnlyCanonicalization(typedText, candidate);
+            const distance = damerauLevenshteinDistance(typedText, candidate);
+            if (!caseOnly && distance > dslTypoDistanceLimit(typedText, candidate)) return null;
+            return { candidate, distance, sourceIndex, caseOnly };
+          };
+
+          /**
+           * Return every eligible canonical candidate. Ordering is deterministic:
+           * edit distance first, then the authority's original stable order.
+           */
+          export const rankDslTypoCandidates = (
+            typedText: string,
+            candidates: readonly string[]
+          ): readonly DslTypoCandidateMatch[] =>
+            candidates
+              .map((candidate, sourceIndex) => matchDslTypoCandidate(typedText, candidate, sourceIndex))
+              .filter((match): match is DslTypoCandidateMatch => match !== null)
+              .sort((left, right) => left.distance - right.distance || left.sourceIndex - right.sourceIndex);
+          '''.replace("          ", ""))
+
+          Path("src/dsl/dslTypoMatcher.test.ts").write_text(r'''import { describe, expect, it } from "vitest";
+          import {
+            damerauLevenshteinDistance,
+            dslTypoDistanceLimit,
+            matchDslTypoCandidate,
+            rankDslTypoCandidates
+          } from "./dslTypoMatcher";
+
+          describe("dslTypoMatcher", () => {
+            it("counts insertion, deletion, substitution, and adjacent transposition as one edit", () => {
+              expect(damerauLevenshteinDistance("side", "sidde")).toBe(1);
+              expect(damerauLevenshteinDistance("sidde", "side")).toBe(1);
+              expect(damerauLevenshteinDistance("side", "sixe")).toBe(1);
+              expect(damerauLevenshteinDistance("roumd", "round")).toBe(1);
+            });
+
+            it("uses Unicode code points instead of UTF-16 code units", () => {
+              expect(damerauLevenshteinDistance("😀a", "😀b")).toBe(1);
+              expect(dslTypoDistanceLimit("😀a", "😀ab")).toBe(1);
+              expect(matchDslTypoCandidate("😀a", "😀ab")?.distance).toBe(1);
+            });
+
+            it("suppresses fuzzy matches for one- and two-code-point names", () => {
+              expect(matchDslTypoCandidate("a", "b")).toBeNull();
+              expect(matchDslTypoCandidate("ab", "ac")).toBeNull();
+            });
+
+            it("allows case-only canonicalization even for short names", () => {
+              expect(matchDslTypoCandidate("A", "a")).toMatchObject({ candidate: "a", distance: 1, caseOnly: true });
+              expect(matchDslTypoCandidate("AB", "ab")).toMatchObject({ candidate: "ab", distance: 2, caseOnly: true });
+            });
+
+            it("enforces the 3-4 / 5-8 / 9+ distance thresholds", () => {
+              expect(matchDslTypoCandidate("abcd", "abce")).not.toBeNull();
+              expect(matchDslTypoCandidate("abcd", "abXY")).toBeNull();
+              expect(matchDslTypoCandidate("abcdefgh", "abXXefgh")).not.toBeNull();
+              expect(matchDslTypoCandidate("abcdefgh", "abXXXfgh")).toBeNull();
+              expect(matchDslTypoCandidate("abcdefghi", "abcXXXghi")).not.toBeNull();
+              expect(matchDslTypoCandidate("abcdefghi", "abXXXXghi")).toBeNull();
+            });
+
+            it("returns all eligible candidates ordered by distance and stable source order", () => {
+              expect(rankDslTypoCandidates("abcde", ["abXYe", "abXde", "abcXe", "aXYde"]))
+                .toEqual([
+                  { candidate: "abXde", distance: 1, sourceIndex: 1, caseOnly: false },
+                  { candidate: "abcXe", distance: 1, sourceIndex: 2, caseOnly: false },
+                  { candidate: "abXYe", distance: 2, sourceIndex: 0, caseOnly: false },
+                  { candidate: "aXYde", distance: 2, sourceIndex: 3, caseOnly: false }
+                ]);
+            });
+          });
+          '''.replace("          ", ""))
+
+          replace_once(
+              "src/dsl/dslTypeParser.ts",
+              '''    diagnostics.push({
+                message: `不明な型注釈です: ${text}(${accepted} のいずれかを指定してください)`,
+                span: typeSpan
+              });''',
+              '''    diagnostics.push({
+                message: `不明な型注釈です: ${text}(${accepted} のいずれかを指定してください)`,
+                span: typeSpan,
+                code: "unknown-type"
+              });'''
+          )
+
+          replace_once(
+              "src/dsl/dslCallParser.ts",
+              '''    diagnostic(diagnostics, message, constructionSpan ?? categorySpan);''',
+              '''    diagnostic(diagnostics, message, constructionSpan ?? categorySpan, "unknown-construction");'''
+          )
+          replace_once(
+              "src/dsl/dslCallParser.ts",
+              '''      diagnostic(diagnostics, `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`, arg.keySpan!);''',
+              '''      diagnostic(diagnostics, `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`, arg.keySpan!, "unknown-construction-argument");'''
+          )
+
+          replace_once(
+              "src/dsl/dslParser.ts",
+              '''const diagnostic = (
+            line: number,
+            message: string,
+            code?: string,
+            physicalSpan?: DslPhysicalSpan
+          ): DslDiagnostic => ({
+            severity: "error",
+            line,
+            column: 1,
+            message,
+            ...(code ? { code } : {}),
+            ...(physicalSpan ? { physicalSpan } : {})
+          });''',
+              '''const exactUnknownNameDiagnosticCodes = new Set([
+            "unknown-dsl-keyword",
+            "unknown-type",
+            "unknown-construction",
+            "unknown-construction-argument"
+          ]);
+
+          const diagnostic = (
+            line: number,
+            message: string,
+            code?: string,
+            physicalSpan?: DslPhysicalSpan
+          ): DslDiagnostic => ({
+            severity: "error",
+            line,
+            column: 1,
+            message,
+            ...(code ? { code } : {}),
+            ...(code && exactUnknownNameDiagnosticCodes.has(code) ? { exactSpanOnly: true as const } : {}),
+            ...(physicalSpan ? { physicalSpan } : {})
+          });'''
+          )
+          replace_once(
+              "src/dsl/dslParser.ts",
+              '''  return {
+            diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")] 
+          };'''.replace('] \n', ']\n'),
+              '''  return {
+            diagnostics: [diagnostic(
+              line,
+              keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。",
+              keyword ? "unknown-dsl-keyword" : undefined,
+              keyword ? project({ start: 0, end: keyword.length }) ?? undefined : undefined
+            )]
+          };'''
+          )
+
+          replace_once(
+              "src/dsl/dslReferences.ts",
+              '''const diagnostic = (line: number, message: string): DslDiagnostic => ({
+            severity: "warning",
+            line,
+            column: 1,
+            message
+          });''',
+              '''const diagnostic = (line: number, message: string): DslDiagnostic => ({
+            severity: "warning",
+            line,
+            column: 1,
+            message
+          });
+
+          const undefinedGeometryReferenceDiagnostic = (
+            line: number,
+            message: string,
+            sourceSpan?: DslSpan,
+            relativeSpan?: DslSpan
+          ): DslDiagnostic => {
+            if (!sourceSpan || !relativeSpan) return diagnostic(line, message);
+            const logicalSpan = {
+              start: sourceSpan.start + relativeSpan.start,
+              end: sourceSpan.start + relativeSpan.end
+            };
+            return {
+              severity: "warning",
+              line,
+              column: logicalSpan.start + 1,
+              code: "undefined-geometry-reference",
+              message,
+              logicalSpan,
+              exactSpanOnly: true
+            };
+          };'''
+          )
+          replace_once(
+              "src/dsl/dslReferences.ts",
+              '''  diagnostics.push(diagnostic(line, `参照先が見つかりません: ${unresolvedToken}`));
+            return unresolvedToken;''',
+              '''  diagnostics.push(undefinedGeometryReferenceDiagnostic(
+            line,
+            `参照先が見つかりません: ${unresolvedToken}`,
+            sourceSpan,
+            reference.pathRange
+          ));
+            return unresolvedToken;'''
+          )
+          replace_once(
+              "src/dsl/dslReferences.ts",
+              '''  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement);''',
+              '''  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement, sourceSpan);'''
+          )
+          replace_once(
+              "src/dsl/dslReferences.ts",
+              '''    lineId: resolveId(lineName, index, line, diagnostics, currentElement),''',
+              '''    lineId: resolveId(lineName, index, line, diagnostics, currentElement, sourceSpan),'''
+          )
+
+          Path("src/dsl/dslUnknownNameDiagnostics.test.ts").write_text(r'''import { describe, expect, it } from "vitest";
+          import { compileDslDocument } from "./dslDocument";
+          import { parseDslSnapshot } from "./dslParser";
+          import type { DslDiagnostic } from "./dslTypes";
+
+          const exactText = (source: string, diagnostic: DslDiagnostic): string => {
+            expect(diagnostic.exactSpanOnly).toBe(true);
+            expect(diagnostic.physicalSpan?.segments).toHaveLength(1);
+            const segment = diagnostic.physicalSpan!.segments[0]!;
+            return source.slice(segment.from, segment.to);
+          };
+
+          const parsedDiagnostic = (source: string, code: string) => {
+            const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 17 });
+            const diagnostic = parsed.diagnostics.find((item) => item.code === code);
+            expect(diagnostic, `missing ${code}`).toBeDefined();
+            return diagnostic!;
+          };
+
+          describe("stable unknown-name diagnostics", () => {
+            it("marks an unknown DSL keyword with a stable code and exact token span", () => {
+              const source = "nui 4\npont P = coordinate(x: 0, y: 0)";
+              const diagnostic = parsedDiagnostic(source, "unknown-dsl-keyword");
+              expect(exactText(source, diagnostic)).toBe("pont");
+            });
+
+            it("marks an unknown declaration type with a stable code and exact token span", () => {
+              const source = "nui 4\nlet x: numbr = 10";
+              const diagnostic = parsedDiagnostic(source, "unknown-type");
+              expect(exactText(source, diagnostic)).toBe("numbr");
+            });
+
+            it("marks an unknown Module parameter type with the same stable code", () => {
+              const source = "nui 4\nmodule M(value: numbr) {\n}";
+              const diagnostic = parsedDiagnostic(source, "unknown-type");
+              expect(exactText(source, diagnostic)).toBe("numbr");
+            });
+
+            it("marks an unknown construction with a stable code and exact construction span", () => {
+              const source = "nui 4\nline L = segmnt(start: @A, end: @B)";
+              const diagnostic = parsedDiagnostic(source, "unknown-construction");
+              expect(exactText(source, diagnostic)).toBe("segmnt");
+            });
+
+            it("marks an unknown construction argument with a stable code and exact key span", () => {
+              const source = "nui 4\npoint P = coordinate(xx: 0, y: 0)";
+              const diagnostic = parsedDiagnostic(source, "unknown-construction-argument");
+              expect(exactText(source, diagnostic)).toBe("xx");
+            });
+
+            it("marks an undefined geometry reference without reclassifying other reference failures", () => {
+              const source = [
+                "nui 4",
+                "point A = coordinate(x: 0, y: 0)",
+                "line L = segment(start: @A, end: @Missng)",
+                "point Later = coordinate(x: 10, y: 10)",
+                "line F = segment(start: @A, end: @Later)"
+              ].join("\n");
+              const compiled = compileDslDocument(source, { sourceRevision: 23 });
+              const undefinedDiagnostic = compiled.diagnostics.find((item) => item.code === "undefined-geometry-reference");
+              expect(undefinedDiagnostic).toBeDefined();
+              expect(undefinedDiagnostic!.severity).toBe("warning");
+              expect(exactText(source, undefinedDiagnostic!)).toBe("Missng");
+              expect(compiled.diagnostics.some((item) => item.code === "undefined-geometry-reference" && item.message.includes("Later"))).toBe(false);
+              expect(compiled.diagnostics.some((item) => item.message.includes("この位置より後"))).toBe(true);
+            });
+          });
+          '''.replace("          ", ""))
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focused tests
+        run: npm test -- src/dsl/dslTypoMatcher.test.ts src/dsl/dslUnknownNameDiagnostics.test.ts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Build VS Code extension
+        run: npm run build:vscode
+
+      - name: Full Node tests
+        run: npm test
+
+      - name: Commit implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/say-116-apply.yml
+          git add src/dsl/dslTypoMatcher.ts src/dsl/dslTypoMatcher.test.ts src/dsl/dslUnknownNameDiagnostics.test.ts src/dsl/dslTypeParser.ts src/dsl/dslCallParser.ts src/dsl/dslParser.ts src/dsl/dslReferences.ts
+          git commit -m "feat: add typo matcher and stable diagnostics (SAY-116)"
+          git push origin HEAD:sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
