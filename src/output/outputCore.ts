@@ -113,6 +113,15 @@ export type OutputText = {
 
 export type OutputDrawable = OutputPath | OutputOffsetLine | OutputText;
 
+export type OutputJoiningLabel = {
+  text: string;
+  fontSizeMm: number;
+  rotationDeg: number;
+  center: OutputPoint;
+  widthMm: number;
+  advancesMm: number[];
+};
+
 export type OutputBounds = {
   minX: number;
   minY: number;
@@ -136,12 +145,7 @@ export type OutputPlacementPlan = {
 export type OutputGuide = {
   axis: "vertical" | "horizontal";
   positionMm: number;
-  label: string;
-  labelFontSizeMm: number;
-  labelRotationDeg: number;
-  labelCenter: OutputPoint;
-  labelWidthMm: number;
-  labelAdvancesMm: number[];
+  label?: OutputJoiningLabel;
 };
 
 export type OutputPrintPage = {
@@ -723,11 +727,11 @@ const labelLayout = ({
   const fontSizeMm = nominalFontSizeMm * fitScale;
   const textLayout = deterministicTextLayout(text, fontSizeMm);
   return {
-    labelFontSizeMm: fontSizeMm,
-    labelRotationDeg: rotationDeg,
-    labelCenter: center,
-    labelWidthMm: textLayout.widthMm,
-    labelAdvancesMm: textLayout.lineAdvancesMm[0] ?? []
+    fontSizeMm,
+    rotationDeg,
+    center,
+    widthMm: textLayout.widthMm,
+    advancesMm: textLayout.lineAdvancesMm[0] ?? []
   };
 };
 
@@ -743,69 +747,61 @@ const printPages = ({
   overlapMm: number;
 }) => {
   finiteNonNegative(overlapMm, "print overlap");
-  const firstUsableWidthMm = paperWidthMm - 2 * overlapMm;
-  const firstUsableHeightMm = paperHeightMm - 2 * overlapMm;
-  finitePositive(firstUsableWidthMm, "print first usable width");
-  finitePositive(firstUsableHeightMm, "print first usable height");
-  const strideXmm = paperWidthMm - overlapMm;
-  const strideYmm = paperHeightMm - overlapMm;
-  const columns = bounds.width <= firstUsableWidthMm ? 1 : 1 + Math.ceil((bounds.width - firstUsableWidthMm) / strideXmm);
-  const rows = bounds.height <= firstUsableHeightMm ? 1 : 1 + Math.ceil((bounds.height - firstUsableHeightMm) / strideYmm);
+  const usableWidthMm = paperWidthMm - 2 * overlapMm;
+  const usableHeightMm = paperHeightMm - 2 * overlapMm;
+  finitePositive(usableWidthMm, "print usable width");
+  finitePositive(usableHeightMm, "print usable height");
+  const strideXmm = usableWidthMm;
+  const strideYmm = usableHeightMm;
+  const columns = Math.max(1, Math.ceil(bounds.width / usableWidthMm));
+  const rows = Math.max(1, Math.ceil(bounds.height / usableHeightMm));
   const pages: OutputPrintPage[] = [];
   const verticalBoundaryCount = Math.max(0, columns - 1);
   const verticalLabelFor = (row: number, boundary: number) => String(row * verticalBoundaryCount + boundary + 1);
   const horizontalLabels = Array.from({ length: Math.max(0, columns * Math.max(0, rows - 1)) }, (_, index) => labelForIndex(index));
+  const guideFor = ({
+    axis,
+    positionMm,
+    label,
+    center
+  }: {
+    axis: OutputGuide["axis"];
+    positionMm: number;
+    label?: string;
+    center: OutputPoint;
+  }): OutputGuide => ({
+    axis,
+    positionMm,
+    ...(label === undefined ? {} : { label: { text: label, ...labelLayout({ text: label, axis, center, overlapMm, paperWidthMm, paperHeightMm }) } })
+  });
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
-      const guides: OutputGuide[] = [];
-      if (overlapMm > 0 && column > 0) {
-        const label = verticalLabelFor(row, column - 1);
-        const layout = labelLayout({
-          text: label,
+      const guides: OutputGuide[] = overlapMm > 0 ? [
+        guideFor({
           axis: "vertical",
-          center: { x: overlapMm / 2, y: paperHeightMm / 2 },
-          overlapMm,
-          paperWidthMm,
-          paperHeightMm
-        });
-        guides.push({ axis: "vertical", positionMm: overlapMm, label, ...layout });
-      }
-      if (overlapMm > 0 && column < columns - 1) {
-        const label = verticalLabelFor(row, column);
-        const layout = labelLayout({
-          text: label,
+          positionMm: overlapMm,
+          label: column > 0 ? verticalLabelFor(row, column - 1) : undefined,
+          center: { x: overlapMm / 2, y: paperHeightMm / 2 }
+        }),
+        guideFor({
           axis: "vertical",
-          center: { x: paperWidthMm - overlapMm / 2, y: paperHeightMm / 2 },
-          overlapMm,
-          paperWidthMm,
-          paperHeightMm
-        });
-        guides.push({ axis: "vertical", positionMm: paperWidthMm - overlapMm, label, ...layout });
-      }
-      if (overlapMm > 0 && row > 0) {
-        const label = horizontalLabels[(row - 1) * columns + column];
-        const layout = labelLayout({
-          text: label,
+          positionMm: paperWidthMm - overlapMm,
+          label: column < columns - 1 ? verticalLabelFor(row, column) : undefined,
+          center: { x: paperWidthMm - overlapMm / 2, y: paperHeightMm / 2 }
+        }),
+        guideFor({
           axis: "horizontal",
-          center: { x: paperWidthMm / 2, y: overlapMm / 2 },
-          overlapMm,
-          paperWidthMm,
-          paperHeightMm
-        });
-        guides.push({ axis: "horizontal", positionMm: overlapMm, label, ...layout });
-      }
-      if (overlapMm > 0 && row < rows - 1) {
-        const label = horizontalLabels[row * columns + column];
-        const layout = labelLayout({
-          text: label,
+          positionMm: overlapMm,
+          label: row > 0 ? horizontalLabels[(row - 1) * columns + column] : undefined,
+          center: { x: paperWidthMm / 2, y: overlapMm / 2 }
+        }),
+        guideFor({
           axis: "horizontal",
-          center: { x: paperWidthMm / 2, y: paperHeightMm - overlapMm / 2 },
-          overlapMm,
-          paperWidthMm,
-          paperHeightMm
-        });
-        guides.push({ axis: "horizontal", positionMm: paperHeightMm - overlapMm, label, ...layout });
-      }
+          positionMm: paperHeightMm - overlapMm,
+          label: row < rows - 1 ? horizontalLabels[row * columns + column] : undefined,
+          center: { x: paperWidthMm / 2, y: paperHeightMm - overlapMm / 2 }
+        })
+      ] : [];
       pages.push({
         index: pages.length,
         column,
@@ -863,7 +859,14 @@ export const buildOutputPlan = ({
   return {
     kind: "print", outputId: output.id, outputName: output.name, layoutId: output.layoutId, ...(output.profileId ? { profileId: output.profileId } : {}),
     placements, drawables, renderedBounds, bounds: renderedBounds, rustPayload,
-    print: { paper: output.paper, orientation: output.orientation, paperWidthMm, paperHeightMm, overlapMm, ...tiling }
+    print: {
+      paper: output.paper,
+      orientation: output.orientation,
+      paperWidthMm,
+      paperHeightMm,
+      overlapMm,
+      ...tiling
+    }
   };
 };
 

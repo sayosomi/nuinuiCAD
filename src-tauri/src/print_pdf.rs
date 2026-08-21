@@ -447,51 +447,31 @@ fn push_guide(
             "{x} 0 m {x} {} l S\n",
             pdf_number(pt(paper_height_mm))
         ));
-        push_text(
-            content,
-            &guide.label,
-            PdfTextPlacement {
-                anchor: centered_text_anchor(
-                    guide.label_center,
-                    guide.label_font_size_mm,
-                    &[guide.label_width_mm],
-                    guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
-                    guide.label_rotation_deg,
-                    false,
-                ),
-                font_size_mm: guide.label_font_size_mm,
-                line_widths_mm: vec![guide.label_width_mm],
-                line_advances_mm: vec![guide.label_advances_mm.clone()],
-                line_height_mm: guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
-                rotation_deg: guide.label_rotation_deg,
-                mirror_x: false,
-            },
-            "#31322f",
-            OutputPoint { x: 0.0, y: 0.0 },
-        )?;
     } else {
         let y = pdf_number(pt(guide_y));
         content.push_str(&format!(
             "0 {y} m {} {y} l S\n",
             pdf_number(pt(paper_width_mm))
         ));
+    }
+    if let Some(label) = &guide.label {
         push_text(
             content,
-            &guide.label,
+            &label.text,
             PdfTextPlacement {
                 anchor: centered_text_anchor(
-                    guide.label_center,
-                    guide.label_font_size_mm,
-                    &[guide.label_width_mm],
-                    guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
-                    guide.label_rotation_deg,
+                    label.center,
+                    label.font_size_mm,
+                    &[label.width_mm],
+                    label.font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
+                    label.rotation_deg,
                     false,
                 ),
-                font_size_mm: guide.label_font_size_mm,
-                line_widths_mm: vec![guide.label_width_mm],
-                line_advances_mm: vec![guide.label_advances_mm.clone()],
-                line_height_mm: guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
-                rotation_deg: guide.label_rotation_deg,
+                font_size_mm: label.font_size_mm,
+                line_widths_mm: vec![label.width_mm],
+                line_advances_mm: vec![label.advances_mm.clone()],
+                line_height_mm: label.font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
+                rotation_deg: label.rotation_deg,
                 mirror_x: false,
             },
             "#31322f",
@@ -601,7 +581,47 @@ fn build_print_pdf(payload: &ResolvedPrintOutputPayload) -> Result<Vec<u8>, Stri
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::print_output::{text_bounds_relative, OutputBounds, OutputPrintPage};
+    use crate::print_output::{
+        text_bounds_relative, OutputBounds, OutputJoiningLabel, OutputPrintPage,
+    };
+
+    fn joining_label(text: &str, center: OutputPoint, rotation_deg: f64) -> OutputJoiningLabel {
+        OutputJoiningLabel {
+            text: text.to_owned(),
+            font_size_mm: 1.0,
+            rotation_deg,
+            center,
+            width_mm: 0.62,
+            advances_mm: vec![0.62],
+        }
+    }
+
+    fn page_guides(column: usize) -> Vec<OutputGuide> {
+        vec![
+            OutputGuide {
+                axis: "vertical".to_owned(),
+                position_mm: 10.0,
+                label: (column > 0)
+                    .then(|| joining_label("1", OutputPoint { x: 5.0, y: 148.5 }, 90.0)),
+            },
+            OutputGuide {
+                axis: "vertical".to_owned(),
+                position_mm: 200.0,
+                label: (column == 0)
+                    .then(|| joining_label("1", OutputPoint { x: 205.0, y: 148.5 }, 90.0)),
+            },
+            OutputGuide {
+                axis: "horizontal".to_owned(),
+                position_mm: 10.0,
+                label: None,
+            },
+            OutputGuide {
+                axis: "horizontal".to_owned(),
+                position_mm: 287.0,
+                label: None,
+            },
+        ]
+    }
 
     fn payload() -> ResolvedPrintOutputPayload {
         ResolvedPrintOutputPayload {
@@ -631,21 +651,21 @@ mod tests {
                 height_mm: 297.0,
             },
             overlap_mm: 10.0,
-            stride: OutputPoint { x: 200.0, y: 287.0 },
+            stride: OutputPoint { x: 190.0, y: 277.0 },
             pages: vec![
                 OutputPrintPage {
                     index: 0,
                     column: 0,
                     row: 0,
                     origin: OutputPoint { x: -10.0, y: -10.0 },
-                    guides: vec![],
+                    guides: page_guides(0),
                 },
                 OutputPrintPage {
                     index: 1,
                     column: 1,
                     row: 0,
-                    origin: OutputPoint { x: 190.0, y: -10.0 },
-                    guides: vec![],
+                    origin: OutputPoint { x: 180.0, y: -10.0 },
+                    guides: page_guides(1),
                 },
             ],
         }
@@ -661,11 +681,16 @@ mod tests {
         assert!(text.contains("/MediaBox [0 0 595.276 841.89]"));
         assert!(text.contains("0.192 0.196 0.184 RG"));
         assert!(text.contains("0.192 0.196 0.184 RG 1 J 1 j 0.51 w [] 0 d"));
+        assert_eq!(text.matches("28.346 0 m 28.346 841.89 l S").count(), 2);
+        assert_eq!(text.matches("566.929 0 m 566.929 841.89 l S").count(), 2);
+        assert_eq!(text.matches("0 28.346 m 595.276 28.346 l S").count(), 2);
+        assert_eq!(text.matches("0 813.543 m 595.276 813.543 l S").count(), 2);
+        assert_eq!(text.matches("[<0031> 380] TJ ET").count(), 2);
         let first_page_content = text
             .find("28.346 28.346 m 56.693 28.346 l")
             .expect("first page should place the line from its page origin");
         let second_page_content = text
-            .find("-538.583 28.346 m -510.236 28.346 l")
+            .find("-510.236 28.346 m -481.89 28.346 l")
             .expect("second page should place the line from its distinct page origin");
         assert!(first_page_content < second_page_content);
     }
@@ -790,7 +815,7 @@ mod tests {
                 height_mm: 297.0,
             },
             overlap_mm: 10.0,
-            stride: OutputPoint { x: 200.0, y: 287.0 },
+            stride: OutputPoint { x: 190.0, y: 277.0 },
             pages: vec![OutputPrintPage {
                 index: 0,
                 column: 0,
@@ -799,7 +824,28 @@ mod tests {
                     x: 10.0 + relative.min_x,
                     y: 20.0 + relative.min_y,
                 },
-                guides: vec![],
+                guides: vec![
+                    OutputGuide {
+                        axis: "vertical".to_owned(),
+                        position_mm: 10.0,
+                        label: None,
+                    },
+                    OutputGuide {
+                        axis: "vertical".to_owned(),
+                        position_mm: 200.0,
+                        label: None,
+                    },
+                    OutputGuide {
+                        axis: "horizontal".to_owned(),
+                        position_mm: 10.0,
+                        label: None,
+                    },
+                    OutputGuide {
+                        axis: "horizontal".to_owned(),
+                        position_mm: 287.0,
+                        label: None,
+                    },
+                ],
             }],
         };
         let pdf = build_print_pdf(&text_payload).expect("text PDF should build");
@@ -847,28 +893,30 @@ mod tests {
         let guide = OutputGuide {
             axis: "vertical".to_owned(),
             position_mm: 200.0,
-            label: "1".to_owned(),
-            label_font_size_mm: 1.0,
-            label_rotation_deg: 90.0,
-            label_center: OutputPoint { x: 205.0, y: 148.5 },
-            label_width_mm: 0.62,
-            label_advances_mm: vec![0.62],
+            label: Some(joining_label("1", OutputPoint { x: 205.0, y: 148.5 }, 90.0)),
         };
+        let label = guide.label.as_ref().expect("guide should have a label");
         let expected_anchor = centered_text_anchor(
-            guide.label_center,
-            guide.label_font_size_mm,
-            &[guide.label_width_mm],
-            guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
-            guide.label_rotation_deg,
+            label.center,
+            label.font_size_mm,
+            &[label.width_mm],
+            label.font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
+            label.rotation_deg,
             false,
         );
         let mut resolved = payload();
-        resolved.pages[0].guides = vec![guide.clone()];
-        resolved.pages[1].guides = vec![OutputGuide {
-            position_mm: 10.0,
-            label_center: OutputPoint { x: 5.0, y: 148.5 },
-            ..guide
-        }];
+        resolved.pages[0]
+            .guides
+            .iter_mut()
+            .find(|candidate| candidate.axis == "vertical" && candidate.position_mm == 200.0)
+            .expect("right guide should exist")
+            .label = guide.label.clone();
+        resolved.pages[1]
+            .guides
+            .iter_mut()
+            .find(|candidate| candidate.axis == "vertical" && candidate.position_mm == 10.0)
+            .expect("left guide should exist")
+            .label = Some(joining_label("1", OutputPoint { x: 5.0, y: 148.5 }, 90.0));
         let relative = text_bounds_relative(1.0, &[0.62], OUTPUT_TEXT_LINE_HEIGHT, 90.0, false);
         assert!((expected_anchor.x + (relative.min_x + relative.max_x) / 2.0 - 205.0).abs() < 1e-9);
         assert!((expected_anchor.y + (relative.min_y + relative.max_y) / 2.0 - 148.5).abs() < 1e-9);

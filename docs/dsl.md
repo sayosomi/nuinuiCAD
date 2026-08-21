@@ -397,30 +397,35 @@ print 家庭用A4(
 svg 型紙SVG(layout: @型紙, margin: 0)
 ```
 
-`print.overlap` is the physical overlap between adjacent paper sheets and the
-outer inset on an edge without a neighboring sheet. It must be non-negative;
-let `O = overlap`, and let `Bw` and `Bh` be the stroke-inclusive rendered
-bounds width and height:
+`print.overlap` is the safe-edge inset / retained glue-tab width used for print
+assembly. It must be non-negative; let `Bw` and `Bh` be the stroke-inclusive
+rendered bounds width and height:
 
 ```text
-firstUsableWidth  = W - 2O
-firstUsableHeight = H - 2O
+usableWidth  = W - 2 * overlap
+usableHeight = H - 2 * overlap
 
-nx = 1 if Bw <= firstUsableWidth
-else 1 + ceil((Bw - firstUsableWidth) / (W - O))
+columns = max(1, ceil(Bw / usableWidth))
+rows    = max(1, ceil(Bh / usableHeight))
 
-ny = 1 if Bh <= firstUsableHeight
-else 1 + ceil((Bh - firstUsableHeight) / (H - O))
+strideX = usableWidth
+strideY = usableHeight
 ```
 
-Page 1 starts at `x = bounds.minX - O`, `y = bounds.minY - O`; later page
-origins advance by `W - O` and `H - O`. The physical overlap strips are
-`left = [0, O]`, `right = [W-O, W]`, `bottom = [0, O]`, and
-`top = [H-O, H]`. Guide positions are `left x = O`, `right x = W-O`,
-`bottom y = O`, and `top y = H-O`. Guides and labels exist only on shared
-edges; outer edges have none. `O = 0` produces no guides or labels. Print
-declarations do not have a `margin` attribute; `margin` remains an SVG-only
-option.
+Page 1 starts at `x = bounds.minX - overlap`, `y = bounds.minY - overlap`;
+later page origins advance by `strideX` and `strideY`. Adjacent physical sheet
+rectangles overlap by `2 * overlap` mm; after one side is trimmed, the retained
+glue allowance is `overlap` mm.
+
+When `overlap > 0`, every physical page has four inset guide lines at
+`left x = overlap`, `right x = W - overlap`, `bottom y = overlap`, and
+`top y = H - overlap`. These are advisory printer-safety guides: geometry may
+cross them, and they do not clip output or forbid placement. Corresponding
+guides on adjacent pages coincide globally. Joining text labels are present
+only on edges with a neighboring page; outer-edge guides have no label. When
+`overlap == 0`, stride is the full paper width and height and there are no
+guides or labels. Print declarations do not have a `margin` attribute;
+`margin` remains an SVG-only option.
 
 ## 編集と診断
 
