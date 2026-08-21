@@ -386,20 +386,18 @@ describe("SAY-64 output core", () => {
       ]);
       const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
       const print = plan.print!;
-      const firstUsableWidthMm = testCase.paperWidthMm - 20;
-      const firstUsableHeightMm = testCase.paperHeightMm - 20;
-      const strideXmm = testCase.paperWidthMm - 10;
-      const strideYmm = testCase.paperHeightMm - 10;
-      const expectedColumns = plan.renderedBounds.width <= firstUsableWidthMm
-        ? 1
-        : 1 + Math.ceil((plan.renderedBounds.width - firstUsableWidthMm) / strideXmm);
-      const expectedRows = plan.renderedBounds.height <= firstUsableHeightMm
-        ? 1
-        : 1 + Math.ceil((plan.renderedBounds.height - firstUsableHeightMm) / strideYmm);
+      const usableWidthMm = testCase.paperWidthMm - 20;
+      const usableHeightMm = testCase.paperHeightMm - 20;
+      const strideXmm = usableWidthMm;
+      const strideYmm = usableHeightMm;
+      const expectedColumns = Math.max(1, Math.ceil(plan.renderedBounds.width / usableWidthMm));
+      const expectedRows = Math.max(1, Math.ceil(plan.renderedBounds.height / usableHeightMm));
 
       expect(print).toMatchObject({
         paperWidthMm: testCase.paperWidthMm,
         paperHeightMm: testCase.paperHeightMm,
+        usableWidthMm,
+        usableHeightMm,
         strideXmm,
         strideYmm,
         columns: testCase.columns,
@@ -420,13 +418,13 @@ describe("SAY-64 output core", () => {
         const first = print.pages[0];
         const adjacent = print.pages[1];
         expect(adjacent.origin.x - first.origin.x).toBe(strideXmm);
-        expect(first.origin.x + testCase.paperWidthMm - adjacent.origin.x).toBe(10);
+        expect(first.origin.x + testCase.paperWidthMm - adjacent.origin.x).toBe(20);
       }
       if (testCase.rows > 1) {
         const first = print.pages[0];
         const adjacent = print.pages[testCase.columns];
         expect(adjacent.origin.y - first.origin.y).toBe(strideYmm);
-        expect(first.origin.y + testCase.paperHeightMm - adjacent.origin.y).toBe(10);
+        expect(first.origin.y + testCase.paperHeightMm - adjacent.origin.y).toBe(20);
       }
     }
   });
@@ -444,24 +442,25 @@ describe("SAY-64 output core", () => {
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     const guides = plan.print!.pages.flatMap((page) => page.guides);
-    expect(guides.some((guide) => guide.label === "10")).toBe(true);
-    expect(guides.some((guide) => guide.label === "AA")).toBe(true);
-    expect(guides.filter((guide) => guide.axis === "vertical").every((guide) => guide.labelRotationDeg === 90)).toBe(true);
-    expect(guides.filter((guide) => guide.axis === "horizontal").every((guide) => guide.labelRotationDeg === 0)).toBe(true);
+    expect(guides.some((guide) => guide.label?.text === "10")).toBe(true);
+    expect(guides.some((guide) => guide.label?.text === "AA")).toBe(true);
+    expect(guides.filter((guide) => guide.label && guide.axis === "vertical").every((guide) => guide.label!.rotationDeg === 90)).toBe(true);
+    expect(guides.filter((guide) => guide.label && guide.axis === "horizontal").every((guide) => guide.label!.rotationDeg === 0)).toBe(true);
     expect(new Set(guides.filter((guide) => guide.axis === "vertical").map((guide) => guide.positionMm))).toEqual(new Set([1, 209]));
     expect(new Set(guides.filter((guide) => guide.axis === "horizontal").map((guide) => guide.positionMm))).toEqual(new Set([1, 296]));
     const verticalPairs = new Map<string, string[]>();
     const horizontalPairs = new Map<string, string[]>();
     for (const page of plan.print!.pages) {
       for (const guide of page.guides) {
+        if (!guide.label) continue;
         if (guide.axis === "vertical") {
           const boundary = guide.positionMm === plan.print!.overlapMm ? page.column - 1 : page.column;
           const key = `${page.row}:${boundary}`;
-          verticalPairs.set(key, [...(verticalPairs.get(key) ?? []), guide.label]);
+          verticalPairs.set(key, [...(verticalPairs.get(key) ?? []), guide.label.text]);
         } else {
           const boundary = guide.positionMm === plan.print!.overlapMm ? page.row - 1 : page.row;
           const key = `${boundary}:${page.column}`;
-          horizontalPairs.set(key, [...(horizontalPairs.get(key) ?? []), guide.label]);
+          horizontalPairs.set(key, [...(horizontalPairs.get(key) ?? []), guide.label.text]);
         }
       }
     }
@@ -470,22 +469,42 @@ describe("SAY-64 output core", () => {
     expect(new Set([...verticalPairs.values(), ...horizontalPairs.values()].map(([label]) => label)).size).toBe(verticalPairs.size + horizontalPairs.size);
     expect(verticalPairs.get("0:0")).toEqual(["1", "1"]);
     expect(verticalPairs.get("1:0")).toEqual([`${plan.print!.columns - 1 + 1}`, `${plan.print!.columns - 1 + 1}`]);
-    expect(guides.every((guide) => guide.labelFontSizeMm <= 3)).toBe(true);
+    expect(guides.filter((guide) => guide.label).every((guide) => guide.label!.fontSizeMm <= 3)).toBe(true);
     expect(guides.every((guide) => {
+      if (!guide.label) return true;
       if (guide.axis === "vertical") {
         const expectedX = guide.positionMm === plan.print!.overlapMm
           ? plan.print!.overlapMm / 2
           : plan.print!.paperWidthMm - plan.print!.overlapMm / 2;
-        return guide.labelCenter.x === expectedX && guide.labelCenter.y === plan.print!.paperHeightMm / 2;
+        return guide.label.center.x === expectedX && guide.label.center.y === plan.print!.paperHeightMm / 2;
       }
       const expectedY = guide.positionMm === plan.print!.overlapMm
         ? plan.print!.overlapMm / 2
         : plan.print!.paperHeightMm - plan.print!.overlapMm / 2;
-      return guide.labelCenter.x === plan.print!.paperWidthMm / 2 && guide.labelCenter.y === expectedY;
+      return guide.label.center.x === plan.print!.paperWidthMm / 2 && guide.label.center.y === expectedY;
     })).toBe(true);
     for (const page of plan.print!.pages) {
-      if (page.column === 0) expect(page.guides.some((guide) => guide.axis === "vertical" && guide.positionMm === 1)).toBe(false);
-      if (page.row === 0) expect(page.guides.some((guide) => guide.axis === "horizontal" && guide.positionMm === 1)).toBe(false);
+      expect(page.guides).toHaveLength(4);
+      const left = page.guides.find((guide) => guide.axis === "vertical" && guide.positionMm === 1)!;
+      const right = page.guides.find((guide) => guide.axis === "vertical" && guide.positionMm === 209)!;
+      const bottom = page.guides.find((guide) => guide.axis === "horizontal" && guide.positionMm === 1)!;
+      const top = page.guides.find((guide) => guide.axis === "horizontal" && guide.positionMm === 296)!;
+      expect(left.label !== undefined).toBe(page.column > 0);
+      expect(right.label !== undefined).toBe(page.column < plan.print!.columns - 1);
+      expect(bottom.label !== undefined).toBe(page.row > 0);
+      expect(top.label !== undefined).toBe(page.row < plan.print!.rows - 1);
+      if (page.column < plan.print!.columns - 1) {
+        const adjacent = plan.print!.pages.find((candidate) => candidate.column === page.column + 1 && candidate.row === page.row)!;
+        const adjacentLeft = adjacent.guides.find((guide) => guide.axis === "vertical" && guide.positionMm === 1)!;
+        expect(page.origin.x + right.positionMm).toBeCloseTo(adjacent.origin.x + adjacentLeft.positionMm);
+        expect(right.label?.text).toBe(adjacentLeft.label?.text);
+      }
+      if (page.row < plan.print!.rows - 1) {
+        const adjacent = plan.print!.pages.find((candidate) => candidate.column === page.column && candidate.row === page.row + 1)!;
+        const adjacentBottom = adjacent.guides.find((guide) => guide.axis === "horizontal" && guide.positionMm === 1)!;
+        expect(page.origin.y + top.positionMm).toBeCloseTo(adjacent.origin.y + adjacentBottom.positionMm);
+        expect(top.label?.text).toBe(adjacentBottom.label?.text);
+      }
     }
   });
 
@@ -506,27 +525,28 @@ describe("SAY-64 output core", () => {
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     const guide = plan.print!.pages
       .flatMap((page) => page.guides)
-      .find((candidate) => candidate.axis === "horizontal");
+      .find((candidate) => candidate.axis === "horizontal" && candidate.label);
     if (!guide) throw new Error("missing long horizontal joining label");
+    if (!guide.label) throw new Error("missing joining label metadata");
 
     const relativeBounds = outputDrawableBounds({
       kind: "text",
       elementId: "joining-label",
-      name: guide.label,
-      text: guide.label,
+      name: guide.label.text,
+      text: guide.label.text,
       anchor: { x: 0, y: 0 },
-      fontSizeMm: guide.labelFontSizeMm,
-      widthMm: guide.labelWidthMm,
-      lineWidthsMm: [guide.labelWidthMm],
-      lineAdvancesMm: [guide.labelAdvancesMm],
-      lineHeightMm: guide.labelFontSizeMm * OUTPUT_TEXT_LINE_HEIGHT,
-      rotationDeg: guide.labelRotationDeg,
+      fontSizeMm: guide.label.fontSizeMm,
+      widthMm: guide.label.widthMm,
+      lineWidthsMm: [guide.label.widthMm],
+      lineAdvancesMm: [guide.label.advancesMm],
+      lineHeightMm: guide.label.fontSizeMm * OUTPUT_TEXT_LINE_HEIGHT,
+      rotationDeg: guide.label.rotationDeg,
       mirrorX: false,
       colorHex: OUTPUT_PALETTE.foreground
     });
     const centeredAnchor = {
-      x: guide.labelCenter.x - (relativeBounds.minX + relativeBounds.maxX) / 2,
-      y: guide.labelCenter.y - (relativeBounds.minY + relativeBounds.maxY) / 2
+      x: guide.label.center.x - (relativeBounds.minX + relativeBounds.maxX) / 2,
+      y: guide.label.center.y - (relativeBounds.minY + relativeBounds.maxY) / 2
     };
     const absoluteBounds = {
       minX: relativeBounds.minX + centeredAnchor.x,
@@ -563,7 +583,7 @@ describe("SAY-64 output core", () => {
     });
     expect(exactThreshold.renderedBounds.width).toBe(190);
     expect(exactThreshold.renderedBounds.height).toBe(277);
-    expect(exactThreshold.print).toMatchObject({ columns: 1, rows: 1, strideXmm: 200, strideYmm: 287 });
+    expect(exactThreshold.print).toMatchObject({ columns: 1, rows: 1, strideXmm: 190, strideYmm: 277 });
     expect(exactThreshold.print!.pages).toHaveLength(1);
 
     const justOverThresholdDoc = exactThresholdDoc(1e-6);
@@ -574,10 +594,10 @@ describe("SAY-64 output core", () => {
     });
     expect(justOverThreshold.renderedBounds.width).toBeGreaterThan(190);
     expect(justOverThreshold.renderedBounds.height).toBeGreaterThan(277);
-    expect(justOverThreshold.print).toMatchObject({ columns: 2, rows: 2, strideXmm: 200, strideYmm: 287 });
+    expect(justOverThreshold.print).toMatchObject({ columns: 2, rows: 2, strideXmm: 190, strideYmm: 277 });
     expect(justOverThreshold.print!.pages).toHaveLength(4);
-    expect(justOverThreshold.print!.pages[1].origin.x - justOverThreshold.print!.pages[0].origin.x).toBe(200);
-    expect(justOverThreshold.print!.pages[2].origin.y - justOverThreshold.print!.pages[0].origin.y).toBe(287);
+    expect(justOverThreshold.print!.pages[1].origin.x - justOverThreshold.print!.pages[0].origin.x).toBe(190);
+    expect(justOverThreshold.print!.pages[2].origin.y - justOverThreshold.print!.pages[0].origin.y).toBe(277);
   });
 
   it("emits no joining guides or labels when physical overlap is zero", () => {
@@ -593,6 +613,7 @@ describe("SAY-64 output core", () => {
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     expect(plan.print!.pages.length).toBeGreaterThan(1);
+    expect(plan.print).toMatchObject({ strideXmm: 210, strideYmm: 297 });
     expect(plan.print!.pages.every((page) => page.guides.length === 0)).toBe(true);
   });
 

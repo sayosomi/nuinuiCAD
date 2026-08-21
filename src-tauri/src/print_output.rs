@@ -103,15 +103,23 @@ pub struct OutputBounds {
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
+pub struct OutputJoiningLabel {
+    pub text: String,
+    pub font_size_mm: f64,
+    pub rotation_deg: f64,
+    pub center: OutputPoint,
+    pub width_mm: f64,
+    pub advances_mm: Vec<f64>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct OutputGuide {
     pub axis: String,
     pub position_mm: f64,
-    pub label: String,
-    pub label_font_size_mm: f64,
-    pub label_rotation_deg: f64,
-    pub label_center: OutputPoint,
-    pub label_width_mm: f64,
-    pub label_advances_mm: Vec<f64>,
+    pub label: Option<OutputJoiningLabel>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -456,6 +464,108 @@ pub fn validate_svg_payload(payload: &ResolvedSvgOutputPayload) -> Result<(), St
     validate_point(payload.content_origin, "SVG content origin")
 }
 
+fn page_at(pages: &[OutputPrintPage], column: usize, row: usize) -> Option<&OutputPrintPage> {
+    pages
+        .iter()
+        .find(|page| page.column == column && page.row == row)
+}
+
+fn guide_at<'a>(
+    page: &'a OutputPrintPage,
+    axis: &str,
+    position_mm: f64,
+) -> Option<&'a OutputGuide> {
+    page.guides
+        .iter()
+        .find(|guide| guide.axis == axis && close_enough(guide.position_mm, position_mm))
+}
+
+fn expected_label_center(
+    axis: &str,
+    position_mm: f64,
+    paper: PaperSize,
+    overlap_mm: f64,
+) -> OutputPoint {
+    if axis == "vertical" {
+        if close_enough(position_mm, overlap_mm) {
+            OutputPoint {
+                x: overlap_mm / 2.0,
+                y: paper.height_mm / 2.0,
+            }
+        } else {
+            OutputPoint {
+                x: paper.width_mm - overlap_mm / 2.0,
+                y: paper.height_mm / 2.0,
+            }
+        }
+    } else if close_enough(position_mm, overlap_mm) {
+        OutputPoint {
+            x: paper.width_mm / 2.0,
+            y: overlap_mm / 2.0,
+        }
+    } else {
+        OutputPoint {
+            x: paper.width_mm / 2.0,
+            y: paper.height_mm - overlap_mm / 2.0,
+        }
+    }
+}
+
+fn validate_joining_label(
+    label: &OutputJoiningLabel,
+    guide: &OutputGuide,
+    paper: PaperSize,
+    overlap_mm: f64,
+) -> Result<(), String> {
+    if label.text.is_empty() {
+        return Err("joining labels must not be empty".to_owned());
+    }
+    positive(label.font_size_mm, "joining label font size")?;
+    finite(label.rotation_deg, "joining label rotation")?;
+    validate_point(label.center, "joining label center")?;
+    non_negative(label.width_mm, "joining label width")?;
+    let measured_label_width = label.advances_mm.iter().try_fold(0.0, |width, advance| {
+        non_negative(*advance, "joining label glyph advance")?;
+        Ok::<f64, String>(width + advance)
+    })?;
+    if label.advances_mm.len() != label.text.chars().count()
+        || !close_enough(measured_label_width, label.width_mm)
+    {
+        return Err("joining label width does not match glyph advances".to_owned());
+    }
+    let expected_center = expected_label_center(&guide.axis, guide.position_mm, paper, overlap_mm);
+    if !close_enough(label.center.x, expected_center.x)
+        || !close_enough(label.center.y, expected_center.y)
+    {
+        return Err("joining label center is not resolved inside its overlap strip".to_owned());
+    }
+    let expected_rotation = if guide.axis == "vertical" { 90.0 } else { 0.0 };
+    if (label.rotation_deg - expected_rotation).abs() > 1e-6 {
+        return Err("joining label rotation does not match its guide axis".to_owned());
+    }
+    let label_bounds = text_bounds_relative(
+        label.font_size_mm,
+        &[label.width_mm],
+        label.font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
+        label.rotation_deg,
+        false,
+    );
+    let strip_width = if guide.axis == "vertical" {
+        overlap_mm
+    } else {
+        paper.width_mm
+    };
+    let strip_height = if guide.axis == "vertical" {
+        paper.height_mm
+    } else {
+        overlap_mm
+    };
+    if label_bounds.width > strip_width + 1e-6 || label_bounds.height > strip_height + 1e-6 {
+        return Err("joining label does not fit inside its overlap strip".to_owned());
+    }
+    Ok(())
+}
+
 pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<(), String> {
     validate_common(
         payload.version,
@@ -467,13 +577,13 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
     positive(payload.paper.width_mm, "paper width")?;
     positive(payload.paper.height_mm, "paper height")?;
     non_negative(payload.overlap_mm, "print overlap")?;
-    let first_usable_width = payload.paper.width_mm - 2.0 * payload.overlap_mm;
-    let first_usable_height = payload.paper.height_mm - 2.0 * payload.overlap_mm;
-    positive(first_usable_width, "first usable paper width")?;
-    positive(first_usable_height, "first usable paper height")?;
+    let usable_width = payload.paper.width_mm - 2.0 * payload.overlap_mm;
+    let usable_height = payload.paper.height_mm - 2.0 * payload.overlap_mm;
+    positive(usable_width, "usable paper width")?;
+    positive(usable_height, "usable paper height")?;
     let expected_stride = OutputPoint {
-        x: payload.paper.width_mm - payload.overlap_mm,
-        y: payload.paper.height_mm - payload.overlap_mm,
+        x: usable_width,
+        y: usable_height,
     };
     if (payload.stride.x - expected_stride.x).abs() > 1e-6
         || (payload.stride.y - expected_stride.y).abs() > 1e-6
@@ -520,106 +630,137 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
                 );
             }
         }
-        if payload.overlap_mm.abs() <= 1e-6 && !page.guides.is_empty() {
+        if payload.overlap_mm == 0.0 && !page.guides.is_empty() {
             return Err("print overlap guides are not allowed when overlap is zero".to_owned());
         }
+        if payload.overlap_mm > 0.0 && page.guides.len() != 4 {
+            return Err(
+                "print pages must contain four inset guides when overlap is positive".to_owned(),
+            );
+        }
+        let mut seen_guides = [false; 4];
         for guide in &page.guides {
             if !matches!(guide.axis.as_str(), "vertical" | "horizontal") {
                 return Err(format!("unsupported guide axis: {}", guide.axis));
             }
             finite(guide.position_mm, "guide position")?;
-            if guide.label.is_empty() {
-                return Err("joining labels must not be empty".to_owned());
-            }
-            positive(guide.label_font_size_mm, "joining label font size")?;
-            finite(guide.label_rotation_deg, "joining label rotation")?;
-            validate_point(guide.label_center, "joining label center")?;
-            non_negative(guide.label_width_mm, "joining label width")?;
-            let measured_label_width =
-                guide
-                    .label_advances_mm
-                    .iter()
-                    .try_fold(0.0, |width, advance| {
-                        non_negative(*advance, "joining label glyph advance")?;
-                        Ok::<f64, String>(width + advance)
-                    })?;
-            if guide.label_advances_mm.len() != guide.label.chars().count()
-                || !close_enough(measured_label_width, guide.label_width_mm)
-            {
-                return Err("joining label width does not match glyph advances".to_owned());
-            }
-            let valid_position = if guide.axis == "vertical" {
-                let is_left = (guide.position_mm - payload.overlap_mm).abs() <= 1e-6;
-                let is_right = (guide.position_mm - (payload.paper.width_mm - payload.overlap_mm))
-                    .abs()
-                    <= 1e-6;
-                (is_left && page.column > 0) || (is_right && page.column + 1 < columns)
-            } else {
-                let is_bottom = (guide.position_mm - payload.overlap_mm).abs() <= 1e-6;
-                let is_top = (guide.position_mm - (payload.paper.height_mm - payload.overlap_mm))
-                    .abs()
-                    <= 1e-6;
-                (is_bottom && page.row > 0) || (is_top && page.row + 1 < rows)
-            };
-            if !valid_position {
-                return Err(
-                    "joining guide position is not derived from a neighboring page edge".to_owned(),
-                );
-            }
-            let expected_center = if guide.axis == "vertical" {
-                if (guide.position_mm - payload.overlap_mm).abs() <= 1e-6 {
-                    OutputPoint {
-                        x: payload.overlap_mm / 2.0,
-                        y: payload.paper.height_mm / 2.0,
-                    }
+            let slot = if guide.axis == "vertical" {
+                if close_enough(guide.position_mm, payload.overlap_mm) {
+                    Some(0)
+                } else if close_enough(
+                    guide.position_mm,
+                    payload.paper.width_mm - payload.overlap_mm,
+                ) {
+                    Some(1)
                 } else {
-                    OutputPoint {
-                        x: payload.paper.width_mm - payload.overlap_mm / 2.0,
-                        y: payload.paper.height_mm / 2.0,
+                    None
+                }
+            } else if close_enough(guide.position_mm, payload.overlap_mm) {
+                Some(2)
+            } else if close_enough(
+                guide.position_mm,
+                payload.paper.height_mm - payload.overlap_mm,
+            ) {
+                Some(3)
+            } else {
+                None
+            };
+            let Some(slot) = slot else {
+                return Err("guide position must be one of the four inset page edges".to_owned());
+            };
+            if seen_guides[slot] {
+                return Err("print pages must not contain duplicate inset guides".to_owned());
+            }
+            seen_guides[slot] = true;
+            let has_neighbor = match slot {
+                0 => page.column > 0,
+                1 => page.column + 1 < columns,
+                2 => page.row > 0,
+                3 => page.row + 1 < rows,
+                _ => unreachable!(),
+            };
+            if guide.label.is_some() != has_neighbor {
+                return Err("joining labels are only allowed on neighboring page edges".to_owned());
+            }
+            if let Some(label) = &guide.label {
+                validate_joining_label(label, guide, payload.paper, payload.overlap_mm)?;
+            }
+        }
+        if payload.overlap_mm > 0.0 && seen_guides.iter().any(|seen| !seen) {
+            return Err("print pages must contain all four inset guides".to_owned());
+        }
+    }
+    if payload.overlap_mm > 0.0 {
+        for row in 0..rows {
+            for column in 0..columns {
+                let page = page_at(&payload.pages, column, row).ok_or_else(|| {
+                    "print pages must form a complete rectangular grid".to_owned()
+                })?;
+                if column + 1 < columns {
+                    let next = page_at(&payload.pages, column + 1, row).ok_or_else(|| {
+                        "print pages must form a complete rectangular grid".to_owned()
+                    })?;
+                    let right = guide_at(
+                        page,
+                        "vertical",
+                        payload.paper.width_mm - payload.overlap_mm,
+                    )
+                    .ok_or_else(|| "missing right guide for neighboring page pair".to_owned())?;
+                    let left = guide_at(next, "vertical", payload.overlap_mm)
+                        .ok_or_else(|| "missing left guide for neighboring page pair".to_owned())?;
+                    let (Some(right_label), Some(left_label)) = (&right.label, &left.label) else {
+                        return Err(
+                            "neighboring vertical guides must both have joining labels".to_owned()
+                        );
+                    };
+                    if right_label.text != left_label.text {
+                        return Err(
+                            "neighboring vertical guides must retain the same joining label"
+                                .to_owned(),
+                        );
+                    }
+                    if !close_enough(
+                        page.origin.x + right.position_mm,
+                        next.origin.x + left.position_mm,
+                    ) {
+                        return Err("neighboring vertical guides must coincide globally".to_owned());
                     }
                 }
-            } else if (guide.position_mm - payload.overlap_mm).abs() <= 1e-6 {
-                OutputPoint {
-                    x: payload.paper.width_mm / 2.0,
-                    y: payload.overlap_mm / 2.0,
+                if row + 1 < rows {
+                    let next = page_at(&payload.pages, column, row + 1).ok_or_else(|| {
+                        "print pages must form a complete rectangular grid".to_owned()
+                    })?;
+                    let top = guide_at(
+                        page,
+                        "horizontal",
+                        payload.paper.height_mm - payload.overlap_mm,
+                    )
+                    .ok_or_else(|| "missing top guide for neighboring page pair".to_owned())?;
+                    let bottom =
+                        guide_at(next, "horizontal", payload.overlap_mm).ok_or_else(|| {
+                            "missing bottom guide for neighboring page pair".to_owned()
+                        })?;
+                    let (Some(top_label), Some(bottom_label)) = (&top.label, &bottom.label) else {
+                        return Err(
+                            "neighboring horizontal guides must both have joining labels"
+                                .to_owned(),
+                        );
+                    };
+                    if top_label.text != bottom_label.text {
+                        return Err(
+                            "neighboring horizontal guides must retain the same joining label"
+                                .to_owned(),
+                        );
+                    }
+                    if !close_enough(
+                        page.origin.y + top.position_mm,
+                        next.origin.y + bottom.position_mm,
+                    ) {
+                        return Err(
+                            "neighboring horizontal guides must coincide globally".to_owned()
+                        );
+                    }
                 }
-            } else {
-                OutputPoint {
-                    x: payload.paper.width_mm / 2.0,
-                    y: payload.paper.height_mm - payload.overlap_mm / 2.0,
-                }
-            };
-            if !close_enough(guide.label_center.x, expected_center.x)
-                || !close_enough(guide.label_center.y, expected_center.y)
-            {
-                return Err(
-                    "joining label center is not resolved inside its overlap strip".to_owned(),
-                );
-            }
-            let expected_rotation = if guide.axis == "vertical" { 90.0 } else { 0.0 };
-            if (guide.label_rotation_deg - expected_rotation).abs() > 1e-6 {
-                return Err("joining label rotation does not match its guide axis".to_owned());
-            }
-            let label_bounds = text_bounds_relative(
-                guide.label_font_size_mm,
-                &[guide.label_width_mm],
-                guide.label_font_size_mm * OUTPUT_TEXT_LINE_HEIGHT,
-                guide.label_rotation_deg,
-                false,
-            );
-            let strip_width = if guide.axis == "vertical" {
-                payload.overlap_mm
-            } else {
-                payload.paper.width_mm
-            };
-            let strip_height = if guide.axis == "vertical" {
-                payload.paper.height_mm
-            } else {
-                payload.overlap_mm
-            };
-            if label_bounds.width > strip_width + 1e-6 || label_bounds.height > strip_height + 1e-6
-            {
-                return Err("joining label does not fit inside its overlap strip".to_owned());
             }
         }
     }
@@ -630,6 +771,117 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn validation_label(text: &str, center: OutputPoint) -> OutputJoiningLabel {
+        OutputJoiningLabel {
+            text: text.to_owned(),
+            font_size_mm: 1.0,
+            rotation_deg: 90.0,
+            center,
+            width_mm: 0.62,
+            advances_mm: vec![0.62],
+        }
+    }
+
+    fn validation_payload() -> ResolvedPrintOutputPayload {
+        let stroke = OutputStroke {
+            width_mm: 0.18,
+            style: "solid".to_owned(),
+            color_hex: "#31322f".to_owned(),
+        };
+        let guides = |column: usize| {
+            vec![
+                OutputGuide {
+                    axis: "vertical".to_owned(),
+                    position_mm: 10.0,
+                    label: (column > 0)
+                        .then(|| validation_label("1", OutputPoint { x: 5.0, y: 148.5 })),
+                },
+                OutputGuide {
+                    axis: "vertical".to_owned(),
+                    position_mm: 200.0,
+                    label: (column == 0)
+                        .then(|| validation_label("1", OutputPoint { x: 205.0, y: 148.5 })),
+                },
+                OutputGuide {
+                    axis: "horizontal".to_owned(),
+                    position_mm: 10.0,
+                    label: None,
+                },
+                OutputGuide {
+                    axis: "horizontal".to_owned(),
+                    position_mm: 287.0,
+                    label: None,
+                },
+            ]
+        };
+        ResolvedPrintOutputPayload {
+            version: 1,
+            kind: "print".to_owned(),
+            bounds: OutputBounds {
+                min_x: 0.0,
+                min_y: 0.0,
+                max_x: 100.0,
+                max_y: 80.0,
+                width: 100.0,
+                height: 80.0,
+            },
+            drawables: vec![OutputDrawable::Line {
+                element_id: "line".to_owned(),
+                name: "line".to_owned(),
+                start: OutputPoint { x: 0.0, y: 0.0 },
+                end: OutputPoint { x: 10.0, y: 0.0 },
+                stroke,
+            }],
+            paper: PaperSize {
+                width_mm: 210.0,
+                height_mm: 297.0,
+            },
+            overlap_mm: 10.0,
+            stride: OutputPoint { x: 190.0, y: 277.0 },
+            pages: vec![
+                OutputPrintPage {
+                    index: 0,
+                    column: 0,
+                    row: 0,
+                    origin: OutputPoint { x: -10.0, y: -10.0 },
+                    guides: guides(0),
+                },
+                OutputPrintPage {
+                    index: 1,
+                    column: 1,
+                    row: 0,
+                    origin: OutputPoint { x: 180.0, y: -10.0 },
+                    guides: guides(1),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn accepts_unlabeled_outer_guides_and_matching_shared_labels() {
+        assert!(validate_print_payload(&validation_payload()).is_ok());
+    }
+
+    #[test]
+    fn rejects_malformed_guide_and_label_metadata() {
+        let mut missing_guide = validation_payload();
+        missing_guide.pages[0].guides.pop();
+        assert!(validate_print_payload(&missing_guide).is_err());
+
+        let mut outer_label = validation_payload();
+        outer_label.pages[0].guides[0].label =
+            Some(validation_label("1", OutputPoint { x: 5.0, y: 148.5 }));
+        assert!(validate_print_payload(&outer_label).is_err());
+
+        let mut mismatched_labels = validation_payload();
+        mismatched_labels.pages[1].guides[0]
+            .label
+            .as_mut()
+            .expect("shared guide should have a label")
+            .text = "2".to_owned();
+        assert!(validate_print_payload(&mismatched_labels).is_err());
+    }
 
     #[test]
     fn deserializes_actual_camel_case_print_payload_with_xy_stride_and_label_center() {
@@ -647,7 +899,7 @@ mod tests {
             "drawables": [],
             "paper": { "widthMm": 210.0, "heightMm": 297.0 },
             "overlapMm": 10.0,
-            "stride": { "x": 200.0, "y": 287.0 },
+            "stride": { "x": 190.0, "y": 277.0 },
             "pages": [{
                 "index": 0,
                 "column": 0,
@@ -656,20 +908,26 @@ mod tests {
                 "guides": [{
                     "axis": "vertical",
                     "positionMm": 200.0,
-                    "label": "1",
-                    "labelFontSizeMm": 1.0,
-                    "labelRotationDeg": 90.0,
-                    "labelCenter": { "x": 205.0, "y": 148.5 },
-                    "labelWidthMm": 0.62,
-                    "labelAdvancesMm": [0.62]
+                    "label": {
+                        "text": "1",
+                        "fontSizeMm": 1.0,
+                        "rotationDeg": 90.0,
+                        "center": { "x": 205.0, "y": 148.5 },
+                        "widthMm": 0.62,
+                        "advancesMm": [0.62]
+                    }
                 }]
             }]
         }))
         .expect("camelCase output payload should deserialize");
 
-        assert_eq!(payload.stride.x, 200.0);
-        assert_eq!(payload.stride.y, 287.0);
-        assert_eq!(payload.pages[0].guides[0].label_center.x, 205.0);
-        assert_eq!(payload.pages[0].guides[0].label_center.y, 148.5);
+        assert_eq!(payload.stride.x, 190.0);
+        assert_eq!(payload.stride.y, 277.0);
+        let label = payload.pages[0].guides[0]
+            .label
+            .as_ref()
+            .expect("shared guide should contain a label");
+        assert_eq!(label.center.x, 205.0);
+        assert_eq!(label.center.y, 148.5);
     }
 }

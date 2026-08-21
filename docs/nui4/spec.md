@@ -743,29 +743,36 @@ svg 型紙SVG(
 Defaults are `layout.scale = 1`, target-group local origin, inherited place
 scale, `place.angle = 0`, `place.mirror = false`, portrait orientation, and
 0 mm SVG margin. `print.overlap` is required and must be finite and
-non-negative. It is the physical overlap between adjacent sheets and the
-outer inset on an edge without a neighboring sheet. Let `O = overlap`, and let
-`Bw` and `Bh` be the stroke-inclusive rendered bounds width and height:
+non-negative. It is the safe-edge inset / retained glue-tab width for print
+assembly. Let `Bw` and `Bh` be the stroke-inclusive rendered bounds width and
+height:
 
 ```text
-firstUsableWidth  = W - 2O
-firstUsableHeight = H - 2O
+usableWidth  = W - 2 * overlap
+usableHeight = H - 2 * overlap
 
-nx = 1 if Bw <= firstUsableWidth
-else 1 + ceil((Bw - firstUsableWidth) / (W - O))
+columns = max(1, ceil(Bw / usableWidth))
+rows    = max(1, ceil(Bh / usableHeight))
 
-ny = 1 if Bh <= firstUsableHeight
-else 1 + ceil((Bh - firstUsableHeight) / (H - O))
+strideX = usableWidth
+strideY = usableHeight
 ```
 
-Both first usable dimensions must be positive. Page 1 starts at
-`x = bounds.minX - O`, `y = bounds.minY - O`; later page origins advance by
-`W - O` and `H - O`. Each page has physical overlap strips
-`left = [0, O]`, `right = [W-O, W]`, `bottom = [0, O]`, and
-`top = [H-O, H]`. Joining guides are at `left x = O`, `right x = W-O`,
-`bottom y = O`, and `top y = H-O`. Guides and labels exist only on shared
-edges; outer edges have none. `O = 0` produces no guides or labels. Print
-declarations do not accept `margin`; `margin` remains an SVG-only attribute.
+Both usable dimensions must be positive. Page 1 starts at
+`x = bounds.minX - overlap`, `y = bounds.minY - overlap`; later page origins
+advance by `strideX` and `strideY`. Adjacent physical sheet rectangles therefore
+overlap by `2 * overlap` mm; after one side is trimmed, the retained glue
+allowance is `overlap` mm.
+
+When `overlap > 0`, every physical page has four inset guide lines:
+`left x = overlap`, `right x = W - overlap`, `bottom y = overlap`, and
+`top y = H - overlap`. These guides are advisory printer-safety guides only:
+geometry may cross them, and they do not clip output or forbid placement. The
+corresponding guide lines on adjacent pages coincide in global coordinates.
+Joining text labels are present only on page edges with a neighboring page;
+outer-edge guides remain unlabeled. When `overlap == 0`, stride is the full
+paper width and height and there are no guides or labels. Print declarations do
+not accept `margin`; `margin` remains an SVG-only attribute.
 Literal scales must be finite and positive. Literal angles are normalized to
 `[0, 360)`.
 
