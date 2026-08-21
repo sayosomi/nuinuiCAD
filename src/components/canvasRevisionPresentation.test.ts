@@ -31,10 +31,7 @@ const evaluationState = (
   requestRevision: number,
   isStale: boolean
 ): EvaluationEngineState => ({
-  evaluation: {
-    computedGeometry: new Map(),
-    evaluationErrors: new Map()
-  } as EvaluationEngineState["evaluation"],
+  evaluation: {} as EvaluationEngineState["evaluation"],
   evaluationRevision: revision,
   evaluationRequestRevision: requestRevision,
   mode: "rust",
@@ -66,7 +63,7 @@ describe("revision-coherent Canvas presentation", () => {
     expect(resolved.elements.map((element) => element.id)).toEqual(["old"]);
   });
 
-  it("does not pair a stale preview request with a snapshot from another request", () => {
+  it("fails closed instead of pairing a stale request with another request or the current document", () => {
     const currentInputs = inputs("new");
     const stable: CanvasRevisionPresentationSnapshot = {
       evaluationRevision: 7,
@@ -81,7 +78,10 @@ describe("revision-coherent Canvas presentation", () => {
       lastStable: stable
     });
 
-    expect(resolved).toBe(currentInputs);
+    expect(resolved).not.toBe(currentInputs);
+    expect(resolved).not.toBe(stable.inputs);
+    expect(resolved.elements).toEqual([]);
+    expect(resolved.canonicalElements).toEqual([]);
   });
 
   it("promotes current document inputs atomically when the newer evaluation resolves", () => {
