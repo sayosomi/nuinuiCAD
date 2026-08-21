@@ -64,7 +64,7 @@ describe("VSCodeApp Bake operation transport", () => {
     dispatchCommandMock.mockReturnValue(commandResult);
   });
 
-  it("sends the same semantic summary for Canvas Bake", async () => {
+  it("sends the same semantic summary and explicit mode for Canvas Bake", async () => {
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
 
@@ -86,12 +86,13 @@ describe("VSCodeApp Bake operation transport", () => {
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "bakeOperationResult",
       surface: "canvas",
+      mode: "current",
       status: "nothing",
       summary: commandResult.bakeSummary
     });
   });
 
-  it("sends the same semantic summary for Source Bake while retaining the legacy result envelope", async () => {
+  it("sends the Source semantic result before the legacy envelope", async () => {
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
 
@@ -114,16 +115,25 @@ describe("VSCodeApp Bake operation transport", () => {
     });
 
     expect(api.postMessage).toHaveBeenCalledWith({
+      type: "bakeOperationResult",
+      surface: "source",
+      requestId: 7,
+      mode: "current",
+      status: "nothing",
+      summary: commandResult.bakeSummary
+    });
+    expect(api.postMessage).toHaveBeenCalledWith({
       type: "bakeSourceResult",
       requestId: 7,
       status: "nothing"
     });
-    expect(api.postMessage).toHaveBeenCalledWith({
-      type: "bakeOperationResult",
-      surface: "source",
-      requestId: 7,
-      status: "nothing",
-      summary: commandResult.bakeSummary
-    });
+    const operationIndex = api.postMessage.mock.calls.findIndex(
+      ([message]) => message?.type === "bakeOperationResult" && message.surface === "source"
+    );
+    const legacyIndex = api.postMessage.mock.calls.findIndex(
+      ([message]) => message?.type === "bakeSourceResult" && message.requestId === 7
+    );
+    expect(operationIndex).toBeGreaterThanOrEqual(0);
+    expect(legacyIndex).toBeGreaterThan(operationIndex);
   });
 });
