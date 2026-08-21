@@ -6,8 +6,13 @@ import {
   applyBakePlan,
   planBakeGeometry,
   resolveDisabledBakeTargetIds,
-  type BakeMode
+  type BakeMode,
+  type BakePlan
 } from "./bakeGeometry";
+import {
+  bakeOperationSummaryForPlan,
+  type BakeCommandResult
+} from "./bakeOperationResult";
 
 const sameIds = (left: readonly string[], right: readonly string[]) =>
   left.length === right.length && left.every((id, index) => id === right[index]);
@@ -15,6 +20,14 @@ const sameIds = (left: readonly string[], right: readonly string[]) =>
 const bakeFailure = (message: string) => {
   useCadUiStore.getState().setCommandErrorMessage(message);
   return false;
+};
+
+const bakeNothing = (plan: BakePlan): BakeCommandResult => {
+  useCadUiStore.getState().setCommandErrorMessage("Bakeできるジオメトリがありません。");
+  return {
+    status: "noop",
+    bakeSummary: bakeOperationSummaryForPlan(plan)
+  };
 };
 
 const runBake = (mode: BakeMode, context?: CommandContext) => {
@@ -51,10 +64,16 @@ const runBake = (mode: BakeMode, context?: CommandContext) => {
       includeDisabledGeometry,
       bakeDisabledEvaluation: sandbox?.evaluation ?? context?.bakeDisabledEvaluation
     });
-    if (!plan || (plan.splices.length === 0 && plan.generatedElementIds.length === 0)) {
-      return bakeFailure("Bakeできるジオメトリがありません。");
+    if (!plan) return bakeFailure("Bakeできるジオメトリがありません。");
+    if (plan.splices.length === 0 && plan.generatedElementIds.length === 0) {
+      return bakeNothing(plan);
     }
-    return applyBakePlan(plan);
+    const mutation = applyBakePlan(plan);
+    if (mutation.status === "rejected") return mutation;
+    return {
+      ...mutation,
+      bakeSummary: bakeOperationSummaryForPlan(plan)
+    } satisfies BakeCommandResult;
   };
 
   if (includeDisabledGeometry && disabledTargetIds.length > 0) {
