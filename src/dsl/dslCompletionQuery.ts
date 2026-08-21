@@ -639,7 +639,7 @@ const replacementRangeInLogicalText = (
   // Source references keep their marker/separator outside the editable member
   // range. Existing classifiers already return the member-only range for
   // `.`/`::`; this handles the `@`-prefixed scalar/reference lanes.
-  if (text[from] === "@" && (
+  if (from < to && text[from] === "@" && (
     context.kind === "parameter" ||
     context.kind === "moduleReference" ||
     context.kind === "typedInitializer" ||
@@ -755,7 +755,14 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
   if (source.normalizedSource.includes("\r") || position < 0 || position > source.normalizedSource.length) return null;
   const strictInput = logicalInputAt(source, position);
   const authoring = dslCallAuthoringContextAt(source, position);
-  const input: LogicalInput = authoring
+  const strictStartsInBlockComment = strictInput.statement
+    ? false
+    : strictInput.map.lexicalLines[strictInput.lineNumber - 1]?.startsInBlockComment ?? false;
+  const strictContext = strictInput.statement
+    ? dslCompletionContextAt(strictInput.lineText, strictInput.localPosition, strictStartsInBlockComment)
+    : null;
+  const useAuthoringContext = Boolean(authoring && !strictContext);
+  const input: LogicalInput = useAuthoringContext && authoring
     ? {
         lineText: authoring.logicalText,
         localPosition: authoring.logicalCursorPosition,
@@ -769,10 +776,10 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
   const startsInBlockComment = input.statement
     ? false
     : input.map.lexicalLines[input.lineNumber - 1]?.startsInBlockComment ?? false;
-  const classifiedContext = authoring
+  const classifiedContext = useAuthoringContext && authoring
     ? dslCompletionContextAt(input.lineText, input.localPosition)
-    : dslCompletionContextAt(input.lineText, input.localPosition, startsInBlockComment);
-  const context = classifiedContext?.kind === "argument" && authoring
+    : strictContext ?? dslCompletionContextAt(input.lineText, input.localPosition, startsInBlockComment);
+  const context = classifiedContext?.kind === "argument" && useAuthoringContext && authoring
     ? {
         ...classifiedContext,
         usedArgumentNames: new Set([
@@ -806,9 +813,14 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
             ? context.propertyContext.positionContext.kind === "operand" ? context.propertyContext.positionContext.expectedType : context.propertyContext.positionContext.kind === "operator" ? context.propertyContext.positionContext.rootType : null
             : context.propertyContext.kind === "booleanLiteral" ? { kind: "boolean" as const } : context.propertyContext.expectedType
           : { kind: "string" as const };
+    const moduleExpectedTypes: readonly (ScalarType | null)[] = context.kind === "templateHole"
+      ? [{ kind: "string" }, { kind: "number" }]
+      : [expected];
     candidates = uniqueCandidates([
       ...candidates,
-      ...moduleBodyReferenceCandidates(input, position, semantic, compiled, exact, statementIndex, expected)
+      ...moduleExpectedTypes.flatMap((expectedType) =>
+        moduleBodyReferenceCandidates(input, position, semantic, compiled, exact, statementIndex, expectedType)
+      )
     ]);
   }
 

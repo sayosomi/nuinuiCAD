@@ -89,6 +89,15 @@ describe("DSL Signature Help query", () => {
     expect(incomplete?.signatures[0]?.name).toBe("abs");
   });
 
+  it("keeps the enclosing construction active inside a text template hole", () => {
+    const source = "nui 4\ntext Label = label(text: \"width=${@width}\", anchor: (0, 0))";
+    const position = source.indexOf("${@width}") + 2;
+    const result = queryAt(source, position);
+
+    expect(result?.signatures[0]?.name).toBe("label");
+    expect(result?.activeParameter).toBe(0);
+  });
+
   it("reuses tolerant blank-line call contexts", () => {
     const source = "nui 4\npoint P = coordinate(\n\n)";
     const position = source.indexOf("\n\n") + 1;

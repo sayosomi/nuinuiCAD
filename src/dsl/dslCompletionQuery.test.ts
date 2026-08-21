@@ -455,6 +455,25 @@ describe("queryDslCompletion", () => {
     expect(result?.replacementRange.from).toBe(position - 1);
   });
 
+  it("preserves a specific Module template-hole context inside an enclosing construction call", () => {
+    const source = [
+      "nui 4",
+      "const outer: number = 10",
+      "module M(width: number, caption: string) {",
+      "  const first: number = 1",
+      "  text Label = label(text: \"width=${@width}\", anchor: (0, 0))",
+      "  text Local = label(text: \"first=${@first}\", anchor: (0, 0))",
+      "}"
+    ].join("\n");
+    const position = source.indexOf("${@width}") + 2;
+    const result = exactQuery(source, "${@width}", 2);
+
+    expect(result?.category).toBe("templateHole");
+    expect(result?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["width", "first"]));
+    expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("outer");
+    expect(result?.replacementRange).toEqual({ from: position, to: position });
+  });
+
   it("supports Module callee, argument labels, typed filtering, geometry interfaces, and qualified members", () => {
     const source = [
       "nui 4",
