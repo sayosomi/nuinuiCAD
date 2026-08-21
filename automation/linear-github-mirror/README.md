@@ -131,4 +131,4 @@ Manual production smoke test after deploy:
 7. Confirm the Worker deploy output lists the `0 */12 * * *` scheduled trigger.
 8. Remove/archive the temporary Linear test issue as appropriate after verification.
 
-After the bridge passes production smoke testing and the scheduled safety sweep is deployed, disable the old scheduled `Legacy Issue Mirror` automation so this Worker is the only automatic reconciliation owner.
+Production cutover was verified on 2026-08-21. The webhook smoke test passed, the scheduled `0 */12 * * *` trigger was deployed, and the old ChatGPT `Legacy Issue Mirror` automation was disabled. This Worker is now the only automatic reconciliation owner.
