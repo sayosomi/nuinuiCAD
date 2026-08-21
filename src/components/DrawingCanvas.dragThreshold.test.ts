@@ -211,12 +211,13 @@ describe("DrawingCanvas point drag activation threshold", () => {
     });
 
     expect(movePointElementByDelta).toHaveBeenCalledTimes(1);
-    expect(movePointElementByDelta.mock.calls[0]?.[0]).toMatchObject({
+    const previewAction = movePointElementByDelta.mock.calls[0]?.[0];
+    expect(previewAction).toMatchObject({
       elementId: "point-a",
       dx: 3,
-      dy: 0,
       commitMode: "preview"
     });
+    expect(Math.abs(previewAction?.dy ?? Number.NaN)).toBe(0);
 
     fireEvent.pointerUp(viewport, {
       buttons: 0,
@@ -226,12 +227,13 @@ describe("DrawingCanvas point drag activation threshold", () => {
     });
 
     expect(movePointElementByDelta).toHaveBeenCalledTimes(2);
-    expect(movePointElementByDelta.mock.calls[1]?.[0]).toMatchObject({
+    const commitAction = movePointElementByDelta.mock.calls[1]?.[0];
+    expect(commitAction).toMatchObject({
       elementId: "point-a",
       dx: 3,
-      dy: 0,
       commitMode: "commit"
     });
+    expect(Math.abs(commitAction?.dy ?? Number.NaN)).toBe(0);
   });
 
   it("preserves X axis locking after the drag threshold is crossed", () => {
