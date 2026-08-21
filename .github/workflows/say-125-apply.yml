@@ -1,16 +1,16 @@
 name: SAY-125 apply
 
 on:
-  push:
+  pull_request:
     branches:
-      - sayosomi/say-125-module-instance-selection-frame-reveal-semantics
+      - main
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.actor != 'github-actions[bot]'
+    if: github.head_ref == 'sayosomi/say-125-module-instance-selection-frame-reveal-semantics'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
