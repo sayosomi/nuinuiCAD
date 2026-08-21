@@ -63,10 +63,29 @@ jobs:
           text = text.replace('"point A1 = coordinate(x: 20, y: 0)",\n      "point A2 = coordinate(x: 0, y: 20)",\n      "point A3 = coordinate(x: -20, y: 0)",',
                               '"point A1 = coordinate(x: 80, y: 0)",\n      "point A2 = coordinate(x: 60, y: 20)",\n      "point A3 = coordinate(x: 40, y: 0)",')
           text = text.replace('startAngle:', 'start:').replace('endAngle:', 'end:')
+          for old, new in [
+              ('center: C1', 'center: @C1'), ('center: C2', 'center: @C2'), ('center: O', 'center: @O'),
+              ('first: A, second: B', 'first: @A, second: @B'), ('first: B, second: A', 'first: @B, second: @A'),
+              ('point1: A1, point2: A2, point3: A3', 'point1: @A1, point2: @A2, point3: @A3'),
+              ('start: P1, end: P2', 'start: @P1, end: @P2'), ('start: P2, end: P3', 'start: @P2, end: @P3'),
+              ('endpoint1: L1:end, endpoint2: L2:start', 'end1: @L1.end, end2: @L2.start'),
+              ('first: Direct, second: Through', 'first: @Direct, second: @Through'),
+              ('first: Direct, second: Corner', 'first: @Direct, second: @Corner'),
+          ]:
+              text = text.replace(old, new)
+          text = text.replace('choiceAfterStep("external", kind, 1)', 'choiceAfterStep("external", kind.choiceOptions!, 1)')
+          text = text.replace('choiceAfterStep("internal", kind, 1)', 'choiceAfterStep("internal", kind.choiceOptions!, 1)')
+          text = text.replace('choiceAfterStep("external", kind, -1)', 'choiceAfterStep("external", kind.choiceOptions!, -1)')
+          text = text.replace('choiceAfterStep("left", side, 1)', 'choiceAfterStep("left", side.choiceOptions!, 1)')
+          text = text.replace('choiceAfterStep("right", side, 1)', 'choiceAfterStep("right", side.choiceOptions!, 1)')
+          text = text.replace('choiceAfterStep("left", side, -1)', 'choiceAfterStep("left", side.choiceOptions!, -1)')
           p.write_text(text)
 
           p = Path('test/fixtures/evaluation/nui4-common-tangent.nui')
-          p.write_text(p.read_text().replace('startAngle:', 'start:').replace('endAngle:', 'end:'))
+          text = p.read_text().replace('startAngle:', 'start:').replace('endAngle:', 'end:')
+          text = text.replace('center: C1', 'center: @C1').replace('center: C2', 'center: @C2')
+          text = text.replace('first: A, second: B', 'first: @A, second: @B')
+          p.write_text(text)
 
           p = Path('src-tauri/src/evaluation/common_tangent_evaluator.rs')
           text = p.read_text()
