@@ -9,6 +9,7 @@ import {
 } from "../commands/selectionCommands";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
@@ -25,6 +26,7 @@ type TauriDrawingCanvasProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   commandContext?: CommandContext;
   leftPanelDockRef: RefObject<HTMLDivElement | null>;
 };
@@ -34,6 +36,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
     evaluation,
     evaluationState,
     canvasFocusRef,
+    measureCanvasTextWidth,
     commandContext = {},
     leftPanelDockRef
   }, ref) {
@@ -99,6 +102,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       visibilityProfiles: canvasPresentation.visibilityProfiles,
       activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
       moduleSemanticContext: canvasPresentation.moduleSemanticContext,
+      measureCanvasTextWidth,
       selectedElementId,
       selectedElementIds,
       selectionAnchorElementId,
@@ -171,6 +175,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       elements,
       evaluationLimitIndex,
       leftPanelDockRef,
+      measureCanvasTextWidth,
       moduleSemanticContext,
       palette,
       selectedElementId,

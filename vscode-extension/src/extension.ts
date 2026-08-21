@@ -750,6 +750,15 @@ export const activate = (context: vscode.ExtensionContext): void => {
       flushPendingCanvasFocus(session);
       return;
     }
+    if (message.status === "no-renderable-geometry") {
+      session.pendingCanvasFocus = null;
+      session.inFlightCanvasNavigation = null;
+      void vscode.window.showErrorMessage(
+        "nuinuiCAD: このModule instanceには現在表示できるgeometryがありません。"
+      );
+      deliverPendingCanvasNavigation(session);
+      return;
+    }
     if (message.status === "focused") {
       session.pendingCanvasFocus = null;
       session.inFlightCanvasNavigation = null;

@@ -49,7 +49,7 @@ export type VscodeToExtensionMessage =
   | { type: "editCanvasRibbon" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
-  | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "stale" | "focused" }
+  | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "no-renderable-geometry" | "stale" | "focused" }
   | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }
   | ({ type: "bakeOperationResult"; surface: "source"; requestId: number; mode: "current" | "base" } & VscodeBakeOperationResult)
   | ({ type: "bakeOperationResult"; surface: "canvas"; mode: "current" | "base" } & VscodeBakeOperationResult)

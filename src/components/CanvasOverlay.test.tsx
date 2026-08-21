@@ -290,3 +290,54 @@ describe("Canvas identity labels", () => {
     expect(container.querySelector("[data-element-identity='secondary']")).toBeNull();
   });
 });
+
+
+describe("Module instance selection frame", () => {
+  it("renders the frame and name with the Canvas selection semantic and no pointer target", () => {
+    const { container } = render(
+      <CanvasOverlay
+        viewportSize={{ width: 500, height: 400 }}
+        moduleInstanceSelectionFrames={[{
+          instanceId: "instance",
+          name: "InstanceOne",
+          left: 10,
+          top: 20,
+          width: 120,
+          height: 80
+        }]}
+        overlayLines={[]}
+        overlayArcs={[]}
+        overlayCurves={[]}
+        overlayOffsetLines={[]}
+        overlayPoints={[]}
+        overlayTexts={[]}
+        selectedBezierEditingHelper={null}
+        selectedBezierHandles={[]}
+        overlayPointPickCandidates={[]}
+        selectedElementIdSet={new Set(["instance"])}
+        draftLinePickElementIds={new Set()}
+        pickCandidateLineIds={new Set()}
+        selectedElementId="instance"
+        canvasTheme={LEGACY_CANVAS_THEME}
+        elementColors={new Map()}
+        showCanvasPointNames={false}
+        showCanvasGeometryNames={false}
+        showCanvasPoints={false}
+        isPointPickActive={false}
+        isNumericReferencePickActive={false}
+        isLinePickActive={false}
+        hoveredElementIds={new Set()}
+        hoverRepresentativeElementId={null}
+      />
+    );
+
+    const frame = container.querySelector("[data-module-instance-selection-frame='instance']");
+    const rect = frame?.querySelector("rect");
+    const label = container.querySelector("[data-module-instance-selection-label='instance']");
+    expect(frame).toHaveStyle({ pointerEvents: "none" });
+    expect(rect).toHaveAttribute("stroke", "var(--canvas-selection)");
+    expect(rect).toHaveStyle({ pointerEvents: "none" });
+    expect(label).toHaveTextContent("InstanceOne");
+    expect(label).toHaveAttribute("fill", "var(--canvas-selection)");
+  });
+});

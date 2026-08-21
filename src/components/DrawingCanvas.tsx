@@ -21,6 +21,7 @@ import type {
 } from "../types/geometry";
 import { CanvasCandidateMenus } from "./CanvasCandidateMenus";
 import { CanvasOverlay } from "./CanvasOverlay";
+import { moduleInstanceSelectionFrameOverlays } from "./moduleInstanceSelectionFrame";
 import {
   PointDragAxisLockFeedback,
   type PointDragAxisLockFeedbackState
@@ -296,6 +297,27 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activeVisibilityProfileId,
     resolveImageSourceUrl: hostAdapter.resolveImageSourceUrl
   });
+  const moduleInstanceSelectionFrames = useMemo(() => moduleInstanceSelectionFrameOverlays({
+    selectedElementIds,
+    elements,
+    evaluation,
+    moduleMaterialization: moduleSemanticContext.moduleMaterialization,
+    visibilityProfiles,
+    activeVisibilityProfileId,
+    viewportSize,
+    canvasViewport,
+    measureCanvasTextWidth: hostAdapter.measureCanvasTextWidth
+  }), [
+    activeVisibilityProfileId,
+    canvasViewport,
+    elements,
+    evaluation,
+    hostAdapter.measureCanvasTextWidth,
+    moduleSemanticContext.moduleMaterialization,
+    selectedElementIds,
+    viewportSize,
+    visibilityProfiles
+  ]);
   const interactiveOverlayLines = useMemo(
     () => overlayLines.filter(({ line }) => !previewElementIds.has(line.elementId)),
     [overlayLines, previewElementIds]
@@ -1601,6 +1623,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         <canvas ref={canvasRef} aria-label="CAD drawing canvas" />
         <CanvasOverlay
           viewportSize={viewportSize}
+          moduleInstanceSelectionFrames={moduleInstanceSelectionFrames}
           overlayLines={overlayLines}
           overlayArcs={overlayArcs}
           overlayCurves={overlayCurves}

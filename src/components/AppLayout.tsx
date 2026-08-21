@@ -497,6 +497,7 @@ export const AppLayout = () => {
             evaluation={evaluation}
             evaluationState={evaluationState}
             canvasFocusRef={canvasFocusRef}
+            measureCanvasTextWidth={measureCanvasTextWidth}
             commandContext={commandContext}
             leftPanelDockRef={commandRibbonDockRef}
           />

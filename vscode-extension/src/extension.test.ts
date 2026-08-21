@@ -2828,3 +2828,44 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
     });
   });
 });
+
+
+describe("SAY-125 Module instance Reveal feedback", () => {
+  it("reports a no-renderable result without asking the Canvas to take focus", async () => {
+    const source = [
+      "nui 4",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0, state: hidden)",
+      "}",
+      "instance A = M()"
+    ].join("\n");
+    const document = documentFor("/tmp/instance.nui", "file:///tmp/instance.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("A = M"));
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    panel.webview.postMessage.mockClear();
+    mocks.showErrorMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    const request = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasNavigationRequest") as { requestId: number } | undefined;
+    expect(request).toBeDefined();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: request!.requestId,
+      status: "no-renderable-geometry"
+    });
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: このModule instanceには現在表示できるgeometryがありません。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "focusCanvas", requestId: request!.requestId })
+    );
+  });
+});
