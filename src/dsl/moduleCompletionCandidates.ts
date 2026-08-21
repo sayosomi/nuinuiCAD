@@ -31,6 +31,14 @@ export type ModuleCompletionSite = {
   sourceOrderIndex: number;
 };
 
+export type ModuleCompletionParameterMetadata = {
+  name: string;
+  type: DslModuleParameterType | null;
+  optional: boolean;
+  definitionStatementId: string;
+  parameterIndex: number;
+};
+
 export type ModuleCompletionRequest = {
   compiled: CompiledDslDocument;
   cursorPosition: number;
@@ -45,6 +53,10 @@ export type ModuleCompletionRequest = {
   liveStatementText?: string;
   /** Logical value span supplied by the live module argument context. */
   argumentValueSpan?: { start: number; end: number };
+  /** Named arguments recovered from the full tolerant call envelope. */
+  usedArgumentNames?: ReadonlySet<string>;
+  /** Current-source Module signature proven by the live lexical namespace. */
+  currentDefinitionParameters?: readonly ModuleCompletionParameterMetadata[];
   expectedScalarType?: ScalarType | null;
   scopeId?: ScopeId;
   sourceOrderIndex?: number;
@@ -302,8 +314,14 @@ const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: num
   if (!instance?.callee || statement?.kind !== "moduleInstance") return [];
   const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
   if (!definition) return [];
-  const used = new Set((liveArguments(request)?.map((argument) => argument.key) ?? statement.arguments.map((argument) => argument.label)).filter((label): label is string => Boolean(label)));
-  return definition.parameters.filter((parameter) => !used.has(parameter.name)).map((parameter) => ({ kind: "argumentName" as const, label: parameter.name }));
+  const used = request.usedArgumentNames ?? new Set(
+    (liveArguments(request)?.map((argument) => argument.key) ?? statement.arguments.map((argument) => argument.label))
+      .filter((label): label is string => Boolean(label))
+  );
+  const parameters = request.currentDefinitionParameters ?? definition.parameters;
+  return parameters
+    .filter((parameter) => !used.has(parameter.name))
+    .map((parameter) => ({ kind: "argumentName" as const, label: parameter.name }));
 };
 
 const moduleArgumentParameterType = (
@@ -316,6 +334,12 @@ const moduleArgumentParameterType = (
   const definition = instance?.callee && compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
   if (!definition) return null;
   const liveArgument = liveArguments(request)?.[argumentIndex];
+  if (request.currentDefinitionParameters) {
+    const parameter = liveArgument?.key
+      ? request.currentDefinitionParameters.find((candidate) => candidate.name === liveArgument.key)
+      : request.currentDefinitionParameters[argumentIndex];
+    return parameter?.type ?? null;
+  }
   const binding = instance?.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
   const parameter = liveArgument?.key
     ? definition.parameters.find((candidate) => candidate.name === liveArgument.key)

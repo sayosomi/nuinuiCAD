@@ -1,4 +1,9 @@
-import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
+import {
+  matchingDslDelimiter,
+  scanCallArgs,
+  scanDslNesting,
+  type ScannedArg
+} from "./dslArgScanner";
 import { dslCompletionContextAt } from "./dslCompletionContext";
 import {
   createLogicalStatementSourceMap,
@@ -37,6 +42,8 @@ export type DslCallAuthoringContext = {
     closeParen: number | null;
   };
   argument: DslCallAuthoringArgument;
+  /** Named arguments anywhere inside the proven call envelope. */
+  usedArgumentNames: ReadonlySet<string>;
   /** The strict statement which owns the incomplete call. This is the only
    * source-order anchor accepted by the tolerant projection. */
   sourceOrderAnchor: {
@@ -70,50 +77,6 @@ const lineIndexAt = (starts: readonly number[], position: number) => {
   return Math.max(0, high);
 };
 
-const isEscaped = (source: string, index: number) => {
-  let backslashes = 0;
-  for (let cursor = index - 1; cursor >= 0 && source[cursor] === "\\"; cursor -= 1) backslashes += 1;
-  return backslashes % 2 === 1;
-};
-
-const lastOpenParenOutsideQuotes = (source: string) => {
-  let quote: string | null = null;
-  let open = -1;
-  for (let index = 0; index < source.length; index += 1) {
-    const character = source[index]!;
-    if (quote) {
-      if (character === quote && !isEscaped(source, index)) quote = null;
-      continue;
-    }
-    if ((character === "\"" || character === "'") && !isEscaped(source, index)) {
-      quote = character;
-    } else if (character === "(") {
-      open = index;
-    }
-  }
-  return open;
-};
-
-const matchingCloseParen = (source: string, open: number) => {
-  let quote: string | null = null;
-  let depth = 0;
-  for (let index = open; index < source.length; index += 1) {
-    const character = source[index]!;
-    if (quote) {
-      if (character === quote && !isEscaped(source, index)) quote = null;
-      continue;
-    }
-    if ((character === "\"" || character === "'") && !isEscaped(source, index)) {
-      quote = character;
-    } else if (character === "(") {
-      depth += 1;
-    } else if (character === ")" && --depth === 0) {
-      return index;
-    }
-  }
-  return -1;
-};
-
 const calleeSpanAt = (source: string, open: number): DslCallAuthoringRange | null => {
   let end = open;
   while (end > 0 && /\s/.test(source[end - 1]!)) end -= 1;
@@ -124,29 +87,6 @@ const calleeSpanAt = (source: string, open: number): DslCallAuthoringRange | nul
 
 const codeSourceFor = (lexicalLines: readonly { code: string }[]) =>
   lexicalLines.map((line) => line.code).join("\n");
-
-const topLevelCommas = (source: string, from: number, to: number) => {
-  const commas: number[] = [];
-  let quote: string | null = null;
-  let depth = 0;
-  for (let index = from; index < to; index += 1) {
-    const character = source[index]!;
-    if (quote) {
-      if (character === quote && !isEscaped(source, index)) quote = null;
-      continue;
-    }
-    if ((character === "\"" || character === "'") && !isEscaped(source, index)) {
-      quote = character;
-    } else if (character === "(" || character === "[") {
-      depth += 1;
-    } else if (character === ")" || character === "]") {
-      depth = Math.max(0, depth - 1);
-    } else if (character === "," && depth === 0) {
-      commas.push(index);
-    }
-  }
-  return commas;
-};
 
 const trimmedRange = (source: string, from: number, to: number): DslCallAuthoringRange => {
   while (from < to && /\s/.test(source[from]!)) from += 1;
@@ -162,7 +102,7 @@ const currentArgumentFrom = (
   scanned: readonly ScannedArg[],
   kind: DslCallAuthoringContext["kind"]
 ): DslCallAuthoringArgument => {
-  const commas = topLevelCommas(source, open + 1, end);
+  const commas = scanDslNesting(source, { start: open + 1, end }).topLevelCommas;
   const previousComma = [...commas].reverse().find((comma) => comma < position);
   const nextComma = commas.find((comma) => comma >= position);
   const segmentFrom = (previousComma ?? open) + 1;
@@ -284,7 +224,10 @@ export const dslCallAuthoringContextAt = (
   }
 
   const codeSource = codeSourceFor(map.lexicalLines);
-  const openLogical = lastOpenParenOutsideQuotes(statement.logicalText);
+  const statementNesting = scanDslNesting(statement.logicalText);
+  const openLogical = [...statementNesting.unmatchedOpeners]
+    .reverse()
+    .find((opener) => opener.delimiter === "(")?.index ?? -1;
   if (openLogical < 0) return null;
   const openPhysical = statement.segments.length > 0
     ? (() => {
@@ -301,7 +244,7 @@ export const dslCallAuthoringContextAt = (
     : null;
   if (openPhysical === null) return null;
 
-  const closePhysical = matchingCloseParen(codeSource, openPhysical);
+  const closePhysical = matchingDslDelimiter(codeSource, openPhysical);
   if (closePhysical >= 0 && position > closePhysical) return null;
 
   const currentFragment = codeSource.slice(starts[lineIndex]!, position);
@@ -309,10 +252,16 @@ export const dslCallAuthoringContextAt = (
 
   const closeLine = closePhysical >= 0 ? lineIndexAt(starts, closePhysical) : -1;
   if (closeLine >= 0) {
-    for (let index = lineIndex + 1; index < closeLine; index += 1) {
-      const candidateLine = map.lexicalLines[index];
-      if (candidateLine?.codeText.trim() || candidateLine?.text.trim()) return null;
+    for (let index = lineIndex + 1; index <= closeLine; index += 1) {
+      const lineStart = starts[index]!;
+      const lineEnd = starts[index + 1] ?? map.source.length;
+      const codeBeforeClose = index === closeLine
+        ? codeSource.slice(lineStart, closePhysical)
+        : codeSource.slice(lineStart, lineEnd);
+      if (isUnsafeCurrentFragment(codeBeforeClose)) return null;
     }
+    const closeLineEnd = starts[closeLine + 1] ?? map.source.length;
+    if (isUnsafeCurrentFragment(codeSource.slice(closePhysical + 1, closeLineEnd))) return null;
   } else {
     for (let index = lineIndex + 1; index < map.lexicalLines.length; index += 1) {
       const candidateLine = map.lexicalLines[index];
@@ -375,6 +324,11 @@ export const dslCallAuthoringContextAt = (
   const contentEnd = closePhysical >= 0 ? closePhysical : Math.max(position, openPhysical + 1);
   const scanned = scanCallArgs(codeSource, { start: openPhysical + 1, end: contentEnd });
   const argument = currentArgumentFrom(codeSource, openPhysical, contentEnd, position, scanned.args, kind);
+  const usedArgumentNames = new Set(
+    scanned.args
+      .map((candidate) => candidate.key)
+      .filter((key): key is string => Boolean(key))
+  );
 
   return {
     kind,
@@ -384,6 +338,7 @@ export const dslCallAuthoringContextAt = (
       ...argument,
       segment: { from: argument.segment.from, to: argument.segment.to }
     },
+    usedArgumentNames,
     sourceOrderAnchor: {
       statementIndex: map.statements.indexOf(statement),
       statementRange: {

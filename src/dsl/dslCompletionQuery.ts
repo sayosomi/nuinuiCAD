@@ -26,7 +26,11 @@ import {
   resolveSourceLexicalDeclaration,
   sourceNamespaceScopeIdForDeclaration
 } from "./sourceLexicalNamespaceIndex";
-import { moduleCompletionCandidates, type ModuleCompletionCandidate } from "./moduleCompletionCandidates";
+import {
+  moduleCompletionCandidates,
+  type ModuleCompletionCandidate,
+  type ModuleCompletionParameterMetadata
+} from "./moduleCompletionCandidates";
 import type { CompiledDslDocument } from "./dslDocument";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import {
@@ -158,7 +162,11 @@ const recoveredModuleStatementAt = (
   recovery: DslCompletionRecoveryInput | undefined,
   position: number,
   statementIndexHint = -1
-): { compiled: CompiledDslDocument; statementIndex: number } | null => {
+): {
+  compiled: CompiledDslDocument;
+  statementIndex: number;
+  currentDefinitionParameters: readonly ModuleCompletionParameterMetadata[];
+} | null => {
   if (!recovery || !recovery.lastGoodCompiled.statementMap || !recovery.lastGoodCompiled.moduleSemanticAnalysis) return null;
   const liveStatementIndex = statementIndexHint >= 0
     ? statementIndexHint
@@ -189,7 +197,17 @@ const recoveredModuleStatementAt = (
   if (liveCallee.kind !== "resolved" || liveCallee.declaration.kind !== "moduleDefinition") return null;
   if (recovery.mappedStatementIds.get(liveCallee.declaration.statementIndex) !== definitionStatementId) return null;
 
-  return { compiled: recovery.lastGoodCompiled, statementIndex };
+  const liveDefinition = recovery.liveCompiled.statements[liveCallee.declaration.statementIndex];
+  if (liveDefinition?.kind !== "moduleDefinition") return null;
+  const currentDefinitionParameters = liveDefinition.parameters.map((parameter, parameterIndex) => ({
+    name: parameter.name,
+    type: parameter.type,
+    optional: parameter.optional,
+    definitionStatementId: liveCallee.declaration.statementId,
+    parameterIndex
+  }));
+
+  return { compiled: recovery.lastGoodCompiled, statementIndex, currentDefinitionParameters };
 };
 
 const recoveryIsExact = (
@@ -494,7 +512,11 @@ const moduleCandidatesAt = (
         : context.kind === "moduleQualifiedMember"
           ? "qualifiedMember"
           : "reference";
-  const request = (semanticCompiled: CompiledDslDocument, semanticStatementIndex?: number) => moduleCompletionCandidates({
+  const request = (
+    semanticCompiled: CompiledDslDocument,
+    semanticStatementIndex?: number,
+    currentDefinitionParameters?: readonly ModuleCompletionParameterMetadata[]
+  ) => moduleCompletionCandidates({
     compiled: semanticCompiled,
     cursorPosition: position,
     kind: moduleKind,
@@ -506,6 +528,8 @@ const moduleCandidatesAt = (
       ? { argumentIndex: context.argumentIndex }
       : {}),
     ...(context.kind === "moduleArgumentValue" ? { argumentValueSpan: { start: context.from, end: context.to } } : {}),
+    ...(input.authoring ? { usedArgumentNames: input.authoring.usedArgumentNames } : {}),
+    ...(currentDefinitionParameters ? { currentDefinitionParameters } : {}),
     ...(context.kind === "moduleQualifiedMember" ? {
       qualifiedInstanceName: context.qualifiedInstanceName,
       ...(context.expectedScalarType ? { expectedScalarType: context.expectedScalarType } : {})
@@ -522,7 +546,9 @@ const moduleCandidatesAt = (
 
   if (context.kind !== "moduleArgumentLabel") return [];
   const recovered = recoveredModuleStatementAt(recovery, position, statementIndex);
-  return recovered ? request(recovered.compiled, recovered.statementIndex) : [];
+  return recovered
+    ? request(recovered.compiled, recovered.statementIndex, recovered.currentDefinitionParameters)
+    : [];
 };
 
 const statementIndexForAuthoring = (
@@ -701,9 +727,18 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
   const startsInBlockComment = input.statement
     ? false
     : input.map.lexicalLines[input.lineNumber - 1]?.startsInBlockComment ?? false;
-  const context = authoring
+  const classifiedContext = authoring
     ? dslCompletionContextAt(input.lineText, input.localPosition)
     : dslCompletionContextAt(input.lineText, input.localPosition, startsInBlockComment);
+  const context = classifiedContext?.kind === "argument" && authoring
+    ? {
+        ...classifiedContext,
+        usedArgumentNames: new Set([
+          ...classifiedContext.usedArgumentNames,
+          ...authoring.usedArgumentNames
+        ])
+      }
+    : classifiedContext;
   if (!context) return null;
   const compiled = semantic?.compiled;
   const exact = semanticIsExact(source, semantic);

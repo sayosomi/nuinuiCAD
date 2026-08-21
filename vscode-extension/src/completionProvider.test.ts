@@ -171,6 +171,25 @@ describe("VS Code native nui completion provider", () => {
     });
   });
 
+  it("filters a later in-call argument without changing the blank-line range", () => {
+    const source = [
+      "nui 4",
+      "point P = coordinate(",
+      "",
+      "y: 20",
+      ")"
+    ].join("\n");
+    const items = itemsFor(source, 2, 0);
+
+    expect(items.map((item) => item.label)).toContain("x");
+    expect(items.map((item) => item.label)).not.toContain("y");
+    const x = items.find((item) => item.label === "x")!;
+    expect(x.range).toMatchObject({
+      start: { line: 2, character: 0 },
+      end: { line: 2, character: 0 }
+    });
+  });
+
   it("supports the manual E2E cases for incomplete argument, qualified member, and property completion", () => {
     const argumentSource = [
       "nui 4",

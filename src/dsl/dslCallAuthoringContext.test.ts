@@ -40,6 +40,60 @@ describe("dslCallAuthoringContextAt", () => {
     expect(value && value.argument.value && valueSource.slice(value.argument.value.from, value.argument.value.to)).toBe("s");
   });
 
+  it("selects the outer active call after a closed nested coordinate literal", () => {
+    const source = [
+      "nui 4",
+      "line L = segment(",
+      "start: (0, 0),",
+      "",
+      ")"
+    ].join("\n");
+    const position = source.indexOf("\n\n") + 1;
+    const context = dslCallAuthoringContextAt(snapshotFor(source), position);
+
+    expect(context).toMatchObject({
+      kind: "construction",
+      callee: { name: "segment" },
+      argument: { index: 1 },
+      usedArgumentNames: new Set(["start"])
+    });
+    expect(context && source.slice(context.callee.span.from, context.callee.span.to)).toBe("segment");
+    expect(context && source[context.callee.openParen]).toBe("(");
+  });
+
+  it("selects the outer active builtin after a closed nested scalar call", () => {
+    const source = [
+      "nui 4",
+      "const a: number = spreadAngle(",
+      "length: abs(10),",
+      "",
+      ")"
+    ].join("\n");
+    const position = source.indexOf("\n\n") + 1;
+    const context = dslCallAuthoringContextAt(snapshotFor(source), position);
+
+    expect(context).toMatchObject({
+      kind: "builtin",
+      callee: { name: "spreadAngle" },
+      usedArgumentNames: new Set(["length"])
+    });
+  });
+
+  it("keeps later arguments inside a proven envelope for used-name filtering", () => {
+    const source = [
+      "nui 4",
+      "point P = coordinate(",
+      "",
+      "y: 20",
+      ")"
+    ].join("\n");
+    const position = source.indexOf("\n\n") + 1;
+    const context = dslCallAuthoringContextAt(snapshotFor(source), position);
+
+    expect(context?.usedArgumentNames).toEqual(new Set(["y"]));
+    expect(context?.argument.index).toBe(1);
+  });
+
   it("fails closed for comments, quoted text, and unrelated code after the boundary", () => {
     const cases = [
       "nui 4\n// point P = coordinate(\n\n",

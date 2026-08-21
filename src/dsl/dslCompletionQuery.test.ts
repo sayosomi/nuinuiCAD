@@ -98,6 +98,23 @@ describe("queryDslCompletion", () => {
     expect(builtinResult?.replacementRange).toEqual({ from: builtinPosition, to: builtinPosition });
   });
 
+  it("keeps a later in-call argument out of the blank-line construction slot", () => {
+    const source = [
+      "nui 4",
+      "point P = coordinate(",
+      "",
+      "y: 20",
+      ")"
+    ].join("\n");
+    const position = source.indexOf("\n\n") + 1;
+    const result = queryIncomplete(source, position);
+
+    expect(result?.category).toBe("argument");
+    expect(labels(result)).toContain("x");
+    expect(labels(result)).not.toContain("y");
+    expect(result?.replacementRange).toEqual({ from: position, to: position });
+  });
+
   it("recovers tolerant Module labels only when the current callee keeps its identity", () => {
     const lastGoodSource = [
       "nui 4",
@@ -139,6 +156,75 @@ describe("queryDslCompletion", () => {
     });
     expect(labels(changed)).not.toContain("value");
     expect(labels(changed)).not.toContain("optional");
+  });
+
+  it("uses current-source Module parameters instead of stale last-good labels", () => {
+    const lastGoodSource = [
+      "nui 4",
+      "module M(old: number) {",
+      "}",
+      "instance Use = M(old: 1)"
+    ].join("\n");
+    const liveSource = [
+      "nui 4",
+      "module M(new: number) {",
+      "}",
+      "instance Use = M(",
+      "",
+      ")"
+    ].join("\n");
+    const session = createLanguageAnalysisSession(lastGoodSource);
+    session.replaceSource(liveSource);
+    const source = { normalizedSource: liveSource, sourceRevision: session.getSourceRevision() };
+    const position = liveSource.indexOf("\n\n") + 1;
+    const result = queryDslCompletion({
+      source,
+      position,
+      semantic: session.completionSemanticSnapshot(source),
+      recovery: session.completionRecoverySnapshot(source)
+    });
+
+    expect(result?.category).toBe("moduleArgumentLabel");
+    expect(labels(result)).toEqual(["new"]);
+    expect(labels(result)).not.toContain("old");
+  });
+
+  it("tracks current Module parameter additions and removals during tolerant recovery", () => {
+    const lastGoodSource = [
+      "nui 4",
+      "module M(old: number) {",
+      "}",
+      "instance Use = M(old: 1)"
+    ].join("\n");
+    const cases = [
+      { signature: "old: number, added: number", expected: ["old", "added"] },
+      { signature: "removed: number", expected: ["removed"] },
+      { signature: "", expected: [] }
+    ];
+
+    const session = createLanguageAnalysisSession(lastGoodSource);
+    for (const { signature, expected } of cases) {
+      const liveSource = [
+        "nui 4",
+        `module M(${signature}) {`,
+        "}",
+        "instance Use = M(",
+        "",
+        ")"
+      ].join("\n");
+      session.replaceSource(liveSource);
+      const source = { normalizedSource: liveSource, sourceRevision: session.getSourceRevision() };
+      const position = liveSource.indexOf("\n\n") + 1;
+      const result = queryDslCompletion({
+        source,
+        position,
+        semantic: session.completionSemanticSnapshot(source),
+        recovery: session.completionRecoverySnapshot(source)
+      });
+
+      expect(result?.category).toBe("moduleArgumentLabel");
+      expect(labels(result)).toEqual(expected);
+    }
   });
 
   it("returns typed scalar syntax candidates for numeric, boolean, string, and choice expressions", () => {
