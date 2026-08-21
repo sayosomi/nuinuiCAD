@@ -118,6 +118,38 @@ describe("Module diagnostic related source information", () => {
     expect(relatedTexts(captureSource, capture)).toEqual(["outer"]);
   });
 
+  it("explains an indirect recursion cycle with only the other cycle call sites", () => {
+    const source = [
+      "nui 4",
+      "module A() {",
+      "  module B() {",
+      "    instance toA = A()",
+      "  }",
+      "  instance toB = B()",
+      "}",
+      "instance Use = A()"
+    ].join("\n");
+    const recursion = compileWithIds(source).diagnostics.filter((diagnostic) => diagnostic.code === "module-recursion");
+
+    expect(recursion).toHaveLength(2);
+    expect(recursion.map((diagnostic) => spanText(source, diagnostic))).toEqual(["A", "B"]);
+    expect(recursion.map((diagnostic) => relatedTexts(source, diagnostic))).toEqual([["B"], ["A"]]);
+  });
+
+  it("does not duplicate the primary call site for self recursion", () => {
+    const source = [
+      "nui 4",
+      "module Self() {",
+      "  instance again = Self()",
+      "}",
+      "instance Use = Self()"
+    ].join("\n");
+    const diagnostic = byCode(compileWithIds(source).diagnostics, "module-recursion");
+
+    expect(spanText(source, diagnostic)).toBe("Self");
+    expect(relatedTexts(source, diagnostic)).toEqual([]);
+  });
+
   it("omits related information when there is no exact current cause span", () => {
     const source = [
       "nui 4",
