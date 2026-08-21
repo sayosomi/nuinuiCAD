@@ -100,7 +100,11 @@ jobs:
           new = '''    let start_point = Point { element_id: String::new(), name: String::new(), x: start_x, y: start_y };\n    let end_point = Point { element_id: String::new(), name: String::new(), x: end_x, y: end_y };\n    let start_angle = angle_from_to(&start_point, &end_point);\n    let end_angle = angle_from_to(&end_point, &start_point);'''
           if old not in text:
               raise SystemExit('Rust angle block not found')
-          p.write_text(text.replace(old, new))
+          text = text.replace(old, new)
+          text = text.replace('if !(r1 > CIRCLE_EPSILON) {', 'if r1 <= CIRCLE_EPSILON {')
+          text = text.replace('if !(r2 > CIRCLE_EPSILON) {', 'if r2 <= CIRCLE_EPSILON {')
+          text = text.replace('if !(r1 > CIRCLE_EPSILON) || !(r2 > CIRCLE_EPSILON) {', 'if r1 <= CIRCLE_EPSILON || r2 <= CIRCLE_EPSILON {')
+          p.write_text(text)
 
           p = Path('src-tauri/src/evaluation/common_tangent_evaluator_tests.rs')
           text = p.read_text()
