@@ -1,0 +1,117 @@
+name: SAY-21 verify implementation
+
+on:
+  push:
+    branches:
+      - sayosomi/say-21-common-tangent
+    paths:
+      - .github/workflows/say21-verify.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply and verify SAY-21
+        shell: bash
+        run: |
+          set -uo pipefail
+          LOG=/tmp/say21.log
+          : > "$LOG"
+
+          fail() {
+            status=$?
+            {
+              echo "SAY-21 remote verification failed (exit $status)"
+              echo
+              tail -n 500 "$LOG"
+            } > .github/say21-ci-failure.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -- .github/say21-ci-failure.txt
+            git commit -m "chore: record SAY-21 verification failure" || true
+            git push origin HEAD:sayosomi/say-21-common-tangent || true
+            exit "$status"
+          }
+          trap fail ERR
+
+          python3 <<'PY' 2>&1 | tee -a "$LOG"
+          from pathlib import Path
+          source = Path('.github/workflows/say21-apply.yml').read_text().splitlines()
+          start = next(i for i, line in enumerate(source) if "python3 <<'PY'" in line)
+          end = next(i for i in range(start + 1, len(source)) if source[i].strip() == 'PY')
+          body = []
+          for line in source[start + 1:end]:
+              body.append(line[10:] if line.startswith('          ') else line)
+          Path('/tmp/say21-apply.py').write_text('\n'.join(body) + '\n')
+          PY
+          python3 /tmp/say21-apply.py 2>&1 | tee -a "$LOG"
+
+          python3 <<'PY' 2>&1 | tee -a "$LOG"
+          from pathlib import Path
+
+          # The acceptance source must use distinct supporting circles.
+          p = Path('src/geometry/commonTangentEvaluator.test.ts')
+          text = p.read_text()
+          text = text.replace('"point A1 = coordinate(x: 20, y: 0)",\n      "point A2 = coordinate(x: 0, y: 20)",\n      "point A3 = coordinate(x: -20, y: 0)",',
+                              '"point A1 = coordinate(x: 80, y: 0)",\n      "point A2 = coordinate(x: 60, y: 20)",\n      "point A3 = coordinate(x: 40, y: 0)",')
+          p.write_text(text)
+
+          # Match the production Rust line-angle convention exactly.
+          p = Path('src-tauri/src/evaluation/common_tangent_evaluator.rs')
+          text = p.read_text()
+          text = text.replace('use super::math::CIRCLE_EPSILON;', 'use super::math::{angle_from_to, CIRCLE_EPSILON};')
+          text = text.replace('use super::types::{element_id, element_name, insert_geometry, EvaluationState};',
+                              'use super::types::{element_id, element_name, insert_geometry, EvaluationState, Point};')
+          old = '''    let start_angle = (end_y - start_y).atan2(end_x - start_x).to_degrees().rem_euclid(360.0);\n    let end_angle = (start_y - end_y).atan2(start_x - end_x).to_degrees().rem_euclid(360.0);'''
+          new = '''    let start_point = Point { element_id: String::new(), name: String::new(), x: start_x, y: start_y };\n    let end_point = Point { element_id: String::new(), name: String::new(), x: end_x, y: end_y };\n    let start_angle = angle_from_to(&start_point, &end_point);\n    let end_angle = angle_from_to(&end_point, &start_point);'''
+          if old not in text:
+              raise SystemExit('Rust angle block not found')
+          p.write_text(text.replace(old, new))
+          PY
+
+          npm ci 2>&1 | tee -a "$LOG"
+          npx vitest run src/geometry/commonTangentEvaluator.test.ts 2>&1 | tee -a "$LOG"
+          npm run build 2>&1 | tee -a "$LOG"
+          npm run lint 2>&1 | tee -a "$LOG"
+          cargo fmt --manifest-path src-tauri/Cargo.toml 2>&1 | tee -a "$LOG"
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check 2>&1 | tee -a "$LOG"
+          cargo check --manifest-path src-tauri/Cargo.toml 2>&1 | tee -a "$LOG"
+          cargo test --manifest-path src-tauri/Cargo.toml common_tangent 2>&1 | tee -a "$LOG"
+          npm test 2>&1 | tee -a "$LOG"
+          npm run test:parity 2>&1 | tee -a "$LOG"
+
+          rm -f .github/workflows/say21-apply.yml .github/workflows/say21-verify.yml .github/say21-ci-failure.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            .github/workflows/say21-apply.yml \
+            .github/workflows/say21-verify.yml \
+            .github/say21-ci-failure.txt \
+            src/types/geometry.ts \
+            src/dsl/dslConstructions.ts \
+            src/model/elementNames.ts \
+            src/model/elementFactory.ts \
+            src/parameters/parameterDefinitions.ts \
+            src/model/dependencies.ts \
+            src/model/elementDuplication.ts \
+            src/model/pointAnchors.ts \
+            src/commands/commandRuntime.ts \
+            src/palette/colorApplicability.ts \
+            src/dsl/moduleGeometryInterfaces.ts \
+            src/dsl/dslDocumentTestUtils.ts \
+            src/geometry/numericReferenceProperties.ts \
+            src/geometry/lineEvaluators.ts \
+            src/geometry/rustEvaluationEligibility.ts \
+            src-tauri/src/evaluation/mod.rs \
+            src-tauri/src/evaluation/common_tangent_evaluator.rs \
+            src-tauri/src/evaluation/common_tangent_evaluator_tests.rs \
+            src/geometry/commonTangentEvaluator.test.ts \
+            test/fixtures/evaluation/nui4-common-tangent.nui
+          git commit -m "feat: add common tangent construction (SAY-21)"
+          git push origin HEAD:sayosomi/say-21-common-tangent
