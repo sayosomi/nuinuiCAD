@@ -1,0 +1,337 @@
+name: SAY-135 apply
+
+on:
+  push:
+    branches:
+      - sayosomi/say-135-module-diagnostics-vs-code-relatedinformation-projection
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply focused implementation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          compiler = Path('vscode-extension/src/compilerDiagnostics.ts')
+          text = compiler.read_text()
+          old = '''export type CompilerDiagnosticRange = {
+            start: CompilerDiagnosticPosition;
+            end: CompilerDiagnosticPosition;
+          };
+
+          export type CompilerDiagnostic = {
+            severity: DslDiagnostic["severity"];
+            message: string;
+            range: CompilerDiagnosticRange;
+            code?: string;
+            source: "nuinuiCAD";
+          };
+          '''
+          new = '''export type CompilerDiagnosticRange = {
+            start: CompilerDiagnosticPosition;
+            end: CompilerDiagnosticPosition;
+          };
+
+          export type CompilerDiagnosticRelatedInformation = {
+            message: string;
+            range: CompilerDiagnosticRange;
+          };
+
+          export type CompilerDiagnostic = {
+            severity: DslDiagnostic["severity"];
+            message: string;
+            range: CompilerDiagnosticRange;
+            relatedInformation?: readonly CompilerDiagnosticRelatedInformation[];
+            code?: string;
+            source: "nuinuiCAD";
+          };
+          '''
+          assert old in text, 'CompilerDiagnostic type anchor missing'
+          text = text.replace(old, new, 1)
+
+          anchor = '''const rangeForLegacyPosition = (
+          '''
+          helper = '''const rangeForPhysicalSpan = (
+            index: LineIndex,
+            normalizedSource: string,
+            physicalSpan: NonNullable<DslDiagnostic["physicalSpan"]>
+          ): CompilerDiagnosticRange | null => {
+            for (const segment of physicalSpan.segments) {
+              const range = rangeForSegment(index, normalizedSource, segment);
+              if (range) return range;
+            }
+            return null;
+          };
+
+          const rangeForLegacyPosition = (
+          '''
+          assert anchor in text, 'range helper anchor missing'
+          text = text.replace(anchor, helper, 1)
+
+          old = '''  if (!range) range = rangeForLegacyPosition(index, diagnostic.line, diagnostic.column);
+            if (!range) return null;
+
+            return {
+              severity: diagnostic.severity,
+              message: diagnostic.message,
+              range,
+              ...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),
+              source: "nuinuiCAD"
+            };
+          };
+          '''
+          new = '''  if (!range) range = rangeForLegacyPosition(index, diagnostic.line, diagnostic.column);
+            if (!range) return null;
+
+            const relatedInformation = (diagnostic.relatedInformation ?? [])
+              .map((related) => {
+                const relatedRange = rangeForPhysicalSpan(index, normalizedSource, related.physicalSpan);
+                return relatedRange ? { message: related.message, range: relatedRange } : null;
+              })
+              .filter((related): related is CompilerDiagnosticRelatedInformation => related !== null);
+
+            return {
+              severity: diagnostic.severity,
+              message: diagnostic.message,
+              range,
+              ...(relatedInformation.length === 0 ? {} : { relatedInformation }),
+              ...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),
+              source: "nuinuiCAD"
+            };
+          };
+          '''
+          assert old in text, 'toCompilerDiagnostic return anchor missing'
+          compiler.write_text(text.replace(old, new, 1))
+
+          compiler_test = Path('vscode-extension/src/compilerDiagnostics.test.ts')
+          text = compiler_test.read_text()
+          insert = '''
+            it("projects related ranges with CRLF/UTF-16 semantics and drops only invalid related entries", () => {
+              const source = "nui 4\\r\\n😀required\\r\\n";
+              const normalized = source.replace(/\\r\\n/g, "\\n");
+              const from = normalized.indexOf("required");
+              const projected = toCompilerDiagnostic(source, diagnostic({
+                physicalSpan: { segments: [{ from: 0, to: 5 }], sourceRevision: 1 },
+                exactSpanOnly: true,
+                relatedInformation: [
+                  {
+                    message: "invalid cause",
+                    physicalSpan: { segments: [{ from: 999, to: 1000 }], sourceRevision: 1 }
+                  },
+                  {
+                    message: "valid cause",
+                    physicalSpan: {
+                      segments: [{ from, to: from + "required".length }],
+                      sourceRevision: 1
+                    }
+                  }
+                ]
+              }));
+
+              expect(projected).not.toBeNull();
+              expect(projected?.message).toBe("production message");
+              expect(projected?.relatedInformation).toEqual([
+                {
+                  message: "valid cause",
+                  range: {
+                    start: { line: 1, character: 2 },
+                    end: { line: 1, character: 10 }
+                  }
+                }
+              ]);
+            });
+          '''
+          closing = '\n});\n'
+          pos = text.rfind(closing)
+          assert pos >= 0, 'compilerDiagnostics.test describe close missing'
+          compiler_test.write_text(text[:pos] + insert + text[pos:])
+
+          extension = Path('vscode-extension/src/extension.ts')
+          text = extension.read_text()
+          old = '''import {
+            type CompilerDiagnostic
+          } from "./compilerDiagnostics";
+          '''
+          new = '''import {
+            type CompilerDiagnostic,
+            type CompilerDiagnosticRange
+          } from "./compilerDiagnostics";
+          '''
+          assert old in text, 'extension compilerDiagnostics import anchor missing'
+          text = text.replace(old, new, 1)
+
+          old = '''const toVscodeDiagnostic = (diagnostic: CompilerDiagnostic): vscode.Diagnostic => {
+            const severity = diagnostic.severity === "error"
+              ? vscode.DiagnosticSeverity.Error
+              : vscode.DiagnosticSeverity.Warning;
+            const result = new vscode.Diagnostic(
+              new vscode.Range(
+                new vscode.Position(diagnostic.range.start.line, diagnostic.range.start.character),
+                new vscode.Position(diagnostic.range.end.line, diagnostic.range.end.character)
+              ),
+              diagnostic.message,
+              severity
+            );
+            if (diagnostic.code !== undefined) result.code = diagnostic.code;
+            result.source = diagnostic.source;
+            return result;
+          };
+          '''
+          new = '''const toVscodeDiagnosticRange = (range: CompilerDiagnosticRange): vscode.Range =>
+            new vscode.Range(
+              new vscode.Position(range.start.line, range.start.character),
+              new vscode.Position(range.end.line, range.end.character)
+            );
+
+          const toVscodeDiagnostic = (
+            document: vscode.TextDocument,
+            diagnostic: CompilerDiagnostic
+          ): vscode.Diagnostic => {
+            const severity = diagnostic.severity === "error"
+              ? vscode.DiagnosticSeverity.Error
+              : vscode.DiagnosticSeverity.Warning;
+            const result = new vscode.Diagnostic(
+              toVscodeDiagnosticRange(diagnostic.range),
+              diagnostic.message,
+              severity
+            );
+            if (diagnostic.code !== undefined) result.code = diagnostic.code;
+            result.source = diagnostic.source;
+            if (diagnostic.relatedInformation && diagnostic.relatedInformation.length > 0) {
+              result.relatedInformation = diagnostic.relatedInformation.map((related) =>
+                new vscode.DiagnosticRelatedInformation(
+                  new vscode.Location(document.uri, toVscodeDiagnosticRange(related.range)),
+                  related.message
+                )
+              );
+            }
+            return result;
+          };
+          '''
+          assert old in text, 'toVscodeDiagnostic anchor missing'
+          text = text.replace(old, new, 1)
+          old = 'compilerDiagnosticCollection.set(document.uri, session.getDiagnostics().map(toVscodeDiagnostic));'
+          new = 'compilerDiagnosticCollection.set(document.uri, session.getDiagnostics().map((diagnostic) => toVscodeDiagnostic(document, diagnostic)));'
+          assert old in text, 'diagnostic publication anchor missing'
+          extension.write_text(text.replace(old, new, 1))
+
+          extension_test = Path('vscode-extension/src/extension.test.ts')
+          text = extension_test.read_text()
+          old = '''  class Diagnostic {
+              code?: string | number;
+              source?: string;
+
+              constructor(
+                public readonly range: unknown,
+                public readonly message: string,
+                public readonly severity: number
+              ) {}
+            }
+            class CompletionItem {
+          '''
+          new = '''  class Diagnostic {
+              code?: string | number;
+              source?: string;
+              relatedInformation?: unknown[];
+
+              constructor(
+                public readonly range: unknown,
+                public readonly message: string,
+                public readonly severity: number
+              ) {}
+            }
+            class Location {
+              constructor(public readonly uri: unknown, public readonly range: unknown) {}
+            }
+            class DiagnosticRelatedInformation {
+              constructor(public readonly location: unknown, public readonly message: string) {}
+            }
+            class CompletionItem {
+          '''
+          assert old in text, 'Diagnostic mock anchor missing'
+          text = text.replace(old, new, 1)
+          old = '''    Diagnostic,
+              CompletionItem,
+          '''
+          new = '''    Diagnostic,
+              Location,
+              DiagnosticRelatedInformation,
+              CompletionItem,
+          '''
+          assert old in text, 'VS Code mock export anchor missing'
+          text = text.replace(old, new, 1)
+
+          marker = '''  it("registers and opens the Output Preview production surface", () => {
+          '''
+          test = '''  it("publishes Module diagnostic related information through the current document URI", () => {
+              const source = [
+                "nui 4",
+                "module M(required: number) {",
+                "}",
+                "instance Use = M()"
+              ].join("\\n");
+              const document = documentFor("/tmp/related.nui", "file:///tmp/related.nui", source);
+              setup(false, editorFor(document), [document]);
+
+              const published = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{
+                code?: string | number;
+                relatedInformation?: Array<{
+                  message: string;
+                  location: { uri: unknown; range: { start: MockPosition; end: MockPosition } };
+                }>;
+              }>;
+              const missing = published.find((item) => item.code === "module-missing-argument");
+
+              expect(missing).toBeDefined();
+              expect(missing?.relatedInformation).toHaveLength(1);
+              expect(missing?.relatedInformation?.[0]).toMatchObject({
+                location: {
+                  uri: document.uri,
+                  range: {
+                    start: { line: 1, character: 9 },
+                    end: { line: 1, character: 17 }
+                  }
+                }
+              });
+              expect(missing?.relatedInformation?.[0]?.message).toEqual(expect.any(String));
+            });
+
+            it("registers and opens the Output Preview production surface", () => {
+          '''
+          assert marker in text, 'extension test insertion marker missing'
+          extension_test.write_text(text.replace(marker, test, 1))
+          PY
+          rm .github/workflows/say-135-apply.yml
+      - name: Install dependencies
+        run: npm ci
+      - name: Focused tests
+        run: npm test -- vscode-extension/src/compilerDiagnostics.test.ts vscode-extension/src/extension.test.ts
+      - name: VS Code build
+        run: npm run build:vscode
+      - name: App build
+        run: npm run build
+      - name: Lint
+        run: npm run lint
+      - name: Commit implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- vscode-extension/src/compilerDiagnostics.ts vscode-extension/src/compilerDiagnostics.test.ts vscode-extension/src/extension.ts vscode-extension/src/extension.test.ts .github/workflows/say-135-apply.yml
+          git diff --cached --check
+          git commit -m "feat: project diagnostic related information (SAY-135)"
+          git push origin HEAD:sayosomi/say-135-module-diagnostics-vs-code-relatedinformation-projection
