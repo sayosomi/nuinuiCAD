@@ -18,6 +18,7 @@ import { DrawingCanvas } from "./DrawingCanvas";
 import type { DrawingCanvasHandle } from "./DrawingCanvas";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
+import { useModuleInstanceSelectionReconciliation } from "./useModuleInstanceSelectionReconciliation";
 
 type TauriDrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -58,6 +59,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
+    useModuleInstanceSelectionReconciliation({ evaluation, evaluationState });
     const moduleSemanticContext = useMemo(() => ({
       moduleMaterialization,
       moduleSemanticAnalysis,
