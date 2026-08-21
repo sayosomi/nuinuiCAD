@@ -6,6 +6,7 @@ import {
   OUTPUT_PALETTE,
   OUTPUT_TEXT_ASCENT,
   OUTPUT_TEXT_DESCENT,
+  OUTPUT_TEXT_LINE_HEIGHT,
   PX_TO_MM,
   buildOutputPlan,
   deterministicTextLayout,
@@ -93,6 +94,92 @@ describe("SAY-64 output core", () => {
     expect(calls).toEqual([profile.id]);
   });
 
+  it("omits a drawable hidden by the selected output profile", async () => {
+    const doc = simpleSource([
+      "profile Print",
+      "modifier PrintOnly {",
+      "  for @Print {",
+      "    state: hidden,",
+      "  }",
+      "}"
+    ]);
+    const line = doc.document.elements.find((element) => element.name === "AB")!;
+    const profile = doc.document.drawingProfiles!.find((candidate) => candidate.name === "Print")!;
+    line.modifierNames = ["PrintOnly"];
+
+    const plan = await evaluateOutputPlan({
+      compiledDocument: doc,
+      output: { ...output(doc, "S"), profileId: profile.id }
+    });
+
+    expect(plan.drawables.some((drawable) => drawable.elementId === line.id)).toBe(false);
+    expect(plan.drawables.some((drawable) => drawable.kind === "text")).toBe(true);
+  });
+
+  it("fails output closed when the selected profile disables geometry", () => {
+    const doc = sourceFor([
+      "nui 4",
+      "profile Print",
+      "modifier DisableInPrint {",
+      "  for @Print {",
+      "    state: disabled,",
+      "  }",
+      "}",
+      "group G {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
+      "  line AB [DisableInPrint] = segment(start: @A, end: @B)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg S(layout: @L)"
+    ]);
+    const profile = doc.document.drawingProfiles!.find((candidate) => candidate.name === "Print")!;
+    const line = doc.document.elements.find((element) => element.name === "AB")!;
+    const evaluation = evaluationFor(doc, profile.id);
+
+    expect(evaluation.computedGeometry.has(line.id)).toBe(false);
+    expect(evaluation.effectiveEnabledElementIds).not.toContain(line.id);
+    expect(() => buildOutputPlan({
+      compiledDocument: doc,
+      output: { ...doc.document.svgOutputs[0], profileId: profile.id },
+      evaluation
+    })).toThrow(OutputPlanError);
+  });
+
+  it("fails output closed when a selected profile disables a geometry dependency", () => {
+    const doc = sourceFor([
+      "nui 4",
+      "profile Print",
+      "modifier DisableInPrint {",
+      "  for @Print {",
+      "    state: disabled,",
+      "  }",
+      "}",
+      "group G {",
+      "  point Base [DisableInPrint] = coordinate(x: 0, y: 0)",
+      "  line AB = segment(start: @Base, end: (10, 0))",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg S(layout: @L)"
+    ]);
+    const profile = doc.document.drawingProfiles!.find((candidate) => candidate.name === "Print")!;
+    const dependency = doc.document.elements.find((element) => element.name === "Base")!;
+    const line = doc.document.elements.find((element) => element.name === "AB")!;
+    const evaluation = evaluationFor(doc, profile.id);
+    const error = evaluation.errors.find((candidate) => candidate.elementId === line.id);
+
+    expect(error).toMatchObject({ missingDependencyId: dependency.id });
+    expect(() => buildOutputPlan({
+      compiledDocument: doc,
+      output: { ...doc.document.svgOutputs[0], profileId: profile.id },
+      evaluation
+    })).toThrow(/Output evaluation failed/);
+  });
+
   it("uses mirror, scale, rotation, and translation in a stable transform order", () => {
     const doc = sourceFor([
       "nui 4",
@@ -112,6 +199,29 @@ describe("SAY-64 output core", () => {
     expect(line?.start.y).toBeCloseTo(20);
     expect(line?.end.x).toBeCloseTo(10);
     expect(line?.end.y).toBeCloseTo(0);
+  });
+
+  it("emits supported final geometry from alternate and derived constructions", () => {
+    const doc = sourceFor([
+      "nui 4",
+      "group G {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
+      "  point C = coordinate(x: 5, y: 5)",
+      "  line Polar = polar(start: @A, angle: 0, length: 10)",
+      "  arc Through = through(point1: @A, point2: @B, point3: @C, start: 0, end: 180)",
+      "  line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Polar])",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg S(layout: @L)"
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
+
+    expect(plan.drawables.some((drawable) => drawable.name === "Polar" && drawable.kind === "line")).toBe(true);
+    expect(plan.drawables.some((drawable) => drawable.name === "Through" && drawable.kind === "arc")).toBe(true);
+    expect(plan.drawables.some((drawable) => drawable.name === "Copy" && drawable.kind === "offsetLine")).toBe(true);
   });
 
   it("supports nested targets and repeated independent placements", () => {
@@ -153,6 +263,43 @@ describe("SAY-64 output core", () => {
     expect(plan.svg?.widthMm).toBe(plan.renderedBounds.width + 4);
   });
 
+  it("normalizes typed runtime placement angles for geometry and text output", async () => {
+    const doc = sourceFor([
+      "nui 4",
+      "const negative: number = -90",
+      "const over: number = 450",
+      "group G {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
+      "  line AB = segment(start: @A, end: @B)",
+      "  text Label = label(text: \"AB\", anchor: @A, size: 3)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0), angle: @negative)",
+      "  place @G(at: (20, 0), angle: @over)",
+      "}",
+      "svg S(layout: @L)"
+    ]);
+    const plan = await evaluateOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0] });
+
+    expect(plan.placements.map((placement) => placement.angleDeg)).toEqual([270, 90]);
+    const lines = plan.placements.map((placement) => {
+      const line = placement.drawables.find((drawable) => drawable.kind === "line");
+      if (!line || line.kind !== "line") throw new Error("missing output line");
+      return line;
+    });
+    expect(lines[0].end.x).toBeCloseTo(0);
+    expect(lines[0].end.y).toBeCloseTo(-10);
+    expect(lines[1].end.x).toBeCloseTo(20);
+    expect(lines[1].end.y).toBeCloseTo(10);
+    const texts = plan.placements.map((placement) => {
+      const text = placement.drawables.find((drawable) => drawable.kind === "text");
+      if (!text || text.kind !== "text") throw new Error("missing output text");
+      return text;
+    });
+    expect(texts.map((text) => text.rotationDeg)).toEqual([270, 90]);
+  });
+
   it("includes final stroke width and deterministic text bounds", () => {
     const doc = simpleSource(["modifier Heavy {", "  width: 4px,", "  color: #FF3355,", "}"]);
     const line = doc.document.elements.find((element) => element.name === "AB")!;
@@ -164,6 +311,41 @@ describe("SAY-64 output core", () => {
       stroke: { widthMm: 4 * PX_TO_MM, colorHex: "#ff3355" }
     });
     expect(plan.drawables.find((drawable) => drawable.kind === "text")).toBeDefined();
+  });
+
+  it("keeps a styled stroke physical across placement scales while transforming geometry", () => {
+    const doc = sourceFor([
+      "nui 4",
+      "modifier Styled {",
+      "  width: 1px,",
+      "}",
+      "group G {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
+      "  line AB [Styled] = segment(start: @A, end: @B)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0), scale: 0.5)",
+      "  place @G(at: (0, 20), scale: 1)",
+      "  place @G(at: (0, 40), scale: 2)",
+      "}",
+      "svg S(layout: @L)"
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
+    const lines = plan.placements.map((placement) => {
+      const line = placement.drawables.find((drawable) => drawable.kind === "line");
+      if (!line || line.kind !== "line") throw new Error("missing styled output line");
+      return line;
+    });
+
+    expect(lines.map((line) => Math.hypot(line.end.x - line.start.x, line.end.y - line.start.y))).toEqual([5, 10, 20]);
+    for (const line of lines) {
+      expect(line.stroke.widthMm).toBeCloseTo(PX_TO_MM);
+      const bounds = outputDrawableBounds(line);
+      const length = Math.hypot(line.end.x - line.start.x, line.end.y - line.start.y);
+      expect(bounds.width).toBeCloseTo(length + PX_TO_MM);
+      expect(bounds.height).toBeCloseTo(PX_TO_MM);
+    }
   });
 
   it("fails closed for an empty layout and inflates SVG bounds by margin", () => {
@@ -183,25 +365,57 @@ describe("SAY-64 output core", () => {
     expect(svg.viewBox).toEqual({ x: 0, y: 0, width: svg.widthMm, height: svg.heightMm });
   });
 
-  it("computes oriented A4/A3 effective areas, exact strides, origins, and PDF order", () => {
-    const doc = sourceFor([
-      "nui 4",
-      "group G {",
-      "  line Large = segment(start: (0, 0), end: (400, 400))",
-      "}",
-      "layout L {",
-      "  place @G(at: (-20, -30))",
-      "}",
-      "print P(layout: @L, paper: a3, orientation: landscape, margin: 10, overlap: 10)"
-    ]);
-    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
-    expect(plan.print).toMatchObject({ paperWidthMm: 420, paperHeightMm: 297, effectiveWidthMm: 400, effectiveHeightMm: 277, strideXmm: 390, strideYmm: 267 });
-    expect(plan.rustPayload).toMatchObject({ stride: { x: 390, y: 267 } });
-    expect(plan.rustPayload).not.toHaveProperty("stride.xMm");
-    expect(plan.rustPayload).not.toHaveProperty("stride.yMm");
-    expect(plan.print!.pages.map((page) => page.index)).toEqual(plan.print!.pages.map((_, index) => index));
-    expect(plan.print!.pages[0].origin).toEqual({ x: plan.renderedBounds.minX - 10, y: plan.renderedBounds.minY - 10 });
-    expect(plan.print!.pages[1].origin.x).toBe(plan.print!.pages[0].origin.x + 390);
+  it("computes effective areas, strides, and page counts for every A4/A3 orientation", () => {
+    const cases = [
+      { paper: "a4", orientation: "portrait", paperWidthMm: 210, paperHeightMm: 297, columns: 4, rows: 2 },
+      { paper: "a4", orientation: "landscape", paperWidthMm: 297, paperHeightMm: 210, columns: 3, rows: 3 },
+      { paper: "a3", orientation: "portrait", paperWidthMm: 297, paperHeightMm: 420, columns: 3, rows: 2 },
+      { paper: "a3", orientation: "landscape", paperWidthMm: 420, paperHeightMm: 297, columns: 2, rows: 2 }
+    ] as const;
+
+    for (const testCase of cases) {
+      const doc = sourceFor([
+        "nui 4",
+        "group G {",
+        "  line Large = segment(start: (0, 0), end: (650, 500))",
+        "}",
+        "layout L {",
+        "  place @G(at: (0, 0))",
+        "}",
+        `print P(layout: @L, paper: ${testCase.paper}, orientation: ${testCase.orientation}, margin: 10, overlap: 10)`
+      ]);
+      const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
+      const print = plan.print!;
+      const effectiveWidthMm = testCase.paperWidthMm - 20;
+      const effectiveHeightMm = testCase.paperHeightMm - 20;
+      const strideXmm = effectiveWidthMm - 10;
+      const strideYmm = effectiveHeightMm - 10;
+      const expectedColumns = plan.renderedBounds.width <= effectiveWidthMm
+        ? 1
+        : 1 + Math.ceil((plan.renderedBounds.width - effectiveWidthMm) / strideXmm);
+      const expectedRows = plan.renderedBounds.height <= effectiveHeightMm
+        ? 1
+        : 1 + Math.ceil((plan.renderedBounds.height - effectiveHeightMm) / strideYmm);
+
+      expect(print).toMatchObject({
+        paperWidthMm: testCase.paperWidthMm,
+        paperHeightMm: testCase.paperHeightMm,
+        effectiveWidthMm,
+        effectiveHeightMm,
+        strideXmm,
+        strideYmm,
+        columns: testCase.columns,
+        rows: testCase.rows
+      });
+      expect(expectedColumns).toBe(testCase.columns);
+      expect(expectedRows).toBe(testCase.rows);
+      expect(print.pages).toHaveLength(testCase.columns * testCase.rows);
+      expect(plan.rustPayload).toMatchObject({ stride: { x: strideXmm, y: strideYmm } });
+      expect(plan.rustPayload).not.toHaveProperty("stride.xMm");
+      expect(plan.rustPayload).not.toHaveProperty("stride.yMm");
+      expect(print.pages.map((page) => page.index)).toEqual(print.pages.map((_, index) => index));
+      expect(print.pages[0].origin).toEqual({ x: plan.renderedBounds.minX - 10, y: plan.renderedBounds.minY - 10 });
+    }
   });
 
   it("emits unique matching labels, resolved centers, and rotated shrink-to-fit guides", () => {
@@ -258,6 +472,63 @@ describe("SAY-64 output core", () => {
       if (page.column === 0) expect(page.guides.some((guide) => guide.axis === "vertical" && guide.positionMm === 11)).toBe(false);
       if (page.row === 0) expect(page.guides.some((guide) => guide.axis === "horizontal" && guide.positionMm === 11)).toBe(false);
     }
+  });
+
+  it("keeps a long joining label inside the effective overlap strip with a large margin", () => {
+    const marginMm = 147.5;
+    const overlapMm = 1.99;
+    const paperWidthMm = 297;
+    const paperHeightMm = 420;
+    const doc = sourceFor([
+      "nui 4",
+      "group G {",
+      "  line Large = segment(start: (0, 0), end: (2.3, 130))",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      `print P(layout: @L, paper: a3, orientation: portrait, margin: ${marginMm}, overlap: ${overlapMm})`
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
+    const guide = plan.print!.pages
+      .flatMap((page) => page.guides)
+      .find((candidate) => candidate.axis === "horizontal" && candidate.label === "AA");
+    if (!guide) throw new Error("missing long horizontal joining label");
+
+    const relativeBounds = outputDrawableBounds({
+      kind: "text",
+      elementId: "joining-label",
+      name: guide.label,
+      text: guide.label,
+      anchor: { x: 0, y: 0 },
+      fontSizeMm: guide.labelFontSizeMm,
+      widthMm: guide.labelWidthMm,
+      lineWidthsMm: [guide.labelWidthMm],
+      lineAdvancesMm: [guide.labelAdvancesMm],
+      lineHeightMm: guide.labelFontSizeMm * OUTPUT_TEXT_LINE_HEIGHT,
+      rotationDeg: guide.labelRotationDeg,
+      mirrorX: false,
+      colorHex: OUTPUT_PALETTE.foreground
+    });
+    const centeredAnchor = {
+      x: guide.labelCenter.x - (relativeBounds.minX + relativeBounds.maxX) / 2,
+      y: guide.labelCenter.y - (relativeBounds.minY + relativeBounds.maxY) / 2
+    };
+    const absoluteBounds = {
+      minX: relativeBounds.minX + centeredAnchor.x,
+      minY: relativeBounds.minY + centeredAnchor.y,
+      maxX: relativeBounds.maxX + centeredAnchor.x,
+      maxY: relativeBounds.maxY + centeredAnchor.y
+    };
+    const effectiveWidthMm = paperWidthMm - 2 * marginMm;
+    const stripMinY = guide.positionMm === marginMm + overlapMm
+      ? marginMm
+      : paperHeightMm - marginMm - overlapMm;
+
+    expect(absoluteBounds.minX).toBeGreaterThanOrEqual(marginMm - 1e-9);
+    expect(absoluteBounds.maxX).toBeLessThanOrEqual(marginMm + effectiveWidthMm + 1e-9);
+    expect(absoluteBounds.minY).toBeGreaterThanOrEqual(stripMinY - 1e-9);
+    expect(absoluteBounds.maxY).toBeLessThanOrEqual(stripMinY + overlapMm + 1e-9);
   });
 
   it("owns the fixed output palette and preserves fixed modifier colors", () => {

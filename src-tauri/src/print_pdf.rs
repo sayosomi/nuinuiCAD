@@ -598,7 +598,16 @@ mod tests {
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.starts_with("%PDF-1.4"));
         assert!(text.contains("/Count 2"));
+        assert!(text.contains("/Kids [3 0 R 4 0 R]"));
+        assert!(text.contains("/MediaBox [0 0 595.276 841.89]"));
         assert!(text.contains("0.192 0.196 0.184 RG"));
+        let first_page_content = text
+            .find("28.346 28.346 m 56.693 28.346 l")
+            .expect("first page should place the line from its page origin");
+        let second_page_content = text
+            .find("-481.89 28.346 m -453.543 28.346 l")
+            .expect("second page should place the line from its distinct page origin");
+        assert!(first_page_content < second_page_content);
     }
 
     #[test]

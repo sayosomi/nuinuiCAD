@@ -602,10 +602,10 @@ pub fn validate_print_payload(payload: &ResolvedPrintOutputPayload) -> Result<()
             let strip_width = if guide.axis == "vertical" {
                 payload.overlap_mm
             } else {
-                payload.paper.width_mm
+                effective_width
             };
             let strip_height = if guide.axis == "vertical" {
-                payload.paper.height_mm
+                effective_height
             } else {
                 payload.overlap_mm
             };

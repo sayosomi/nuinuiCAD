@@ -513,7 +513,7 @@ const outputGeometryFor = (
   stroke: OutputStroke,
   transform: { origin: OutputPoint; at: OutputPoint; scale: number; angleDeg: number; mirror: boolean }
 ): OutputDrawable[] => {
-  const finalStroke = { ...stroke, widthMm: stroke.widthMm * transform.scale };
+  const finalStroke = { ...stroke };
   if (geometry.kind === "line" || geometry.kind === "arcLine") {
     const path = geometryPath(geometry);
     if (!path) return [];
@@ -654,9 +654,9 @@ const resolvedPlacement = (
     x: resolveNumeric({ value: placement.at.x, occurrence: propertyBindingOccurrenceKey(sourceOrder, "at:x"), sourceOrder, compiledDocument, evaluation }),
     y: resolveNumeric({ value: placement.at.y, occurrence: propertyBindingOccurrenceKey(sourceOrder, "at:y"), sourceOrder, compiledDocument, evaluation })
   };
-  const angleDeg = resolveNumeric({ value: placement.angleDeg, occurrence: propertyBindingOccurrenceKey(sourceOrder, "angle"), sourceOrder, compiledDocument, evaluation });
+  const resolvedAngleDeg = resolveNumeric({ value: placement.angleDeg, occurrence: propertyBindingOccurrenceKey(sourceOrder, "angle"), sourceOrder, compiledDocument, evaluation });
   finitePositive(scale, `placement ${placement.id} scale`);
-  finite(angleDeg, `placement ${placement.id} angle`);
+  const angleDeg = normalizeAngle(finite(resolvedAngleDeg, `placement ${placement.id} angle`));
   const origin = placement.origin.kind === "localOrigin"
     ? { x: 0, y: 0 }
     : (() => {
@@ -671,10 +671,9 @@ const resolvedPlacement = (
   for (const geometry of evaluation.computedGeometry.values()) {
     const sourceId = templateByGeneratedId.get(geometry.elementId) ?? geometry.elementId;
     if (!targetIds.has(sourceId)) continue;
-    const sourceElement = sourceElementsById.get(sourceId);
-    const type = sourceElement?.type ?? geometry.kind;
-    if (type !== "line" && type !== "arcLine" && type !== "bezierCurve" && type !== "offsetLine" && type !== "text") continue;
     if (!evaluation.effectiveVisibleElementIds?.has(geometry.elementId)) continue;
+    if (geometry.kind !== "line" && geometry.kind !== "arcLine" && geometry.kind !== "bezierCurve" && geometry.kind !== "offsetLine" && geometry.kind !== "text") continue;
+    const sourceElement = sourceElementsById.get(sourceId);
     const name = sourceElement?.name ?? geometry.name;
     drawables.push(...outputGeometryFor(geometry, geometry.elementId, name, strokeFor(geometry.elementId, evaluation), { origin, at, scale, angleDeg, mirror: placement.mirror }));
   }
@@ -696,18 +695,18 @@ const labelLayout = ({
   axis,
   center,
   overlapMm,
-  paperWidthMm,
-  paperHeightMm
+  effectiveWidthMm,
+  effectiveHeightMm
 }: {
   text: string;
   axis: OutputGuide["axis"];
   center: OutputPoint;
   overlapMm: number;
-  paperWidthMm: number;
-  paperHeightMm: number;
+  effectiveWidthMm: number;
+  effectiveHeightMm: number;
 }) => {
-  const stripWidthMm = axis === "vertical" ? overlapMm : paperWidthMm;
-  const stripHeightMm = axis === "vertical" ? paperHeightMm : overlapMm;
+  const stripWidthMm = axis === "vertical" ? overlapMm : effectiveWidthMm;
+  const stripHeightMm = axis === "vertical" ? effectiveHeightMm : overlapMm;
   const rotationDeg = axis === "vertical" ? 90 : 0;
   const nominalFontSizeMm = OUTPUT_TEXT_NOMINAL_FONT_SIZE_MM;
   const lineHeightMm = nominalFontSizeMm * OUTPUT_TEXT_LINE_HEIGHT;
@@ -773,8 +772,8 @@ const printPages = ({
           axis: "vertical",
           center: { x: marginMm + overlapMm / 2, y: paperHeightMm / 2 },
           overlapMm,
-          paperWidthMm,
-          paperHeightMm
+          effectiveWidthMm,
+          effectiveHeightMm
         });
         guides.push({ axis: "vertical", positionMm: marginMm + overlapMm, label, ...layout });
       }
@@ -785,8 +784,8 @@ const printPages = ({
           axis: "vertical",
           center: { x: paperWidthMm - marginMm - overlapMm / 2, y: paperHeightMm / 2 },
           overlapMm,
-          paperWidthMm,
-          paperHeightMm
+          effectiveWidthMm,
+          effectiveHeightMm
         });
         guides.push({ axis: "vertical", positionMm: paperWidthMm - marginMm - overlapMm, label, ...layout });
       }
@@ -797,8 +796,8 @@ const printPages = ({
           axis: "horizontal",
           center: { x: paperWidthMm / 2, y: marginMm + overlapMm / 2 },
           overlapMm,
-          paperWidthMm,
-          paperHeightMm
+          effectiveWidthMm,
+          effectiveHeightMm
         });
         guides.push({ axis: "horizontal", positionMm: marginMm + overlapMm, label, ...layout });
       }
@@ -809,8 +808,8 @@ const printPages = ({
           axis: "horizontal",
           center: { x: paperWidthMm / 2, y: paperHeightMm - marginMm - overlapMm / 2 },
           overlapMm,
-          paperWidthMm,
-          paperHeightMm
+          effectiveWidthMm,
+          effectiveHeightMm
         });
         guides.push({ axis: "horizontal", positionMm: paperHeightMm - marginMm - overlapMm, label, ...layout });
       }
