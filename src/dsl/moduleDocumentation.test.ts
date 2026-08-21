@@ -128,7 +128,7 @@ describe("Module documentation extraction", () => {
       ]
     });
     expect(documentationForModuleParameter(index, height)).toEqual({
-      variants: [{ locale: "pt-br", markdown: "Altura。" }]
+      variants: [{ locale: "pt-br", markdown: "Altura." }]
     });
 
     const publicExport = definition.exports.find((candidate) => candidate.name === "Public");
