@@ -1,0 +1,39 @@
+name: SAY-116 Fix Apply Target
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.head_ref == 'sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
+          fetch-depth: 0
+      - name: Fix embedded dslParser target
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/say-116-apply.yml')
+          text = path.read_text()
+          old = "              '''  return {\n            diagnostics:"
+          new = "              '''  return {\n              diagnostics:"
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one embedded target, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/say-116-fix-embedded-target.yml
+          git add .github/workflows/say-116-apply.yml
+          git commit -m "chore: fix SAY-116 apply target"
+          git push origin HEAD:sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
