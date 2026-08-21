@@ -1,0 +1,86 @@
+name: SAY-121 apply semantic patch
+
+on:
+  push:
+    branches:
+      - 'sayosomi/say-121-module-diagnostics-recursion-cycle-explanations'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: sayosomi/say-121-module-diagnostics-recursion-cycle-explanations
+      - name: Apply recursion diagnostic patch
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path("src/dsl/moduleSemanticAnalysis.ts")
+          text = path.read_text()
+
+          old_import = 'import { moduleCallEdges, recursiveModuleInstanceIds } from "./moduleCallGraph";'
+          new_import = 'import { moduleCallEdges, moduleRecursionCycles } from "./moduleCallGraph";'
+          if text.count(old_import) != 1:
+              raise SystemExit(f"expected exactly one moduleCallGraph import, found {text.count(old_import)}")
+          text = text.replace(old_import, new_import)
+
+          old_block = '''  const callEdges = moduleCallEdges(instances);
+          const recursiveInstances = recursiveModuleInstanceIds(semanticDefinitions, callEdges);
+          for (const instance of instances) {
+            if (!recursiveInstances.has(instance.statementId)) continue;
+            const statement = statements[instance.statementIndex];
+            if (statement.kind !== "moduleInstance") continue;
+            addLocal(instance.statementIndex, issue("module-recursion", statement.moduleNameSpan ?? statement.keywordSpan, `module recursion は許可されていません:「${statement.moduleName}」。`));
+          }
+          '''
+          new_block = '''  const callEdges = moduleCallEdges(instances);
+          const recursionCycles = moduleRecursionCycles(callEdges);
+          const recursionInstancesByStatementId = new Map(instances.map((instance) => [instance.statementId, instance] as const));
+          for (const instance of instances) {
+            const cycle = recursionCycles.get(instance.statementId);
+            if (!cycle) continue;
+            const statement = statements[instance.statementIndex];
+            if (statement.kind !== "moduleInstance") continue;
+            const relatedSources: DiagnosticRelatedSource[] = [];
+            for (const edge of cycle) {
+              if (edge.instanceStatementId === instance.statementId) continue;
+              const relatedInstance = recursionInstancesByStatementId.get(edge.instanceStatementId);
+              if (!relatedInstance) continue;
+              const relatedStatement = statements[relatedInstance.statementIndex];
+              if (relatedStatement.kind !== "moduleInstance") continue;
+              relatedSources.push({
+                statementIndex: relatedInstance.statementIndex,
+                span: relatedStatement.moduleNameSpan ?? relatedStatement.keywordSpan,
+                message: "module recursion cycle に含まれる呼び出しです。"
+              });
+            }
+            addLocal(
+              instance.statementIndex,
+              issue(
+                "module-recursion",
+                statement.moduleNameSpan ?? statement.keywordSpan,
+                `module recursion は許可されていません:「${statement.moduleName}」。`,
+                { relatedSources }
+              )
+            );
+          }
+          '''
+          if text.count(old_block) != 1:
+              raise SystemExit(f"expected exactly one recursion diagnostic block, found {text.count(old_block)}")
+          path.write_text(text.replace(old_block, new_block))
+
+          workflow = Path(".github/workflows/say-121-apply.yml")
+          workflow.unlink()
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/dsl/moduleSemanticAnalysis.ts .github/workflows/say-121-apply.yml
+          git commit -m "feat: attach recursion cycle related locations (SAY-121)"
+          git push origin HEAD:sayosomi/say-121-module-diagnostics-recursion-cycle-explanations
