@@ -72,6 +72,7 @@ import {
   type VscodeCanvasRibbon
 } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
+import { presentBakeOperationResult } from "./bakeOperationPresentation";
 
 type DocumentSession = VscodeWebviewSessionBase & {
   surfaceKind: "canvas";
@@ -354,6 +355,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const sessions = new VscodeWebviewSessionRegistry<WebviewSession>();
   const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
   const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
+  const bakeOutputChannel = vscode.window.createOutputChannel("nuinuiCAD Bake");
   const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
   const benchmarkConfig = benchmarkConfigFromEnvironment();
   let benchmarkStarted = false;
@@ -362,6 +364,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let canvasHistoryHandoffSession: DocumentSession | null = null;
   let lastActiveCanvasSession: DocumentSession | null = null;
   let lastBakeSurface: LastBakeSurface | null = null;
+  const sourceBakeRequestsWithStructuredSkips = new Set<number>();
   let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
   let nextNavigationRequestId = 1;
   let nextBakeRequestId = 1;
@@ -570,6 +573,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   );
   context.subscriptions.push(
     compilerDiagnosticCollection,
+    bakeOutputChannel,
     compilerDiagnosticOpenListener,
     compilerDiagnosticChangeListener,
     compilerDiagnosticCloseListener,
@@ -1086,10 +1090,25 @@ export const activate = (context: vscode.ExtensionContext): void => {
         handleCanvasNavigationResult(session, message);
         return;
       }
+      if (message.type === "bakeOperationResult") {
+        if (message.surface === "source") {
+          if (!session.pendingBake || session.pendingBake.requestId !== message.requestId) return;
+          if (message.summary.skippedTargetCount > 0) sourceBakeRequestsWithStructuredSkips.add(message.requestId);
+          else sourceBakeRequestsWithStructuredSkips.delete(message.requestId);
+        }
+        await presentBakeOperationResult(message, bakeOutputChannel, {
+          showWarningMessage: (notification, action) => vscode.window.showWarningMessage(notification, action),
+          showErrorMessage: (notification, action) => vscode.window.showErrorMessage(notification, action)
+        });
+        return;
+      }
       if (message.type === "bakeSourceResult") {
         if (!session.pendingBake || session.pendingBake.requestId !== message.requestId) return;
         session.pendingBake = null;
-        if (message.status === "nothing") void vscode.window.showErrorMessage("nuinuiCAD: Bakeできるジオメトリがありません。");
+        const hasStructuredSkips = sourceBakeRequestsWithStructuredSkips.delete(message.requestId);
+        if (message.status === "nothing" && !hasStructuredSkips) {
+          void vscode.window.showErrorMessage("nuinuiCAD: Bakeできるジオメトリがありません。");
+        }
         if (message.status === "stale") resync(session);
         return;
       }
@@ -1492,6 +1511,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     dispose: () => {
       for (const session of [...sessions.values()]) disposeSession(session);
       sessions.clear();
+      sourceBakeRequestsWithStructuredSkips.clear();
       lastBakeSurface = null;
     }
   };
