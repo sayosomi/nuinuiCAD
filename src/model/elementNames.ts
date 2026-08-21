@@ -17,6 +17,7 @@ const defaultNameBases: Record<CadElementType, string> = {
   bezierBulgePoint: "最大膨らみ点",
   line: "直線",
   angleLengthLine: "角度距離線",
+  commonTangentLine: "共通接線",
   arcLine: "円弧線",
   threePointArcLine: "三点円弧線",
   cornerRadiusArcLine: "角R円弧線",

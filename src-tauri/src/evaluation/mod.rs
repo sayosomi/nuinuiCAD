@@ -9,6 +9,9 @@ mod bezier_math;
 #[cfg(test)]
 mod bezier_math_tests;
 mod bezier_path;
+mod common_tangent_evaluator;
+#[cfg(test)]
+mod common_tangent_evaluator_tests;
 mod control_boolean_runtime;
 #[cfg(test)]
 mod control_boolean_runtime_tests;
@@ -114,6 +117,7 @@ use activity::{
 };
 use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
+use common_tangent_evaluator::evaluate_common_tangent_line;
 use control_boolean_runtime::{
     resolve_conditional_group_branch, resolve_for_group_effective_show_generated,
 };
@@ -545,6 +549,7 @@ fn evaluate_element_by_type(
         Some("intersectionPoint") => evaluate_intersection_point(&element, &local_variables, state),
         Some("line") => evaluate_line(&element, &local_variables, state),
         Some("angleLengthLine") => evaluate_angle_length_line(&element, &local_variables, state),
+        Some("commonTangentLine") => evaluate_common_tangent_line(&element, state),
         Some("arcLine") => evaluate_arc_line(&element, &local_variables, state),
         Some("threePointArcLine") => {
             evaluate_three_point_arc_line(&element, &local_variables, state)

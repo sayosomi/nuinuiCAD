@@ -156,6 +156,8 @@ export const getDirectParentIds = (
           ...extractNumericExpressionReferences(element.angleDeg),
           ...extractNumericExpressionReferences(element.length)
         ].map((reference) => reference.elementId);
+      case "commonTangentLine":
+        return [element.firstLineId, element.secondLineId];
       case "arcLine":
         return [
           ...pointAnchorParentIds(element.centerPoint).map((elementId) => ({ elementId })),
@@ -269,6 +271,7 @@ export const getDirectParentIds = (
       return numericExpressionParentIds();
     case "line":
     case "angleLengthLine":
+    case "commonTangentLine":
     case "arcLine":
     case "threePointArcLine":
     case "cornerRadiusArcLine":

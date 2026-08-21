@@ -245,6 +245,17 @@ export type AngleLengthLineElement = CadElementBase & {
   length: NumericValue;
 };
 
+export type CommonTangentLineKind = "external" | "internal";
+export type CommonTangentLineSide = "left" | "right";
+
+export type CommonTangentLineElement = CadElementBase & {
+  type: "commonTangentLine";
+  firstLineId: ElementId;
+  secondLineId: ElementId;
+  kind: CommonTangentLineKind;
+  side: CommonTangentLineSide;
+};
+
 export type ArcLineElement = CadElementBase & {
   type: "arcLine";
   centerPoint: PointAnchor;
@@ -419,6 +430,7 @@ export type CadElement =
   | BezierBulgePointElement
   | LineElement
   | AngleLengthLineElement
+  | CommonTangentLineElement
   | ArcLineElement
   | ThreePointArcLineElement
   | CornerRadiusArcLineElement
@@ -665,6 +677,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   bezierBulgePoint: "Bezier最大膨らみ点",
   line: "line",
   angleLengthLine: "角度距離線",
+  commonTangentLine: "共通接線",
   arcLine: "arc line",
   threePointArcLine: "three-point arc line",
   cornerRadiusArcLine: "角R円弧線",
@@ -698,6 +711,7 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   bezierBulgePoint: "point",
   line: "line",
   angleLengthLine: "line",
+  commonTangentLine: "line",
   arcLine: "line",
   threePointArcLine: "line",
   cornerRadiusArcLine: "line",
