@@ -75,15 +75,17 @@ describe("compact named arguments", () => {
   });
 
   it("replaces only the compact value token during completion", () => {
-    const source = "nui 4\npoint A = coordinate(x:0,y:10,state:hid)";
-    const position = source.indexOf("state:hid") + "state:hid".length;
+    const source = "nui 4\nline L = offset(sources:[A],distance:1,side:le)";
+    const position = source.indexOf("side:le") + "side:le".length;
     const result = queryDslCompletion({
       source: { normalizedSource: source, sourceRevision: 1 },
       position
     });
 
     expect(result?.category).toBe("parameter");
-    expect(result?.candidates.map((candidate) => candidate.label)).toContain("hidden");
-    expect(result && source.slice(result.replacementRange.from, result.replacementRange.to)).toBe("hid");
+    expect(result?.candidates.map((candidate) => candidate.label)).toEqual(
+      expect.arrayContaining(["left", "right"])
+    );
+    expect(result && source.slice(result.replacementRange.from, result.replacementRange.to)).toBe("le");
   });
 });
