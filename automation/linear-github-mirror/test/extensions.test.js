@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   deleteGithubCommentByLinearId,
@@ -15,6 +16,7 @@ import {
   renderGithubDocumentBody,
 } from "../src/documents.js";
 import { shouldQueueExtendedPayload } from "../src/extensions.js";
+import worker from "../src/worker.js";
 
 test("extended webhook routing accepts Issue, Comment, and Document", () => {
   assert.equal(shouldQueueExtendedPayload({ type: "Issue", action: "update" }), true);
@@ -140,4 +142,14 @@ test("document body carries source URL and durable markers", () => {
   assert.match(body, /Original Linear document:/);
   assert.equal(extractLinearDocumentId(body), "doc-a");
   assert.match(body, /linear-document-updated-at:2026-08-21T04:00:00.000Z/);
+});
+
+test("Wrangler uses the extended Worker entrypoint", async () => {
+  assert.equal(typeof worker.fetch, "function");
+  assert.equal(typeof worker.queue, "function");
+  assert.equal(typeof worker.scheduled, "function");
+  const configText = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+  const config = JSON.parse(configText);
+  assert.equal(config.main, "src/worker.js");
+  assert.equal(config.vars?.LINEAR_INITIATIVE_ID, "635dd66c-cd88-46be-bd0b-64bbbe7cf18c");
 });
